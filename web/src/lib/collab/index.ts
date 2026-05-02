@@ -4,6 +4,7 @@
 
 export { clearWsTokenCache, fetchWsToken } from "./auth";
 export { CollaborationClient } from "./client";
+export { colorFor, PRESENCE_PALETTE_SIZE } from "./colors";
 export type {
   CollaborationClientConfig,
   ConnectionState,

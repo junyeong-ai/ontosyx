@@ -14,6 +14,16 @@ import type { ClientMessage, ServerMessage } from "./types";
  */
 const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000];
 
+/**
+ * Cap on the pre-auth send queue. A user clicking 100 cursors
+ * during a 30s outage shouldn't burst-flush all of them on
+ * reconnect — drop the oldest, keep the freshest signal. Cursor
+ * traffic is lossy by design (server-side throttle ignores most
+ * of a flood anyway); locks and join/leave are rare enough to
+ * never approach this ceiling in practice.
+ */
+const MAX_OUTBOX_SIZE = 64;
+
 export type ConnectionState =
   | "idle"
   | "connecting"
@@ -161,13 +171,21 @@ export class CollaborationClient {
    * Send a `ClientMessage`. Frames sent before `Authenticated`
    * arrives are queued and flushed on auth success — call sites
    * don't need to await readiness.
+   *
+   * The queue caps at [`MAX_OUTBOX_SIZE`]; once full, the oldest
+   * frame is dropped to make room for the new one. Cursor floods
+   * during an outage are the only realistic source of pressure
+   * and they're already lossy at the server's throttle.
    */
   send(msg: ClientMessage): void {
     if (this.state === "ready" && this.socket?.readyState === WebSocket.OPEN) {
       this.rawSend(msg);
-    } else {
-      this.outbox.push(msg);
+      return;
     }
+    if (this.outbox.length >= MAX_OUTBOX_SIZE) {
+      this.outbox.shift();
+    }
+    this.outbox.push(msg);
   }
 
   /** Convenience — record the room so reconnect re-joins it. */

@@ -7,8 +7,10 @@ import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { ModeActions } from "@/components/layout/mode-actions";
 import { UserMenu } from "@/components/layout/user-menu";
 import { PresenceAvatars } from "@/components/collab/presence-avatars";
+import { ConnectionStatusDot } from "@/components/collab/connection-status-dot";
 import { useAppStore } from "@/lib/store";
 import { selectStateActiveProject } from "@/lib/store/selectors";
+import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
 // Unified Header — [Branding] | [ContextSelector] [ContextBadge] | [Spacer] | [ModeActions] | [UserMenu]
@@ -33,6 +35,7 @@ function AppBranding() {
 
 export function Header() {
   const activeProject = useAppStore(selectStateActiveProject);
+  const { user } = useAuth();
   return (
     <header className="relative z-20 flex h-11 shrink-0 items-center justify-between border-b border-divider bg-surface-base px-3">
       {/* Left: Logo + Context */}
@@ -45,11 +48,16 @@ export function Header() {
         <ContextBadge />
       </div>
 
-      {/* Right: Presence + Actions + User */}
+      {/* Right: Presence + Status + Actions + User */}
       <div className="flex shrink-0 items-center gap-2 pl-3">
         {activeProject?.id && (
-          <PresenceAvatars projectId={activeProject.id} className="mr-1" />
+          <PresenceAvatars
+            projectId={activeProject.id}
+            excludeUserId={user?.sub}
+            className="mr-1"
+          />
         )}
+        <ConnectionStatusDot />
         <ModeActions />
         <div className="mx-1 h-4 w-px bg-surface-inset" />
         <UserMenu />

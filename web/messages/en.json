@@ -12,6 +12,17 @@
       "broadcast_lagged": "Live updates lagged. Reconnecting to resync.",
       "not_joined": "Tried to act on a room you have not joined.",
       "session_revoked": "Your session was revoked. Please sign in again."
+    },
+    "status": {
+      "idle": "Collaboration disconnected",
+      "connecting": "Connecting to collaboration server…",
+      "authenticating": "Authenticating…",
+      "ready": "Live collaboration",
+      "reconnecting": "Reconnecting to collaboration server…",
+      "closed": "Collaboration unavailable"
+    },
+    "actions": {
+      "signInAgain": "Sign in again"
     }
   },
   "errorBoundary": {

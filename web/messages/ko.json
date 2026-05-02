@@ -12,6 +12,17 @@
       "broadcast_lagged": "실시간 동기화가 지연되어 다시 연결합니다.",
       "not_joined": "참여하지 않은 방에서 작업을 시도했습니다.",
       "session_revoked": "세션이 만료되었습니다. 다시 로그인해 주세요."
+    },
+    "status": {
+      "idle": "협업 연결 끊김",
+      "connecting": "협업 서버에 연결 중…",
+      "authenticating": "인증 중…",
+      "ready": "실시간 협업 중",
+      "reconnecting": "협업 서버에 다시 연결 중…",
+      "closed": "협업 서버 사용 불가"
+    },
+    "actions": {
+      "signInAgain": "다시 로그인"
     }
   },
   "errorBoundary": {
