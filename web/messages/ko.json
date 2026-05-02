@@ -990,7 +990,8 @@
       "errorTokenExchange": "Google 인증에 실패했습니다. 다시 시도해 주세요.",
       "errorNotConfigured": "이 서버에는 Google OAuth가 설정되어 있지 않습니다.",
       "errorGeneric": "인증 오류: {error}",
-      "signInGoogle": "Google로 로그인"
+      "signInGoogle": "Google로 로그인",
+      "signingIn": "Google 인증 중…"
     },
     "sharedDashboard": {
       "loadingMessage": "공유된 대시보드를 불러오는 중…",

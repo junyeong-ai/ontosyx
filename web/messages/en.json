@@ -1008,7 +1008,8 @@
       "errorTokenExchange": "Failed to authenticate with Google. Please try again.",
       "errorNotConfigured": "Google OAuth is not configured on this server.",
       "errorGeneric": "Authentication error: {error}",
-      "signInGoogle": "Sign in with Google"
+      "signInGoogle": "Sign in with Google",
+      "signingIn": "Signing in with Google…"
     },
     "sharedDashboard": {
       "loadingMessage": "Loading the shared dashboard…",

@@ -27,13 +27,21 @@ describe("ProfilePage", () => {
   });
 
   it("renders the dev-mode placeholder when auth is disabled", async () => {
+    const devUser = {
+      sub: "dev",
+      email: "dev@local",
+      name: "Developer",
+      role: "admin",
+      auth_enabled: false,
+    } as const;
     vi.mocked(useAuth).mockReturnValue({
-      user: null,
+      mode: { kind: "disabled", user: devUser },
+      user: devUser,
       loading: false,
-      isAuthenticated: false,
+      isAuthenticated: true,
       authEnabled: false,
-      isAdmin: false,
-      canWrite: false,
+      isAdmin: true,
+      canWrite: true,
     });
     renderPage();
     await waitFor(() =>
@@ -44,6 +52,7 @@ describe("ProfilePage", () => {
 
   it("renders the not-signed-in card when authEnabled but no user", async () => {
     vi.mocked(useAuth).mockReturnValue({
+      mode: { kind: "unauthenticated" },
       user: null,
       loading: false,
       isAuthenticated: false,
@@ -61,14 +70,16 @@ describe("ProfilePage", () => {
   });
 
   it("renders identity + role + sign-out form for an authenticated user", async () => {
+    const aliceUser = {
+      sub: "u-1",
+      email: "alice@example.com",
+      name: "Alice",
+      role: "designer",
+      auth_enabled: true,
+    } as const;
     vi.mocked(useAuth).mockReturnValue({
-      user: {
-        sub: "u-1",
-        email: "alice@example.com",
-        name: "Alice",
-        role: "designer",
-        auth_enabled: true,
-      },
+      mode: { kind: "authenticated", user: aliceUser },
+      user: aliceUser,
       loading: false,
       isAuthenticated: true,
       authEnabled: true,
@@ -92,14 +103,16 @@ describe("ProfilePage", () => {
   });
 
   it("falls back to the raw role string when the role has no translation", async () => {
+    const bobUser = {
+      sub: "u-2",
+      email: "bob@example.com",
+      name: "Bob",
+      role: "auditor",
+      auth_enabled: true,
+    } as const;
     vi.mocked(useAuth).mockReturnValue({
-      user: {
-        sub: "u-2",
-        email: "bob@example.com",
-        name: "Bob",
-        role: "auditor",
-        auth_enabled: true,
-      },
+      mode: { kind: "authenticated", user: bobUser },
+      user: bobUser,
       loading: false,
       isAuthenticated: true,
       authEnabled: true,

@@ -27,13 +27,29 @@ export interface AuthUser {
   auth_enabled: boolean;
 }
 
+/**
+ * Discriminated union over the auth subsystem state. Encoding the
+ * three meaningful situations as distinct variants — instead of two
+ * unrelated booleans (`isAuthenticated`, `authEnabled`) — forces
+ * call-sites to handle each one explicitly and prevents the
+ * "auth_enabled = false despite no user" footgun the boolean shape
+ * silently hid.
+ */
+export type AuthMode =
+  /** /auth/me round-trip still pending. */
+  | { kind: "loading" }
+  /** Single-tenant / on-prem / dev: backend has no auth provider configured. */
+  | { kind: "disabled"; user: AuthUser }
+  /** Multi-tenant: backend has auth, user signed in. */
+  | { kind: "authenticated"; user: AuthUser }
+  /** Multi-tenant: backend has auth, no session. */
+  | { kind: "unauthenticated" };
+
 async function fetchAuthMe(): Promise<AuthUser | null> {
   try {
     const response = await fetch("/auth/me");
     if (!response.ok) return null;
     const data = (await response.json()) as AuthUser;
-    // Cache auth-enabled state so getPrincipalId() can short-circuit
-    // without re-reading the user object.
     setAuthEnabled(data.auth_enabled);
     return data;
   } catch {
@@ -50,16 +66,23 @@ export function useAuth() {
   const { data: user = null, isLoading: loading } = useQuery({
     queryKey: authKeys.me(),
     queryFn: fetchAuthMe,
-    // Auth identity doesn't change mid-session; refetch only on
-    // explicit invalidation (login/logout flows).
     staleTime: Infinity,
   });
 
+  const mode: AuthMode = (() => {
+    if (loading) return { kind: "loading" };
+    if (!user) return { kind: "unauthenticated" };
+    return user.auth_enabled
+      ? { kind: "authenticated", user }
+      : { kind: "disabled", user };
+  })();
+
   return {
+    mode,
     user,
     loading,
-    isAuthenticated: !!user,
-    authEnabled: user?.auth_enabled ?? false,
+    isAuthenticated: mode.kind === "authenticated" || mode.kind === "disabled",
+    authEnabled: mode.kind === "authenticated" || mode.kind === "unauthenticated",
     isAdmin: user?.role === "admin",
     canWrite: user?.role === "admin" || user?.role === "designer",
   };

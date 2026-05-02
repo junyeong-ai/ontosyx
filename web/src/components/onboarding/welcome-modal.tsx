@@ -55,21 +55,19 @@ export function WelcomeModal() {
   const [step, setStep] = useState(0);
   const t = useTranslations("welcome");
   const workspaceId = getWorkspaceId();
-  const { user, loading: authLoading } = useAuth();
+  const { mode } = useAuth();
   const onboarded = useSyncExternalStore(
     subscribeToOnboardingStatus,
     makeStatusReader(workspaceId),
     getServerOnboardedStatus,
   );
   const dialogRef = useRef<HTMLDivElement>(null);
-  // Gate the onboarding behind a real principal. We treat a missing
-  // /auth/me response as "not yet ready" — when auth is enabled the
-  // user is unauthenticated, when auth is disabled the dev shell
-  // mints a stub principal so `user` is still truthy. Either way the
-  // modal stays hidden until the round-trip resolves, which prevents
-  // the flash that happens on the login page (workspace cookie present,
-  // backend rejects every workspace-scoped call with 401).
-  const sessionReady = !authLoading && !!user;
+  // Only render once the principal is settled — `authenticated` for
+  // multi-tenant deployments, `disabled` for single-tenant / dev. The
+  // onboarding state is workspace-scoped, so we also gate on a
+  // resolved workspace id.
+  const sessionReady =
+    mode.kind === "authenticated" || mode.kind === "disabled";
   const visible = sessionReady && !onboarded && !!workspaceId;
 
   // Move focus into the dialog on first mount so keyboard users land

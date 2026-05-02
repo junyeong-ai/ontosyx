@@ -1,14 +1,14 @@
 // AuthGuard — gate authenticated route segments.
 //
-// Wraps protected segments (workbench, settings) so that unauthenticated
-// users are routed to `/login` instead of seeing transient flashes of
-// workspace-scoped UI (onboarding modal, session-expired overlay,
-// 401-fed error toasts). Mounts once per protected layout; the routing
-// decision is owned here so individual pages don't repeat the dance.
+// Wraps protected segments (workbench, settings) so unauthenticated
+// users are routed to `/login?next=...` instead of seeing transient
+// flashes of workspace-scoped UI. The routing decision is owned here
+// so individual pages don't repeat the dance.
 //
-// While the /auth/me round-trip is in flight we render `null` rather
-// than the children — this keeps the layout shell stable but avoids
-// the FOUC of post-login UI on the public hop.
+// While the /auth/me round-trip is in flight we render a neutral
+// loading shell rather than `null` — keeping the layout stable
+// preserves scroll, motion, and SSR-painted chrome instead of
+// flashing white between hops.
 
 "use client";
 
@@ -16,6 +16,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
 import { useAuth } from "@/hooks/use-auth";
+import { Spinner } from "@/components/ui/spinner";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -24,17 +25,23 @@ interface AuthGuardProps {
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading } = useAuth();
+  const { mode } = useAuth();
 
   useEffect(() => {
-    if (loading) return;
-    if (user) return;
-    // Preserve the intended destination so the OAuth callback can
-    // bounce the user back after a successful sign-in.
-    const next = encodeURIComponent(pathname);
-    router.replace(`/login?next=${next}`);
-  }, [loading, user, pathname, router]);
+    if (mode.kind === "unauthenticated") {
+      // Preserve the intended destination so the OAuth callback can
+      // bounce the user back after a successful sign-in.
+      const next = encodeURIComponent(pathname);
+      router.replace(`/login?next=${next}`);
+    }
+  }, [mode.kind, pathname, router]);
 
-  if (loading || !user) return null;
+  if (mode.kind === "loading" || mode.kind === "unauthenticated") {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-surface-base">
+        <Spinner size="lg" className="text-brand-foreground" />
+      </div>
+    );
+  }
   return <>{children}</>;
 }
