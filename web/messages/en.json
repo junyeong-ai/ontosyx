@@ -1,4 +1,19 @@
 {
+  "collaboration": {
+    "errors": {
+      "auth_required": "Authentication required.",
+      "auth_invalid": "Your session is invalid. Please sign in again.",
+      "auth_unavailable": "The collaboration server is unavailable.",
+      "auth_timeout": "Authentication timed out. Reconnecting…",
+      "malformed_frame": "An unrecognised message was received.",
+      "unauthorized_workspace": "You are not a member of this workspace.",
+      "unauthorized_project": "You do not have access to this project.",
+      "too_many_connections": "Too many concurrent sessions. Close another tab and retry.",
+      "broadcast_lagged": "Live updates lagged. Reconnecting to resync.",
+      "not_joined": "Tried to act on a room you have not joined.",
+      "session_revoked": "Your session was revoked. Please sign in again."
+    }
+  },
   "errorBoundary": {
     "title": "Something went wrong",
     "description": "Refresh the page or retry. If the problem keeps happening, re-run analysis on the project or open another one.",

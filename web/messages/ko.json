@@ -1,4 +1,19 @@
 {
+  "collaboration": {
+    "errors": {
+      "auth_required": "인증이 필요합니다.",
+      "auth_invalid": "세션이 유효하지 않습니다. 다시 로그인해 주세요.",
+      "auth_unavailable": "협업 서버를 사용할 수 없습니다.",
+      "auth_timeout": "인증 시간이 초과되었습니다. 다시 연결합니다…",
+      "malformed_frame": "잘못된 메시지를 받았습니다.",
+      "unauthorized_workspace": "이 워크스페이스의 구성원이 아닙니다.",
+      "unauthorized_project": "이 프로젝트에 접근할 수 없습니다.",
+      "too_many_connections": "동시 세션 수가 한도를 초과했습니다. 다른 탭을 닫고 다시 시도해 주세요.",
+      "broadcast_lagged": "실시간 동기화가 지연되어 다시 연결합니다.",
+      "not_joined": "참여하지 않은 방에서 작업을 시도했습니다.",
+      "session_revoked": "세션이 만료되었습니다. 다시 로그인해 주세요."
+    }
+  },
   "errorBoundary": {
     "title": "문제가 발생했습니다",
     "description": "페이지를 새로 고치거나 다시 시도해 보세요. 계속 발생한다면 프로젝트를 재분석하거나 다른 프로젝트를 열어 보세요.",
