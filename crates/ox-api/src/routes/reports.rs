@@ -21,22 +21,25 @@ use crate::state::AppState;
 // POST /api/reports — create a new saved report
 // ---------------------------------------------------------------------------
 
+#[derive(serde::Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ReportParameter {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
+    pub default: Option<serde_json::Value>,
+}
+
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateReportRequest {
     pub ontology_lineage_id: String,
     pub title: String,
     pub description: Option<String>,
     pub query_template: String,
-    #[serde(default = "default_parameters")]
-    #[schema(value_type = Object)]
-    pub parameters: serde_json::Value,
+    #[serde(default)]
+    pub parameters: Vec<ReportParameter>,
     pub widget_type: Option<String>,
     #[serde(default)]
     pub is_public: bool,
-}
-
-fn default_parameters() -> serde_json::Value {
-    serde_json::json!([])
 }
 
 /// Best-effort resolution of the current-version IR for a lineage id.
@@ -85,7 +88,8 @@ pub(crate) async fn create_report(
         title: req.title,
         description: req.description,
         query_template: req.query_template,
-        parameters: req.parameters,
+        parameters: serde_json::to_value(&req.parameters)
+            .unwrap_or_else(|_| serde_json::Value::Array(Vec::new())),
         widget_type: req.widget_type,
         is_public: req.is_public,
         created_at: now,
@@ -176,8 +180,7 @@ pub struct UpdateReportRequest {
     pub title: Option<String>,
     pub description: Option<String>,
     pub query_template: Option<String>,
-    #[schema(value_type = Option<Object>)]
-    pub parameters: Option<serde_json::Value>,
+    pub parameters: Option<Vec<ReportParameter>>,
     pub widget_type: Option<String>,
     pub is_public: Option<bool>,
 }
@@ -218,7 +221,10 @@ pub(crate) async fn update_report(
         .query_template
         .as_deref()
         .unwrap_or(&existing.query_template);
-    let parameters = req.parameters.as_ref().unwrap_or(&existing.parameters);
+    let req_parameters = req.parameters.as_ref().map(|p| {
+        serde_json::to_value(p).unwrap_or_else(|_| serde_json::Value::Array(Vec::new()))
+    });
+    let parameters = req_parameters.as_ref().unwrap_or(&existing.parameters);
     let widget_type = match &req.widget_type {
         Some(wt) => Some(wt.as_str()),
         None => existing.widget_type.as_deref(),

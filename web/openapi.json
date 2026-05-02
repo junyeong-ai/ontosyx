@@ -10635,7 +10635,10 @@
             "type": "string"
           },
           "parameters": {
-            "type": "object"
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportParameter"
+            }
           },
           "query_template": {
             "type": "string"
@@ -17165,6 +17168,23 @@
           }
         }
       },
+      "ReportParameter": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "default": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "RestoreProjectRevisionResponse": {
         "type": "object",
         "required": [
@@ -20134,9 +20154,12 @@
           },
           "parameters": {
             "type": [
-              "object",
+              "array",
               "null"
-            ]
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ReportParameter"
+            }
           },
           "query_template": {
             "type": [

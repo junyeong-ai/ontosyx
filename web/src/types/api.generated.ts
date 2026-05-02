@@ -3000,7 +3000,7 @@ export interface components {
             description?: string | null;
             is_public?: boolean;
             ontology_lineage_id: string;
-            parameters?: Record<string, never>;
+            parameters?: components["schemas"]["ReportParameter"][];
             query_template: string;
             title: string;
             widget_type?: string | null;
@@ -5740,6 +5740,10 @@ export interface components {
             rel_type: string;
             to_label: string;
         };
+        ReportParameter: {
+            default?: Record<string, never> | null;
+            name: string;
+        };
         RestoreProjectRevisionResponse: {
             project: Record<string, never>;
         };
@@ -6804,7 +6808,7 @@ export interface components {
         UpdateReportRequest: {
             description?: string | null;
             is_public?: boolean | null;
-            parameters?: Record<string, never> | null;
+            parameters?: components["schemas"]["ReportParameter"][] | null;
             query_template?: string | null;
             title?: string | null;
             widget_type?: string | null;

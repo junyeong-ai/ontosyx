@@ -500,6 +500,7 @@ impl Modify for SecurityAddon {
             // Reports
             reports::CreateReportRequest,
             reports::UpdateReportRequest,
+            reports::ReportParameter,
             // Sessions
             sessions::ToolRespondRequest,
             sessions::ToolRespondResponse,
