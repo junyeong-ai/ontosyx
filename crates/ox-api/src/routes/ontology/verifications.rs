@@ -11,20 +11,37 @@ use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct VerifyElementRequest {
     pub element_id: String,
     pub element_kind: String,
     pub review_notes: Option<String>,
 }
 
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct VerifyElementResponse {
+    pub id: Uuid,
+}
+
 /// POST /api/ontologies/{id}/verifications — mark an element as verified
+#[utoipa::path(
+    post,
+    path = "/api/ontologies/{id}/verifications",
+    params(("id" = String, Path, description = "Ontology lineage ID")),
+    request_body = VerifyElementRequest,
+    responses(
+        (status = 200, description = "Verification recorded", body = VerifyElementResponse),
+        (status = 400, description = "Invalid element_kind"),
+    ),
+    security(("api_key" = [])),
+    tag = "Ontologies",
+)]
 pub(crate) async fn verify_element(
     State(state): State<AppState>,
     principal: Principal,
     Path(ontology_lineage_id): Path<String>,
     Json(req): Json<VerifyElementRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<VerifyElementResponse>>, AppError> {
     if !matches!(req.element_kind.as_str(), "node" | "edge" | "property") {
         return Err(AppError::bad_request(
             "element_kind must be 'node', 'edge', or 'property'",
@@ -57,10 +74,18 @@ pub(crate) async fn verify_element(
         .await
         .map_err(AppError::from)?;
 
-    Ok(ApiResponse::of(serde_json::json!({ "id": id })))
+    Ok(ApiResponse::of(VerifyElementResponse { id }))
 }
 
 /// GET /api/ontologies/{id}/verifications — list active verifications
+#[utoipa::path(
+    get,
+    path = "/api/ontologies/{id}/verifications",
+    params(("id" = String, Path, description = "Ontology lineage ID")),
+    responses((status = 200, description = "Active verifications", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Ontologies",
+)]
 pub(crate) async fn list_verifications(
     State(state): State<AppState>,
     _principal: Principal,
@@ -75,6 +100,17 @@ pub(crate) async fn list_verifications(
 }
 
 /// DELETE /api/ontologies/{id}/verifications/{element_id} — revoke verification
+#[utoipa::path(
+    delete,
+    path = "/api/ontologies/{id}/verifications/{element_id}",
+    params(
+        ("id" = String, Path, description = "Ontology lineage ID"),
+        ("element_id" = String, Path, description = "Element ID"),
+    ),
+    responses((status = 204, description = "Verification revoked")),
+    security(("api_key" = [])),
+    tag = "Ontologies",
+)]
 pub(crate) async fn delete_verification(
     State(state): State<AppState>,
     principal: Principal,

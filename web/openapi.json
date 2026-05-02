@@ -4118,6 +4118,59 @@
         ]
       }
     },
+    "/api/ontologies/type-candidates": {
+      "get": {
+        "tags": [
+          "Ontologies"
+        ],
+        "summary": "Enumerate every ontology in the workspace whose current version\ncontains a node/edge type with the given logical id.",
+        "description": "Iterative scan — O(n) ontologies × O(m) types per version. For\nthe expected workspace scale (dozens of ontologies, each with\nlow-hundreds of types) this is well under 100ms. If scan cost\nbecomes a concern, swap to a direct query on\n`ontology_version_entities` keyed on `(kind, logical_id)`.",
+        "operationId": "list_type_candidates",
+        "parameters": [
+          {
+            "name": "logical_id",
+            "in": "query",
+            "description": "Stable id string. For types that were created via auto-uuid,\nthis is the UUID rendered as a string; for authored ids, the\nauthor-assigned value. Match is exact.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "`\"node\"` or `\"edge\"`. Also accept the typed signal form\n(`\"NodeType\"` / `\"EdgeType\"`) so the FE can forward\n`StaleConceptProposal.type_kind` unchanged.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ontologies that own the logical id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TypeCandidate"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid kind"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/ontologies/{id}": {
       "get": {
         "tags": [
@@ -4462,6 +4515,133 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/{id}/verifications": {
+      "get": {
+        "tags": [
+          "Ontologies"
+        ],
+        "summary": "GET /api/ontologies/{id}/verifications — list active verifications",
+        "operationId": "list_verifications",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Ontology lineage ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active verifications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "summary": "POST /api/ontologies/{id}/verifications — mark an element as verified",
+        "operationId": "verify_element",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Ontology lineage ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyElementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Verification recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyElementResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid element_kind"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/{id}/verifications/{element_id}": {
+      "delete": {
+        "tags": [
+          "Ontologies"
+        ],
+        "summary": "DELETE /api/ontologies/{id}/verifications/{element_id} — revoke verification",
+        "operationId": "delete_verification",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Ontology lineage ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "element_id",
+            "in": "path",
+            "description": "Element ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Verification revoked"
           }
         },
         "security": [
@@ -21483,6 +21663,40 @@
           }
         }
       },
+      "TypeCandidate": {
+        "type": "object",
+        "required": [
+          "ontology_id",
+          "ontology_name",
+          "current_version",
+          "label"
+        ],
+        "properties": {
+          "current_version": {
+            "type": "string",
+            "description": "Version string on the current snapshot. Parseable as u32 in\npractice — surfaced verbatim so the FE can render it as-is\nand pass it back as `expected_version` on the edit POST."
+          },
+          "deprecated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "`Some(ts)` when the type is already deprecated in this\nontology's current version. The UI dims the row so the\nadmin doesn't double-deprecate."
+          },
+          "label": {
+            "type": "string",
+            "description": "Graph label of the matching type. The admin UI renders this\nalongside the ontology name so a human can pick the right\nrow when multiple ontologies match."
+          },
+          "ontology_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ontology_name": {
+            "type": "string"
+          }
+        }
+      },
       "UiConfig": {
         "type": "object",
         "required": [
@@ -22283,6 +22497,39 @@
           "cosine",
           "euclidean"
         ]
+      },
+      "VerifyElementRequest": {
+        "type": "object",
+        "required": [
+          "element_id",
+          "element_kind"
+        ],
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "element_kind": {
+            "type": "string"
+          },
+          "review_notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "VerifyElementResponse": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
       },
       "WebhookChannelConfig": {
         "type": "object",

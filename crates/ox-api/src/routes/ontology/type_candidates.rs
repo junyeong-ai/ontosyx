@@ -27,7 +27,7 @@ use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct TypeCandidatesParams {
     /// Stable id string. For types that were created via auto-uuid,
     /// this is the UUID rendered as a string; for authored ids, the
@@ -55,7 +55,7 @@ impl TypeKind {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TypeCandidate {
     pub ontology_id: Uuid,
     pub ontology_name: String,
@@ -82,6 +82,17 @@ pub struct TypeCandidate {
 /// low-hundreds of types) this is well under 100ms. If scan cost
 /// becomes a concern, swap to a direct query on
 /// `ontology_version_entities` keyed on `(kind, logical_id)`.
+#[utoipa::path(
+    get,
+    path = "/api/ontologies/type-candidates",
+    params(TypeCandidatesParams),
+    responses(
+        (status = 200, description = "Ontologies that own the logical id", body = Vec<TypeCandidate>),
+        (status = 400, description = "Invalid kind"),
+    ),
+    security(("api_key" = [])),
+    tag = "Ontologies",
+)]
 pub(crate) async fn list_type_candidates(
     State(state): State<AppState>,
     _principal: Principal,

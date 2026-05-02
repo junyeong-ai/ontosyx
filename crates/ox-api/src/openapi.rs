@@ -331,6 +331,11 @@ impl Modify for SecurityAddon {
         models::update_routing_rule,
         models::delete_routing_rule,
         models::test_model_connection,
+        // Ontology — type-candidates / verifications
+        ontology::list_type_candidates,
+        ontology::verify_element,
+        ontology::list_verifications,
+        ontology::delete_verification,
         // Quality
         quality::create_rule,
         quality::list_rules,
@@ -426,6 +431,9 @@ impl Modify for SecurityAddon {
             ontology::SuggestTermsResponse,
             ontology::PropertyCandidate,
             ontology::TermCandidate,
+            ontology::TypeCandidate,
+            ontology::VerifyElementRequest,
+            ontology::VerifyElementResponse,
             ox_ontology::binding_suggestions::BindingSignal,
             ox_ontology::SchemaDependencyGraph,
             ox_ontology::DependencyBucket,

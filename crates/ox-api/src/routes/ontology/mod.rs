@@ -92,3 +92,8 @@ pub use binding_suggestions::{
     BindingPolicy, PropertyCandidate, SuggestBindingsRequest, SuggestBindingsResponse,
     SuggestTermsRequest, SuggestTermsResponse, TermCandidate,
 };
+pub use type_candidates::{TypeCandidate, TypeCandidatesParams, __path_list_type_candidates};
+pub use verifications::{
+    VerifyElementRequest, VerifyElementResponse, __path_delete_verification,
+    __path_list_verifications, __path_verify_element,
+};

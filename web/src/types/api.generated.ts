@@ -980,6 +980,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ontologies/type-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Enumerate every ontology in the workspace whose current version
+         *     contains a node/edge type with the given logical id.
+         * @description Iterative scan — O(n) ontologies × O(m) types per version. For
+         *     the expected workspace scale (dozens of ontologies, each with
+         *     low-hundreds of types) this is well under 100ms. If scan cost
+         *     becomes a concern, swap to a direct query on
+         *     `ontology_version_entities` keyed on `(kind, logical_id)`.
+         */
+        get: operations["list_type_candidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ontologies/{id}": {
         parameters: {
             query?: never;
@@ -1087,6 +1112,41 @@ export interface paths {
         put?: never;
         post: operations["propose_ontology_value_sets"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/{id}/verifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/ontologies/{id}/verifications — list active verifications */
+        get: operations["list_verifications"];
+        put?: never;
+        /** POST /api/ontologies/{id}/verifications — mark an element as verified */
+        post: operations["verify_element"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/{id}/verifications/{element_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** DELETE /api/ontologies/{id}/verifications/{element_id} — revoke verification */
+        delete: operations["delete_verification"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7216,6 +7276,30 @@ export interface components {
         ToolRespondResponse: {
             status: string;
         };
+        TypeCandidate: {
+            /**
+             * @description Version string on the current snapshot. Parseable as u32 in
+             *     practice — surfaced verbatim so the FE can render it as-is
+             *     and pass it back as `expected_version` on the edit POST.
+             */
+            current_version: string;
+            /**
+             * Format: date-time
+             * @description `Some(ts)` when the type is already deprecated in this
+             *     ontology's current version. The UI dims the row so the
+             *     admin doesn't double-deprecate.
+             */
+            deprecated_at?: string | null;
+            /**
+             * @description Graph label of the matching type. The admin UI renders this
+             *     alongside the ontology name so a human can pick the right
+             *     row when multiple ontologies match.
+             */
+            label: string;
+            /** Format: uuid */
+            ontology_id: string;
+            ontology_name: string;
+        };
         UiConfig: {
             elk_direction: string;
             elk_edge_routing: string;
@@ -7498,6 +7582,15 @@ export interface components {
         };
         /** @enum {string} */
         VectorSimilarity: "cosine" | "euclidean";
+        VerifyElementRequest: {
+            element_id: string;
+            element_kind: string;
+            review_notes?: string | null;
+        };
+        VerifyElementResponse: {
+            /** Format: uuid */
+            id: string;
+        };
         WebhookChannelConfig: {
             /**
              * @description Webhook endpoint URL. HTTP(S) only; private network ranges are
@@ -10406,6 +10499,46 @@ export interface operations {
             };
         };
     };
+    list_type_candidates: {
+        parameters: {
+            query: {
+                /**
+                 * @description Stable id string. For types that were created via auto-uuid,
+                 *     this is the UUID rendered as a string; for authored ids, the
+                 *     author-assigned value. Match is exact.
+                 */
+                logical_id: string;
+                /**
+                 * @description `"node"` or `"edge"`. Also accept the typed signal form
+                 *     (`"NodeType"` / `"EdgeType"`) so the FE can forward
+                 *     `StaleConceptProposal.type_kind` unchanged.
+                 */
+                kind: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ontologies that own the logical id */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TypeCandidate"][];
+                };
+            };
+            /** @description Invalid kind */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     get_ontology_detail: {
         parameters: {
             query?: never;
@@ -10611,6 +10744,86 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProposeValueSetsResponse"];
                 };
+            };
+        };
+    };
+    list_verifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology lineage ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active verifications */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    verify_element: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology lineage ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyElementRequest"];
+            };
+        };
+        responses: {
+            /** @description Verification recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifyElementResponse"];
+                };
+            };
+            /** @description Invalid element_kind */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_verification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology lineage ID */
+                id: string;
+                /** @description Element ID */
+                element_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Verification revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
