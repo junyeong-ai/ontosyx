@@ -1,5 +1,6 @@
 use axum::Json;
 use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -31,22 +32,7 @@ pub struct CreateKnowledgeEntryRequest {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct CreatedKnowledgeResponse {
-    pub id: Uuid,
-}
-
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct OkResponse {
-    pub ok: bool,
-}
-
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct DeletedResponse {
-    pub deleted: bool,
-}
-
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct BulkReviewResponse {
+pub struct KnowledgeBulkReviewResponse {
     pub reviewed: u64,
 }
 
@@ -58,7 +44,7 @@ const VALID_STATUSES: &[&str] = &["draft", "approved", "stale", "deprecated"];
     path = "/api/knowledge",
     request_body = CreateKnowledgeEntryRequest,
     responses(
-        (status = 200, description = "Entry created", body = CreatedKnowledgeResponse),
+        (status = 200, description = "Entry created", body = Object),
         (status = 400, description = "Validation failure"),
     ),
     security(("api_key" = [])),
@@ -68,7 +54,7 @@ pub(crate) async fn create_knowledge(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<CreateKnowledgeEntryRequest>,
-) -> Result<Json<ApiResponse<CreatedKnowledgeResponse>>, AppError> {
+) -> Result<Json<ApiResponse<KnowledgeEntry>>, AppError> {
     principal.require_designer()?;
     if !VALID_KINDS.contains(&req.kind.as_str()) {
         return Err(AppError::bad_request(format!(
@@ -120,7 +106,7 @@ pub(crate) async fn create_knowledge(
     };
 
     state.store.create_knowledge_entry(&entry).await?;
-    Ok(ApiResponse::of(CreatedKnowledgeResponse { id: entry.id }))
+    Ok(ApiResponse::of(entry))
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +201,7 @@ pub struct UpdateKnowledgeEntryRequest {
     path = "/api/knowledge/{id}",
     params(("id" = Uuid, Path, description = "Knowledge entry ID")),
     request_body = UpdateKnowledgeEntryRequest,
-    responses((status = 200, description = "Entry updated", body = OkResponse)),
+    responses((status = 204, description = "Entry updated")),
     security(("api_key" = [])),
     tag = "Knowledge",
 )]
@@ -224,7 +210,7 @@ pub(crate) async fn update_knowledge(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateKnowledgeEntryRequest>,
-) -> Result<Json<ApiResponse<OkResponse>>, AppError> {
+) -> Result<StatusCode, AppError> {
     principal.require_designer()?;
     state
         .store
@@ -237,7 +223,7 @@ pub(crate) async fn update_knowledge(
             &req.affected_properties.unwrap_or_default(),
         )
         .await?;
-    Ok(ApiResponse::of(OkResponse { ok: true }))
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +234,10 @@ pub(crate) async fn update_knowledge(
     delete,
     path = "/api/knowledge/{id}",
     params(("id" = Uuid, Path, description = "Knowledge entry ID")),
-    responses((status = 200, description = "Entry deleted", body = DeletedResponse)),
+    responses(
+        (status = 204, description = "Entry deleted"),
+        (status = 404, description = "Entry not found"),
+    ),
     security(("api_key" = [])),
     tag = "Knowledge",
 )]
@@ -256,10 +245,14 @@ pub(crate) async fn delete_knowledge(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApiResponse<DeletedResponse>>, AppError> {
+) -> Result<StatusCode, AppError> {
     principal.require_admin()?;
     let deleted = state.store.delete_knowledge_entry(id).await?;
-    Ok(ApiResponse::of(DeletedResponse { deleted }))
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(AppError::not_found("Knowledge entry"))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -278,7 +271,7 @@ pub struct UpdateKnowledgeStatusRequest {
     params(("id" = Uuid, Path, description = "Knowledge entry ID")),
     request_body = UpdateKnowledgeStatusRequest,
     responses(
-        (status = 200, description = "Status updated", body = OkResponse),
+        (status = 204, description = "Status updated"),
         (status = 400, description = "Invalid status"),
     ),
     security(("api_key" = [])),
@@ -289,7 +282,7 @@ pub(crate) async fn update_status(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateKnowledgeStatusRequest>,
-) -> Result<Json<ApiResponse<OkResponse>>, AppError> {
+) -> Result<StatusCode, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {
         return Err(AppError::bad_request(format!(
@@ -307,7 +300,7 @@ pub(crate) async fn update_status(
             req.review_notes.as_deref(),
         )
         .await?;
-    Ok(ApiResponse::of(OkResponse { ok: true }))
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---------------------------------------------------------------------------
@@ -398,7 +391,7 @@ pub struct BulkReviewApprovalsRequest {
     path = "/api/knowledge/bulk-review",
     request_body = BulkReviewApprovalsRequest,
     responses(
-        (status = 200, description = "Bulk review applied", body = BulkReviewResponse),
+        (status = 200, description = "Bulk review applied", body = KnowledgeBulkReviewResponse),
         (status = 400, description = "Invalid status or batch too large"),
     ),
     security(("api_key" = [])),
@@ -408,7 +401,7 @@ pub(crate) async fn bulk_review(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<BulkReviewApprovalsRequest>,
-) -> Result<Json<ApiResponse<BulkReviewResponse>>, AppError> {
+) -> Result<Json<ApiResponse<KnowledgeBulkReviewResponse>>, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {
         return Err(AppError::bad_request(format!(
@@ -432,5 +425,5 @@ pub(crate) async fn bulk_review(
             count += 1;
         }
     }
-    Ok(ApiResponse::of(BulkReviewResponse { reviewed: count }))
+    Ok(ApiResponse::of(KnowledgeBulkReviewResponse { reviewed: count }))
 }

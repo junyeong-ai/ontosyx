@@ -2564,7 +2564,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreatedKnowledgeResponse"
+                  "type": "object"
                 }
               }
             }
@@ -2602,7 +2602,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BulkReviewResponse"
+                  "$ref": "#/components/schemas/KnowledgeBulkReviewResponse"
                 }
               }
             }
@@ -2728,15 +2728,11 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Entry deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeletedResponse"
-                }
-              }
-            }
+          "204": {
+            "description": "Entry deleted"
+          },
+          "404": {
+            "description": "Entry not found"
           }
         },
         "security": [
@@ -2773,15 +2769,8 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "Entry updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OkResponse"
-                }
-              }
-            }
+          "204": {
+            "description": "Entry updated"
           }
         },
         "security": [
@@ -2820,15 +2809,8 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "Status updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OkResponse"
-                }
-              }
-            }
+          "204": {
+            "description": "Status updated"
           },
           "400": {
             "description": "Invalid status"
@@ -11023,19 +11005,6 @@
           }
         }
       },
-      "BulkReviewResponse": {
-        "type": "object",
-        "required": [
-          "reviewed"
-        ],
-        "properties": {
-          "reviewed": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          }
-        }
-      },
       "CacheHintKind": {
         "oneOf": [
           {
@@ -12558,18 +12527,6 @@
           }
         }
       },
-      "CreatedKnowledgeResponse": {
-        "type": "object",
-        "required": [
-          "id"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          }
-        }
-      },
       "Credential": {
         "oneOf": [
           {
@@ -13137,17 +13094,6 @@
             "items": {
               "type": "string"
             }
-          }
-        }
-      },
-      "DeletedResponse": {
-        "type": "object",
-        "required": [
-          "deleted"
-        ],
-        "properties": {
-          "deleted": {
-            "type": "boolean"
           }
         }
       },
@@ -13837,7 +13783,9 @@
           "unauthorized_workspace",
           "unauthorized_project",
           "too_many_connections",
-          "broadcast_lagged"
+          "broadcast_lagged",
+          "not_joined",
+          "session_revoked"
         ]
       },
       "ErrorResponse": {
@@ -14992,6 +14940,19 @@
           "cartesian"
         ]
       },
+      "KnowledgeBulkReviewResponse": {
+        "type": "object",
+        "required": [
+          "reviewed"
+        ],
+        "properties": {
+          "reviewed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "KnowledgeStats": {
         "type": "object",
         "required": [
@@ -15996,17 +15957,6 @@
       "ObjectMappingId": {
         "type": "string",
         "description": "Stable identifier for an `ObjectMappingDef` — the binding\nbetween one `NodeTypeDef` and one physical relation.\n\nConstruction: prefer [`ObjectMappingId::for_node_source`]\n— the canonical rule is `om-{node_type_id}@{source_id}`,\nwhich keeps the id deterministic across re-runs and encodes\nthe (node, source) tuple so the id alone is informative\nin audit diffs and cache keys. Ad-hoc ids (via the bare\n`::new` constructor) stay supported for tests and for\nadmin-supplied overrides when a node has multiple mappings\non the same source and the rule needs disambiguation."
-      },
-      "OkResponse": {
-        "type": "object",
-        "required": [
-          "ok"
-        ],
-        "properties": {
-          "ok": {
-            "type": "boolean"
-          }
-        }
       },
       "OntologyDetail": {
         "type": "object",
@@ -20787,10 +20737,11 @@
           },
           {
             "type": "object",
-            "description": "Lock granted. `expires_at` is the TTL deadline; clients\nshould renew or release before then.",
+            "description": "Lock granted. `held_by` is the user who now owns the lock —\nother members render the entity as locked-by-them, the\nholder renders its own affordances. `expires_at` is the\nTTL deadline; clients should renew or release before then.",
             "required": [
               "project_id",
               "entity_id",
+              "held_by",
               "expires_at",
               "type"
             ],
@@ -20801,6 +20752,9 @@
               "expires_at": {
                 "type": "string",
                 "format": "date-time"
+              },
+              "held_by": {
+                "type": "string"
               },
               "project_id": {
                 "type": "string",

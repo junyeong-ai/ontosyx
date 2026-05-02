@@ -588,7 +588,12 @@ pub fn router(state: AppState) -> Router {
         ))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
-    // WebSocket routes (auth via query param, not middleware)
+    // WebSocket upgrade routes — bypass `require_auth` /
+    // `workspace_context` middleware because the WS protocol does
+    // its own first-frame auth (`ClientMessage::Authenticate`) and
+    // binds `WORKSPACE_ID` for the connection's lifetime inside
+    // the handler. The wire types live on the OpenAPI surface as
+    // schemas but no HTTP path is published here.
     let ws_routes = Router::new().route("/ws/collab", get(ws::collab_ws));
 
     public

@@ -125,11 +125,14 @@ pub enum ServerMessage {
         y: f64,
         selected_element: Option<String>,
     },
-    /// Lock granted. `expires_at` is the TTL deadline; clients
-    /// should renew or release before then.
+    /// Lock granted. `held_by` is the user who now owns the lock —
+    /// other members render the entity as locked-by-them, the
+    /// holder renders its own affordances. `expires_at` is the
+    /// TTL deadline; clients should renew or release before then.
     LockGranted {
         project_id: Uuid,
         entity_id: String,
+        held_by: String,
         expires_at: DateTime<Utc>,
     },
     /// Lock denied — `held_by` is the current owner. Unicast to the
@@ -541,6 +544,7 @@ impl CollaborationHub {
                 let msg = ServerMessage::LockGranted {
                     project_id,
                     entity_id: entity_id.to_string(),
+                    held_by: user_id.to_string(),
                     expires_at,
                 };
                 let _ = room.broadcast.send(msg.clone());
@@ -567,6 +571,7 @@ impl CollaborationHub {
         let msg = ServerMessage::LockGranted {
             project_id,
             entity_id: entity_id.to_string(),
+            held_by: user_id.to_string(),
             expires_at,
         };
         let _ = room.broadcast.send(msg.clone());
@@ -697,8 +702,20 @@ mod tests {
 
         let g1 = hub.acquire_lock(project, "u1", "ent-1").await;
         let g2 = hub.acquire_lock(project, "u1", "ent-1").await;
-        assert!(matches!(g1, ServerMessage::LockGranted { .. }));
-        assert!(matches!(g2, ServerMessage::LockGranted { .. }));
+        match (g1, g2) {
+            (
+                ServerMessage::LockGranted {
+                    held_by: h1, ..
+                },
+                ServerMessage::LockGranted {
+                    held_by: h2, ..
+                },
+            ) => {
+                assert_eq!(h1, "u1");
+                assert_eq!(h2, "u1");
+            }
+            other => panic!("expected LockGranted pair, got {other:?}"),
+        }
     }
 
     #[tokio::test]

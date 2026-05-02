@@ -2877,10 +2877,6 @@ export interface components {
             review_notes?: string | null;
             status: string;
         };
-        BulkReviewResponse: {
-            /** Format: int64 */
-            reviewed: number;
-        };
         /**
          * @description Per-mapping hint for the graph-cache backend. The planner treats
          *     `None` as "never cache"; `GraphCache` is an opt-in that names a
@@ -3581,10 +3577,6 @@ export interface components {
             name: string;
             slug: string;
         };
-        CreatedKnowledgeResponse: {
-            /** Format: uuid */
-            id: string;
-        };
         /**
          * @description Either a raw value or an opaque reference to a secret store.
          *
@@ -3799,9 +3791,6 @@ export interface components {
             expected_revision: number;
             reason: string;
             tables: string[];
-        };
-        DeletedResponse: {
-            deleted: boolean;
         };
         /**
          * @description One entry in either index of [`SchemaDependencyGraph`] — a target
@@ -4147,7 +4136,7 @@ export interface components {
          *     catalogue maps each variant to a localised message.
          * @enum {string}
          */
-        ErrorCode: "auth_required" | "auth_invalid" | "auth_unavailable" | "auth_timeout" | "malformed_frame" | "unauthorized_workspace" | "unauthorized_project" | "too_many_connections" | "broadcast_lagged";
+        ErrorCode: "auth_required" | "auth_invalid" | "auth_unavailable" | "auth_timeout" | "malformed_frame" | "unauthorized_workspace" | "unauthorized_project" | "too_many_connections" | "broadcast_lagged" | "not_joined" | "session_revoked";
         ErrorResponse: {
             error: components["schemas"]["ErrorBody"];
         };
@@ -4651,6 +4640,10 @@ export interface components {
          * @enum {string}
          */
         JoinCostHint: "unknown" | "indexed" | "scan" | "cartesian";
+        KnowledgeBulkReviewResponse: {
+            /** Format: int64 */
+            reviewed: number;
+        };
         KnowledgeStats: {
             by_kind: {
                 [key: string]: number;
@@ -5160,9 +5153,6 @@ export interface components {
          *     on the same source and the rule needs disambiguation.
          */
         ObjectMappingId: string;
-        OkResponse: {
-            ok: boolean;
-        };
         OntologyDetail: {
             /** Format: date-time */
             created_at: string;
@@ -6883,6 +6873,7 @@ export interface components {
             entity_id: string;
             /** Format: date-time */
             expires_at: string;
+            held_by: string;
             /** Format: uuid */
             project_id: string;
             /** @enum {string} */
@@ -9550,7 +9541,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CreatedKnowledgeResponse"];
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation failure */
@@ -9581,7 +9572,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BulkReviewResponse"];
+                    "application/json": components["schemas"]["KnowledgeBulkReviewResponse"];
                 };
             };
             /** @description Invalid status or batch too large */
@@ -9676,13 +9667,18 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Entry deleted */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["DeletedResponse"];
+                content?: never;
+            };
+            /** @description Entry not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content?: never;
             };
         };
     };
@@ -9703,13 +9699,11 @@ export interface operations {
         };
         responses: {
             /** @description Entry updated */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["OkResponse"];
-                };
+                content?: never;
             };
         };
     };
@@ -9730,13 +9724,11 @@ export interface operations {
         };
         responses: {
             /** @description Status updated */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["OkResponse"];
-                };
+                content?: never;
             };
             /** @description Invalid status */
             400: {

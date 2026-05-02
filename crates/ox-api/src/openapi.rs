@@ -573,10 +573,7 @@ impl Modify for SecurityAddon {
             knowledge::UpdateKnowledgeEntryRequest,
             knowledge::UpdateKnowledgeStatusRequest,
             knowledge::BulkReviewApprovalsRequest,
-            knowledge::CreatedKnowledgeResponse,
-            knowledge::OkResponse,
-            knowledge::DeletedResponse,
-            knowledge::BulkReviewResponse,
+            knowledge::KnowledgeBulkReviewResponse,
             knowledge::KnowledgeStats,
             // Models
             models::TestModelRequest,
