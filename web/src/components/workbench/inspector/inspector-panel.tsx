@@ -13,6 +13,7 @@ import type { QualityGap } from "@/types/api";
 import { NodeDetail, EdgeDetail } from "./entity-detail";
 import { arr } from "@/lib/ir-collections";
 import { gapTouchesEntity } from "@/lib/quality-utils";
+import { useEntityLockGuard } from "@/components/collab/use-entity-lock-guard";
 
 // ---------------------------------------------------------------------------
 // Inspector — editable detail view for selected node or edge
@@ -39,6 +40,13 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   useEffect(() => {
     if (ontologyId) loadVerifications(ontologyId);
   }, [ontologyId, loadVerifications]);
+
+  // Hold a collaboration lock on the currently inspected entity
+  // for the lifetime of the panel mount. Acquire on selection,
+  // refresh through the server's idempotent path on a timer,
+  // release on unmount or when the selection clears.
+  const lockedEntityId = selectedNodeId ?? selectedEdgeId ?? undefined;
+  useEntityLockGuard(activeProject?.id, lockedEntityId);
 
   const handleSave = useCallback(async () => {
     if (!activeProject || commandStack.length === 0) return;

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAppStore } from "@/lib/store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
+import { LockIndicator } from "@/components/collab/lock-indicator";
 import { TabBar } from "@/components/ui/tab-bar";
 import { useEntityDependencies } from "@/hooks/api/use-entity-dependencies";
 import type { SchemaEntityRef } from "@/lib/api/dependencies";
@@ -129,6 +130,7 @@ function EntityHeader({
   onUpdateDescription: (desc: string) => void;
   onDelete: () => void;
 }) {
+  const activeProject = useAppStore((s) => s.activeProject);
   const isEdge = kind === "edge";
   const edge = isEdge ? (entity as EdgeTypeDef) : null;
   const src = isEdge
@@ -164,11 +166,16 @@ function EntityHeader({
             id: entity.id,
           }}
         />
+        <LockIndicator
+          projectId={activeProject?.id}
+          entityId={entity.id}
+          className="ml-auto"
+        />
         <Tooltip content={isEdge ? "Delete edge" : "Delete node"}>
           <button
             onClick={onDelete}
             aria-label={isEdge ? "Delete edge" : "Delete node"}
-            className="ml-auto rounded p-1 text-zinc-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+            className="rounded p-1 text-zinc-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
           >
             <HugeiconsIcon icon={Delete01Icon} className="h-3 w-3" size="100%" />
           </button>
