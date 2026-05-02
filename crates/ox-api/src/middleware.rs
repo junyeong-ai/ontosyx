@@ -243,7 +243,7 @@ pub async fn require_auth(
 /// Cache misses fall through to the store; a stable error message
 /// is returned on lookup failure so a flaky DB doesn't produce a
 /// 500 cascade for every authed request.
-async fn check_jwt_revocation(
+pub(crate) async fn check_jwt_revocation(
     state: &AppState,
     claims: &AuthClaims,
 ) -> Result<(), AppError> {

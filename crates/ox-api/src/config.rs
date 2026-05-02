@@ -316,6 +316,38 @@ pub struct CollaborationConfig {
     pub cursor_throttle_ms: u64,
 }
 
+impl From<&CollaborationConfig> for crate::collaboration::HubLimits {
+    fn from(c: &CollaborationConfig) -> Self {
+        Self {
+            broadcast_buffer: c.broadcast_buffer,
+            lock_ttl: std::time::Duration::from_secs(c.lock_ttl_secs),
+            max_sessions_per_user: c.max_sessions_per_user,
+            cursor_throttle: std::time::Duration::from_millis(c.cursor_throttle_ms),
+        }
+    }
+}
+
+impl CollaborationConfig {
+    /// Reject zero values that would silently cripple the hub —
+    /// `lock_ttl_secs = 0` means every acquire instantly expires;
+    /// `max_sessions_per_user = 0` means nobody connects;
+    /// `broadcast_buffer = 0` means every send drops.
+    /// `cursor_throttle_ms = 0` is allowed — operators may
+    /// deliberately disable throttling on internal deployments.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.broadcast_buffer == 0 {
+            return Err("collaboration.broadcast_buffer must be ≥ 1".into());
+        }
+        if self.lock_ttl_secs == 0 {
+            return Err("collaboration.lock_ttl_secs must be ≥ 1".into());
+        }
+        if self.max_sessions_per_user == 0 {
+            return Err("collaboration.max_sessions_per_user must be ≥ 1".into());
+        }
+        Ok(())
+    }
+}
+
 fn default_collaboration_broadcast_buffer() -> usize {
     256
 }
@@ -803,6 +835,10 @@ impl OxConfig {
             tracing::warn!(
                 "server.cors_origins is empty — the HTTP API will reject cross-origin browser requests"
             );
+        }
+
+        if let Err(e) = self.collaboration.validate() {
+            anyhow::bail!(e);
         }
 
         Ok(())

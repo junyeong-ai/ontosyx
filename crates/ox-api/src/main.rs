@@ -543,14 +543,7 @@ async fn main() -> anyhow::Result<()> {
         oidc_providers,
         tool_review_channels: Some(Arc::new(dashmap::DashMap::new())),
         collaboration: Arc::new(collaboration::CollaborationHub::new(
-            collaboration::HubLimits {
-                broadcast_buffer: config.collaboration.broadcast_buffer,
-                lock_ttl: std::time::Duration::from_secs(config.collaboration.lock_ttl_secs),
-                max_sessions_per_user: config.collaboration.max_sessions_per_user,
-                cursor_throttle: std::time::Duration::from_millis(
-                    config.collaboration.cursor_throttle_ms,
-                ),
-            },
+            collaboration::HubLimits::from(&config.collaboration),
         )),
         dashboards: config.dashboards.clone(),
         recovery: config.recovery.clone(),

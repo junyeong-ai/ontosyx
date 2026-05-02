@@ -190,6 +190,13 @@ pub enum ErrorCode {
     /// Broadcast channel lagged — the receiver couldn't keep up.
     /// Clients should re-join the room to resync presence.
     BroadcastLagged,
+    /// Lock / cursor / leave op arrived for a room the caller
+    /// hasn't `Join`ed. Indicates a client bug.
+    NotJoined,
+    /// JWT was revoked (per-jti) or `token_version` advanced
+    /// (bulk invalidation) since the connection authenticated.
+    /// The client must reconnect with a fresh token.
+    SessionRevoked,
 }
 
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
@@ -496,6 +503,8 @@ impl CollaborationHub {
     /// * `LockDenied` — **not** broadcast; the WS handler unicasts
     ///   it to the requester so other members don't see denials
     ///   that aren't relevant to them.
+    /// * `Error { code: NotJoined }` — the caller hasn't `Join`ed
+    ///   the room. Indicates a client bug; unicast to the caller.
     pub async fn acquire_lock(
         &self,
         project_id: Uuid,
@@ -504,6 +513,13 @@ impl CollaborationHub {
     ) -> ServerMessage {
         let room_arc = self.room(project_id).await;
         let mut room = room_arc.lock().await;
+
+        if !room.members.contains_key(user_id) {
+            return ServerMessage::Error {
+                code: ErrorCode::NotJoined,
+                params: HashMap::new(),
+            };
+        }
 
         let now = Utc::now();
         let ttl = chrono::Duration::from_std(self.limits.lock_ttl).unwrap_or(chrono::Duration::seconds(300));
@@ -557,23 +573,39 @@ impl CollaborationHub {
         msg
     }
 
-    /// Release a lock owned by `user_id`. No-op when the entity
-    /// isn't locked or someone else holds it.
-    pub async fn release_lock(&self, project_id: Uuid, user_id: &str, entity_id: &str) {
-        let room_arc = match self.rooms.read().await.get(&project_id) {
-            Some(arc) => Arc::clone(arc),
-            None => return,
-        };
+    /// Release a lock owned by `user_id`.
+    ///
+    /// Returns `None` on success (`LockReleased` was broadcast, or
+    /// the entity wasn't locked / was held by someone else — both
+    /// idempotent on the wire). Returns `Some(Error { NotJoined })`
+    /// when the caller hasn't joined the room — a client bug the
+    /// WS handler unicasts back to the requester.
+    pub async fn release_lock(
+        &self,
+        project_id: Uuid,
+        user_id: &str,
+        entity_id: &str,
+    ) -> Option<ServerMessage> {
+        let room_arc = self.rooms.read().await.get(&project_id).cloned()?;
         let mut room = room_arc.lock().await;
+
+        if !room.members.contains_key(user_id) {
+            return Some(ServerMessage::Error {
+                code: ErrorCode::NotJoined,
+                params: HashMap::new(),
+            });
+        }
+
         let owns = matches!(room.locks.get(entity_id), Some(lock) if lock.held_by == user_id);
         if !owns {
-            return;
+            return None;
         }
         room.locks.remove(entity_id);
         let _ = room.broadcast.send(ServerMessage::LockReleased {
             project_id,
             entity_id: entity_id.to_string(),
         });
+        None
     }
 
     /// Active room count, for monitoring.
@@ -711,6 +743,36 @@ mod tests {
 
         hub.leave(project, "u1").await;
         assert_eq!(hub.active_room_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn acquire_lock_rejects_unjoined_caller() {
+        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let project = Uuid::new_v4();
+        // u1 hasn't joined — direct lock attempt should yield NotJoined.
+        let result = hub.acquire_lock(project, "u1", "ent-1").await;
+        match result {
+            ServerMessage::Error { code, .. } => {
+                assert!(matches!(code, ErrorCode::NotJoined));
+            }
+            other => panic!("expected NotJoined error, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn release_lock_signals_unjoined_caller() {
+        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let project = Uuid::new_v4();
+        // First seed a room with a different user so the registry
+        // entry exists; otherwise release_lock would early-return None.
+        let _ = hub.join(project, "u1", "Alice").await;
+        let result = hub.release_lock(project, "u2", "ent-1").await;
+        match result {
+            Some(ServerMessage::Error { code, .. }) => {
+                assert!(matches!(code, ErrorCode::NotJoined));
+            }
+            other => panic!("expected NotJoined error, got {other:?}"),
+        }
     }
 
     #[tokio::test]

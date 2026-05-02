@@ -25,7 +25,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::extract::ws::{CloseFrame, Message, WebSocket, close_code};
 use axum::extract::{State, WebSocketUpgrade};
@@ -38,7 +38,7 @@ use uuid::Uuid;
 
 use crate::collaboration::{ClientMessage, ErrorCode, ServerMessage, SessionHandle};
 use crate::error::AppError;
-use crate::middleware::{AuthClaims, validate_jwt};
+use crate::middleware::{AuthClaims, check_jwt_revocation, validate_jwt};
 use crate::state::AppState;
 
 /// Maximum time the client has to send the auth frame after upgrade.
@@ -48,6 +48,20 @@ const AUTH_TIMEOUT: Duration = Duration::from_secs(5);
 /// under 4 KiB; anything larger is almost certainly an attacker
 /// trying to pin memory or stall the JSON parser.
 const AUTH_FRAME_MAX_BYTES: usize = 4 * 1024;
+
+/// How often the connection re-checks JWT revocation /
+/// `token_version`. The HTTP middleware does this on every request;
+/// long-lived WS connections need a periodic equivalent so a
+/// `/auth/logout` or admin revoke takes effect within the window
+/// rather than waiting for the JWT's natural expiry.
+const SESSION_RECHECK_INTERVAL: Duration = Duration::from_secs(60);
+
+/// `Join` runs `get_design_project` to confirm the project belongs
+/// to the bound workspace. Past authorisation results stay in this
+/// per-connection cache for the TTL below — leave/re-join cycles
+/// don't hammer the store. RLS still gates every other query, so a
+/// cached `true` is safe even if the user's role changes mid-window.
+const PROJECT_CACHE_TTL: Duration = Duration::from_secs(30);
 
 type WsSender = Arc<Mutex<SplitSink<WebSocket, Message>>>;
 
@@ -67,6 +81,9 @@ struct AuthOutcome {
     user_id: String,
     user_name: String,
     workspace_id: Uuid,
+    /// Retained for periodic revocation / `token_version` rechecks
+    /// over the lifetime of the connection.
+    claims: AuthClaims,
 }
 
 async fn handle_ws(mut socket: WebSocket, state: AppState) {
@@ -167,6 +184,15 @@ async fn authenticate(state: &AppState, socket: &mut WebSocket) -> Result<AuthOu
         }
     };
 
+    // Per-jti revocation + bulk `token_version` invalidation. Same
+    // surface the HTTP middleware uses on every request — a token
+    // rejected there must be rejected here too.
+    if check_jwt_revocation(state, &claims).await.is_err() {
+        let _ = send_one(socket, &server_error(ErrorCode::SessionRevoked)).await;
+        close_socket(socket, close_code::POLICY, "session revoked").await;
+        return Err(());
+    }
+
     // Workspace membership is enforced by binding `WORKSPACE_ID` to
     // the claimed workspace and asking the store for its row. RLS
     // returns None when the principal isn't a member, so we don't
@@ -186,9 +212,10 @@ async fn authenticate(state: &AppState, socket: &mut WebSocket) -> Result<AuthOu
 
     let user_name = claims.name.clone().unwrap_or_else(|| claims.email.clone());
     Ok(AuthOutcome {
-        user_id: claims.sub,
+        user_id: claims.sub.clone(),
         user_name,
         workspace_id,
+        claims,
     })
 }
 
@@ -204,99 +231,60 @@ async fn serve_collab(
 ) {
     let (sender, mut receiver) = socket.split();
     let sender: WsSender = Arc::new(Mutex::new(sender));
-    let user_id = auth.user_id;
-    let user_name = auth.user_name;
+    let AuthOutcome {
+        user_id,
+        user_name,
+        claims,
+        ..
+    } = auth;
 
-    // Track joined rooms for cleanup on disconnect.
+    // Per-connection state: rooms joined for disconnect cleanup,
+    // project authorisation cache to avoid hammering the store on
+    // every Join.
     let mut joined_rooms: Vec<Uuid> = Vec::new();
+    let mut project_cache: HashMap<Uuid, Instant> = HashMap::new();
 
-    while let Some(Ok(msg)) = receiver.next().await {
-        let text = match msg {
-            Message::Text(t) => t,
-            Message::Close(_) => break,
-            _ => continue,
-        };
+    let mut session_check = tokio::time::interval(SESSION_RECHECK_INTERVAL);
+    session_check.tick().await; // skip the immediate first tick
 
-        let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) else {
-            let _ = send_via(&sender, &server_error(ErrorCode::MalformedFrame)).await;
-            continue;
-        };
-
-        match client_msg {
-            ClientMessage::Authenticate { .. } => {
-                // Re-auth mid-session is not supported.
-                let _ = send_via(&sender, &server_error(ErrorCode::AuthRequired)).await;
+    loop {
+        tokio::select! {
+            biased;
+            _ = session_check.tick() => {
+                if check_jwt_revocation(&state, &claims).await.is_err() {
+                    let _ = send_via(&sender, &server_error(ErrorCode::SessionRevoked)).await;
+                    close_via(&sender, close_code::POLICY, "session revoked").await;
+                    break;
+                }
             }
-            ClientMessage::Join { project_id } => {
-                if !verify_project(&state, project_id).await {
-                    let _ = send_via(&sender, &server_error(ErrorCode::UnauthorizedProject)).await;
+            frame = receiver.next() => {
+                let Some(Ok(msg)) = frame else { break };
+                let text = match msg {
+                    Message::Text(t) => t,
+                    Message::Close(_) => break,
+                    _ => continue,
+                };
+
+                let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) else {
+                    let _ = send_via(&sender, &server_error(ErrorCode::MalformedFrame)).await;
                     continue;
-                }
-                let outcome = state
-                    .collaboration
-                    .join(project_id, &user_id, &user_name)
-                    .await;
-                joined_rooms.push(project_id);
+                };
 
-                // Unicast the snapshot to the joining socket — other
-                // members already have presence; only this one needs
-                // to bootstrap.
-                let _ = send_via(
+                if !handle_client_message(
+                    &state,
                     &sender,
-                    &ServerMessage::Presence {
-                        project_id,
-                        users: outcome.snapshot,
-                    },
+                    &user_id,
+                    &user_name,
+                    client_msg,
+                    &mut joined_rooms,
+                    &mut project_cache,
                 )
-                .await;
-
-                // `spawn_scoped` carries WORKSPACE_ID into the forward
-                // task so any store-touching code we add later stays
-                // workspace-scoped.
-                let sender_for_fwd = Arc::clone(&sender);
-                crate::spawn_scoped::spawn_scoped(forward_broadcast(
-                    outcome.receiver,
-                    sender_for_fwd,
-                ));
-            }
-            ClientMessage::Leave { project_id } => {
-                state.collaboration.leave(project_id, &user_id).await;
-                joined_rooms.retain(|r| *r != project_id);
-            }
-            ClientMessage::MoveCursor {
-                project_id,
-                x,
-                y,
-                selected_element,
-            } => {
-                state
-                    .collaboration
-                    .move_cursor(project_id, &user_id, &user_name, x, y, selected_element)
-                    .await;
-            }
-            ClientMessage::AcquireLock {
-                project_id,
-                entity_id,
-            } => {
-                let result = state
-                    .collaboration
-                    .acquire_lock(project_id, &user_id, &entity_id)
-                    .await;
-                // Granted locks broadcast to the room; denials are
-                // unicast (other members don't care about a denial
-                // they didn't ask for).
-                if let ServerMessage::LockDenied { .. } = result {
-                    let _ = send_via(&sender, &result).await;
+                .await
+                {
+                    // Reserved for terminal cases (currently none —
+                    // every variant continues the loop).
+                    break;
                 }
-            }
-            ClientMessage::ReleaseLock {
-                project_id,
-                entity_id,
-            } => {
-                state
-                    .collaboration
-                    .release_lock(project_id, &user_id, &entity_id)
-                    .await;
             }
         }
     }
@@ -308,11 +296,122 @@ async fn serve_collab(
     drop(session);
 }
 
-/// Verify a `project_id` belongs to the WS connection's bound
-/// workspace. Relies on RLS — the caller has bound `WORKSPACE_ID`
-/// already, so a foreign project id resolves to `None`.
-async fn verify_project(state: &AppState, project_id: Uuid) -> bool {
-    matches!(state.store.get_design_project(project_id).await, Ok(Some(_)))
+/// Process one decoded `ClientMessage`. Returns `true` to continue
+/// the main loop, `false` to terminate the connection.
+async fn handle_client_message(
+    state: &AppState,
+    sender: &WsSender,
+    user_id: &str,
+    user_name: &str,
+    msg: ClientMessage,
+    joined_rooms: &mut Vec<Uuid>,
+    project_cache: &mut HashMap<Uuid, Instant>,
+) -> bool {
+    match msg {
+        ClientMessage::Authenticate { .. } => {
+            // Re-auth mid-session is not supported.
+            let _ = send_via(sender, &server_error(ErrorCode::AuthRequired)).await;
+        }
+        ClientMessage::Join { project_id } => {
+            if !verify_project(state, project_id, project_cache).await {
+                let _ = send_via(sender, &server_error(ErrorCode::UnauthorizedProject)).await;
+                return true;
+            }
+            let outcome = state
+                .collaboration
+                .join(project_id, user_id, user_name)
+                .await;
+            joined_rooms.push(project_id);
+
+            // Unicast the snapshot to the joining socket — other
+            // members already have presence; only this one needs
+            // to bootstrap.
+            let _ = send_via(
+                sender,
+                &ServerMessage::Presence {
+                    project_id,
+                    users: outcome.snapshot,
+                },
+            )
+            .await;
+
+            // `spawn_scoped` carries WORKSPACE_ID into the forward
+            // task so any store-touching code we add later stays
+            // workspace-scoped.
+            let sender_for_fwd = Arc::clone(sender);
+            crate::spawn_scoped::spawn_scoped(forward_broadcast(outcome.receiver, sender_for_fwd));
+        }
+        ClientMessage::Leave { project_id } => {
+            state.collaboration.leave(project_id, user_id).await;
+            joined_rooms.retain(|r| *r != project_id);
+        }
+        ClientMessage::MoveCursor {
+            project_id,
+            x,
+            y,
+            selected_element,
+        } => {
+            state
+                .collaboration
+                .move_cursor(project_id, user_id, user_name, x, y, selected_element)
+                .await;
+        }
+        ClientMessage::AcquireLock {
+            project_id,
+            entity_id,
+        } => {
+            let result = state
+                .collaboration
+                .acquire_lock(project_id, user_id, &entity_id)
+                .await;
+            // `LockGranted` rides the broadcast (caller's own
+            // subscription receives it); `LockDenied` and
+            // `Error{NotJoined}` are unicast — other members
+            // don't care about a denial they didn't ask for.
+            if !matches!(result, ServerMessage::LockGranted { .. }) {
+                let _ = send_via(sender, &result).await;
+            }
+        }
+        ClientMessage::ReleaseLock {
+            project_id,
+            entity_id,
+        } => {
+            if let Some(err) = state
+                .collaboration
+                .release_lock(project_id, user_id, &entity_id)
+                .await
+            {
+                let _ = send_via(sender, &err).await;
+            }
+        }
+    }
+    true
+}
+
+/// Authorise a `project_id` against the bound workspace. RLS
+/// guarantees foreign ids resolve to `None`; the result is cached
+/// for [`PROJECT_CACHE_TTL`] so Leave→Join cycles stay cheap.
+async fn verify_project(
+    state: &AppState,
+    project_id: Uuid,
+    cache: &mut HashMap<Uuid, Instant>,
+) -> bool {
+    let now = Instant::now();
+    if cache.get(&project_id).is_some_and(|&exp| now < exp) {
+        return true;
+    }
+    let authorised = matches!(
+        state.store.get_design_project(project_id).await,
+        Ok(Some(_))
+    );
+    if authorised {
+        cache.insert(project_id, now + PROJECT_CACHE_TTL);
+    } else {
+        // Negative results aren't cached — operator may grant access
+        // mid-session and the user shouldn't have to reconnect.
+        cache.remove(&project_id);
+    }
+    authorised
 }
 
 // ---------------------------------------------------------------------------
@@ -321,8 +420,10 @@ async fn verify_project(state: &AppState, project_id: Uuid) -> bool {
 
 /// Pump server-side broadcast messages out to a single client
 /// socket. On `Lagged`, send a structured `BroadcastLagged` error
-/// so the FE can choose to re-join (resync presence) and continue
-/// rather than silently dropping the connection.
+/// so the FE can re-join (resync presence) instead of silently
+/// dropping. Any send failure on either branch terminates the
+/// task — once the socket is dead, further publishes can't reach
+/// it.
 async fn forward_broadcast(
     mut rx: broadcast::Receiver<ServerMessage>,
     sender: WsSender,
@@ -335,7 +436,12 @@ async fn forward_broadcast(
                 }
             }
             Err(broadcast::error::RecvError::Lagged(_)) => {
-                let _ = send_via(&sender, &server_error(ErrorCode::BroadcastLagged)).await;
+                if send_via(&sender, &server_error(ErrorCode::BroadcastLagged))
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
             }
             Err(broadcast::error::RecvError::Closed) => break,
         }
@@ -366,6 +472,16 @@ async fn send_via(sender: &WsSender, msg: &ServerMessage) -> Result<(), ()> {
 
 async fn close_socket(socket: &mut WebSocket, code: u16, reason: &str) {
     let _ = socket
+        .send(Message::Close(Some(CloseFrame {
+            code,
+            reason: reason.to_string().into(),
+        })))
+        .await;
+}
+
+async fn close_via(sender: &WsSender, code: u16, reason: &str) {
+    let mut guard = sender.lock().await;
+    let _ = guard
         .send(Message::Close(Some(CloseFrame {
             code,
             reason: reason.to_string().into(),
