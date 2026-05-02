@@ -71,9 +71,10 @@ pub struct AppState {
     /// HITL: maps "session_id:tool_call_id" → oneshot sender for tool approval
     pub tool_review_channels:
         Option<Arc<DashMap<String, tokio::sync::oneshot::Sender<ToolApproval>>>>,
-    /// Real-time collaboration hub (presence, cursors, locks)
-    #[allow(dead_code)] // Awaiting WebSocket route integration
-    pub collaboration: Arc<CollaborationHub>,
+    /// Real-time collaboration hub (presence, cursors, locks).
+    /// Trait-objected so a future Redis-/NATS-backed implementation
+    /// can drop in without touching the WS handler.
+    pub collaboration: Arc<dyn CollaborationHub>,
     /// Dashboard share-token configuration (default + max expiry).
     pub dashboards: DashboardsConfig,
     /// Recovery-detection hook tuning.

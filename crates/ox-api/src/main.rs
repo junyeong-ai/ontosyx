@@ -542,7 +542,7 @@ async fn main() -> anyhow::Result<()> {
         agent_auth,
         oidc_providers,
         tool_review_channels: Some(Arc::new(dashmap::DashMap::new())),
-        collaboration: Arc::new(collaboration::CollaborationHub::new(
+        collaboration: Arc::new(collaboration::InProcessCollaborationHub::new(
             collaboration::HubLimits::from(&config.collaboration),
         )),
         dashboards: config.dashboards.clone(),

@@ -44,6 +44,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock, broadcast};
@@ -335,11 +336,11 @@ pub struct HubStats {
     pub active_sessions: usize,
 }
 
-/// RAII guard returned by [`CollaborationHub::open_session`]. The
-/// session slot is freed when the handle drops — even on panic /
-/// error paths in the WS handler.
+/// RAII guard returned by [`open_session`]. The session slot is
+/// freed when the handle drops — even on panic / error paths in
+/// the WS handler.
 pub struct SessionHandle {
-    hub: Arc<CollaborationHub>,
+    hub: Arc<dyn CollaborationHub>,
     user_id: String,
 }
 
@@ -347,54 +348,130 @@ impl Drop for SessionHandle {
     fn drop(&mut self) {
         let hub = Arc::clone(&self.hub);
         let user_id = std::mem::take(&mut self.user_id);
-        // `close_session` only mutates the hub's in-memory
+        // `release_session` only mutates the hub's in-memory
         // session-count map; it never touches the store, so it's
         // independent of the WORKSPACE_ID / SYSTEM_BYPASS
         // task-locals that `spawn_scoped` exists to preserve.
         // Plain `tokio::spawn` is correct here.
         #[allow(clippy::disallowed_methods)]
-        tokio::spawn(async move { hub.close_session(&user_id).await });
+        tokio::spawn(async move { hub.release_session(&user_id).await });
     }
 }
 
-pub struct CollaborationHub {
+/// Realtime-collaboration backend abstraction. The default
+/// in-process implementation lives in
+/// [`InProcessCollaborationHub`] and covers single-instance
+/// deployments; a future Redis / NATS-backed implementation can
+/// drop in without touching the WS handler or the workbench
+/// layout. `AppState` holds an `Arc<dyn CollaborationHub>`, so
+/// every consumer reads the same surface.
+#[async_trait]
+pub trait CollaborationHub: Send + Sync {
+    /// Reserve a session slot for `user_id`. Returns `false` when
+    /// the per-user concurrent cap is reached. Pair every
+    /// successful reservation with [`Self::release_session`] —
+    /// the [`SessionHandle`] returned by [`open_session`]
+    /// automates that.
+    async fn try_reserve_session(&self, user_id: &str) -> bool;
+
+    /// Free a session slot reserved through
+    /// [`Self::try_reserve_session`]. No-op when no slot is held.
+    async fn release_session(&self, user_id: &str);
+
+    /// Join a project room. Broadcasts `UserJoined` to existing
+    /// members; returns a fresh receiver plus a unicast snapshot
+    /// (presence + active locks) the WS handler forwards to the
+    /// joining socket.
+    async fn join(
+        &self,
+        project_id: Uuid,
+        user_id: &str,
+        user_name: &str,
+    ) -> JoinOutcome;
+
+    /// Leave a project room. Releases every lock held by `user_id`
+    /// and broadcasts `UserLeft` plus per-lock `LockReleased`.
+    async fn leave(&self, project_id: Uuid, user_id: &str);
+
+    /// Broadcast a cursor move. Throttled per `cursor_throttle`;
+    /// calls inside the throttle window or for unknown users /
+    /// rooms are silently dropped — cursor data is lossy by
+    /// design.
+    async fn move_cursor(
+        &self,
+        project_id: Uuid,
+        user_id: &str,
+        user_name: &str,
+        x: f64,
+        y: f64,
+        selected_element: Option<String>,
+    );
+
+    /// Try to acquire an exclusive lock. See
+    /// [`InProcessCollaborationHub::acquire_lock`] for the result
+    /// semantics — every implementation honours the same
+    /// `LockGranted` / `LockDenied` / `Error{NotJoined}`
+    /// triple, broadcasting new grants and unicasting
+    /// idempotent refreshes.
+    async fn acquire_lock(
+        &self,
+        project_id: Uuid,
+        user_id: &str,
+        entity_id: &str,
+    ) -> ServerMessage;
+
+    /// Release a lock owned by `user_id`. `None` on success
+    /// (`LockReleased` was broadcast or the lock didn't exist);
+    /// `Some(Error { NotJoined })` when the caller hasn't joined.
+    async fn release_lock(
+        &self,
+        project_id: Uuid,
+        user_id: &str,
+        entity_id: &str,
+    ) -> Option<ServerMessage>;
+
+    /// Sweep idle members past the configured timeout and `leave`
+    /// them. Returns the count reaped.
+    async fn reap_idle_members(&self) -> usize;
+
+    /// Snapshot of hub-wide gauges.
+    async fn stats(&self) -> HubStats;
+}
+
+/// Reserve a session slot and wrap it in a [`SessionHandle`] that
+/// frees the slot on drop. Free function rather than a trait
+/// method because it has to capture an owned `Arc<dyn ...>` for
+/// the guard's `Drop` impl — trait methods can't return guards
+/// that outlive the reference they were called through.
+pub async fn open_session(
+    hub: Arc<dyn CollaborationHub>,
+    user_id: &str,
+) -> Option<SessionHandle> {
+    if !hub.try_reserve_session(user_id).await {
+        return None;
+    }
+    Some(SessionHandle {
+        hub,
+        user_id: user_id.to_string(),
+    })
+}
+
+/// In-process implementation of [`CollaborationHub`]. Single-
+/// instance by design; for multi-instance deployment swap this
+/// for a pub/sub-backed implementation that fans broadcast frames
+/// across the cluster.
+pub struct InProcessCollaborationHub {
     rooms: RwLock<HashMap<Uuid, Arc<Mutex<Room>>>>,
     sessions: RwLock<HashMap<String, usize>>, // user_id → active session count
     limits: HubLimits,
 }
 
-impl CollaborationHub {
+impl InProcessCollaborationHub {
     pub fn new(limits: HubLimits) -> Self {
         Self {
             rooms: RwLock::new(HashMap::new()),
             sessions: RwLock::new(HashMap::new()),
             limits,
-        }
-    }
-
-    /// Reserve a session slot for `user_id`. Returns `None` when
-    /// the per-user concurrent cap is reached; otherwise a guard
-    /// that frees the slot on drop.
-    pub async fn open_session(self: &Arc<Self>, user_id: &str) -> Option<SessionHandle> {
-        let mut sessions = self.sessions.write().await;
-        let count = sessions.entry(user_id.to_string()).or_insert(0);
-        if *count >= self.limits.max_sessions_per_user {
-            return None;
-        }
-        *count += 1;
-        Some(SessionHandle {
-            hub: Arc::clone(self),
-            user_id: user_id.to_string(),
-        })
-    }
-
-    async fn close_session(&self, user_id: &str) {
-        let mut sessions = self.sessions.write().await;
-        if let Some(count) = sessions.get_mut(user_id) {
-            *count = count.saturating_sub(1);
-            if *count == 0 {
-                sessions.remove(user_id);
-            }
         }
     }
 
@@ -412,10 +489,35 @@ impl CollaborationHub {
         )
     }
 
-    /// Join a project room. Broadcasts `UserJoined` to existing
-    /// members; returns a fresh receiver plus a unicast snapshot
-    /// the WS handler forwards directly to the joining socket.
-    pub async fn join(
+    /// Active room count, for tests + monitoring.
+    pub async fn active_room_count(&self) -> usize {
+        self.rooms.read().await.len()
+    }
+}
+
+#[async_trait]
+impl CollaborationHub for InProcessCollaborationHub {
+    async fn try_reserve_session(&self, user_id: &str) -> bool {
+        let mut sessions = self.sessions.write().await;
+        let count = sessions.entry(user_id.to_string()).or_insert(0);
+        if *count >= self.limits.max_sessions_per_user {
+            return false;
+        }
+        *count += 1;
+        true
+    }
+
+    async fn release_session(&self, user_id: &str) {
+        let mut sessions = self.sessions.write().await;
+        if let Some(count) = sessions.get_mut(user_id) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                sessions.remove(user_id);
+            }
+        }
+    }
+
+    async fn join(
         &self,
         project_id: Uuid,
         user_id: &str,
@@ -463,7 +565,7 @@ impl CollaborationHub {
 
     /// Leave a room. Releases every lock held by `user_id` and
     /// broadcasts `UserLeft` plus per-lock `LockReleased`.
-    pub async fn leave(&self, project_id: Uuid, user_id: &str) {
+    async fn leave(&self, project_id: Uuid, user_id: &str) {
         let room_arc = match self.rooms.read().await.get(&project_id) {
             Some(arc) => Arc::clone(arc),
             None => return,
@@ -512,7 +614,7 @@ impl CollaborationHub {
     /// Move a cursor. Throttled per `cursor_throttle`. Calls
     /// inside the throttle window or for unknown users / rooms
     /// are silently dropped — cursor data is lossy by design.
-    pub async fn move_cursor(
+    async fn move_cursor(
         &self,
         project_id: Uuid,
         user_id: &str,
@@ -565,7 +667,7 @@ impl CollaborationHub {
     ///   that aren't relevant to them.
     /// * `Error { code: NotJoined }` — the caller hasn't `Join`ed
     ///   the room. Indicates a client bug; unicast to the caller.
-    pub async fn acquire_lock(
+    async fn acquire_lock(
         &self,
         project_id: Uuid,
         user_id: &str,
@@ -645,7 +747,7 @@ impl CollaborationHub {
     /// idempotent on the wire). Returns `Some(Error { NotJoined })`
     /// when the caller hasn't joined the room — a client bug the
     /// WS handler unicasts back to the requester.
-    pub async fn release_lock(
+    async fn release_lock(
         &self,
         project_id: Uuid,
         user_id: &str,
@@ -675,14 +777,9 @@ impl CollaborationHub {
         None
     }
 
-    /// Active room count, for monitoring.
-    pub async fn active_room_count(&self) -> usize {
-        self.rooms.read().await.len()
-    }
-
     /// Snapshot of hub-wide gauges. Called per `/metrics` scrape;
     /// cheap because both reads are O(1) on the registry maps.
-    pub async fn stats(&self) -> HubStats {
+    async fn stats(&self) -> HubStats {
         let active_rooms = self.rooms.read().await.len();
         let active_sessions: usize = self.sessions.read().await.values().sum();
         HubStats {
@@ -699,7 +796,7 @@ impl CollaborationHub {
     ///
     /// Returns the number of members reaped — useful for tracing
     /// / metrics.
-    pub async fn reap_idle_members(&self) -> usize {
+    async fn reap_idle_members(&self) -> usize {
         let cutoff = Utc::now()
             - chrono::Duration::from_std(self.limits.idle_timeout)
                 .unwrap_or(chrono::Duration::seconds(300));
@@ -757,7 +854,7 @@ mod tests {
 
     #[tokio::test]
     async fn move_cursor_preserves_selected_element() {
-        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let hub = Arc::new(InProcessCollaborationHub::new(test_limits()));
         let project = Uuid::new_v4();
         let _outcome = hub.join(project, "u1", "Alice").await;
         // Drain the UserJoined frame so move_cursor's broadcast is the next one.
@@ -792,7 +889,7 @@ mod tests {
 
     #[tokio::test]
     async fn cursor_throttle_drops_floods() {
-        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let hub = Arc::new(InProcessCollaborationHub::new(test_limits()));
         let project = Uuid::new_v4();
         let _ = hub.join(project, "u1", "Alice").await;
 
@@ -812,7 +909,7 @@ mod tests {
 
     #[tokio::test]
     async fn acquire_lock_idempotent_for_same_user() {
-        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let hub = Arc::new(InProcessCollaborationHub::new(test_limits()));
         let project = Uuid::new_v4();
         let _ = hub.join(project, "u1", "Alice").await;
 
@@ -836,7 +933,7 @@ mod tests {
 
     #[tokio::test]
     async fn acquire_lock_denied_for_other_user() {
-        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let hub = Arc::new(InProcessCollaborationHub::new(test_limits()));
         let project = Uuid::new_v4();
         let _ = hub.join(project, "u1", "Alice").await;
         let _ = hub.join(project, "u2", "Bob").await;
@@ -855,7 +952,7 @@ mod tests {
             lock_ttl: Duration::from_millis(20),
             ..test_limits()
         };
-        let hub = Arc::new(CollaborationHub::new(limits));
+        let hub = Arc::new(InProcessCollaborationHub::new(limits));
         let project = Uuid::new_v4();
         let _ = hub.join(project, "u1", "Alice").await;
         let _ = hub.join(project, "u2", "Bob").await;
@@ -869,7 +966,7 @@ mod tests {
 
     #[tokio::test]
     async fn leave_releases_locks_and_reaps_empty_room() {
-        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let hub = Arc::new(InProcessCollaborationHub::new(test_limits()));
         let project = Uuid::new_v4();
         let _ = hub.join(project, "u1", "Alice").await;
         let _ = hub.acquire_lock(project, "u1", "ent-1").await;
@@ -880,7 +977,7 @@ mod tests {
 
     #[tokio::test]
     async fn acquire_lock_rejects_unjoined_caller() {
-        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let hub = Arc::new(InProcessCollaborationHub::new(test_limits()));
         let project = Uuid::new_v4();
         // u1 hasn't joined — direct lock attempt should yield NotJoined.
         let result = hub.acquire_lock(project, "u1", "ent-1").await;
@@ -894,7 +991,7 @@ mod tests {
 
     #[tokio::test]
     async fn release_lock_signals_unjoined_caller() {
-        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let hub = Arc::new(InProcessCollaborationHub::new(test_limits()));
         let project = Uuid::new_v4();
         // First seed a room with a different user so the registry
         // entry exists; otherwise release_lock would early-return None.
@@ -914,11 +1011,11 @@ mod tests {
             max_sessions_per_user: 2,
             ..test_limits()
         };
-        let hub = Arc::new(CollaborationHub::new(limits));
+        let hub: Arc<dyn CollaborationHub> = Arc::new(InProcessCollaborationHub::new(limits));
 
-        let h1 = hub.open_session("u1").await;
-        let h2 = hub.open_session("u1").await;
-        let h3 = hub.open_session("u1").await;
+        let h1 = open_session(Arc::clone(&hub), "u1").await;
+        let h2 = open_session(Arc::clone(&hub), "u1").await;
+        let h3 = open_session(Arc::clone(&hub), "u1").await;
         assert!(h1.is_some());
         assert!(h2.is_some());
         assert!(h3.is_none());
@@ -927,13 +1024,13 @@ mod tests {
         // The Drop impl spawns the close — let it run.
         tokio::task::yield_now().await;
         tokio::time::sleep(Duration::from_millis(10)).await;
-        let h4 = hub.open_session("u1").await;
+        let h4 = open_session(Arc::clone(&hub), "u1").await;
         assert!(h4.is_some());
     }
 
     #[tokio::test]
     async fn join_emits_presence_snapshot() {
-        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let hub = Arc::new(InProcessCollaborationHub::new(test_limits()));
         let project = Uuid::new_v4();
 
         let _ = hub.join(project, "u1", "Alice").await;
@@ -951,7 +1048,7 @@ mod tests {
             idle_timeout: Duration::from_millis(20),
             ..test_limits()
         };
-        let hub = Arc::new(CollaborationHub::new(limits));
+        let hub = Arc::new(InProcessCollaborationHub::new(limits));
         let project = Uuid::new_v4();
 
         let _ = hub.join(project, "u1", "Alice").await;
@@ -973,7 +1070,7 @@ mod tests {
 
     #[tokio::test]
     async fn join_includes_active_locks_in_snapshot() {
-        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let hub = Arc::new(InProcessCollaborationHub::new(test_limits()));
         let project = Uuid::new_v4();
 
         let _ = hub.join(project, "u1", "Alice").await;

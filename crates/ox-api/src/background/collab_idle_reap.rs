@@ -18,7 +18,7 @@ use crate::collaboration::CollaborationHub;
 use super::cron::{CronTask, spawn_cron};
 
 struct CollabIdleReap {
-    hub: Arc<CollaborationHub>,
+    hub: Arc<dyn CollaborationHub>,
     interval: Duration,
 }
 
@@ -60,7 +60,7 @@ impl CronTask for CollabIdleReap {
 /// token is shared with `main.rs`'s other spawns so graceful
 /// shutdown drains the loop.
 pub fn spawn_collab_idle_reap(
-    hub: Arc<CollaborationHub>,
+    hub: Arc<dyn CollaborationHub>,
     interval: Duration,
     cancel: CancellationToken,
 ) {

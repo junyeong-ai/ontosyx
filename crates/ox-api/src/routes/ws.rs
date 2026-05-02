@@ -36,7 +36,9 @@ use tokio::sync::{Mutex, broadcast};
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::collaboration::{ClientMessage, ErrorCode, ServerMessage, SessionHandle};
+use crate::collaboration::{
+    ClientMessage, ErrorCode, ServerMessage, SessionHandle, open_session,
+};
 use crate::error::AppError;
 use crate::middleware::{AuthClaims, check_jwt_revocation, validate_jwt};
 use crate::state::AppState;
@@ -94,7 +96,7 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
 
     // Reserve the per-user session slot. Drop frees it on every
     // exit path including panic.
-    let session = match state.collaboration.open_session(&outcome.user_id).await {
+    let session = match open_session(Arc::clone(&state.collaboration), &outcome.user_id).await {
         Some(handle) => handle,
         None => {
             let _ = send_one(&mut socket, &server_error(ErrorCode::TooManyConnections)).await;
