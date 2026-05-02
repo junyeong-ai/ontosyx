@@ -486,7 +486,11 @@
       "noImprovements": "No improvements suggested",
       "improvementFailed": "AI improvement failed",
       "undoLimit": "Undo history limit reached"
-    }
+    },
+    "noOntology": "No ontology",
+    "nodeNotFound": "Node not found",
+    "edgeNotFound": "Edge not found",
+    "selectPrompt": "Select a node or edge"
   },
   "narrowViewport": {
     "title": "Optimised for desktop",

@@ -23,6 +23,7 @@ import { useEntityLockGuard } from "@/components/collab/use-entity-lock-guard";
 
 export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   const t = useTranslations("inspector.toast");
+  const tInspector = useTranslations("inspector");
   const ontology = useAppStore((s) => s.ontology);
   const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
   const selectedNodeId = useAppStore(selectStateSelectedNodeId);
@@ -75,15 +76,15 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
     } finally {
       setIsSaving(false);
     }
-  }, [activeProject, commandStack, applyProjectSnapshot]);
+  }, [activeProject, commandStack, applyProjectSnapshot, t]);
 
 
-  if (!ontology) return <Empty text="No ontology" />;
+  if (!ontology) return <Empty text={tInspector("noOntology")} />;
 
   const content = (() => {
     if (selectedNodeId) {
       const node = arr(ontology.node_types).find((n) => n.id === selectedNodeId);
-      if (!node) return <Empty text="Node not found" />;
+      if (!node) return <Empty text={tInspector("nodeNotFound")} />;
       const nodeGaps = gaps.filter((g) =>
         gapTouchesEntity(g, "node", selectedNodeId),
       );
@@ -100,7 +101,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
 
     if (selectedEdgeId) {
       const edge = arr(ontology.edge_types).find((e) => e.id === selectedEdgeId);
-      if (!edge) return <Empty text="Edge not found" />;
+      if (!edge) return <Empty text={tInspector("edgeNotFound")} />;
       const edgeGaps = gaps.filter((g) =>
         gapTouchesEntity(g, "edge", selectedEdgeId),
       );
@@ -115,7 +116,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
       );
     }
 
-    return <Empty text="Select a node or edge" />;
+    return <Empty text={tInspector("selectPrompt")} />;
   })();
 
   return (

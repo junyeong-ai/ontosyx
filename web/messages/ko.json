@@ -468,7 +468,11 @@
       "noImprovements": "개선 제안이 없습니다",
       "improvementFailed": "AI 개선에 실패했습니다",
       "undoLimit": "되돌리기 한도에 도달했습니다"
-    }
+    },
+    "noOntology": "온톨로지가 없습니다",
+    "nodeNotFound": "노드를 찾을 수 없습니다",
+    "edgeNotFound": "엣지를 찾을 수 없습니다",
+    "selectPrompt": "노드 또는 엣지를 선택하세요"
   },
   "narrowViewport": {
     "title": "데스크탑에 최적화된 도구입니다",
