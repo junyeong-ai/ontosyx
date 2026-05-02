@@ -25,7 +25,7 @@ use crate::workspace::WorkspaceContext;
 // Request / Query types
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateRuleRequest {
     pub name: String,
     pub rule_type: String,
@@ -40,14 +40,14 @@ pub struct CreateRuleRequest {
     pub severity: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateRuleRequest {
     pub name: Option<String>,
     pub threshold: Option<f64>,
     pub is_active: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct ListRulesParams {
     /// Optional lineage filter — when present, only rules scoped to this
     /// ontology lineage are returned.
@@ -55,7 +55,7 @@ pub struct ListRulesParams {
     pub target_label: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct LimitParam {
     pub limit: Option<i64>,
 }
@@ -64,6 +64,14 @@ pub struct LimitParam {
 // POST /api/quality/rules — create a quality rule
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    post,
+    path = "/api/quality/rules",
+    request_body = CreateRuleRequest,
+    responses((status = 201, description = "Quality rule created", body = Object)),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn create_rule(
     State(state): State<AppState>,
     principal: Principal,
@@ -103,6 +111,14 @@ pub(crate) async fn create_rule(
 // GET /api/quality/rules — list quality rules
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/quality/rules",
+    params(ListRulesParams),
+    responses((status = 200, description = "Quality rules", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn list_rules(
     State(state): State<AppState>,
     Query(params): Query<ListRulesParams>,
@@ -123,6 +139,17 @@ pub(crate) async fn list_rules(
 // GET /api/quality/rules/:id — get single rule
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/quality/rules/{id}",
+    params(("id" = Uuid, Path, description = "Quality rule ID")),
+    responses(
+        (status = 200, description = "Quality rule", body = Object),
+        (status = 404, description = "Rule not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn get_rule(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -141,6 +168,18 @@ pub(crate) async fn get_rule(
 // PATCH /api/quality/rules/:id — update rule
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    patch,
+    path = "/api/quality/rules/{id}",
+    params(("id" = Uuid, Path, description = "Quality rule ID")),
+    request_body = UpdateRuleRequest,
+    responses(
+        (status = 200, description = "Updated quality rule", body = Object),
+        (status = 404, description = "Rule not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn update_rule(
     State(state): State<AppState>,
     principal: Principal,
@@ -182,6 +221,17 @@ pub(crate) async fn update_rule(
 // DELETE /api/quality/rules/:id — delete rule
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/quality/rules/{id}",
+    params(("id" = Uuid, Path, description = "Quality rule ID")),
+    responses(
+        (status = 204, description = "Rule deleted"),
+        (status = 404, description = "Rule not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn delete_rule(
     State(state): State<AppState>,
     principal: Principal,
@@ -206,6 +256,13 @@ pub(crate) async fn delete_rule(
 // GET /api/quality/dashboard — overview of all rules + latest results
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/quality/dashboard",
+    responses((status = 200, description = "Per-rule dashboard entries", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn quality_dashboard(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<QualityDashboardEntry>>>, AppError> {
@@ -222,6 +279,17 @@ pub(crate) async fn quality_dashboard(
 // GET /api/quality/rules/:id/results — latest results for a rule
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/quality/rules/{id}/results",
+    params(
+        ("id" = Uuid, Path, description = "Quality rule ID"),
+        LimitParam,
+    ),
+    responses((status = 200, description = "Recent results for the rule", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn rule_results(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -242,6 +310,18 @@ pub(crate) async fn rule_results(
 // POST /api/quality/rules/:id/execute — execute a single quality rule
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    post,
+    path = "/api/quality/rules/{id}/execute",
+    params(("id" = Uuid, Path, description = "Quality rule ID")),
+    responses(
+        (status = 200, description = "Execution result", body = Object),
+        (status = 404, description = "Rule not found"),
+        (status = 503, description = "Graph runtime not configured"),
+    ),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn execute_rule(
     State(state): State<AppState>,
     principal: Principal,
@@ -298,6 +378,16 @@ pub(crate) async fn execute_rule(
 // POST /api/quality/execute-all — execute all active quality rules
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    post,
+    path = "/api/quality/execute-all",
+    responses(
+        (status = 200, description = "Per-rule execution results", body = Vec<Object>),
+        (status = 503, description = "Graph runtime not configured"),
+    ),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn execute_all_rules(
     State(state): State<AppState>,
     principal: Principal,
@@ -585,13 +675,21 @@ fn parse_window(s: Option<&str>) -> MetricWindow {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct MetricsParams {
     /// `"7d"` | `"30d"` | `"90d"`. Defaults to `7d`.
     pub window: Option<String>,
 }
 
 /// `GET /api/quality/metrics?window=7d` — six-window summary.
+#[utoipa::path(
+    get,
+    path = "/api/quality/metrics",
+    params(MetricsParams),
+    responses((status = 200, description = "Aggregated metrics report", body = Object)),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn get_quality_metrics(
     State(state): State<AppState>,
     _principal: Principal,
@@ -607,6 +705,14 @@ pub(crate) async fn get_quality_metrics(
 }
 
 /// `GET /api/quality/shacl-failures?window=7d` — failure-kind histogram.
+#[utoipa::path(
+    get,
+    path = "/api/quality/shacl-failures",
+    params(MetricsParams),
+    responses((status = 200, description = "Failure-kind histogram", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn list_shacl_failures(
     State(state): State<AppState>,
     _principal: Principal,
@@ -633,6 +739,13 @@ pub(crate) async fn list_shacl_failures(
 /// JSONB `thresholds` bundle at render time when present and
 /// drops into the hardcoded defaults when not — no config flip,
 /// no deploy.
+#[utoipa::path(
+    get,
+    path = "/api/quality/baseline",
+    responses((status = 200, description = "Adaptive threshold snapshot or null", body = Option<Object>)),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn get_quality_baseline(
     State(state): State<AppState>,
     _principal: Principal,
@@ -646,7 +759,7 @@ pub(crate) async fn get_quality_baseline(
     Ok(ApiResponse::of(baseline))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct StaleTypesParams {
     /// Staleness cutoff in days. Defaults to 180 — matches the
     /// patent matrix's "6개월 미사용" threshold.
@@ -657,6 +770,14 @@ pub struct StaleTypesParams {
 /// whose `last_used_at` is older than the cutoff. Candidates for
 /// deprecation (always HITL — the list is advisory, not an
 /// auto-delete trigger).
+#[utoipa::path(
+    get,
+    path = "/api/quality/stale-types",
+    params(StaleTypesParams),
+    responses((status = 200, description = "Stale types past the cutoff", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn list_stale_types(
     State(state): State<AppState>,
     _principal: Principal,
@@ -671,7 +792,7 @@ pub(crate) async fn list_stale_types(
     Ok(ApiResponse::of(rows))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct StaleProposalsParams {
     /// `true` (default) — only pending proposals (admin's open queue).
     /// `false` — include terminal (approved / dismissed) for history.
@@ -681,6 +802,14 @@ pub struct StaleProposalsParams {
 
 /// `GET /api/quality/stale-proposals` — durable proposals written by
 /// the daily cron. Natural key guarantees one open row per type.
+#[utoipa::path(
+    get,
+    path = "/api/quality/stale-proposals",
+    params(StaleProposalsParams),
+    responses((status = 200, description = "Stale concept proposals", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn list_stale_proposals(
     State(state): State<AppState>,
     _principal: Principal,
@@ -696,7 +825,7 @@ pub(crate) async fn list_stale_proposals(
     Ok(ApiResponse::of(rows))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct DecideStaleProposalRequest {
     /// `"approved"` or `"dismissed"`. `"pending"` is rejected —
     /// there's no "un-decide" op; admins clear the row instead.
@@ -709,6 +838,18 @@ pub struct DecideStaleProposalRequest {
 
 /// `PATCH /api/quality/stale-proposals/{id}` — admin decision on
 /// one proposal. Returns the updated row.
+#[utoipa::path(
+    patch,
+    path = "/api/quality/stale-proposals/{id}",
+    params(("id" = Uuid, Path, description = "Stale concept proposal ID")),
+    request_body = DecideStaleProposalRequest,
+    responses(
+        (status = 200, description = "Updated proposal row", body = Object),
+        (status = 400, description = "Invalid decision value"),
+    ),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
 pub(crate) async fn decide_stale_proposal(
     State(state): State<AppState>,
     principal: Principal,

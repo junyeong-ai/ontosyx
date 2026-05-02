@@ -5,8 +5,8 @@ use utoipa::{Modify, OpenApi, ToSchema};
 use crate::routes::{
     acl, approvals, audit, auth, chat, config, dashboards, federation_admin, governance_audit,
     governance_routing, health, insights, knowledge, lineage, load, models, notifications,
-    ontology, perspectives, pins, prompts_admin, query, recipes, reports, schedules, sessions,
-    usage, users, workspaces,
+    ontology, perspectives, pins, prompts_admin, quality, query, recipes, reports, schedules,
+    sessions, usage, users, workspaces,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -113,6 +113,7 @@ impl Modify for SecurityAddon {
         (name = "Recipes", description = "Reusable analysis recipe templates"),
         (name = "Knowledge", description = "Knowledge base entries + admin review"),
         (name = "Models", description = "LLM model configs + routing rules"),
+        (name = "Quality", description = "SHACL-style data-quality rules + adaptive baselines"),
     ),
     paths(
         // Health
@@ -330,6 +331,22 @@ impl Modify for SecurityAddon {
         models::update_routing_rule,
         models::delete_routing_rule,
         models::test_model_connection,
+        // Quality
+        quality::create_rule,
+        quality::list_rules,
+        quality::get_rule,
+        quality::update_rule,
+        quality::delete_rule,
+        quality::quality_dashboard,
+        quality::rule_results,
+        quality::execute_rule,
+        quality::execute_all_rules,
+        quality::get_quality_metrics,
+        quality::list_shacl_failures,
+        quality::get_quality_baseline,
+        quality::list_stale_types,
+        quality::list_stale_proposals,
+        quality::decide_stale_proposal,
     ),
     components(
         schemas(
@@ -546,6 +563,10 @@ impl Modify for SecurityAddon {
             // Models
             models::TestModelRequest,
             models::TestModelResponse,
+            // Quality
+            quality::CreateRuleRequest,
+            quality::UpdateRuleRequest,
+            quality::DecideStaleProposalRequest,
         ),
     ),
     modifiers(&SecurityAddon),

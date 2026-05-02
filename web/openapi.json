@@ -6622,6 +6622,616 @@
         ]
       }
     },
+    "/api/quality/baseline": {
+      "get": {
+        "tags": [
+          "Quality"
+        ],
+        "summary": "`GET /api/quality/baseline` — current workspace's adaptive\nthreshold snapshot.",
+        "description": "Returns `null` when the daily cron hasn't populated the row\nyet (fresh workspace, or run is still pending the first tick).\nThe frontend treats `null` as \"insufficient evidence\" and\nfalls back to its hardcoded prior; the same fallback applies\nwhen `sample_size` is below the FE-side minimum. This is Phase\nB of the adaptive-threshold rollout: the banner consumes the\nJSONB `thresholds` bundle at render time when present and\ndrops into the hardcoded defaults when not — no config flip,\nno deploy.",
+        "operationId": "get_quality_baseline",
+        "responses": {
+          "200": {
+            "description": "Adaptive threshold snapshot or null",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/quality/dashboard": {
+      "get": {
+        "tags": [
+          "Quality"
+        ],
+        "operationId": "quality_dashboard",
+        "responses": {
+          "200": {
+            "description": "Per-rule dashboard entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/quality/execute-all": {
+      "post": {
+        "tags": [
+          "Quality"
+        ],
+        "operationId": "execute_all_rules",
+        "responses": {
+          "200": {
+            "description": "Per-rule execution results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Graph runtime not configured"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/quality/metrics": {
+      "get": {
+        "tags": [
+          "Quality"
+        ],
+        "summary": "`GET /api/quality/metrics?window=7d` — six-window summary.",
+        "operationId": "get_quality_metrics",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "description": "`\"7d\"` | `\"30d\"` | `\"90d\"`. Defaults to `7d`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregated metrics report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/quality/rules": {
+      "get": {
+        "tags": [
+          "Quality"
+        ],
+        "operationId": "list_rules",
+        "parameters": [
+          {
+            "name": "ontology_lineage_id",
+            "in": "query",
+            "description": "Optional lineage filter — when present, only rules scoped to this\nontology lineage are returned.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "target_label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quality rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Quality"
+        ],
+        "operationId": "create_rule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Quality rule created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/quality/rules/{id}": {
+      "get": {
+        "tags": [
+          "Quality"
+        ],
+        "operationId": "get_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Quality rule ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quality rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rule not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Quality"
+        ],
+        "operationId": "delete_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Quality rule ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Rule deleted"
+          },
+          "404": {
+            "description": "Rule not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Quality"
+        ],
+        "operationId": "update_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Quality rule ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated quality rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rule not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/quality/rules/{id}/execute": {
+      "post": {
+        "tags": [
+          "Quality"
+        ],
+        "operationId": "execute_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Quality rule ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Execution result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rule not found"
+          },
+          "503": {
+            "description": "Graph runtime not configured"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/quality/rules/{id}/results": {
+      "get": {
+        "tags": [
+          "Quality"
+        ],
+        "operationId": "rule_results",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Quality rule ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent results for the rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/quality/shacl-failures": {
+      "get": {
+        "tags": [
+          "Quality"
+        ],
+        "summary": "`GET /api/quality/shacl-failures?window=7d` — failure-kind histogram.",
+        "operationId": "list_shacl_failures",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "description": "`\"7d\"` | `\"30d\"` | `\"90d\"`. Defaults to `7d`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Failure-kind histogram",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/quality/stale-proposals": {
+      "get": {
+        "tags": [
+          "Quality"
+        ],
+        "summary": "`GET /api/quality/stale-proposals` — durable proposals written by\nthe daily cron. Natural key guarantees one open row per type.",
+        "operationId": "list_stale_proposals",
+        "parameters": [
+          {
+            "name": "include_decided",
+            "in": "query",
+            "description": "`true` (default) — only pending proposals (admin's open queue).\n`false` — include terminal (approved / dismissed) for history.",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stale concept proposals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/quality/stale-proposals/{id}": {
+      "patch": {
+        "tags": [
+          "Quality"
+        ],
+        "summary": "`PATCH /api/quality/stale-proposals/{id}` — admin decision on\none proposal. Returns the updated row.",
+        "operationId": "decide_stale_proposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Stale concept proposal ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideStaleProposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated proposal row",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid decision value"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/quality/stale-types": {
+      "get": {
+        "tags": [
+          "Quality"
+        ],
+        "summary": "`GET /api/quality/stale-types?stale_after_days=180` — types\nwhose `last_used_at` is older than the cutoff. Candidates for\ndeprecation (always HITL — the list is advisory, not an\nauto-delete trigger).",
+        "operationId": "list_stale_types",
+        "parameters": [
+          {
+            "name": "stale_after_days",
+            "in": "query",
+            "description": "Staleness cutoff in days. Defaults to 180 — matches the\npatent matrix's \"6개월 미사용\" threshold.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stale types past the cutoff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/query/from-ir": {
       "post": {
         "tags": [
@@ -11457,6 +12067,55 @@
           }
         }
       },
+      "CreateRuleRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "rule_type",
+          "ontology_lineage_id",
+          "target_label"
+        ],
+        "properties": {
+          "cypher_check": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "ontology_lineage_id": {
+            "type": "string",
+            "description": "Ontology lineage this rule is scoped to. Required so two ontologies\nin the same workspace that share a label name don't collapse each\nother's rules."
+          },
+          "rule_type": {
+            "type": "string"
+          },
+          "severity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_label": {
+            "type": "string"
+          },
+          "target_property": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "threshold": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "CreateSavedPatternRequest": {
         "type": "object",
         "required": [
@@ -12053,6 +12712,25 @@
           }
         ],
         "description": "What the measure is taken on."
+      },
+      "DecideStaleProposalRequest": {
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "description": "`\"approved\"` or `\"dismissed\"`. `\"pending\"` is rejected —\nthere's no \"un-decide\" op; admins clear the row instead."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional admin comment. Surfaces in audit log + the\nproposal's row detail."
+          }
+        }
       },
       "DecompilePatternRequest": {
         "type": "object",
@@ -21151,6 +21829,30 @@
           }
         }
       },
+      "UpdateRuleRequest": {
+        "type": "object",
+        "properties": {
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "threshold": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "UpdateSavedPatternRequest": {
         "type": "object",
         "required": [
@@ -21938,6 +22640,10 @@
     {
       "name": "Models",
       "description": "LLM model configs + routing rules"
+    },
+    {
+      "name": "Quality",
+      "description": "SHACL-style data-quality rules + adaptive baselines"
     }
   ]
 }

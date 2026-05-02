@@ -1547,6 +1547,227 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/quality/baseline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/quality/baseline` — current workspace's adaptive
+         *     threshold snapshot.
+         * @description Returns `null` when the daily cron hasn't populated the row
+         *     yet (fresh workspace, or run is still pending the first tick).
+         *     The frontend treats `null` as "insufficient evidence" and
+         *     falls back to its hardcoded prior; the same fallback applies
+         *     when `sample_size` is below the FE-side minimum. This is Phase
+         *     B of the adaptive-threshold rollout: the banner consumes the
+         *     JSONB `thresholds` bundle at render time when present and
+         *     drops into the hardcoded defaults when not — no config flip,
+         *     no deploy.
+         */
+        get: operations["get_quality_baseline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quality/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["quality_dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quality/execute-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["execute_all_rules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quality/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/quality/metrics?window=7d` — six-window summary. */
+        get: operations["get_quality_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quality/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_rules"];
+        put?: never;
+        post: operations["create_rule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quality/rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_rule"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_rule"];
+        options?: never;
+        head?: never;
+        patch: operations["update_rule"];
+        trace?: never;
+    };
+    "/api/quality/rules/{id}/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["execute_rule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quality/rules/{id}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["rule_results"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quality/shacl-failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/quality/shacl-failures?window=7d` — failure-kind histogram. */
+        get: operations["list_shacl_failures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quality/stale-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/quality/stale-proposals` — durable proposals written by
+         *     the daily cron. Natural key guarantees one open row per type.
+         */
+        get: operations["list_stale_proposals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quality/stale-proposals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * `PATCH /api/quality/stale-proposals/{id}` — admin decision on
+         *     one proposal. Returns the updated row.
+         */
+        patch: operations["decide_stale_proposal"];
+        trace?: never;
+    };
+    "/api/quality/stale-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/quality/stale-types?stale_after_days=180` — types
+         *     whose `last_used_at` is older than the cutoff. Candidates for
+         *     deprecation (always HITL — the list is advisory, not an
+         *     auto-delete trigger).
+         */
+        get: operations["list_stale_types"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/query/from-ir": {
         parameters: {
             query?: never;
@@ -3202,6 +3423,22 @@ export interface components {
             title: string;
             widget_type?: string | null;
         };
+        CreateRuleRequest: {
+            cypher_check?: string | null;
+            name: string;
+            /**
+             * @description Ontology lineage this rule is scoped to. Required so two ontologies
+             *     in the same workspace that share a label name don't collapse each
+             *     other's rules.
+             */
+            ontology_lineage_id: string;
+            rule_type: string;
+            severity?: string | null;
+            target_label: string;
+            target_property?: string | null;
+            /** Format: double */
+            threshold?: number | null;
+        };
         CreateSavedPatternRequest: {
             /** @description Optional free-form note. */
             description?: string | null;
@@ -3415,6 +3652,18 @@ export interface components {
             kind: "property";
             node_type_id: components["schemas"]["NodeTypeId"];
             property_id: components["schemas"]["PropertyId"];
+        };
+        DecideStaleProposalRequest: {
+            /**
+             * @description `"approved"` or `"dismissed"`. `"pending"` is rejected —
+             *     there's no "un-decide" op; admins clear the row instead.
+             */
+            decision: string;
+            /**
+             * @description Optional admin comment. Surfaces in audit log + the
+             *     proposal's row detail.
+             */
+            reason?: string | null;
         };
         DecompilePatternRequest: {
             /** @description The QueryIR to reconstruct onto the canvas. */
@@ -7053,6 +7302,12 @@ export interface components {
             query_template?: string | null;
             title?: string | null;
             widget_type?: string | null;
+        };
+        UpdateRuleRequest: {
+            is_active?: boolean | null;
+            name?: string | null;
+            /** Format: double */
+            threshold?: number | null;
         };
         UpdateSavedPatternRequest: {
             description?: string | null;
@@ -11682,6 +11937,410 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PromptInfo"][];
+                };
+            };
+        };
+    };
+    get_quality_baseline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Adaptive threshold snapshot or null */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never> | null;
+                };
+            };
+        };
+    };
+    quality_dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-rule dashboard entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    execute_all_rules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-rule execution results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            /** @description Graph runtime not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_quality_metrics: {
+        parameters: {
+            query?: {
+                /** @description `"7d"` | `"30d"` | `"90d"`. Defaults to `7d`. */
+                window?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aggregated metrics report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    list_rules: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Optional lineage filter — when present, only rules scoped to this
+                 *     ontology lineage are returned.
+                 */
+                ontology_lineage_id?: string | null;
+                target_label?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Quality rules */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    create_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Quality rule created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    get_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Quality rule ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Quality rule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Rule not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Quality rule ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rule deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rule not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Quality rule ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated quality rule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Rule not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    execute_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Quality rule ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Execution result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Rule not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Graph runtime not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    rule_results: {
+        parameters: {
+            query?: {
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Quality rule ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent results for the rule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    list_shacl_failures: {
+        parameters: {
+            query?: {
+                /** @description `"7d"` | `"30d"` | `"90d"`. Defaults to `7d`. */
+                window?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Failure-kind histogram */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    list_stale_proposals: {
+        parameters: {
+            query?: {
+                /**
+                 * @description `true` (default) — only pending proposals (admin's open queue).
+                 *     `false` — include terminal (approved / dismissed) for history.
+                 */
+                include_decided?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stale concept proposals */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    decide_stale_proposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stale concept proposal ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideStaleProposalRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated proposal row */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Invalid decision value */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_stale_types: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Staleness cutoff in days. Defaults to 180 — matches the
+                 *     patent matrix's "6개월 미사용" threshold.
+                 */
+                stale_after_days?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stale types past the cutoff */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
                 };
             };
         };
