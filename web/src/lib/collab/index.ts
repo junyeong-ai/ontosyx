@@ -23,7 +23,12 @@ export {
 } from "./store";
 export { useNetworkAwareness, useVisibilityAwareness } from "./network-awareness";
 export type { CollabState, RoomState } from "./store";
-export { clearCollabClient, useCollab, useCollabRoom } from "./hooks";
+export {
+  clearCollabClient,
+  getActiveCollabClient,
+  useCollab,
+  useCollabRoom,
+} from "./hooks";
 export type { UseCollabOptions } from "./hooks";
 export type {
   ClientMessage,

@@ -11,9 +11,13 @@ import {
 
 import { SchemaNode } from "./schema-node";
 import { SchemaEdge } from "./schema-edge";
-import { GroupNode } from "./node-group";
+import { NodeGroup } from "./node-group";
 import { GraphCanvas } from "./graph-canvas";
 import { EdgeKindMarkers } from "./edge-kind-markers";
+import { RemoteCursorLayer } from "@/components/collab/remote-cursor-layer";
+import { useAppStore } from "@/lib/store";
+import { selectStateActiveProject } from "@/lib/store/selectors";
+import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
 // CanvasFlow — ontology-specific adapter over `GraphCanvas`
@@ -25,7 +29,7 @@ import { EdgeKindMarkers } from "./edge-kind-markers";
 // registry, the `schema` edge renderer, and the quality-layer-aware
 // minimap color.
 
-const nodeTypes = { schema: SchemaNode, group: GroupNode };
+const nodeTypes = { schema: SchemaNode, group: NodeGroup };
 const edgeTypes = { schema: SchemaEdge };
 
 interface CanvasFlowProps {
@@ -48,6 +52,8 @@ interface CanvasFlowProps {
  * quality-layer minimap coloring.
  */
 export function CanvasFlow(props: CanvasFlowProps) {
+  const activeProject = useAppStore(selectStateActiveProject);
+  const { user } = useAuth();
   return (
     <>
       <EdgeKindMarkers />
@@ -65,9 +71,16 @@ export function CanvasFlow(props: CanvasFlowProps) {
         onNodeContextMenu={props.onNodeContextMenu}
         onEdgeContextMenu={props.onEdgeContextMenu}
         onPaneClick={props.onPaneClick}
-        className="bg-zinc-50 dark:bg-zinc-950"
+        className="bg-surface-raised"
         minimap={{ nodeColor: ontologyMiniMapColor }}
-      />
+      >
+        {activeProject?.id && (
+          <RemoteCursorLayer
+            projectId={activeProject.id}
+            currentUserId={user?.sub}
+          />
+        )}
+      </GraphCanvas>
     </>
   );
 }

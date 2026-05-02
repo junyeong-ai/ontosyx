@@ -14,6 +14,15 @@ import { useCollabStore } from "./store";
 let activeClient: CollaborationClient | null = null;
 let activeWorkspaceId: string | null = null;
 
+/**
+ * Read-only accessor for the active singleton. UI components use
+ * this through the matching hook (`use-collab-client.ts`) — never
+ * mutate the returned reference, since lifecycle is owned here.
+ */
+export function getActiveCollabClient(): CollaborationClient | null {
+  return activeClient;
+}
+
 export interface UseCollabOptions {
   /** Absolute or path-relative WS URL. */
   url: string;
