@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { CollaborationClient } from "./client";
 import { useCollabStore } from "./store";
@@ -17,8 +17,12 @@ export interface UseCollabOptions {
   /** Absolute or path-relative WS URL. */
   url: string;
   workspaceId: string;
-  /** Token provider — see `CollaborationClient` for contract. */
-  getToken(): Promise<string>;
+  /**
+   * Token provider — called on every (re)connect. Callers don't
+   * need to memoise this with `useCallback`; the hook reads
+   * through a ref so a fresh closure on each render is fine.
+   */
+  getToken(): string | Promise<string>;
 }
 
 /**
@@ -31,6 +35,14 @@ export function useCollab(opts: UseCollabOptions): CollaborationClient | null {
   const setConnectionState = useCollabStore((s) => s.setConnectionState);
   const applyServerMessage = useCollabStore((s) => s.applyServerMessage);
   const reset = useCollabStore((s) => s.reset);
+
+  // Token provider may capture changing closure state on every
+  // render; route it through a ref so the underlying socket only
+  // re-creates when the workspace identity actually changes.
+  const tokenProviderRef = useRef<UseCollabOptions["getToken"]>(getToken);
+  useLayoutEffect(() => {
+    tokenProviderRef.current = getToken;
+  });
 
   useEffect(() => {
     // Tear down the previous client when the workspace switches.
@@ -45,14 +57,18 @@ export function useCollab(opts: UseCollabOptions): CollaborationClient | null {
       activeClient = new CollaborationClient({
         url,
         workspaceId,
-        getToken,
+        // Read the latest provider through the ref — `getToken`
+        // is captured stably here so token rotation (login
+        // refresh, SessionRevoked recovery) works without
+        // recreating the socket.
+        getToken: () => tokenProviderRef.current(),
         onMessage: applyServerMessage,
         onStateChange: setConnectionState,
       });
       activeWorkspaceId = workspaceId;
       activeClient.connect();
     }
-  }, [url, workspaceId, getToken, applyServerMessage, setConnectionState, reset]);
+  }, [url, workspaceId, applyServerMessage, setConnectionState, reset]);
 
   return activeClient;
 }

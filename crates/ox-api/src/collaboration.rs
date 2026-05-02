@@ -108,12 +108,14 @@ pub enum ServerMessage {
         user_id: String,
         user_name: String,
     },
-    /// Presence snapshot of the room — unicast to a freshly joined
-    /// client. Existing members receive [`ServerMessage::UserJoined`]
-    /// instead.
+    /// Atomic snapshot of the room — unicast to a freshly joined
+    /// client so it can render presence and current locks without
+    /// waiting for the next broadcast frame. Existing members
+    /// receive [`ServerMessage::UserJoined`] instead.
     Presence {
         project_id: Uuid,
         users: Vec<PresenceInfo>,
+        locks: Vec<LockSnapshot>,
     },
     /// Another member's cursor moved. Broadcast to all members
     /// including the originator (clients filter own user_id).
@@ -217,6 +219,17 @@ pub struct CursorPosition {
     pub selected_element: Option<String>,
 }
 
+/// One element of the lock snapshot a freshly joined client
+/// receives. Mirrors [`ServerMessage::LockGranted`] minus the
+/// `project_id` (the surrounding `Presence` frame already carries
+/// it).
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct LockSnapshot {
+    pub entity_id: String,
+    pub held_by: String,
+    pub expires_at: DateTime<Utc>,
+}
+
 // ---------------------------------------------------------------------------
 // Internal state
 // ---------------------------------------------------------------------------
@@ -230,14 +243,14 @@ struct RoomMember {
     last_cursor_at: Option<Instant>,
 }
 
-struct EntityLockEntry {
+struct LockEntry {
     held_by: String,
     expires_at: DateTime<Utc>,
 }
 
 struct Room {
     members: HashMap<String, RoomMember>, // user_id → member
-    locks: HashMap<String, EntityLockEntry>, // entity_id → lock
+    locks: HashMap<String, LockEntry>, // entity_id → lock
     broadcast: broadcast::Sender<ServerMessage>,
 }
 
@@ -262,6 +275,17 @@ impl Room {
             })
             .collect()
     }
+
+    fn lock_snapshot(&self) -> Vec<LockSnapshot> {
+        self.locks
+            .iter()
+            .map(|(entity_id, lock)| LockSnapshot {
+                entity_id: entity_id.clone(),
+                held_by: lock.held_by.clone(),
+                expires_at: lock.expires_at,
+            })
+            .collect()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -278,11 +302,13 @@ pub struct HubLimits {
 }
 
 /// Outcome of [`CollaborationHub::join`] — the broadcast receiver
-/// the WS handler subscribes to plus a unicast snapshot it forwards
-/// directly to the joining socket.
+/// the WS handler subscribes to plus an atomic snapshot of the
+/// room (presence + active locks) it forwards directly to the
+/// joining socket.
 pub struct JoinOutcome {
     pub receiver: broadcast::Receiver<ServerMessage>,
-    pub snapshot: Vec<PresenceInfo>,
+    pub users: Vec<PresenceInfo>,
+    pub locks: Vec<LockSnapshot>,
 }
 
 /// RAII guard returned by [`CollaborationHub::open_session`]. The
@@ -385,12 +411,13 @@ impl CollaborationHub {
             },
         );
 
-        let snapshot = room.presence_snapshot();
+        let users = room.presence_snapshot();
+        let locks = room.lock_snapshot();
         // Subscribe before broadcasting so this connection receives
         // every frame from its own join onward — including the
         // `UserJoined` it just emitted. Drainage is the FE's
         // responsibility (presence is also delivered via
-        // `JoinOutcome.snapshot`, so the duplicate is harmless).
+        // `JoinOutcome`, so the duplicate is harmless).
         let receiver = room.broadcast.subscribe();
         let _ = room.broadcast.send(ServerMessage::UserJoined {
             project_id,
@@ -402,7 +429,11 @@ impl CollaborationHub {
             },
         });
 
-        JoinOutcome { receiver, snapshot }
+        JoinOutcome {
+            receiver,
+            users,
+            locks,
+        }
     }
 
     /// Leave a room. Releases every lock held by `user_id` and
@@ -537,18 +568,19 @@ impl CollaborationHub {
 
         if let Some((held_by, exp)) = existing {
             if held_by == user_id {
-                // Idempotent — refresh TTL.
+                // Idempotent refresh — caller-only signal. Other
+                // members already see the entity as locked-by-this-
+                // user, so a TTL bump is private. The WS handler
+                // unicasts the `LockGranted` to the requester.
                 if let Some(lock) = room.locks.get_mut(entity_id) {
                     lock.expires_at = expires_at;
                 }
-                let msg = ServerMessage::LockGranted {
+                return ServerMessage::LockGranted {
                     project_id,
                     entity_id: entity_id.to_string(),
                     held_by: user_id.to_string(),
                     expires_at,
                 };
-                let _ = room.broadcast.send(msg.clone());
-                return msg;
             }
             if exp > now {
                 // Still held — deny without broadcast.
@@ -563,7 +595,7 @@ impl CollaborationHub {
 
         room.locks.insert(
             entity_id.to_string(),
-            EntityLockEntry {
+            LockEntry {
                 held_by: user_id.to_string(),
                 expires_at,
             },
@@ -824,12 +856,23 @@ mod tests {
         let outcome = hub.join(project, "u2", "Bob").await;
 
         // u2's snapshot includes both members.
-        let names: Vec<String> = outcome
-            .snapshot
-            .iter()
-            .map(|p| p.user_id.clone())
-            .collect();
+        let names: Vec<String> = outcome.users.iter().map(|p| p.user_id.clone()).collect();
         assert!(names.contains(&"u1".to_string()));
         assert!(names.contains(&"u2".to_string()));
+    }
+
+    #[tokio::test]
+    async fn join_includes_active_locks_in_snapshot() {
+        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let project = Uuid::new_v4();
+
+        let _ = hub.join(project, "u1", "Alice").await;
+        let _ = hub.acquire_lock(project, "u1", "ent-1").await;
+
+        // u2 joins later — its snapshot must include u1's existing lock.
+        let outcome = hub.join(project, "u2", "Bob").await;
+        assert_eq!(outcome.locks.len(), 1);
+        assert_eq!(outcome.locks[0].entity_id, "ent-1");
+        assert_eq!(outcome.locks[0].held_by, "u1");
     }
 }

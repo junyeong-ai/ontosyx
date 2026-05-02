@@ -4789,6 +4789,18 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /**
+         * @description One element of the lock snapshot a freshly joined client
+         *     receives. Mirrors [`ServerMessage::LockGranted`] minus the
+         *     `project_id` (the surrounding `Presence` frame already carries
+         *     it).
+         */
+        LockSnapshot: {
+            entity_id: string;
+            /** Format: date-time */
+            expires_at: string;
+            held_by: string;
+        };
         LogoutResponse: {
             /**
              * @description Always `true` on success — the response shape mirrors other
@@ -6852,6 +6864,7 @@ export interface components {
             user_id: string;
             user_name: string;
         } | {
+            locks: components["schemas"]["LockSnapshot"][];
             /** Format: uuid */
             project_id: string;
             /** @enum {string} */

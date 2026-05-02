@@ -23,7 +23,7 @@
 // presence channels.
 #![allow(clippy::let_underscore_must_use)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -241,7 +241,7 @@ async fn serve_collab(
     // Per-connection state: rooms joined for disconnect cleanup,
     // project authorisation cache to avoid hammering the store on
     // every Join.
-    let mut joined_rooms: Vec<Uuid> = Vec::new();
+    let mut joined_rooms: HashSet<Uuid> = HashSet::new();
     let mut project_cache: HashMap<Uuid, Instant> = HashMap::new();
 
     let mut session_check = tokio::time::interval(SESSION_RECHECK_INTERVAL);
@@ -304,7 +304,7 @@ async fn handle_client_message(
     user_id: &str,
     user_name: &str,
     msg: ClientMessage,
-    joined_rooms: &mut Vec<Uuid>,
+    joined_rooms: &mut HashSet<Uuid>,
     project_cache: &mut HashMap<Uuid, Instant>,
 ) -> bool {
     match msg {
@@ -321,16 +321,17 @@ async fn handle_client_message(
                 .collaboration
                 .join(project_id, user_id, user_name)
                 .await;
-            joined_rooms.push(project_id);
+            joined_rooms.insert(project_id);
 
-            // Unicast the snapshot to the joining socket — other
-            // members already have presence; only this one needs
-            // to bootstrap.
+            // Unicast the atomic snapshot (presence + active
+            // locks) to the joining socket — other members
+            // already have it; only this one needs to bootstrap.
             let _ = send_via(
                 sender,
                 &ServerMessage::Presence {
                     project_id,
-                    users: outcome.snapshot,
+                    users: outcome.users,
+                    locks: outcome.locks,
                 },
             )
             .await;
@@ -343,7 +344,7 @@ async fn handle_client_message(
         }
         ClientMessage::Leave { project_id } => {
             state.collaboration.leave(project_id, user_id).await;
-            joined_rooms.retain(|r| *r != project_id);
+            joined_rooms.remove(&project_id);
         }
         ClientMessage::MoveCursor {
             project_id,
@@ -364,13 +365,13 @@ async fn handle_client_message(
                 .collaboration
                 .acquire_lock(project_id, user_id, &entity_id)
                 .await;
-            // `LockGranted` rides the broadcast (caller's own
-            // subscription receives it); `LockDenied` and
-            // `Error{NotJoined}` are unicast — other members
-            // don't care about a denial they didn't ask for.
-            if !matches!(result, ServerMessage::LockGranted { .. }) {
-                let _ = send_via(sender, &result).await;
-            }
+            // Always unicast to the requester. New grants are
+            // also broadcast to the room (other members need to
+            // know the entity is locked); idempotent refreshes
+            // are private to the holder. Caller seeing the new
+            // grant twice (broadcast + unicast) is benign — the
+            // store reducer is idempotent.
+            let _ = send_via(sender, &result).await;
         }
         ClientMessage::ReleaseLock {
             project_id,

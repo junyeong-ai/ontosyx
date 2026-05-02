@@ -14,6 +14,15 @@ import type {
   ServerMessage,
 } from "./types";
 
+// Module-level singletons returned from selectors when a room
+// hasn't been seeded yet. Returning a fresh `new Map()` /
+// `new Array()` every render would break Zustand's reference-
+// equality tracking and trigger pointless re-renders for any
+// component that selects these slices.
+const EMPTY_PRESENCE: readonly PresenceInfo[] = Object.freeze([]);
+const EMPTY_CURSORS: ReadonlyMap<string, CursorPosition> = new Map();
+const EMPTY_LOCKS: ReadonlyMap<string, LockState> = new Map();
+
 /** Snapshot of one collaboration room. */
 export interface RoomState {
   presence: PresenceInfo[];
@@ -77,12 +86,22 @@ export function applyServerMessage(
     case "presence": {
       const rooms = new Map(state.rooms);
       const room = rooms.get(msg.project_id) ?? emptyRoom();
-      // Snapshot replaces the presence list verbatim; cursors and
-      // locks survive — they may have been seeded by frames that
-      // arrived before this snapshot.
+      // Snapshot is atomic — presence + locks come from the
+      // server's authoritative view of the room. Cursors are
+      // ephemeral (no server-side store) and survive so a
+      // reconnect doesn't blank live cursors before the next
+      // `RemoteCursor` frame arrives.
+      const locks = new Map<string, LockState>();
+      for (const lock of msg.locks) {
+        locks.set(lock.entity_id, {
+          heldBy: lock.held_by,
+          expiresAt: lock.expires_at,
+        });
+      }
       rooms.set(msg.project_id, {
         ...room,
         presence: msg.users,
+        locks,
       });
       return { rooms };
     }
@@ -169,19 +188,23 @@ export function applyServerMessage(
 // re-renders are scoped to the data they use.
 // ---------------------------------------------------------------------------
 
-export const selectPresence = (projectId: string) =>
-  (state: CollabState): PresenceInfo[] =>
-    state.rooms.get(projectId)?.presence ?? [];
+export const selectPresence =
+  (projectId: string) =>
+  (state: CollabState): readonly PresenceInfo[] =>
+    state.rooms.get(projectId)?.presence ?? EMPTY_PRESENCE;
 
-export const selectCursors = (projectId: string) =>
-  (state: CollabState): Map<string, CursorPosition> =>
-    state.rooms.get(projectId)?.cursors ?? new Map();
+export const selectCursors =
+  (projectId: string) =>
+  (state: CollabState): ReadonlyMap<string, CursorPosition> =>
+    state.rooms.get(projectId)?.cursors ?? EMPTY_CURSORS;
 
-export const selectLocks = (projectId: string) =>
-  (state: CollabState): Map<string, LockState> =>
-    state.rooms.get(projectId)?.locks ?? new Map();
+export const selectLocks =
+  (projectId: string) =>
+  (state: CollabState): ReadonlyMap<string, LockState> =>
+    state.rooms.get(projectId)?.locks ?? EMPTY_LOCKS;
 
-export const selectLockFor = (projectId: string, entityId: string) =>
+export const selectLockFor =
+  (projectId: string, entityId: string) =>
   (state: CollabState): LockState | undefined =>
     state.rooms.get(projectId)?.locks.get(entityId);
 

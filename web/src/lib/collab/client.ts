@@ -27,12 +27,11 @@ export interface CollaborationClientConfig {
   url: string;
   workspaceId: string;
   /**
-   * Token provider. Invoked on initial connect and on every
-   * reconnect — callers should hand back a fresh JWT each time so
-   * `SessionRevoked` paths can recover automatically. Reject to
-   * give up reconnecting.
+   * Token provider. Called on every (re)connect so the client
+   * picks up rotated / refreshed JWTs without recreating the
+   * socket. Throw / reject to give up reconnecting.
    */
-  getToken(): Promise<string>;
+  getToken(): string | Promise<string>;
 
   onMessage(msg: ServerMessage): void;
   onStateChange?(state: ConnectionState): void;

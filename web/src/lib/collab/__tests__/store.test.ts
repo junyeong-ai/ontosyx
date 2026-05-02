@@ -27,9 +27,29 @@ describe("applyServerMessage", () => {
           cursor: null,
         },
       ],
+      locks: [],
     };
     const next = applyServerMessage(initial, msg);
     expect(next.rooms?.get(projectA)?.presence).toHaveLength(1);
+  });
+
+  it("seeds active locks from a Presence snapshot", () => {
+    const msg: ServerMessage = {
+      type: "presence",
+      project_id: projectA,
+      users: [],
+      locks: [
+        {
+          entity_id: "ent-1",
+          held_by: "u1",
+          expires_at: "2026-05-02T00:05:00Z",
+        },
+      ],
+    };
+    const next = applyServerMessage(initial, msg);
+    const lock = next.rooms?.get(projectA)?.locks.get("ent-1");
+    expect(lock?.heldBy).toBe("u1");
+    expect(lock?.expiresAt).toBe("2026-05-02T00:05:00Z");
   });
 
   it("dedupes UserJoined when the joiner is already in presence", () => {

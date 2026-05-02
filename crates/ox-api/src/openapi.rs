@@ -547,6 +547,7 @@ impl Modify for SecurityAddon {
             crate::collaboration::ErrorCode,
             crate::collaboration::PresenceInfo,
             crate::collaboration::CursorPosition,
+            crate::collaboration::LockSnapshot,
             // Notifications
             notifications::WebhookChannelConfig,
             notifications::CreateChannelRequest,

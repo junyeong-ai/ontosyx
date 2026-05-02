@@ -10,6 +10,7 @@ export type ServerMessage = components["schemas"]["ServerMessage"];
 export type ErrorCode = components["schemas"]["ErrorCode"];
 export type PresenceInfo = components["schemas"]["PresenceInfo"];
 export type CursorPosition = components["schemas"]["CursorPosition"];
+export type LockSnapshot = components["schemas"]["LockSnapshot"];
 
 /**
  * Type-narrowed extractor for a `ServerMessage` variant. Lets call

@@ -15197,6 +15197,27 @@
           }
         }
       },
+      "LockSnapshot": {
+        "type": "object",
+        "description": "One element of the lock snapshot a freshly joined client\nreceives. Mirrors [`ServerMessage::LockGranted`] minus the\n`project_id` (the surrounding `Presence` frame already carries\nit).",
+        "required": [
+          "entity_id",
+          "held_by",
+          "expires_at"
+        ],
+        "properties": {
+          "entity_id": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "held_by": {
+            "type": "string"
+          }
+        }
+      },
       "LogoutResponse": {
         "type": "object",
         "required": [
@@ -20666,13 +20687,20 @@
           },
           {
             "type": "object",
-            "description": "Presence snapshot of the room — unicast to a freshly joined\nclient. Existing members receive [`ServerMessage::UserJoined`]\ninstead.",
+            "description": "Atomic snapshot of the room — unicast to a freshly joined\nclient so it can render presence and current locks without\nwaiting for the next broadcast frame. Existing members\nreceive [`ServerMessage::UserJoined`] instead.",
             "required": [
               "project_id",
               "users",
+              "locks",
               "type"
             ],
             "properties": {
+              "locks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/LockSnapshot"
+                }
+              },
               "project_id": {
                 "type": "string",
                 "format": "uuid"
