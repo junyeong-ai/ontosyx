@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 
 import {
@@ -29,10 +29,22 @@ import { cn } from "@/lib/cn";
  *  the server. Trimming on the client saves bandwidth + battery. */
 const CURSOR_SEND_INTERVAL_MS = 60;
 
-/** Idle cursors fade out after this long without an update. The
- *  store still has the last position, but at this point the user
- *  is probably AFK. */
-const CURSOR_IDLE_FADE_MS = 30_000;
+/** Cursors stay fully opaque for this long after the most recent
+ *  frame. Tuned to match a normal pause (sip of coffee, glance at
+ *  a panel) without flickering. */
+const CURSOR_VISIBLE_MS = 30_000;
+
+/** After [`CURSOR_VISIBLE_MS`] cursors fade linearly to zero over
+ *  this window — once the gradient runs out the cursor stops
+ *  rendering entirely, but presence stays so the avatar in the
+ *  header remains. */
+const CURSOR_FADE_MS = 30_000;
+
+/** Tick interval for the idle-fade re-evaluation. Cursors that
+ *  haven't moved still need their opacity recomputed against the
+ *  wall clock; one second is well below the perception threshold
+ *  and runs cheaply for any plausible cursor count. */
+const FADE_TICK_MS = 1_000;
 
 interface RemoteCursorLayerProps {
   projectId: string;
@@ -89,6 +101,20 @@ interface RenderedCursor {
   x: number;
   y: number;
   color: string;
+  opacity: number;
+}
+
+/**
+ * Linear fade from 1 → 0 between [`CURSOR_VISIBLE_MS`] and
+ * `CURSOR_VISIBLE_MS + CURSOR_FADE_MS`. Past that the cursor
+ * stops rendering; presence stays in the header so the user
+ * isn't "gone" — just AFK.
+ */
+function idleOpacity(lastUpdateAt: number, now: number): number {
+  const age = now - lastUpdateAt;
+  if (age < CURSOR_VISIBLE_MS) return 1;
+  if (age >= CURSOR_VISIBLE_MS + CURSOR_FADE_MS) return 0;
+  return 1 - (age - CURSOR_VISIBLE_MS) / CURSOR_FADE_MS;
 }
 
 function CursorRenderer({
@@ -101,6 +127,18 @@ function CursorRenderer({
   const cursors = useCollabStore(selectCursors(projectId));
   const presence = useCollabStore(selectPresence(projectId));
   const { flowToScreenPosition } = useReactFlow();
+
+  // Idle-fade tick — re-evaluates opacity against the wall clock
+  // even when no new cursor frames arrive. The state holds the
+  // latest `Date.now()` so the render-time `useMemo` can read it
+  // without calling the impure `Date.now()` itself. Lazy
+  // initialiser captures `now` at first mount; `setInterval`
+  // refreshes it from inside the effect.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), FADE_TICK_MS);
+    return () => clearInterval(t);
+  }, []);
 
   // user_id → user_name lookup. Presence is the source of truth
   // for naming; cursor frames carry it too but presence is a
@@ -117,6 +155,8 @@ function CursorRenderer({
       if (userId === currentUserId) continue;
       const userName = nameById.get(userId);
       if (!userName) continue; // user left the room mid-frame
+      const opacity = idleOpacity(cursor.lastUpdateAt, now);
+      if (opacity === 0) continue;
       const screen = flowToScreenPosition({ x: cursor.x, y: cursor.y });
       out.push({
         userId,
@@ -124,10 +164,11 @@ function CursorRenderer({
         x: screen.x,
         y: screen.y,
         color: colorFor(userId),
+        opacity,
       });
     }
     return out;
-  }, [cursors, nameById, currentUserId, flowToScreenPosition]);
+  }, [cursors, nameById, currentUserId, flowToScreenPosition, now]);
 
   if (rendered.length === 0) return null;
 
@@ -149,24 +190,21 @@ interface RemoteCursorProps {
   x: number;
   y: number;
   color: string;
+  opacity: number;
 }
 
-function RemoteCursor({ userName, x, y, color }: RemoteCursorProps) {
+function RemoteCursor({ userName, x, y, color, opacity }: RemoteCursorProps) {
   return (
     <div
       className={cn(
-        "absolute -translate-x-1 -translate-y-1 transition-[left,top] duration-100 ease-linear",
+        "absolute -translate-x-1 -translate-y-1 transition-[left,top,opacity] duration-200 ease-linear",
         "fade-in-0 animate-in",
       )}
-      style={
-        {
-          left: `${x}px`,
-          top: `${y}px`,
-          // Inline custom property fades the cursor when its
-          // `last-update` mark goes stale; consumers can override.
-          "--cursor-color": color,
-        } as React.CSSProperties
-      }
+      style={{
+        left: `${x}px`,
+        top: `${y}px`,
+        opacity,
+      }}
     >
       <CursorArrow color={color} />
       <span
@@ -200,7 +238,3 @@ function CursorArrow({ color }: { color: string }) {
   );
 }
 
-// Suppress the unused-fade timer for now — the design system's
-// next pass will hook idle fade into a per-cursor `lastUpdate`
-// timestamp tracked alongside the position.
-void CURSOR_IDLE_FADE_MS;

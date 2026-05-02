@@ -20,14 +20,25 @@ import type {
 // equality tracking and trigger pointless re-renders for any
 // component that selects these slices.
 const EMPTY_PRESENCE: readonly PresenceInfo[] = Object.freeze([]);
-const EMPTY_CURSORS: ReadonlyMap<string, CursorPosition> = new Map();
+const EMPTY_CURSORS: ReadonlyMap<string, CursorEntry> = new Map();
 const EMPTY_LOCKS: ReadonlyMap<string, LockState> = new Map();
+
+/**
+ * Cursor position augmented with a wall-clock timestamp the
+ * renderer uses to fade idle cursors. The wire shape
+ * (`CursorPosition`) stays unchanged; the timestamp is internal,
+ * stamped by the reducer when the frame lands.
+ */
+export interface CursorEntry extends CursorPosition {
+  /** `Date.now()` at the moment the most recent frame arrived. */
+  lastUpdateAt: number;
+}
 
 /** Snapshot of one collaboration room. */
 export interface RoomState {
   presence: PresenceInfo[];
   /** user_id → live cursor */
-  cursors: Map<string, CursorPosition>;
+  cursors: Map<string, CursorEntry>;
   /** entity_id → lock holder + expiry */
   locks: Map<string, LockState>;
 }
@@ -173,6 +184,7 @@ export function applyServerMessage(
         x: msg.x,
         y: msg.y,
         selected_element: msg.selected_element,
+        lastUpdateAt: Date.now(),
       });
       rooms.set(msg.project_id, { ...room, cursors });
       return { rooms };
@@ -227,7 +239,7 @@ export const selectPresence =
 
 export const selectCursors =
   (projectId: string) =>
-  (state: CollabState): ReadonlyMap<string, CursorPosition> =>
+  (state: CollabState): ReadonlyMap<string, CursorEntry> =>
     state.rooms.get(projectId)?.cursors ?? EMPTY_CURSORS;
 
 export const selectLocks =

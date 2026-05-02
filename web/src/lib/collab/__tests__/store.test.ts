@@ -113,7 +113,7 @@ describe("applyServerMessage", () => {
               },
             ],
             cursors: new Map([
-              ["u1", { x: 0, y: 0, selected_element: null }],
+              ["u1", { x: 0, y: 0, selected_element: null, lastUpdateAt: 0 }],
             ]),
             locks: new Map(),
           },
@@ -170,7 +170,7 @@ describe("applyServerMessage", () => {
     expect(next.rooms?.get(projectA)?.locks.has("ent-1")).toBe(false);
   });
 
-  it("records cursor position with selected_element", () => {
+  it("records cursor position with selected_element + idle timestamp", () => {
     const msg: ServerMessage = {
       type: "remote_cursor",
       project_id: projectA,
@@ -180,12 +180,13 @@ describe("applyServerMessage", () => {
       y: 20,
       selected_element: "node-42",
     };
+    const before = Date.now();
     const next = applyServerMessage(initial, msg);
-    expect(next.rooms?.get(projectA)?.cursors.get("u1")).toEqual({
-      x: 10,
-      y: 20,
-      selected_element: "node-42",
-    });
+    const cursor = next.rooms?.get(projectA)?.cursors.get("u1");
+    expect(cursor?.x).toBe(10);
+    expect(cursor?.y).toBe(20);
+    expect(cursor?.selected_element).toBe("node-42");
+    expect(cursor?.lastUpdateAt).toBeGreaterThanOrEqual(before);
   });
 
   it("captures Error frames into lastError", () => {
