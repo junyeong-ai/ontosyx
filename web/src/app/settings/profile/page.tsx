@@ -111,7 +111,7 @@ export default function ProfilePage() {
         {/* Account Details */}
         <Card padding="none">
           <Card.Header className="px-6 py-4">
-            <Card.Title>{t("accountDetails")}</Card.Title>
+            <Card.Title as="h2">{t("accountDetails")}</Card.Title>
           </Card.Header>
           <div className="divide-y divide-divider-soft">
             <DetailRow label={t("field.name")} value={user.name} />
@@ -128,7 +128,7 @@ export default function ProfilePage() {
 
         {/* Sign Out */}
         <Card padding="lg">
-          <Card.Title>{t("session.title")}</Card.Title>
+          <Card.Title as="h2">{t("session.title")}</Card.Title>
           <Card.Description className="mt-1">
             {t("session.description")}
           </Card.Description>

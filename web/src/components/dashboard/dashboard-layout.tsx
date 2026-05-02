@@ -169,17 +169,33 @@ export function DashboardLayout() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
     const docTitle = activeDashboard?.name ?? "";
-    printWindow.document.write(`
-      <html><head><title>${docTitle}</title>
-      <style>body{font-family:system-ui;padding:20px}
-      .widget{border:1px solid #e4e4e7;border-radius:8px;padding:12px;margin:8px;break-inside:avoid}
-      .widget-title{font-size:12px;font-weight:600;margin-bottom:8px;color:#3f3f46}
-      </style></head><body>
-      <h1 style="font-size:18px;margin-bottom:16px">${docTitle}</h1>
-      ${grid.innerHTML}
-      </body></html>
-    `);
-    printWindow.document.close();
+    const printDoc = printWindow.document;
+
+    // Build the printable document via DOM APIs — interpolating
+    // user-controlled `docTitle` into a template string would inject
+    // closing tags / scripts (the dashboard name is operator-supplied
+    // free text). `textContent` and direct property writes treat the
+    // string as data, never as markup.
+    printDoc.title = docTitle;
+    const style = printDoc.createElement("style");
+    style.textContent =
+      "body{font-family:system-ui;padding:20px}" +
+      ".widget{border:1px solid #e4e4e7;border-radius:8px;padding:12px;margin:8px;break-inside:avoid}" +
+      ".widget-title{font-size:12px;font-weight:600;margin-bottom:8px;color:#3f3f46}";
+    printDoc.head.appendChild(style);
+
+    const heading = printDoc.createElement("h1");
+    heading.style.fontSize = "18px";
+    heading.style.marginBottom = "16px";
+    heading.textContent = docTitle;
+    printDoc.body.appendChild(heading);
+
+    // Cloning the live grid into the print document is safer than
+    // round-tripping through `innerHTML` — preserves React's escaping
+    // and avoids re-parsing.
+    printDoc.body.appendChild(printDoc.importNode(grid, true));
+
+    printDoc.close();
     printWindow.print();
   };
 

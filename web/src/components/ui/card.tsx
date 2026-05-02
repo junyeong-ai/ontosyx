@@ -58,7 +58,13 @@ const CardRoot = forwardRef<HTMLDivElement, CardProps>(
     const clickable = Boolean(interactive && onClick);
     const handleKeyDown = clickable
       ? (event: KeyboardEvent<HTMLDivElement>) => {
-          if (event.key === "Enter" || event.key === " ") {
+          // Only activate when the keystroke originated on the Card
+          // root, not on a focused descendant — pressing Space inside
+          // a child input would otherwise re-trigger the card click.
+          if (
+            (event.key === "Enter" || event.key === " ") &&
+            event.target === event.currentTarget
+          ) {
             event.preventDefault();
             onClick?.(
               event as unknown as React.MouseEvent<HTMLDivElement>,
@@ -123,9 +129,21 @@ const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
 );
 CardFooter.displayName = "Card.Footer";
 
-const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...rest }, ref) => (
-    <h3
+type HeadingTag = "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+
+interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
+  /**
+   * Heading level. Defaults to `h3` because cards typically nest
+   * under a page-level `h1` and a section `h2`. Override when the
+   * card is itself a top-level region or a deeper sub-section so
+   * the document hierarchy doesn't skip levels (WCAG 2.4.6).
+   */
+  as?: HeadingTag;
+}
+
+const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>(
+  ({ as: Tag = "h3", className, ...rest }, ref) => (
+    <Tag
       ref={ref}
       className={cn("text-sm font-semibold text-foreground-strong", className)}
       {...rest}
