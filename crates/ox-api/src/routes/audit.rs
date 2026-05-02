@@ -1,5 +1,6 @@
 use axum::Json;
 use axum::extract::{Query, State};
+use serde::Deserialize;
 
 use ox_store::AuditEntry;
 use ox_store::store::CursorParams;
@@ -20,15 +21,46 @@ use crate::state::AppState;
 // workspace-scoped by RLS.
 // ---------------------------------------------------------------------------
 
+/// Mirrors `ox_store::store::CursorParams` for OpenAPI emission. The
+/// store crate stays utoipa-free; the route layer owns the
+/// documented surface and converts inward at the handler.
+#[derive(Deserialize, utoipa::IntoParams)]
+pub struct AuditCursorQuery {
+    #[serde(default = "default_limit")]
+    pub limit: u32,
+    pub cursor: Option<String>,
+}
+
+fn default_limit() -> u32 {
+    50
+}
+
+impl From<AuditCursorQuery> for CursorParams {
+    fn from(q: AuditCursorQuery) -> Self {
+        Self {
+            limit: q.limit,
+            cursor: q.cursor,
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/audit",
+    params(AuditCursorQuery),
+    responses((status = 200, description = "Audit log entries", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Audit",
+)]
 pub(crate) async fn list_audit_events(
     State(state): State<AppState>,
     principal: Principal,
-    Query(params): Query<CursorParams>,
+    Query(params): Query<AuditCursorQuery>,
 ) -> Result<Json<ApiResponse<Vec<AuditEntry>>>, AppError> {
     principal.require_admin()?;
     let events = state
         .store
-        .list_audit_events(params)
+        .list_audit_events(params.into())
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::page(events))

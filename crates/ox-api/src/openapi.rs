@@ -3,9 +3,9 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi, ToSchema};
 
 use crate::routes::{
-    approvals, auth, chat, config, dashboards, federation_admin, governance_audit,
+    approvals, audit, auth, chat, config, dashboards, federation_admin, governance_audit,
     governance_routing, health, insights, load, notifications, ontology, perspectives, pins,
-    prompts_admin, query, users, workspaces,
+    prompts_admin, query, usage, users, workspaces,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -258,6 +258,9 @@ impl Modify for SecurityAddon {
         notifications::delete_channel,
         notifications::test_channel,
         notifications::list_logs,
+        // Audit + usage
+        audit::list_audit_events,
+        usage::get_usage_summary,
     ),
     components(
         schemas(

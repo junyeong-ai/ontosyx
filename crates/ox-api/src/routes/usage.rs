@@ -12,7 +12,7 @@ use crate::state::AppState;
 // GET /api/usage — aggregated usage summary for a time range
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct UsageQuery {
     /// ISO 8601 datetime (defaults to 30 days ago)
     pub from: Option<String>,
@@ -20,6 +20,14 @@ pub struct UsageQuery {
     pub to: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/usage",
+    params(UsageQuery),
+    responses((status = 200, description = "Per-day usage summary", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Admin",
+)]
 pub(crate) async fn get_usage_summary(
     State(state): State<AppState>,
     Query(params): Query<UsageQuery>,
