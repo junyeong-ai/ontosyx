@@ -102,6 +102,7 @@ impl Modify for SecurityAddon {
     paths(
         // Health
         health::health_check,
+        health::healthz,
         // Chat
         chat::chat_stream,
         // Query
@@ -223,6 +224,11 @@ impl Modify for SecurityAddon {
             // pagination side-car here so list responses can reference it
             // by name from the path docs.
             crate::response::PageMeta,
+            // Health probe wire shape — shared by /api/health (wrapped)
+            // and /api/healthz (flat).
+            health::HealthBody,
+            health::HealthComponents,
+            health::HealthLlm,
             // Chat
             chat::ChatStreamRequest,
             // Query
@@ -278,7 +284,7 @@ impl Modify for SecurityAddon {
             ontology::SuggestTermsResponse,
             ontology::PropertyCandidateBody,
             ontology::TermCandidateBody,
-            ontology::SignalBody,
+            ox_ontology::binding_suggestions::BindingSignal,
             ox_ontology::SchemaDependencyGraph,
             ox_ontology::DependencyBucket,
             ox_ontology::DependencyEdge,

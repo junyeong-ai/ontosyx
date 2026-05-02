@@ -292,6 +292,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/healthz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["healthz"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/insights": {
         parameters: {
             query?: never;
@@ -1622,6 +1638,32 @@ export interface components {
             weight_exact_name?: number | null;
             /** Format: float */
             weight_fuzzy_name?: number | null;
+        };
+        /**
+         * @description One signal that contributed to a candidate's score. Kept as a
+         *     tagged discriminated union so the UI can group / filter on
+         *     provenance — e.g. suppress alias-only matches behind a toggle.
+         *     Wire shape: `{ "kind": "<variant>", ...payload }`.
+         */
+        BindingSignal: {
+            /** @enum {string} */
+            kind: "canonical_name";
+        } | {
+            detail: string;
+            /** @enum {string} */
+            kind: "alias";
+        } | {
+            /** @enum {string} */
+            kind: "description_overlap";
+            /** Format: int32 */
+            shared_tokens: number;
+            /** Format: int32 */
+            total_tokens: number;
+        } | {
+            /** @enum {string} */
+            kind: "fuzzy_name";
+            /** Format: float */
+            ratio: number;
         };
         /**
          * @description How strongly a binding constrains write-time behaviour and how
@@ -2983,6 +3025,31 @@ export interface components {
          */
         GraphLabel: string;
         /**
+         * @description Wire shape of both `/api/health` (wrapped in `ApiResponse`) and
+         *     `/api/healthz` (returned flat).
+         */
+        HealthBody: {
+            components: components["schemas"]["HealthComponents"];
+            service: string;
+            status: string;
+            version: string;
+        };
+        HealthComponents: {
+            graph_backend: string;
+            llm: components["schemas"]["HealthLlm"];
+            /**
+             * @description Kept under the `neo4j` key for backward compatibility with
+             *     existing FE/monitors. The actual backend name lives in
+             *     `graph_backend`.
+             */
+            neo4j: string;
+            postgres: string;
+        };
+        HealthLlm: {
+            model: string;
+            provider: string;
+        };
+        /**
          * @description Idempotency contract.
          *
          *     Actions with a non-`None` policy accept an opaque key from the
@@ -4226,7 +4293,7 @@ export interface components {
             property_name: string;
             /** Format: float */
             score: number;
-            signals: components["schemas"]["SignalBody"][];
+            signals: components["schemas"]["BindingSignal"][];
         };
         PropertyDef: {
             aggregation_role?: null | components["schemas"]["AggregationRole"];
@@ -5347,16 +5414,6 @@ export interface components {
             other_property: components["schemas"]["PropertyId"];
             target: components["schemas"]["ConstraintTarget"];
         };
-        SignalBody: {
-            detail?: string | null;
-            kind: string;
-            /** Format: float */
-            ratio?: number | null;
-            /** Format: int32 */
-            shared_tokens?: number | null;
-            /** Format: int32 */
-            total_tokens?: number | null;
-        };
         SkipBody: {
             column: string;
             reason: string;
@@ -5515,7 +5572,7 @@ export interface components {
         TermCandidateBody: {
             /** Format: float */
             score: number;
-            signals: components["schemas"]["SignalBody"][];
+            signals: components["schemas"]["BindingSignal"][];
             term: Record<string, never>;
             term_id: string;
         };
@@ -6812,13 +6869,33 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Service health status */
+            /** @description Service health status (wrapped) */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["HealthBody"];
+                };
+            };
+        };
+    };
+    healthz: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Liveness/readiness probe — flat shape (no envelope, no auth) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthBody"];
                 };
             };
         };

@@ -46,6 +46,9 @@
 
 use std::collections::HashSet;
 
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 use ox_core::i18n::LocalizedText;
 
 use crate::glossary::GlossaryTermDef;
@@ -62,20 +65,25 @@ pub enum PropertyOwnerRef {
 }
 
 /// One signal that contributed to a candidate's score. Kept as a
-/// named enum (not a bare weight) so the UI can group and filter on
+/// tagged discriminated union so the UI can group / filter on
 /// provenance — e.g. suppress alias-only matches behind a toggle.
-#[derive(Debug, Clone, PartialEq)]
+/// Wire shape: `{ "kind": "<variant>", ...payload }`.
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BindingSignal {
     /// Canonical names are identical (case-insensitive).
-    CanonicalNameMatch,
+    CanonicalName,
     /// The term's canonical name appears in the property's aliases,
     /// or vice versa.
-    AliasMatch { matched: String },
+    Alias { detail: String },
     /// Number of term tokens present in the property's description.
     DescriptionOverlap { shared_tokens: u32, total_tokens: u32 },
     /// Levenshtein-ratio-like token-prefix match between canonical
-    /// names, used when neither exact nor alias match fires.
-    FuzzyNameMatch { ratio_millis: u32 },
+    /// names, used when neither exact nor alias match fires. `ratio`
+    /// is in `[0.0, 1.0]`.
+    FuzzyName { ratio: f32 },
 }
 
 /// One property-level suggestion. The score is in `[0.0, 1.0]`; the
@@ -316,17 +324,15 @@ fn score_term_against_property_raw(
 
     if !term.canonical.is_empty() && term.canonical == property.canonical {
         score += policy.weight_exact_name;
-        signals.push(BindingSignal::CanonicalNameMatch);
+        signals.push(BindingSignal::CanonicalName);
     } else if let Some(matched) = alias_match(term, property) {
         score += policy.weight_alias_match;
-        signals.push(BindingSignal::AliasMatch { matched });
+        signals.push(BindingSignal::Alias { detail: matched });
     } else {
         let ratio = fuzzy_ratio(&term.canonical, &property.canonical);
         if ratio >= policy.fuzzy_min_ratio {
             score += policy.weight_fuzzy_name * ratio;
-            signals.push(BindingSignal::FuzzyNameMatch {
-                ratio_millis: (ratio * 1000.0) as u32,
-            });
+            signals.push(BindingSignal::FuzzyName { ratio });
         }
     }
 
@@ -563,7 +569,7 @@ mod tests {
         let t = term("t1", "customer_grade", &[], "");
         let out = suggest_property_bindings_by_term(&ir, &t, Default::default());
         assert_eq!(out.len(), 1);
-        assert!(matches!(out[0].signals[0], BindingSignal::CanonicalNameMatch));
+        assert!(matches!(out[0].signals[0], BindingSignal::CanonicalName));
         assert!(out[0].score >= 0.99);
     }
 
@@ -579,7 +585,7 @@ mod tests {
         assert!(out[0]
             .signals
             .iter()
-            .any(|s| matches!(s, BindingSignal::AliasMatch { .. })));
+            .any(|s| matches!(s, BindingSignal::Alias { .. })));
     }
 
     #[test]
@@ -644,7 +650,7 @@ mod tests {
         assert!(out[0]
             .signals
             .iter()
-            .any(|s| matches!(s, BindingSignal::FuzzyNameMatch { .. })));
+            .any(|s| matches!(s, BindingSignal::FuzzyName { .. })));
     }
 
     #[test]

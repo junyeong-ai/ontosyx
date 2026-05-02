@@ -100,20 +100,7 @@ pub struct PropertyCandidateBody {
     pub property_id: String,
     pub property_name: String,
     pub score: f32,
-    pub signals: Vec<SignalBody>,
-}
-
-#[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct SignalBody {
-    pub kind: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub detail: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub shared_tokens: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_tokens: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ratio: Option<f32>,
+    pub signals: Vec<BindingSignal>,
 }
 
 #[utoipa::path(
@@ -188,7 +175,7 @@ pub struct TermCandidateBody {
     #[schema(value_type = Object)]
     pub term: LocalizedText,
     pub score: f32,
-    pub signals: Vec<SignalBody>,
+    pub signals: Vec<BindingSignal>,
 }
 
 #[utoipa::path(
@@ -292,7 +279,7 @@ fn shape_candidate(c: PropertyBindingCandidate) -> PropertyCandidateBody {
         property_id: c.property_id.to_string(),
         property_name: c.property_name,
         score: c.score,
-        signals: c.signals.into_iter().map(shape_signal).collect(),
+        signals: c.signals,
     }
 }
 
@@ -301,42 +288,6 @@ fn shape_term_candidate(c: TermBindingCandidate) -> TermCandidateBody {
         term_id: c.term_id.to_string(),
         term: c.term,
         score: c.score,
-        signals: c.signals.into_iter().map(shape_signal).collect(),
-    }
-}
-
-fn shape_signal(s: BindingSignal) -> SignalBody {
-    match s {
-        BindingSignal::CanonicalNameMatch => SignalBody {
-            kind: "canonical_name".into(),
-            detail: None,
-            shared_tokens: None,
-            total_tokens: None,
-            ratio: None,
-        },
-        BindingSignal::AliasMatch { matched } => SignalBody {
-            kind: "alias".into(),
-            detail: Some(matched),
-            shared_tokens: None,
-            total_tokens: None,
-            ratio: None,
-        },
-        BindingSignal::DescriptionOverlap {
-            shared_tokens,
-            total_tokens,
-        } => SignalBody {
-            kind: "description_overlap".into(),
-            detail: None,
-            shared_tokens: Some(shared_tokens),
-            total_tokens: Some(total_tokens),
-            ratio: None,
-        },
-        BindingSignal::FuzzyNameMatch { ratio_millis } => SignalBody {
-            kind: "fuzzy_name".into(),
-            detail: None,
-            shared_tokens: None,
-            total_tokens: None,
-            ratio: Some(ratio_millis as f32 / 1000.0),
-        },
+        signals: c.signals,
     }
 }

@@ -6,6 +6,7 @@
 
 import { request } from "./client";
 import type { LocalizedText } from "@/types/ontology";
+import type { components } from "@/types/api.generated";
 
 // ---------------------------------------------------------------------------
 // Shared wire shapes
@@ -13,11 +14,7 @@ import type { LocalizedText } from "@/types/ontology";
 
 export type OwnerKind = "node" | "edge";
 
-export type BindingSignal =
-  | { kind: "canonical_name" }
-  | { kind: "alias"; detail: string }
-  | { kind: "description_overlap"; shared_tokens: number; total_tokens: number }
-  | { kind: "fuzzy_name"; ratio: number };
+export type BindingSignal = components["schemas"]["BindingSignal"];
 
 export interface BindingPolicyBody {
   min_score?: number;

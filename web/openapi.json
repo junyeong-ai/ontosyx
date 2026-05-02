@@ -1322,11 +1322,31 @@
         "operationId": "health_check",
         "responses": {
           "200": {
-            "description": "Service health status",
+            "description": "Service health status (wrapped)",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/HealthBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/healthz": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "healthz",
+        "responses": {
+          "200": {
+            "description": "Liveness/readiness probe — flat shape (no envelope, no auth)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthBody"
                 }
               }
             }
@@ -6343,6 +6363,92 @@
           }
         }
       },
+      "BindingSignal": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Canonical names are identical (case-insensitive).",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "canonical_name"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The term's canonical name appears in the property's aliases,\nor vice versa.",
+            "required": [
+              "detail",
+              "kind"
+            ],
+            "properties": {
+              "detail": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "alias"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Number of term tokens present in the property's description.",
+            "required": [
+              "shared_tokens",
+              "total_tokens",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "description_overlap"
+                ]
+              },
+              "shared_tokens": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "total_tokens": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Levenshtein-ratio-like token-prefix match between canonical\nnames, used when neither exact nor alias match fires. `ratio`\nis in `[0.0, 1.0]`.",
+            "required": [
+              "ratio",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "fuzzy_name"
+                ]
+              },
+              "ratio": {
+                "type": "number",
+                "format": "float"
+              }
+            }
+          }
+        ],
+        "description": "One signal that contributed to a candidate's score. Kept as a\ntagged discriminated union so the UI can group / filter on\nprovenance — e.g. suppress alias-only matches behind a toggle.\nWire shape: `{ \"kind\": \"<variant>\", ...payload }`."
+      },
       "BindingStrength": {
         "type": "string",
         "description": "How strongly a binding constrains write-time behaviour and how\neditors should rank the binding's domain when offering choices.\n\nFHIR's binding-strength axis is the model: `Required`,\n`Extensible`, `Preferred`, `Example`. We collapse FHIR's `Example`\ninto the same enum because consumers want a single dimension when\nreasoning about UI ranking + validation policy.",
@@ -9052,6 +9158,69 @@
       "GraphLabel": {
         "type": "string",
         "description": "A validated graph label. See the module docs for the invariants.\n\nDisplayed and compared as the wrapped string; hashes as the string\ntoo, so `HashMap<GraphLabel, _>` is interchangeable with the\nprevious `HashMap<String, _>` at lookup time."
+      },
+      "HealthBody": {
+        "type": "object",
+        "description": "Wire shape of both `/api/health` (wrapped in `ApiResponse`) and\n`/api/healthz` (returned flat).",
+        "required": [
+          "status",
+          "service",
+          "version",
+          "components"
+        ],
+        "properties": {
+          "components": {
+            "$ref": "#/components/schemas/HealthComponents"
+          },
+          "service": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthComponents": {
+        "type": "object",
+        "required": [
+          "postgres",
+          "neo4j",
+          "graph_backend",
+          "llm"
+        ],
+        "properties": {
+          "graph_backend": {
+            "type": "string"
+          },
+          "llm": {
+            "$ref": "#/components/schemas/HealthLlm"
+          },
+          "neo4j": {
+            "type": "string",
+            "description": "Kept under the `neo4j` key for backward compatibility with\nexisting FE/monitors. The actual backend name lives in\n`graph_backend`."
+          },
+          "postgres": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthLlm": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
       },
       "IdempotencyPolicy": {
         "oneOf": [
@@ -11926,7 +12095,7 @@
           "signals": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SignalBody"
+              "$ref": "#/components/schemas/BindingSignal"
             }
           }
         }
@@ -15181,46 +15350,6 @@
         ],
         "description": "SHACL Core constraint component. The subset covers ~95% of\nreal-world rule usage; advanced components (`sh:and`, `sh:or`,\n`sh:xone`, recursion rules) are not yet implemented and land\nalongside the reasoning engine.\n\n`ShaclConstraint` lives at the **logical** layer — the SHACL\nvalidator pipeline checks each constraint at write/read time and\nproduces a structured violation report. For storage-engine\nconstraints that compile to graph-DB DDL (uniqueness, existence,\nnode keys), use [`crate::ir::NodeConstraint`] on `NodeTypeDef`\ninstead. The two surfaces deliberately do not overlap: DDL\nconstraints buy database-native enforcement at the cost of\nportability; SHACL constraints buy expressiveness at the cost of\nrequiring the validator on the write path."
       },
-      "SignalBody": {
-        "type": "object",
-        "required": [
-          "kind"
-        ],
-        "properties": {
-          "detail": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "kind": {
-            "type": "string"
-          },
-          "ratio": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "float"
-          },
-          "shared_tokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "total_tokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          }
-        }
-      },
       "SkipBody": {
         "type": "object",
         "required": [
@@ -15491,7 +15620,7 @@
           "signals": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SignalBody"
+              "$ref": "#/components/schemas/BindingSignal"
             }
           },
           "term": {
