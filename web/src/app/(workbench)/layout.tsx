@@ -11,7 +11,15 @@ import { QualityBanner } from "@/components/quality/quality-banner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useHydrated } from "@/lib/store/use-hydrated";
 import { useAppStore } from "@/lib/store";
-import { fetchWsToken, useCollab } from "@/lib/collab";
+import {
+  fetchWsToken,
+  useCollab,
+  useCollabRoom,
+  useNetworkAwareness,
+  useVisibilityAwareness,
+} from "@/lib/collab";
+import { CollaborationErrorToaster } from "@/components/collab/collaboration-error-toaster";
+import { selectStateActiveProject } from "@/lib/store/selectors";
 
 // `NEXT_PUBLIC_WS_URL` lets ops point the workbench at a different
 // host than the HTTP API (e.g. a dedicated WS-fanout pod). The dev
@@ -47,11 +55,17 @@ export default function WorkbenchLayout({
   // Collaboration WebSocket — single socket per workspace, shared
   // across every workbench mode. The hook tears the socket down
   // automatically when `workspaceId` clears or switches.
-  useCollab({
+  const collabClient = useCollab({
     url: COLLAB_WS_URL,
     workspaceId: workspaceId ?? "",
     getToken: fetchWsToken,
   });
+  useNetworkAwareness(collabClient);
+  useVisibilityAwareness();
+  // Auto-join the active project's collab room. Switching
+  // projects re-joins; clearing the active project leaves.
+  const activeProjectForCollab = useAppStore(selectStateActiveProject);
+  useCollabRoom(activeProjectForCollab?.id);
   const closePalette = useCallback(
     () => setCommandPaletteOpen(false),
     [setCommandPaletteOpen],
@@ -123,6 +137,7 @@ export default function WorkbenchLayout({
             open={isCommandPaletteOpen}
             onClose={closePalette}
           />
+          <CollaborationErrorToaster />
         </PromptProvider>
       </TooltipProvider>
     </ErrorBoundary>

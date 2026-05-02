@@ -41,23 +41,49 @@ const emptyRoom = (): RoomState => ({
 export interface CollabState {
   /** Connection lifecycle — drives banner / retry UI. */
   connectionState: ConnectionState;
+  /**
+   * `true` once the singleton `CollaborationClient` has been
+   * constructed (post `useCollab` mount). Room-level hooks gate
+   * `join` on this so they don't fire against a null client and
+   * silently miss the rejoin set.
+   */
+  clientReady: boolean;
   /** Last `Error` frame, kept until cleared or replaced. */
   lastError: { code: string; params: Record<string, string> } | null;
   /** project_id → room state */
   rooms: Map<string, RoomState>;
+  /**
+   * `true` when the tab is hidden. Cursor-emitting components
+   * read this to short-circuit publishes — presence stays
+   * accurate but bandwidth drops to zero when the user can't
+   * see the canvas anyway.
+   */
+  hidden: boolean;
 
   setConnectionState(state: ConnectionState): void;
+  setClientReady(ready: boolean): void;
+  setHidden(hidden: boolean): void;
   applyServerMessage(msg: ServerMessage): void;
   reset(): void;
 }
 
 export const useCollabStore = create<CollabState>((set) => ({
   connectionState: "idle",
+  clientReady: false,
   lastError: null,
   rooms: new Map(),
+  hidden: false,
 
   setConnectionState(state) {
     set({ connectionState: state });
+  },
+
+  setClientReady(ready) {
+    set({ clientReady: ready });
+  },
+
+  setHidden(hidden) {
+    set({ hidden });
   },
 
   applyServerMessage(msg) {
@@ -65,7 +91,13 @@ export const useCollabStore = create<CollabState>((set) => ({
   },
 
   reset() {
-    set({ connectionState: "idle", lastError: null, rooms: new Map() });
+    set({
+      connectionState: "idle",
+      clientReady: false,
+      lastError: null,
+      rooms: new Map(),
+      hidden: false,
+    });
   },
 }));
 
@@ -212,3 +244,8 @@ export const selectConnectionState = (state: CollabState): ConnectionState =>
   state.connectionState;
 
 export const selectLastError = (state: CollabState) => state.lastError;
+
+export const selectHidden = (state: CollabState): boolean => state.hidden;
+
+export const selectClientReady = (state: CollabState): boolean =>
+  state.clientReady;

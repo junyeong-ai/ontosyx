@@ -54,6 +54,7 @@ export function useCollab(opts: UseCollabOptions): CollaborationClient | null {
         activeClient.disconnect();
         activeClient = null;
         activeWorkspaceId = null;
+        useCollabStore.getState().setClientReady(false);
         reset();
       }
       return;
@@ -64,6 +65,7 @@ export function useCollab(opts: UseCollabOptions): CollaborationClient | null {
       activeClient.disconnect();
       activeClient = null;
       activeWorkspaceId = null;
+      useCollabStore.getState().setClientReady(false);
       reset();
     }
 
@@ -81,6 +83,7 @@ export function useCollab(opts: UseCollabOptions): CollaborationClient | null {
       });
       activeWorkspaceId = workspaceId;
       activeClient.connect();
+      useCollabStore.getState().setClientReady(true);
     }
   }, [url, workspaceId, applyServerMessage, setConnectionState, reset]);
 
@@ -100,4 +103,24 @@ export function clearCollabClient(): void {
   }
   useCollabStore.getState().reset();
   clearWsTokenCache();
+}
+
+/**
+ * Auto-join `projectId` while mounted, leave on unmount or when
+ * `projectId` changes. Gated on `clientReady` so the call queues
+ * inside the client only after the singleton exists; the rejoin
+ * set inside `CollaborationClient` then carries the room across
+ * reconnects without further work from the caller.
+ */
+export function useCollabRoom(projectId: string | null | undefined): void {
+  const clientReady = useCollabStore((s) => s.clientReady);
+
+  useEffect(() => {
+    if (!clientReady || !projectId || !activeClient) return;
+    const client = activeClient;
+    client.join(projectId);
+    return () => {
+      client.leave(projectId);
+    };
+  }, [clientReady, projectId]);
 }

@@ -5,11 +5,15 @@ import type { ServerMessage } from "../types";
 
 const initial: CollabState = {
   connectionState: "idle",
+  clientReady: false,
   lastError: null,
   rooms: new Map(),
   setConnectionState: () => {},
+  setClientReady: () => {},
   applyServerMessage: () => {},
   reset: () => {},
+  hidden: false,
+  setHidden: () => {},
 };
 
 const projectA = "00000000-0000-0000-0000-0000000000aa";

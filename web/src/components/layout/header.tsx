@@ -6,6 +6,9 @@ import { ContextBadge } from "@/components/layout/context-badge";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { ModeActions } from "@/components/layout/mode-actions";
 import { UserMenu } from "@/components/layout/user-menu";
+import { PresenceAvatars } from "@/components/collab/presence-avatars";
+import { useAppStore } from "@/lib/store";
+import { selectStateActiveProject } from "@/lib/store/selectors";
 
 // ---------------------------------------------------------------------------
 // Unified Header — [Branding] | [ContextSelector] [ContextBadge] | [Spacer] | [ModeActions] | [UserMenu]
@@ -22,29 +25,33 @@ import { UserMenu } from "@/components/layout/user-menu";
 function AppBranding() {
   const t = useTranslations("chrome.header");
   return (
-    <h1 className="m-0 text-sm font-semibold tracking-tight text-zinc-800 dark:text-zinc-200">
+    <h1 className="m-0 text-sm font-semibold tracking-tight text-foreground-strong">
       {t("appTitle")}
     </h1>
   );
 }
 
 export function Header() {
+  const activeProject = useAppStore(selectStateActiveProject);
   return (
-    <header className="relative z-20 flex h-11 shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-3 dark:border-zinc-800 dark:bg-zinc-950">
+    <header className="relative z-20 flex h-11 shrink-0 items-center justify-between border-b border-divider bg-surface-base px-3">
       {/* Left: Logo + Context */}
       <div className="flex min-w-0 items-center gap-3">
         <span className="shrink-0"><AppBranding /></span>
-        <div className="mx-1 h-5 w-px bg-zinc-200 dark:bg-zinc-700" />
+        <div className="mx-1 h-5 w-px bg-surface-inset" />
         <WorkspaceSwitcher />
-        <div className="mx-1 h-5 w-px bg-zinc-200 dark:bg-zinc-700" />
+        <div className="mx-1 h-5 w-px bg-surface-inset" />
         <ContextSelector />
         <ContextBadge />
       </div>
 
-      {/* Right: Actions + User */}
-      <div className="flex shrink-0 items-center gap-1 pl-3">
+      {/* Right: Presence + Actions + User */}
+      <div className="flex shrink-0 items-center gap-2 pl-3">
+        {activeProject?.id && (
+          <PresenceAvatars projectId={activeProject.id} className="mr-1" />
+        )}
         <ModeActions />
-        <div className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
+        <div className="mx-1 h-4 w-px bg-surface-inset" />
         <UserMenu />
       </div>
     </header>

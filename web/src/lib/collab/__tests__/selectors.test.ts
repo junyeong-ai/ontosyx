@@ -14,11 +14,15 @@ import {
 
 const empty: CollabState = {
   connectionState: "idle",
+  clientReady: false,
   lastError: null,
   rooms: new Map(),
   setConnectionState: () => {},
+  setClientReady: () => {},
   applyServerMessage: () => {},
   reset: () => {},
+  hidden: false,
+  setHidden: () => {},
 };
 
 const projectId = "00000000-0000-0000-0000-0000000000aa";
