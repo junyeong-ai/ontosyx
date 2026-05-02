@@ -4,6 +4,54 @@
  */
 
 export interface paths {
+    "/api/acl/effective": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["effective_policies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/acl/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_policies"];
+        put?: never;
+        post: operations["create_policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/acl/policies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_policy"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_policy"];
+        options?: never;
+        head?: never;
+        patch: operations["update_policy"];
+        trace?: never;
+    };
     "/api/admin/federation/adapters": {
         parameters: {
             query?: never;
@@ -1563,6 +1611,86 @@ export interface paths {
         patch: operations["update_schedule"];
         trace?: never;
     };
+    "/api/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_session"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_session"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_session_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_session_messages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{id}/tools/{tool_id}/respond": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["respond_tool_review"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/shared/dashboards/{token}": {
         parameters: {
             query?: never;
@@ -2739,6 +2867,19 @@ export interface components {
             title?: string | null;
             /** @description Widget specification JSON. */
             widget_spec: unknown;
+        };
+        CreatePolicyRequest: {
+            action: string;
+            description?: string | null;
+            mask_pattern?: string | null;
+            name: string;
+            /** Format: int32 */
+            priority?: number | null;
+            properties?: string[] | null;
+            resource_type: string;
+            resource_value?: string | null;
+            subject_type: string;
+            subject_value: string;
         };
         CreateProjectRequest: Record<string, never> & {
             title?: string | null;
@@ -6484,6 +6625,14 @@ export interface components {
             error?: string | null;
             success: boolean;
         };
+        ToolRespondRequest: {
+            approved: boolean;
+            modified_input?: Record<string, never> | null;
+            reason?: string | null;
+        };
+        ToolRespondResponse: {
+            status: string;
+        };
         UiConfig: {
             elk_direction: string;
             elk_edge_routing: string;
@@ -6529,6 +6678,15 @@ export interface components {
         };
         UpdateMemberRoleRequest: {
             role: string;
+        };
+        UpdatePolicyRequest: {
+            action?: string | null;
+            is_active?: boolean | null;
+            mask_pattern?: string | null;
+            name?: string | null;
+            /** Format: int32 */
+            priority?: number | null;
+            properties?: string[] | null;
         };
         UpdateProjectDecisionsRequest: {
             /** @description User design decisions. */
@@ -6838,6 +6996,165 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    effective_policies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Effective ACL policies for the caller */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    list_policies: {
+        parameters: {
+            query?: {
+                subject_type?: string | null;
+                resource_value?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ACL policies */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    create_policy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Policy created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    get_policy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ACL policy ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ACL policy */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Policy not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_policy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ACL policy ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Policy deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Policy not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_policy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ACL policy ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated policy */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Policy not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_adapters: {
         parameters: {
             query?: never;
@@ -11349,6 +11666,190 @@ export interface operations {
                 content?: never;
             };
             /** @description Task not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_sessions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Caller's agent sessions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    get_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Agent session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_session_events: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_session_messages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reconstructed chat messages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    respond_tool_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent session ID */
+                id: string;
+                /** @description Tool call ID awaiting approval */
+                tool_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToolRespondRequest"];
+            };
+        };
+        responses: {
+            /** @description Approval recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolRespondResponse"];
+                };
+            };
+            /** @description Caller does not own the session */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -9,6 +9,238 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/acl/effective": {
+      "get": {
+        "tags": [
+          "ACL"
+        ],
+        "operationId": "effective_policies",
+        "responses": {
+          "200": {
+            "description": "Effective ACL policies for the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/acl/policies": {
+      "get": {
+        "tags": [
+          "ACL"
+        ],
+        "operationId": "list_policies",
+        "parameters": [
+          {
+            "name": "subject_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "resource_value",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ACL policies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "ACL"
+        ],
+        "operationId": "create_policy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Policy created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/acl/policies/{id}": {
+      "get": {
+        "tags": [
+          "ACL"
+        ],
+        "operationId": "get_policy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ACL policy ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ACL policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Policy not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "ACL"
+        ],
+        "operationId": "delete_policy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ACL policy ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Policy deleted"
+          },
+          "404": {
+            "description": "Policy not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "ACL"
+        ],
+        "operationId": "update_policy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ACL policy ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Policy not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/admin/federation/adapters": {
       "get": {
         "tags": [
@@ -6808,6 +7040,273 @@
         ]
       }
     },
+    "/api/sessions": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "operationId": "list_sessions",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Caller's agent sessions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/sessions/{id}": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "operationId": "get_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Agent session ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Sessions"
+        ],
+        "operationId": "delete_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Agent session ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Session deleted"
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/sessions/{id}/events": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "operationId": "list_session_events",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Agent session ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/sessions/{id}/messages": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "operationId": "get_session_messages",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Agent session ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reconstructed chat messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/sessions/{id}/tools/{tool_id}/respond": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "operationId": "respond_tool_review",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Agent session ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "tool_id",
+            "in": "path",
+            "description": "Tool call ID awaiting approval",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolRespondRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Approval recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolRespondResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller does not own the session"
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/shared/dashboards/{token}": {
       "get": {
         "tags": [
@@ -9630,6 +10129,67 @@
           },
           "widget_spec": {
             "description": "Widget specification JSON."
+          }
+        }
+      },
+      "CreatePolicyRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "subject_type",
+          "subject_value",
+          "resource_type",
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mask_pattern": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "priority": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "properties": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "resource_type": {
+            "type": "string"
+          },
+          "resource_value": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subject_type": {
+            "type": "string"
+          },
+          "subject_value": {
+            "type": "string"
           }
         }
       },
@@ -18888,6 +19448,40 @@
           }
         }
       },
+      "ToolRespondRequest": {
+        "type": "object",
+        "required": [
+          "approved"
+        ],
+        "properties": {
+          "approved": {
+            "type": "boolean"
+          },
+          "modified_input": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ToolRespondResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "UiConfig": {
         "type": "object",
         "required": [
@@ -19056,6 +19650,51 @@
         "properties": {
           "role": {
             "type": "string"
+          }
+        }
+      },
+      "UpdatePolicyRequest": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "mask_pattern": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "properties": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -19902,6 +20541,14 @@
     {
       "name": "Reports",
       "description": "Saved report templates + execution"
+    },
+    {
+      "name": "Sessions",
+      "description": "Agent session events + HITL approvals"
+    },
+    {
+      "name": "ACL",
+      "description": "Workspace access-control policies"
     }
   ]
 }

@@ -3,9 +3,9 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi, ToSchema};
 
 use crate::routes::{
-    approvals, audit, auth, chat, config, dashboards, federation_admin, governance_audit,
+    acl, approvals, audit, auth, chat, config, dashboards, federation_admin, governance_audit,
     governance_routing, health, insights, lineage, load, notifications, ontology, perspectives,
-    pins, prompts_admin, query, reports, schedules, usage, users, workspaces,
+    pins, prompts_admin, query, reports, schedules, sessions, usage, users, workspaces,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -107,6 +107,8 @@ impl Modify for SecurityAddon {
         (name = "Lineage", description = "Ontology ↔ source binding lineage"),
         (name = "Schedules", description = "Cron-style recipe scheduling"),
         (name = "Reports", description = "Saved report templates + execution"),
+        (name = "Sessions", description = "Agent session events + HITL approvals"),
+        (name = "ACL", description = "Workspace access-control policies"),
     ),
     paths(
         // Health
@@ -281,6 +283,20 @@ impl Modify for SecurityAddon {
         reports::update_report,
         reports::delete_report,
         reports::execute_report,
+        // Sessions
+        sessions::list_sessions,
+        sessions::get_session,
+        sessions::list_session_events,
+        sessions::get_session_messages,
+        sessions::delete_session,
+        sessions::respond_tool_review,
+        // ACL
+        acl::create_policy,
+        acl::list_policies,
+        acl::get_policy,
+        acl::update_policy,
+        acl::delete_policy,
+        acl::effective_policies,
     ),
     components(
         schemas(
@@ -474,6 +490,12 @@ impl Modify for SecurityAddon {
             // Reports
             reports::CreateReportRequest,
             reports::UpdateReportRequest,
+            // Sessions
+            sessions::ToolRespondRequest,
+            sessions::ToolRespondResponse,
+            // ACL
+            acl::CreatePolicyRequest,
+            acl::UpdatePolicyRequest,
         ),
     ),
     modifiers(&SecurityAddon),

@@ -15,13 +15,47 @@ use crate::workspace::WorkspaceContext;
 
 // ---------------------------------------------------------------------------
 // GET /api/sessions — list agent sessions
+//
+// `CursorParams` lives in `ox-store`, which is utoipa-free; the
+// route layer mirrors its shape via `SessionsCursorQuery` so the
+// generated spec describes the wire surface without dragging
+// utoipa into the persistence crate.
 // ---------------------------------------------------------------------------
 
+#[derive(Deserialize, utoipa::IntoParams)]
+pub struct SessionsCursorQuery {
+    #[serde(default = "default_session_limit")]
+    pub limit: u32,
+    pub cursor: Option<String>,
+}
+
+fn default_session_limit() -> u32 {
+    50
+}
+
+impl From<SessionsCursorQuery> for CursorParams {
+    fn from(q: SessionsCursorQuery) -> Self {
+        Self {
+            limit: q.limit,
+            cursor: q.cursor,
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/sessions",
+    params(SessionsCursorQuery),
+    responses((status = 200, description = "Caller's agent sessions", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Sessions",
+)]
 pub(crate) async fn list_sessions(
     State(state): State<AppState>,
     principal: Principal,
-    Query(params): Query<CursorParams>,
+    Query(params): Query<SessionsCursorQuery>,
 ) -> Result<Json<ApiResponse<Vec<AgentSession>>>, AppError> {
+    let params: CursorParams = params.into();
     let page = state
         .store
         .list_agent_sessions(&principal.id, &params)
@@ -57,6 +91,17 @@ async fn load_owned_session(
 // GET /api/sessions/:id — get single session
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/sessions/{id}",
+    params(("id" = Uuid, Path, description = "Agent session ID")),
+    responses(
+        (status = 200, description = "Agent session", body = Object),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Sessions",
+)]
 pub(crate) async fn get_session(
     State(state): State<AppState>,
     principal: Principal,
@@ -70,6 +115,17 @@ pub(crate) async fn get_session(
 // GET /api/sessions/:id/events — list session events
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/sessions/{id}/events",
+    params(("id" = Uuid, Path, description = "Agent session ID")),
+    responses(
+        (status = 200, description = "Session events", body = Vec<Object>),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Sessions",
+)]
 pub(crate) async fn list_session_events(
     State(state): State<AppState>,
     principal: Principal,
@@ -88,6 +144,17 @@ pub(crate) async fn list_session_events(
 // GET /api/sessions/:id/messages — convert events to chat messages
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/sessions/{id}/messages",
+    params(("id" = Uuid, Path, description = "Agent session ID")),
+    responses(
+        (status = 200, description = "Reconstructed chat messages", body = Object),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Sessions",
+)]
 pub(crate) async fn get_session_messages(
     State(state): State<AppState>,
     principal: Principal,
@@ -234,6 +301,17 @@ fn events_to_messages(session: &AgentSession, events: &[AgentEvent]) -> Vec<serd
 // DELETE /api/sessions/:id — delete a session and its events
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/sessions/{id}",
+    params(("id" = Uuid, Path, description = "Agent session ID")),
+    responses(
+        (status = 204, description = "Session deleted"),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Sessions",
+)]
 pub(crate) async fn delete_session(
     State(state): State<AppState>,
     principal: Principal,
@@ -255,18 +333,35 @@ pub(crate) async fn delete_session(
 // POST /api/sessions/:id/tools/:tool_id/respond — HITL tool review
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
-pub(crate) struct ToolRespondRequest {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ToolRespondRequest {
     pub approved: bool,
     pub reason: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub modified_input: Option<serde_json::Value>,
 }
 
-#[derive(Serialize)]
-pub(crate) struct ToolRespondResponse {
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct ToolRespondResponse {
     pub status: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/sessions/{id}/tools/{tool_id}/respond",
+    params(
+        ("id" = Uuid, Path, description = "Agent session ID"),
+        ("tool_id" = String, Path, description = "Tool call ID awaiting approval"),
+    ),
+    request_body = ToolRespondRequest,
+    responses(
+        (status = 200, description = "Approval recorded", body = ToolRespondResponse),
+        (status = 403, description = "Caller does not own the session"),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Sessions",
+)]
 pub(crate) async fn respond_tool_review(
     State(state): State<AppState>,
     principal: Principal,

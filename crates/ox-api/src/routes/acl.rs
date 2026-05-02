@@ -17,7 +17,7 @@ use crate::workspace::WorkspaceContext;
 // Request / Query types
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreatePolicyRequest {
     pub name: String,
     pub description: Option<String>,
@@ -31,7 +31,7 @@ pub struct CreatePolicyRequest {
     pub priority: Option<i32>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdatePolicyRequest {
     pub name: Option<String>,
     pub action: Option<String>,
@@ -41,7 +41,7 @@ pub struct UpdatePolicyRequest {
     pub is_active: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct ListPoliciesParams {
     pub subject_type: Option<String>,
     pub resource_value: Option<String>,
@@ -51,6 +51,14 @@ pub struct ListPoliciesParams {
 // POST /api/acl/policies — create ACL policy
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    post,
+    path = "/api/acl/policies",
+    request_body = CreatePolicyRequest,
+    responses((status = 201, description = "Policy created", body = Object)),
+    security(("api_key" = [])),
+    tag = "ACL",
+)]
 pub(crate) async fn create_policy(
     State(state): State<AppState>,
     principal: Principal,
@@ -91,6 +99,14 @@ pub(crate) async fn create_policy(
 // GET /api/acl/policies — list active policies
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/acl/policies",
+    params(ListPoliciesParams),
+    responses((status = 200, description = "ACL policies", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "ACL",
+)]
 pub(crate) async fn list_policies(
     State(state): State<AppState>,
     _principal: Principal,
@@ -114,6 +130,17 @@ pub(crate) async fn list_policies(
 // GET /api/acl/policies/:id — get single policy
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/acl/policies/{id}",
+    params(("id" = Uuid, Path, description = "ACL policy ID")),
+    responses(
+        (status = 200, description = "ACL policy", body = Object),
+        (status = 404, description = "Policy not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "ACL",
+)]
 pub(crate) async fn get_policy(
     State(state): State<AppState>,
     _principal: Principal,
@@ -135,6 +162,18 @@ pub(crate) async fn get_policy(
 // PATCH /api/acl/policies/:id — update policy
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    patch,
+    path = "/api/acl/policies/{id}",
+    params(("id" = Uuid, Path, description = "ACL policy ID")),
+    request_body = UpdatePolicyRequest,
+    responses(
+        (status = 200, description = "Updated policy", body = Object),
+        (status = 404, description = "Policy not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "ACL",
+)]
 pub(crate) async fn update_policy(
     State(state): State<AppState>,
     ws: WorkspaceContext,
@@ -197,6 +236,17 @@ pub(crate) async fn update_policy(
 // DELETE /api/acl/policies/:id — delete policy
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/acl/policies/{id}",
+    params(("id" = Uuid, Path, description = "ACL policy ID")),
+    responses(
+        (status = 204, description = "Policy deleted"),
+        (status = 404, description = "Policy not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "ACL",
+)]
 pub(crate) async fn delete_policy(
     State(state): State<AppState>,
     ws: WorkspaceContext,
@@ -221,6 +271,13 @@ pub(crate) async fn delete_policy(
 // GET /api/acl/effective — effective policies for current user
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/acl/effective",
+    responses((status = 200, description = "Effective ACL policies for the caller", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "ACL",
+)]
 pub(crate) async fn effective_policies(
     State(state): State<AppState>,
     principal: Principal,
