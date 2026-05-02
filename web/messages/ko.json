@@ -2958,6 +2958,14 @@
     }
   },
   "workbench": {
+    "contextMenu": {
+      "ai": {
+        "analyzing": "\"{label}\" 분석 중…",
+        "applied": "{count}개의 개선 사항이 적용되었습니다",
+        "undoHint": "되돌리려면 Ctrl+Z 를 누르세요",
+        "unknownError": "알 수 없는 오류"
+      }
+    },
     "glossary": {
       "heading": "용어집",
       "subtitle": "워크스페이스의 표준 어휘 — 노드 · 엣지 · 속성이 anchor 로 참조하는 캐논 용어를 관리합니다.",

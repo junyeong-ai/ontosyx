@@ -11,10 +11,18 @@ import {
   type SchemaExportToastCopy,
 } from "@/lib/export-utils";
 
+export interface CanvasCommandsToastCopy {
+  saved: string;
+  saveFailed: string;
+  nodeDeleted: string;
+  edgeDeleted: string;
+}
+
 interface CanvasCommandsOptions {
   setIsPaletteOpen: (v: boolean | ((v: boolean) => boolean)) => void;
   setIsExportOpen: (v: boolean | ((v: boolean) => boolean)) => void;
   exportToastCopy: SchemaExportToastCopy;
+  toastCopy: CanvasCommandsToastCopy;
 }
 
 export interface CanvasCommands {
@@ -34,7 +42,7 @@ export interface CanvasCommands {
  * and UI-local setters owned by the canvas component.
  */
 export function useCanvasCommands(options: CanvasCommandsOptions): CanvasCommands {
-  const { setIsPaletteOpen, setIsExportOpen, exportToastCopy } = options;
+  const { setIsPaletteOpen, setIsExportOpen, exportToastCopy, toastCopy } = options;
   const ontology = useAppStore((s) => s.ontology);
   const select = useAppStore((s) => s.select);
   const clearSelection = useAppStore((s) => s.clearSelection);
@@ -55,11 +63,11 @@ export function useCanvasCommands(options: CanvasCommandsOptions): CanvasCommand
       // Server canonical replaces local state + clears command stack
       // atomically through `applyProjectSnapshot`.
       applyProjectSnapshot(resp.project);
-      toast.success("Ontology saved");
+      toast.success(toastCopy.saved);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save");
+      toast.error(err instanceof Error ? err.message : toastCopy.saveFailed);
     }
-  }, [applyProjectSnapshot]);
+  }, [applyProjectSnapshot, toastCopy]);
 
   const deleteSelected = useCallback(() => {
     const store = useAppStore.getState();
@@ -68,13 +76,13 @@ export function useCanvasCommands(options: CanvasCommandsOptions): CanvasCommand
     if (nodeId) {
       applyCommand({ op: "delete_node", node_id: nodeId });
       clearSelection();
-      toast.success("Node deleted");
+      toast.success(toastCopy.nodeDeleted);
     } else if (edgeId) {
       applyCommand({ op: "delete_edge", edge_id: edgeId });
       clearSelection();
-      toast.success("Edge deleted");
+      toast.success(toastCopy.edgeDeleted);
     }
-  }, [applyCommand, clearSelection]);
+  }, [applyCommand, clearSelection, toastCopy]);
 
   const selectAllNodes = useCallback(() => {
     if (ontology && ontology.node_types.length > 0) {

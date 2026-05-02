@@ -34,6 +34,7 @@ import type { QualityGap } from "@/types/api";
 
 function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
   const tModeActions = useTranslations("chrome.modeActions");
+  const tInspector = useTranslations("inspector.toast");
   const { ontology, select, clearSelection, setHighlightedBindings, setNeighborhoodFocus } = useCanvasState();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -57,6 +58,12 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
     setIsPaletteOpen,
     setIsExportOpen,
     exportToastCopy: { failedTitle: tModeActions("exportFailed") },
+    toastCopy: {
+      saved: tInspector("saved"),
+      saveFailed: tInspector("saveFailed"),
+      nodeDeleted: tInspector("nodeDeleted"),
+      edgeDeleted: tInspector("edgeDeleted"),
+    },
   });
 
   const { paletteCommands: getPaletteCommands } = useCanvasKeyboard({

@@ -2972,6 +2972,14 @@
     }
   },
   "workbench": {
+    "contextMenu": {
+      "ai": {
+        "analyzing": "Analyzing \"{label}\"…",
+        "applied": "{count} improvements applied",
+        "undoHint": "Press Ctrl+Z to undo",
+        "unknownError": "Unknown error"
+      }
+    },
     "glossary": {
       "heading": "Glossary",
       "subtitle": "Workspace canon vocabulary — anchors referenced by nodes, edges, and properties.",
