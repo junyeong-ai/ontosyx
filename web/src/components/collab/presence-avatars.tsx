@@ -1,7 +1,9 @@
 // PresenceAvatars — stacked initials for the active members of a
 // collaboration room. Each avatar reads its hue from `colorFor`
 // so it matches the user's remote cursor and lock-ring colour
-// across every collaboration surface.
+// across every collaboration surface. Hovering an avatar opens a
+// detail card sourced from the workspace member roster — name,
+// email, role.
 
 "use client";
 
@@ -10,6 +12,12 @@ import { useMemo } from "react";
 import { colorFor, useCollabStore, selectPresence } from "@/lib/collab";
 import type { PresenceInfo } from "@/lib/collab";
 import { Tooltip } from "@/components/ui/tooltip";
+import {
+  membersByUserId,
+  useWorkspaceMembers,
+} from "@/hooks/api/use-workspace-members";
+import { useAppStore } from "@/lib/store";
+import type { WorkspaceMember } from "@/types/workspace";
 import { cn } from "@/lib/cn";
 
 interface PresenceAvatarsProps {
@@ -32,6 +40,10 @@ export function PresenceAvatars({
   className,
 }: PresenceAvatarsProps) {
   const presence = useCollabStore(selectPresence(projectId));
+  const workspaceId = useAppStore((s) => s.workspaceId);
+  const { data: members } = useWorkspaceMembers(workspaceId);
+
+  const memberLookup = useMemo(() => membersByUserId(members), [members]);
 
   const visible = useMemo(
     () =>
@@ -45,10 +57,7 @@ export function PresenceAvatars({
 
   const overflow = Math.max(0, visible.length - maxVisible);
   const head = visible.slice(0, maxVisible);
-  const overflowNames = visible
-    .slice(maxVisible)
-    .map((m) => m.user_name)
-    .join(", ");
+  const overflowMembers = visible.slice(maxVisible);
 
   return (
     <div
@@ -57,10 +66,22 @@ export function PresenceAvatars({
       aria-label={`${visible.length} active collaborators`}
     >
       {head.map((member) => (
-        <PresenceAvatar key={member.user_id} member={member} />
+        <PresenceAvatar
+          key={member.user_id}
+          member={member}
+          detail={memberLookup.get(member.user_id)}
+        />
       ))}
       {overflow > 0 && (
-        <Tooltip content={overflowNames}>
+        <Tooltip
+          content={
+            <ul className="m-0 list-none p-0 text-2xs">
+              {overflowMembers.map((m) => (
+                <li key={m.user_id}>{m.user_name}</li>
+              ))}
+            </ul>
+          }
+        >
           <div className="flex h-7 w-7 items-center justify-center rounded-full border border-background bg-zinc-200 text-2xs font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
             +{overflow}
           </div>
@@ -70,11 +91,17 @@ export function PresenceAvatars({
   );
 }
 
-function PresenceAvatar({ member }: { member: PresenceInfo }) {
+function PresenceAvatar({
+  member,
+  detail,
+}: {
+  member: PresenceInfo;
+  detail: WorkspaceMember | undefined;
+}) {
   const initials = initialsFor(member.user_name);
   const color = colorFor(member.user_id);
   return (
-    <Tooltip content={member.user_name}>
+    <Tooltip content={<AvatarDetail member={member} detail={detail} />}>
       <div
         className="flex h-7 w-7 items-center justify-center rounded-full border border-background text-2xs font-semibold text-white"
         style={{ backgroundColor: color }}
@@ -82,6 +109,26 @@ function PresenceAvatar({ member }: { member: PresenceInfo }) {
         {initials}
       </div>
     </Tooltip>
+  );
+}
+
+function AvatarDetail({
+  member,
+  detail,
+}: {
+  member: PresenceInfo;
+  detail: WorkspaceMember | undefined;
+}) {
+  return (
+    <div className="text-2xs leading-tight">
+      <div className="font-semibold">{member.user_name}</div>
+      {detail?.email && (
+        <div className="mt-0.5 opacity-80">{detail.email}</div>
+      )}
+      {detail?.role && (
+        <div className="mt-0.5 opacity-60">{detail.role}</div>
+      )}
+    </div>
   );
 }
 
