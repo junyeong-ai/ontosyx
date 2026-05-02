@@ -4,8 +4,8 @@ use utoipa::{Modify, OpenApi, ToSchema};
 
 use crate::routes::{
     approvals, audit, auth, chat, config, dashboards, federation_admin, governance_audit,
-    governance_routing, health, insights, load, notifications, ontology, perspectives, pins,
-    prompts_admin, query, usage, users, workspaces,
+    governance_routing, health, insights, lineage, load, notifications, ontology, perspectives,
+    pins, prompts_admin, query, reports, schedules, usage, users, workspaces,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -104,6 +104,9 @@ impl Modify for SecurityAddon {
         (name = "Approvals", description = "Approval queue + comment thread"),
         (name = "Audit", description = "Workspace-wide PROV-O audit trail"),
         (name = "Notifications", description = "Webhook channel routing + delivery log"),
+        (name = "Lineage", description = "Ontology ↔ source binding lineage"),
+        (name = "Schedules", description = "Cron-style recipe scheduling"),
+        (name = "Reports", description = "Saved report templates + execution"),
     ),
     paths(
         // Health
@@ -261,6 +264,23 @@ impl Modify for SecurityAddon {
         // Audit + usage
         audit::list_audit_events,
         usage::get_usage_summary,
+        // Lineage
+        lineage::get_lineage_summary,
+        lineage::list_lineage_for_label,
+        lineage::get_lineage_for_project,
+        // Schedules
+        schedules::create_schedule,
+        schedules::list_schedules,
+        schedules::get_schedule,
+        schedules::update_schedule,
+        schedules::delete_schedule,
+        // Reports
+        reports::create_report,
+        reports::list_reports,
+        reports::get_report,
+        reports::update_report,
+        reports::delete_report,
+        reports::execute_report,
     ),
     components(
         schemas(
@@ -448,6 +468,12 @@ impl Modify for SecurityAddon {
             notifications::CreateChannelRequest,
             notifications::UpdateChannelRequest,
             notifications::TestChannelResponse,
+            // Schedules
+            schedules::CreateScheduleRequest,
+            schedules::UpdateScheduleRequest,
+            // Reports
+            reports::CreateReportRequest,
+            reports::UpdateReportRequest,
         ),
     ),
     modifiers(&SecurityAddon),

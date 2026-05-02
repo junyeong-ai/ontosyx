@@ -24,6 +24,13 @@ use crate::state::AppState;
 // GET /api/lineage — summary of lineage per graph label
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/lineage",
+    responses((status = 200, description = "Lineage summary per label", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Lineage",
+)]
 pub(crate) async fn get_lineage_summary(
     State(state): State<AppState>,
     principal: Principal,
@@ -41,6 +48,14 @@ pub(crate) async fn get_lineage_summary(
 // GET /api/lineage/label/:label — lineage entries for a specific graph label
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/lineage/label/{label}",
+    params(("label" = String, Path, description = "Graph node label")),
+    responses((status = 200, description = "Lineage entries for the label", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Lineage",
+)]
 pub(crate) async fn list_lineage_for_label(
     State(state): State<AppState>,
     principal: Principal,
@@ -59,6 +74,14 @@ pub(crate) async fn list_lineage_for_label(
 // GET /api/lineage/project/:id — lineage entries for a project
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/lineage/project/{id}",
+    params(("id" = Uuid, Path, description = "Project ID")),
+    responses((status = 200, description = "Lineage entries for the project", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Lineage",
+)]
 pub(crate) async fn get_lineage_for_project(
     State(state): State<AppState>,
     principal: Principal,

@@ -21,13 +21,14 @@ use crate::state::AppState;
 // POST /api/reports — create a new saved report
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateReportRequest {
     pub ontology_lineage_id: String,
     pub title: String,
     pub description: Option<String>,
     pub query_template: String,
     #[serde(default = "default_parameters")]
+    #[schema(value_type = Object)]
     pub parameters: serde_json::Value,
     pub widget_type: Option<String>,
     #[serde(default)]
@@ -53,6 +54,17 @@ async fn resolve_lineage_current_ir(
     Some(std::sync::Arc::new(ir))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/reports",
+    request_body = CreateReportRequest,
+    responses(
+        (status = 200, description = "Report created", body = Object),
+        (status = 400, description = "Validation failure"),
+    ),
+    security(("api_key" = [])),
+    tag = "Reports",
+)]
 pub(crate) async fn create_report(
     State(state): State<AppState>,
     principal: Principal,
@@ -93,7 +105,7 @@ pub(crate) async fn create_report(
 // GET /api/reports?ontology_lineage_id=... — list reports for an ontology
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct ReportListParams {
     pub ontology_lineage_id: String,
     #[serde(default)]
@@ -101,6 +113,14 @@ pub struct ReportListParams {
     pub cursor: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/reports",
+    params(ReportListParams),
+    responses((status = 200, description = "Reports for the lineage", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Reports",
+)]
 pub(crate) async fn list_reports(
     State(state): State<AppState>,
     principal: Principal,
@@ -122,6 +142,17 @@ pub(crate) async fn list_reports(
 // GET /api/reports/:id — get a single report
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/reports/{id}",
+    params(("id" = Uuid, Path, description = "Report ID")),
+    responses(
+        (status = 200, description = "Report", body = Object),
+        (status = 404, description = "Report not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Reports",
+)]
 pub(crate) async fn get_report(
     State(state): State<AppState>,
     _principal: Principal,
@@ -140,16 +171,30 @@ pub(crate) async fn get_report(
 // PATCH /api/reports/:id — update a report
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateReportRequest {
     pub title: Option<String>,
     pub description: Option<String>,
     pub query_template: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub parameters: Option<serde_json::Value>,
     pub widget_type: Option<String>,
     pub is_public: Option<bool>,
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/reports/{id}",
+    params(("id" = Uuid, Path, description = "Report ID")),
+    request_body = UpdateReportRequest,
+    responses(
+        (status = 200, description = "Updated report", body = Object),
+        (status = 403, description = "Caller does not own the report"),
+        (status = 404, description = "Report not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Reports",
+)]
 pub(crate) async fn update_report(
     State(state): State<AppState>,
     principal: Principal,
@@ -209,6 +254,18 @@ pub(crate) async fn update_report(
 // DELETE /api/reports/:id — delete a report
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/reports/{id}",
+    params(("id" = Uuid, Path, description = "Report ID")),
+    responses(
+        (status = 204, description = "Report deleted"),
+        (status = 403, description = "Caller does not own the report"),
+        (status = 404, description = "Report not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Reports",
+)]
 pub(crate) async fn delete_report(
     State(state): State<AppState>,
     principal: Principal,
@@ -239,6 +296,19 @@ pub(crate) async fn delete_report(
 // POST /api/reports/:id/execute — execute a report with parameter values
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    post,
+    path = "/api/reports/{id}/execute",
+    params(("id" = Uuid, Path, description = "Report ID")),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Query result", body = Object),
+        (status = 404, description = "Report not found"),
+        (status = 504, description = "Execution timeout"),
+    ),
+    security(("api_key" = [])),
+    tag = "Reports",
+)]
 pub(crate) async fn execute_report(
     State(state): State<AppState>,
     principal: Principal,

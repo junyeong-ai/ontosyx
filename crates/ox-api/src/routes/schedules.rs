@@ -17,7 +17,7 @@ use crate::state::AppState;
 // POST /api/recipes/:id/schedule — create a scheduled task for a recipe
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateScheduleRequest {
     pub cron_expression: String,
     pub ontology_lineage_id: Option<String>,
@@ -25,6 +25,19 @@ pub struct CreateScheduleRequest {
     pub webhook_url: Option<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/recipes/{id}/schedule",
+    params(("id" = Uuid, Path, description = "Recipe ID")),
+    request_body = CreateScheduleRequest,
+    responses(
+        (status = 201, description = "Schedule created", body = Object),
+        (status = 400, description = "Invalid cron expression"),
+        (status = 404, description = "Recipe not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Schedules",
+)]
 pub(crate) async fn create_schedule(
     State(state): State<AppState>,
     principal: Principal,
@@ -78,11 +91,19 @@ pub(crate) async fn create_schedule(
 // GET /api/scheduled-tasks — list all scheduled tasks
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct ScheduleListParams {
     pub recipe_id: Option<Uuid>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/scheduled-tasks",
+    params(ScheduleListParams),
+    responses((status = 200, description = "Scheduled tasks", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Schedules",
+)]
 pub(crate) async fn list_schedules(
     State(state): State<AppState>,
     _principal: Principal,
@@ -100,6 +121,17 @@ pub(crate) async fn list_schedules(
 // GET /api/scheduled-tasks/:id — get a single scheduled task
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/scheduled-tasks/{id}",
+    params(("id" = Uuid, Path, description = "Scheduled task ID")),
+    responses(
+        (status = 200, description = "Scheduled task", body = Object),
+        (status = 404, description = "Task not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Schedules",
+)]
 pub(crate) async fn get_schedule(
     State(state): State<AppState>,
     _principal: Principal,
@@ -118,11 +150,24 @@ pub(crate) async fn get_schedule(
 // PATCH /api/scheduled-tasks/:id — update a scheduled task (enable/disable)
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateScheduleRequest {
     pub enabled: bool,
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/scheduled-tasks/{id}",
+    params(("id" = Uuid, Path, description = "Scheduled task ID")),
+    request_body = UpdateScheduleRequest,
+    responses(
+        (status = 204, description = "Schedule updated"),
+        (status = 403, description = "Caller does not own the task"),
+        (status = 404, description = "Task not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Schedules",
+)]
 pub(crate) async fn update_schedule(
     State(state): State<AppState>,
     principal: Principal,
@@ -152,6 +197,18 @@ pub(crate) async fn update_schedule(
 // DELETE /api/scheduled-tasks/:id — delete a scheduled task
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/scheduled-tasks/{id}",
+    params(("id" = Uuid, Path, description = "Scheduled task ID")),
+    responses(
+        (status = 204, description = "Schedule deleted"),
+        (status = 403, description = "Caller does not own the task"),
+        (status = 404, description = "Task not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Schedules",
+)]
 pub(crate) async fn delete_schedule(
     State(state): State<AppState>,
     principal: Principal,

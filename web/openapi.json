@@ -2225,6 +2225,113 @@
         ]
       }
     },
+    "/api/lineage": {
+      "get": {
+        "tags": [
+          "Lineage"
+        ],
+        "operationId": "get_lineage_summary",
+        "responses": {
+          "200": {
+            "description": "Lineage summary per label",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/lineage/label/{label}": {
+      "get": {
+        "tags": [
+          "Lineage"
+        ],
+        "operationId": "list_lineage_for_label",
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "description": "Graph node label",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lineage entries for the label",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/lineage/project/{id}": {
+      "get": {
+        "tags": [
+          "Lineage"
+        ],
+        "operationId": "get_lineage_for_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lineage entries for the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/load": {
       "post": {
         "tags": [
@@ -6212,6 +6319,495 @@
         ]
       }
     },
+    "/api/recipes/{id}/schedule": {
+      "post": {
+        "tags": [
+          "Schedules"
+        ],
+        "operationId": "create_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Recipe ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Schedule created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cron expression"
+          },
+          "404": {
+            "description": "Recipe not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/reports": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "list_reports",
+        "parameters": [
+          {
+            "name": "ontology_lineage_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reports for the lineage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "create_report",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Report created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/reports/{id}": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "get_report",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Report ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Report not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "delete_report",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Report ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Report deleted"
+          },
+          "403": {
+            "description": "Caller does not own the report"
+          },
+          "404": {
+            "description": "Report not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "update_report",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Report ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller does not own the report"
+          },
+          "404": {
+            "description": "Report not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/reports/{id}/execute": {
+      "post": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "execute_report",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Report ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Query result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Report not found"
+          },
+          "504": {
+            "description": "Execution timeout"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/scheduled-tasks": {
+      "get": {
+        "tags": [
+          "Schedules"
+        ],
+        "operationId": "list_schedules",
+        "parameters": [
+          {
+            "name": "recipe_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scheduled tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/scheduled-tasks/{id}": {
+      "get": {
+        "tags": [
+          "Schedules"
+        ],
+        "operationId": "get_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Scheduled task ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scheduled task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Schedules"
+        ],
+        "operationId": "delete_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Scheduled task ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Schedule deleted"
+          },
+          "403": {
+            "description": "Caller does not own the task"
+          },
+          "404": {
+            "description": "Task not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Schedules"
+        ],
+        "operationId": "update_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Scheduled task ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Schedule updated"
+          },
+          "403": {
+            "description": "Caller does not own the task"
+          },
+          "404": {
+            "description": "Task not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/shared/dashboards/{token}": {
       "get": {
         "tags": [
@@ -9085,6 +9681,43 @@
           }
         }
       },
+      "CreateReportRequest": {
+        "type": "object",
+        "required": [
+          "ontology_lineage_id",
+          "title",
+          "query_template"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_public": {
+            "type": "boolean"
+          },
+          "ontology_lineage_id": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "object"
+          },
+          "query_template": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "widget_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CreateSavedPatternRequest": {
         "type": "object",
         "required": [
@@ -9111,6 +9744,35 @@
           "pattern_ir": {
             "type": "object",
             "description": "The full PatternIR — nodes with positions, edges, filters, and\nlayout hints (zoom + pan). QueryIR is computed on demand from\n`pattern_ir.compile()` and does not need to be stored."
+          }
+        }
+      },
+      "CreateScheduleRequest": {
+        "type": "object",
+        "required": [
+          "cron_expression"
+        ],
+        "properties": {
+          "cron_expression": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ontology_lineage_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "webhook_url": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -18432,6 +19094,47 @@
           "variables": {}
         }
       },
+      "UpdateReportRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_public": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "parameters": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "query_template": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "widget_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateSavedPatternRequest": {
         "type": "object",
         "required": [
@@ -18450,6 +19153,17 @@
           },
           "pattern_ir": {
             "type": "object"
+          }
+        }
+      },
+      "UpdateScheduleRequest": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
           }
         }
       },
@@ -19176,6 +19890,18 @@
     {
       "name": "Notifications",
       "description": "Webhook channel routing + delivery log"
+    },
+    {
+      "name": "Lineage",
+      "description": "Ontology ↔ source binding lineage"
+    },
+    {
+      "name": "Schedules",
+      "description": "Cron-style recipe scheduling"
+    },
+    {
+      "name": "Reports",
+      "description": "Saved report templates + execution"
     }
   ]
 }
