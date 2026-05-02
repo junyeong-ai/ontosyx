@@ -24,10 +24,10 @@ use super::auth::UserInfo;
         ("cursor" = Option<String>, Query, description = "Pagination cursor"),
     ),
     responses(
-        (status = 200, description = "User list"),
+        (status = 200, description = "User list", body = Vec<UserInfo>),
         (status = 401, description = "Not authenticated"),
     ),
-    security(("bearer" = [])),
+    security(("api_key" = [])),
     tag = "Users",
 )]
 pub(crate) async fn list_users(
@@ -68,8 +68,8 @@ pub struct UpdateUserRoleRequest {
     pub role: String,
 }
 
-#[derive(Serialize)]
-pub(crate) struct UserRoleUpdateResponse {
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct UserRoleUpdateResponse {
     pub user: UserInfo,
 }
 
@@ -79,12 +79,12 @@ pub(crate) struct UserRoleUpdateResponse {
     params(("id" = Uuid, Path, description = "User ID")),
     request_body = UpdateUserRoleRequest,
     responses(
-        (status = 200, description = "Role updated"),
+        (status = 200, description = "Role updated", body = UserRoleUpdateResponse),
         (status = 400, description = "Invalid role"),
         (status = 403, description = "Forbidden"),
         (status = 404, description = "User not found"),
     ),
-    security(("bearer" = [])),
+    security(("api_key" = [])),
     tag = "Users",
 )]
 pub(crate) async fn update_user_role(

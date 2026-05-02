@@ -260,6 +260,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dashboards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_dashboards"];
+        put?: never;
+        post: operations["create_dashboard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboards/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_dashboard"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_dashboard"];
+        options?: never;
+        head?: never;
+        patch: operations["update_dashboard"];
+        trace?: never;
+    };
+    "/api/dashboards/{id}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["share_dashboard"];
+        delete: operations["unshare_dashboard"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboards/{id}/widgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_widgets"];
+        put?: never;
+        post: operations["add_widget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboards/{id}/widgets/{widget_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_widget"];
+        options?: never;
+        head?: never;
+        patch: operations["update_widget"];
+        trace?: never;
+    };
     "/api/governance/audit": {
         parameters: {
             query?: never;
@@ -1259,6 +1339,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/shared/dashboards/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_shared_dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_users"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["update_user_role"];
+        trace?: never;
+    };
     "/api/workspaces": {
         parameters: {
             query?: never;
@@ -1353,6 +1481,65 @@ export interface paths {
         head?: never;
         /** PATCH /workspaces/:id/members/:uid — update member role. */
         patch: operations["update_member_role"];
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke the caller's current platform JWT so it can no longer be
+         *     presented as proof of identity. Inserts a row in `revoked_jwts`
+         *     keyed by the token's `jti`, and drops the cached negative-result
+         *     in [`JwtRevocationCache`] so the next request from any holder of
+         *     the same token sees the revocation immediately.
+         * @description Idempotent — repeated calls are safe and return the same shape.
+         *     API-key principals short-circuit: API keys don't have a JWT
+         *     surface to revoke, so the endpoint surfaces a `400` so the client
+         *     can route them to the admin "delete API key" path instead.
+         */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/workspaces/me": {
@@ -1691,6 +1878,9 @@ export interface components {
         AuditRecordPage: {
             items: components["schemas"]["AuditRecord"][];
             next_cursor?: string | null;
+        };
+        AuthMeResponse: {
+            user: components["schemas"]["UserInfo"];
         };
         /**
          * @description Reason a property opts out of the "physical mapping must carry a
@@ -2190,6 +2380,20 @@ export interface components {
         CreateApprovalCommentRequest: {
             body: string;
         };
+        CreateAuthTokenRequest: {
+            /** @description The ID token from an OIDC provider */
+            id_token: string;
+            /** @description OIDC provider name (e.g., "google", "microsoft", "okta") */
+            provider: string;
+        };
+        CreateAuthTokenResponse: {
+            token: string;
+            user: components["schemas"]["UserInfo"];
+        };
+        CreateDashboardRequest: {
+            description?: string | null;
+            name: string;
+        };
         CreateInsightRequest: {
             /**
              * @description `GlossaryTermId` strings — the typed concept anchors per the
@@ -2324,6 +2528,16 @@ export interface components {
              */
             pattern_ir: Record<string, never>;
         };
+        CreateWidgetRequest: {
+            position?: unknown;
+            query?: string | null;
+            /** Format: int32 */
+            refresh_interval_secs?: number | null;
+            thresholds?: Record<string, never> | null;
+            title: string;
+            widget_spec?: unknown;
+            widget_type: string;
+        };
         CreateWorkspaceRequest: {
             name: string;
             slug: string;
@@ -2384,6 +2598,50 @@ export interface components {
              * @description Max items to return (default 50, max 100)
              */
             limit?: number | null;
+        };
+        /** @description Saved dashboard — workspace-scoped, owner-private until shared. */
+        Dashboard: {
+            /** Format: date-time */
+            created_at: string;
+            description?: string | null;
+            /** Format: uuid */
+            id: string;
+            is_public: boolean;
+            /** @description JSON array of `{widget_id, x, y, w, h}` placements. */
+            layout: Record<string, never>;
+            name: string;
+            /** Format: date-time */
+            share_expires_at?: string | null;
+            share_token?: string | null;
+            /** Format: date-time */
+            shared_at?: string | null;
+            /** Format: date-time */
+            updated_at: string;
+            user_id: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /** @description One widget on a dashboard. */
+        DashboardWidget: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            dashboard_id: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            last_refreshed?: string | null;
+            last_result?: Record<string, never> | null;
+            position: Record<string, never>;
+            query?: string | null;
+            /** Format: int32 */
+            refresh_interval_secs?: number | null;
+            thresholds?: Record<string, never> | null;
+            title: string;
+            widget_spec: Record<string, never>;
+            widget_type: string;
+            /** Format: uuid */
+            workspace_id: string;
         };
         /** @enum {string} */
         DataClassification: "public" | "internal" | "confidential" | "restricted";
@@ -3422,6 +3680,14 @@ export interface components {
             translations?: {
                 [key: string]: string;
             };
+        };
+        LogoutResponse: {
+            /**
+             * @description Always `true` on success — the response shape mirrors other
+             *     auth endpoints so the BFF can branch on JSON instead of HTTP
+             *     status alone.
+             */
+            revoked: boolean;
         };
         MemberResponse: {
             email: string;
@@ -5531,6 +5797,44 @@ export interface components {
             other_property: components["schemas"]["PropertyId"];
             target: components["schemas"]["ConstraintTarget"];
         };
+        ShareDashboardRequest: {
+            /**
+             * Format: int32
+             * @description Days until the token expires. Defaults to `dashboards.default_share_expiry_days`
+             *     (30 unless overridden); capped at `dashboards.max_share_expiry_days` (365).
+             */
+            expires_in_days?: number | null;
+        };
+        ShareDashboardResponse: {
+            /** Format: date-time */
+            expires_at: string;
+            share_token: string;
+        };
+        /**
+         * @description Public-safe view of a shared dashboard. Excludes user_id, share_token,
+         *     timestamps, and other internal fields.
+         */
+        SharedDashboardResponse: {
+            description?: string | null;
+            /** Format: uuid */
+            id: string;
+            layout: Record<string, never>;
+            name: string;
+            widgets: components["schemas"]["SharedWidgetResponse"][];
+        };
+        /** @description Public-safe widget view. Excludes workspace_id, dashboard_id, and raw query. */
+        SharedWidgetResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            last_refreshed?: string | null;
+            last_result?: Record<string, never> | null;
+            position: Record<string, never>;
+            thresholds?: Record<string, never> | null;
+            title: string;
+            widget_spec: Record<string, never>;
+            widget_type: string;
+        };
         SkipBody: {
             column: string;
             reason: string;
@@ -5856,6 +6160,12 @@ export interface components {
         UpdateConfigRequest: {
             updates: components["schemas"]["ConfigUpdate"][];
         };
+        UpdateDashboardRequest: {
+            description?: string | null;
+            is_public?: boolean | null;
+            layout?: Record<string, never> | null;
+            name?: string | null;
+        };
         UpdateInsightRequest: {
             concept_anchors?: string[];
             /** @description Required on the wire (see `CreateInsightRequest::description`). */
@@ -5892,6 +6202,9 @@ export interface components {
             description?: string | null;
             name: string;
             pattern_ir: Record<string, never>;
+        };
+        UpdateUserRoleRequest: {
+            role: string;
         };
         /**
          * @description Body for `PUT /workspaces/:id/locale`.
@@ -5946,6 +6259,17 @@ export interface components {
              */
             risk_level?: components["schemas"]["RiskLevel"];
             routing: components["schemas"]["ApprovalRouting"];
+        };
+        UserInfo: {
+            email: string;
+            /** Format: uuid */
+            id: string;
+            name?: string | null;
+            picture?: string | null;
+            role: string;
+        };
+        UserRoleUpdateResponse: {
+            user: components["schemas"]["UserInfo"];
         };
         /**
          * @description Outcome of a rule evaluation.
@@ -6060,6 +6384,14 @@ export interface components {
         };
         /** @enum {string} */
         VectorSimilarity: "cosine" | "euclidean";
+        WidgetUpdateRequest: {
+            query?: string | null;
+            /** Format: int32 */
+            refresh_interval_secs?: number | null;
+            thresholds?: Record<string, never> | null;
+            title?: string | null;
+            widget_type?: string | null;
+        };
         /** @description Workbench perspective — saved canvas state. */
         WorkbenchPerspective: {
             collapsed_groups: unknown;
@@ -6988,6 +7320,379 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UiConfig"];
                 };
+            };
+        };
+    };
+    list_dashboards: {
+        parameters: {
+            query?: {
+                /** @description Max items */
+                limit?: number;
+                /** @description Pagination cursor */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Caller's dashboards */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    create_dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDashboardRequest"];
+            };
+        };
+        responses: {
+            /** @description Dashboard created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    get_dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Dashboard ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dashboard */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not found or not accessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Dashboard ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dashboard deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not the dashboard owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dashboard not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Dashboard ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDashboardRequest"];
+            };
+        };
+        responses: {
+            /** @description Dashboard updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not the dashboard owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dashboard not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    share_dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Dashboard ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShareDashboardRequest"];
+            };
+        };
+        responses: {
+            /** @description Share token issued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareDashboardResponse"];
+                };
+            };
+            /** @description Not the dashboard owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dashboard not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    unshare_dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Dashboard ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Share token revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not the dashboard owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dashboard not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_widgets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Dashboard ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Widgets on the dashboard */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    add_widget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Dashboard ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWidgetRequest"];
+            };
+        };
+        responses: {
+            /** @description Widget added */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not the dashboard owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dashboard not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_widget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Dashboard ID */
+                id: string;
+                /** @description Widget ID */
+                widget_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Widget deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not the dashboard owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dashboard or widget not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_widget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Dashboard ID */
+                id: string;
+                /** @description Widget ID */
+                widget_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WidgetUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Widget updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not the dashboard owner */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dashboard or widget not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -9684,6 +10389,123 @@ export interface operations {
             };
         };
     };
+    get_shared_dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Share token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public-safe dashboard view */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedDashboardResponse"];
+                };
+            };
+            /** @description Token not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Token expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_users: {
+        parameters: {
+            query?: {
+                /** @description Max items (default 50, max 100) */
+                limit?: number;
+                /** @description Pagination cursor */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserInfo"][];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_user_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateUserRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Role updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRoleUpdateResponse"];
+                };
+            };
+            /** @description Invalid role */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_workspaces: {
         parameters: {
             query?: never;
@@ -10058,6 +10880,114 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description JWT revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoutResponse"];
+                };
+            };
+            /** @description API key principals cannot self-logout */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current user info */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthMeResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    create_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAuthTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Token created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAuthTokenResponse"];
+                };
+            };
+            /** @description Invalid ID token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
             };
         };
     };

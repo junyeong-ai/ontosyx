@@ -1198,6 +1198,492 @@
         }
       }
     },
+    "/api/dashboards": {
+      "get": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "list_dashboards",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max items",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Pagination cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Caller's dashboards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "create_dashboard",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDashboardRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Dashboard created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/dashboards/{id}": {
+      "get": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "get_dashboard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dashboard ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or not accessible"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "delete_dashboard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dashboard ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Dashboard deleted"
+          },
+          "403": {
+            "description": "Not the dashboard owner"
+          },
+          "404": {
+            "description": "Dashboard not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "update_dashboard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dashboard ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDashboardRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Dashboard updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the dashboard owner"
+          },
+          "404": {
+            "description": "Dashboard not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/dashboards/{id}/share": {
+      "post": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "share_dashboard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dashboard ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareDashboardRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Share token issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareDashboardResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the dashboard owner"
+          },
+          "404": {
+            "description": "Dashboard not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "unshare_dashboard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dashboard ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Share token revoked"
+          },
+          "403": {
+            "description": "Not the dashboard owner"
+          },
+          "404": {
+            "description": "Dashboard not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/dashboards/{id}/widgets": {
+      "get": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "list_widgets",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dashboard ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Widgets on the dashboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "add_widget",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dashboard ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWidgetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Widget added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the dashboard owner"
+          },
+          "404": {
+            "description": "Dashboard not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/dashboards/{id}/widgets/{widget_id}": {
+      "delete": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "delete_widget",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dashboard ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "widget_id",
+            "in": "path",
+            "description": "Widget ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Widget deleted"
+          },
+          "403": {
+            "description": "Not the dashboard owner"
+          },
+          "404": {
+            "description": "Dashboard or widget not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "update_widget",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dashboard ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "widget_id",
+            "in": "path",
+            "description": "Widget ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WidgetUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Widget updated"
+          },
+          "403": {
+            "description": "Not the dashboard owner"
+          },
+          "404": {
+            "description": "Dashboard or widget not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/governance/audit": {
       "get": {
         "tags": [
@@ -5464,6 +5950,152 @@
         ]
       }
     },
+    "/api/shared/dashboards/{token}": {
+      "get": {
+        "tags": [
+          "Dashboards"
+        ],
+        "operationId": "get_shared_dashboard",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Share token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public-safe dashboard view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedDashboardResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Token not found"
+          },
+          "410": {
+            "description": "Token expired"
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "operationId": "list_users",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max items (default 50, max 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Pagination cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserInfo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/users/{id}/role": {
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "operationId": "update_user_role",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Role updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRoleUpdateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid role"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/workspaces": {
       "get": {
         "tags": [
@@ -5928,6 +6560,160 @@
             "api_key": []
           }
         ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Revoke the caller's current platform JWT so it can no longer be\npresented as proof of identity. Inserts a row in `revoked_jwts`\nkeyed by the token's `jti`, and drops the cached negative-result\nin [`JwtRevocationCache`] so the next request from any holder of\nthe same token sees the revocation immediately.",
+        "description": "Idempotent — repeated calls are safe and return the same shape.\nAPI-key principals short-circuit: API keys don't have a JWT\nsurface to revoke, so the endpoint surfaces a `400` so the client\ncan route them to the admin \"delete API key\" path instead.",
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "description": "JWT revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "API key principals cannot self-logout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "Current user info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthMeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/auth/token": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "create_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAuthTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Token created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAuthTokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid ID token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/workspaces/me": {
@@ -6711,6 +7497,17 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "AuthMeResponse": {
+        "type": "object",
+        "required": [
+          "user"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserInfo"
           }
         }
       },
@@ -7705,6 +8502,55 @@
           }
         }
       },
+      "CreateAuthTokenRequest": {
+        "type": "object",
+        "required": [
+          "id_token",
+          "provider"
+        ],
+        "properties": {
+          "id_token": {
+            "type": "string",
+            "description": "The ID token from an OIDC provider"
+          },
+          "provider": {
+            "type": "string",
+            "description": "OIDC provider name (e.g., \"google\", \"microsoft\", \"okta\")"
+          }
+        }
+      },
+      "CreateAuthTokenResponse": {
+        "type": "object",
+        "required": [
+          "token",
+          "user"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserInfo"
+          }
+        }
+      },
+      "CreateDashboardRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "CreateInsightRequest": {
         "type": "object",
         "required": [
@@ -7927,6 +8773,42 @@
           }
         }
       },
+      "CreateWidgetRequest": {
+        "type": "object",
+        "required": [
+          "title",
+          "widget_type"
+        ],
+        "properties": {
+          "position": {},
+          "query": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refresh_interval_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "thresholds": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "widget_spec": {},
+          "widget_type": {
+            "type": "string"
+          }
+        }
+      },
       "CreateWorkspaceRequest": {
         "type": "object",
         "required": [
@@ -8072,6 +8954,153 @@
             "format": "int32",
             "description": "Max items to return (default 50, max 100)",
             "minimum": 0
+          }
+        }
+      },
+      "Dashboard": {
+        "type": "object",
+        "description": "Saved dashboard — workspace-scoped, owner-private until shared.",
+        "required": [
+          "id",
+          "workspace_id",
+          "user_id",
+          "name",
+          "layout",
+          "is_public",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_public": {
+            "type": "boolean"
+          },
+          "layout": {
+            "type": "object",
+            "description": "JSON array of `{widget_id, x, y, w, h}` placements."
+          },
+          "name": {
+            "type": "string"
+          },
+          "share_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "share_token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shared_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "DashboardWidget": {
+        "type": "object",
+        "description": "One widget on a dashboard.",
+        "required": [
+          "id",
+          "dashboard_id",
+          "workspace_id",
+          "title",
+          "widget_type",
+          "widget_spec",
+          "position",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dashboard_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "last_refreshed": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "position": {
+            "type": "object"
+          },
+          "query": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refresh_interval_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "thresholds": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "widget_spec": {
+            "type": "object"
+          },
+          "widget_type": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -10242,6 +11271,18 @@
             "propertyNames": {
               "type": "string"
             }
+          }
+        }
+      },
+      "LogoutResponse": {
+        "type": "object",
+        "required": [
+          "revoked"
+        ],
+        "properties": {
+          "revoked": {
+            "type": "boolean",
+            "description": "Always `true` on success — the response shape mirrors other\nauth endpoints so the BFF can branch on JSON instead of HTTP\nstatus alone."
           }
         }
       },
@@ -15888,6 +16929,118 @@
         ],
         "description": "SHACL Core constraint component. The subset covers ~95% of\nreal-world rule usage; advanced components (`sh:and`, `sh:or`,\n`sh:xone`, recursion rules) are not yet implemented and land\nalongside the reasoning engine.\n\n`ShaclConstraint` lives at the **logical** layer — the SHACL\nvalidator pipeline checks each constraint at write/read time and\nproduces a structured violation report. For storage-engine\nconstraints that compile to graph-DB DDL (uniqueness, existence,\nnode keys), use [`crate::ir::NodeConstraint`] on `NodeTypeDef`\ninstead. The two surfaces deliberately do not overlap: DDL\nconstraints buy database-native enforcement at the cost of\nportability; SHACL constraints buy expressiveness at the cost of\nrequiring the validator on the write path."
       },
+      "ShareDashboardRequest": {
+        "type": "object",
+        "properties": {
+          "expires_in_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Days until the token expires. Defaults to `dashboards.default_share_expiry_days`\n(30 unless overridden); capped at `dashboards.max_share_expiry_days` (365).",
+            "minimum": 0
+          }
+        }
+      },
+      "ShareDashboardResponse": {
+        "type": "object",
+        "required": [
+          "share_token",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "share_token": {
+            "type": "string"
+          }
+        }
+      },
+      "SharedDashboardResponse": {
+        "type": "object",
+        "description": "Public-safe view of a shared dashboard. Excludes user_id, share_token,\ntimestamps, and other internal fields.",
+        "required": [
+          "id",
+          "name",
+          "layout",
+          "widgets"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "layout": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "widgets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SharedWidgetResponse"
+            }
+          }
+        }
+      },
+      "SharedWidgetResponse": {
+        "type": "object",
+        "description": "Public-safe widget view. Excludes workspace_id, dashboard_id, and raw query.",
+        "required": [
+          "id",
+          "title",
+          "widget_type",
+          "widget_spec",
+          "position"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "last_refreshed": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "position": {
+            "type": "object"
+          },
+          "thresholds": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "widget_spec": {
+            "type": "object"
+          },
+          "widget_type": {
+            "type": "string"
+          }
+        }
+      },
       "SkipBody": {
         "type": "object",
         "required": [
@@ -16520,6 +17673,35 @@
           }
         }
       },
+      "UpdateDashboardRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_public": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "layout": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateInsightRequest": {
         "type": "object",
         "required": [
@@ -16638,6 +17820,17 @@
           }
         }
       },
+      "UpdateUserRoleRequest": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          }
+        }
+      },
       "UpdateWorkspaceLocaleRequest": {
         "type": "object",
         "description": "Body for `PUT /workspaces/:id/locale`.\n\n`primary_locale` must be a BCP 47 tag (lowercase canonical form).\nBoth fallback chains are non-empty ordered lists of BCP 47 tags;\n`admin_locale_fallback` is what the admin / operator UI walks\n(typically `[\"ko\", \"en\"]`), and `llm_locale_fallback` is what\nthe agent / Brain prompts and tool-result contexts walk\n(typically `[\"en\", \"ko\"]`). Each is validated at the ox-core\nlayer via `LanguageTag::parse` before hitting the DB, and again\nat the DB layer by `fn_validate_locale_chain` — malformed values\nare rejected twice before any row is touched.",
@@ -16738,6 +17931,49 @@
           },
           "routing": {
             "$ref": "#/components/schemas/ApprovalRouting"
+          }
+        }
+      },
+      "UserInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "role"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "picture": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "UserRoleUpdateResponse": {
+        "type": "object",
+        "required": [
+          "user"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserInfo"
           }
         }
       },
@@ -16983,6 +18219,42 @@
           "euclidean"
         ]
       },
+      "WidgetUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refresh_interval_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "thresholds": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "widget_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "WorkbenchPerspective": {
         "type": "object",
         "description": "Workbench perspective — saved canvas state.",
@@ -17193,6 +18465,14 @@
       "description": "Service health check"
     },
     {
+      "name": "Auth",
+      "description": "Platform authentication (OIDC token exchange)"
+    },
+    {
+      "name": "Users",
+      "description": "User directory + role administration"
+    },
+    {
       "name": "Chat",
       "description": "Natural language query pipeline"
     },
@@ -17211,6 +18491,10 @@
     {
       "name": "Workspaces",
       "description": "Multi-tenant workspace + membership"
+    },
+    {
+      "name": "Dashboards",
+      "description": "Dashboard + widget composition"
     },
     {
       "name": "Pins",

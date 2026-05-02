@@ -3,8 +3,9 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi, ToSchema};
 
 use crate::routes::{
-    approvals, chat, config, federation_admin, governance_audit, governance_routing, health,
-    insights, load, ontology, perspectives, pins, prompts_admin, query, workspaces,
+    approvals, auth, chat, config, dashboards, federation_admin, governance_audit,
+    governance_routing, health, insights, load, ontology, perspectives, pins, prompts_admin,
+    query, users, workspaces,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -86,11 +87,14 @@ impl Modify for SecurityAddon {
     ),
     tags(
         (name = "Health", description = "Service health check"),
+        (name = "Auth", description = "Platform authentication (OIDC token exchange)"),
+        (name = "Users", description = "User directory + role administration"),
         (name = "Chat", description = "Natural language query pipeline"),
         (name = "Query", description = "Raw query execution and history"),
         (name = "Projects", description = "Design project lifecycle management"),
         (name = "Ontologies", description = "Ontology management and export"),
         (name = "Workspaces", description = "Multi-tenant workspace + membership"),
+        (name = "Dashboards", description = "Dashboard + widget composition"),
         (name = "Pins", description = "Pinboard — saved query results"),
         (name = "Perspectives", description = "Workbench canvas perspectives"),
         (name = "Config", description = "System configuration"),
@@ -226,6 +230,26 @@ impl Modify for SecurityAddon {
         workspaces::remove_member,
         workspaces::update_member_role,
         workspaces::list_members,
+        // Auth
+        auth::create_token,
+        auth::me,
+        auth::logout,
+        // Users
+        users::list_users,
+        users::update_user_role,
+        // Dashboards + widgets
+        dashboards::create_dashboard,
+        dashboards::list_dashboards,
+        dashboards::get_dashboard,
+        dashboards::update_dashboard,
+        dashboards::delete_dashboard,
+        dashboards::add_widget,
+        dashboards::list_widgets,
+        dashboards::update_widget,
+        dashboards::delete_widget,
+        dashboards::share_dashboard,
+        dashboards::unshare_dashboard,
+        dashboards::get_shared_dashboard,
     ),
     components(
         schemas(
@@ -354,6 +378,26 @@ impl Modify for SecurityAddon {
             workspaces::UpdateWorkspaceLocaleRequest,
             workspaces::AddMemberRequest,
             workspaces::UpdateMemberRoleRequest,
+            // Auth
+            auth::CreateAuthTokenRequest,
+            auth::CreateAuthTokenResponse,
+            auth::AuthMeResponse,
+            auth::LogoutResponse,
+            auth::UserInfo,
+            // Users
+            users::UpdateUserRoleRequest,
+            users::UserRoleUpdateResponse,
+            // Dashboards
+            Dashboard,
+            DashboardWidget,
+            dashboards::CreateDashboardRequest,
+            dashboards::UpdateDashboardRequest,
+            dashboards::CreateWidgetRequest,
+            dashboards::WidgetUpdateRequest,
+            dashboards::ShareDashboardRequest,
+            dashboards::ShareDashboardResponse,
+            dashboards::SharedDashboardResponse,
+            dashboards::SharedWidgetResponse,
             QueryExecution,
             QueryExecutionSummary,
             PinboardItem,
@@ -446,6 +490,51 @@ pub struct DesignProjectSummary {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub analyzed_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Saved dashboard — workspace-scoped, owner-private until shared.
+#[derive(ToSchema)]
+#[schema(as = Dashboard)]
+#[allow(dead_code)]
+pub struct Dashboard {
+    pub id: uuid::Uuid,
+    pub workspace_id: uuid::Uuid,
+    pub user_id: String,
+    pub name: String,
+    pub description: Option<String>,
+    /// JSON array of `{widget_id, x, y, w, h}` placements.
+    #[schema(value_type = Object)]
+    pub layout: serde_json::Value,
+    pub is_public: bool,
+    pub share_token: Option<String>,
+    pub shared_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub share_expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// One widget on a dashboard.
+#[derive(ToSchema)]
+#[schema(as = DashboardWidget)]
+#[allow(dead_code)]
+pub struct DashboardWidget {
+    pub id: uuid::Uuid,
+    pub dashboard_id: uuid::Uuid,
+    pub workspace_id: uuid::Uuid,
+    pub title: String,
+    pub widget_type: String,
+    pub query: Option<String>,
+    #[schema(value_type = Object)]
+    pub widget_spec: serde_json::Value,
+    #[schema(value_type = Object)]
+    pub position: serde_json::Value,
+    pub refresh_interval_secs: Option<i32>,
+    #[schema(value_type = Option<Object>)]
+    pub last_result: Option<serde_json::Value>,
+    pub last_refreshed: Option<chrono::DateTime<chrono::Utc>>,
+    #[schema(value_type = Option<Object>)]
+    pub thresholds: Option<serde_json::Value>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// Query execution record.

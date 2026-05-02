@@ -24,6 +24,14 @@ pub struct CreateDashboardRequest {
     pub description: Option<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/dashboards",
+    request_body = CreateDashboardRequest,
+    responses((status = 200, description = "Dashboard created", body = Object)),
+    security(("api_key" = [])),
+    tag = "Dashboards",
+)]
 pub(crate) async fn create_dashboard(
     State(state): State<AppState>,
     principal: Principal,
@@ -60,6 +68,17 @@ pub(crate) async fn create_dashboard(
 // GET /api/dashboards — list dashboards
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/dashboards",
+    params(
+        ("limit" = Option<u32>, Query, description = "Max items"),
+        ("cursor" = Option<String>, Query, description = "Pagination cursor"),
+    ),
+    responses((status = 200, description = "Caller's dashboards", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Dashboards",
+)]
 pub(crate) async fn list_dashboards(
     State(state): State<AppState>,
     principal: Principal,
@@ -78,6 +97,17 @@ pub(crate) async fn list_dashboards(
 // GET /api/dashboards/:id — get a single dashboard
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/dashboards/{id}",
+    params(("id" = Uuid, Path, description = "Dashboard ID")),
+    responses(
+        (status = 200, description = "Dashboard", body = Object),
+        (status = 404, description = "Not found or not accessible"),
+    ),
+    security(("api_key" = [])),
+    tag = "Dashboards",
+)]
 pub(crate) async fn get_dashboard(
     State(state): State<AppState>,
     principal: Principal,
@@ -111,6 +141,19 @@ pub struct UpdateDashboardRequest {
     pub is_public: Option<bool>,
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/dashboards/{id}",
+    params(("id" = Uuid, Path, description = "Dashboard ID")),
+    request_body = UpdateDashboardRequest,
+    responses(
+        (status = 200, description = "Dashboard updated", body = Object),
+        (status = 403, description = "Not the dashboard owner"),
+        (status = 404, description = "Dashboard not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Dashboards",
+)]
 pub(crate) async fn update_dashboard(
     State(state): State<AppState>,
     principal: Principal,
@@ -161,6 +204,18 @@ pub(crate) async fn update_dashboard(
 // DELETE /api/dashboards/:id — delete dashboard
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/dashboards/{id}",
+    params(("id" = Uuid, Path, description = "Dashboard ID")),
+    responses(
+        (status = 204, description = "Dashboard deleted"),
+        (status = 403, description = "Not the dashboard owner"),
+        (status = 404, description = "Dashboard not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Dashboards",
+)]
 pub(crate) async fn delete_dashboard(
     State(state): State<AppState>,
     principal: Principal,
@@ -211,6 +266,19 @@ fn default_position() -> serde_json::Value {
     serde_json::json!({"x": 0, "y": 0, "w": 6, "h": 4})
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/dashboards/{id}/widgets",
+    params(("id" = Uuid, Path, description = "Dashboard ID")),
+    request_body = CreateWidgetRequest,
+    responses(
+        (status = 200, description = "Widget added", body = Object),
+        (status = 403, description = "Not the dashboard owner"),
+        (status = 404, description = "Dashboard not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Dashboards",
+)]
 pub(crate) async fn add_widget(
     State(state): State<AppState>,
     principal: Principal,
@@ -257,6 +325,14 @@ pub(crate) async fn add_widget(
 // GET /api/dashboards/:id/widgets — list widgets
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/dashboards/{id}/widgets",
+    params(("id" = Uuid, Path, description = "Dashboard ID")),
+    responses((status = 200, description = "Widgets on the dashboard", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Dashboards",
+)]
 pub(crate) async fn list_widgets(
     State(state): State<AppState>,
     _principal: Principal,
@@ -274,15 +350,32 @@ pub(crate) async fn list_widgets(
 // PATCH /api/dashboards/:id/widgets/:widget_id — update widget
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct WidgetUpdateRequest {
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct WidgetUpdateRequest {
     pub title: Option<String>,
     pub widget_type: Option<String>,
     pub query: Option<String>,
     pub refresh_interval_secs: Option<i32>,
+    #[schema(value_type = Option<Object>)]
     pub thresholds: Option<serde_json::Value>,
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/dashboards/{id}/widgets/{widget_id}",
+    params(
+        ("id" = Uuid, Path, description = "Dashboard ID"),
+        ("widget_id" = Uuid, Path, description = "Widget ID"),
+    ),
+    request_body = WidgetUpdateRequest,
+    responses(
+        (status = 204, description = "Widget updated"),
+        (status = 403, description = "Not the dashboard owner"),
+        (status = 404, description = "Dashboard or widget not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Dashboards",
+)]
 pub(crate) async fn update_widget(
     State(state): State<AppState>,
     principal: Principal,
@@ -319,6 +412,21 @@ pub(crate) async fn update_widget(
 // DELETE /api/dashboards/:id/widgets/:widget_id — delete widget
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/dashboards/{id}/widgets/{widget_id}",
+    params(
+        ("id" = Uuid, Path, description = "Dashboard ID"),
+        ("widget_id" = Uuid, Path, description = "Widget ID"),
+    ),
+    responses(
+        (status = 204, description = "Widget deleted"),
+        (status = 403, description = "Not the dashboard owner"),
+        (status = 404, description = "Dashboard or widget not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Dashboards",
+)]
 pub(crate) async fn delete_widget(
     State(state): State<AppState>,
     principal: Principal,
@@ -359,12 +467,31 @@ pub struct ShareDashboardRequest {
     pub expires_in_days: Option<u32>,
 }
 
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct ShareDashboardResponse {
+    pub share_token: String,
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/dashboards/{id}/share",
+    params(("id" = Uuid, Path, description = "Dashboard ID")),
+    request_body = ShareDashboardRequest,
+    responses(
+        (status = 200, description = "Share token issued", body = ShareDashboardResponse),
+        (status = 403, description = "Not the dashboard owner"),
+        (status = 404, description = "Dashboard not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Dashboards",
+)]
 pub(crate) async fn share_dashboard(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
     body: Option<Json<ShareDashboardRequest>>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<ShareDashboardResponse>>, AppError> {
     principal.require_designer()?;
 
     let dash = state
@@ -394,16 +521,28 @@ pub(crate) async fn share_dashboard(
         .await
         .map_err(AppError::from)?;
 
-    Ok(ApiResponse::of(serde_json::json!({
-        "share_token": token,
-        "expires_at": expires_at,
-    })))
+    Ok(ApiResponse::of(ShareDashboardResponse {
+        share_token: token,
+        expires_at,
+    }))
 }
 
 // ---------------------------------------------------------------------------
 // DELETE /api/dashboards/:id/share — revoke share token
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/dashboards/{id}/share",
+    params(("id" = Uuid, Path, description = "Dashboard ID")),
+    responses(
+        (status = 204, description = "Share token revoked"),
+        (status = 403, description = "Not the dashboard owner"),
+        (status = 404, description = "Dashboard not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Dashboards",
+)]
 pub(crate) async fn unshare_dashboard(
     State(state): State<AppState>,
     principal: Principal,
@@ -432,6 +571,17 @@ pub(crate) async fn unshare_dashboard(
 // GET /api/shared/dashboards/:token — public dashboard viewer (no auth)
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/shared/dashboards/{token}",
+    params(("token" = String, Path, description = "Share token")),
+    responses(
+        (status = 200, description = "Public-safe dashboard view", body = SharedDashboardResponse),
+        (status = 404, description = "Token not found"),
+        (status = 410, description = "Token expired"),
+    ),
+    tag = "Dashboards",
+)]
 pub(crate) async fn get_shared_dashboard(
     State(state): State<AppState>,
     Path(token): Path<String>,
@@ -491,24 +641,29 @@ pub(crate) async fn get_shared_dashboard(
 
 /// Public-safe view of a shared dashboard. Excludes user_id, share_token,
 /// timestamps, and other internal fields.
-#[derive(serde::Serialize)]
-pub(crate) struct SharedDashboardResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct SharedDashboardResponse {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
+    #[schema(value_type = Object)]
     pub layout: serde_json::Value,
     pub widgets: Vec<SharedWidgetResponse>,
 }
 
 /// Public-safe widget view. Excludes workspace_id, dashboard_id, and raw query.
-#[derive(serde::Serialize)]
-pub(crate) struct SharedWidgetResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct SharedWidgetResponse {
     pub id: Uuid,
     pub title: String,
     pub widget_type: String,
+    #[schema(value_type = Object)]
     pub widget_spec: serde_json::Value,
+    #[schema(value_type = Object)]
     pub position: serde_json::Value,
+    #[schema(value_type = Option<Object>)]
     pub last_result: Option<serde_json::Value>,
     pub last_refreshed: Option<chrono::DateTime<chrono::Utc>>,
+    #[schema(value_type = Option<Object>)]
     pub thresholds: Option<serde_json::Value>,
 }
