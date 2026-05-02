@@ -45,6 +45,7 @@ export default function SettingsLayout({
     <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950">
       <SettingsSidebar />
       <main
+        id="main"
         // `tabIndex={0}` makes the scroll container reachable for
         // keyboard users on read-only pages that have no focusable
         // children of their own (e.g. settings/providers — `region`

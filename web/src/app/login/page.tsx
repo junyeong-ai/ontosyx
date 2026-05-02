@@ -27,7 +27,10 @@ function LoginContent() {
   })();
 
   return (
-    <main className="flex h-screen items-center justify-center bg-zinc-950">
+    <main
+      id="main"
+      className="flex h-screen items-center justify-center bg-zinc-950"
+    >
       <div className="w-full max-w-sm text-center">
         <h1 className="text-3xl font-bold tracking-tight text-white">
           {t("appTitle")}

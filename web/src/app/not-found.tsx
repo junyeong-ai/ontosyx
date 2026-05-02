@@ -14,7 +14,10 @@ export default async function NotFound() {
   const t = await getTranslations("notFound");
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-zinc-50 px-4 dark:bg-zinc-950">
+    <main
+      id="main"
+      className="flex min-h-dvh items-center justify-center bg-zinc-50 px-4 dark:bg-zinc-950"
+    >
       <div className="w-full max-w-md text-center">
         <p className="text-xs font-semibold uppercase tracking-widest text-emerald-500">
           {t("code")}
@@ -57,6 +60,6 @@ export default async function NotFound() {
           </span>
         </p>
       </div>
-    </div>
+    </main>
   );
 }

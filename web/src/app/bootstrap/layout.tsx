@@ -99,7 +99,7 @@ export default function BootstrapLayout({
           </button>
         </aside>
 
-        <main className="flex flex-1 flex-col overflow-auto">
+        <main id="main" className="flex flex-1 flex-col overflow-auto">
           <div className="mx-auto w-full max-w-3xl px-8 py-10">{children}</div>
         </main>
       </div>

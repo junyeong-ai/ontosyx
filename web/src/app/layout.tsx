@@ -84,9 +84,17 @@ export default async function RootLayout({
         </a>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <QueryProvider>
-            <ConfirmProvider>
-              <div id="main">{children}</div>
-            </ConfirmProvider>
+            {/* No wrapping <div> here. Next.js auto-wraps the route
+                segment in a <Suspense> boundary when `loading.tsx`
+                exists, and any DOM wrapper between the providers and
+                {children} causes the streaming RSC tree to position
+                that boundary differently than the client expects —
+                producing a hydration mismatch. The skip-to-main link
+                instead targets the semantic `<main id="main">` that
+                each route group's layout owns; that's the
+                accessibility-correct anchor anyway (skipping to the
+                main landmark, not a non-semantic div). */}
+            <ConfirmProvider>{children}</ConfirmProvider>
             <WelcomeModal />
           </QueryProvider>
           {/* Dev-only axe-core runtime — tree-shaken in production. */}

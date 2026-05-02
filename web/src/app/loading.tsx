@@ -22,7 +22,7 @@ export default async function RootLoading() {
         <div className="h-10 shrink-0 border-b border-zinc-200 dark:border-zinc-800" />
 
         {/* Content skeleton + spinner */}
-        <main className="relative flex-1 overflow-hidden">
+        <main id="main" className="relative flex-1 overflow-hidden">
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
             <Spinner size="md" className="text-emerald-500" />
             <p className="text-xs text-muted-foreground" aria-label={t("messageAria")}>

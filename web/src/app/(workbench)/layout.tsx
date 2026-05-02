@@ -76,7 +76,7 @@ export default function WorkbenchLayout({
                 <div className="flex flex-1 flex-col overflow-hidden">
                   <Header />
                   {workspaceReady && <QualityBanner />}
-                  <main className="flex-1 overflow-hidden">
+                  <main id="main" className="flex-1 overflow-hidden">
                     <div className="h-full overflow-hidden">{children}</div>
                   </main>
                 </div>
@@ -92,7 +92,11 @@ export default function WorkbenchLayout({
                     className="h-10 shrink-0 border-b border-zinc-200 dark:border-zinc-800"
                     aria-hidden
                   />
-                  <main className="flex-1 overflow-hidden" aria-hidden />
+                  <main
+                    id="main"
+                    className="flex-1 overflow-hidden"
+                    aria-hidden
+                  />
                 </div>
               </>
             )}
