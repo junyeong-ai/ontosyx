@@ -245,6 +245,7 @@ impl Modify for SecurityAddon {
         // Auth
         auth::create_token,
         auth::me,
+        auth::ws_token,
         auth::logout,
         // Users
         users::list_users,
@@ -499,6 +500,7 @@ impl Modify for SecurityAddon {
             auth::AuthMeResponse,
             auth::LogoutResponse,
             auth::UserInfo,
+            auth::WebSocketTokenResponse,
             // Users
             users::UpdateUserRoleRequest,
             users::UserRoleUpdateResponse,

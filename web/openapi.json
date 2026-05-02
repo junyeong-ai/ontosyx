@@ -9959,6 +9959,67 @@
         }
       }
     },
+    "/auth/ws-token": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "ws_token",
+        "responses": {
+          "200": {
+            "description": "Short-lived WS auth token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebSocketTokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "JWT subsystem disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/workspaces/me": {
       "get": {
         "tags": [
@@ -22988,6 +23049,23 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "WebSocketTokenResponse": {
+        "type": "object",
+        "description": "Short-lived JWT minted for the collaboration WebSocket. Browsers\ncan't read the platform's `httpOnly` session cookie, so the WS\nhandshake needs an explicit token in the auth frame. Re-mint\ninherits the caller's `tv` so a `/auth/logout` or admin revoke\ninvalidates this token through the same revocation surface.",
+        "required": [
+          "token",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "token": {
+            "type": "string"
           }
         }
       },

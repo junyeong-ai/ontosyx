@@ -2447,6 +2447,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/ws-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ws_token"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/me": {
         parameters: {
             query?: never;
@@ -7727,6 +7743,18 @@ export interface components {
         VerifyElementResponse: {
             /** Format: uuid */
             id: string;
+        };
+        /**
+         * @description Short-lived JWT minted for the collaboration WebSocket. Browsers
+         *     can't read the platform's `httpOnly` session cookie, so the WS
+         *     handshake needs an explicit token in the auth frame. Re-mint
+         *     inherits the caller's `tv` so a `/auth/logout` or admin revoke
+         *     invalidates this token through the same revocation surface.
+         */
+        WebSocketTokenResponse: {
+            /** Format: date-time */
+            expires_at: string;
+            token: string;
         };
         WebhookChannelConfig: {
             /**
@@ -14537,6 +14565,48 @@ export interface operations {
             };
             /** @description Invalid ID token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    ws_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Short-lived WS auth token */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebSocketTokenResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description JWT subsystem disabled */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

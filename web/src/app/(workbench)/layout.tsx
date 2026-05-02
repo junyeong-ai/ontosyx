@@ -4,13 +4,20 @@ import { useCallback, useEffect } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { GlobalCommandPalette } from "@/components/layout/global-command-palette";
-import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts";
+import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts-dialog";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { PromptProvider } from "@/components/ui/prompt-dialog";
+import { PromptProvider } from "@/components/providers/prompt-provider";
 import { QualityBanner } from "@/components/quality/quality-banner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useHydrated } from "@/lib/store/use-hydrated";
 import { useAppStore } from "@/lib/store";
+import { fetchWsToken, useCollab } from "@/lib/collab";
+
+// `NEXT_PUBLIC_WS_URL` lets ops point the workbench at a different
+// host than the HTTP API (e.g. a dedicated WS-fanout pod). The dev
+// default mirrors `dev.sh`'s backend port.
+const COLLAB_WS_URL =
+  process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:3101/ws/collab";
 
 /**
  * Shared shell for every workspace mode. Each mode owns its own
@@ -32,9 +39,19 @@ export default function WorkbenchLayout({
 }) {
   const hydrated = useHydrated();
   const workspaceReady = useAppStore((s) => s.workspaceReady);
+  const workspaceId = useAppStore((s) => s.workspaceId);
   const initWorkspace = useAppStore((s) => s.initWorkspace);
   const isCommandPaletteOpen = useAppStore((s) => s.isCommandPaletteOpen);
   const setCommandPaletteOpen = useAppStore((s) => s.setCommandPaletteOpen);
+
+  // Collaboration WebSocket — single socket per workspace, shared
+  // across every workbench mode. The hook tears the socket down
+  // automatically when `workspaceId` clears or switches.
+  useCollab({
+    url: COLLAB_WS_URL,
+    workspaceId: workspaceId ?? "",
+    getToken: fetchWsToken,
+  });
   const closePalette = useCallback(
     () => setCommandPaletteOpen(false),
     [setCommandPaletteOpen],
@@ -84,12 +101,12 @@ export default function WorkbenchLayout({
             ) : (
               <>
                 <div
-                  className="w-12 shrink-0 border-r border-zinc-200 dark:border-zinc-800"
+                  className="w-12 shrink-0 border-r border-divider"
                   aria-hidden
                 />
                 <div className="flex flex-1 flex-col overflow-hidden">
                   <div
-                    className="h-10 shrink-0 border-b border-zinc-200 dark:border-zinc-800"
+                    className="h-10 shrink-0 border-b border-divider"
                     aria-hidden
                   />
                   <main

@@ -7,6 +7,7 @@
 
 import { useEffect, useLayoutEffect, useRef } from "react";
 
+import { clearWsTokenCache } from "./auth";
 import { CollaborationClient } from "./client";
 import { useCollabStore } from "./store";
 
@@ -45,6 +46,19 @@ export function useCollab(opts: UseCollabOptions): CollaborationClient | null {
   });
 
   useEffect(() => {
+    // Empty workspaceId is the "not yet ready" / signed-out state
+    // — tear down any active client and skip init. The hook resumes
+    // automatically once the caller passes a real workspace id.
+    if (!workspaceId) {
+      if (activeClient) {
+        activeClient.disconnect();
+        activeClient = null;
+        activeWorkspaceId = null;
+        reset();
+      }
+      return;
+    }
+
     // Tear down the previous client when the workspace switches.
     if (activeClient && activeWorkspaceId !== workspaceId) {
       activeClient.disconnect();
@@ -75,7 +89,8 @@ export function useCollab(opts: UseCollabOptions): CollaborationClient | null {
 
 /**
  * Force-close the active collaboration client — call on sign-out.
- * Safe to call when no client is active.
+ * Safe to call when no client is active. Also drops the cached
+ * WS token so the next session can't reuse a stale mint.
  */
 export function clearCollabClient(): void {
   if (activeClient) {
@@ -84,4 +99,5 @@ export function clearCollabClient(): void {
     activeWorkspaceId = null;
   }
   useCollabStore.getState().reset();
+  clearWsTokenCache();
 }

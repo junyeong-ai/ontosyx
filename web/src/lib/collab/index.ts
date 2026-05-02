@@ -2,6 +2,7 @@
 // from here; internal modules can still reach in through the
 // individual files above.
 
+export { clearWsTokenCache, fetchWsToken } from "./auth";
 export { CollaborationClient } from "./client";
 export type {
   CollaborationClientConfig,

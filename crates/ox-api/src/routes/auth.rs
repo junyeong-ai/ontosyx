@@ -251,6 +251,74 @@ pub(crate) async fn me(
 }
 
 // ---------------------------------------------------------------------------
+// GET /auth/ws-token — mint a short-lived JWT for the collaboration WS
+// ---------------------------------------------------------------------------
+
+/// Short-lived JWT minted for the collaboration WebSocket. Browsers
+/// can't read the platform's `httpOnly` session cookie, so the WS
+/// handshake needs an explicit token in the auth frame. Re-mint
+/// inherits the caller's `tv` so a `/auth/logout` or admin revoke
+/// invalidates this token through the same revocation surface.
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct WebSocketTokenResponse {
+    pub token: String,
+    pub expires_at: DateTime<Utc>,
+}
+
+/// JWT TTL for the WebSocket token. Short enough that a leaked
+/// frame in a log expires almost immediately; long enough to cover
+/// the WS open + auth handshake plus a clock-skew margin.
+const WS_TOKEN_TTL_SECS: i64 = 120;
+
+#[utoipa::path(
+    get,
+    path = "/auth/ws-token",
+    responses(
+        (status = 200, description = "Short-lived WS auth token", body = WebSocketTokenResponse),
+        (status = 401, description = "Not authenticated", body = inline(crate::openapi::ErrorResponse)),
+        (status = 503, description = "JWT subsystem disabled", body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Auth",
+)]
+pub(crate) async fn ws_token(
+    State(state): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+) -> Result<Json<ApiResponse<WebSocketTokenResponse>>, AppError> {
+    if claims.is_api_key() {
+        return Err(AppError::bad_request(
+            "API key principals authenticate the WebSocket directly via the X-API-Key flow.",
+        ));
+    }
+
+    let secret = state
+        .auth_config
+        .jwt_secret
+        .as_ref()
+        .ok_or_else(|| AppError::service_unavailable("JWT authentication not configured"))?;
+
+    let now = Utc::now();
+    let expires_at = now + chrono::Duration::seconds(WS_TOKEN_TTL_SECS);
+
+    let ws_claims = AuthClaims {
+        sub: claims.sub.clone(),
+        email: claims.email.clone(),
+        name: claims.name.clone(),
+        role: claims.role.clone(),
+        iss: "ontosyx".to_string(),
+        exp: expires_at.timestamp() as usize,
+        iat: now.timestamp() as usize,
+        // Fresh `jti` so a leaked WS token can be revoked without
+        // burning the session cookie that minted it.
+        jti: Uuid::new_v4(),
+        tv: claims.tv,
+    };
+
+    let token = create_jwt(&ws_claims, secret)?;
+    Ok(ApiResponse::of(WebSocketTokenResponse { token, expires_at }))
+}
+
+// ---------------------------------------------------------------------------
 // POST /auth/logout — revoke the caller's current JWT
 // ---------------------------------------------------------------------------
 

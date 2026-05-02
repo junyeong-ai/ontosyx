@@ -62,6 +62,8 @@ pub fn router(state: AppState) -> Router {
     let protected = Router::new()
         // Auth: current user info
         .route("/auth/me", get(auth::me))
+        // Auth: short-lived JWT for the collaboration WebSocket
+        .route("/auth/ws-token", get(auth::ws_token))
         // Auth: revoke caller's current JWT
         .route("/auth/logout", post(auth::logout))
         // Design projects — ontology design lifecycle
