@@ -1,6 +1,8 @@
 use metrics::{counter, gauge, histogram};
 use ox_compiler::PlanCacheStats;
 
+use crate::collaboration::HubStats;
+
 /// Record a graph query execution.
 pub fn record_query(status: &str, duration: std::time::Duration) {
     counter!("ontosyx_query_executions_total", "status" => status.to_string()).increment(1);
@@ -39,4 +41,28 @@ pub fn record_plan_cache_stats(stats: PlanCacheStats) {
     gauge!("ontosyx_plan_cache_hits_total").set(stats.hits as f64);
     gauge!("ontosyx_plan_cache_misses_total").set(stats.misses as f64);
     gauge!("ontosyx_plan_cache_evictions_total").set(stats.evictions as f64);
+}
+
+/// Surface the collaboration hub's gauges. Called from the
+/// `/metrics` handler on every scrape.
+///
+/// Two series land:
+///   `ontosyx_collab_active_rooms`    (gauge) — rooms with ≥1 member
+///   `ontosyx_collab_active_sessions` (gauge) — total open WS sessions
+pub fn record_collab_stats(stats: HubStats) {
+    gauge!("ontosyx_collab_active_rooms").set(stats.active_rooms as f64);
+    gauge!("ontosyx_collab_active_sessions").set(stats.active_sessions as f64);
+}
+
+/// Record a `BroadcastLagged` event — the per-socket forward task
+/// fell behind. Operationally interesting because every increment
+/// means at least one client just lost frames between reconnects.
+pub fn record_collab_broadcast_lagged() {
+    counter!("ontosyx_collab_broadcast_lagged_total").increment(1);
+}
+
+/// Record an idle-presence reap pass. The argument is the number
+/// of members evicted in that single sweep.
+pub fn record_collab_idle_reaped(count: usize) {
+    counter!("ontosyx_collab_idle_reaped_total").increment(count as u64);
 }

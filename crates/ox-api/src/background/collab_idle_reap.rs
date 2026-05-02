@@ -42,6 +42,7 @@ impl CronTask for CollabIdleReap {
     async fn run_once(&self) -> ox_core::error::OxResult<()> {
         let reaped = self.hub.reap_idle_members().await;
         if reaped > 0 {
+            crate::metrics::record_collab_idle_reaped(reaped);
             tracing::info!(
                 cron = "collab-idle-reap",
                 reaped,

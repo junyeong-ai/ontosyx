@@ -324,6 +324,17 @@ pub struct JoinOutcome {
     pub locks: Vec<LockSnapshot>,
 }
 
+/// Hub-wide gauges surfaced through the Prometheus `/metrics`
+/// endpoint. Per-room cardinality is intentionally omitted —
+/// `project_id` would explode the label space and cripple the
+/// scrape. Operators wanting per-room visibility can pull it from
+/// the structured tracing logs.
+#[derive(Debug, Clone, Copy)]
+pub struct HubStats {
+    pub active_rooms: usize,
+    pub active_sessions: usize,
+}
+
 /// RAII guard returned by [`CollaborationHub::open_session`]. The
 /// session slot is freed when the handle drops — even on panic /
 /// error paths in the WS handler.
@@ -667,6 +678,17 @@ impl CollaborationHub {
     /// Active room count, for monitoring.
     pub async fn active_room_count(&self) -> usize {
         self.rooms.read().await.len()
+    }
+
+    /// Snapshot of hub-wide gauges. Called per `/metrics` scrape;
+    /// cheap because both reads are O(1) on the registry maps.
+    pub async fn stats(&self) -> HubStats {
+        let active_rooms = self.rooms.read().await.len();
+        let active_sessions: usize = self.sessions.read().await.values().sum();
+        HubStats {
+            active_rooms,
+            active_sessions,
+        }
     }
 
     /// Sweep every room for members whose last frame is older than

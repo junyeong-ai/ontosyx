@@ -703,17 +703,20 @@ async fn main() -> anyhow::Result<()> {
     // can surface stats without holding the whole AppState. A None here
     // (no cache configured) simply skips the gauge push.
     let metrics_plan_cache = state.plan_cache.clone();
+    let metrics_collab = Arc::clone(&state.collaboration);
     let mut app = Router::new()
         .nest("/api", routes::router(state.clone()))
         .route(
             "/metrics",
             axum::routing::get(move || {
                 let plan_cache = metrics_plan_cache.clone();
+                let collab = Arc::clone(&metrics_collab);
                 let handle = prometheus_handle.clone();
                 async move {
                     if let Some(cache) = plan_cache {
                         ox_api::metrics::record_plan_cache_stats(cache.stats());
                     }
+                    ox_api::metrics::record_collab_stats(collab.stats().await);
                     handle.render()
                 }
             }),

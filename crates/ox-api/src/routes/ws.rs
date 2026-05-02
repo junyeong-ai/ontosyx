@@ -437,6 +437,7 @@ async fn forward_broadcast(
                 }
             }
             Err(broadcast::error::RecvError::Lagged(_)) => {
+                crate::metrics::record_collab_broadcast_lagged();
                 if send_via(&sender, &server_error(ErrorCode::BroadcastLagged))
                     .await
                     .is_err()
