@@ -16,27 +16,59 @@ use crate::state::AppState;
 // POST /api/knowledge — create a knowledge entry
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateKnowledgeEntryRequest {
     pub ontology_name: String,
     pub kind: String,
     pub title: String,
     pub content: String,
     #[serde(default)]
+    #[schema(value_type = HashMap<String, Object>, additional_properties)]
     pub structured_data: serde_json::Value,
     #[serde(default)]
     pub affected_labels: Vec<String>,
     pub ontology_version_min: Option<i32>,
 }
 
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct CreatedKnowledgeResponse {
+    pub id: Uuid,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct OkResponse {
+    pub ok: bool,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct DeletedResponse {
+    pub deleted: bool,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct BulkReviewResponse {
+    pub reviewed: u64,
+}
+
 const VALID_KINDS: &[&str] = &["correction", "hint"];
 const VALID_STATUSES: &[&str] = &["draft", "approved", "stale", "deprecated"];
 
+#[utoipa::path(
+    post,
+    path = "/api/knowledge",
+    request_body = CreateKnowledgeEntryRequest,
+    responses(
+        (status = 200, description = "Entry created", body = CreatedKnowledgeResponse),
+        (status = 400, description = "Validation failure"),
+    ),
+    security(("api_key" = [])),
+    tag = "Knowledge",
+)]
 pub(crate) async fn create_knowledge(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<CreateKnowledgeEntryRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<CreatedKnowledgeResponse>>, AppError> {
     principal.require_designer()?;
     if !VALID_KINDS.contains(&req.kind.as_str()) {
         return Err(AppError::bad_request(format!(
@@ -88,14 +120,14 @@ pub(crate) async fn create_knowledge(
     };
 
     state.store.create_knowledge_entry(&entry).await?;
-    Ok(ApiResponse::of(serde_json::json!({ "id": entry.id })))
+    Ok(ApiResponse::of(CreatedKnowledgeResponse { id: entry.id }))
 }
 
 // ---------------------------------------------------------------------------
 // GET /api/knowledge — list knowledge entries
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct KnowledgeListQuery {
     pub ontology_name: Option<String>,
     pub kind: Option<String>,
@@ -104,6 +136,14 @@ pub struct KnowledgeListQuery {
     pub cursor: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/knowledge",
+    params(KnowledgeListQuery),
+    responses((status = 200, description = "Knowledge entries", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Knowledge",
+)]
 pub(crate) async fn list_knowledge(
     State(state): State<AppState>,
     _principal: Principal,
@@ -129,6 +169,17 @@ pub(crate) async fn list_knowledge(
 // GET /api/knowledge/{id} — get a knowledge entry
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/knowledge/{id}",
+    params(("id" = Uuid, Path, description = "Knowledge entry ID")),
+    responses(
+        (status = 200, description = "Knowledge entry", body = Object),
+        (status = 404, description = "Entry not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Knowledge",
+)]
 pub(crate) async fn get_knowledge(
     State(state): State<AppState>,
     _principal: Principal,
@@ -146,11 +197,12 @@ pub(crate) async fn get_knowledge(
 // PATCH /api/knowledge/{id} — update a knowledge entry
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateKnowledgeEntryRequest {
     pub title: String,
     pub content: String,
     #[serde(default)]
+    #[schema(value_type = HashMap<String, Object>, additional_properties)]
     pub structured_data: serde_json::Value,
     #[serde(default)]
     pub affected_labels: Vec<String>,
@@ -158,12 +210,21 @@ pub struct UpdateKnowledgeEntryRequest {
     pub affected_properties: Option<Vec<String>>,
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/knowledge/{id}",
+    params(("id" = Uuid, Path, description = "Knowledge entry ID")),
+    request_body = UpdateKnowledgeEntryRequest,
+    responses((status = 200, description = "Entry updated", body = OkResponse)),
+    security(("api_key" = [])),
+    tag = "Knowledge",
+)]
 pub(crate) async fn update_knowledge(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateKnowledgeEntryRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<OkResponse>>, AppError> {
     principal.require_designer()?;
     state
         .store
@@ -176,39 +237,59 @@ pub(crate) async fn update_knowledge(
             &req.affected_properties.unwrap_or_default(),
         )
         .await?;
-    Ok(ApiResponse::of(serde_json::json!({ "ok": true })))
+    Ok(ApiResponse::of(OkResponse { ok: true }))
 }
 
 // ---------------------------------------------------------------------------
 // DELETE /api/knowledge/{id} — delete a knowledge entry
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/knowledge/{id}",
+    params(("id" = Uuid, Path, description = "Knowledge entry ID")),
+    responses((status = 200, description = "Entry deleted", body = DeletedResponse)),
+    security(("api_key" = [])),
+    tag = "Knowledge",
+)]
 pub(crate) async fn delete_knowledge(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<DeletedResponse>>, AppError> {
     principal.require_admin()?;
     let deleted = state.store.delete_knowledge_entry(id).await?;
-    Ok(ApiResponse::of(serde_json::json!({ "deleted": deleted })))
+    Ok(ApiResponse::of(DeletedResponse { deleted }))
 }
 
 // ---------------------------------------------------------------------------
 // PATCH /api/knowledge/{id}/status — update status (admin review)
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateKnowledgeStatusRequest {
     pub status: String,
     pub review_notes: Option<String>,
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/knowledge/{id}/status",
+    params(("id" = Uuid, Path, description = "Knowledge entry ID")),
+    request_body = UpdateKnowledgeStatusRequest,
+    responses(
+        (status = 200, description = "Status updated", body = OkResponse),
+        (status = 400, description = "Invalid status"),
+    ),
+    security(("api_key" = [])),
+    tag = "Knowledge",
+)]
 pub(crate) async fn update_status(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateKnowledgeStatusRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<OkResponse>>, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {
         return Err(AppError::bad_request(format!(
@@ -226,13 +307,20 @@ pub(crate) async fn update_status(
             req.review_notes.as_deref(),
         )
         .await?;
-    Ok(ApiResponse::of(serde_json::json!({ "ok": true })))
+    Ok(ApiResponse::of(OkResponse { ok: true }))
 }
 
 // ---------------------------------------------------------------------------
 // GET /api/knowledge/stale — list stale entries for admin review
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/knowledge/stale",
+    responses((status = 200, description = "Stale entries awaiting review", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Knowledge",
+)]
 pub(crate) async fn list_stale(
     State(state): State<AppState>,
     principal: Principal,
@@ -257,13 +345,20 @@ pub(crate) async fn list_stale(
 // GET /api/knowledge/stats — knowledge base statistics
 // ---------------------------------------------------------------------------
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct KnowledgeStats {
     pub total: i64,
-    pub by_status: serde_json::Value,
-    pub by_kind: serde_json::Value,
+    pub by_status: std::collections::HashMap<String, i64>,
+    pub by_kind: std::collections::HashMap<String, i64>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/knowledge/stats",
+    responses((status = 200, description = "Knowledge counts", body = KnowledgeStats)),
+    security(("api_key" = [])),
+    tag = "Knowledge",
+)]
 pub(crate) async fn knowledge_stats(
     State(state): State<AppState>,
     principal: Principal,
@@ -282,8 +377,8 @@ pub(crate) async fn knowledge_stats(
 
     Ok(ApiResponse::of(KnowledgeStats {
         total,
-        by_status: serde_json::to_value(by_status).unwrap_or_default(),
-        by_kind: serde_json::to_value(by_kind).unwrap_or_default(),
+        by_status,
+        by_kind,
     }))
 }
 
@@ -291,18 +386,29 @@ pub(crate) async fn knowledge_stats(
 // POST /api/knowledge/bulk-review — bulk approve/deprecate
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct BulkReviewApprovalsRequest {
     pub ids: Vec<Uuid>,
     pub status: String,
     pub review_notes: Option<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/knowledge/bulk-review",
+    request_body = BulkReviewApprovalsRequest,
+    responses(
+        (status = 200, description = "Bulk review applied", body = BulkReviewResponse),
+        (status = 400, description = "Invalid status or batch too large"),
+    ),
+    security(("api_key" = [])),
+    tag = "Knowledge",
+)]
 pub(crate) async fn bulk_review(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<BulkReviewApprovalsRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<BulkReviewResponse>>, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {
         return Err(AppError::bad_request(format!(
@@ -326,5 +432,5 @@ pub(crate) async fn bulk_review(
             count += 1;
         }
     }
-    Ok(ApiResponse::of(serde_json::json!({ "reviewed": count })))
+    Ok(ApiResponse::of(BulkReviewResponse { reviewed: count }))
 }

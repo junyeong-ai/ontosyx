@@ -4,8 +4,9 @@ use utoipa::{Modify, OpenApi, ToSchema};
 
 use crate::routes::{
     acl, approvals, audit, auth, chat, config, dashboards, federation_admin, governance_audit,
-    governance_routing, health, insights, lineage, load, notifications, ontology, perspectives,
-    pins, prompts_admin, query, recipes, reports, schedules, sessions, usage, users, workspaces,
+    governance_routing, health, insights, knowledge, lineage, load, notifications, ontology,
+    perspectives, pins, prompts_admin, query, recipes, reports, schedules, sessions, usage, users,
+    workspaces,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -110,6 +111,7 @@ impl Modify for SecurityAddon {
         (name = "Sessions", description = "Agent session events + HITL approvals"),
         (name = "ACL", description = "Workspace access-control policies"),
         (name = "Recipes", description = "Reusable analysis recipe templates"),
+        (name = "Knowledge", description = "Knowledge base entries + admin review"),
     ),
     paths(
         // Health
@@ -307,6 +309,16 @@ impl Modify for SecurityAddon {
         recipes::update_recipe_status,
         recipes::create_recipe_version,
         recipes::list_recipe_versions,
+        // Knowledge
+        knowledge::create_knowledge,
+        knowledge::list_knowledge,
+        knowledge::get_knowledge,
+        knowledge::update_knowledge,
+        knowledge::delete_knowledge,
+        knowledge::update_status,
+        knowledge::list_stale,
+        knowledge::knowledge_stats,
+        knowledge::bulk_review,
     ),
     components(
         schemas(
@@ -510,6 +522,16 @@ impl Modify for SecurityAddon {
             // Recipes
             recipes::CreateRecipeRequest,
             recipes::RecipeStatusUpdateRequest,
+            // Knowledge
+            knowledge::CreateKnowledgeEntryRequest,
+            knowledge::UpdateKnowledgeEntryRequest,
+            knowledge::UpdateKnowledgeStatusRequest,
+            knowledge::BulkReviewApprovalsRequest,
+            knowledge::CreatedKnowledgeResponse,
+            knowledge::OkResponse,
+            knowledge::DeletedResponse,
+            knowledge::BulkReviewResponse,
+            knowledge::KnowledgeStats,
         ),
     ),
     modifiers(&SecurityAddon),

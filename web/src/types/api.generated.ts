@@ -484,6 +484,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/knowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_knowledge"];
+        put?: never;
+        post: operations["create_knowledge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/knowledge/bulk-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["bulk_review"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/knowledge/stale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_stale"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/knowledge/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["knowledge_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/knowledge/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_knowledge"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_knowledge"];
+        options?: never;
+        head?: never;
+        patch: operations["update_knowledge"];
+        trace?: never;
+    };
+    "/api/knowledge/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["update_status"];
+        trace?: never;
+    };
     "/api/lineage": {
         parameters: {
             query?: never;
@@ -2415,6 +2511,15 @@ export interface components {
          * @enum {string}
          */
         BindingStrength: "required" | "preferred" | "extensible" | "example";
+        BulkReviewApprovalsRequest: {
+            ids: string[];
+            review_notes?: string | null;
+            status: string;
+        };
+        BulkReviewResponse: {
+            /** Format: int64 */
+            reviewed: number;
+        };
         /**
          * @description Per-mapping hint for the graph-cache backend. The planner treats
          *     `None` as "never cache"; `GraphCache` is an opt-in that names a
@@ -2880,6 +2985,18 @@ export interface components {
             question: Record<string, never>;
             tags?: string[];
         };
+        CreateKnowledgeEntryRequest: {
+            affected_labels?: string[];
+            content: string;
+            kind: string;
+            ontology_name: string;
+            /** Format: int32 */
+            ontology_version_min?: number | null;
+            structured_data?: {
+                [key: string]: unknown;
+            };
+            title: string;
+        };
         /**
          * @description Request body for `POST /api/ontologies`.
          *
@@ -3042,6 +3159,10 @@ export interface components {
         CreateWorkspaceRequest: {
             name: string;
             slug: string;
+        };
+        CreatedKnowledgeResponse: {
+            /** Format: uuid */
+            id: string;
         };
         /**
          * @description Either a raw value or an opaque reference to a secret store.
@@ -3238,6 +3359,9 @@ export interface components {
             expected_revision: number;
             reason: string;
             tables: string[];
+        };
+        DeletedResponse: {
+            deleted: boolean;
         };
         /**
          * @description One entry in either index of [`SchemaDependencyGraph`] — a target
@@ -4081,6 +4205,16 @@ export interface components {
          * @enum {string}
          */
         JoinCostHint: "unknown" | "indexed" | "scan" | "cartesian";
+        KnowledgeStats: {
+            by_kind: {
+                [key: string]: number;
+            };
+            by_status: {
+                [key: string]: number;
+            };
+            /** Format: int64 */
+            total: number;
+        };
         /** @description Statistics for a single node label. */
         LabelStat: {
             /** Format: int64 */
@@ -4580,6 +4714,9 @@ export interface components {
          *     on the same source and the rule needs disambiguation.
          */
         ObjectMappingId: string;
+        OkResponse: {
+            ok: boolean;
+        };
         OntologyDetail: {
             /** Format: date-time */
             created_at: string;
@@ -6782,6 +6919,19 @@ export interface components {
             question: Record<string, never>;
             tags?: string[];
         };
+        UpdateKnowledgeEntryRequest: {
+            affected_labels?: string[];
+            affected_properties?: string[] | null;
+            content: string;
+            structured_data?: {
+                [key: string]: unknown;
+            };
+            title: string;
+        };
+        UpdateKnowledgeStatusRequest: {
+            review_notes?: string | null;
+            status: string;
+        };
         UpdateMemberRoleRequest: {
             role: string;
         };
@@ -8780,6 +8930,248 @@ export interface operations {
                         error: components["schemas"]["ErrorBody"];
                     };
                 };
+            };
+        };
+    };
+    list_knowledge: {
+        parameters: {
+            query?: {
+                ontology_name?: string | null;
+                kind?: string | null;
+                status?: string | null;
+                limit?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Knowledge entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    create_knowledge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateKnowledgeEntryRequest"];
+            };
+        };
+        responses: {
+            /** @description Entry created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedKnowledgeResponse"];
+                };
+            };
+            /** @description Validation failure */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    bulk_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkReviewApprovalsRequest"];
+            };
+        };
+        responses: {
+            /** @description Bulk review applied */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkReviewResponse"];
+                };
+            };
+            /** @description Invalid status or batch too large */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_stale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stale entries awaiting review */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    knowledge_stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Knowledge counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeStats"];
+                };
+            };
+        };
+    };
+    get_knowledge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Knowledge entry ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Knowledge entry */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Entry not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_knowledge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Knowledge entry ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Entry deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedResponse"];
+                };
+            };
+        };
+    };
+    update_knowledge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Knowledge entry ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateKnowledgeEntryRequest"];
+            };
+        };
+        responses: {
+            /** @description Entry updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    update_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Knowledge entry ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateKnowledgeStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Status updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Invalid status */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
