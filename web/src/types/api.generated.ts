@@ -1914,7 +1914,7 @@ export interface components {
              */
             value: string;
         };
-        BindingPolicyBody: {
+        BindingPolicy: {
             /** Format: float */
             fuzzy_min_ratio?: number | null;
             max_results?: number | null;
@@ -4668,7 +4668,7 @@ export interface components {
             /** Format: date-time */
             valid_to?: string | null;
         };
-        PropertyCandidateBody: {
+        PropertyCandidate: {
             owner_kind: string;
             owner_label: string;
             owner_type_id: string;
@@ -5897,7 +5897,7 @@ export interface components {
         SuggestBindingsRequest: {
             aliases?: Record<string, never>[];
             description?: Record<string, never>;
-            policy?: null | components["schemas"]["BindingPolicyBody"];
+            policy?: null | components["schemas"]["BindingPolicy"];
             /**
              * @description Canonical term name. `LocalizedText` so a draft term carries
              *     the same multi-locale shape as a saved one — the scorer matches
@@ -5912,15 +5912,15 @@ export interface components {
             term_id?: string | null;
         };
         SuggestBindingsResponse: {
-            candidates: components["schemas"]["PropertyCandidateBody"][];
+            candidates: components["schemas"]["PropertyCandidate"][];
             /** Format: uuid */
             ontology_id: string;
         };
         SuggestTermsRequest: {
-            policy?: null | components["schemas"]["BindingPolicyBody"];
+            policy?: null | components["schemas"]["BindingPolicy"];
         };
         SuggestTermsResponse: {
-            candidates: components["schemas"]["TermCandidateBody"][];
+            candidates: components["schemas"]["TermCandidate"][];
             /** Format: uuid */
             ontology_id: string;
         };
@@ -5990,7 +5990,7 @@ export interface components {
          * @enum {string}
          */
         TemporalGrain: "snapshot" | "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
-        TermCandidateBody: {
+        TermCandidate: {
             /** Format: float */
             score: number;
             signals: components["schemas"]["BindingSignal"][];

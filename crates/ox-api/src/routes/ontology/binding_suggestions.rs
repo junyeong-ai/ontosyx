@@ -23,12 +23,12 @@ use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
-// Shared policy body — keep identical wire shape across endpoints so a
+// Shared policy — keep identical wire shape across endpoints so a
 // single FE form component can drive both.
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Default, Deserialize, utoipa::ToSchema)]
-pub struct BindingPolicyBody {
+pub struct BindingPolicy {
     pub min_score: Option<f32>,
     pub max_results: Option<usize>,
     pub weight_exact_name: Option<f32>,
@@ -39,7 +39,7 @@ pub struct BindingPolicyBody {
     pub skip_already_bound: Option<bool>,
 }
 
-impl BindingPolicyBody {
+impl BindingPolicy {
     fn materialise(self) -> BindingSuggestionPolicy {
         let base = BindingSuggestionPolicy::default();
         BindingSuggestionPolicy {
@@ -83,17 +83,17 @@ pub struct SuggestBindingsRequest {
     #[serde(default)]
     pub term_id: Option<String>,
     #[serde(default)]
-    pub policy: Option<BindingPolicyBody>,
+    pub policy: Option<BindingPolicy>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SuggestBindingsResponse {
     pub ontology_id: Uuid,
-    pub candidates: Vec<PropertyCandidateBody>,
+    pub candidates: Vec<PropertyCandidate>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct PropertyCandidateBody {
+pub struct PropertyCandidate {
     pub owner_kind: String, // "node" | "edge"
     pub owner_type_id: String,
     pub owner_label: String,
@@ -123,7 +123,7 @@ pub(crate) async fn suggest_glossary_bindings(
     let ir = load_current_ir(&state, id).await?;
     let policy = req
         .policy
-        .map(BindingPolicyBody::materialise)
+        .map(BindingPolicy::materialise)
         .unwrap_or_default();
 
     let term = GlossaryTermDef {
@@ -160,17 +160,17 @@ pub(crate) async fn suggest_glossary_bindings(
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SuggestTermsRequest {
     #[serde(default)]
-    pub policy: Option<BindingPolicyBody>,
+    pub policy: Option<BindingPolicy>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SuggestTermsResponse {
     pub ontology_id: Uuid,
-    pub candidates: Vec<TermCandidateBody>,
+    pub candidates: Vec<TermCandidate>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct TermCandidateBody {
+pub struct TermCandidate {
     pub term_id: String,
     #[schema(value_type = Object)]
     pub term: LocalizedText,
@@ -203,7 +203,7 @@ pub(crate) async fn suggest_glossary_terms_for_property(
     let ir = load_current_ir(&state, id).await?;
     let policy = req
         .policy
-        .map(BindingPolicyBody::materialise)
+        .map(BindingPolicy::materialise)
         .unwrap_or_default();
 
     let owner = match owner_kind.as_str() {
@@ -263,7 +263,7 @@ async fn load_current_ir(
         .ok_or_else(|| AppError::not_found("Ontology version"))
 }
 
-fn shape_candidate(c: PropertyBindingCandidate) -> PropertyCandidateBody {
+fn shape_candidate(c: PropertyBindingCandidate) -> PropertyCandidate {
     let (kind, type_id, label) = match c.owner {
         PropertyOwnerRef::Node { node_type, label } => {
             ("node".to_string(), node_type.to_string(), label)
@@ -272,7 +272,7 @@ fn shape_candidate(c: PropertyBindingCandidate) -> PropertyCandidateBody {
             ("edge".to_string(), edge_type.to_string(), label)
         }
     };
-    PropertyCandidateBody {
+    PropertyCandidate {
         owner_kind: kind,
         owner_type_id: type_id,
         owner_label: label,
@@ -283,8 +283,8 @@ fn shape_candidate(c: PropertyBindingCandidate) -> PropertyCandidateBody {
     }
 }
 
-fn shape_term_candidate(c: TermBindingCandidate) -> TermCandidateBody {
-    TermCandidateBody {
+fn shape_term_candidate(c: TermBindingCandidate) -> TermCandidate {
+    TermCandidate {
         term_id: c.term_id.to_string(),
         term: c.term,
         score: c.score,

@@ -16,16 +16,7 @@ export type OwnerKind = "node" | "edge";
 
 export type BindingSignal = components["schemas"]["BindingSignal"];
 
-export interface BindingPolicyBody {
-  min_score?: number;
-  max_results?: number;
-  weight_exact_name?: number;
-  weight_alias_match?: number;
-  weight_description_overlap?: number;
-  weight_fuzzy_name?: number;
-  fuzzy_min_ratio?: number;
-  skip_already_bound?: boolean;
-}
+export type BindingPolicy = components["schemas"]["BindingPolicy"];
 
 // ---------------------------------------------------------------------------
 // Term → property ranking
@@ -56,7 +47,7 @@ export interface SuggestBindingsRequest {
    *  response pointing at the persisted id rather than a fresh
    *  draft id. */
   term_id?: string;
-  policy?: BindingPolicyBody;
+  policy?: BindingPolicy;
 }
 
 export interface SuggestBindingsResponse {
@@ -95,7 +86,7 @@ export async function suggestTermsForProperty(
   ownerKind: OwnerKind,
   ownerTypeId: string,
   propertyId: string,
-  policy?: BindingPolicyBody,
+  policy?: BindingPolicy,
 ): Promise<SuggestTermsResponse> {
   const path =
     `/ontologies/${encodeURIComponent(ontologyId)}` +

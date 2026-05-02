@@ -22,7 +22,7 @@ import {
   type SuggestBindingsResponse,
   type SuggestTermsResponse,
   type OwnerKind,
-  type BindingPolicyBody,
+  type BindingPolicy,
 } from "@/lib/api/binding-suggestions";
 import {
   submitOntologyEdits,
@@ -58,7 +58,7 @@ export interface SuggestTermsVariables {
   ownerKind: OwnerKind;
   ownerTypeId: string;
   propertyId: string;
-  policy?: BindingPolicyBody;
+  policy?: BindingPolicy;
 }
 
 export function useSuggestTerms(

@@ -7581,7 +7581,7 @@
         ],
         "description": "Reason a property opts out of the \"physical mapping must carry a\nsemantic binding\" rule. Treating this as an enum (rather than a\nboolean flag) forces authors to name the case so a future audit\ncan ask \"is this exemption still valid?\" without reading commit\nhistory.\n\nMost properties do not need an exemption — values that travel\nwithout semantic meaning are the bug the binding rule is meant\nto catch. The variants below cover the legitimate cases the\nplatform has identified; `Custom` is the open-ended escape for\nschemes the catalogue has not yet promoted to a first-class\nreason."
       },
-      "BindingPolicyBody": {
+      "BindingPolicy": {
         "type": "object",
         "properties": {
           "fuzzy_min_ratio": {
@@ -13640,7 +13640,7 @@
         ],
         "description": "One semantic constraint on a property — discriminated by the\nregistry kind it points at. Each variant carries only the\nfields that are meaningful for that target:\n\n- `ValueSet` / `CodeSystem` — strength + concept_map (vocabulary\n  translation makes sense)\n- `NotationPattern` — strength only (structural format, no\n  vocabulary translation)\n- `ValueRange` — temporal window only (the IR treats ranges as\n  classifiers, not rejectors; strength would have no enforcement)\n- `Glossary` — temporal window only (semantic anchor; strength\n  carries no enforcement semantics for \"this property realises\n  this concept\")\n\nOrdering matters in [`PropertyDef::bindings`](crate::ir::PropertyDef::bindings):\nwhen two bindings would both classify a value (e.g. one notation\npattern is a stricter form of another), consumers honour the\nfirst match. `valid_from` / `valid_to` filter the active set\nbefore that ordering applies."
       },
-      "PropertyCandidateBody": {
+      "PropertyCandidate": {
         "type": "object",
         "required": [
           "owner_kind",
@@ -17160,7 +17160,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/BindingPolicyBody"
+                "$ref": "#/components/schemas/BindingPolicy"
               }
             ]
           },
@@ -17187,7 +17187,7 @@
           "candidates": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PropertyCandidateBody"
+              "$ref": "#/components/schemas/PropertyCandidate"
             }
           },
           "ontology_id": {
@@ -17205,7 +17205,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/BindingPolicyBody"
+                "$ref": "#/components/schemas/BindingPolicy"
               }
             ]
           }
@@ -17221,7 +17221,7 @@
           "candidates": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TermCandidateBody"
+              "$ref": "#/components/schemas/TermCandidate"
             }
           },
           "ontology_id": {
@@ -17295,7 +17295,7 @@
           "yearly"
         ]
       },
-      "TermCandidateBody": {
+      "TermCandidate": {
         "type": "object",
         "required": [
           "term_id",

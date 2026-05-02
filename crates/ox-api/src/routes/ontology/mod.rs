@@ -89,6 +89,6 @@ pub use notation_patterns::{
     ProposeNotationPatternsRequest, ProposeNotationPatternsResponse,
 };
 pub use binding_suggestions::{
-    BindingPolicyBody, PropertyCandidateBody, SuggestBindingsRequest, SuggestBindingsResponse,
-    SuggestTermsRequest, SuggestTermsResponse, TermCandidateBody,
+    BindingPolicy, PropertyCandidate, SuggestBindingsRequest, SuggestBindingsResponse,
+    SuggestTermsRequest, SuggestTermsResponse, TermCandidate,
 };
