@@ -35,6 +35,7 @@ pub mod mcp;
 pub mod metrics;
 pub mod middleware;
 pub mod model_router;
+pub mod notifications;
 pub mod openapi;
 pub mod principal;
 pub mod response;

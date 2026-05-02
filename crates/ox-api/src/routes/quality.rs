@@ -354,7 +354,7 @@ pub(crate) async fn execute_rule(
     let passed = result.passed;
     let actual_value = result.actual_value;
     crate::spawn_scoped::spawn_scoped(async move {
-        super::notifications::dispatch_quality_notification(
+        crate::notifications::dispatch_quality_notification(
             store_clone.as_ref(),
             ws_id,
             &rule_name,
@@ -419,7 +419,7 @@ pub(crate) async fn execute_all_rules(
                 let passed = result.passed;
                 let actual_value = result.actual_value;
                 crate::spawn_scoped::spawn_scoped(async move {
-                    super::notifications::dispatch_quality_notification(
+                    crate::notifications::dispatch_quality_notification(
                         store_clone.as_ref(),
                         ws_id,
                         &rule_name,
