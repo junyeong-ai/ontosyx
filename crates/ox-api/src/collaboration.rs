@@ -241,6 +241,12 @@ struct RoomMember {
     /// Last accepted cursor event (for throttling). `None` until
     /// the first `MoveCursor`.
     last_cursor_at: Option<Instant>,
+    /// Wall-clock timestamp of the most recent client frame from
+    /// this member — refreshed by every `MoveCursor` / `AcquireLock`
+    /// / `ReleaseLock`. Idle members past `idle_timeout` are reaped
+    /// by [`CollaborationHub::reap_idle_members`] so a hung tab
+    /// doesn't leave ghost presence in the room.
+    last_activity_at: DateTime<Utc>,
 }
 
 struct LockEntry {
@@ -299,6 +305,13 @@ pub struct HubLimits {
     pub lock_ttl: Duration,
     pub max_sessions_per_user: usize,
     pub cursor_throttle: Duration,
+    /// Members with no client frames for this long are reaped on
+    /// the next [`CollaborationHub::reap_idle_members`] pass —
+    /// covers the case where the browser tab dies without sending
+    /// a `Close` frame (process kill, crashed renderer, NAT
+    /// reset). The reap publishes `UserLeft` so other members see
+    /// presence converge.
+    pub idle_timeout: Duration,
 }
 
 /// Outcome of [`CollaborationHub::join`] — the broadcast receiver
@@ -408,6 +421,7 @@ impl CollaborationHub {
                 joined_at: now,
                 cursor: None,
                 last_cursor_at: None,
+                last_activity_at: now,
             },
         );
 
@@ -512,6 +526,7 @@ impl CollaborationHub {
             return;
         }
         member.last_cursor_at = Some(now);
+        member.last_activity_at = Utc::now();
         member.cursor = Some(CursorPosition {
             x,
             y,
@@ -548,7 +563,9 @@ impl CollaborationHub {
         let room_arc = self.room(project_id).await;
         let mut room = room_arc.lock().await;
 
-        if !room.members.contains_key(user_id) {
+        if let Some(member) = room.members.get_mut(user_id) {
+            member.last_activity_at = Utc::now();
+        } else {
             return ServerMessage::Error {
                 code: ErrorCode::NotJoined,
                 params: HashMap::new(),
@@ -626,7 +643,9 @@ impl CollaborationHub {
         let room_arc = self.rooms.read().await.get(&project_id).cloned()?;
         let mut room = room_arc.lock().await;
 
-        if !room.members.contains_key(user_id) {
+        if let Some(member) = room.members.get_mut(user_id) {
+            member.last_activity_at = Utc::now();
+        } else {
             return Some(ServerMessage::Error {
                 code: ErrorCode::NotJoined,
                 params: HashMap::new(),
@@ -649,6 +668,48 @@ impl CollaborationHub {
     pub async fn active_room_count(&self) -> usize {
         self.rooms.read().await.len()
     }
+
+    /// Sweep every room for members whose last frame is older than
+    /// `idle_timeout` and `leave` them. Called from a background
+    /// timer; covers the dead-tab case where the browser never
+    /// sent a `Close` frame so the WS handler's cleanup loop
+    /// never ran.
+    ///
+    /// Returns the number of members reaped — useful for tracing
+    /// / metrics.
+    pub async fn reap_idle_members(&self) -> usize {
+        let cutoff = Utc::now()
+            - chrono::Duration::from_std(self.limits.idle_timeout)
+                .unwrap_or(chrono::Duration::seconds(300));
+
+        // Snapshot the (room, user) pairs to reap so we don't hold
+        // the registry lock while taking per-room mutexes.
+        let mut victims: Vec<(Uuid, Vec<String>)> = Vec::new();
+        {
+            let rooms = self.rooms.read().await;
+            for (project_id, arc) in rooms.iter() {
+                let room = arc.lock().await;
+                let mut idle: Vec<String> = Vec::new();
+                for (user_id, member) in room.members.iter() {
+                    if member.last_activity_at < cutoff {
+                        idle.push(user_id.clone());
+                    }
+                }
+                if !idle.is_empty() {
+                    victims.push((*project_id, idle));
+                }
+            }
+        }
+
+        let mut total = 0usize;
+        for (project_id, users) in victims {
+            for user_id in users {
+                self.leave(project_id, &user_id).await;
+                total += 1;
+            }
+        }
+        total
+    }
 }
 
 // `Default` is intentionally not implemented: the hub always needs
@@ -668,6 +729,7 @@ mod tests {
             lock_ttl: Duration::from_secs(300),
             max_sessions_per_user: 3,
             cursor_throttle: Duration::from_millis(50),
+            idle_timeout: Duration::from_secs(300),
         }
     }
 
@@ -859,6 +921,32 @@ mod tests {
         let names: Vec<String> = outcome.users.iter().map(|p| p.user_id.clone()).collect();
         assert!(names.contains(&"u1".to_string()));
         assert!(names.contains(&"u2".to_string()));
+    }
+
+    #[tokio::test]
+    async fn reap_idle_members_evicts_silent_clients() {
+        let limits = HubLimits {
+            idle_timeout: Duration::from_millis(20),
+            ..test_limits()
+        };
+        let hub = Arc::new(CollaborationHub::new(limits));
+        let project = Uuid::new_v4();
+
+        let _ = hub.join(project, "u1", "Alice").await;
+        let _ = hub.join(project, "u2", "Bob").await;
+
+        // u1 stays active by sending a cursor; u2 goes silent.
+        tokio::time::sleep(Duration::from_millis(15)).await;
+        hub.move_cursor(project, "u1", "Alice", 0.0, 0.0, None).await;
+        tokio::time::sleep(Duration::from_millis(15)).await;
+
+        let reaped = hub.reap_idle_members().await;
+        assert_eq!(reaped, 1, "expected u2 to be reaped");
+        // u1 still in the room — fetched via snapshot from a third joiner.
+        let outcome = hub.join(project, "u3", "Carol").await;
+        let names: Vec<String> = outcome.users.iter().map(|p| p.user_id.clone()).collect();
+        assert!(names.contains(&"u1".to_string()));
+        assert!(!names.contains(&"u2".to_string()));
     }
 
     #[tokio::test]

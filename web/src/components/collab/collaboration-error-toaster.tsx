@@ -9,7 +9,7 @@ import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { selectLastError, useCollabStore } from "@/lib/collab";
+import { clearWsTokenCache, selectLastError, useCollabStore } from "@/lib/collab";
 
 /**
  * Background warnings — surface as transient toasts and let the
@@ -58,6 +58,11 @@ export function CollaborationErrorToaster() {
       return;
     }
     if (REAUTH_CODES.has(lastError.code)) {
+      // The cached WS token is the one the server just rejected.
+      // Drop it so the next reconnect (or the user's manual
+      // re-login) mints a fresh JWT instead of replaying the
+      // revoked one.
+      clearWsTokenCache();
       toast.error(message, {
         action: {
           label: tActions("signInAgain"),

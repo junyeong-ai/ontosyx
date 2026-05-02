@@ -51,6 +51,8 @@ fn default_collaboration_config() -> CollaborationConfig {
         lock_ttl_secs: default_collaboration_lock_ttl_secs(),
         max_sessions_per_user: default_collaboration_max_sessions_per_user(),
         cursor_throttle_ms: default_collaboration_cursor_throttle_ms(),
+        idle_timeout_secs: default_collaboration_idle_timeout_secs(),
+        reap_interval_secs: default_collaboration_reap_interval_secs(),
     }
 }
 
@@ -314,6 +316,23 @@ pub struct CollaborationConfig {
     /// busy boards.
     #[serde(default = "default_collaboration_cursor_throttle_ms")]
     pub cursor_throttle_ms: u64,
+
+    /// Idle-presence timeout in seconds (default: 300 = 5 min).
+    ///
+    /// A background sweep reaps members whose last frame is older
+    /// than this — covers dead tabs, killed renderers, and NAT
+    /// resets that never deliver a `Close` frame so the WS
+    /// handler's cleanup loop can't notice the disconnection.
+    /// Survivors see a `UserLeft` and presence converges.
+    #[serde(default = "default_collaboration_idle_timeout_secs")]
+    pub idle_timeout_secs: u64,
+
+    /// How often the idle-reap sweep runs, in seconds
+    /// (default: 60). Strictly less than `idle_timeout_secs`; the
+    /// timer is cheap (one per-room mutex per active room) so
+    /// running it more often than once a minute rarely pays off.
+    #[serde(default = "default_collaboration_reap_interval_secs")]
+    pub reap_interval_secs: u64,
 }
 
 impl From<&CollaborationConfig> for crate::collaboration::HubLimits {
@@ -323,6 +342,7 @@ impl From<&CollaborationConfig> for crate::collaboration::HubLimits {
             lock_ttl: std::time::Duration::from_secs(c.lock_ttl_secs),
             max_sessions_per_user: c.max_sessions_per_user,
             cursor_throttle: std::time::Duration::from_millis(c.cursor_throttle_ms),
+            idle_timeout: std::time::Duration::from_secs(c.idle_timeout_secs),
         }
     }
 }
@@ -344,6 +364,18 @@ impl CollaborationConfig {
         if self.max_sessions_per_user == 0 {
             return Err("collaboration.max_sessions_per_user must be ≥ 1".into());
         }
+        if self.idle_timeout_secs == 0 {
+            return Err("collaboration.idle_timeout_secs must be ≥ 1".into());
+        }
+        if self.reap_interval_secs == 0 {
+            return Err("collaboration.reap_interval_secs must be ≥ 1".into());
+        }
+        if self.reap_interval_secs >= self.idle_timeout_secs {
+            return Err(
+                "collaboration.reap_interval_secs must be < idle_timeout_secs"
+                    .into(),
+            );
+        }
         Ok(())
     }
 }
@@ -362,6 +394,14 @@ fn default_collaboration_max_sessions_per_user() -> usize {
 
 fn default_collaboration_cursor_throttle_ms() -> u64 {
     50
+}
+
+fn default_collaboration_idle_timeout_secs() -> u64 {
+    300
+}
+
+fn default_collaboration_reap_interval_secs() -> u64 {
+    60
 }
 
 /// OpenTelemetry tracing export configuration.

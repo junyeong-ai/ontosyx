@@ -9,6 +9,7 @@
 //! in one place, and a new cron takes ~20 lines total.
 
 pub mod clarification_evict;
+pub mod collab_idle_reap;
 pub mod cron;
 pub mod draft_checkpoint_cleanup;
 pub mod quality_baseline;
@@ -16,6 +17,7 @@ pub mod soft_delete_compaction;
 pub mod stale_concepts;
 
 pub use clarification_evict::spawn_clarification_evict;
+pub use collab_idle_reap::spawn_collab_idle_reap;
 pub use cron::{CronTask, spawn_cron};
 pub use draft_checkpoint_cleanup::spawn_draft_checkpoint_cleanup;
 pub use quality_baseline::spawn_quality_baseline_scan;

@@ -564,6 +564,15 @@ async fn main() -> anyhow::Result<()> {
         cancel_token.clone(),
     );
 
+    // Idle-presence reap for the collaboration hub. Members whose
+    // last frame is older than `idle_timeout_secs` are leave'd so
+    // a hung tab can't park ghost presence in the room.
+    ox_api::background::spawn_collab_idle_reap(
+        Arc::clone(&state.collaboration),
+        std::time::Duration::from_secs(config.collaboration.reap_interval_secs),
+        cancel_token.clone(),
+    );
+
     // CORS policy: explicit origins required. No permissive fallback.
     //
     // Development: set OX_SERVER__CORS_ORIGINS to your frontend URL.
