@@ -7,10 +7,13 @@ import { Delete01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
 import { useAppStore } from "@/lib/store";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { Tooltip } from "@/components/ui/tooltip";
-import { LockIndicator } from "@/components/collab/lock-indicator";
 import { TabBar } from "@/components/ui/tab-bar";
+import { LockIndicator } from "@/components/collab/lock-indicator";
+import { useEntityLock } from "@/components/collab/use-entity-lock";
+import { colorFor, selectPresence, useCollabStore } from "@/lib/collab";
+import { cn } from "@/lib/cn";
 import { useEntityDependencies } from "@/hooks/api/use-entity-dependencies";
 import type { SchemaEntityRef } from "@/lib/api/dependencies";
 import type {
@@ -40,7 +43,7 @@ import { Section } from "./shared";
 // the test suite and any external consumers don't break.
 export { InlineEdit } from "./inline-edit";
 export { Section } from "./shared";
-export { GapsList } from "./quality-gaps";
+export { QualityGapsList } from "./quality-gaps";
 
 // ---------------------------------------------------------------------------
 // Inspector tabs — five-pane navigation that mirrors the page-side
@@ -83,8 +86,8 @@ function VerificationBadge({
 
   if (active) {
     return (
-      <div className="flex items-center gap-1.5 rounded bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+      <div className="flex items-center gap-1.5 rounded bg-brand-surface px-2 py-1 text-2xs text-brand-foreground">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-solid" />
         <span>Verified by {active.verified_by_name ?? active.verified_by}</span>
       </div>
     );
@@ -94,7 +97,7 @@ function VerificationBadge({
     return (
       <button
         onClick={onVerify}
-        className="rounded border border-zinc-200 px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        className="rounded border border-divider px-2 py-0.5 text-2xs text-muted-foreground hover:bg-surface-raised dark:hover:bg-zinc-800"
       >
         Verify
       </button>
@@ -105,7 +108,7 @@ function VerificationBadge({
 }
 
 // ---------------------------------------------------------------------------
-// EntityHeader — shared chrome for NodeDetail + EdgeDetail. Owns
+// EntityHeader — shared chrome for EntityDetail + EdgeDetail. Owns
 // label / description editing, deletion, and the verification
 // badge. The same shape works for both kinds because the wire
 // fields are aligned (label, description, glossary_anchors).
@@ -143,13 +146,13 @@ function EntityHeader({
     : null;
 
   return (
-    <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+    <div className="border-b border-divider px-3 py-2">
       <div className="flex items-center gap-2">
         <span
           className={
             isEdge
-              ? "rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-blue-700 dark:bg-blue-900 dark:text-blue-400"
-              : "rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400"
+              ? "rounded bg-blue-100 px-1.5 py-0.5 text-2xs font-bold uppercase text-blue-700 dark:bg-blue-900 dark:text-blue-400"
+              : "rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-bold uppercase text-brand-foreground-strong"
           }
         >
           {isEdge ? "Edge" : "Node"}
@@ -157,7 +160,7 @@ function EntityHeader({
         <InlineEdit
           value={entity.label}
           onSave={onRename}
-          className="font-semibold text-zinc-800 dark:text-zinc-200"
+          className="font-semibold text-foreground-strong"
         />
         <DependentsBadge
           ontologyId={ontology.id}
@@ -175,7 +178,7 @@ function EntityHeader({
           <button
             onClick={onDelete}
             aria-label={isEdge ? "Delete edge" : "Delete node"}
-            className="rounded p-1 text-zinc-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+            className="rounded p-1 text-foreground-muted hover:bg-danger-surface hover:text-danger-foreground dark:hover:bg-danger-surface"
           >
             <HugeiconsIcon icon={Delete01Icon} className="h-3 w-3" size="100%" />
           </button>
@@ -209,10 +212,45 @@ function EntityHeader({
 }
 
 // ---------------------------------------------------------------------------
+// LockedByOtherBanner — explicit visual + a11y signal that the
+// inspected entity is held by someone else and any edit attempt
+// will be ignored. The wrapper below also drops `pointer-events`
+// on the body so click-driven mutations don't even reach the
+// applyCommand calls.
+// ---------------------------------------------------------------------------
+
+function LockedByOtherBanner({
+  projectId,
+  heldBy,
+}: {
+  projectId: string;
+  heldBy: string;
+}) {
+  const t = useTranslations("collaboration.lock");
+  const presence = useCollabStore(selectPresence(projectId));
+  const holderName =
+    presence.find((p) => p.user_id === heldBy)?.user_name ?? heldBy;
+  const color = colorFor(heldBy);
+  return (
+    <div
+      role="status"
+      className="flex items-center gap-2 border-b border-divider bg-surface-raised px-3 py-1.5 text-2xs text-foreground"
+    >
+      <span
+        className="inline-block h-2 w-2 shrink-0 rounded-full"
+        style={{ backgroundColor: color }}
+        aria-hidden
+      />
+      <span>{t("editingBy", { name: holderName })}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Node detail (editable)
 // ---------------------------------------------------------------------------
 
-export function NodeDetail({
+export function EntityDetail({
   node,
   ontology,
   gaps,
@@ -227,11 +265,14 @@ export function NodeDetail({
 }) {
   const applyCommand = useAppStore((s) => s.applyCommand);
   const clearSelection = useAppStore((s) => s.clearSelection);
+  const activeProject = useAppStore((s) => s.activeProject);
   const [tab, setTab] = useState<InspectorTab>("definition");
   const confirm = useConfirm();
   const t = useTranslations("inspector.tabs");
   const ref = useEntityRef("node_type", node.id);
   const { inbound, outbound } = useEntityDependencies(ontology.id, ref);
+  const lock = useEntityLock(activeProject?.id, node.id);
+  const lockedByOther = lock.kind === "locked-by-other";
 
   const handleRename = useCallback(
     (newLabel: string) => {
@@ -298,7 +339,14 @@ export function NodeDetail({
         onDelete={handleDeleteNode}
       />
 
-      <div className="border-b border-zinc-200 dark:border-zinc-800">
+      {lockedByOther && activeProject?.id && (
+        <LockedByOtherBanner
+          projectId={activeProject.id}
+          heldBy={lock.heldBy}
+        />
+      )}
+
+      <div className="border-b border-divider">
         <TabBar
           tabs={tabs}
           activeTab={tab}
@@ -306,7 +354,13 @@ export function NodeDetail({
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-auto",
+          lockedByOther && "pointer-events-none opacity-60",
+        )}
+        aria-disabled={lockedByOther || undefined}
+      >
         {tab === "definition" && (
           <>
             <Section title={t("definitionSubsection.glossary")}>
@@ -339,9 +393,9 @@ export function NodeDetail({
                 <MappingsFacet node={node} ontology={ontology} />
               </div>
             </Section>
-            <p className="mt-3 px-3 pb-2 text-[10px] text-muted-foreground">
+            <p className="mt-3 px-3 pb-2 text-2xs text-muted-foreground">
               Tip: Press{" "}
-              <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">
+              <kbd className="rounded bg-surface-inset px-1 py-0.5 font-mono text-2xs">
                 {"⌘"}K
               </kbd>{" "}
               to edit with AI
@@ -396,11 +450,14 @@ export function EdgeDetail({
 }) {
   const applyCommand = useAppStore((s) => s.applyCommand);
   const clearSelection = useAppStore((s) => s.clearSelection);
+  const activeProject = useAppStore((s) => s.activeProject);
   const [tab, setTab] = useState<InspectorTab>("definition");
   const confirm = useConfirm();
   const t = useTranslations("inspector.tabs");
   const ref = useEntityRef("edge_type", edge.id);
   const { inbound, outbound } = useEntityDependencies(ontology.id, ref);
+  const lock = useEntityLock(activeProject?.id, edge.id);
+  const lockedByOther = lock.kind === "locked-by-other";
 
   const src =
     arr(ontology.node_types).find((n) => n.id === edge.source_node_id)?.label ??
@@ -471,7 +528,14 @@ export function EdgeDetail({
         onDelete={handleDeleteEdge}
       />
 
-      <div className="border-b border-zinc-200 dark:border-zinc-800">
+      {lockedByOther && activeProject?.id && (
+        <LockedByOtherBanner
+          projectId={activeProject.id}
+          heldBy={lock.heldBy}
+        />
+      )}
+
+      <div className="border-b border-divider">
         <TabBar
           tabs={tabs}
           activeTab={tab}
@@ -479,7 +543,13 @@ export function EdgeDetail({
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-auto",
+          lockedByOther && "pointer-events-none opacity-60",
+        )}
+        aria-disabled={lockedByOther || undefined}
+      >
         {tab === "definition" && (
           <>
             <Section title={t("definitionSubsection.glossary")}>
@@ -500,9 +570,9 @@ export function EdgeDetail({
                 />
               </div>
             </Section>
-            <p className="mt-3 px-3 pb-2 text-[10px] text-muted-foreground">
+            <p className="mt-3 px-3 pb-2 text-2xs text-muted-foreground">
               Tip: Press{" "}
-              <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">
+              <kbd className="rounded bg-surface-inset px-1 py-0.5 font-mono text-2xs">
                 {"⌘"}K
               </kbd>{" "}
               to edit with AI

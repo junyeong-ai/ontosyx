@@ -10,9 +10,10 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { QualityGap } from "@/types/api";
-import { NodeDetail, EdgeDetail } from "./entity-detail";
+import { EntityDetail, EdgeDetail } from "./entity-detail";
 import { arr } from "@/lib/ir-collections";
 import { gapTouchesEntity } from "@/lib/quality-utils";
+import { useEntityLock } from "@/components/collab/use-entity-lock";
 import { useEntityLockGuard } from "@/components/collab/use-entity-lock-guard";
 
 // ---------------------------------------------------------------------------
@@ -42,11 +43,17 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   }, [ontologyId, loadVerifications]);
 
   // Hold a collaboration lock on the currently inspected entity
-  // for the lifetime of the panel mount. Acquire on selection,
-  // refresh through the server's idempotent path on a timer,
-  // release on unmount or when the selection clears.
+  // for the lifetime of the panel mount — but only when no one
+  // else already holds it; otherwise the inspector renders in
+  // read-only mode and the guard stays inert so we don't fire
+  // doomed `acquire_lock` frames every render.
   const lockedEntityId = selectedNodeId ?? selectedEdgeId ?? undefined;
-  useEntityLockGuard(activeProject?.id, lockedEntityId);
+  const liveLock = useEntityLock(activeProject?.id, lockedEntityId);
+  useEntityLockGuard(
+    activeProject?.id,
+    lockedEntityId,
+    liveLock.kind !== "locked-by-other",
+  );
 
   const handleSave = useCallback(async () => {
     if (!activeProject || commandStack.length === 0) return;
@@ -79,7 +86,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
         gapTouchesEntity(g, "node", selectedNodeId),
       );
       return (
-        <NodeDetail
+        <EntityDetail
           node={node}
           ontology={ontology}
           gaps={nodeGaps}
@@ -113,7 +120,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
     <div className="flex h-full flex-col">
       {/* Undo/Redo toolbar — only visible when there's something actionable */}
       <div className={cn(
-        "flex items-center gap-1 border-b border-zinc-200 px-2 py-1 dark:border-zinc-800",
+        "flex items-center gap-1 border-b border-divider px-2 py-1",
         commandStack.length === 0 && redoStack.length === 0 && "hidden",
       )}>
         <Tooltip content="Undo">
@@ -121,7 +128,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
             onClick={undo}
             disabled={commandStack.length === 0}
             aria-label="Undo"
-            className="rounded p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-30 dark:hover:bg-zinc-800"
+            className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-30 dark:hover:bg-zinc-800"
           >
             <HugeiconsIcon icon={UndoIcon} className="h-3 w-3" size="100%" />
           </button>
@@ -131,17 +138,17 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
             onClick={redo}
             disabled={redoStack.length === 0}
             aria-label="Redo"
-            className="rounded p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-30 dark:hover:bg-zinc-800"
+            className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-30 dark:hover:bg-zinc-800"
           >
             <HugeiconsIcon icon={RedoIcon} className="h-3 w-3" size="100%" />
           </button>
         </Tooltip>
         {commandStack.length > 0 && (
           <>
-            <span className="ml-auto text-[9px] text-muted-foreground">
+            <span className="ml-auto text-2xs text-muted-foreground">
               {commandStack.length} change{commandStack.length !== 1 ? "s" : ""}
               {!activeProject && (
-                <span className="ml-1 text-amber-500" title="No project — edits are local only. Open a project to enable saving.">
+                <span className="ml-1 text-warning-foreground" title="No project — edits are local only. Open a project to enable saving.">
                   (unsaveable)
                 </span>
               )}
@@ -152,7 +159,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
                   onClick={handleSave}
                   disabled={isSaving}
                   aria-label="Save to server"
-                  className="rounded p-1 text-emerald-500 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50 dark:hover:bg-emerald-950"
+                  className="rounded p-1 text-brand-foreground hover:bg-brand-surface hover:text-brand-foreground disabled:opacity-50 dark:hover:bg-brand-surface"
                 >
                   {isSaving ? (
                     <Spinner size="xs" />
