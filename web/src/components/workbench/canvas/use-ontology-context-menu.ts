@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import type { NodeMouseHandler, EdgeMouseHandler } from "@xyflow/react";
 
@@ -33,36 +34,53 @@ import { arr } from "@/lib/ir-collections";
 // the canvas itself so the overlay layer is colocated with the rest of
 // the canvas chrome.
 
+interface ImproveWithAiCopy {
+  analyzing: string;
+  noImprovements: string;
+  applied: string;
+  undoHint: string;
+  failed: string;
+  unknownError: string;
+  /** LLM 프롬프트 — AI 가 받는 input 이라 영어 유지 (i18n 정책상 LLM 인풋은 영어). */
+  promptForNode: string;
+  promptForEdge: string;
+}
+
 async function improveWithAi(
   entityType: "node" | "edge",
   entityLabel: string,
   projectId: string,
   revision: number,
   applyCommand: (cmd: OntologyCommand) => void,
+  copy: ImproveWithAiCopy,
 ) {
-  const loading = toast.loading(`Analyzing "${entityLabel}"...`);
+  const loading = toast.loading(copy.analyzing.replace("{label}", entityLabel));
   try {
+    const userRequest = (
+      entityType === "node" ? copy.promptForNode : copy.promptForEdge
+    ).replace("{label}", entityLabel);
     const resp = await editProject(projectId, {
       revision,
-      user_request: entityType === "node"
-        ? `Suggest improvements for the "${entityLabel}" node: better description, additional useful properties, and any missing constraints or relationships.`
-        : `Suggest improvements for the "${entityLabel}" edge: better description, additional useful properties, and correct cardinality.`,
+      user_request: userRequest,
       dry_run: true,
     });
     toast.dismiss(loading);
     if (resp.commands.length === 0) {
-      toast.info("No improvements suggested", { description: resp.explanation });
+      toast.info(copy.noImprovements, { description: resp.explanation });
     } else {
       for (const cmd of resp.commands) {
         applyCommand(cmd);
       }
-      toast.success(`${resp.commands.length} improvement${resp.commands.length > 1 ? "s" : ""} applied`, {
-        description: "Use Ctrl+Z to undo",
-      });
+      toast.success(
+        copy.applied.replace("{count}", String(resp.commands.length)),
+        { description: copy.undoHint },
+      );
     }
   } catch (err) {
     toast.dismiss(loading);
-    toast.error("AI improvement failed", { description: err instanceof Error ? err.message : "Unknown error" });
+    toast.error(copy.failed, {
+      description: err instanceof Error ? err.message : copy.unknownError,
+    });
   }
 }
 
@@ -77,6 +95,8 @@ export function useOntologyContextMenu(
   ontology: OntologyIR | null,
   contextMenu: UseGraphContextMenuResult,
 ): UseOntologyContextMenuResult {
+  const t = useTranslations("workbench.contextMenu");
+  const tInspector = useTranslations("inspector.toast");
   const select = useAppStore((s) => s.select);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const applyCommand = useAppStore((s) => s.applyCommand);
@@ -85,6 +105,22 @@ export function useOntologyContextMenu(
 
   const confirm = useConfirm();
   const prompt = usePrompt();
+
+  const aiCopy: ImproveWithAiCopy = useMemo(
+    () => ({
+      analyzing: t("ai.analyzing"),
+      noImprovements: tInspector("noImprovements"),
+      applied: t("ai.applied"),
+      undoHint: t("ai.undoHint"),
+      failed: tInspector("improvementFailed"),
+      unknownError: t("ai.unknownError"),
+      promptForNode:
+        'Suggest improvements for the "{label}" node: better description, additional useful properties, and any missing constraints or relationships.',
+      promptForEdge:
+        'Suggest improvements for the "{label}" edge: better description, additional useful properties, and correct cardinality.',
+    }),
+    [t, tInspector],
+  );
 
   const handleNodeContextMenu: NodeMouseHandler = useCallback(
     (event, node) => {
@@ -124,7 +160,7 @@ export function useOntologyContextMenu(
           if (!activeProject) return;
           select({ type: "node", nodeId });
           if (!useAppStore.getState().isInspectorOpen) toggleInspector();
-          await improveWithAi("node", nodeDef.label, activeProject.id, activeProject.revision, applyCommand);
+          await improveWithAi("node", nodeDef.label, activeProject.id, activeProject.revision, applyCommand, aiCopy);
         },
       },
       { label: "Add Property", onClick: () => { select({ type: "node", nodeId }); if (!useAppStore.getState().isInspectorOpen) toggleInspector(); } },
@@ -163,7 +199,7 @@ export function useOntologyContextMenu(
         },
       },
     ];
-  }, [target, ontology, select, clearSelection, applyCommand, toggleInspector, setNeighborhoodFocus, confirm, prompt]);
+  }, [target, ontology, select, clearSelection, applyCommand, toggleInspector, setNeighborhoodFocus, confirm, prompt, aiCopy]);
 
   const edgeContextMenuItems = useMemo((): ContextMenuItem[] => {
     if (!target || target.type !== "edge" || !ontology) return [];
@@ -180,7 +216,7 @@ export function useOntologyContextMenu(
           if (!project) return;
           select({ type: "edge", edgeId });
           if (!useAppStore.getState().isInspectorOpen) toggleInspector();
-          await improveWithAi("edge", edgeDef.label, project.id, project.revision, applyCommand);
+          await improveWithAi("edge", edgeDef.label, project.id, project.revision, applyCommand, aiCopy);
         },
       },
       {
@@ -224,7 +260,7 @@ export function useOntologyContextMenu(
         },
       },
     ];
-  }, [target, ontology, select, clearSelection, applyCommand, toggleInspector, confirm, prompt]);
+  }, [target, ontology, select, clearSelection, applyCommand, toggleInspector, confirm, prompt, aiCopy]);
 
   return {
     handleNodeContextMenu,
