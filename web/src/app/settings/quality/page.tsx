@@ -401,7 +401,7 @@ export default function QualitySettingsPage() {
                     <button
                       onClick={() => handleExecute(d.rule_id)}
                       disabled={executingId === d.rule_id || executingAll}
-                      className="rounded px-2 py-1 text-xs text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
+                      className="rounded px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
                     >
                       {executingId === d.rule_id ? t("action.running") : t("action.run")}
                     </button>

@@ -60,7 +60,7 @@ export function SessionBar() {
 
       <button
         onClick={clearMessages}
-        className="rounded px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+        className="rounded px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
       >
         New
       </button>
