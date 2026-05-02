@@ -7,6 +7,9 @@ interface FormFieldProps {
   required?: boolean;
   error?: string;
   hint?: string;
+  /** Visually hide the label without dropping the screen-reader
+   *  announcement. */
+  hideLabel?: boolean;
   children: React.ReactNode;
   className?: string;
 }
@@ -15,46 +18,51 @@ interface FormFieldProps {
  * Labelled form field container.
  *
  * A single `<label>` wraps the children, which creates an **implicit
- * label association** with the first form control inside. This means
- * raw `<input>`, `<select>`, or `<textarea>` children become accessible
- * to screen readers automatically — no `id`/`htmlFor` wiring required.
- * Non-form-control children (decorative `<div>`s, icons) are ignored by
- * the association.
+ * label association** with the first form control inside. Raw
+ * `<input>`, `<select>`, or `<textarea>` children become accessible to
+ * screen readers automatically — no `id`/`htmlFor` wiring required.
  *
- * Why implicit over `htmlFor`: the prior API forced every caller to
- * generate and pass a stable id. In practice nearly nobody did, so
- * 100% of `<FormField>` consumers rendered visually labelled inputs
- * that were **unlabelled for assistive tech**. Axe flagged these as a
- * critical `select-name` violation on the design page. Implicit
- * association closes the gap at the container level.
+ * Validation: when `error` is set, the wrapped control inherits the
+ * danger tone (via `[aria-invalid]` selectors on the input primitives)
+ * and the message is announced through `role="alert"`. Hint text is
+ * suppressed while an error is active so the reader hears the
+ * actionable message first.
  */
 export function FormField({
   label,
   required,
   error,
   hint,
+  hideLabel,
   children,
   className,
 }: FormFieldProps) {
   return (
     <label className={cn("block space-y-1", className)}>
-      <span className="block text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+      <span
+        className={cn(
+          "block text-xs font-medium text-foreground-muted",
+          hideLabel && "sr-only",
+        )}
+      >
         {label}
         {required && (
-          <span className="ml-0.5 text-red-500" aria-label="required">*</span>
+          <span className="ml-0.5 text-danger-foreground" aria-hidden>
+            *
+          </span>
         )}
       </span>
       {children}
       {error && (
         <span
-          className="block text-[11px] text-red-500 dark:text-red-400"
+          className="block text-2xs font-medium text-danger-foreground"
           role="alert"
         >
           {error}
         </span>
       )}
       {hint && !error && (
-        <span className="block text-[11px] text-muted-foreground">{hint}</span>
+        <span className="block text-2xs text-muted-foreground">{hint}</span>
       )}
     </label>
   );

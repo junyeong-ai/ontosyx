@@ -490,7 +490,16 @@
     "noOntology": "No ontology",
     "nodeNotFound": "Node not found",
     "edgeNotFound": "Edge not found",
-    "selectPrompt": "Select a node or edge"
+    "selectPrompt": "Select a node or edge",
+    "toolbar": {
+      "undo": "Undo",
+      "redo": "Redo",
+      "changes": "{count, plural, one {# change} other {# changes}}",
+      "unsaveable": "(unsaveable)",
+      "unsaveableHint": "No project — edits are local only. Open a project to enable saving.",
+      "save": "Save to server",
+      "saveTooltip": "Save to server (⌘S)"
+    }
   },
   "narrowViewport": {
     "title": "Optimised for desktop",
@@ -1664,6 +1673,8 @@
     "chrome": {
       "rootTitle": "Settings",
       "pageTitle": "Settings — {page}",
+      "ariaLabel": "Settings sidebar",
+      "navAriaLabel": "Settings menu",
       "backToWorkbench": "Back to Workbench",
       "listDetail": {
         "emptyDefault": "No items found.",

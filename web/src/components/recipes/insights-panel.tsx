@@ -41,7 +41,7 @@ export function InsightsPanel() {
   }
 
   if (isError) {
-    return <EmptyState size="sm" title={t("toast.loadFailed")} />;
+    return <EmptyState variant="compact" title={t("toast.loadFailed")} />;
   }
 
   return (
@@ -55,7 +55,7 @@ export function InsightsPanel() {
         </p>
 
         {recipes.length === 0 ? (
-          <EmptyState size="sm" title={t("emptyApproved")} />
+          <EmptyState variant="compact" title={t("emptyApproved")} />
         ) : (
           <div className="mt-4 grid grid-cols-1 gap-3">
             {recipes.map((recipe) => (

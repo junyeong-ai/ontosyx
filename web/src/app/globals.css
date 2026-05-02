@@ -406,6 +406,12 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .skeleton-shimmer { animation: none; }
+  /* Disable click-press scale dip across every interactive surface so
+     vestibular-sensitive users don't get a transform on every click.
+     Buttons / Tooltip triggers carry `active:scale-X` to feel tactile;
+     the override is a single rule rather than per-component conditional
+     classnames. */
+  *:active { transform: none !important; }
 }
 
 ::-webkit-scrollbar {

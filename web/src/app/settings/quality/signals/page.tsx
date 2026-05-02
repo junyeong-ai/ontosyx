@@ -270,7 +270,7 @@ function ShaclFailureBars({
   if (!rows.length) {
     return (
       <Card padding="none">
-        <EmptyState size="sm" title={t("shacl.empty")} />
+        <EmptyState variant="compact" title={t("shacl.empty")} />
       </Card>
     );
   }
@@ -405,7 +405,7 @@ function StaleTypesTable({
   if (!data.length) {
     return (
       <Card padding="none">
-        <EmptyState size="sm" title={t("stale.empty")} />
+        <EmptyState variant="compact" title={t("stale.empty")} />
       </Card>
     );
   }

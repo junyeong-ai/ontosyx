@@ -21,14 +21,14 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
   ({ className, error, ...props }, ref) => (
     <input
       ref={ref}
-      aria-invalid={error || undefined}
+      aria-invalid={error || props["aria-invalid"]}
       className={cn(
         "w-full rounded-md border bg-surface-base px-3 py-1.5 text-sm text-foreground-strong",
         "outline-none transition-colors duration-[var(--duration-quick)]",
         "placeholder:text-foreground-subtle",
-        error
-          ? "border-danger-border focus:border-danger-foreground focus:ring-1 focus:ring-danger-foreground/40"
-          : "border-divider focus:border-brand-foreground focus:ring-1 focus:ring-brand-foreground/40",
+        "border-divider focus:border-brand-foreground focus:ring-1 focus:ring-brand-foreground/40",
+        "aria-invalid:border-danger-border aria-invalid:focus:border-danger-foreground aria-invalid:focus:ring-danger-foreground/40",
+        "disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
@@ -38,8 +38,12 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
 
 FormInput.displayName = "FormInput";
 
+// Centralised input shell. Validation tone is driven entirely by
+// `aria-invalid` on the underlying control — `<FormField>` sets it
+// when an error is in flight, and the `aria-invalid:` Tailwind variant
+// flips colours without needing an `error` prop on every control.
 const inputBase =
-  "w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs text-foreground-strong placeholder:text-foreground-subtle transition-colors duration-[var(--duration-quick)] focus:border-brand-foreground focus:outline-none focus:ring-1 focus:ring-brand-foreground/40";
+  "w-full rounded-md border bg-surface-base px-3 py-1.5 text-xs text-foreground-strong placeholder:text-foreground-subtle transition-colors duration-[var(--duration-quick)] outline-none border-divider focus:border-brand-foreground focus:ring-1 focus:ring-brand-foreground/40 aria-invalid:border-danger-border aria-invalid:focus:border-danger-foreground aria-invalid:focus:ring-danger-foreground/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 const labelBase =
   "text-2xs font-semibold uppercase tracking-wider text-foreground-muted";
@@ -169,14 +173,15 @@ export function SettingsSwitch({
         onCheckedChange={onChange}
         disabled={disabled}
         className={cn(
-          "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
-          checked ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600",
+          "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-[var(--duration-quick)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 focus-visible:ring-offset-1",
+          checked ? "bg-brand-solid" : "bg-surface-inset",
           disabled && "cursor-not-allowed opacity-50",
         )}
       >
         <BaseSwitch.Thumb
           className={cn(
-            "inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform",
+            "inline-block h-3.5 w-3.5 rounded-full bg-surface-base shadow-sm transition-transform duration-[var(--duration-quick)]",
             checked ? "translate-x-4.5" : "translate-x-0.5",
           )}
         />

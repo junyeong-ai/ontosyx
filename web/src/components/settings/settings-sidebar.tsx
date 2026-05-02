@@ -106,7 +106,7 @@ export function SettingsSidebar() {
       <div className="border-b border-divider px-4 py-3">
         <Link
           href="/"
-          className="flex items-center gap-1.5 text-xs font-medium text-foreground-muted transition-colors hover:text-foreground-strong dark:text-muted-foreground dark:hover:text-foreground-strong"
+          className="flex items-center gap-1.5 text-xs font-medium text-foreground-muted transition-colors hover:text-foreground-strong"
         >
           <svg
             className="h-3.5 w-3.5"
@@ -126,10 +126,13 @@ export function SettingsSidebar() {
       </div>
 
       {/* Grouped navigation */}
-      <nav className="flex flex-col overflow-y-auto px-2 pb-4 pt-2">
+      <nav
+        aria-label={t("navAriaLabel")}
+        className="flex flex-col overflow-y-auto px-2 pb-4 pt-2"
+      >
         {visibleGroups.map((group) => (
           <div key={group.titleKey} className="flex flex-col gap-0.5">
-            <span className="mt-4 mb-1 px-3 text-2xs font-semibold uppercase tracking-wider text-foreground dark:text-muted-foreground">
+            <span className="mt-4 mb-1 px-3 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
               {tSidebar(group.titleKey)}
             </span>
             {group.items.map((item) => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import messages from "../../../../../messages/en.json";
@@ -30,6 +31,7 @@ vi.mock("sonner", () => ({
 import PromptsPage from "@/app/settings/prompts/page";
 import * as api from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { mockAuth } from "@/test-utils/auth";
 import type { PromptTemplate } from "@/types/api";
 
 function sampleTemplate(overrides: Partial<PromptTemplate> = {}): PromptTemplate {
@@ -48,23 +50,26 @@ function sampleTemplate(overrides: Partial<PromptTemplate> = {}): PromptTemplate
 }
 
 function renderPage(): void {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const ui: ReactElement = (
     <NextIntlClientProvider locale="en" messages={messages}>
-      <PromptsPage />
+      <QueryClientProvider client={qc}>
+        <PromptsPage />
+      </QueryClientProvider>
     </NextIntlClientProvider>
   );
   render(ui);
 }
 
 function asAdmin(): void {
-  vi.mocked(useAuth).mockReturnValue({
-    user: { sub: "u1", email: "a@b.c", name: "Admin", role: "admin", auth_enabled: true },
-    loading: false,
-    isAuthenticated: true,
-    authEnabled: true,
-    isAdmin: true,
-    canWrite: true,
-  } as ReturnType<typeof useAuth>);
+  vi.mocked(useAuth).mockReturnValue(
+    mockAuth(
+      { kind: "authenticated", role: "admin" },
+      { sub: "u1", email: "a@b.c", name: "Admin" },
+    ),
+  );
 }
 
 describe("PromptsPage", () => {
@@ -75,14 +80,9 @@ describe("PromptsPage", () => {
   });
 
   it("shows the admin-only placeholder for non-admins", async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: null,
-      loading: false,
-      isAuthenticated: true,
-      authEnabled: true,
-      isAdmin: false,
-      canWrite: false,
-    } as ReturnType<typeof useAuth>);
+    vi.mocked(useAuth).mockReturnValue(
+      mockAuth({ kind: "authenticated", role: "viewer" }),
+    );
     // The reload effect fires unconditionally — admin gate is render-only.
     vi.mocked(api.listPromptTemplates).mockResolvedValueOnce([]);
     renderPage();

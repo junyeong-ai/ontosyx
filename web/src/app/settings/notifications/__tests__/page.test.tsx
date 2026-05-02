@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import messages from "../../../../../messages/en.json";
@@ -47,9 +48,14 @@ const SAMPLE_CHANNEL: Channel = {
 } as unknown as Channel;
 
 function renderPage(): void {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const ui: ReactElement = (
     <NextIntlClientProvider locale="en" messages={messages}>
-      <NotificationsSettingsPage />
+      <QueryClientProvider client={qc}>
+        <NotificationsSettingsPage />
+      </QueryClientProvider>
     </NextIntlClientProvider>
   );
   render(ui);

@@ -113,7 +113,7 @@ export function PropertiesFacet({
         />
       )}
       {properties.length === 0 && !adding ? (
-        <EmptyState size="sm" title={t("emptyState")} />
+        <EmptyState variant="compact" title={t("emptyState")} />
       ) : (
         <ul className="divide-y divide-divider-soft rounded border border-divider-soft">
           {properties.map((prop) => (

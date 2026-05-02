@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { UndoIcon, RedoIcon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { QualityGap } from "@/types/api";
@@ -79,12 +80,12 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   }, [activeProject, commandStack, applyProjectSnapshot, t]);
 
 
-  if (!ontology) return <Empty text={tInspector("noOntology")} />;
+  if (!ontology) return <EmptyState variant="compact" title={tInspector("noOntology")} />;
 
   const content = (() => {
     if (selectedNodeId) {
       const node = arr(ontology.node_types).find((n) => n.id === selectedNodeId);
-      if (!node) return <Empty text={tInspector("nodeNotFound")} />;
+      if (!node) return <EmptyState variant="compact" title={tInspector("nodeNotFound")} />;
       const nodeGaps = gaps.filter((g) =>
         gapTouchesEntity(g, "node", selectedNodeId),
       );
@@ -101,7 +102,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
 
     if (selectedEdgeId) {
       const edge = arr(ontology.edge_types).find((e) => e.id === selectedEdgeId);
-      if (!edge) return <Empty text={tInspector("edgeNotFound")} />;
+      if (!edge) return <EmptyState variant="compact" title={tInspector("edgeNotFound")} />;
       const edgeGaps = gaps.filter((g) =>
         gapTouchesEntity(g, "edge", selectedEdgeId),
       );
@@ -116,7 +117,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
       );
     }
 
-    return <Empty text={tInspector("selectPrompt")} />;
+    return <EmptyState variant="compact" title={tInspector("selectPrompt")} />;
   })();
 
   return (
@@ -126,21 +127,21 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
         "flex items-center gap-1 border-b border-divider px-2 py-1",
         commandStack.length === 0 && redoStack.length === 0 && "hidden",
       )}>
-        <Tooltip content="Undo">
+        <Tooltip content={tInspector("toolbar.undo")}>
           <button
             onClick={undo}
             disabled={commandStack.length === 0}
-            aria-label="Undo"
+            aria-label={tInspector("toolbar.undo")}
             className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-30"
           >
             <HugeiconsIcon icon={UndoIcon} className="h-3 w-3" size="100%" />
           </button>
         </Tooltip>
-        <Tooltip content="Redo">
+        <Tooltip content={tInspector("toolbar.redo")}>
           <button
             onClick={redo}
             disabled={redoStack.length === 0}
-            aria-label="Redo"
+            aria-label={tInspector("toolbar.redo")}
             className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-30"
           >
             <HugeiconsIcon icon={RedoIcon} className="h-3 w-3" size="100%" />
@@ -149,20 +150,20 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
         {commandStack.length > 0 && (
           <>
             <span className="ml-auto text-2xs text-muted-foreground">
-              {commandStack.length} change{commandStack.length !== 1 ? "s" : ""}
+              {tInspector("toolbar.changes", { count: commandStack.length })}
               {!activeProject && (
-                <span className="ml-1 text-warning-foreground" title="No project — edits are local only. Open a project to enable saving.">
-                  (unsaveable)
+                <span className="ml-1 text-warning-foreground" title={tInspector("toolbar.unsaveableHint")}>
+                  {tInspector("toolbar.unsaveable")}
                 </span>
               )}
             </span>
             {activeProject && (
-              <Tooltip content="Save to server (⌘S)">
+              <Tooltip content={tInspector("toolbar.saveTooltip")}>
                 <button
                   onClick={handleSave}
                   disabled={isSaving}
-                  aria-label="Save to server"
-                  className="rounded p-1 text-brand-foreground hover:bg-brand-surface hover:text-brand-foreground disabled:opacity-50 dark:hover:bg-brand-surface"
+                  aria-label={tInspector("toolbar.save")}
+                  className="rounded p-1 text-brand-foreground hover:bg-brand-surface hover:text-brand-foreground disabled:opacity-50"
                 >
                   {isSaving ? (
                     <Spinner size="xs" />
@@ -176,14 +177,6 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
         )}
       </div>
       <div className="flex-1 overflow-y-auto">{content}</div>
-    </div>
-  );
-}
-
-function Empty({ text }: { text: string }) {
-  return (
-    <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-      {text}
     </div>
   );
 }

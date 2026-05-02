@@ -19,6 +19,7 @@ const CODE_SYSTEM_HINT = `{
 
 export function CodeSystemsTab() {
   const t = useTranslations("settings.vocabulary.codeSystems");
+  const tCommon = useTranslations("common");
   return (
     <JsonEntityCrudPage<CodeSystemDef>
       schemaHint={CODE_SYSTEM_HINT}
@@ -74,6 +75,9 @@ export function CodeSystemsTab() {
         errorEmpty: t("error.empty"),
         errorInvalidJsonTemplate: (message) =>
           t("error.invalidJson", { message }),
+        loadErrorTitle: tCommon("loadError.title"),
+        loadErrorDescription: tCommon("loadError.description"),
+        retryLabel: tCommon("retry"),
       }}
     />
   );

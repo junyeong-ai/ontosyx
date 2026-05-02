@@ -38,6 +38,7 @@ import {
 } from "@/lib/api/knowledge";
 import type { KnowledgeEntry } from "@/types/api";
 import { useAuth } from "@/hooks/use-auth";
+import { mockAuth } from "@/test-utils/auth";
 import { toast } from "sonner";
 
 function sampleEntry(overrides: Partial<KnowledgeEntry> = {}): KnowledgeEntry {
@@ -85,14 +86,12 @@ function renderPage(): void {
 }
 
 function asAdmin(): void {
-  vi.mocked(useAuth).mockReturnValue({
-    user: { sub: "u1", email: "a@b.c", name: "Admin", role: "admin", auth_enabled: true },
-    loading: false,
-    isAuthenticated: true,
-    authEnabled: true,
-    isAdmin: true,
-    canWrite: true,
-  } as ReturnType<typeof useAuth>);
+  vi.mocked(useAuth).mockReturnValue(
+    mockAuth(
+      { kind: "authenticated", role: "admin" },
+      { sub: "u1", email: "a@b.c", name: "Admin" },
+    ),
+  );
 }
 
 describe("KnowledgePage", () => {
@@ -108,14 +107,9 @@ describe("KnowledgePage", () => {
   });
 
   it("shows the admin-only placeholder when the viewer lacks admin rights", async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: null,
-      loading: false,
-      isAuthenticated: true,
-      authEnabled: true,
-      isAdmin: false,
-      canWrite: false,
-    } as ReturnType<typeof useAuth>);
+    vi.mocked(useAuth).mockReturnValue(
+      mockAuth({ kind: "authenticated", role: "viewer" }),
+    );
     // The hook sits above the gate, so listKnowledge fires — the gate
     // only controls what's rendered, not whether the query runs.
     (listKnowledge as ReturnType<typeof vi.fn>).mockResolvedValue({

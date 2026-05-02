@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell";
 import { BookOpen01Icon } from "@hugeicons/core-free-icons";
 import { useConfirm } from "@/components/providers/confirm-provider";
@@ -95,6 +96,7 @@ function computeAnchorCounts(ontology: OntologyIR): TermAnchorCounts {
 
 export function GlossaryWorkbench() {
   const t = useTranslations("workbench.glossary");
+  const tCommon = useTranslations("common");
   const tForm = useTranslations("settings.vocabulary.glossary");
   const localeChain = useLocaleChain();
   const router = useRouter();
@@ -234,8 +236,26 @@ export function GlossaryWorkbench() {
   if (ontologiesQuery.isLoading || ontologyDetailQuery.isLoading) {
     return (
       <WorkbenchPageShell title={t("heading")} subtitle={t("subtitle")}>
-        <div className="flex h-full items-center justify-center">
-          <Spinner />
+        <div className="px-6 py-6">
+          <SkeletonList count={6} />
+        </div>
+      </WorkbenchPageShell>
+    );
+  }
+
+  if (ontologiesQuery.isError || ontologyDetailQuery.isError) {
+    return (
+      <WorkbenchPageShell title={t("heading")} subtitle={t("subtitle")}>
+        <div className="flex h-full items-center justify-center px-6 py-12">
+          <ErrorState
+            title={tCommon("loadError.title")}
+            description={tCommon("loadError.description")}
+            onRetry={() => {
+              ontologiesQuery.refetch();
+              ontologyDetailQuery.refetch();
+            }}
+            retryLabel={tCommon("retry")}
+          />
         </div>
       </WorkbenchPageShell>
     );

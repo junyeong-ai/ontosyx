@@ -21,6 +21,7 @@ vi.mock("sonner", () => ({
 import SystemSettingsPage from "@/app/settings/system/page";
 import * as api from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { mockAuth } from "@/test-utils/auth";
 import { toast } from "sonner";
 
 const UI_CONFIG = {
@@ -52,14 +53,12 @@ function renderPage(): void {
 }
 
 function asAdmin(): void {
-  vi.mocked(useAuth).mockReturnValue({
-    user: { sub: "u1", email: "a@b.c", name: "Admin", role: "admin", auth_enabled: true },
-    loading: false,
-    isAuthenticated: true,
-    authEnabled: true,
-    isAdmin: true,
-    canWrite: true,
-  } as ReturnType<typeof useAuth>);
+  vi.mocked(useAuth).mockReturnValue(
+    mockAuth(
+      { kind: "authenticated", role: "admin" },
+      { sub: "u1", email: "a@b.c", name: "Admin" },
+    ),
+  );
 }
 
 describe("SystemSettingsPage", () => {
@@ -132,14 +131,12 @@ describe("SystemSettingsPage", () => {
   });
 
   it("disables Save for a non-admin even when edits are pending", async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: { sub: "u1", email: "a@b.c", name: "Member", role: "member", auth_enabled: true },
-      loading: false,
-      isAuthenticated: true,
-      authEnabled: true,
-      isAdmin: false,
-      canWrite: false,
-    } as ReturnType<typeof useAuth>);
+    vi.mocked(useAuth).mockReturnValue(
+      mockAuth(
+        { kind: "authenticated", role: "viewer" },
+        { sub: "u1", email: "a@b.c", name: "Member" },
+      ),
+    );
     vi.mocked(api.getConfig).mockResolvedValueOnce(UI_CONFIG);
     renderPage();
     await waitFor(() =>

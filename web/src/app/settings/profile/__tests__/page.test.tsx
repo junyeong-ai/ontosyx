@@ -11,6 +11,7 @@ vi.mock("@/hooks/use-auth", () => ({
 
 import ProfilePage from "@/app/settings/profile/page";
 import { useAuth } from "@/hooks/use-auth";
+import { mockAuth } from "@/test-utils/auth";
 
 function renderPage(): void {
   const ui: ReactElement = (
@@ -27,22 +28,13 @@ describe("ProfilePage", () => {
   });
 
   it("renders the dev-mode placeholder when auth is disabled", async () => {
-    const devUser = {
-      sub: "dev",
-      email: "dev@local",
-      name: "Developer",
-      role: "admin",
-      auth_enabled: false,
-    } as const;
-    vi.mocked(useAuth).mockReturnValue({
-      mode: { kind: "disabled", user: devUser },
-      user: devUser,
-      loading: false,
-      isAuthenticated: true,
-      authEnabled: false,
-      isAdmin: true,
-      canWrite: true,
-    });
+    vi.mocked(useAuth).mockReturnValue(
+      mockAuth("disabled", {
+        sub: "dev",
+        email: "dev@local",
+        name: "Developer",
+      }),
+    );
     renderPage();
     await waitFor(() =>
       expect(screen.getByText("Developer")).toBeInTheDocument(),
@@ -51,15 +43,7 @@ describe("ProfilePage", () => {
   });
 
   it("renders the not-signed-in card when authEnabled but no user", async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      mode: { kind: "unauthenticated" },
-      user: null,
-      loading: false,
-      isAuthenticated: false,
-      authEnabled: true,
-      isAdmin: false,
-      canWrite: false,
-    });
+    vi.mocked(useAuth).mockReturnValue(mockAuth("anonymous"));
     renderPage();
     await waitFor(() =>
       expect(screen.getByText("Not signed in.")).toBeInTheDocument(),
@@ -70,22 +54,12 @@ describe("ProfilePage", () => {
   });
 
   it("renders identity + role + sign-out form for an authenticated user", async () => {
-    const aliceUser = {
-      sub: "u-1",
-      email: "alice@example.com",
-      name: "Alice",
-      role: "designer",
-      auth_enabled: true,
-    } as const;
-    vi.mocked(useAuth).mockReturnValue({
-      mode: { kind: "authenticated", user: aliceUser },
-      user: aliceUser,
-      loading: false,
-      isAuthenticated: true,
-      authEnabled: true,
-      isAdmin: false,
-      canWrite: true,
-    });
+    vi.mocked(useAuth).mockReturnValue(
+      mockAuth(
+        { kind: "authenticated", role: "designer" },
+        { sub: "u-1", email: "alice@example.com", name: "Alice" },
+      ),
+    );
     renderPage();
     // Name appears in both the avatar fallback and the identity card.
     await waitFor(() =>
@@ -103,22 +77,12 @@ describe("ProfilePage", () => {
   });
 
   it("falls back to the raw role string when the role has no translation", async () => {
-    const bobUser = {
-      sub: "u-2",
-      email: "bob@example.com",
-      name: "Bob",
-      role: "auditor",
-      auth_enabled: true,
-    } as const;
-    vi.mocked(useAuth).mockReturnValue({
-      mode: { kind: "authenticated", user: bobUser },
-      user: bobUser,
-      loading: false,
-      isAuthenticated: true,
-      authEnabled: true,
-      isAdmin: false,
-      canWrite: false,
-    });
+    vi.mocked(useAuth).mockReturnValue(
+      mockAuth(
+        { kind: "authenticated", role: "viewer" },
+        { sub: "u-2", email: "bob@example.com", name: "Bob", role: "auditor" },
+      ),
+    );
     renderPage();
     await waitFor(() =>
       expect(screen.getAllByText("Bob").length).toBeGreaterThan(0),

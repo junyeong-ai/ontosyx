@@ -287,7 +287,7 @@ export function CrossRefFlow({ ontologyId }: { ontologyId: string }) {
         </p>
       )}
       {!isLoading && !error && (data?.length ?? 0) === 0 && (
-        <EmptyState size="sm" title={t("empty")} />
+        <EmptyState variant="compact" title={t("empty")} />
       )}
       {!isLoading && !error && (data?.length ?? 0) > 0 && (
         <div

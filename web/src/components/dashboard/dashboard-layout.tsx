@@ -357,7 +357,7 @@ export function DashboardLayout() {
                 onUpdated={refreshWidgets}
               />
             ) : (
-              <EmptyState size="sm" title={t("empty.selectWidget")} />
+              <EmptyState variant="compact" title={t("empty.selectWidget")} />
             )}
           </div>
         </div>

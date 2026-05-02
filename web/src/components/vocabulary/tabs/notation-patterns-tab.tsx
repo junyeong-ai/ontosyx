@@ -19,6 +19,7 @@ const NOTATION_PATTERN_HINT = `{
 
 export function NotationPatternsTab() {
   const t = useTranslations("settings.vocabulary.notationPatterns");
+  const tCommon = useTranslations("common");
   return (
     <JsonEntityCrudPage<NotationPatternDef>
       schemaHint={NOTATION_PATTERN_HINT}
@@ -84,6 +85,9 @@ export function NotationPatternsTab() {
         errorEmpty: t("error.empty"),
         errorInvalidJsonTemplate: (message) =>
           t("error.invalidJson", { message }),
+        loadErrorTitle: tCommon("loadError.title"),
+        loadErrorDescription: tCommon("loadError.description"),
+        retryLabel: tCommon("retry"),
       }}
     />
   );

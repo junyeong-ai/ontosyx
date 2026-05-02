@@ -2,7 +2,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { cn } from "@/lib/cn";
 import { Button } from "./button";
 
-type EmptyStateSize = "sm" | "md";
+type EmptyStateVariant = "hero" | "compact";
 
 interface EmptyStateProps {
   icon?: IconSvgElement;
@@ -12,34 +12,34 @@ interface EmptyStateProps {
   action?: { label: string; onClick: () => void };
   secondaryAction?: { label: string; onClick: () => void };
   /**
-   * `md` (default) stretches to fill its container — for page-level
-   * empty states (settings page, dashboard). `sm` is inline-friendly:
-   * no height stretch, tighter padding, smaller icon. Pick `sm` when
-   * the empty state lives inside a sidebar, popover, or inspector
-   * panel where a tall card would dominate.
+   * `hero` (default) is page-level: stretches to fill its container,
+   * generous padding, large icon. `compact` is inline-friendly: sizes
+   * to content with tighter padding and a smaller icon. Pick
+   * `compact` inside a sidebar, popover, or inspector panel where a
+   * full-height card would dominate.
    */
-  size?: EmptyStateSize;
+  variant?: EmptyStateVariant;
   className?: string;
 }
 
-const containerSize: Record<EmptyStateSize, string> = {
-  sm: "gap-2 p-4",
-  md: "h-full gap-3 p-8",
+const containerClass: Record<EmptyStateVariant, string> = {
+  hero:    "h-full gap-3 p-8",
+  compact: "gap-2 p-4",
 };
 
-const iconWrapSize: Record<EmptyStateSize, string> = {
-  sm: "h-9 w-9",
-  md: "h-12 w-12",
+const iconWrapClass: Record<EmptyStateVariant, string> = {
+  hero:    "h-12 w-12",
+  compact: "h-9 w-9",
 };
 
-const iconSize: Record<EmptyStateSize, string> = {
-  sm: "h-4 w-4",
-  md: "h-5 w-5",
+const iconClass: Record<EmptyStateVariant, string> = {
+  hero:    "h-5 w-5",
+  compact: "h-4 w-4",
 };
 
-const titleSize: Record<EmptyStateSize, string> = {
-  sm: "text-xs",
-  md: "text-sm",
+const titleClass: Record<EmptyStateVariant, string> = {
+  hero:    "text-sm",
+  compact: "text-xs",
 };
 
 export function EmptyState({
@@ -49,7 +49,7 @@ export function EmptyState({
   hint,
   action,
   secondaryAction,
-  size = "md",
+  variant = "hero",
   className,
 }: EmptyStateProps) {
   return (
@@ -57,7 +57,7 @@ export function EmptyState({
       role="status"
       className={cn(
         "flex flex-col items-center justify-center text-center",
-        containerSize[size],
+        containerClass[variant],
         className,
       )}
     >
@@ -65,18 +65,18 @@ export function EmptyState({
         <div
           className={cn(
             "flex items-center justify-center rounded-full bg-brand-surface",
-            iconWrapSize[size],
+            iconWrapClass[variant],
           )}
         >
           <HugeiconsIcon
             icon={icon}
-            className={cn("text-brand-foreground", iconSize[size])}
+            className={cn("text-brand-foreground", iconClass[variant])}
             size="100%"
           />
         </div>
       )}
       <div className="max-w-sm">
-        <p className={cn("font-medium text-foreground", titleSize[size])}>
+        <p className={cn("font-medium text-foreground", titleClass[variant])}>
           {title}
         </p>
         {description && (

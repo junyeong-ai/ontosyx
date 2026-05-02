@@ -7,7 +7,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Modal } from "@/components/ui/modal";
-import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { RuleForm } from "@/components/vocabulary/rule-form";
 import {
@@ -25,6 +26,7 @@ function freshRuleId(): string {
 
 export function RulesTab() {
   const t = useTranslations("settings.vocabulary.rules");
+  const tCommon = useTranslations("common");
   const ontologiesQuery = useOntologies({ limit: 1 });
   const ontology = ontologiesQuery.data?.items?.[0];
   const detail = useOntologyDetail(ontology?.id);
@@ -107,8 +109,26 @@ export function RulesTab() {
 
   if (ontologiesQuery.isLoading || detail.isLoading) {
     return (
-      <div className="flex items-center justify-center py-10">
-        <Spinner />
+      <div className="flex flex-col gap-4">
+        <Header />
+        <SkeletonList count={4} />
+      </div>
+    );
+  }
+
+  if (ontologiesQuery.isError || detail.isError) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Header />
+        <ErrorState
+          title={tCommon("loadError.title")}
+          description={tCommon("loadError.description")}
+          onRetry={() => {
+            ontologiesQuery.refetch();
+            detail.refetch();
+          }}
+          retryLabel={tCommon("retry")}
+        />
       </div>
     );
   }

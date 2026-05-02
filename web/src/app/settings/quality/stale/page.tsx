@@ -168,7 +168,7 @@ export default function StaleConceptsPage() {
       )}
 
       {!loading && !isError && active.length === 0 && (
-        <EmptyState size="sm" title={t(`empty.${tab}`)} />
+        <EmptyState variant="compact" title={t(`empty.${tab}`)} />
       )}
 
       {!loading && !isError && active.length > 0 && (

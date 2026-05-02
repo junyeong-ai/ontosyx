@@ -20,6 +20,7 @@ const VALUE_SET_HINT = `{
 
 export function ValueSetsTab() {
   const t = useTranslations("settings.vocabulary.valueSets");
+  const tCommon = useTranslations("common");
 
   return (
     <JsonEntityCrudPage<ValueSetDef>
@@ -76,6 +77,9 @@ export function ValueSetsTab() {
         errorEmpty: t("error.empty"),
         errorInvalidJsonTemplate: (message) =>
           t("error.invalidJson", { message }),
+        loadErrorTitle: tCommon("loadError.title"),
+        loadErrorDescription: tCommon("loadError.description"),
+        retryLabel: tCommon("retry"),
       }}
     />
   );

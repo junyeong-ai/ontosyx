@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import messages from "../../../../../messages/en.json";
@@ -32,6 +33,7 @@ vi.mock("sonner", () => ({
 import FederationAdaptersPage from "@/app/settings/federation/page";
 import * as api from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { mockAuth } from "@/test-utils/auth";
 import { toast } from "sonner";
 
 const SAMPLE_ADAPTER = {
@@ -50,23 +52,26 @@ const HEALTH_OK = {
 };
 
 function renderPage(): void {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const ui: ReactElement = (
     <NextIntlClientProvider locale="en" messages={messages}>
-      <FederationAdaptersPage />
+      <QueryClientProvider client={qc}>
+        <FederationAdaptersPage />
+      </QueryClientProvider>
     </NextIntlClientProvider>
   );
   render(ui);
 }
 
 function asAdmin(): void {
-  vi.mocked(useAuth).mockReturnValue({
-    user: { sub: "u1", email: "a@b.c", name: "Admin", role: "admin", auth_enabled: true },
-    loading: false,
-    isAuthenticated: true,
-    authEnabled: true,
-    isAdmin: true,
-    canWrite: true,
-  } as ReturnType<typeof useAuth>);
+  vi.mocked(useAuth).mockReturnValue(
+    mockAuth(
+      { kind: "authenticated", role: "admin" },
+      { sub: "u1", email: "a@b.c", name: "Admin" },
+    ),
+  );
 }
 
 describe("FederationAdaptersPage", () => {
@@ -83,14 +88,9 @@ describe("FederationAdaptersPage", () => {
   });
 
   it("renders the admin-only notice when the viewer is not an admin", async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: null,
-      loading: false,
-      isAuthenticated: true,
-      authEnabled: true,
-      isAdmin: false,
-      canWrite: false,
-    } as ReturnType<typeof useAuth>);
+    vi.mocked(useAuth).mockReturnValue(
+      mockAuth({ kind: "authenticated", role: "viewer" }),
+    );
     renderPage();
     await waitFor(() =>
       expect(

@@ -17,6 +17,8 @@ import { useAppStore } from "@/lib/store";
 import { getProject } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import type {
   DesignProjectStatus,
@@ -47,8 +49,10 @@ import type {
  */
 export function ProjectHub() {
   const t = useTranslations("workbench.projects.hub");
+  const tCommon = useTranslations("common");
   const router = useRouter();
-  const { data, isLoading } = useProjects({ limit: 100 });
+  const projectsQuery = useProjects({ limit: 100 });
+  const { data, isLoading, isError, refetch } = projectsQuery;
   const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
 
   const [search, setSearch] = useState("");
@@ -156,7 +160,18 @@ export function ProjectHub() {
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
         {isLoading ? (
-          <p className="text-xs text-muted-foreground">{t("loading")}</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }, (_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        ) : isError ? (
+          <ErrorState
+            title={tCommon("loadError.title")}
+            description={tCommon("loadError.description")}
+            onRetry={() => refetch()}
+            retryLabel={tCommon("retry")}
+          />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={Add01Icon}

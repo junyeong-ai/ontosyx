@@ -22,6 +22,7 @@ const CONCEPT_MAP_HINT = `{
 
 export function ConceptMapsTab() {
   const t = useTranslations("settings.vocabulary.conceptMaps");
+  const tCommon = useTranslations("common");
   return (
     <JsonEntityCrudPage<ConceptMapDef>
       schemaHint={CONCEPT_MAP_HINT}
@@ -79,6 +80,9 @@ export function ConceptMapsTab() {
         errorEmpty: t("error.empty"),
         errorInvalidJsonTemplate: (message) =>
           t("error.invalidJson", { message }),
+        loadErrorTitle: tCommon("loadError.title"),
+        loadErrorDescription: tCommon("loadError.description"),
+        retryLabel: tCommon("retry"),
       }}
     />
   );

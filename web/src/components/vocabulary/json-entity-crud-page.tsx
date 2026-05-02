@@ -17,8 +17,9 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Modal } from "@/components/ui/modal";
-import { Spinner } from "@/components/ui/spinner";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import {
   useOntologies,
@@ -66,6 +67,10 @@ export interface JsonEntityCrudPageLabels extends JsonEntityEditorLabels {
   /** Create dialog copy. */
   createDialogTitle: string;
   createDialogDescription: string;
+  /** Failure ErrorState copy. */
+  loadErrorTitle: string;
+  loadErrorDescription: string;
+  retryLabel: string;
 }
 
 export interface JsonEntityCrudPageProps<T extends { id?: string }> {
@@ -165,10 +170,20 @@ export function JsonEntityCrudPage<T extends { id?: string }>({
   };
 
   if (ontologiesQuery.isLoading || detail.isLoading) {
+    return <SkeletonList count={5} />;
+  }
+
+  if (ontologiesQuery.isError || detail.isError) {
     return (
-      <div className="flex items-center justify-center py-10">
-        <Spinner />
-      </div>
+      <ErrorState
+        title={labels.loadErrorTitle}
+        description={labels.loadErrorDescription}
+        onRetry={() => {
+          ontologiesQuery.refetch();
+          detail.refetch();
+        }}
+        retryLabel={labels.retryLabel}
+      />
     );
   }
 

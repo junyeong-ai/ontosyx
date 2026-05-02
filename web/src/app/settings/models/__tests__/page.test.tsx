@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
+
+import messages from "../../../../../messages/en.json";
 
 vi.mock("@/lib/api/client", () => ({
   request: vi.fn(),
@@ -76,7 +81,17 @@ describe("ModelsSettingsPage", () => {
 
   it("renders both config rows + the routing rule once initial data resolves", async () => {
     setMocks([CONFIG_ENABLED, CONFIG_DISABLED], [RULE]);
-    render(<ModelsSettingsPage />);
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const ui: ReactElement = (
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <QueryClientProvider client={qc}>
+          <ModelsSettingsPage />
+        </QueryClientProvider>
+      </NextIntlClientProvider>
+    );
+    render(ui);
     await waitFor(() =>
       expect(screen.getAllByText("Opus prod").length).toBeGreaterThan(0),
     );
@@ -87,7 +102,17 @@ describe("ModelsSettingsPage", () => {
 
   it("computes the three summary cards from the config + rule lists", async () => {
     setMocks([CONFIG_ENABLED, CONFIG_DISABLED], [RULE]);
-    render(<ModelsSettingsPage />);
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const ui: ReactElement = (
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <QueryClientProvider client={qc}>
+          <ModelsSettingsPage />
+        </QueryClientProvider>
+      </NextIntlClientProvider>
+    );
+    render(ui);
     await waitFor(() =>
       expect(screen.getAllByText("Opus prod").length).toBeGreaterThan(0),
     );
@@ -112,7 +137,17 @@ describe("ModelsSettingsPage", () => {
   it("Delete with confirm=true calls DELETE and shows the success toast", async () => {
     setMocks([CONFIG_ENABLED], []);
     confirmMock.mockResolvedValueOnce(true);
-    render(<ModelsSettingsPage />);
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const ui: ReactElement = (
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <QueryClientProvider client={qc}>
+          <ModelsSettingsPage />
+        </QueryClientProvider>
+      </NextIntlClientProvider>
+    );
+    render(ui);
     await waitFor(() =>
       expect(screen.getAllByText("Opus prod").length).toBeGreaterThan(0),
     );
@@ -145,7 +180,17 @@ describe("ModelsSettingsPage", () => {
       }
       return Promise.resolve(undefined);
     });
-    render(<ModelsSettingsPage />);
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const ui: ReactElement = (
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <QueryClientProvider client={qc}>
+          <ModelsSettingsPage />
+        </QueryClientProvider>
+      </NextIntlClientProvider>
+    );
+    render(ui);
     await waitFor(() =>
       expect(screen.getAllByText("Opus prod").length).toBeGreaterThan(0),
     );

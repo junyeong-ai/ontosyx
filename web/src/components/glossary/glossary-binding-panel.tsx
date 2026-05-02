@@ -167,11 +167,11 @@ export function GlossaryBindingPanel({
 
       <div className="flex-1 overflow-y-auto">
         {suggest.isPending && candidates.length === 0 && (
-          <EmptyState size="sm" title={t("actions.searching")} />
+          <EmptyState variant="compact" title={t("actions.searching")} />
         )}
 
         {suggest.isSuccess && candidates.length === 0 && (
-          <EmptyState size="sm" title={t("empty")} />
+          <EmptyState variant="compact" title={t("empty")} />
         )}
 
         {candidates.length > 0 && (

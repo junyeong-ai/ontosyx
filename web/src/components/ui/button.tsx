@@ -38,10 +38,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium",
-        "transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium select-none",
+        // Tactile feedback — colour transitions stay snappy while
+        // press dips the button by 3% to reinforce the click. Matches
+        // Linear/Stripe/Vercel button cadence.
+        "transition-[colors,transform] duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+        "active:scale-[0.97]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 focus-visible:ring-offset-1",
-        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
         variantClass[variant],
         sizeClass[size],
         className,

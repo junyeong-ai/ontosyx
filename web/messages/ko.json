@@ -472,7 +472,16 @@
     "noOntology": "온톨로지가 없습니다",
     "nodeNotFound": "노드를 찾을 수 없습니다",
     "edgeNotFound": "엣지를 찾을 수 없습니다",
-    "selectPrompt": "노드 또는 엣지를 선택하세요"
+    "selectPrompt": "노드 또는 엣지를 선택하세요",
+    "toolbar": {
+      "undo": "실행 취소",
+      "redo": "다시 실행",
+      "save": "서버에 저장",
+      "saveTooltip": "서버에 저장 (⌘S)",
+      "changes": "{count, plural, =0 {변경 없음} other {#개 변경}}",
+      "unsaveable": "(저장 불가)",
+      "unsaveableHint": "프로젝트가 없어 변경사항이 로컬에만 유지됩니다. 프로젝트를 열어 저장을 활성화하세요."
+    }
   },
   "narrowViewport": {
     "title": "데스크탑에 최적화된 도구입니다",
@@ -1650,6 +1659,8 @@
     "chrome": {
       "rootTitle": "설정",
       "pageTitle": "설정 — {page}",
+      "ariaLabel": "설정 사이드바",
+      "navAriaLabel": "설정 메뉴",
       "backToWorkbench": "워크벤치로 돌아가기",
       "listDetail": {
         "emptyDefault": "항목이 없습니다.",

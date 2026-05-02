@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import messages from "../../../../../messages/en.json";
@@ -17,6 +18,7 @@ vi.mock("@/lib/api", () => ({
 import TeamPage from "@/app/settings/team/page";
 import * as api from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { mockAuth } from "@/test-utils/auth";
 import type { UserInfo } from "@/types/api";
 
 const MEMBER_A: UserInfo = {
@@ -35,23 +37,26 @@ const MEMBER_B: UserInfo = {
 };
 
 function renderPage(): void {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const ui: ReactElement = (
     <NextIntlClientProvider locale="en" messages={messages}>
-      <TeamPage />
+      <QueryClientProvider client={qc}>
+        <TeamPage />
+      </QueryClientProvider>
     </NextIntlClientProvider>
   );
   render(ui);
 }
 
 function asAdmin(): void {
-  vi.mocked(useAuth).mockReturnValue({
-    user: { sub: "u-a", email: "alice@example.com", name: "Alice", role: "admin", auth_enabled: true },
-    loading: false,
-    isAuthenticated: true,
-    authEnabled: true,
-    isAdmin: true,
-    canWrite: true,
-  } as ReturnType<typeof useAuth>);
+  vi.mocked(useAuth).mockReturnValue(
+    mockAuth(
+      { kind: "authenticated", role: "admin" },
+      { sub: "u-a", email: "alice@example.com", name: "Alice" },
+    ),
+  );
 }
 
 describe("TeamPage", () => {
@@ -62,20 +67,13 @@ describe("TeamPage", () => {
   });
 
   it("renders the auth-required placeholder when auth is disabled", async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: null,
-      loading: false,
-      isAuthenticated: false,
-      authEnabled: false,
-      isAdmin: false,
-      canWrite: false,
-    } as ReturnType<typeof useAuth>);
+    vi.mocked(useAuth).mockReturnValue(mockAuth("disabled"));
     renderPage();
     // `authRequired` copy renders when the API isn't wired up.
     await waitFor(() =>
       expect(
         screen.getByText(
-          /Team management is available when authentication is enabled/i,
+          /Team management is only available in workspaces with authentication enabled/i,
         ),
       ).toBeInTheDocument(),
     );
@@ -122,9 +120,15 @@ describe("TeamPage", () => {
     asAdmin();
     vi.mocked(api.listUsers).mockRejectedValueOnce(new Error("list broke"));
     renderPage();
+    // ErrorState surfaces operator-facing copy + a Retry button rather
+    // than the raw error.message — the latter belonged to the legacy
+    // try/catch + manual error-string render path.
     await waitFor(() =>
-      expect(screen.getByText(/list broke/)).toBeInTheDocument(),
+      expect(screen.getByText(/Could not load data/i)).toBeInTheDocument(),
     );
+    expect(
+      screen.getByRole("button", { name: /Retry/i }),
+    ).toBeInTheDocument();
     // No member rows render in the error state.
     expect(screen.queryByText("Alice")).not.toBeInTheDocument();
   });
