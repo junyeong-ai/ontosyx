@@ -1,63 +1,287 @@
 @import "tailwindcss";
 
-/* Streamdown — AI-optimized streaming markdown renderer */
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/code/dist/*.js";
 
-/* Mobile minimum font size — prevents 10-11px text on small screens */
-@media (max-width: 768px) {
-  .text-\[10px\], .text-\[11px\] {
-    font-size: 0.75rem; /* 12px minimum on mobile */
+/* ===========================================================================
+   Design tokens — single source of truth.
+   ---------------------------------------------------------------------------
+   The whole UI references the names declared here. Feature code never
+   mentions raw palette shades (`emerald-700`, `amber-500`, etc.) — only
+   the semantic names. A rebrand or workspace theme touches this file
+   alone.
+
+   Tokens are declared in two layers:
+     1. `:root` block — concrete values, available everywhere via `var()`.
+     2. `@theme inline` — exposes them as Tailwind utility classes
+        (`text-brand-foreground`, `bg-surface-base`, …).
+   =========================================================================== */
+
+:root {
+  /* --- Brand (primary action / active state) ----------------------------
+     Hex is chosen for AA contrast: white text on `--brand-solid` clears
+     4.5:1 at 12-13px. emerald-700 hits 5.4:1; emerald-600 sits at 3.6:1
+     and would fail axe-core. */
+  --brand-foreground:        #007956;   /* emerald-700, 5.4:1 vs white */
+  --brand-foreground-strong: #005f46;   /* emerald-800 */
+  --brand-surface:           #ecfdf5;   /* emerald-50  */
+  --brand-surface-strong:    #d0fae5;   /* emerald-100 */
+  --brand-border:            #a4f4cf;   /* emerald-200 */
+  --brand-solid:             #007956;   /* emerald-700 — AA-safe button */
+  --brand-solid-hover:       #005f46;   /* emerald-800 */
+
+  /* --- Status ----------------------------------------------------------- */
+  --success-foreground: var(--brand-foreground);
+  --success-surface:    var(--brand-surface);
+  --success-border:     var(--brand-border);
+
+  --warning-foreground: #b75000;   /* amber-700 */
+  --warning-surface:    #fffbeb;   /* amber-50  */
+  --warning-border:     #fee685;   /* amber-200 */
+
+  --danger-foreground:  #bf000f;   /* red-700  */
+  --danger-surface:     #fef2f2;   /* red-50   */
+  --danger-border:      #ffcaca;   /* red-200  */
+  --danger-solid:       #bf000f;   /* red-700 — AA-safe danger button */
+  --danger-solid-hover: #9f0712;   /* red-800 */
+
+  --info-foreground:    #0069a4;   /* sky-700  */
+  --info-surface:       #f0f9ff;   /* sky-50   */
+  --info-border:        #b8e6fe;   /* sky-200  */
+
+  /* --- Concept (ontology / glossary content marker) --------------------- */
+  --concept-foreground: #7008e7;   /* violet-700 */
+  --concept-surface:    #f5f3ff;   /* violet-50  */
+  --concept-border:     #ddd6ff;   /* violet-200 */
+
+  /* --- Surface ---------------------------------------------------------- */
+  --surface-base:    #ffffff;
+  --surface-raised:  #fafafa;
+  --surface-inset:   #f4f4f5;
+  --surface-overlay: rgba(0, 0, 0, 0.5);
+
+  /* --- Divider ---------------------------------------------------------- */
+  --divider:      #e4e4e7;
+  --divider-soft: rgba(0, 0, 0, 0.04);
+
+  /* --- Foreground ------------------------------------------------------- */
+  --foreground:         #18181b;
+  --foreground-muted:   #52525b;
+  --foreground-subtle:  #71717b;
+  --foreground-strong:  #09090b;
+  --foreground-onbrand: #ffffff;
+
+  /* --- Collaboration presence palette ----------------------------------- *
+   * Eight identity hues for collaborators — every avatar, remote cursor,
+   * and lock ring of the same user reads from the same slot. All values
+   * clear WCAG AA against white text at small sizes (5.5–7.0:1) so a
+   * 10–12px label is legible. Hash → slot mapping lives in
+   * `lib/collab/colors.ts`. */
+  --collab-presence-1: #0369a1;   /* sky-700      — 6.4:1 */
+  --collab-presence-2: #047857;   /* emerald-700  — 5.7:1 */
+  --collab-presence-3: #b45309;   /* amber-700    — 4.9:1 */
+  --collab-presence-4: #b91c1c;   /* red-700      — 6.6:1 */
+  --collab-presence-5: #6d28d9;   /* violet-700   — 7.0:1 */
+  --collab-presence-6: #be185d;   /* pink-700     — 6.5:1 */
+  --collab-presence-7: #0f766e;   /* teal-700     — 5.8:1 */
+  --collab-presence-8: #c2410c;   /* orange-700   — 5.5:1 */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-foreground:        #00d294;   /* emerald-400 */
+    --brand-foreground-strong: #5ee9b5;   /* emerald-300 */
+    --brand-surface:           color-mix(in oklab, #002c22 50%, transparent);
+    --brand-surface-strong:    color-mix(in oklab, #002c22 70%, transparent);
+    --brand-border:            #005f46;   /* emerald-800 */
+    --brand-solid:             #00bb7f;   /* emerald-500 — bg dark, white text passes */
+    --brand-solid-hover:       #00d294;   /* emerald-400 */
+
+    --success-foreground: var(--brand-foreground);
+    --success-surface:    var(--brand-surface);
+    --success-border:     var(--brand-border);
+
+    --warning-foreground: #fcbb00;   /* amber-400 */
+    --warning-surface:    color-mix(in oklab, #461901 40%, transparent);
+    --warning-border:     #953d00;   /* amber-800 */
+
+    --danger-foreground:  #ff6568;   /* red-400 */
+    --danger-surface:     color-mix(in oklab, #460809 40%, transparent);
+    --danger-border:      #9f0712;   /* red-800 */
+    --danger-solid:       #e40014;   /* red-600 */
+    --danger-solid-hover: #ff6568;
+
+    --info-foreground:    #00bcfe;   /* sky-400 */
+    --info-surface:       color-mix(in oklab, #052f4a 40%, transparent);
+    --info-border:        #005986;   /* sky-800 */
+
+    --concept-foreground: #a685ff;   /* violet-400 */
+    --concept-surface:    color-mix(in oklab, #2f0d68 40%, transparent);
+    --concept-border:     #5d0ec0;   /* violet-800 */
+
+    --surface-base:    #09090b;
+    --surface-raised:  #18181b;
+    --surface-inset:   #27272a;
+    --surface-overlay: rgba(0, 0, 0, 0.7);
+
+    --divider:      #3f3f46;
+    --divider-soft: rgba(255, 255, 255, 0.06);
+
+    --foreground:         #ededed;
+    --foreground-muted:   #a1a1aa;
+    --foreground-subtle:  #71717b;
+    --foreground-strong:  #fafafa;
+    --foreground-onbrand: #09090b;
+
+    /* Collaboration presence — same hues as light mode. The white
+     * label / cursor-arrow text already passes AA against every
+     * slot (5.5–7.0:1) regardless of the surrounding canvas
+     * brightness, so swapping to lighter shades would only weaken
+     * dark-mode legibility. Identity recognition stays consistent
+     * across modes. */
+    --collab-presence-1: #0369a1;
+    --collab-presence-2: #047857;
+    --collab-presence-3: #b45309;
+    --collab-presence-4: #b91c1c;
+    --collab-presence-5: #6d28d9;
+    --collab-presence-6: #be185d;
+    --collab-presence-7: #0f766e;
+    --collab-presence-8: #c2410c;
   }
 }
 
-:root {
-  --background: #fafafa;
-  --foreground: #171717;
-  --card: #ffffff;
-  --card-foreground: #171717;
-  --muted: #f4f4f5;
-  /* Secondary / "hint" text. Previously zinc-500 (#71717a) — that hits
-     4.12:1 on zinc-950 in dark mode (WCAG AA fail). The pair below is
-     AAA in both modes: zinc-600 on white (7.59:1), zinc-400 on
-     zinc-950 (8.52:1). Use `text-muted-foreground` instead of the raw
-     palette class so a future palette tweak hits one place. */
-  --muted-foreground: #52525b;
-  --border: #e4e4e7;
-  --radius: 0.5rem;
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 0ms;
+    --duration-quick:   0ms;
+    --duration-base:    0ms;
+    --duration-slow:    0ms;
+    --duration-slower:  0ms;
+  }
+  .animate-blink,
+  .animate-bounce { animation: none !important; }
 }
 
+/* ===========================================================================
+   Tailwind v4 theme — wires the tokens above into utility classes.
+   =========================================================================== */
+
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted-foreground: var(--muted-foreground);
-  /* CJK-first font stack. Pretendard (CDN) handles Korean + Latin, with
-     Noto Sans KR as a backup Korean face and Geist / system UI for Latin
-     when Pretendard fails to load. */
+  /* --- Type scale ------------------------------------------------------- */
+  --text-2xs: 11px;
+  --text-xs:  13px;
+  --text-sm:  14px;
+  --text-base: 15px;
+  --text-lg:  17px;
+  --text-xl:  20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+
+  --leading-snug:    1.4;
+  --leading-normal:  1.6;
+  --leading-relaxed: 1.75;
+
+  /* --- Radius ----------------------------------------------------------- */
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   12px;
+  --radius-2xl:  16px;
+  --radius-full: 9999px;
+  --radius:      6px;
+
+  /* --- Width tokens (chrome surfaces) ----------------------------------- */
+  --width-rail:           48px;
+  --width-sidebar-narrow: 192px;
+  --width-sidebar:        240px;
+  --width-inspector:      360px;
+  --width-panel-narrow:   280px;
+  --width-panel:          480px;
+  --width-panel-wide:     640px;
+  --width-panel-full:     960px;
+
+  /* --- Motion ----------------------------------------------------------- */
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --duration-instant: 100ms;
+  --duration-quick:   150ms;
+  --duration-base:    200ms;
+  --duration-slow:    350ms;
+  --duration-slower:  500ms;
+
+  /* --- Elevation -------------------------------------------------------- */
+  --shadow-1: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-2: 0 4px 8px -2px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-3: 0 12px 24px -4px rgba(0, 0, 0, 0.10), 0 4px 8px -2px rgba(0, 0, 0, 0.05);
+  --shadow-4: 0 24px 48px -8px rgba(0, 0, 0, 0.14), 0 8px 16px -4px rgba(0, 0, 0, 0.08);
+
+  /* --- Color: brand (primary affordance) -------------------------------- */
+  --color-brand-foreground:        var(--brand-foreground);
+  --color-brand-foreground-strong: var(--brand-foreground-strong);
+  --color-brand-surface:           var(--brand-surface);
+  --color-brand-surface-strong:    var(--brand-surface-strong);
+  --color-brand-border:            var(--brand-border);
+  --color-brand-solid:             var(--brand-solid);
+  --color-brand-solid-hover:       var(--brand-solid-hover);
+
+  /* --- Color: status ---------------------------------------------------- */
+  --color-success-foreground: var(--success-foreground);
+  --color-success-surface:    var(--success-surface);
+  --color-success-border:     var(--success-border);
+
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-surface:    var(--warning-surface);
+  --color-warning-border:     var(--warning-border);
+
+  --color-danger-foreground:  var(--danger-foreground);
+  --color-danger-surface:     var(--danger-surface);
+  --color-danger-border:      var(--danger-border);
+  --color-danger-solid:       var(--danger-solid);
+  --color-danger-solid-hover: var(--danger-solid-hover);
+
+  --color-info-foreground:    var(--info-foreground);
+  --color-info-surface:       var(--info-surface);
+  --color-info-border:        var(--info-border);
+
+  /* --- Color: concept (ontology / glossary content marker) -------------- */
+  --color-concept-foreground: var(--concept-foreground);
+  --color-concept-surface:    var(--concept-surface);
+  --color-concept-border:     var(--concept-border);
+
+  /* --- Color: surface --------------------------------------------------- */
+  --color-surface-base:    var(--surface-base);
+  --color-surface-raised:  var(--surface-raised);
+  --color-surface-inset:   var(--surface-inset);
+  --color-surface-overlay: var(--surface-overlay);
+
+  /* --- Color: divider --------------------------------------------------- */
+  --color-divider:      var(--divider);
+  --color-divider-soft: var(--divider-soft);
+
+  /* --- Color: foreground ------------------------------------------------ */
+  --color-foreground:         var(--foreground);
+  --color-foreground-muted:   var(--foreground-muted);
+  --color-foreground-subtle:  var(--foreground-subtle);
+  --color-foreground-strong:  var(--foreground-strong);
+  --color-foreground-onbrand: var(--foreground-onbrand);
+  --color-muted-foreground:   var(--foreground-muted);
+
+  /* --- Font stack — CJK first ------------------------------------------- */
   --font-sans: "Pretendard Variable", Pretendard, var(--font-noto-sans-kr),
     var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
     "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), "D2Coding", ui-monospace, Menlo, monospace;
 }
 
-/* Apply the CJK stack to the document root so Tailwind `font-sans` utilities
-   (which read `--font-sans`) and unclassified text both pick it up. */
+/* ===========================================================================
+   Document defaults
+   =========================================================================== */
+
 html, body {
   font-family: var(--font-sans);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #09090b;
-    --foreground: #ededed;
-    --card: #18181b;
-    --card-foreground: #ededed;
-    --muted: #27272a;
-    /* zinc-400 — 8.52:1 against zinc-950 (AAA). Paired with the light
-       mode value above, `text-muted-foreground` is always accessible. */
-    --muted-foreground: #a1a1aa;
-    --border: #3f3f46;
-  }
 }
 
 html {
@@ -66,18 +290,26 @@ html {
 
 body {
   overflow: hidden;
-  background: var(--background);
+  background: var(--surface-base);
   color: var(--foreground);
 }
 
-/* Prose message — minimal overrides for streamdown.
-   Streamdown handles ALL element rendering via components prop
-   (table, code, blockquote, links, inline code).
-   Only layout/spacing rules remain here. */
-.prose-message {
-  line-height: 1.6;
+@media (max-width: 768px) {
+  .text-\[10px\], .text-\[11px\] {
+    font-size: 0.75rem;
+  }
 }
-.prose-message h1, .prose-message h2, .prose-message h3 {
+
+/* ===========================================================================
+   Streamdown markdown rendering
+   =========================================================================== */
+
+.prose-message {
+  line-height: var(--leading-normal);
+}
+.prose-message h1,
+.prose-message h2,
+.prose-message h3 {
   font-weight: 600;
   margin-top: 0.75em;
   margin-bottom: 0.25em;
@@ -92,7 +324,8 @@ body {
 .prose-message p:first-child { margin-top: 0; }
 .prose-message p:last-child { margin-bottom: 0; }
 .prose-message strong { font-weight: 600; }
-.prose-message ul, .prose-message ol {
+.prose-message ul,
+.prose-message ol {
   margin: 0.4em 0;
   padding-left: 1.5em;
 }
@@ -102,62 +335,35 @@ body {
 .prose-message hr {
   margin: 0.75em 0;
   border: none;
-  border-top: 1px solid rgba(0,0,0,0.1);
-}
-@media (prefers-color-scheme: dark) {
-  .prose-message hr { border-top-color: rgba(255,255,255,0.1); }
+  border-top: 1px solid var(--divider-soft);
 }
 
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-  .animate-blink,
-  .animate-bounce { animation: none !important; }
-}
+/* ===========================================================================
+   Streaming cursor blink + scrollbar polish
+   =========================================================================== */
 
-/* Streaming cursor blink animation */
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
-
 .animate-blink {
   animation: blink 1s step-end infinite;
 }
 
-/* React Grid Layout overrides — clean up default placeholder/resize styles */
-.react-grid-item.react-grid-placeholder {
-  background: rgba(16, 185, 129, 0.08) !important;
-  border: 1px dashed rgba(16, 185, 129, 0.3) !important;
-  border-radius: 8px !important;
-}
-
-.react-grid-item > .react-resizable-handle {
-  background: none !important;
-}
-
-.react-grid-item > .react-resizable-handle::after {
-  border-color: rgba(161, 161, 170, 0.3) !important;
-}
-
-/* Smooth scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.15);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.25);
 }
-
 @media (prefers-color-scheme: dark) {
   ::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.12);
@@ -167,11 +373,25 @@ body {
   }
 }
 
-/* ---------------------------------------------------------------------------
- * Query syntax highlighting (Cypher, Gremlin, GQL, SPARQL)
- * CSS classes instead of inline styles — themeable via CSS custom properties.
- * Used by dangerouslySetInnerHTML in QueryBlock components.
- * --------------------------------------------------------------------------- */
+/* ===========================================================================
+   React Grid Layout overrides
+   =========================================================================== */
+
+.react-grid-item.react-grid-placeholder {
+  background: var(--brand-surface) !important;
+  border: 1px dashed var(--brand-border) !important;
+  border-radius: var(--radius-lg) !important;
+}
+.react-grid-item > .react-resizable-handle {
+  background: none !important;
+}
+.react-grid-item > .react-resizable-handle::after {
+  border-color: rgba(161, 161, 170, 0.3) !important;
+}
+
+/* ===========================================================================
+   Query-language syntax highlighting
+   =========================================================================== */
 
 .ql-keyword { color: var(--ql-keyword, #60a5fa); font-weight: 600; }
 .ql-label   { color: var(--ql-label, #4ade80); }
