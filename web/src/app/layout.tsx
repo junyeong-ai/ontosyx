@@ -47,7 +47,19 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale}>
+    // next/font variable classes live on <html> so the runtime
+    // CSS variables (`--font-geist-sans`, `--font-noto-sans-kr`,
+    // `--font-geist-mono`) are in `:root` scope. globals.css's
+    // `@theme inline` defines `--font-sans` on `:root, :host`
+    // referencing those variables; if they aren't defined at the
+    // same scope CSS treats the declaration as "invalid at computed
+    // value time" and the whole font stack falls back to the UA
+    // serif default. This is the official Next.js + Tailwind v4
+    // pattern (see Tailwind docs: "Referencing other variables").
+    <html
+      lang={locale}
+      className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable}`}
+    >
       <head>
         {/* Pretendard via CDN — primary Korean typeface. Preload +
             stylesheet so CJK-heavy pages avoid FOUT. Variable weight. */}
@@ -61,9 +73,7 @@ export default async function RootLayout({
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css"
         />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable} antialiased`}
-      >
+      <body className="antialiased">
         {/* Skip-to-main — hidden until focused, lets keyboard users
             jump past the shell chrome straight to the content. */}
         <a
