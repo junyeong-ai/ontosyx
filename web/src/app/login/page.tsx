@@ -3,8 +3,9 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, authKeys } from "@/hooks/use-auth";
 import { Spinner } from "@/components/ui/spinner";
 
 const KNOWN_LOGIN_ERRORS = ["token_exchange_failed", "not_configured"] as const;
@@ -27,10 +28,21 @@ function LoginContent() {
   const t = useTranslations("page.login");
   const searchParams = useSearchParams();
   const router = useRouter();
+  const qc = useQueryClient();
   const { mode } = useAuth();
   const [signingIn, setSigningIn] = useState(false);
   const error = searchParams.get("error");
   const next = safeNext(searchParams.get("next"));
+
+  // Logout flow lands here via server redirect; the cookie has been
+  // cleared but TanStack Query still holds the previous /auth/me
+  // payload. Invalidate on mount so the form below renders against a
+  // fresh fetch instead of flashing the bookmark-style auto-redirect
+  // for the just-signed-out user.
+  useEffect(() => {
+    qc.invalidateQueries({ queryKey: authKeys.me() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Already-authenticated users hitting `/login` directly (bookmark,
   // double-tap nav) land on their workbench, not a sign-in button.

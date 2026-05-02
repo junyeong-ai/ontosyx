@@ -30,7 +30,7 @@ import { useAuth } from "@/hooks/use-auth";
 
 export function SessionExpiredOverlay() {
   const lastError = useCollabStore(selectLastError);
-  const { authEnabled } = useAuth();
+  const { mode } = useAuth();
   const t = useTranslations("collaboration.errors");
   const tActions = useTranslations("collaboration.actions");
   const router = useRouter();
@@ -40,18 +40,17 @@ export function SessionExpiredOverlay() {
   const [dismissedCode, setDismissedCode] = useState<string | null>(null);
 
   const errorCode = lastError?.code;
+  const isAuthMode = mode.kind === "authenticated";
   useEffect(() => {
-    if (errorCode && errorCode !== dismissedCode && authEnabled) {
+    if (errorCode && errorCode !== dismissedCode && isAuthMode) {
       ctaRef.current?.focus();
     }
-  }, [errorCode, dismissedCode, authEnabled]);
+  }, [errorCode, dismissedCode, isAuthMode]);
 
-  // When auth is disabled (single-tenant dev / on-prem) there is no
-  // "sign in again" action to surface — collab WS errors in that mode
-  // are recoverable churn (server restart, network blip), not session
-  // loss. Skip the overlay entirely so the dev shell isn't peppered
-  // with a permanent CTA every time the WS reconnects.
-  if (!authEnabled) return null;
+  // Single-tenant / on-prem / dev (auth disabled): there is no
+  // "sign in again" action — WS errors in that mode are recoverable
+  // churn, not session loss. Skip the overlay entirely.
+  if (!isAuthMode) return null;
   if (!errorCode || !isReauthCode(errorCode)) return null;
   if (errorCode === dismissedCode) return null;
 

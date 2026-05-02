@@ -9,29 +9,34 @@ import { LocaleSwitcher } from "./locale-switcher";
 import { clearCollabClient } from "@/lib/collab";
 
 export function UserMenu() {
-  const { user, loading, authEnabled } = useAuth();
+  const { mode } = useAuth();
   const [open, setOpen] = useState(false);
   const t = useTranslations("auth");
 
-  // Don't render anything while loading or in dev mode
-  if (loading || !authEnabled) return null;
+  // Render the menu in every signed-in mode — both `authenticated`
+  // (multi-tenant) and `disabled` (dev / on-prem). The disabled path
+  // omits the Sign Out form because there's no session to clear.
+  if (mode.kind === "loading") return null;
 
-  if (!user) {
+  if (mode.kind === "unauthenticated") {
     return (
       <a
         href="/login"
-        className="rounded-md border border-divider bg-surface-raised px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-inset-muted"
+        className="rounded-md border border-divider bg-surface-raised px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-inset"
       >
         {t("signIn")}
       </a>
     );
   }
 
+  const { user } = mode;
+  const showSignOut = mode.kind === "authenticated";
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-surface-inset">
+      <PopoverTrigger className="flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground">
         <Avatar src={user.picture} name={user.name} size="xs" />
-        <span className="max-w-[120px] truncate text-xs text-foreground dark:text-muted-foreground">
+        <span className="max-w-[120px] truncate text-xs text-muted-foreground">
           {user.name}
         </span>
       </PopoverTrigger>
@@ -44,24 +49,27 @@ export function UserMenu() {
         </div>
         <div className="my-1 h-px bg-surface-inset" />
         <LocaleSwitcher />
-        <div className="my-1 h-px bg-surface-inset" />
-        <form action="/auth/logout" method="POST">
-          <button
-            type="submit"
-            className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-surface"
-            onClick={() => {
-              // Tear the collaboration WS down before the cookie
-              // is wiped — once the form submits the token revoke
-              // round-trip, the open socket would otherwise keep
-              // streaming under a now-revoked session for up to
-              // the periodic re-check window.
-              clearCollabClient();
-              setOpen(false);
-            }}
-          >
-            {t("signOut")}
-          </button>
-        </form>
+        {showSignOut && (
+          <>
+            <div className="my-1 h-px bg-surface-inset" />
+            <form action="/auth/logout" method="POST">
+              <button
+                type="submit"
+                className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-danger-foreground hover:bg-danger-surface"
+                onClick={() => {
+                  // Tear the collaboration WS down before the cookie
+                  // is wiped — once the form submits, the open socket
+                  // would otherwise keep streaming under a now-revoked
+                  // session for up to the periodic re-check window.
+                  clearCollabClient();
+                  setOpen(false);
+                }}
+              >
+                {t("signOut")}
+              </button>
+            </form>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   );
