@@ -176,6 +176,8 @@ where
 // POST /api/search — full-text search across Neo4j graph nodes
 // ---------------------------------------------------------------------------
 
+use ox_ontology::graph_exploration::SearchResultNode;
+
 fn default_search_limit() -> usize {
     20
 }
@@ -196,7 +198,7 @@ pub struct SearchGraphRequest {
     path = "/api/search",
     request_body = SearchGraphRequest,
     responses(
-        (status = 200, description = "Search results", body = Object),
+        (status = 200, description = "Search results", body = Vec<SearchResultNode>),
         (status = 400, description = "Empty query", body = inline(crate::openapi::ErrorResponse)),
         (status = 503, description = "Graph database not connected", body = inline(crate::openapi::ErrorResponse)),
         (status = 504, description = "Query timeout", body = inline(crate::openapi::ErrorResponse)),
@@ -1278,7 +1280,7 @@ use ox_ontology::graph_exploration::GraphSchemaOverview;
     get,
     path = "/api/graph/overview",
     responses(
-        (status = 200, description = "Graph schema overview", body = Object),
+        (status = 200, description = "Graph schema overview", body = GraphSchemaOverview),
         (status = 503, description = "Graph database not connected"),
         (status = 504, description = "Timeout"),
     ),
@@ -1328,7 +1330,7 @@ pub struct ExpandGraphRequest {
     path = "/api/search/expand",
     request_body = ExpandGraphRequest,
     responses(
-        (status = 200, description = "Neighbors of the node", body = Object),
+        (status = 200, description = "Neighbors of the node", body = NodeExpansion),
         (status = 400, description = "Missing element_id"),
         (status = 503, description = "Graph database not connected"),
         (status = 504, description = "Timeout"),

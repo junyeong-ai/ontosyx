@@ -23,6 +23,8 @@ function renderSidebar(
           relationships: [],
           total_nodes: 4600,
           total_relationships: 0,
+          node_properties: [],
+          rel_properties: [],
         }}
         loading={false}
         selectedLabels={[]}
@@ -75,6 +77,8 @@ describe("ExploreFacetSidebar", () => {
             relationships: [],
             total_nodes: 10,
             total_relationships: 0,
+            node_properties: [],
+            rel_properties: [],
           }}
           loading={false}
           selectedLabels={["Customer"]}

@@ -270,6 +270,15 @@ impl Modify for SecurityAddon {
             // Query
             query::ExecuteRawQueryRequest,
             query::ExecuteRawQueryResponse,
+            query::SearchGraphRequest,
+            query::ExpandGraphRequest,
+            ox_ontology::graph_exploration::SearchResultNode,
+            ox_ontology::graph_exploration::ExpandNeighbor,
+            ox_ontology::graph_exploration::NodeExpansion,
+            ox_ontology::graph_exploration::LabelStat,
+            ox_ontology::graph_exploration::RelationshipPattern,
+            ox_ontology::graph_exploration::PropertySchema,
+            ox_ontology::graph_exploration::GraphSchemaOverview,
             // Projects
             project_types::CreateProjectRequest,
             project_types::ProjectOrigin,

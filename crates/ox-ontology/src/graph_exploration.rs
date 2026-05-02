@@ -12,10 +12,11 @@ use serde::{Deserialize, Serialize};
 // ---------------------------------------------------------------------------
 
 /// A node returned by a graph search operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SearchResultNode {
     pub element_id: String,
     pub labels: Vec<String>,
+    #[schema(value_type = Object)]
     pub props: HashMap<String, serde_json::Value>,
 }
 
@@ -24,10 +25,11 @@ pub struct SearchResultNode {
 // ---------------------------------------------------------------------------
 
 /// A neighbor of an expanded node.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ExpandNeighbor {
     pub element_id: String,
     pub labels: Vec<String>,
+    #[schema(value_type = Object)]
     pub props: HashMap<String, serde_json::Value>,
     pub relationship_type: String,
     /// "outgoing" or "incoming"
@@ -35,7 +37,7 @@ pub struct ExpandNeighbor {
 }
 
 /// Result of expanding a node's neighborhood.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct NodeExpansion {
     pub source_id: String,
     pub neighbors: Vec<ExpandNeighbor>,
@@ -46,14 +48,14 @@ pub struct NodeExpansion {
 // ---------------------------------------------------------------------------
 
 /// Statistics for a single node label.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct LabelStat {
     pub label: String,
     pub count: i64,
 }
 
 /// A relationship pattern in the graph schema.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RelationshipPattern {
     pub from_label: String,
     pub rel_type: String,
@@ -62,7 +64,7 @@ pub struct RelationshipPattern {
 }
 
 /// A property discovered from the graph schema.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct PropertySchema {
     /// Node label or relationship type this property belongs to.
     pub entity_type: String,
@@ -75,7 +77,7 @@ pub struct PropertySchema {
 }
 
 /// High-level overview of the graph schema.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct GraphSchemaOverview {
     pub labels: Vec<LabelStat>,
     pub relationships: Vec<RelationshipPattern>,

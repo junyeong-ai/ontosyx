@@ -3154,6 +3154,21 @@ export interface components {
             /** @description Compiler target language (e.g., "cypher"). */
             target: string;
         };
+        ExpandGraphRequest: {
+            /** @description Graph element ID of the node to expand. */
+            element_id: string;
+            /** @description Max neighbors to return (default 50, capped at 200). */
+            limit?: number;
+        };
+        /** @description A neighbor of an expanded node. */
+        ExpandNeighbor: {
+            /** @description "outgoing" or "incoming" */
+            direction: string;
+            element_id: string;
+            labels: string[];
+            props: Record<string, never>;
+            relationship_type: string;
+        };
         ExtendProjectRequest: {
             /** Format: int32 */
             revision: number;
@@ -3387,6 +3402,19 @@ export interface components {
          *     previous `HashMap<String, _>` at lookup time.
          */
         GraphLabel: string;
+        /** @description High-level overview of the graph schema. */
+        GraphSchemaOverview: {
+            labels: components["schemas"]["LabelStat"][];
+            /** @description Property schema for node types (from db.schema.nodeTypeProperties). */
+            node_properties: components["schemas"]["PropertySchema"][];
+            /** @description Property schema for relationship types (from db.schema.relTypeProperties). */
+            rel_properties: components["schemas"]["PropertySchema"][];
+            relationships: components["schemas"]["RelationshipPattern"][];
+            /** Format: int64 */
+            total_nodes: number;
+            /** Format: int64 */
+            total_relationships: number;
+        };
         /**
          * @description Wire shape of both `/api/health` (wrapped in `ApiResponse`) and
          *     `/api/healthz` (returned flat).
@@ -3552,6 +3580,12 @@ export interface components {
          * @enum {string}
          */
         JoinCostHint: "unknown" | "indexed" | "scan" | "cartesian";
+        /** @description Statistics for a single node label. */
+        LabelStat: {
+            /** Format: int64 */
+            count: number;
+            label: string;
+        };
         /**
          * @description Π-2: Semantic cardinality of a link (edge) — drives compiler
          *     decisions about when to inject `DISTINCT` in generated SQL.
@@ -3776,6 +3810,11 @@ export interface components {
             property_ids: components["schemas"]["PropertyId"][];
             /** @enum {string} */
             type: "node_key";
+        };
+        /** @description Result of expanding a node's neighborhood. */
+        NodeExpansion: {
+            neighbors: components["schemas"]["ExpandNeighbor"][];
+            source_id: string;
         };
         NodeTypeDef: {
             /**
@@ -4811,6 +4850,17 @@ export interface components {
              */
             transform?: components["schemas"]["PropertyTransform"];
         };
+        /** @description A property discovered from the graph schema. */
+        PropertySchema: {
+            /** @description Node label or relationship type this property belongs to. */
+            entity_type: string;
+            /** @description Whether this property is mandatory (NOT NULL). */
+            mandatory: boolean;
+            /** @description Property name (e.g., "name", "price"). */
+            property_name: string;
+            /** @description Neo4j type strings (e.g., ["STRING"], ["INTEGER"]). */
+            property_types: string[];
+        };
         /**
          * @description Value transform applied on the way from the source to the
          *     ontology. Identity is the common case; richer transforms let a
@@ -5178,6 +5228,14 @@ export interface components {
              */
             replaced: boolean;
         };
+        /** @description A relationship pattern in the graph schema. */
+        RelationshipPattern: {
+            /** Format: int64 */
+            count: number;
+            from_label: string;
+            rel_type: string;
+            to_label: string;
+        };
         RestoreProjectRevisionResponse: {
             project: Record<string, never>;
         };
@@ -5516,6 +5574,20 @@ export interface components {
         ScopeKind: "code_count";
         ScopeUpdateResponse: {
             project: components["schemas"]["ProjectView"];
+        };
+        SearchGraphRequest: {
+            /** @description Optional label filter — only match nodes with these labels. */
+            labels?: string[] | null;
+            /** @description Max results (default 20, capped at 100). */
+            limit?: number;
+            /** @description Search term to match against node properties. */
+            query: string;
+        };
+        /** @description A node returned by a graph search operation. */
+        SearchResultNode: {
+            element_id: string;
+            labels: string[];
+            props: Record<string, never>;
         };
         /** @description A named subset of a single `NodeType`. */
         SegmentDef: {

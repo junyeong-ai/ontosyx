@@ -45,7 +45,7 @@ export interface PinboardItem {
   query_execution_id: string;
   user_id: string;
   widget_spec: Record<string, unknown>;
-  title?: string;
+  title: string | null;
   pinned_at: string;
 }
 
@@ -83,7 +83,7 @@ export interface QueryExecution {
   compiled_target: string;
   compiled_query: string;
   results: QueryResult;
-  widget?: Record<string, unknown>;
+  widget: Record<string, unknown> | null;
   explanation: string;
   model: string;
   execution_time_ms: number;

@@ -7,6 +7,7 @@ import type {
   QueryResult,
   QueryRawRequest,
 } from "@/types/api";
+import type { components } from "@/types/api.generated";
 import { request, DEFAULT_TIMEOUT } from "./client";
 import { normalizeQueryResult } from "./normalization";
 
@@ -68,11 +69,7 @@ export async function setQueryFeedback(
 // ---------------------------------------------------------------------------
 
 /** Backend search result node (structured, not QueryResult) */
-export interface BackendSearchNode {
-  element_id: string;
-  labels: string[];
-  props: Record<string, unknown>;
-}
+export type BackendSearchNode = components["schemas"]["SearchResultNode"];
 
 export async function searchGraph(
   query: string,
@@ -90,18 +87,9 @@ export async function searchGraph(
 // Node Expansion (1-hop neighbors)
 // ---------------------------------------------------------------------------
 
-export interface ExpandNeighbor {
-  element_id: string;
-  labels: string[];
-  props: Record<string, unknown>;
-  relationship_type: string;
-  direction: "outgoing" | "incoming";
-}
+export type ExpandNeighbor = components["schemas"]["ExpandNeighbor"];
 
-export interface ExpandResult {
-  source_id: string;
-  neighbors: ExpandNeighbor[];
-}
+export type ExpandResult = components["schemas"]["NodeExpansion"];
 
 export async function expandNode(
   elementId: string,
@@ -118,24 +106,9 @@ export async function expandNode(
 // Graph Overview (schema-level statistics)
 // ---------------------------------------------------------------------------
 
-export interface LabelStat {
-  label: string;
-  count: number;
-}
-
-export interface RelationshipPattern {
-  from_label: string;
-  rel_type: string;
-  to_label: string;
-  count: number;
-}
-
-export interface GraphOverview {
-  labels: LabelStat[];
-  relationships: RelationshipPattern[];
-  total_nodes: number;
-  total_relationships: number;
-}
+export type LabelStat = components["schemas"]["LabelStat"];
+export type RelationshipPattern = components["schemas"]["RelationshipPattern"];
+export type GraphOverview = components["schemas"]["GraphSchemaOverview"];
 
 export async function fetchGraphOverview(): Promise<GraphOverview> {
   return request<GraphOverview>("/graph/overview", {
