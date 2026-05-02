@@ -32,10 +32,19 @@ interface IconButtonProps {
   className?: string;
 }
 
-const toneClass: Record<IconButtonTone, string> = {
+const toneHoverClass: Record<IconButtonTone, string> = {
   neutral: "hover:bg-surface-inset hover:text-foreground",
   brand:   "hover:bg-brand-surface hover:text-brand-foreground",
   danger:  "hover:bg-danger-surface hover:text-danger-foreground",
+};
+
+// Active state inherits the tone — a "brand active" toggle reads
+// brand-tinted, a "danger active" pin reads danger-tinted. The previous
+// brand-only active assumed every active toggle was a brand action.
+const toneActiveClass: Record<IconButtonTone, string> = {
+  neutral: "bg-surface-inset text-foreground",
+  brand:   "bg-brand-surface text-brand-foreground",
+  danger:  "bg-danger-surface text-danger-foreground",
 };
 
 const iconSizeClass: Record<IconButtonSize, string> = {
@@ -54,9 +63,7 @@ export function IconButton({
   disabled,
   className,
 }: IconButtonProps) {
-  const stateClass = active
-    ? "text-brand-foreground bg-brand-surface"
-    : "text-foreground-muted";
+  const stateClass = active ? toneActiveClass[tone] : "text-foreground-muted";
   return (
     <Tooltip content={label}>
       <Button
@@ -65,7 +72,7 @@ export function IconButton({
         aria-label={label}
         onClick={onClick}
         disabled={disabled}
-        className={cn(toneClass[tone], stateClass, className)}
+        className={cn(toneHoverClass[tone], stateClass, className)}
       >
         {icon ? (
           <HugeiconsIcon icon={icon} className={iconSizeClass[size]} size="100%" />

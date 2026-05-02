@@ -32,15 +32,7 @@ export function ExecutionCard({ item, onClick }: ExecutionCardProps) {
     <Card
       padding="sm"
       interactive
-      role="button"
-      tabIndex={0}
       onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
       aria-label={t("viewAria", { question: item.question.slice(0, 60) })}
       className="w-full text-left"
     >

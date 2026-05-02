@@ -34,6 +34,7 @@ import { arr } from "@/lib/ir-collections";
 // the canvas itself so the overlay layer is colocated with the rest of
 // the canvas chrome.
 
+/** User-facing copy threaded in from the React layer (localised). */
 interface ImproveWithAiCopy {
   analyzing: string;
   noImprovements: string;
@@ -41,10 +42,18 @@ interface ImproveWithAiCopy {
   undoHint: string;
   failed: string;
   unknownError: string;
-  /** LLM 프롬프트 — AI 가 받는 input 이라 영어 유지 (i18n 정책상 LLM 인풋은 영어). */
-  promptForNode: string;
-  promptForEdge: string;
 }
+
+/**
+ * LLM prompt templates. These are LLM input — kept in English by
+ * design, never localised. Separated from `ImproveWithAiCopy` so the
+ * type's contract is clean: i18n strings on one side, model input on
+ * the other.
+ */
+const AI_IMPROVE_PROMPTS = {
+  node: 'Suggest improvements for the "{label}" node: better description, additional useful properties, and any missing constraints or relationships.',
+  edge: 'Suggest improvements for the "{label}" edge: better description, additional useful properties, and correct cardinality.',
+} as const;
 
 async function improveWithAi(
   entityType: "node" | "edge",
@@ -56,9 +65,10 @@ async function improveWithAi(
 ) {
   const loading = toast.loading(copy.analyzing.replace("{label}", entityLabel));
   try {
-    const userRequest = (
-      entityType === "node" ? copy.promptForNode : copy.promptForEdge
-    ).replace("{label}", entityLabel);
+    const userRequest = AI_IMPROVE_PROMPTS[entityType].replace(
+      "{label}",
+      entityLabel,
+    );
     const resp = await editProject(projectId, {
       revision,
       user_request: userRequest,
@@ -114,10 +124,6 @@ export function useOntologyContextMenu(
       undoHint: t("ai.undoHint"),
       failed: tInspector("improvementFailed"),
       unknownError: t("ai.unknownError"),
-      promptForNode:
-        'Suggest improvements for the "{label}" node: better description, additional useful properties, and any missing constraints or relationships.',
-      promptForEdge:
-        'Suggest improvements for the "{label}" edge: better description, additional useful properties, and correct cardinality.',
     }),
     [t, tInspector],
   );

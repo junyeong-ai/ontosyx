@@ -1,4 +1,8 @@
-import { type HTMLAttributes, forwardRef } from "react";
+import {
+  type HTMLAttributes,
+  type KeyboardEvent,
+  forwardRef,
+} from "react";
 import { cn } from "@/lib/cn";
 
 type CardVariant = "surface" | "raised" | "inset";
@@ -8,9 +12,11 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   variant?: CardVariant;
   padding?: CardPadding;
   /**
-   * Adds hover/focus affordances for clickable cards (project tile,
-   * recipe card). Pair with `tabIndex={0}` + `role="button"` on the
-   * element when the card itself is the click target.
+   * Marks the card as a clickable target. Combined with `onClick`,
+   * the primitive injects `role="button"`, `tabIndex={0}`, and
+   * Enter/Space keyboard activation — consumers do not reimplement
+   * the a11y boilerplate. `cursor-pointer` + a hover/focus-visible
+   * ring drop in for free.
    */
   interactive?: boolean;
 }
@@ -35,19 +41,50 @@ const interactiveClass = cn(
 );
 
 const CardRoot = forwardRef<HTMLDivElement, CardProps>(
-  ({ variant = "surface", padding = "md", interactive, className, ...rest }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        "rounded-lg",
-        variantClass[variant],
-        paddingClass[padding],
-        interactive && interactiveClass,
-        className,
-      )}
-      {...rest}
-    />
-  ),
+  (
+    {
+      variant = "surface",
+      padding = "md",
+      interactive,
+      className,
+      onClick,
+      onKeyDown,
+      role,
+      tabIndex,
+      ...rest
+    },
+    ref,
+  ) => {
+    const clickable = Boolean(interactive && onClick);
+    const handleKeyDown = clickable
+      ? (event: KeyboardEvent<HTMLDivElement>) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onClick?.(
+              event as unknown as React.MouseEvent<HTMLDivElement>,
+            );
+          }
+          onKeyDown?.(event);
+        }
+      : onKeyDown;
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          "rounded-lg",
+          variantClass[variant],
+          paddingClass[padding],
+          interactive && interactiveClass,
+          className,
+        )}
+        onClick={onClick}
+        onKeyDown={handleKeyDown}
+        role={role ?? (clickable ? "button" : undefined)}
+        tabIndex={tabIndex ?? (clickable ? 0 : undefined)}
+        {...rest}
+      />
+    );
+  },
 );
 CardRoot.displayName = "Card";
 

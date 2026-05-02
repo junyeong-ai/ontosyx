@@ -8,9 +8,12 @@ import { Group, Panel } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import {
   AiNetworkIcon,
+  Copy01Icon,
   DashboardSpeed01Icon,
   Delete02Icon,
+  Download04Icon,
   RepeatIcon,
+  Share01Icon,
 } from "@hugeicons/core-free-icons";
 import { SkeletonWidgetGrid } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -220,21 +223,18 @@ export function DashboardLayout() {
                   }
                   onClick={handleToggleSharing}
                   active={activeDashboard.is_public}
-                >
-                  <ShareIcon />
-                </IconButton>
+                  icon={Share01Icon}
+                />
                 <IconButton
                   label={t("actions.exportPdf")}
                   onClick={handleExportPdf}
-                >
-                  <ExportIcon />
-                </IconButton>
+                  icon={Download04Icon}
+                />
                 <IconButton
                   label={t("actions.duplicate")}
                   onClick={handleDuplicate}
-                >
-                  <DuplicateIcon />
-                </IconButton>
+                  icon={Copy01Icon}
+                />
                 <IconButton
                   label={t("actions.refreshAll")}
                   onClick={() => setRefreshKey((prev) => prev + 1)}
@@ -482,63 +482,3 @@ function CreateDashboardDialog({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Inline SVG icons (kept local — used only by this toolbar)
-// ---------------------------------------------------------------------------
-
-function ShareIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="h-3.5 w-3.5"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"
-      />
-    </svg>
-  );
-}
-
-function ExportIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="h-3.5 w-3.5"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
-      />
-    </svg>
-  );
-}
-
-function DuplicateIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="h-3.5 w-3.5"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75"
-      />
-    </svg>
-  );
-}

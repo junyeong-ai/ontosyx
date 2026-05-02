@@ -6,6 +6,8 @@ import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { NARROW_SETTINGS_PAGES } from "@/lib/constants/settings";
 import { cn } from "@/lib/cn";
 import { useIsClient } from "@/hooks/use-is-client";
+import { SessionExpiredOverlay } from "@/components/collab/session-expired-overlay";
+import { AuthGuard } from "@/components/auth/auth-guard";
 
 /**
  * Derive a page title from the settings pathname. Runs at render time —
@@ -43,8 +45,10 @@ export default function SettingsLayout({
   const mounted = useIsClient();
 
   return (
+    <AuthGuard>
     <div className="flex h-screen bg-surface-raised">
       <SettingsSidebar />
+      <SessionExpiredOverlay />
       <main
         id="main"
         // `tabIndex={0}` makes the scroll container reachable for
@@ -68,5 +72,6 @@ export default function SettingsLayout({
         </div>
       </main>
     </div>
+    </AuthGuard>
   );
 }

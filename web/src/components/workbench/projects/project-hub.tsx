@@ -189,14 +189,6 @@ function ProjectCard({
       variant="raised"
       interactive
       onClick={onOpen}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onOpen();
-        }
-      }}
       className="flex flex-col items-stretch text-left"
     >
       <div className="flex items-center gap-2">

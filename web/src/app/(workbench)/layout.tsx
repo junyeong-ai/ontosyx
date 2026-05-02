@@ -6,9 +6,11 @@ import { Header } from "@/components/layout/header";
 import { GlobalCommandPalette } from "@/components/layout/global-command-palette";
 import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts-dialog";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { PromptProvider } from "@/components/providers/prompt-provider";
 import { QualityBanner } from "@/components/quality/quality-banner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { WelcomeModal } from "@/components/onboarding/welcome-modal";
+import { SessionExpiredOverlay } from "@/components/collab/session-expired-overlay";
+import { AuthGuard } from "@/components/auth/auth-guard";
 import { useHydrated } from "@/lib/store/use-hydrated";
 import { useAppStore } from "@/lib/store";
 import {
@@ -97,10 +99,10 @@ export default function WorkbenchLayout({
   }, []);
 
   return (
+    <AuthGuard>
     <ErrorBoundary>
       <TooltipProvider>
-        <PromptProvider>
-          <div className="flex h-dvh overflow-hidden" aria-busy={!hydrated}>
+        <div className="flex h-dvh overflow-hidden" aria-busy={!hydrated}>
             {hydrated ? (
               <>
                 <Sidebar />
@@ -138,8 +140,10 @@ export default function WorkbenchLayout({
             onClose={closePalette}
           />
           <CollaborationErrorToaster />
-        </PromptProvider>
+          <WelcomeModal />
+          <SessionExpiredOverlay />
       </TooltipProvider>
     </ErrorBoundary>
+    </AuthGuard>
   );
 }

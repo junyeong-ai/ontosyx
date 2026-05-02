@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { getWorkspaceId } from "@/lib/workspace";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * Per-workspace onboarding state. A user who joins a second workspace
@@ -54,13 +55,22 @@ export function WelcomeModal() {
   const [step, setStep] = useState(0);
   const t = useTranslations("welcome");
   const workspaceId = getWorkspaceId();
+  const { user, loading: authLoading } = useAuth();
   const onboarded = useSyncExternalStore(
     subscribeToOnboardingStatus,
     makeStatusReader(workspaceId),
     getServerOnboardedStatus,
   );
   const dialogRef = useRef<HTMLDivElement>(null);
-  const visible = !onboarded && !!workspaceId;
+  // Gate the onboarding behind a real principal. We treat a missing
+  // /auth/me response as "not yet ready" — when auth is enabled the
+  // user is unauthenticated, when auth is disabled the dev shell
+  // mints a stub principal so `user` is still truthy. Either way the
+  // modal stays hidden until the round-trip resolves, which prevents
+  // the flash that happens on the login page (workspace cookie present,
+  // backend rejects every workspace-scoped call with 401).
+  const sessionReady = !authLoading && !!user;
+  const visible = sessionReady && !onboarded && !!workspaceId;
 
   // Move focus into the dialog on first mount so keyboard users land
   // on the primary CTA. Subsequent step changes don't steal focus —
@@ -74,7 +84,7 @@ export function WelcomeModal() {
     cta?.focus();
   }, [visible]);
 
-  if (onboarded || !workspaceId) return null;
+  if (!visible) return null;
 
   const key = storageKey(workspaceId);
   const dismiss = () => {
