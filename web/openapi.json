@@ -5464,6 +5464,472 @@
         ]
       }
     },
+    "/api/workspaces": {
+      "get": {
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "GET /workspaces — list workspaces the current user belongs to.",
+        "operationId": "list_workspaces",
+        "responses": {
+          "200": {
+            "description": "Workspaces the caller belongs to",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceSummaryResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "POST /workspaces — create a new workspace.",
+        "operationId": "create_workspace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Workspace created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid slug or name"
+          },
+          "403": {
+            "description": "Designer role required"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/workspaces/{id}": {
+      "get": {
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "GET /workspaces/:id — get workspace details.",
+        "operationId": "get_workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "DELETE /workspaces/:id — delete a workspace (owner only).",
+        "operationId": "delete_workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace deleted"
+          },
+          "400": {
+            "description": "Cannot delete the default workspace"
+          },
+          "403": {
+            "description": "Only the workspace owner can delete it"
+          },
+          "404": {
+            "description": "Workspace not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "PATCH /workspaces/:id — update workspace name/settings.",
+        "operationId": "update_workspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Workspace updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required"
+          },
+          "404": {
+            "description": "Workspace not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/workspaces/{id}/locale": {
+      "put": {
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "PUT /workspaces/:id/locale — update the workspace's locale policy.",
+        "description": "Admins only. Validates the primary locale and every entry of\nboth fallback chains against `LanguageTag::parse` (BCP 47\nsubset) before handing off to the store — the DB CHECK\nconstraints catch any oversight as a final safety net.",
+        "operationId": "update_workspace_locale",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkspaceLocaleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Locale policy updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid BCP 47 tag"
+          },
+          "403": {
+            "description": "Admin role required"
+          },
+          "404": {
+            "description": "Workspace not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/workspaces/{id}/members": {
+      "get": {
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "GET /workspaces/:id/members — list workspace members.",
+        "operationId": "list_members",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Members of the workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemberResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "POST /workspaces/:id/members — add a member.",
+        "operationId": "add_member",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMemberRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Member added (or role updated on re-add)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid role"
+          },
+          "403": {
+            "description": "Admin role required"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/workspaces/{id}/members/{uid}": {
+      "delete": {
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "DELETE /workspaces/:id/members/:uid — remove a member.",
+        "operationId": "remove_member",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "description": "User ID to remove",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Member removed"
+          },
+          "400": {
+            "description": "Cannot remove the workspace owner"
+          },
+          "403": {
+            "description": "Admin role required (or self-removal)"
+          },
+          "404": {
+            "description": "Workspace or member not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "PATCH /workspaces/:id/members/:uid — update member role.",
+        "operationId": "update_member_role",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Member role updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid role / cannot change owner role"
+          },
+          "403": {
+            "description": "Admin role required"
+          },
+          "404": {
+            "description": "Workspace or member not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/workspaces/me": {
       "get": {
         "tags": [
@@ -5760,6 +6226,21 @@
           "supports_scan": {
             "type": "boolean",
             "description": "`true` when the adapter implements `DataSourceAdapter::scan`\n— i.e. it can back federated link mappings (cross-source\njoins via DataFusion). Adapters returning `false` are\nintrospection-only; mapping a federated link onto them is a\nconfiguration mistake the admin UI should surface up-front\nrather than discovering it at query time."
+          }
+        }
+      },
+      "AddMemberRequest": {
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -7443,6 +7924,21 @@
           "pattern_ir": {
             "type": "object",
             "description": "The full PatternIR — nodes with positions, edges, filters, and\nlayout hints (zoom + pan). QueryIR is computed on demand from\n`pattern_ir.compile()` and does not need to be stored."
+          }
+        }
+      },
+      "CreateWorkspaceRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "slug"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
           }
         }
       },
@@ -9746,6 +10242,48 @@
             "propertyNames": {
               "type": "string"
             }
+          }
+        }
+      },
+      "MemberResponse": {
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "user_id",
+          "role",
+          "joined_at",
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "picture": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -16033,6 +16571,17 @@
           }
         }
       },
+      "UpdateMemberRoleRequest": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          }
+        }
+      },
       "UpdateProjectDecisionsRequest": {
         "type": "object",
         "required": [
@@ -16085,6 +16634,46 @@
             "type": "string"
           },
           "pattern_ir": {
+            "type": "object"
+          }
+        }
+      },
+      "UpdateWorkspaceLocaleRequest": {
+        "type": "object",
+        "description": "Body for `PUT /workspaces/:id/locale`.\n\n`primary_locale` must be a BCP 47 tag (lowercase canonical form).\nBoth fallback chains are non-empty ordered lists of BCP 47 tags;\n`admin_locale_fallback` is what the admin / operator UI walks\n(typically `[\"ko\", \"en\"]`), and `llm_locale_fallback` is what\nthe agent / Brain prompts and tool-result contexts walk\n(typically `[\"en\", \"ko\"]`). Each is validated at the ox-core\nlayer via `LanguageTag::parse` before hitting the DB, and again\nat the DB layer by `fn_validate_locale_chain` — malformed values\nare rejected twice before any row is touched.",
+        "required": [
+          "primary_locale",
+          "admin_locale_fallback",
+          "llm_locale_fallback"
+        ],
+        "properties": {
+          "admin_locale_fallback": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "llm_locale_fallback": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "primary_locale": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateWorkspaceRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "settings": {
             "type": "object"
           }
         }
@@ -16497,6 +17086,97 @@
             "type": "string"
           }
         }
+      },
+      "WorkspaceResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "owner_id",
+          "settings",
+          "primary_locale",
+          "admin_locale_fallback",
+          "llm_locale_fallback",
+          "created_at"
+        ],
+        "properties": {
+          "admin_locale_fallback": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "llm_locale_fallback": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "primary_locale": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object"
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkspaceSummaryResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "owner_id",
+          "role",
+          "member_count",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "member_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -16527,6 +17207,10 @@
     {
       "name": "Ontologies",
       "description": "Ontology management and export"
+    },
+    {
+      "name": "Workspaces",
+      "description": "Multi-tenant workspace + membership"
     },
     {
       "name": "Pins",

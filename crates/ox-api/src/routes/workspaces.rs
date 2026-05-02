@@ -1,6 +1,7 @@
 use axum::Json;
 use axum::extract::{Path, State};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use ox_store::{Workspace, WorkspaceMember, WorkspaceSummary};
@@ -17,16 +18,17 @@ use crate::workspace::{
 // Request / Response types
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct CreateWorkspaceRequest {
     pub name: String,
     pub slug: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct UpdateWorkspaceRequest {
     pub name: String,
     #[serde(default)]
+    #[schema(value_type = Object)]
     pub settings: serde_json::Value,
 }
 
@@ -41,14 +43,14 @@ pub struct UpdateWorkspaceRequest {
 /// layer via `LanguageTag::parse` before hitting the DB, and again
 /// at the DB layer by `fn_validate_locale_chain` — malformed values
 /// are rejected twice before any row is touched.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct UpdateWorkspaceLocaleRequest {
     pub primary_locale: String,
     pub admin_locale_fallback: Vec<String>,
     pub llm_locale_fallback: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct AddMemberRequest {
     pub user_id: Uuid,
     #[serde(default = "default_member_role")]
@@ -59,20 +61,23 @@ fn default_member_role() -> String {
     "member".to_string()
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct UpdateMemberRoleRequest {
     pub role: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct WorkspaceResponse {
     pub id: Uuid,
     pub name: String,
     pub slug: String,
     pub owner_id: Uuid,
+    #[schema(value_type = Object)]
     pub settings: serde_json::Value,
     pub primary_locale: String,
+    #[schema(value_type = Vec<String>)]
     pub admin_locale_fallback: serde_json::Value,
+    #[schema(value_type = Vec<String>)]
     pub llm_locale_fallback: serde_json::Value,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -93,7 +98,7 @@ impl From<Workspace> for WorkspaceResponse {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct WorkspaceSummaryResponse {
     pub id: Uuid,
     pub name: String,
@@ -118,7 +123,7 @@ impl From<WorkspaceSummary> for WorkspaceSummaryResponse {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct MemberResponse {
     pub workspace_id: Uuid,
     pub user_id: Uuid,
@@ -167,6 +172,18 @@ async fn resolve_user_id(principal: &Principal, state: &AppState) -> Result<Uuid
 }
 
 /// POST /workspaces — create a new workspace.
+#[utoipa::path(
+    post,
+    path = "/api/workspaces",
+    request_body = CreateWorkspaceRequest,
+    responses(
+        (status = 200, description = "Workspace created", body = WorkspaceResponse),
+        (status = 400, description = "Invalid slug or name"),
+        (status = 403, description = "Designer role required"),
+    ),
+    security(("api_key" = [])),
+    tag = "Workspaces",
+)]
 pub(crate) async fn create_workspace(
     State(state): State<AppState>,
     principal: Principal,
@@ -229,6 +246,15 @@ pub(crate) async fn create_workspace(
 }
 
 /// GET /workspaces — list workspaces the current user belongs to.
+#[utoipa::path(
+    get,
+    path = "/api/workspaces",
+    responses(
+        (status = 200, description = "Workspaces the caller belongs to", body = Vec<WorkspaceSummaryResponse>),
+    ),
+    security(("api_key" = [])),
+    tag = "Workspaces",
+)]
 pub(crate) async fn list_workspaces(
     State(state): State<AppState>,
     principal: Principal,
@@ -247,6 +273,17 @@ pub(crate) async fn list_workspaces(
 }
 
 /// GET /workspaces/:id — get workspace details.
+#[utoipa::path(
+    get,
+    path = "/api/workspaces/{id}",
+    params(("id" = Uuid, Path, description = "Workspace ID")),
+    responses(
+        (status = 200, description = "Workspace details", body = WorkspaceResponse),
+        (status = 404, description = "Workspace not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Workspaces",
+)]
 pub(crate) async fn get_workspace(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -340,6 +377,19 @@ pub(crate) async fn workspace_me(
 }
 
 /// PATCH /workspaces/:id — update workspace name/settings.
+#[utoipa::path(
+    patch,
+    path = "/api/workspaces/{id}",
+    params(("id" = Uuid, Path, description = "Workspace ID")),
+    request_body = UpdateWorkspaceRequest,
+    responses(
+        (status = 200, description = "Workspace updated", body = WorkspaceResponse),
+        (status = 403, description = "Admin role required"),
+        (status = 404, description = "Workspace not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Workspaces",
+)]
 pub(crate) async fn update_workspace(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
@@ -376,6 +426,20 @@ pub(crate) async fn update_workspace(
 /// both fallback chains against `LanguageTag::parse` (BCP 47
 /// subset) before handing off to the store — the DB CHECK
 /// constraints catch any oversight as a final safety net.
+#[utoipa::path(
+    put,
+    path = "/api/workspaces/{id}/locale",
+    params(("id" = Uuid, Path, description = "Workspace ID")),
+    request_body = UpdateWorkspaceLocaleRequest,
+    responses(
+        (status = 200, description = "Locale policy updated", body = WorkspaceResponse),
+        (status = 400, description = "Invalid BCP 47 tag"),
+        (status = 403, description = "Admin role required"),
+        (status = 404, description = "Workspace not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Workspaces",
+)]
 pub(crate) async fn update_workspace_locale(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
@@ -430,6 +494,19 @@ fn parse_chain(input: &[String], chain_name: &str) -> Result<serde_json::Value, 
 }
 
 /// DELETE /workspaces/:id — delete a workspace (owner only).
+#[utoipa::path(
+    delete,
+    path = "/api/workspaces/{id}",
+    params(("id" = Uuid, Path, description = "Workspace ID")),
+    responses(
+        (status = 200, description = "Workspace deleted"),
+        (status = 400, description = "Cannot delete the default workspace"),
+        (status = 403, description = "Only the workspace owner can delete it"),
+        (status = 404, description = "Workspace not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Workspaces",
+)]
 pub(crate) async fn delete_workspace(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
@@ -468,6 +545,19 @@ pub(crate) async fn delete_workspace(
 // ---------------------------------------------------------------------------
 
 /// POST /workspaces/:id/members — add a member.
+#[utoipa::path(
+    post,
+    path = "/api/workspaces/{id}/members",
+    params(("id" = Uuid, Path, description = "Workspace ID")),
+    request_body = AddMemberRequest,
+    responses(
+        (status = 200, description = "Member added (or role updated on re-add)", body = MemberResponse),
+        (status = 400, description = "Invalid role"),
+        (status = 403, description = "Admin role required"),
+    ),
+    security(("api_key" = [])),
+    tag = "Workspaces",
+)]
 pub(crate) async fn add_member(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
@@ -494,6 +584,22 @@ pub(crate) async fn add_member(
 }
 
 /// DELETE /workspaces/:id/members/:uid — remove a member.
+#[utoipa::path(
+    delete,
+    path = "/api/workspaces/{id}/members/{uid}",
+    params(
+        ("id" = Uuid, Path, description = "Workspace ID"),
+        ("uid" = Uuid, Path, description = "User ID to remove"),
+    ),
+    responses(
+        (status = 200, description = "Member removed"),
+        (status = 400, description = "Cannot remove the workspace owner"),
+        (status = 403, description = "Admin role required (or self-removal)"),
+        (status = 404, description = "Workspace or member not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Workspaces",
+)]
 pub(crate) async fn remove_member(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
@@ -536,6 +642,23 @@ pub(crate) async fn remove_member(
 }
 
 /// PATCH /workspaces/:id/members/:uid — update member role.
+#[utoipa::path(
+    patch,
+    path = "/api/workspaces/{id}/members/{uid}",
+    params(
+        ("id" = Uuid, Path, description = "Workspace ID"),
+        ("uid" = Uuid, Path, description = "User ID"),
+    ),
+    request_body = UpdateMemberRoleRequest,
+    responses(
+        (status = 200, description = "Member role updated", body = MemberResponse),
+        (status = 400, description = "Invalid role / cannot change owner role"),
+        (status = 403, description = "Admin role required"),
+        (status = 404, description = "Workspace or member not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Workspaces",
+)]
 pub(crate) async fn update_member_role(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
@@ -586,6 +709,16 @@ pub(crate) async fn update_member_role(
 }
 
 /// GET /workspaces/:id/members — list workspace members.
+#[utoipa::path(
+    get,
+    path = "/api/workspaces/{id}/members",
+    params(("id" = Uuid, Path, description = "Workspace ID")),
+    responses(
+        (status = 200, description = "Members of the workspace", body = Vec<MemberResponse>),
+    ),
+    security(("api_key" = [])),
+    tag = "Workspaces",
+)]
 pub(crate) async fn list_members(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

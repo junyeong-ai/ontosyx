@@ -1259,6 +1259,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /workspaces — list workspaces the current user belongs to. */
+        get: operations["list_workspaces"];
+        put?: never;
+        /** POST /workspaces — create a new workspace. */
+        post: operations["create_workspace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /workspaces/:id — get workspace details. */
+        get: operations["get_workspace"];
+        put?: never;
+        post?: never;
+        /** DELETE /workspaces/:id — delete a workspace (owner only). */
+        delete: operations["delete_workspace"];
+        options?: never;
+        head?: never;
+        /** PATCH /workspaces/:id — update workspace name/settings. */
+        patch: operations["update_workspace"];
+        trace?: never;
+    };
+    "/api/workspaces/{id}/locale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * PUT /workspaces/:id/locale — update the workspace's locale policy.
+         * @description Admins only. Validates the primary locale and every entry of
+         *     both fallback chains against `LanguageTag::parse` (BCP 47
+         *     subset) before handing off to the store — the DB CHECK
+         *     constraints catch any oversight as a final safety net.
+         */
+        put: operations["update_workspace_locale"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /workspaces/:id/members — list workspace members. */
+        get: operations["list_members"];
+        put?: never;
+        /** POST /workspaces/:id/members — add a member. */
+        post: operations["add_member"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{id}/members/{uid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** DELETE /workspaces/:id/members/:uid — remove a member. */
+        delete: operations["remove_member"];
+        options?: never;
+        head?: never;
+        /** PATCH /workspaces/:id/members/:uid — update member role. */
+        patch: operations["update_member_role"];
+        trace?: never;
+    };
     "/workspaces/me": {
         parameters: {
             query?: never;
@@ -1398,6 +1494,11 @@ export interface components {
              *     rather than discovering it at query time.
              */
             supports_scan: boolean;
+        };
+        AddMemberRequest: {
+            role?: string;
+            /** Format: uuid */
+            user_id: string;
         };
         /** @description Who ran the activity. */
         AgentRef: {
@@ -2222,6 +2323,10 @@ export interface components {
              *     `pattern_ir.compile()` and does not need to be stored.
              */
             pattern_ir: Record<string, never>;
+        };
+        CreateWorkspaceRequest: {
+            name: string;
+            slug: string;
         };
         /**
          * @description Either a raw value or an opaque reference to a secret store.
@@ -3317,6 +3422,18 @@ export interface components {
             translations?: {
                 [key: string]: string;
             };
+        };
+        MemberResponse: {
+            email: string;
+            /** Format: date-time */
+            joined_at: string;
+            name?: string | null;
+            picture?: string | null;
+            role: string;
+            /** Format: uuid */
+            user_id: string;
+            /** Format: uuid */
+            workspace_id: string;
         };
         /** @description Named aggregate / KPI. */
         MetricDef: {
@@ -5757,6 +5874,9 @@ export interface components {
             question: Record<string, never>;
             tags?: string[];
         };
+        UpdateMemberRoleRequest: {
+            role: string;
+        };
         UpdateProjectDecisionsRequest: {
             /** @description User design decisions. */
             design_options: Record<string, never>;
@@ -5772,6 +5892,28 @@ export interface components {
             description?: string | null;
             name: string;
             pattern_ir: Record<string, never>;
+        };
+        /**
+         * @description Body for `PUT /workspaces/:id/locale`.
+         *
+         *     `primary_locale` must be a BCP 47 tag (lowercase canonical form).
+         *     Both fallback chains are non-empty ordered lists of BCP 47 tags;
+         *     `admin_locale_fallback` is what the admin / operator UI walks
+         *     (typically `["ko", "en"]`), and `llm_locale_fallback` is what
+         *     the agent / Brain prompts and tool-result contexts walk
+         *     (typically `["en", "ko"]`). Each is validated at the ox-core
+         *     layer via `LanguageTag::parse` before hitting the DB, and again
+         *     at the DB layer by `fn_validate_locale_chain` — malformed values
+         *     are rejected twice before any row is touched.
+         */
+        UpdateWorkspaceLocaleRequest: {
+            admin_locale_fallback: string[];
+            llm_locale_fallback: string[];
+            primary_locale: string;
+        };
+        UpdateWorkspaceRequest: {
+            name: string;
+            settings?: Record<string, never>;
         };
         UpsertPerspectiveRequest: {
             /** @description Collapsed group settings JSON. */
@@ -5964,6 +6106,33 @@ export interface components {
             name: string;
             /** @description BCP 47 tag — the workspace's default authoring locale. */
             primary_locale: string;
+            role: string;
+            slug: string;
+        };
+        WorkspaceResponse: {
+            admin_locale_fallback: string[];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            llm_locale_fallback: string[];
+            name: string;
+            /** Format: uuid */
+            owner_id: string;
+            primary_locale: string;
+            settings: Record<string, never>;
+            slug: string;
+        };
+        WorkspaceSummaryResponse: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            member_count: number;
+            name: string;
+            /** Format: uuid */
+            owner_id: string;
             role: string;
             slug: string;
         };
@@ -9512,6 +9681,383 @@ export interface operations {
                         error: components["schemas"]["ErrorBody"];
                     };
                 };
+            };
+        };
+    };
+    list_workspaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workspaces the caller belongs to */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceSummaryResponse"][];
+                };
+            };
+        };
+    };
+    create_workspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Workspace created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            /** @description Invalid slug or name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Designer role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_workspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workspace details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            /** @description Workspace not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_workspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workspace deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cannot delete the default workspace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Only the workspace owner can delete it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_workspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Workspace updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_workspace_locale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateWorkspaceLocaleRequest"];
+            };
+        };
+        responses: {
+            /** @description Locale policy updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            /** @description Invalid BCP 47 tag */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_members: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Members of the workspace */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberResponse"][];
+                };
+            };
+        };
+    };
+    add_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddMemberRequest"];
+            };
+        };
+        responses: {
+            /** @description Member added (or role updated on re-add) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberResponse"];
+                };
+            };
+            /** @description Invalid role */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    remove_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                id: string;
+                /** @description User ID to remove */
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Member removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cannot remove the workspace owner */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin role required (or self-removal) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace or member not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_member_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                id: string;
+                /** @description User ID */
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMemberRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Member role updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberResponse"];
+                };
+            };
+            /** @description Invalid role / cannot change owner role */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace or member not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
