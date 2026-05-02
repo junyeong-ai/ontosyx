@@ -15,9 +15,9 @@ vi.mock("sonner", () => ({
 
 const FIXTURE_TERM = {
   term_id: "g-vip",
-  term: "VIP tier",
-  aliases: ["premium", "loyalty"],
-  description: "Top-tier customers.",
+  term: { default: "VIP tier" },
+  aliases: [{ default: "premium" }, { default: "loyalty" }],
+  description: { default: "Top-tier customers." },
 };
 
 function renderPanel(term = FIXTURE_TERM) {
@@ -52,9 +52,9 @@ describe("GlossaryBindingPanel", () => {
 
     await waitFor(() => expect(suggest).toHaveBeenCalled());
     expect(suggest).toHaveBeenCalledWith("ont-1", {
-      term: "VIP tier",
-      aliases: ["premium", "loyalty"],
-      description: "Top-tier customers.",
+      term: { default: "VIP tier" },
+      aliases: [{ default: "premium" }, { default: "loyalty" }],
+      description: { default: "Top-tier customers." },
       term_id: "g-vip",
     });
   });

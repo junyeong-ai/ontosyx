@@ -337,19 +337,16 @@ function RightPane({
   term: GlossaryTermDef;
 }) {
   const t = useTranslations("workbench.glossary.rightPane");
-  const localeChain = useLocaleChain();
   const [tab, setTab] = useState<RightPaneTab>("usage");
 
   const termContext = useMemo(
     () => ({
       term_id: term.id,
-      term: localize(term.term, localeChain),
-      aliases: arr(term.aliases).map((a) => localize(a, localeChain)),
-      description: term.description
-        ? localize(term.description, localeChain)
-        : undefined,
+      term: term.term,
+      aliases: arr(term.aliases),
+      description: term.description,
     }),
-    [term, localeChain],
+    [term],
   );
 
   return (

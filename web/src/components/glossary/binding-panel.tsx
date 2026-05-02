@@ -13,12 +13,19 @@ import type {
   PropertyCandidate,
   SuggestBindingsRequest,
 } from "@/lib/api/binding-suggestions";
+import type { LocalizedText } from "@/types/ontology";
+import { localize } from "@/lib/locale/localize";
+import { useLocaleChain } from "@/lib/use-locale-chain";
 
 interface BindingTermContext {
   term_id: string;
-  term: string;
-  aliases?: string[];
-  description?: string;
+  /** Canonical term name with every locale the saved term carries.
+   *  The scorer walks every locale, not just the display chain — a
+   *  Korean-canonical term with an English alias still matches
+   *  English property names. */
+  term: LocalizedText;
+  aliases?: readonly LocalizedText[];
+  description?: LocalizedText;
 }
 
 interface GlossaryBindingPanelProps {
@@ -56,28 +63,33 @@ export function GlossaryBindingPanel({
 
   const candidates = suggest.data?.candidates ?? [];
 
+  const localeChain = useLocaleChain("admin");
+  const displayTerm = localize(term.term, localeChain);
+
   // Auto-score on term change. The mutation hook's `mutate` is
   // stable across renders (react-query guarantees) so the effect
   // fires only when the term identity / fields shift. Selection
   // clears alongside — candidates from the prior term are no
   // longer referenceable.
-  const aliasesKey = (term.aliases ?? []).join("|");
+  //
+  // The dependency key is the term_id alone — the LocalizedText
+  // shape carries every locale, so any meaningful change is
+  // observable through the saved-term identity bump that drives
+  // the parent's re-mount.
   useEffect(() => {
     setSelected(new Set());
-    if (!term.term_id || !term.term) return;
+    if (!term.term_id || !displayTerm) return;
     const body: SuggestBindingsRequest = {
       term: term.term,
       aliases: term.aliases ?? [],
-      description: term.description?.trim()
-        ? term.description.trim()
-        : undefined,
+      description: term.description,
       term_id: term.term_id,
     };
     suggest.mutate(body);
-    // suggest.mutate is stable; depending on `term` fields drives
-    // the refetch. Adding the mutate fn would re-fire spuriously.
+    // suggest.mutate is stable; the term_id bump drives the
+    // refetch. Adding the mutate fn would re-fire spuriously.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [term.term_id, term.term, term.description, aliasesKey]);
+  }, [term.term_id]);
 
   const candidateKey = (c: PropertyCandidate) =>
     `${c.owner_kind}:${c.owner_type_id}:${c.property_id}`;
@@ -127,7 +139,7 @@ export function GlossaryBindingPanel({
             {t("embedded.targetLabel")}
           </p>
           <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
-            {term.term}
+            {displayTerm}
           </p>
           <p className="truncate font-mono text-[10px] text-muted-foreground">
             {term.term_id}
@@ -139,9 +151,7 @@ export function GlossaryBindingPanel({
             suggest.mutate({
               term: term.term,
               aliases: term.aliases ?? [],
-              description: term.description?.trim()
-                ? term.description.trim()
-                : undefined,
+              description: term.description,
               term_id: term.term_id,
             })
           }

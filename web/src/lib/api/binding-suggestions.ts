@@ -5,6 +5,7 @@
 // description / fuzzy) so callers can render the ranking rationale.
 
 import { request } from "./client";
+import type { LocalizedText } from "@/types/ontology";
 
 // ---------------------------------------------------------------------------
 // Shared wire shapes
@@ -44,13 +45,19 @@ export interface PropertyCandidate {
 }
 
 export interface SuggestBindingsRequest {
-  /** Canonical term name (required). */
-  term: string;
-  aliases?: string[];
-  description?: string;
+  /** Canonical term name. `LocalizedText` so a draft term carries
+   *  the same multi-locale shape as a saved one — the scorer matches
+   *  against every locale variant, not just the active chain's
+   *  display string. */
+  term: LocalizedText;
+  /** Per-locale alternate names. Each element is a `LocalizedText`
+   *  with one or more locale entries, all of which the alias scorer
+   *  treats as candidate matches. */
+  aliases?: readonly LocalizedText[];
+  description?: LocalizedText;
   /** Passed through when the term is already saved — keeps the
-   * response pointing at the persisted id rather than a fresh
-   * draft id. */
+   *  response pointing at the persisted id rather than a fresh
+   *  draft id. */
   term_id?: string;
   policy?: BindingPolicyBody;
 }
