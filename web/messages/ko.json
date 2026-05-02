@@ -4466,6 +4466,25 @@
           "heading": "위젯 인스펙터"
         }
       },
+      "aiDialog": {
+        "title": "AI 위젯 생성기",
+        "emptyHeading": "원하는 위젯을 설명하세요",
+        "emptyDescription": "온톨로지를 기반으로 AI 가 차트 위젯을 생성하여 대시보드에 추가합니다.",
+        "placeholder": "어떤 위젯이 필요하신가요?",
+        "noOntology": "위젯을 생성하려면 온톨로지를 불러오세요",
+        "untitledWidget": "이름 없는 위젯",
+        "status": {
+          "thinking": "생각 중...",
+          "generating": "위젯 생성 중...",
+          "creatingVisualization": "시각화 만드는 중...",
+          "queryingGraph": "그래프 조회 중...",
+          "running": "{tool} 실행 중..."
+        },
+        "toast": {
+          "widgetAdded": "위젯 \"{title}\" 이(가) 추가되었습니다",
+          "addFailed": "위젯 추가에 실패했습니다"
+        }
+      },
       "addWidget": {
         "trigger": "위젯 추가",
         "modalTitle": "위젯 추가",

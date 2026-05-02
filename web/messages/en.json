@@ -4480,6 +4480,25 @@
           "heading": "Widget Inspector"
         }
       },
+      "aiDialog": {
+        "title": "AI Widget Generator",
+        "emptyHeading": "Describe the widgets you need",
+        "emptyDescription": "The AI will generate chart widgets based on your ontology and add them directly to your dashboard.",
+        "placeholder": "What kind of widgets do you want?",
+        "noOntology": "Load an ontology to generate widgets",
+        "untitledWidget": "Untitled Widget",
+        "status": {
+          "thinking": "Thinking...",
+          "generating": "Generating widgets...",
+          "creatingVisualization": "Creating visualization...",
+          "queryingGraph": "Querying graph...",
+          "running": "Running {tool}..."
+        },
+        "toast": {
+          "widgetAdded": "Widget \"{title}\" added",
+          "addFailed": "Failed to add widget"
+        }
+      },
       "addWidget": {
         "trigger": "Add Widget",
         "modalTitle": "Add Widget",

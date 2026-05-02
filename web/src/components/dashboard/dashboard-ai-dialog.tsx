@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { chatStream, addWidget, type StreamCallbacks } from "@/lib/api";
 import type { DashboardWidget, OntologyIR, QueryResult, WidgetSpec } from "@/types/api";
@@ -48,6 +49,7 @@ export function DashboardAiDialog({
   dashboardId,
   onWidgetAdded,
 }: DashboardAiDialogProps) {
+  const t = useTranslations("workbench.dashboard.aiDialog");
   const ontology = useAppStore((s) => s.ontology);
 
   // Local state only — not global ChatSlice
@@ -97,7 +99,7 @@ export function DashboardAiDialog({
         return {
           id: toolId,
           chartType: parsed.chart_type,
-          title: parsed.title ?? "Untitled Widget",
+          title: parsed.title ?? t("untitledWidget"),
           query: parsed.query,
           spec,
           data,
@@ -108,7 +110,7 @@ export function DashboardAiDialog({
         return null;
       }
     },
-    [],
+    [t],
   );
 
   // --------------------------------------------------
@@ -120,21 +122,21 @@ export function DashboardAiDialog({
 
     setInput("");
     setIsStreaming(true);
-    setStatusText("Thinking...");
+    setStatusText(t("status.thinking"));
     setPreviews([]);
     lastCypherRef.current = undefined;
 
     const callbacks: StreamCallbacks = {
       onText: () => {
-        setStatusText("Generating widgets...");
+        setStatusText(t("status.generating"));
       },
       onToolStart: (event) => {
         if (event.name === "visualize") {
-          setStatusText("Creating visualization...");
+          setStatusText(t("status.creatingVisualization"));
         } else if (event.name === "query_graph") {
-          setStatusText("Querying graph...");
+          setStatusText(t("status.queryingGraph"));
         } else {
-          setStatusText(`Running ${event.name}...`);
+          setStatusText(t("status.running", { tool: event.name }));
         }
       },
       onToolComplete: (event) => {
@@ -187,7 +189,7 @@ export function DashboardAiDialog({
       },
       callbacks,
     );
-  }, [input, ontology, isStreaming, sessionId, parseVisualizeOutput, scrollToBottom]);
+  }, [input, ontology, isStreaming, sessionId, parseVisualizeOutput, scrollToBottom, t]);
 
   // --------------------------------------------------
   // Add a previewed widget to the dashboard
@@ -229,17 +231,17 @@ export function DashboardAiDialog({
         );
 
         onWidgetAdded(widget);
-        toast.success(`Widget "${preview.title}" added`);
+        toast.success(t("toast.widgetAdded", { title: preview.title }));
       } catch {
         setPreviews((prev) =>
           prev.map((p) =>
             p.id === preview.id ? { ...p, isAdding: false } : p,
           ),
         );
-        toast.error("Failed to add widget");
+        toast.error(t("toast.addFailed"));
       }
     },
-    [dashboardId, onWidgetAdded, addedCount],
+    [dashboardId, onWidgetAdded, addedCount, t],
   );
 
   // --------------------------------------------------
@@ -275,8 +277,8 @@ export function DashboardAiDialog({
               className="h-4 w-4 text-brand-foreground"
               size="100%"
             />
-            <span className="text-sm font-semibold text-foreground-strong-strong">
-              AI Widget Generator
+            <span className="text-sm font-semibold text-foreground-strong">
+              {t("title")}
             </span>
           </div>
           <button
@@ -300,11 +302,10 @@ export function DashboardAiDialog({
                 />
               </div>
               <p className="text-sm font-medium text-foreground">
-                Describe the widgets you need
+                {t("emptyHeading")}
               </p>
-              <p className="text-center text-xs text-muted-foreground">
-                The AI will generate chart widgets based on your ontology and add
-                them directly to your dashboard.
+              <p className="text-center text-xs text-foreground-muted">
+                {t("emptyDescription")}
               </p>
             </div>
           )}
@@ -332,8 +333,8 @@ export function DashboardAiDialog({
         {/* Input area at bottom */}
         <div className="shrink-0 border-t border-divider p-3">
           {!ontology ? (
-            <p className="text-center text-xs text-muted-foreground">
-              Load an ontology to generate widgets
+            <p className="text-center text-xs text-foreground-muted">
+              {t("noOntology")}
             </p>
           ) : (
             <div className="flex items-center gap-2">
@@ -342,7 +343,7 @@ export function DashboardAiDialog({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="What kind of widgets do you want?"
+                placeholder={t("placeholder")}
                 disabled={isStreaming}
                 className="flex-1 rounded-lg border border-divider bg-surface-raised px-3 py-2 text-sm text-foreground-strong placeholder:text-foreground-muted focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none disabled:opacity-50-strong dark:placeholder:text-foreground-muted"
               />
