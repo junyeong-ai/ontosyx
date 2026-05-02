@@ -396,12 +396,12 @@ pub trait CollaborationHub: Send + Sync {
     /// Broadcast a cursor move. Throttled per `cursor_throttle`;
     /// calls inside the throttle window or for unknown users /
     /// rooms are silently dropped — cursor data is lossy by
-    /// design.
+    /// design. The hub reads `user_name` from the joined
+    /// `RoomMember`, so callers don't pass it on every frame.
     async fn move_cursor(
         &self,
         project_id: Uuid,
         user_id: &str,
-        user_name: &str,
         x: f64,
         y: f64,
         selected_element: Option<String>,
@@ -487,11 +487,6 @@ impl InProcessCollaborationHub {
                 .entry(project_id)
                 .or_insert_with(|| Arc::new(Mutex::new(Room::new(self.limits.broadcast_buffer)))),
         )
-    }
-
-    /// Active room count, for tests + monitoring.
-    pub async fn active_room_count(&self) -> usize {
-        self.rooms.read().await.len()
     }
 }
 
@@ -613,12 +608,13 @@ impl CollaborationHub for InProcessCollaborationHub {
 
     /// Move a cursor. Throttled per `cursor_throttle`. Calls
     /// inside the throttle window or for unknown users / rooms
-    /// are silently dropped — cursor data is lossy by design.
+    /// are silently dropped — cursor data is lossy by design. The
+    /// hub reads `user_name` from the joined member, so callers
+    /// only pass `user_id`.
     async fn move_cursor(
         &self,
         project_id: Uuid,
         user_id: &str,
-        user_name: &str,
         x: f64,
         y: f64,
         selected_element: Option<String>,
@@ -645,11 +641,15 @@ impl CollaborationHub for InProcessCollaborationHub {
             y,
             selected_element: selected_element.clone(),
         });
+        // Capture the stored display name for the broadcast — the
+        // wire frame still carries it so receivers don't need a
+        // separate roster fetch on every cursor move.
+        let user_name = member.user_name.clone();
 
         let _ = room.broadcast.send(ServerMessage::RemoteCursor {
             project_id,
             user_id: user_id.to_string(),
-            user_name: user_name.to_string(),
+            user_name,
             x,
             y,
             selected_element,
@@ -862,7 +862,7 @@ mod tests {
         let mut rx = outcome.receiver;
         let _ = rx.recv().await; // UserJoined for whichever order
 
-        hub.move_cursor(project, "u1", "Alice", 10.0, 20.0, Some("node-42".into()))
+        hub.move_cursor(project, "u1", 10.0, 20.0, Some("node-42".into()))
             .await;
 
         // Read frames until we see the RemoteCursor for u1.
@@ -895,8 +895,7 @@ mod tests {
 
         // 10 events back-to-back; only the first survives.
         for i in 0..10 {
-            hub.move_cursor(project, "u1", "Alice", i as f64, 0.0, None)
-                .await;
+            hub.move_cursor(project, "u1", i as f64, 0.0, None).await;
         }
         // Exactly one cursor was stored (last_cursor_at gates the rest).
         let rooms = hub.rooms.read().await;
@@ -972,7 +971,7 @@ mod tests {
         let _ = hub.acquire_lock(project, "u1", "ent-1").await;
 
         hub.leave(project, "u1").await;
-        assert_eq!(hub.active_room_count().await, 0);
+        assert_eq!(hub.stats().await.active_rooms, 0);
     }
 
     #[tokio::test]
@@ -1056,7 +1055,7 @@ mod tests {
 
         // u1 stays active by sending a cursor; u2 goes silent.
         tokio::time::sleep(Duration::from_millis(15)).await;
-        hub.move_cursor(project, "u1", "Alice", 0.0, 0.0, None).await;
+        hub.move_cursor(project, "u1", 0.0, 0.0, None).await;
         tokio::time::sleep(Duration::from_millis(15)).await;
 
         let reaped = hub.reap_idle_members().await;

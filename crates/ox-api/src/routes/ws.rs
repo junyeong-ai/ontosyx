@@ -356,7 +356,7 @@ async fn handle_client_message(
         } => {
             state
                 .collaboration
-                .move_cursor(project_id, user_id, user_name, x, y, selected_element)
+                .move_cursor(project_id, user_id, x, y, selected_element)
                 .await;
         }
         ClientMessage::AcquireLock {
