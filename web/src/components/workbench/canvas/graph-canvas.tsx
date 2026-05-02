@@ -144,7 +144,7 @@ export function GraphCanvas(props: GraphCanvasProps) {
       <Background gap={20} size={1} color="#e4e4e7" />
       <Controls
         showInteractive={false}
-        className="!rounded-lg !border-zinc-200 !bg-white !shadow-sm dark:!border-zinc-700 dark:!bg-zinc-900"
+        className="!rounded-lg !border-divider !bg-surface-base !shadow-sm dark:!border-divider"
       />
       {minimap && (
         <MiniMap
@@ -153,7 +153,7 @@ export function GraphCanvas(props: GraphCanvasProps) {
           nodeStrokeWidth={3}
           nodeColor={minimap.nodeColor}
           maskColor="rgba(0,0,0,0.08)"
-          className="!rounded-lg !border-zinc-200 !bg-white dark:!border-zinc-700 dark:!bg-zinc-900"
+          className="!rounded-lg !border-divider !bg-surface-base dark:!border-divider"
         />
       )}
       {children}

@@ -72,12 +72,12 @@ export { AI_FIXABLE_CATEGORIES };
 
 function severityBadgeClass(severity: QualityGapSeverity): string {
   return cn(
-    "rounded px-1 py-0.5 text-[9px] font-medium uppercase",
+    "rounded px-1 py-0.5 text-2xs font-medium uppercase",
     severity === "high"
-      ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+      ? "bg-danger-surface text-danger-foreground"
       : severity === "medium"
-        ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
+        ? "bg-warning-surface text-warning-foreground"
+        : "bg-surface-inset text-foreground dark:text-muted-foreground",
   );
 }
 
@@ -115,9 +115,9 @@ export function QualityGapCard({
   return (
     <div
       className={cn(
-        "rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950/60",
+        "rounded border border-divider bg-surface-base p-2",
         focusable &&
-          "cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800",
+          "cursor-pointer hover:bg-surface-inset",
       )}
       role={focusable ? "button" : undefined}
       tabIndex={focusable ? 0 : undefined}
@@ -133,7 +133,7 @@ export function QualityGapCard({
         <span className={severityBadgeClass(gap.severity)}>
           {gap.severity}
         </span>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-2xs text-muted-foreground">
           {formatGapLocation(gap.location)}
         </span>
         <span className="ml-auto flex items-center gap-1.5">
@@ -146,9 +146,9 @@ export function QualityGapCard({
                 onFix(gap);
               }}
               className={cn(
-                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium transition-colors",
-                "bg-violet-100 text-violet-700 hover:bg-violet-200",
-                "dark:bg-violet-950 dark:text-violet-300 dark:hover:bg-violet-900",
+                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors",
+                "bg-concept-surface text-concept-foreground hover:bg-concept-surface",
+                "dark:bg-concept-surface dark:hover:bg-concept-surface",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
@@ -166,9 +166,9 @@ export function QualityGapCard({
                 onFix(gap);
               }}
               className={cn(
-                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium transition-colors",
-                "bg-violet-100 text-violet-700 hover:bg-violet-200",
-                "dark:bg-violet-950 dark:text-violet-300 dark:hover:bg-violet-900",
+                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors",
+                "bg-concept-surface text-concept-foreground hover:bg-concept-surface",
+                "dark:bg-concept-surface dark:hover:bg-concept-surface",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
@@ -183,9 +183,9 @@ export function QualityGapCard({
                 onAcknowledge(gap, gapIndex);
               }}
               className={cn(
-                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium transition-colors",
-                "bg-emerald-100 text-emerald-700 hover:bg-emerald-200",
-                "dark:bg-emerald-950 dark:text-emerald-300 dark:hover:bg-emerald-900",
+                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors",
+                "bg-brand-surface-strong text-brand-foreground hover:bg-brand-surface-strong",
+                "dark:bg-brand-surface-strong dark:hover:bg-brand-surface-strong",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
@@ -202,9 +202,9 @@ export function QualityGapCard({
                 onNavigateToClarification(gap);
               }}
               className={cn(
-                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium transition-colors",
-                "bg-amber-100 text-amber-700 hover:bg-amber-200",
-                "dark:bg-amber-950 dark:text-amber-300 dark:hover:bg-amber-900",
+                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors",
+                "bg-warning-surface text-warning-foreground hover:bg-warning-surface",
+                "dark:bg-warning-surface dark:hover:bg-warning-surface",
               )}
             >
               <HugeiconsIcon icon={Alert01Icon} className="h-2.5 w-2.5" size="100%" />
@@ -212,26 +212,26 @@ export function QualityGapCard({
             </button>
           )}
           {focusable && (
-            <span className="text-[9px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {t("navigate")}
             </span>
           )}
         </span>
       </div>
-      <p className="mt-1 text-xs text-zinc-700 dark:text-zinc-200">
+      <p className="mt-1 text-xs text-foreground-strong">
         {issue}
       </p>
-      <p className="mt-0.5 text-[10px] text-muted-foreground">
+      <p className="mt-0.5 text-2xs text-muted-foreground">
         {suggestion}
       </p>
       {actionHint && (
         <p className={cn(
-          "mt-1 text-[10px] font-medium",
+          "mt-1 text-2xs font-medium",
           actionType === "ai_fix"
-            ? "text-violet-500 dark:text-violet-400"
+            ? "text-concept-foreground"
             : actionType === "user_decision"
-              ? "text-zinc-500 dark:text-muted-foreground"
-              : "text-amber-600 dark:text-amber-400",
+              ? "text-foreground-muted"
+              : "text-warning-foreground",
         )}>
           {actionHint}
         </p>

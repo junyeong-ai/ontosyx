@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint --max-warnings=0",
     "typecheck": "tsc --noEmit",
+    "test:a11y": "pnpm build && playwright test tests/e2e/a11y.spec.ts",
     "i18n-audit": "node scripts/i18n-audit.mjs --typed",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -52,6 +53,7 @@
   },
   "devDependencies": {
     "@axe-core/react": "^4.11.1",
+    "axe-core": "^4.11.1",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@tanstack/react-query-devtools": "^5.99.0",

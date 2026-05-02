@@ -20,7 +20,7 @@ export default function GlossaryStep() {
       <div>
         <label
           htmlFor="glossary-draft"
-          className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300"
+          className="mb-1 block text-xs font-medium text-foreground"
         >
           {t("draftLabel")}
         </label>
@@ -30,7 +30,7 @@ export default function GlossaryStep() {
           value={state.glossaryDraft}
           onChange={(e) => update({ glossaryDraft: e.target.value })}
           placeholder={t("draftPlaceholder")}
-          className="w-full rounded border border-zinc-300 bg-white px-3 py-2 font-mono text-xs dark:border-zinc-600 dark:bg-zinc-900"
+          className="w-full rounded border border-divider bg-surface-base px-3 py-2 font-mono text-xs"
         />
         <p className="mt-1 text-[11px] text-muted-foreground">{t("draftHint")}</p>
       </div>

@@ -41,11 +41,11 @@ export function SessionBar() {
   }, []);
 
   return (
-    <div className="flex h-8 shrink-0 items-center gap-2 border-b border-zinc-200 px-3 dark:border-zinc-800">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="flex h-8 shrink-0 items-center gap-2 border-b border-divider px-3">
+      <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
         Session
       </span>
-      <span className="truncate text-xs text-zinc-600 dark:text-muted-foreground max-w-[140px]">
+      <span className="truncate text-xs text-foreground dark:text-muted-foreground max-w-[140px]">
         {sessionId ? sessionId.slice(0, 8) + "..." : "New"}
       </span>
 
@@ -53,21 +53,21 @@ export function SessionBar() {
 
       <button
         onClick={() => setOpen(!open)}
-        className="text-[10px] text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+        className="text-2xs text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
       >
         {sessions.length} past
       </button>
 
       <button
         onClick={clearMessages}
-        className="rounded px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
+        className="rounded px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface dark:hover:bg-brand-surface"
       >
         New
       </button>
 
       {/* Session dropdown */}
       {open && sessions.length > 0 && (
-        <div className="absolute left-0 top-8 z-20 w-80 rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="absolute left-0 top-8 z-20 w-80 rounded-lg border border-divider bg-surface-base shadow-lg">
           <div className="max-h-60 overflow-auto p-1">
             {sessions.map((s) => (
               <button
@@ -96,13 +96,13 @@ export function SessionBar() {
                   }
                   setOpen(false);
                 }}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs hover:bg-surface-raised"
               >
-                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.completed_at ? 'bg-emerald-500' : 'bg-amber-400'}`} />
-                <span className="flex-1 truncate text-zinc-700 dark:text-zinc-300">
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.completed_at ? 'bg-brand-solid' : 'bg-warning-foreground'}`} />
+                <span className="flex-1 truncate text-foreground">
                   {s.user_message.slice(0, 60)}
                 </span>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
+                <span className="shrink-0 text-2xs text-muted-foreground">
                   {formatRelativeDate(s.created_at)}
                 </span>
               </button>

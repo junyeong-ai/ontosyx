@@ -17,8 +17,8 @@ export function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border-b border-zinc-200 dark:border-zinc-800">
-      <div className="flex items-center justify-between bg-zinc-50 px-3 py-1 dark:bg-zinc-900">
+    <div className="border-b border-divider">
+      <div className="flex items-center justify-between bg-surface-raised px-3 py-1">
         <span className="font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
         </span>

@@ -181,7 +181,7 @@ export function RuleForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       {isDerived && (
-        <p className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+        <p className="rounded border border-warning-border bg-warning-surface p-2 text-xs text-warning-foreground dark:text-warning-foreground">
           {t("derivedNotice")}
         </p>
       )}
@@ -270,8 +270,8 @@ export function RuleForm({
         />
       )}
 
-      <fieldset className="rounded border border-zinc-200 p-2 dark:border-zinc-700">
-        <legend className="px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+      <fieldset className="rounded border border-divider-soft p-2 dark:border-divider">
+        <legend className="px-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground dark:text-muted-foreground">
           {t("kindFieldset")}
         </legend>
         <EnumPicker
@@ -285,8 +285,8 @@ export function RuleForm({
         <RuleKindFields kind={kind} onChange={setKind} disabled={isDerived} />
       </fieldset>
 
-      <fieldset className="rounded border border-zinc-200 p-2 dark:border-zinc-700">
-        <legend className="px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+      <fieldset className="rounded border border-divider-soft p-2 dark:border-divider">
+        <legend className="px-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground dark:text-muted-foreground">
           {t("constraintsFieldset")}
         </legend>
         <div className="flex flex-col gap-2">
@@ -355,13 +355,13 @@ function EnumPicker({
 }: EnumPickerProps) {
   const t = useTranslations(translationNs);
   return (
-    <label className="flex flex-col gap-1 text-xs text-zinc-600 dark:text-zinc-300">
+    <label className="flex flex-col gap-1 text-xs text-foreground-muted dark:text-muted-foreground">
       <span className="font-medium">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="rounded border border-zinc-200 bg-white px-2 py-1 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900"
+        className="rounded border border-divider-soft bg-white px-2 py-1 disabled:opacity-50 dark:border-divider dark:bg-surface-base"
       >
         {options.map((opt) => (
           <option key={opt} value={opt}>

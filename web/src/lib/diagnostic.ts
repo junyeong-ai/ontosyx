@@ -32,7 +32,7 @@ import { useTranslations, useMessages } from "next-intl";
 
 import type { DiagnosticMessage, LocalizedText } from "@/types/api";
 import { localize } from "@/lib/locale/localize";
-import { useLocaleChain, type LocaleSurface } from "@/lib/use-locale-chain";
+import { useLocaleChain, type LocaleSurface } from "@/hooks/use-locale-chain";
 
 /** The top-level namespace under which diagnostic catalogues live. */
 const DIAGNOSTICS_NAMESPACE = "diagnostics";

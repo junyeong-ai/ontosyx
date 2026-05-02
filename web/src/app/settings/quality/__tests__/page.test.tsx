@@ -15,7 +15,7 @@ vi.mock("@/lib/api/client", () => ({
 // toggled per-test. Stored as a module-local so tests reach into
 // it directly.
 const confirmMock = vi.fn();
-vi.mock("@/components/ui/confirm-dialog", () => ({
+vi.mock("@/components/providers/confirm-provider", () => ({
   useConfirm: () => confirmMock,
   ConfirmDialogProvider: ({ children }: { children: React.ReactNode }) =>
     children,

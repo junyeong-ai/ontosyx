@@ -48,19 +48,19 @@ export function PhaseStepper({
           <div className="flex flex-col items-center gap-1">
             <div
               className={cn(
-                "flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold",
+                "flex h-5 w-5 items-center justify-center rounded-full text-2xs font-bold",
                 i <= currentStepIndex
-                  ? "bg-emerald-500 text-white"
-                  : "bg-zinc-200 text-muted-foreground dark:bg-zinc-700",
+                  ? "bg-brand-solid text-white"
+                  : "bg-surface-inset text-muted-foreground",
               )}
             >
               {i + 1}
             </div>
             <span
               className={cn(
-                "text-[9px] font-medium capitalize",
+                "text-2xs font-medium capitalize",
                 i <= currentStepIndex
-                  ? "text-emerald-700 dark:text-emerald-400"
+                  ? "text-brand-foreground"
                   : "text-muted-foreground",
               )}
             >
@@ -72,8 +72,8 @@ export function PhaseStepper({
               className={cn(
                 "mx-2 h-px w-8",
                 i < currentStepIndex
-                  ? "bg-emerald-400"
-                  : "bg-zinc-200 dark:bg-zinc-700",
+                  ? "bg-brand-solid"
+                  : "bg-surface-inset",
               )}
             />
           )}

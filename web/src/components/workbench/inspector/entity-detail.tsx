@@ -97,7 +97,7 @@ function VerificationBadge({
     return (
       <button
         onClick={onVerify}
-        className="rounded border border-divider px-2 py-0.5 text-2xs text-muted-foreground hover:bg-surface-raised dark:hover:bg-zinc-800"
+        className="rounded border border-divider px-2 py-0.5 text-2xs text-muted-foreground hover:bg-surface-raised dark:hover:bg-surface-base"
       >
         Verify
       </button>
@@ -151,7 +151,7 @@ function EntityHeader({
         <span
           className={
             isEdge
-              ? "rounded bg-blue-100 px-1.5 py-0.5 text-2xs font-bold uppercase text-blue-700 dark:bg-blue-900 dark:text-blue-400"
+              ? "rounded bg-info-surface px-1.5 py-0.5 text-2xs font-bold uppercase text-info-foreground dark:bg-info-foreground dark:text-info-foreground"
               : "rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-bold uppercase text-brand-foreground-strong"
           }
         >

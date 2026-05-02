@@ -47,8 +47,8 @@ export function FeedbackButtons({ executionId }: FeedbackButtonsProps) {
         disabled={saving}
         className={`rounded p-1 text-xs transition-colors ${
           feedback === "positive"
-            ? "text-emerald-500"
-            : "text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            ? "text-brand-foreground"
+            : "text-muted-foreground hover:bg-surface-inset hover:text-foreground dark:hover:text-foreground-muted"
         } disabled:cursor-wait`}
         aria-label={t("good")}
       >
@@ -59,8 +59,8 @@ export function FeedbackButtons({ executionId }: FeedbackButtonsProps) {
         disabled={saving}
         className={`rounded p-1 text-xs transition-colors ${
           feedback === "negative"
-            ? "text-red-500"
-            : "text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            ? "text-danger-foreground"
+            : "text-muted-foreground hover:bg-surface-inset hover:text-foreground dark:hover:text-foreground-muted"
         } disabled:cursor-wait`}
         aria-label={t("bad")}
       >

@@ -1,4 +1,4 @@
-import { DashboardLayout } from "@/components/workbench/dashboard-layout";
+import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
 
 export default function DashboardPage() {
   return <DashboardLayout />;

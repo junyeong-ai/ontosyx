@@ -20,7 +20,7 @@ import { toast } from "sonner";
 // ---------------------------------------------------------------------------
 
 interface DashboardAiDialogProps {
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
   dashboardId: string;
   onWidgetAdded: (widget: DashboardWidget) => void;
@@ -43,7 +43,7 @@ interface WidgetPreview {
 // ---------------------------------------------------------------------------
 
 export function DashboardAiDialog({
-  isOpen,
+  open,
   onClose,
   dashboardId,
   onWidgetAdded,
@@ -255,7 +255,7 @@ export function DashboardAiDialog({
     [handleSend],
   );
 
-  if (!isOpen) return null;
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -266,22 +266,22 @@ export function DashboardAiDialog({
       />
 
       {/* Slide-over panel */}
-      <div className="relative flex h-full w-full max-w-md flex-col border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="relative flex h-full w-full max-w-md flex-col border-l border-divider bg-surface-base shadow-xl">
         {/* Header */}
-        <div className="flex h-12 shrink-0 items-center justify-between border-b border-zinc-200 px-4 dark:border-zinc-800">
+        <div className="flex h-12 shrink-0 items-center justify-between border-b border-divider px-4">
           <div className="flex items-center gap-2">
             <HugeiconsIcon
               icon={AiNetworkIcon}
-              className="h-4 w-4 text-emerald-500"
+              className="h-4 w-4 text-brand-foreground"
               size="100%"
             />
-            <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+            <span className="text-sm font-semibold text-foreground-strong-strong">
               AI Widget Generator
             </span>
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-surface-inset hover:text-foreground dark:hover:bg-surface-base dark:hover:text-foreground-muted"
           >
             <HugeiconsIcon icon={Cancel01Icon} className="h-4 w-4" size="100%" />
           </button>
@@ -292,14 +292,14 @@ export function DashboardAiDialog({
           {/* Empty state */}
           {previews.length === 0 && !isStreaming && (
             <div className="flex flex-col items-center justify-center gap-3 py-12">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950/30">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-surface">
                 <HugeiconsIcon
                   icon={ChartLineData02Icon}
-                  className="h-5 w-5 text-emerald-500"
+                  className="h-5 w-5 text-brand-foreground"
                   size="100%"
                 />
               </div>
-              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <p className="text-sm font-medium text-foreground">
                 Describe the widgets you need
               </p>
               <p className="text-center text-xs text-muted-foreground">
@@ -311,9 +311,9 @@ export function DashboardAiDialog({
 
           {/* Status indicator */}
           {isStreaming && (
-            <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2 dark:border-emerald-800/40 dark:bg-emerald-950/20">
-              <Spinner size="sm" className="text-emerald-500" />
-              <span className="text-xs text-emerald-700 dark:text-emerald-400">
+            <div className="flex items-center gap-2 rounded-lg border border-brand-border bg-brand-surface px-3 py-2">
+              <Spinner size="sm" className="text-brand-foreground" />
+              <span className="text-xs text-brand-foreground">
                 {statusText}
               </span>
             </div>
@@ -330,7 +330,7 @@ export function DashboardAiDialog({
         </div>
 
         {/* Input area at bottom */}
-        <div className="shrink-0 border-t border-zinc-200 p-3 dark:border-zinc-800">
+        <div className="shrink-0 border-t border-divider p-3">
           {!ontology ? (
             <p className="text-center text-xs text-muted-foreground">
               Load an ontology to generate widgets
@@ -344,12 +344,12 @@ export function DashboardAiDialog({
                 onKeyDown={handleKeyDown}
                 placeholder="What kind of widgets do you want?"
                 disabled={isStreaming}
-                className="flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 placeholder:text-zinc-500 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                className="flex-1 rounded-lg border border-divider bg-surface-raised px-3 py-2 text-sm text-foreground-strong placeholder:text-foreground-muted focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none disabled:opacity-50-strong dark:placeholder:text-foreground-muted"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isStreaming}
-                className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+                className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-solid text-white transition-colors hover:bg-brand-solid disabled:opacity-50"
               >
                 {isStreaming ? (
                   <Spinner size="sm" className="text-white" />
@@ -381,14 +381,14 @@ function WidgetPreviewCard({
   onAdd: () => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800/50">
+    <div className="overflow-hidden rounded-lg border border-divider bg-surface-base">
       {/* Card header */}
-      <div className="flex items-center justify-between border-b border-zinc-100 px-3 py-2 dark:border-zinc-700/50">
+      <div className="flex items-center justify-between border-b border-divider-soft px-3 py-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+          <span className="shrink-0 rounded-full bg-brand-surface-strong px-2 py-0.5 text-2xs font-medium text-brand-foreground-strong">
             {preview.chartType.replace(/_/g, " ")}
           </span>
-          <span className="truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          <span className="truncate text-xs font-medium text-foreground">
             {preview.title}
           </span>
         </div>
@@ -396,8 +396,8 @@ function WidgetPreviewCard({
 
       {/* Query preview */}
       {preview.query && (
-        <div className="border-b border-zinc-100 px-3 py-2 dark:border-zinc-700/50">
-          <pre className="max-h-16 overflow-auto text-[10px] font-mono text-zinc-500 dark:text-muted-foreground">
+        <div className="border-b border-divider-soft px-3 py-2">
+          <pre className="max-h-16 overflow-auto text-2xs font-mono text-foreground-muted">
             {preview.query}
           </pre>
         </div>
@@ -406,7 +406,7 @@ function WidgetPreviewCard({
       {/* Action button */}
       <div className="px-3 py-2">
         {preview.isAdded ? (
-          <span className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+          <span className="flex items-center gap-1.5 text-xs text-brand-foreground">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
@@ -425,7 +425,7 @@ function WidgetPreviewCard({
           <button
             onClick={onAdd}
             disabled={preview.isAdding}
-            className="flex w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-1.5 rounded-md bg-brand-solid px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-solid disabled:opacity-50"
           >
             {preview.isAdding ? (
               <Spinner size="sm" className="text-white" />

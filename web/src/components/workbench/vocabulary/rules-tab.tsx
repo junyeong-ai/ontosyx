@@ -117,7 +117,7 @@ export function RulesTab() {
     return (
       <div className="flex flex-col gap-4">
         <Header />
-        <p className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+        <p className="rounded border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground dark:text-warning-foreground">
           {t("noOntology")}
         </p>
       </div>
@@ -148,7 +148,7 @@ export function RulesTab() {
           {rules.map((rule) => (
             <li
               key={rule.id}
-              className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
+              className="rounded border border-divider-soft bg-white p-3 dark:border-divider dark:bg-surface-base"
             >
               {editing?.id === rule.id ? (
                 <RuleForm
@@ -174,12 +174,12 @@ export function RulesTab() {
       <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
         <Dialog.Portal>
           <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-          <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+          <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-divider-soft bg-white p-6 shadow-xl dark:border-divider dark:bg-surface-base"
                         style={{ maxHeight: "90vh" }}>
-            <Dialog.Title className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            <Dialog.Title className="text-base font-semibold text-foreground-strong dark:text-foreground">
               {t("createDialog.title")}
             </Dialog.Title>
-            <Dialog.Description className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            <Dialog.Description className="mt-1 text-xs text-muted-foreground dark:text-muted-foreground">
               {t("createDialog.description")}
             </Dialog.Description>
             <div className="mt-4">
@@ -200,10 +200,10 @@ function Header() {
   const t = useTranslations("settings.vocabulary.rules");
   return (
     <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h1 className="text-xl font-semibold text-foreground-strong dark:text-foreground">
         {t("pageTitle")}
       </h1>
-      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+      <p className="mt-1 text-xs text-muted-foreground dark:text-muted-foreground">
         {t("pageSubtitle")}
       </p>
     </div>
@@ -230,31 +230,31 @@ function RuleRow({
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          <span className="font-mono text-sm font-medium text-foreground-strong dark:text-foreground">
             {rule.id}
           </span>
           {name && name !== rule.id && (
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">· {name}</span>
+            <span className="text-xs text-muted-foreground dark:text-muted-foreground">· {name}</span>
           )}
           {rule.severity && (
             <span
-              className={`rounded px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${severityClass(rule.severity)}`}
+              className={`rounded px-2 py-0.5 text-2xs font-medium uppercase tracking-wider ${severityClass(rule.severity)}`}
             >
               {t(`severity.${rule.severity}`)}
             </span>
           )}
           {rule.enforcement && (
-            <span className="rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+            <span className="rounded bg-surface-inset px-2 py-0.5 text-2xs font-medium uppercase tracking-wider text-foreground-muted dark:bg-surface-base dark:text-muted-foreground">
               {t(`enforcement.${rule.enforcement}`)}
             </span>
           )}
           {isDerived && (
-            <span className="rounded bg-violet-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+            <span className="rounded bg-concept-surface px-2 py-0.5 text-2xs font-medium uppercase tracking-wider text-concept-foreground dark:text-concept-foreground">
               {t("derivedBadge")}
             </span>
           )}
         </div>
-        <p className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-500">
+        <p className="mt-1 text-2xs text-muted-foreground dark:text-muted-foreground">
           {t("constraintCount", { count: rule.constraints?.length ?? 0 })}
         </p>
       </div>
@@ -278,12 +278,12 @@ function RuleRow({
 function severityClass(severity: RuleDef["severity"]): string {
   switch (severity) {
     case "violation":
-      return "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300";
+      return "bg-danger-surface text-danger-foreground dark:text-danger-foreground";
     case "warning":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300";
+      return "bg-warning-surface text-warning-foreground dark:text-warning-foreground";
     case "info":
-      return "bg-sky-100 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300";
+      return "bg-info-surface text-info-foreground dark:text-info-foreground";
     default:
-      return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300";
+      return "bg-surface-inset text-foreground-muted dark:bg-surface-base dark:text-muted-foreground";
   }
 }

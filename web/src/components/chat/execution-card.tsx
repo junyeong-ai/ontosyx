@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import type { QueryExecutionSummary } from "@/types/api";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Card } from "@/components/ui/card";
 import {
   ChartColumnIcon,
   Table01Icon,
@@ -28,15 +29,25 @@ export function ExecutionCard({ item, onClick }: ExecutionCardProps) {
   });
 
   return (
-    <button
+    <Card
+      padding="sm"
+      interactive
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       aria-label={t("viewAria", { question: item.question.slice(0, 60) })}
-      className="w-full rounded-lg border border-zinc-200 bg-white p-3 text-left transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/80"
+      className="w-full text-left"
     >
-      <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 line-clamp-2">
+      <p className="line-clamp-2 text-sm font-medium text-foreground-strong">
         {item.question}
       </p>
-      <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
+      <div className="mt-1.5 flex items-center gap-3 text-xs text-foreground-muted">
         <span className="flex items-center gap-1">
           {item.has_widget ? (
             <HugeiconsIcon icon={ChartColumnIcon} className="h-3 w-3" size="100%" />
@@ -48,6 +59,6 @@ export function ExecutionCard({ item, onClick }: ExecutionCardProps) {
         <span>{item.execution_time_ms}ms</span>
         <span className="ml-auto">{timeStr}</span>
       </div>
-    </button>
+    </Card>
   );
 }

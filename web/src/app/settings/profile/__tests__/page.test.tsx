@@ -5,12 +5,12 @@ import type { ReactElement } from "react";
 
 import messages from "../../../../../messages/en.json";
 
-vi.mock("@/lib/use-auth", () => ({
+vi.mock("@/hooks/use-auth", () => ({
   useAuth: vi.fn(),
 }));
 
 import ProfilePage from "@/app/settings/profile/page";
-import { useAuth } from "@/lib/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 
 function renderPage(): void {
   const ui: ReactElement = (

@@ -23,11 +23,12 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
       ref={ref}
       aria-invalid={error || undefined}
       className={cn(
-        "w-full rounded-md border bg-transparent px-3 py-1.5 text-sm",
-        "outline-none transition-colors",
+        "w-full rounded-md border bg-surface-base px-3 py-1.5 text-sm text-foreground-strong",
+        "outline-none transition-colors duration-[var(--duration-quick)]",
+        "placeholder:text-foreground-subtle",
         error
-          ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/50 dark:border-red-500 dark:focus:border-red-400 dark:focus:ring-red-400/50"
-          : "border-zinc-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 dark:border-zinc-600 dark:focus:border-emerald-400 dark:focus:ring-emerald-400/50",
+          ? "border-danger-border focus:border-danger-foreground focus:ring-1 focus:ring-danger-foreground/40"
+          : "border-divider focus:border-brand-foreground focus:ring-1 focus:ring-brand-foreground/40",
         className,
       )}
       {...props}
@@ -37,16 +38,11 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
 
 FormInput.displayName = "FormInput";
 
-// ---------------------------------------------------------------------------
-// Settings-style labeled form controls
-// Uses the compact text-xs + border-zinc-200 pattern from settings pages
-// ---------------------------------------------------------------------------
-
 const inputBase =
-  "w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-emerald-400 dark:focus:ring-emerald-400/50";
+  "w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs text-foreground-strong placeholder:text-foreground-subtle transition-colors duration-[var(--duration-quick)] focus:border-brand-foreground focus:outline-none focus:ring-1 focus:ring-brand-foreground/40";
 
 const labelBase =
-  "text-[10px] font-semibold uppercase tracking-wider text-muted-foreground";
+  "text-2xs font-semibold uppercase tracking-wider text-foreground-muted";
 
 /**
  * Shared shape for the labelled settings controls. `label` is REQUIRED
@@ -186,7 +182,7 @@ export function SettingsSwitch({
         />
       </BaseSwitch.Root>
       {label && (
-        <span className="text-xs text-zinc-700 dark:text-zinc-300">
+        <span className="text-xs text-foreground">
           {label}
         </span>
       )}

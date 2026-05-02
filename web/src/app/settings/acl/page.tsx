@@ -1,12 +1,21 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+
 import { request } from "@/lib/api/client";
-import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonTable } from "@/components/ui/skeleton";
 import { SettingsSelect } from "@/components/ui/form-input";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Button } from "@/components/ui/button";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
+import { useConfirm } from "@/components/providers/confirm-provider";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -74,35 +83,30 @@ const EMPTY_FORM: PolicyFormValues = {
 // Page
 // ---------------------------------------------------------------------------
 
+const aclKeys = {
+  all: ["acl"] as const,
+  policies: () => [...aclKeys.all, "policies"] as const,
+};
+
 export default function AclSettingsPage() {
   const t = useTranslations("settings.acl");
   const tCommon = useTranslations("common");
-  const [policies, setPolicies] = useState<AclPolicy[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
 
   // Form state
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<PolicyFormValues>(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const confirm = useConfirm();
 
-  const load = useCallback(async () => {
-    try {
-      const data = await request<AclPolicy[]>("/acl/policies");
-      setPolicies(data);
-    } catch {
-      toast.error(t("toast.loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const policiesQuery = useQuery({
+    queryKey: aclKeys.policies(),
+    queryFn: () => request<AclPolicy[]>("/acl/policies"),
+  });
+  const policies = policiesQuery.data ?? [];
+  const reload = () =>
+    qc.invalidateQueries({ queryKey: aclKeys.policies() });
 
   // ---- Open create form ----
   const openCreate = () => {
@@ -152,8 +156,43 @@ export default function AclSettingsPage() {
     return Object.keys(e).length === 0;
   };
 
+  const submitMutation = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      if (editingId) {
+        await request(`/acl/policies/${editingId}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+      } else {
+        await request("/acl/policies", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      }
+    },
+    onSuccess: () => {
+      toast.success(editingId ? t("toast.updated") : t("toast.created"));
+      cancelForm();
+      reload();
+    },
+    onError: () =>
+      toast.error(
+        editingId ? t("toast.updateFailed") : t("toast.createFailed"),
+      ),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      request(`/acl/policies/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast.success(t("toast.deleted"));
+      reload();
+    },
+    onError: () => toast.error(t("toast.deleteFailed")),
+  });
+
   // ---- Submit ----
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -177,28 +216,7 @@ export default function AclSettingsPage() {
       priority: form.priority,
     };
 
-    setSaving(true);
-    try {
-      if (editingId) {
-        await request(`/acl/policies/${editingId}`, {
-          method: "PATCH",
-          body: JSON.stringify(body),
-        });
-        toast.success(t("toast.updated"));
-      } else {
-        await request("/acl/policies", {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-        toast.success(t("toast.created"));
-      }
-      cancelForm();
-      await load();
-    } catch {
-      toast.error(editingId ? t("toast.updateFailed") : t("toast.createFailed"));
-    } finally {
-      setSaving(false);
-    }
+    submitMutation.mutate(body);
   };
 
   // ---- Delete ----
@@ -210,28 +228,41 @@ export default function AclSettingsPage() {
       variant: "danger",
     });
     if (!ok) return;
-    setDeletingId(id);
-    try {
-      await request(`/acl/policies/${id}`, { method: "DELETE" });
-      toast.success(t("toast.deleted"));
-      await load();
-    } catch {
-      toast.error(t("toast.deleteFailed"));
-    } finally {
-      setDeletingId(null);
-    }
+    deleteMutation.mutate(id);
   };
 
-  if (loading) return <Spinner />;
+  const saving = submitMutation.isPending;
+  const deletingId = deleteMutation.isPending ? deleteMutation.variables : null;
+
+  if (policiesQuery.isLoading) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <SkeletonTable rows={5} cols={5} />
+      </SettingsPageShell>
+    );
+  }
+
+  if (policiesQuery.isError) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <ErrorState
+          title={tCommon("loadError.title")}
+          description={tCommon("loadError.description")}
+          onRetry={() => policiesQuery.refetch()}
+          retryLabel={tCommon("retry")}
+        />
+      </SettingsPageShell>
+    );
+  }
 
   const actionColor = (action: string) => {
     switch (action) {
       case "deny":
-        return "text-red-600 dark:text-red-400";
+        return "text-danger-foreground";
       case "mask":
-        return "text-amber-600 dark:text-amber-400";
+        return "text-warning-foreground";
       case "allow":
-        return "text-emerald-700 dark:text-emerald-400";
+        return "text-brand-foreground";
       default:
         return "text-muted-foreground";
     }
@@ -250,27 +281,17 @@ export default function AclSettingsPage() {
     isKnownAction(value) ? t(`actionBadge.${value}`) : value.toUpperCase();
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            {t("title")}
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
-            {t("description")}
-          </p>
-        </div>
-        {!formOpen && (
-          <button
-            onClick={openCreate}
-            className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
-          >
+    <SettingsPageShell
+      title={t("title")}
+      subtitle={t("description")}
+      actions={
+        !formOpen && (
+          <Button variant="primary" size="sm" onClick={openCreate}>
             {t("createPolicy")}
-          </button>
-        )}
-      </div>
-
-      {/* Inline form */}
+          </Button>
+        )
+      }
+    >
       {formOpen && (
         <PolicyForm
           form={form}
@@ -291,7 +312,7 @@ export default function AclSettingsPage() {
       <div className="mt-6 overflow-x-auto -mx-6 px-6" tabIndex={0} role="region" aria-label="Table data — scroll horizontally">
         <table className="w-full min-w-[960px] text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
+            <tr className="border-b border-divider text-left text-xs font-medium uppercase text-muted-foreground">
               <th className="py-3 pr-6">{t("column.policy")}</th>
               <th className="py-3 pr-6">{t("column.subject")}</th>
               <th className="py-3 pr-6">{t("column.resource")}</th>
@@ -305,9 +326,9 @@ export default function AclSettingsPage() {
             {policies.map((p) => (
               <tr
                 key={p.id}
-                className="border-b border-zinc-100 dark:border-zinc-800"
+                className="border-b border-divider-soft"
               >
-                <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
+                <td className="py-3 pr-6 font-medium text-foreground-strong">
                   {p.name}
                 </td>
                 <td className="py-3 pr-6 text-muted-foreground">
@@ -332,14 +353,14 @@ export default function AclSettingsPage() {
                   <div className="flex items-center justify-end gap-1">
                     <button
                       onClick={() => openEdit(p)}
-                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-surface-inset hover:text-foreground dark:hover:text-foreground-muted"
                     >
                       {tCommon("edit")}
                     </button>
                     <button
                       onClick={() => handleDelete(p.id)}
                       disabled={deletingId === p.id}
-                      className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:hover:bg-red-950"
+                      className="rounded px-2 py-1 text-xs text-danger-foreground hover:bg-danger-surface hover:text-danger-foreground disabled:opacity-50 dark:hover:bg-danger-surface"
                     >
                       {deletingId === p.id ? tCommon("deleting") : tCommon("delete")}
                     </button>
@@ -357,7 +378,7 @@ export default function AclSettingsPage() {
           </tbody>
         </table>
       </div>
-    </div>
+    </SettingsPageShell>
   );
 }
 
@@ -401,16 +422,16 @@ function PolicyForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/20"
+      className="mt-4 rounded-lg border border-brand-border bg-brand-surface p-4"
     >
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+        <span className="text-xs font-semibold text-brand-foreground">
           {isEditing ? t("editPolicyHeading") : t("newPolicyHeading")}
         </span>
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-muted-foreground hover:text-zinc-600"
+          className="text-xs text-muted-foreground hover:text-foreground"
         >
           {tCommon("cancel")}
         </button>
@@ -419,7 +440,7 @@ function PolicyForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2">
-          <label htmlFor="acl-rule-name" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label htmlFor="acl-rule-name" className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("field.name")}
           </label>
           <input
@@ -428,14 +449,14 @@ function PolicyForm({
             onChange={(e) => update("name", { name: e.target.value })}
             placeholder={t("placeholder.name")}
             required
-            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.name ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
+            className={`mt-0.5 w-full rounded-md border bg-surface-base px-3 py-1.5 text-xs ${errors.name ? "border-danger-border" : "border-divider"}`}
           />
-          {errors.name && <p className="mt-0.5 text-[10px] text-red-500">{errors.name}</p>}
+          {errors.name && <p className="mt-0.5 text-2xs text-danger-foreground">{errors.name}</p>}
         </div>
 
         {/* Subject type */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("field.subjectType")}
           </label>
           <SettingsSelect
@@ -454,7 +475,7 @@ function PolicyForm({
 
         {/* Subject value */}
         <div>
-          <label htmlFor="acl-rule-subject-value" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label htmlFor="acl-rule-subject-value" className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("field.subjectValue")}
           </label>
           <input
@@ -463,14 +484,14 @@ function PolicyForm({
             onChange={(e) => update("subject_value", { subject_value: e.target.value })}
             placeholder={t("placeholder.subjectValue")}
             required
-            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.subject_value ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
+            className={`mt-0.5 w-full rounded-md border bg-surface-base px-3 py-1.5 text-xs ${errors.subject_value ? "border-danger-border" : "border-divider"}`}
           />
-          {errors.subject_value && <p className="mt-0.5 text-[10px] text-red-500">{errors.subject_value}</p>}
+          {errors.subject_value && <p className="mt-0.5 text-2xs text-danger-foreground">{errors.subject_value}</p>}
         </div>
 
         {/* Resource type */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("field.resourceType")}
           </label>
           <SettingsSelect
@@ -489,7 +510,7 @@ function PolicyForm({
 
         {/* Resource value */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t.rich("field.resourceValueHint", {
               hint: (chunks) => (
                 <span className="normal-case text-muted-foreground">{chunks}</span>
@@ -500,13 +521,13 @@ function PolicyForm({
             value={form.resource_value}
             onChange={(e) => update("resource_value", { resource_value: e.target.value })}
             placeholder={t("placeholder.resourceValue")}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
         </div>
 
         {/* Action */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("field.action")}
           </label>
           <SettingsSelect
@@ -525,7 +546,7 @@ function PolicyForm({
 
         {/* Priority */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("field.priority")}
           </label>
           <input
@@ -533,13 +554,13 @@ function PolicyForm({
             min={0}
             value={form.priority}
             onChange={(e) => update("priority", { priority: Number(e.target.value) })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
         </div>
 
         {/* Properties */}
         <div className="col-span-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t.rich("field.propertiesHint", {
               hint: (chunks) => (
                 <span className="normal-case text-muted-foreground">{chunks}</span>
@@ -550,21 +571,21 @@ function PolicyForm({
             value={form.properties}
             onChange={(e) => update("properties", { properties: e.target.value })}
             placeholder={t("placeholder.properties")}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
         </div>
 
         {/* Mask pattern — only for mask action */}
         {form.action === "mask" && (
           <div className="col-span-2">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("field.maskPattern")}
             </label>
             <input
               value={form.mask_pattern}
               onChange={(e) => update("mask_pattern", { mask_pattern: e.target.value })}
               placeholder={t("placeholder.maskPattern")}
-              className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+              className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
             />
           </div>
         )}
@@ -574,7 +595,7 @@ function PolicyForm({
         <button
           type="submit"
           disabled={!form.name.trim() || !form.subject_value.trim() || saving}
-          className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-emerald-700"
+          className="rounded-md bg-brand-solid px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-brand-solid"
         >
           {saving
             ? isEditing
@@ -587,7 +608,7 @@ function PolicyForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-surface-inset"
         >
           {tCommon("cancel")}
         </button>

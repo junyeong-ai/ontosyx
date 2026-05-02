@@ -17,7 +17,8 @@ import {
 
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
-import { useIsDarkMode } from "@/lib/use-dark-mode";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useIsDarkMode } from "@/hooks/use-dark-mode";
 
 // ---------------------------------------------------------------------------
 // Wire shapes — mirror the Rust `CrossRefEdge` + `Axis` exactly so
@@ -149,7 +150,7 @@ function AxisNode({ data }: NodeProps<Node<AxisNodeData>>) {
       }}
     >
       <span className="text-xs font-semibold">{data.label}</span>
-      <span className="mt-0.5 text-[10px] text-zinc-600">
+      <span className="mt-0.5 text-2xs text-foreground">
         {data.outgoing + data.incoming} refs
       </span>
       {/* Hidden handles — React Flow needs at least one source +
@@ -263,9 +264,9 @@ export function CrossRefFlow({ ontologyId }: { ontologyId: string }) {
   };
 
   return (
-    <section className="mt-6 rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+    <section className="mt-6 rounded-lg border border-divider bg-surface-base">
+      <header className="border-b border-divider px-5 py-3">
+        <h2 className="text-sm font-semibold text-foreground-strong">
           {t("title")}
         </h2>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -279,16 +280,14 @@ export function CrossRefFlow({ ontologyId }: { ontologyId: string }) {
         </div>
       )}
       {error && (
-        <p className="px-5 py-8 text-center text-xs text-rose-600 dark:text-rose-400">
+        <p className="px-5 py-8 text-center text-xs text-danger-foreground dark:text-danger-foreground">
           {t("loadError", {
             message: error instanceof Error ? error.message : t("unknownError"),
           })}
         </p>
       )}
       {!isLoading && !error && (data?.length ?? 0) === 0 && (
-        <p className="px-5 py-8 text-center text-xs text-muted-foreground">
-          {t("empty")}
-        </p>
+        <EmptyState size="sm" title={t("empty")} />
       )}
       {!isLoading && !error && (data?.length ?? 0) > 0 && (
         <div
@@ -335,17 +334,17 @@ function CrossRefBucketModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="crossref-bucket-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-surface-base/40 p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-950">
-        <header className="flex items-baseline justify-between border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
+      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-divider bg-surface-base shadow-xl">
+        <header className="flex items-baseline justify-between border-b border-divider px-5 py-3">
           <div>
             <h2
               id="crossref-bucket-title"
-              className="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+              className="text-sm font-semibold text-foreground-strong"
             >
               {tAxis(bucket.source)} → {tAxis(bucket.target)}
             </h2>
@@ -357,29 +356,29 @@ function CrossRefBucketModal({
             type="button"
             onClick={onClose}
             aria-label={t("close")}
-            className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-surface-inset dark:hover:bg-surface-base"
           >
             ✕
           </button>
         </header>
-        <ul className="min-h-0 flex-1 divide-y divide-zinc-100 overflow-y-auto dark:divide-zinc-800/60">
+        <ul className="min-h-0 flex-1 divide-y divide-divider-soft overflow-y-auto-soft/60">
           {bucket.edges.map((edge, idx) => (
             <li
               key={`${edge.source_id}-${edge.edge_kind}-${edge.target_id}-${idx}`}
               className="flex flex-col gap-0.5 px-5 py-2 text-xs"
             >
               <div className="flex items-center gap-2">
-                <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                <span className="rounded bg-surface-inset px-1.5 py-0.5 font-mono text-2xs text-foreground-muted">
                   {edge.source_kind}
                 </span>
-                <span className="truncate text-zinc-900 dark:text-zinc-100">
+                <span className="truncate text-foreground-strong">
                   {edge.source_id}
                 </span>
                 <span className="text-muted-foreground">—{edge.edge_kind}→</span>
-                <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                <span className="rounded bg-surface-inset px-1.5 py-0.5 font-mono text-2xs text-foreground-muted">
                   {edge.target_kind}
                 </span>
-                <span className="truncate text-zinc-900 dark:text-zinc-100">
+                <span className="truncate text-foreground-strong">
                   {edge.target_id}
                 </span>
               </div>

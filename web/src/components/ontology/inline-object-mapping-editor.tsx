@@ -144,7 +144,7 @@ export function InlineObjectMappingEditor({
       />
 
       <details
-        className="rounded border border-zinc-100 dark:border-zinc-800/60"
+        className="rounded border border-divider-soft"
         open={advancedOpen}
         onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
       >
@@ -218,10 +218,10 @@ function PropertyMappingTable({
 
   return (
     <div>
-      <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <h3 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
         {t("propertiesHeader")}
       </h3>
-      <ul className="divide-y divide-zinc-100 rounded border border-zinc-100 dark:divide-zinc-800/60 dark:border-zinc-800/60">
+      <ul className="divide-y divide-divider-soft rounded border border-divider-soft">
         {properties.map((property) => (
           <PropertyMappingRow
             key={property.id}
@@ -286,10 +286,10 @@ function PropertyMappingRow({
   return (
     <li className="flex items-center gap-3 px-2 py-1.5">
       <span className="flex w-32 shrink-0 flex-col">
-        <span className="truncate text-[11px] font-medium text-zinc-800 dark:text-zinc-200">
+        <span className="truncate text-[11px] font-medium text-foreground-strong">
           {property.name}
         </span>
-        <span className="truncate text-[9px] font-mono text-muted-foreground">
+        <span className="truncate text-2xs font-mono text-muted-foreground">
           {property.id}
         </span>
       </span>
@@ -355,7 +355,7 @@ function ColumnChipInput({
       {value.map((column) => (
         <span
           key={column}
-          className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+          className="inline-flex items-center gap-1 rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-mono text-foreground-muted"
         >
           {column}
           {!readOnly && (
@@ -363,7 +363,7 @@ function ColumnChipInput({
               type="button"
               onClick={() => remove(column)}
               aria-label={removeAriaTemplate(column)}
-              className="rounded p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+              className="rounded p-0.5 hover:bg-surface-inset dark:hover:bg-surface-base"
             >
               <HugeiconsIcon
                 icon={Cancel01Icon}
@@ -388,7 +388,7 @@ function ColumnChipInput({
             }}
             placeholder={addLabel}
             list={availableColumns ? datalistId : undefined}
-            className="w-24 rounded border border-dashed border-zinc-300 bg-transparent px-1.5 py-0.5 text-[10px] outline-none focus:border-violet-300 dark:border-zinc-700"
+            className="w-24 rounded border border-dashed border-divider bg-transparent px-1.5 py-0.5 text-2xs outline-none focus:border-concept-border"
           />
           {availableColumns && (
             <datalist id={datalistId}>
@@ -401,7 +401,7 @@ function ColumnChipInput({
             type="button"
             onClick={() => commit(draft)}
             disabled={!draft.trim()}
-            className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-violet-600 disabled:opacity-50 dark:hover:bg-zinc-800"
+            className="rounded p-0.5 text-muted-foreground hover:bg-surface-inset hover:text-concept-foreground disabled:opacity-50 dark:hover:bg-surface-base"
           >
             <HugeiconsIcon
               icon={PlusSignIcon}
@@ -420,7 +420,7 @@ function ColumnChipInput({
 // ---------------------------------------------------------------------------
 
 const inputClass =
-  "rounded border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-violet-300 disabled:opacity-60 dark:border-zinc-700";
+  "rounded border border-divider bg-transparent px-2 py-1 text-[11px] outline-none focus:border-concept-border disabled:opacity-60";
 
 function Field({
   label,
@@ -433,9 +433,9 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
-        {required && <span className="ml-0.5 text-rose-500">*</span>}
+        {required && <span className="ml-0.5 text-danger-foreground">*</span>}
       </span>
       {children}
     </label>

@@ -106,9 +106,9 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
 
       {/* Palette */}
       <div className="fixed left-1/2 top-[15%] z-50 w-full max-w-lg -translate-x-1/2">
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="overflow-hidden rounded-xl border border-divider bg-surface-base shadow-2xl">
           {/* Search input */}
-          <div className="flex items-center border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <div className="flex items-center border-b border-divider px-4 py-3">
             <span className="mr-2 text-xs text-muted-foreground">&gt;</span>
             <input
               ref={inputRef}
@@ -120,7 +120,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
               }}
               onKeyDown={handleKeyDown}
               placeholder={t("placeholder")}
-              className="flex-1 bg-transparent text-sm text-zinc-800 outline-none placeholder:text-zinc-500 dark:text-zinc-200 dark:placeholder:text-zinc-500"
+              className="flex-1 bg-transparent text-sm text-foreground-strong outline-none placeholder:text-foreground-muted-strong dark:placeholder:text-foreground-muted"
             />
           </div>
 
@@ -143,13 +143,13 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
                   className={cn(
                     "flex w-full items-center justify-between px-4 py-2 text-left text-sm transition-colors",
                     i === selectedIndex
-                      ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
-                      : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/50",
+                      ? "bg-brand-surface text-brand-foreground-strong-strong"
+                      : "text-foreground hover:bg-surface-raised-muted dark:hover:bg-surface-base/50",
                   )}
                 >
                   <span>{cmd.label}</span>
                   {cmd.shortcut && (
-                    <kbd className="ml-3 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground dark:bg-zinc-800">
+                    <kbd className="ml-3 rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-mono text-muted-foreground">
                       {cmd.shortcut}
                     </kbd>
                   )}
@@ -159,7 +159,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
           </div>
 
           {/* Footer hint */}
-          <div className="border-t border-zinc-100 px-4 py-1.5 text-[10px] text-muted-foreground dark:border-zinc-800">
+          <div className="border-t border-divider-soft px-4 py-1.5 text-2xs text-muted-foreground">
             <span className="mr-3">{t("hintNavigate")}</span>
             <span className="mr-3">{t("hintExecute")}</span>
             <span>{t("hintClose")}</span>

@@ -36,6 +36,7 @@ import { fileURLToPath } from "node:url";
 import {
   auditCalls,
   createAuditProgram,
+  findPagesMissingI18n,
   findTranslationCalls,
   findTranslationCallsTyped,
   loadBundle,
@@ -127,37 +128,53 @@ async function main() {
   }
 
   const findings = auditCalls(allCalls, bundles);
+  const untranslatedPages = findPagesMissingI18n(args.src);
 
   if (args.json) {
-    process.stdout.write(JSON.stringify({ findings }, null, 2) + "\n");
-  } else if (findings.length === 0) {
     process.stdout.write(
-      `i18n-audit: scanned ${allCalls.length} call(s) across ${files.length} file(s) — no missing keys.\n`,
+      JSON.stringify({ findings, untranslatedPages }, null, 2) + "\n",
+    );
+  } else if (findings.length === 0 && untranslatedPages.length === 0) {
+    process.stdout.write(
+      `i18n-audit: scanned ${allCalls.length} call(s) across ${files.length} file(s) — no missing keys, no untranslated pages.\n`,
     );
   } else {
-    process.stdout.write(
-      `i18n-audit: ${findings.length} finding(s) across ${
-        new Set(findings.map((f) => f.file)).size
-      } file(s):\n\n`,
-    );
-    const byFile = new Map();
-    for (const f of findings) {
-      const rel = path.relative(WEB_ROOT, f.file);
-      if (!byFile.has(rel)) byFile.set(rel, []);
-      byFile.get(rel).push(f);
+    if (findings.length > 0) {
+      process.stdout.write(
+        `i18n-audit: ${findings.length} missing key(s) across ${
+          new Set(findings.map((f) => f.file)).size
+        } file(s):\n\n`,
+      );
+      const byFile = new Map();
+      for (const f of findings) {
+        const rel = path.relative(WEB_ROOT, f.file);
+        if (!byFile.has(rel)) byFile.set(rel, []);
+        byFile.get(rel).push(f);
+      }
+      for (const [file, rows] of byFile) {
+        process.stdout.write(`  ${file}\n`);
+        for (const r of rows) {
+          process.stdout.write(
+            `    ${r.path}  (${reasonLabel(r.reason)}, line ${r.line})\n`,
+          );
+        }
+      }
+      process.stdout.write("\n");
     }
-    for (const [file, rows] of byFile) {
-      process.stdout.write(`  ${file}\n`);
-      for (const r of rows) {
+    if (untranslatedPages.length > 0) {
+      process.stdout.write(
+        `i18n-audit: ${untranslatedPages.length} page(s) render JSX without calling useTranslations:\n\n`,
+      );
+      for (const p of untranslatedPages) {
         process.stdout.write(
-          `    ${r.path}  (${reasonLabel(r.reason)}, line ${r.line})\n`,
+          `  ${path.relative(WEB_ROOT, p.file)}\n`,
         );
       }
+      process.stdout.write("\n");
     }
-    process.stdout.write("\n");
   }
 
-  return findings.length === 0 ? 0 : 1;
+  return findings.length === 0 && untranslatedPages.length === 0 ? 0 : 1;
 }
 
 main().then(

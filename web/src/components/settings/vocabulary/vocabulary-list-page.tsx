@@ -119,16 +119,16 @@ export function VocabularyListPage<T>({
   return (
     <div className="flex flex-col gap-4">
       <header>
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+        <h1 className="text-xl font-semibold text-foreground-strong dark:text-foreground">
           {title}
         </h1>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="mt-1 text-xs text-muted-foreground dark:text-muted-foreground">
           {subtitle}
         </p>
       </header>
 
       {!ontology && (
-        <p className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+        <p className="rounded border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground dark:text-warning-foreground">
           {noOntologyMessage}
         </p>
       )}
@@ -142,7 +142,7 @@ export function VocabularyListPage<T>({
           {items.map((item) => (
             <li
               key={itemId(item)}
-              className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
+              className="rounded border border-divider-soft bg-white p-3 dark:border-divider dark:bg-surface-base"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">{renderRow(item)}</div>

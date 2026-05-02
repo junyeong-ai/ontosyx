@@ -252,8 +252,8 @@ export default function ValidateStep() {
       title={t("title")}
       subtitle={t("subtitle")}
     >
-      <div className="rounded-lg border border-violet-200 bg-violet-50 p-5 dark:border-violet-900/50 dark:bg-violet-950/30">
-        <h3 className="mb-3 text-sm font-semibold text-violet-900 dark:text-violet-200">
+      <div className="rounded-lg border border-concept-border bg-concept-surface p-5">
+        <h3 className="mb-3 text-sm font-semibold text-concept-foreground">
           {t("summary.title", { name: state.pilotName || t("summary.unnamed") })}
         </h3>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
@@ -274,7 +274,7 @@ export default function ValidateStep() {
             value={t("summary.count", { n: ruleCount })}
           />
         </dl>
-        <p className="mt-4 text-[11px] text-violet-700 dark:text-violet-300">
+        <p className="mt-4 text-[11px] text-concept-foreground">
           {t("summary.nextStepHint")}
         </p>
       </div>
@@ -283,7 +283,7 @@ export default function ValidateStep() {
         <button
           type="button"
           onClick={handleRestart}
-          className="rounded px-3 py-1.5 text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded px-3 py-1.5 text-muted-foreground hover:bg-surface-inset"
         >
           {t("restart")}
         </button>
@@ -302,8 +302,8 @@ export default function ValidateStep() {
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <>
-      <dt className="font-medium text-violet-900 dark:text-violet-200">{label}</dt>
-      <dd className="text-violet-700 dark:text-violet-300">{value}</dd>
+      <dt className="font-medium text-concept-foreground">{label}</dt>
+      <dd className="text-concept-foreground">{value}</dd>
     </>
   );
 }

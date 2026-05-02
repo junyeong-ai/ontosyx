@@ -29,7 +29,7 @@ function LoginContent() {
   return (
     <main
       id="main"
-      className="flex h-screen items-center justify-center bg-zinc-950"
+      className="flex h-screen items-center justify-center bg-surface-base"
     >
       <div className="w-full max-w-sm text-center">
         <h1 className="text-3xl font-bold tracking-tight text-white">
@@ -40,14 +40,14 @@ function LoginContent() {
         </p>
 
         {resolvedError && (
-          <div className="mt-6 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+          <div className="mt-6 rounded-lg border border-danger-border bg-danger-surface px-4 py-3 text-sm text-danger-foreground">
             {resolvedError}
           </div>
         )}
 
         <a
           href="/auth/google"
-          className="mt-8 inline-flex items-center gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 hover:border-zinc-600"
+          className="mt-8 inline-flex items-center gap-3 rounded-lg border border-divider bg-surface-base px-6 py-3 text-sm font-medium text-white transition hover:bg-surface-base hover:border-divider"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24">
             <path

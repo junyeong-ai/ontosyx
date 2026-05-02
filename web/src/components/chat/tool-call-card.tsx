@@ -17,7 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { CopyButton } from "@/components/ui/copy-button";
 import { toolErrorMessage } from "@/lib/error-messages";
 import { TOOL_META, DEFAULT_TOOL_META, STEP_LABELS } from "@/lib/constants/tool-meta";
-import { useAuth } from "@/lib/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
 // ToolCallCard — rich display for tool invocations
@@ -48,10 +48,10 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
       aria-label={isRunning ? t("runningAria", { name: toolCall.name }) : undefined}
       className={`overflow-hidden rounded-xl border transition-colors ${
         isRunning
-          ? "border-emerald-200 bg-emerald-50/30 dark:border-emerald-800/40 dark:bg-emerald-950/10"
+          ? "border-brand-border bg-brand-surface/10"
           : isError
-            ? "border-red-200/60 bg-red-50/20 dark:border-red-800/30 dark:bg-red-950/10"
-            : "border-zinc-200/80 bg-zinc-50/50 dark:border-zinc-700/50 dark:bg-zinc-800/30"
+            ? "border-danger-border/60 bg-danger-surface/10"
+            : "border-divider bg-surface-raised"
       }`}
     >
       {/* Header row — the expand/collapse area is a real <button>; the
@@ -66,41 +66,41 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
           className="flex flex-1 items-center gap-2 text-left cursor-pointer disabled:cursor-default"
         >
           {isRunning ? (
-            <Spinner size="sm" className="text-emerald-500" />
+            <Spinner size="sm" className="text-brand-foreground" />
           ) : (
             <HugeiconsIcon
               icon={meta.icon}
-              className={`h-3.5 w-3.5 ${isError ? "text-red-500" : "text-zinc-500 dark:text-muted-foreground"}`}
+              className={`h-3.5 w-3.5 ${isError ? "text-danger-foreground" : "text-foreground-muted"}`}
               size="100%"
             />
           )}
 
-          <span className={`font-medium ${isRunning ? "text-emerald-700 dark:text-emerald-400" : isError ? "text-red-600 dark:text-red-400" : "text-zinc-700 dark:text-zinc-300"}`}>
+          <span className={`font-medium ${isRunning ? "text-brand-foreground" : isError ? "text-danger-foreground" : "text-foreground"}`}>
             {isRunning ? `${meta.verb}...` : meta.label}
           </span>
 
           {/* Duration badge — show total time */}
           {(isDone || isError) && toolCall.durationMs != null && toolCall.durationMs > 0 && (
-            <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-500 dark:bg-zinc-700 dark:text-muted-foreground">
+            <span className="rounded-full bg-surface-inset px-1.5 py-0.5 text-2xs tabular-nums text-foreground-muted dark:text-muted-foreground">
               {toolCall.durationMs < 100 ? t("durationSub100") : t("durationSeconds", { seconds: (toolCall.durationMs / 1000).toFixed(1) })}
             </span>
           )}
 
           {/* Result summary */}
           {parsedResult?.summary && (
-            <span className="ml-1 text-[10px] text-muted-foreground">
+            <span className="ml-1 text-2xs text-muted-foreground">
               {parsedResult.summary}
             </span>
           )}
 
           {isError && (
-            <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] text-red-600 dark:bg-red-900/30 dark:text-red-400">
+            <span className="rounded-full bg-danger-surface px-1.5 py-0.5 text-2xs text-danger-foreground">
               {t("failedBadge")}
             </span>
           )}
 
           {toolCall.status === "review" && (
-            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+            <span className="rounded-full bg-warning-surface px-1.5 py-0.5 text-2xs text-warning-foreground">
               {t("reviewBadge")}
             </span>
           )}
@@ -124,21 +124,21 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
               store.setAnalyzeRightTab("results");
               store.setFocusResultId(toolCall.id);
             }}
-            className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-emerald-600 dark:hover:bg-zinc-700 dark:hover:text-emerald-400"
+            className="rounded p-0.5 text-muted-foreground hover:bg-surface-inset hover:text-brand-foreground dark:hover:text-brand-foreground"
             title={t("viewInResults")}
           >
-            <span className="text-[10px]">→</span>
+            <span className="text-2xs">→</span>
           </button>
         )}
       </div>
 
       {parsedResult?.compiledCypher && (
-        <div className="border-t border-emerald-200/30 px-3 py-2 dark:border-emerald-800/20">
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+        <div className="border-t border-brand-border/30 px-3 py-2">
+          <div className="mb-1 flex items-center gap-1.5 text-2xs font-medium text-brand-foreground">
             <span>{t("compiledCypherLabel")}</span>
             <CopyButton text={parsedResult.compiledCypher} variant="inline" />
           </div>
-          <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-zinc-50 p-2 font-mono text-[10px] leading-relaxed text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+          <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-surface-raised p-2 font-mono text-2xs leading-relaxed text-foreground-muted">
             {parsedResult.compiledCypher}
           </pre>
         </div>
@@ -150,27 +150,27 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
       {/* Sub-step progress: expanded during execution, collapsed after completion */}
       {isRunning && toolCall.steps && toolCall.steps.length > 0 && (
-        <div className="border-t border-emerald-200/30 px-3 py-2 space-y-1 dark:border-emerald-800/20">
+        <div className="border-t border-brand-border/30 px-3 py-2 space-y-1/20">
           {toolCall.steps.map((step) => (
             <div key={step.step} className="flex items-center gap-2 text-xs">
               {step.status === "started" ? (
-                <Spinner size="sm" className="h-3 w-3 text-emerald-500" />
+                <Spinner size="sm" className="h-3 w-3 text-brand-foreground" />
               ) : step.status === "completed" ? (
-                <HugeiconsIcon icon={CheckmarkCircle01Icon} className="h-3 w-3 text-emerald-500" size="100%" />
+                <HugeiconsIcon icon={CheckmarkCircle01Icon} className="h-3 w-3 text-brand-foreground" size="100%" />
               ) : (
-                <HugeiconsIcon icon={CancelCircleIcon} className="h-3 w-3 text-red-500" size="100%" />
+                <HugeiconsIcon icon={CancelCircleIcon} className="h-3 w-3 text-danger-foreground" size="100%" />
               )}
               <span className={
                 step.status === "started"
-                  ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                  ? "text-brand-foreground font-medium"
                   : step.status === "failed"
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-zinc-500 dark:text-muted-foreground"
+                    ? "text-danger-foreground"
+                    : "text-foreground-muted"
               }>
                 {STEP_LABELS[step.step] ?? step.step}
               </span>
               {step.durationMs != null && (
-                <span className="text-[10px] tabular-nums text-muted-foreground">
+                <span className="text-2xs tabular-nums text-muted-foreground">
                   {step.durationMs < 100 ? t("durationSub100") : t("durationSeconds", { seconds: (step.durationMs / 1000).toFixed(1) })}
                 </span>
               )}
@@ -181,8 +181,8 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
       {/* HITL approval buttons */}
       {toolCall.status === "review" && (
-        <div className="border-t border-amber-200/40 px-3 py-2 dark:border-amber-800/30">
-          <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-2">
+        <div className="border-t border-warning-border/40 px-3 py-2">
+          <p className="text-[11px] text-warning-foreground mb-2">
             {t("hitl.description")}
           </p>
           <div className="flex gap-2">
@@ -196,7 +196,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                     .catch(() => toast.error(t("hitl.toast.approveFailed")));
                 }
               }}
-              className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+              className="rounded-md bg-brand-solid px-3 py-1 text-xs font-medium text-white hover:bg-brand-solid"
             >
               {t("hitl.approve")}
             </button>
@@ -210,7 +210,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                     .catch(() => toast.error(t("hitl.toast.rejectFailed")));
                 }
               }}
-              className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
+              className="rounded-md border border-danger-border px-3 py-1 text-xs font-medium text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-surface/30"
             >
               {t("hitl.reject")}
             </button>
@@ -223,14 +223,14 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         const { userMessage, technicalDetail } = toolErrorMessage(toolCall.output);
         const compiledQuery = tryExtractCompiledQuery(technicalDetail);
         return (
-          <div className="border-t border-red-200/50 px-3 py-2 dark:border-red-900/30">
-            <p className="text-xs text-red-600 dark:text-red-400">{userMessage}</p>
+          <div className="border-t border-danger-border/50 px-3 py-2">
+            <p className="text-xs text-danger-foreground">{userMessage}</p>
 
             {/* Show attempted query if available */}
             {compiledQuery && (
-              <div className="mt-1.5 rounded border border-red-200/40 bg-zinc-100 px-2 py-1.5 dark:border-red-800/30 dark:bg-zinc-900">
-                <p className="mb-1 text-[10px] font-medium text-zinc-500 dark:text-muted-foreground">{t("error.attemptedQuery")}</p>
-                <pre className="max-h-20 overflow-auto text-[10px] font-mono text-zinc-600 dark:text-muted-foreground">
+              <div className="mt-1.5 rounded border border-danger-border/40 bg-surface-inset px-2 py-1.5">
+                <p className="mb-1 text-2xs font-medium text-foreground-muted">{t("error.attemptedQuery")}</p>
+                <pre className="max-h-20 overflow-auto text-2xs font-mono text-foreground dark:text-muted-foreground">
                   {compiledQuery}
                 </pre>
               </div>
@@ -238,14 +238,14 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
             {/* Tips for query_graph translation errors */}
             {toolCall.name === "query_graph" && (
-              <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400">
+              <div className="mt-2 rounded border border-warning-border bg-warning-surface px-3 py-2 text-xs text-warning-foreground">
                 <p className="font-medium">{t("error.tipsHeading")}</p>
                 <ul className="mt-1 list-disc pl-4 space-y-0.5">
                   <li>{t("error.tipEntityNames")}</li>
                   <li>{t("error.tipPropertyNames")}</li>
                   <li>{t("error.tipSimpler")}</li>
                 </ul>
-                <p className="mt-1.5 text-amber-600 dark:text-amber-500">
+                <p className="mt-1.5 text-warning-foreground">
                   {t("error.tryVisualBuilderPrefix")}
                   <button
                     className="underline font-medium"
@@ -264,12 +264,12 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
             {isExpanded && isAdmin && (
               <details className="mt-1">
-                <summary className="cursor-pointer text-[10px] text-muted-foreground hover:text-zinc-600">
+                <summary className="cursor-pointer text-2xs text-muted-foreground hover:text-foreground">
                   {t("error.technicalDetails")}
                 </summary>
                 <div className="relative mt-1">
                   <CopyButton text={technicalDetail} />
-                  <pre className="max-h-32 overflow-auto rounded bg-zinc-100 p-2 pr-8 text-[10px] text-zinc-500 dark:bg-zinc-900 dark:text-muted-foreground select-text">
+                  <pre className="max-h-32 overflow-auto rounded bg-surface-inset p-2 pr-8 text-2xs text-foreground-muted dark:text-muted-foreground select-text">
                     {truncateOutput(technicalDetail)}
                   </pre>
                 </div>
@@ -281,7 +281,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
       {/* Success: expanded raw output (admin only — may contain internal schema details) */}
       {isExpanded && isAdmin && !isError && toolCall.output && (
-        <div className="border-t border-zinc-200/50 dark:border-zinc-700/30">
+        <div className="border-t border-divider/30">
           <div className="relative">
             <CopyButton text={toolCall.output} />
             <JsonBlock raw={toolCall.output} />
@@ -302,8 +302,8 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 function AmbiguityChipStrip({ chips }: { chips: readonly AmbiguityChip[] }) {
   const t = useTranslations("workbench.chat.toolCall.ambiguity");
   return (
-    <div className="border-t border-amber-200/50 px-3 py-2 dark:border-amber-800/30">
-      <p className="mb-1.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+    <div className="border-t border-warning-border/50 px-3 py-2">
+      <p className="mb-1.5 text-2xs font-medium text-warning-foreground">
         {t("heading", { count: chips.length })}
       </p>
       <div className="flex flex-wrap gap-1.5">
@@ -311,7 +311,7 @@ function AmbiguityChipStrip({ chips }: { chips: readonly AmbiguityChip[] }) {
           <a
             key={chip.contextId}
             href={`/glossary?ambiguity=${encodeURIComponent(chip.contextId)}`}
-            className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-800 transition-colors hover:border-amber-400 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:border-amber-700"
+            className="inline-flex items-center gap-1 rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 font-mono text-2xs text-warning-foreground transition-colors hover:border-warning-border hover:bg-warning-surface dark:hover:border-warning-border"
             title={t("chipTooltip", {
               relation: chip.relation,
               column: chip.column,
@@ -555,7 +555,7 @@ function JsonBlock({ raw }: { raw: string }) {
 
   return (
     <div className="relative">
-      <pre className="max-h-64 overflow-auto p-3 pr-10 text-xs font-mono text-zinc-700 dark:text-zinc-300 leading-relaxed">
+      <pre className="max-h-64 overflow-auto p-3 pr-10 text-xs font-mono text-foreground leading-relaxed">
         {display}
         {!expanded && isLarge && (
           <span className="text-muted-foreground">{"\n... ("}{t("json.truncatedChars", { count: formatted.length.toLocaleString() })}{")"}</span>
@@ -564,7 +564,7 @@ function JsonBlock({ raw }: { raw: string }) {
       {isLarge && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="absolute bottom-2 right-2 rounded bg-zinc-200 px-2 py-0.5 text-[10px] text-zinc-600 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
+          className="absolute bottom-2 right-2 rounded bg-surface-inset px-2 py-0.5 text-2xs text-foreground hover:bg-surface-raised"
         >
           {expanded ? t("json.collapse") : t("json.expand")}
         </button>

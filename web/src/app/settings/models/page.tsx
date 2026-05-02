@@ -1,18 +1,34 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { request } from "@/lib/api/client";
-import { Spinner } from "@/components/ui/spinner";
+import { useTranslations } from "next-intl";
+
+import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/error-state";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { SettingsSelect, SettingsSwitch } from "@/components/ui/form-input";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Spinner } from "@/components/ui/spinner";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
+import { useConfirm } from "@/components/providers/confirm-provider";
+import {
+  useCreateModelConfig,
+  useCreateRoutingRule,
+  useDeleteModelConfig,
+  useDeleteRoutingRule,
+  useModelConfigs,
+  useRoutingRules,
+  useTestModelConfig,
+  useUpdateModelConfig,
+  useUpdateRoutingRule,
+} from "@/hooks/api/use-models";
 import type { ModelConfig, ModelRoutingRule } from "@/lib/api/models";
 
 // ---------------------------------------------------------------------------
 // Form types
 // ---------------------------------------------------------------------------
 
-type ConfigFormValues = {
+interface ConfigFormValues {
   name: string;
   provider: string;
   model_id: string;
@@ -27,7 +43,7 @@ type ConfigFormValues = {
   api_key_env: string;
   region: string;
   base_url: string;
-};
+}
 
 const EMPTY_CONFIG_FORM: ConfigFormValues = {
   name: "",
@@ -46,7 +62,14 @@ const EMPTY_CONFIG_FORM: ConfigFormValues = {
   base_url: "",
 };
 
-const PROVIDERS = ["anthropic", "openai", "bedrock", "vertex", "ollama", "custom"] as const;
+const PROVIDERS = [
+  "anthropic",
+  "openai",
+  "bedrock",
+  "vertex",
+  "ollama",
+  "custom",
+] as const;
 
 const OPERATIONS = [
   "*",
@@ -63,12 +86,12 @@ const OPERATIONS = [
   "repo_analyze",
 ] as const;
 
-type RuleFormValues = {
+interface RuleFormValues {
   operation: string;
   model_config_id: string;
   priority: number;
   enabled: boolean;
-};
+}
 
 const EMPTY_RULE_FORM: RuleFormValues = {
   operation: "*",
@@ -82,45 +105,36 @@ const EMPTY_RULE_FORM: RuleFormValues = {
 // ---------------------------------------------------------------------------
 
 export default function ModelsSettingsPage() {
-  const [configs, setConfigs] = useState<ModelConfig[]>([]);
-  const [rules, setRules] = useState<ModelRoutingRule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const t = useTranslations("settings.models");
+  const tCommon = useTranslations("common");
+  const confirm = useConfirm();
+
+  const configsQuery = useModelConfigs();
+  const rulesQuery = useRoutingRules();
+  const createConfig = useCreateModelConfig();
+  const updateConfig = useUpdateModelConfig();
+  const deleteConfig = useDeleteModelConfig();
+  const testConfig = useTestModelConfig();
+  const createRule = useCreateRoutingRule();
+  const updateRule = useUpdateRoutingRule();
+  const deleteRule = useDeleteRoutingRule();
+
+  const configs = configsQuery.data ?? [];
+  const rules = rulesQuery.data ?? [];
+  const loading = configsQuery.isLoading || rulesQuery.isLoading;
+  const failed = configsQuery.isError || rulesQuery.isError;
 
   // Config form state
   const [configFormOpen, setConfigFormOpen] = useState(false);
   const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
   const [configForm, setConfigForm] = useState<ConfigFormValues>(EMPTY_CONFIG_FORM);
-  const [savingConfig, setSavingConfig] = useState(false);
-  const [deletingConfigId, setDeletingConfigId] = useState<string | null>(null);
-  const [testingId, setTestingId] = useState<string | null>(null);
   const [configErrors, setConfigErrors] = useState<Record<string, string>>({});
+  const [testingId, setTestingId] = useState<string | null>(null);
 
   // Rule form state
   const [ruleFormOpen, setRuleFormOpen] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [ruleForm, setRuleForm] = useState<RuleFormValues>(EMPTY_RULE_FORM);
-  const [savingRule, setSavingRule] = useState(false);
-  const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null);
-  const confirm = useConfirm();
-
-  const load = useCallback(async () => {
-    try {
-      const [c, r] = await Promise.all([
-        request<ModelConfig[]>("/models/configs"),
-        request<ModelRoutingRule[]>("/models/routing-rules"),
-      ]);
-      setConfigs(c);
-      setRules(r);
-    } catch {
-      toast.error("Failed to load model configurations");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   // ---- Config CRUD ----
 
@@ -140,9 +154,12 @@ export default function ModelsSettingsPage() {
       max_tokens: c.max_tokens,
       temperature: c.temperature !== null ? String(c.temperature) : "",
       timeout_secs: c.timeout_secs,
-      cost_per_1m_input: c.cost_per_1m_input !== null ? String(c.cost_per_1m_input) : "",
-      cost_per_1m_output: c.cost_per_1m_output !== null ? String(c.cost_per_1m_output) : "",
-      daily_budget_usd: c.daily_budget_usd !== null ? String(c.daily_budget_usd) : "",
+      cost_per_1m_input:
+        c.cost_per_1m_input !== null ? String(c.cost_per_1m_input) : "",
+      cost_per_1m_output:
+        c.cost_per_1m_output !== null ? String(c.cost_per_1m_output) : "",
+      daily_budget_usd:
+        c.daily_budget_usd !== null ? String(c.daily_budget_usd) : "",
       priority: c.priority,
       enabled: c.enabled,
       api_key_env: c.api_key_env ?? "",
@@ -161,16 +178,24 @@ export default function ModelsSettingsPage() {
   };
 
   const clearConfigError = (field: string) => {
-    if (configErrors[field]) setConfigErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+    if (!configErrors[field]) return;
+    setConfigErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
   const validateConfig = (): boolean => {
     const e: Record<string, string> = {};
-    if (!configForm.name.trim()) e.name = "Required";
-    if (!configForm.provider.trim()) e.provider = "Required";
-    if (!configForm.model_id.trim()) e.model_id = "Required";
-    if (configForm.max_tokens < 1) e.max_tokens = "Must be at least 1";
-    if (configForm.temperature && (Number(configForm.temperature) < 0 || Number(configForm.temperature) > 2)) e.temperature = "Must be 0-2";
+    if (!configForm.name.trim()) e.name = t("validation.required");
+    if (!configForm.provider.trim()) e.provider = t("validation.required");
+    if (!configForm.model_id.trim()) e.model_id = t("validation.required");
+    if (configForm.max_tokens < 1) e.max_tokens = t("validation.minOne");
+    if (configForm.temperature) {
+      const v = Number(configForm.temperature);
+      if (v < 0 || v > 2) e.temperature = t("validation.temperatureRange");
+    }
     setConfigErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -179,16 +204,22 @@ export default function ModelsSettingsPage() {
     e.preventDefault();
     if (!validateConfig()) return;
 
-    const body: Record<string, unknown> = {
+    const body = {
       name: configForm.name.trim(),
       provider: configForm.provider,
       model_id: configForm.model_id.trim(),
       max_tokens: configForm.max_tokens,
       temperature: configForm.temperature ? Number(configForm.temperature) : null,
       timeout_secs: configForm.timeout_secs,
-      cost_per_1m_input: configForm.cost_per_1m_input ? Number(configForm.cost_per_1m_input) : null,
-      cost_per_1m_output: configForm.cost_per_1m_output ? Number(configForm.cost_per_1m_output) : null,
-      daily_budget_usd: configForm.daily_budget_usd ? Number(configForm.daily_budget_usd) : null,
+      cost_per_1m_input: configForm.cost_per_1m_input
+        ? Number(configForm.cost_per_1m_input)
+        : null,
+      cost_per_1m_output: configForm.cost_per_1m_output
+        ? Number(configForm.cost_per_1m_output)
+        : null,
+      daily_budget_usd: configForm.daily_budget_usd
+        ? Number(configForm.daily_budget_usd)
+        : null,
       priority: configForm.priority,
       enabled: configForm.enabled,
       api_key_env: configForm.api_key_env.trim() || null,
@@ -196,76 +227,62 @@ export default function ModelsSettingsPage() {
       base_url: configForm.base_url.trim() || null,
     };
 
-    setSavingConfig(true);
     try {
       if (editingConfigId) {
-        await request(`/models/configs/${editingConfigId}`, {
-          method: "PATCH",
-          body: JSON.stringify(body),
-        });
-        toast.success("Model config updated");
+        await updateConfig.mutateAsync({ id: editingConfigId, patch: body });
+        toast.success(t("toast.configUpdated"));
       } else {
-        await request("/models/configs", {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-        toast.success("Model config created");
+        await createConfig.mutateAsync(body);
+        toast.success(t("toast.configCreated"));
       }
       cancelConfigForm();
-      await load();
     } catch {
-      toast.error(editingConfigId ? "Failed to update config" : "Failed to create config");
-    } finally {
-      setSavingConfig(false);
+      toast.error(
+        editingConfigId
+          ? t("toast.configUpdateFailed")
+          : t("toast.configCreateFailed"),
+      );
     }
   };
 
   const handleDeleteConfig = async (id: string) => {
     const config = configs.find((c) => c.id === id);
     const ok = await confirm({
-      title: `Delete model config '${config?.name ?? id}'?`,
-      description: "This action cannot be undone. Any routing rules referencing this config will also be affected.",
+      title: t("confirm.deleteConfigTitle", { name: config?.name ?? id }),
+      description: t("confirm.deleteConfigDescription"),
       variant: "danger",
     });
     if (!ok) return;
-    setDeletingConfigId(id);
     try {
-      await request(`/models/configs/${id}`, { method: "DELETE" });
-      toast.success("Model config deleted");
-      await load();
+      await deleteConfig.mutateAsync(id);
+      toast.success(t("toast.configDeleted"));
     } catch {
-      toast.error("Failed to delete config");
-    } finally {
-      setDeletingConfigId(null);
+      toast.error(t("toast.configDeleteFailed"));
     }
   };
 
   const handleToggleEnabled = async (c: ModelConfig) => {
     try {
-      await request(`/models/configs/${c.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ enabled: !c.enabled }),
+      await updateConfig.mutateAsync({
+        id: c.id,
+        patch: { enabled: !c.enabled },
       });
-      await load();
     } catch {
-      toast.error("Failed to toggle model");
+      toast.error(t("toast.toggleFailed"));
     }
   };
 
   const handleTestConfig = async (id: string) => {
     setTestingId(id);
     try {
-      const result = await request<{ success: boolean; latency_ms: number; error: string | null }>(
-        "/models/test",
-        { method: "POST", body: JSON.stringify({ model_config_id: id }) },
-      );
+      const result = await testConfig.mutateAsync(id);
       if (result.success) {
-        toast.success(`Model responded in ${result.latency_ms}ms`);
+        toast.success(t("toast.testSuccess", { ms: result.latency_ms }));
       } else {
-        toast.error(`Test failed: ${result.error}`);
+        toast.error(t("toast.testFailed", { error: result.error ?? "" }));
       }
     } catch {
-      toast.error("Failed to test model");
+      toast.error(t("toast.testError"));
     } finally {
       setTestingId(null);
     }
@@ -299,114 +316,102 @@ export default function ModelsSettingsPage() {
   const handleSubmitRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ruleForm.model_config_id) return;
-
-    const body: Record<string, unknown> = {
-      operation: ruleForm.operation,
-      model_config_id: ruleForm.model_config_id,
-      priority: ruleForm.priority,
-      enabled: ruleForm.enabled,
-    };
-
-    setSavingRule(true);
     try {
       if (editingRuleId) {
-        await request(`/models/routing-rules/${editingRuleId}`, {
-          method: "PATCH",
-          body: JSON.stringify(body),
-        });
-        toast.success("Routing rule updated");
+        await updateRule.mutateAsync({ id: editingRuleId, patch: ruleForm });
+        toast.success(t("toast.ruleUpdated"));
       } else {
-        await request("/models/routing-rules", {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-        toast.success("Routing rule created");
+        await createRule.mutateAsync(ruleForm);
+        toast.success(t("toast.ruleCreated"));
       }
       cancelRuleForm();
-      await load();
     } catch {
-      toast.error(editingRuleId ? "Failed to update rule" : "Failed to create rule");
-    } finally {
-      setSavingRule(false);
+      toast.error(
+        editingRuleId
+          ? t("toast.ruleUpdateFailed")
+          : t("toast.ruleCreateFailed"),
+      );
     }
   };
 
   const handleDeleteRule = async (id: string) => {
     const rule = rules.find((r) => r.id === id);
     const ok = await confirm({
-      title: `Delete routing rule for '${rule?.operation ?? id}'?`,
-      description: "This action cannot be undone. The routing rule will be permanently removed.",
+      title: t("confirm.deleteRuleTitle", { operation: rule?.operation ?? id }),
+      description: t("confirm.deleteRuleDescription"),
       variant: "danger",
     });
     if (!ok) return;
-    setDeletingRuleId(id);
     try {
-      await request(`/models/routing-rules/${id}`, { method: "DELETE" });
-      toast.success("Routing rule deleted");
-      await load();
+      await deleteRule.mutateAsync(id);
+      toast.success(t("toast.ruleDeleted"));
     } catch {
-      toast.error("Failed to delete rule");
-    } finally {
-      setDeletingRuleId(null);
+      toast.error(t("toast.ruleDeleteFailed"));
     }
   };
 
-  // ---- Helpers ----
+  // ---- Render ----
 
   const configName = (id: string) =>
     configs.find((c) => c.id === id)?.name ?? id.slice(0, 8);
 
-  if (loading) return <Spinner />;
+  if (loading) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <div className="flex items-center justify-center py-20">
+          <Spinner size="lg" className="text-brand-foreground" />
+        </div>
+      </SettingsPageShell>
+    );
+  }
+
+  if (failed) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <div className="py-12">
+          <ErrorState
+            title={tCommon("loadError.title")}
+            description={tCommon("loadError.description")}
+            onRetry={() => {
+              configsQuery.refetch();
+              rulesQuery.refetch();
+            }}
+            retryLabel={tCommon("retry")}
+          />
+        </div>
+      </SettingsPageShell>
+    );
+  }
+
+  const savingConfig = createConfig.isPending || updateConfig.isPending;
+  const savingRule = createRule.isPending || updateRule.isPending;
 
   return (
-    <div>
-      {/* Model Configs */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            Model Configurations
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
-            Configure LLM providers, models, cost limits, and test connectivity.
-          </p>
-        </div>
-        {!configFormOpen && (
-          <button
-            onClick={openCreateConfig}
-            className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
-          >
-            Add Model
-          </button>
-        )}
+    <SettingsPageShell
+      title={t("title")}
+      subtitle={t("description")}
+      actions={
+        !configFormOpen && (
+          <Button variant="primary" size="sm" onClick={openCreateConfig}>
+            {t("addAction")}
+          </Button>
+        )
+      }
+    >
+      <div className="grid grid-cols-3 gap-4">
+        <KpiCard
+          tone="success"
+          label={t("kpis.enabled")}
+          value={configs.filter((c) => c.enabled).length}
+        />
+        <KpiCard
+          tone="neutral"
+          label={t("kpis.disabled")}
+          value={configs.filter((c) => !c.enabled).length}
+        />
+        <KpiCard tone="info" label={t("kpis.rules")} value={rules.length} />
       </div>
 
-      {/* Summary */}
-      <div className="mt-6 grid grid-cols-3 gap-4">
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950">
-          <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-            {configs.filter((c) => c.enabled).length}
-          </div>
-          <div className="text-xs text-emerald-700 dark:text-emerald-500">
-            Enabled
-          </div>
-        </div>
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900">
-          <div className="text-2xl font-bold text-zinc-700 dark:text-zinc-300">
-            {configs.filter((c) => !c.enabled).length}
-          </div>
-          <div className="text-xs text-muted-foreground">Disabled</div>
-        </div>
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
-          <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-            {rules.length}
-          </div>
-          <div className="text-xs text-blue-700 dark:text-blue-300">
-            Routing Rules
-          </div>
-        </div>
-      </div>
-
-      {/* Config inline form */}
       {configFormOpen && (
         <ConfigForm
           form={configForm}
@@ -420,26 +425,27 @@ export default function ModelsSettingsPage() {
         />
       )}
 
-      {/* Configs table */}
-      <div className="mt-6 overflow-x-auto -mx-6 px-6" tabIndex={0} role="region" aria-label="Model configs">
+      <div
+        className="-mx-6 mt-6 overflow-x-auto px-6"
+        tabIndex={0}
+        role="region"
+        aria-label={t("table.regionLabel")}
+      >
         <table className="w-full min-w-[640px] text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
-              <th className="py-3 pr-6">Name</th>
-              <th className="py-3 pr-6">Provider</th>
-              <th className="py-3 pr-6">Model</th>
-              <th className="py-3 pr-6">Priority</th>
-              <th className="py-3 pr-6">Enabled</th>
-              <th className="py-3 pr-6 text-right">Actions</th>
+            <tr className="border-b border-divider text-left text-xs font-medium uppercase text-muted-foreground">
+              <th className="py-3 pr-6">{t("table.name")}</th>
+              <th className="py-3 pr-6">{t("table.provider")}</th>
+              <th className="py-3 pr-6">{t("table.model")}</th>
+              <th className="py-3 pr-6">{t("table.priority")}</th>
+              <th className="py-3 pr-6">{t("table.enabled")}</th>
+              <th className="py-3 pr-6 text-right">{t("table.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {configs.map((c) => (
-              <tr
-                key={c.id}
-                className="border-b border-zinc-100 dark:border-zinc-800"
-              >
-                <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
+              <tr key={c.id} className="border-b border-divider-soft">
+                <td className="py-3 pr-6 font-medium text-foreground-strong">
                   {c.name}
                 </td>
                 <td className="py-3 pr-6 text-muted-foreground">
@@ -452,13 +458,13 @@ export default function ModelsSettingsPage() {
                 <td className="py-3 pr-6">
                   <button
                     onClick={() => handleToggleEnabled(c)}
-                    className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                    className={`inline-flex rounded-full px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider ${
                       c.enabled
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                        : "bg-zinc-100 text-muted-foreground dark:bg-zinc-800"
+                        ? "bg-success-surface text-success-foreground"
+                        : "bg-surface-inset text-muted-foreground"
                     }`}
                   >
-                    {c.enabled ? "On" : "Off"}
+                    {c.enabled ? t("table.on") : t("table.off")}
                   </button>
                 </td>
                 <td className="py-3 pr-6 text-right">
@@ -466,22 +472,24 @@ export default function ModelsSettingsPage() {
                     <button
                       onClick={() => handleTestConfig(c.id)}
                       disabled={testingId === c.id}
-                      className="rounded px-2 py-1 text-xs text-blue-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50 dark:hover:bg-blue-950"
+                      className="rounded px-2 py-1 text-xs text-info-foreground hover:bg-info-surface disabled:opacity-50"
                     >
-                      {testingId === c.id ? "..." : "Test"}
+                      {testingId === c.id ? t("table.testing") : t("table.test")}
                     </button>
                     <button
                       onClick={() => openEditConfig(c)}
-                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-surface-inset hover:text-foreground"
                     >
-                      Edit
+                      {t("table.edit")}
                     </button>
                     <button
                       onClick={() => handleDeleteConfig(c.id)}
-                      disabled={deletingConfigId === c.id}
-                      className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:hover:bg-red-950"
+                      disabled={deleteConfig.isPending}
+                      className="rounded px-2 py-1 text-xs text-danger-foreground hover:bg-danger-surface disabled:opacity-50"
                     >
-                      {deletingConfigId === c.id ? "..." : "Delete"}
+                      {deleteConfig.isPending
+                        ? t("table.deleting")
+                        : t("table.delete")}
                     </button>
                   </div>
                 </td>
@@ -489,8 +497,11 @@ export default function ModelsSettingsPage() {
             ))}
             {configs.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-muted-foreground">
-                  No model configurations
+                <td
+                  colSpan={6}
+                  className="py-8 text-center text-muted-foreground"
+                >
+                  {t("table.empty")}
                 </td>
               </tr>
             )}
@@ -498,27 +509,22 @@ export default function ModelsSettingsPage() {
         </table>
       </div>
 
-      {/* Routing Rules */}
       <div className="mt-12 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            Routing Rules
+          <h2 className="text-lg font-semibold text-foreground-strong">
+            {t("rules.heading")}
           </h2>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
-            Map operations to specific model configurations by priority.
+          <p className="mt-1 text-sm text-foreground-muted">
+            {t("rules.subtitle")}
           </p>
         </div>
         {!ruleFormOpen && configs.length > 0 && (
-          <button
-            onClick={openCreateRule}
-            className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
-          >
-            Add Rule
-          </button>
+          <Button variant="primary" size="sm" onClick={openCreateRule}>
+            {t("rules.addAction")}
+          </Button>
         )}
       </div>
 
-      {/* Rule inline form */}
       {ruleFormOpen && (
         <RuleForm
           form={ruleForm}
@@ -531,54 +537,59 @@ export default function ModelsSettingsPage() {
         />
       )}
 
-      {/* Rules table */}
-      <div className="mt-6 overflow-x-auto -mx-6 px-6" tabIndex={0} role="region" aria-label="Routing rules">
+      <div
+        className="-mx-6 mt-6 overflow-x-auto px-6"
+        tabIndex={0}
+        role="region"
+        aria-label={t("rules.regionLabel")}
+      >
         <table className="w-full min-w-[640px] text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
-              <th className="py-3 pr-6">Operation</th>
-              <th className="py-3 pr-6">Model Config</th>
-              <th className="py-3 pr-6">Priority</th>
-              <th className="py-3 pr-6">Enabled</th>
-              <th className="py-3 pr-6 text-right">Actions</th>
+            <tr className="border-b border-divider text-left text-xs font-medium uppercase text-muted-foreground">
+              <th className="py-3 pr-6">{t("rules.operation")}</th>
+              <th className="py-3 pr-6">{t("rules.modelConfig")}</th>
+              <th className="py-3 pr-6">{t("rules.priority")}</th>
+              <th className="py-3 pr-6">{t("rules.enabled")}</th>
+              <th className="py-3 pr-6 text-right">{t("rules.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {rules.map((r) => (
-              <tr
-                key={r.id}
-                className="border-b border-zinc-100 dark:border-zinc-800"
-              >
-                <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
+              <tr key={r.id} className="border-b border-divider-soft">
+                <td className="py-3 pr-6 font-medium text-foreground-strong">
                   {r.operation}
                 </td>
-                <td className="py-3 pr-6 text-muted-foreground">{configName(r.model_config_id)}</td>
+                <td className="py-3 pr-6 text-muted-foreground">
+                  {configName(r.model_config_id)}
+                </td>
                 <td className="py-3 pr-6 text-muted-foreground">{r.priority}</td>
                 <td className="py-3 pr-6">
                   <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                    className={`inline-flex rounded-full px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider ${
                       r.enabled
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                        : "bg-zinc-100 text-muted-foreground dark:bg-zinc-800"
+                        ? "bg-success-surface text-success-foreground"
+                        : "bg-surface-inset text-muted-foreground"
                     }`}
                   >
-                    {r.enabled ? "On" : "Off"}
+                    {r.enabled ? t("table.on") : t("table.off")}
                   </span>
                 </td>
                 <td className="py-3 pr-6 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <button
                       onClick={() => openEditRule(r)}
-                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-surface-inset hover:text-foreground"
                     >
-                      Edit
+                      {t("rules.edit")}
                     </button>
                     <button
                       onClick={() => handleDeleteRule(r.id)}
-                      disabled={deletingRuleId === r.id}
-                      className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:hover:bg-red-950"
+                      disabled={deleteRule.isPending}
+                      className="rounded px-2 py-1 text-xs text-danger-foreground hover:bg-danger-surface disabled:opacity-50"
                     >
-                      {deletingRuleId === r.id ? "..." : "Delete"}
+                      {deleteRule.isPending
+                        ? t("rules.deleting")
+                        : t("rules.delete")}
                     </button>
                   </div>
                 </td>
@@ -586,35 +597,36 @@ export default function ModelsSettingsPage() {
             ))}
             {rules.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-muted-foreground">
-                  No routing rules configured
+                <td
+                  colSpan={5}
+                  className="py-8 text-center text-muted-foreground"
+                >
+                  {t("rules.empty")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-    </div>
+    </SettingsPageShell>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Provider badge
+// Provider badge — semantic tone per provider family
 // ---------------------------------------------------------------------------
 
 function ProviderBadge({ provider }: { provider: string }) {
-  const color =
-    provider === "anthropic"
-      ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
-      : provider === "openai"
-        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-        : provider === "bedrock"
-          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground";
+  const tone =
+    provider === "anthropic" || provider === "openai"
+      ? "bg-info-surface text-info-foreground"
+      : provider === "bedrock" || provider === "vertex"
+        ? "bg-warning-surface text-warning-foreground"
+        : "bg-surface-inset text-foreground-muted";
 
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${color}`}
+      className={`inline-flex rounded-full px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider ${tone}`}
     >
       {provider}
     </span>
@@ -622,7 +634,7 @@ function ProviderBadge({ provider }: { provider: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Config form (create / edit)
+// Config form
 // ---------------------------------------------------------------------------
 
 function ConfigForm({
@@ -644,6 +656,8 @@ function ConfigForm({
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("settings.models.form.config");
+  const tCommon = useTranslations("common");
   const update = (field: string, patch: Partial<ConfigFormValues>) => {
     setForm((prev) => ({ ...prev, ...patch }));
     clearError(field);
@@ -652,48 +666,43 @@ function ConfigForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/20"
+      className="mt-4 rounded-lg border border-brand-border bg-brand-surface p-4"
     >
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-          {isEditing ? "Edit Model Config" : "New Model Config"}
+        <span className="text-xs font-semibold text-brand-foreground">
+          {isEditing ? t("editTitle") : t("createTitle")}
         </span>
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-muted-foreground hover:text-zinc-600"
+          className="text-xs text-muted-foreground hover:text-foreground"
         >
-          Cancel
+          {tCommon("cancel")}
         </button>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {/* Name */}
-        <div className="col-span-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Name
-          </label>
+        <Field
+          className="col-span-2"
+          label={t("name")}
+          error={errors.name}
+        >
           <input
             value={form.name}
             onChange={(e) => update("name", { name: e.target.value })}
-            placeholder="e.g. Claude 4 Sonnet"
+            placeholder={t("namePlaceholder")}
             required
-            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.name ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
+            className={fieldClass(errors.name)}
           />
-          {errors.name && <p className="mt-0.5 text-[10px] text-red-500">{errors.name}</p>}
-        </div>
+        </Field>
 
-        {/* Provider */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Provider
-          </label>
+        <Field label={t("provider")} error={errors.provider}>
           <SettingsSelect
-            label="Provider"
+            label={t("provider")}
             hideLabel
             value={form.provider}
             onChange={(e) => update("provider", { provider: e.target.value })}
-            className={errors.provider ? "border-red-400 dark:border-red-600" : ""}
+            className={errors.provider ? "border-danger-border" : ""}
           >
             {PROVIDERS.map((p) => (
               <option key={p} value={p}>
@@ -701,204 +710,241 @@ function ConfigForm({
               </option>
             ))}
           </SettingsSelect>
-          {errors.provider && <p className="mt-0.5 text-[10px] text-red-500">{errors.provider}</p>}
-        </div>
+        </Field>
 
-        {/* Model ID */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Model ID
-          </label>
+        <Field label={t("modelId")} error={errors.model_id}>
           <input
             value={form.model_id}
             onChange={(e) => update("model_id", { model_id: e.target.value })}
-            placeholder="e.g. claude-sonnet-4-20250514"
+            placeholder={t("modelIdPlaceholder")}
             required
-            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.model_id ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
+            className={fieldClass(errors.model_id)}
           />
-          {errors.model_id && <p className="mt-0.5 text-[10px] text-red-500">{errors.model_id}</p>}
-        </div>
+        </Field>
 
-        {/* Max Tokens */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Max Tokens
-          </label>
+        <Field label={t("maxTokens")} error={errors.max_tokens}>
           <input
             type="number"
             min={1}
             value={form.max_tokens}
-            onChange={(e) => update("max_tokens", { max_tokens: Number(e.target.value) })}
-            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.max_tokens ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
+            onChange={(e) =>
+              update("max_tokens", { max_tokens: Number(e.target.value) })
+            }
+            className={fieldClass(errors.max_tokens)}
           />
-          {errors.max_tokens && <p className="mt-0.5 text-[10px] text-red-500">{errors.max_tokens}</p>}
-        </div>
+        </Field>
 
-        {/* Temperature */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Temperature{" "}
-            <span className="normal-case text-muted-foreground">(optional)</span>
-          </label>
+        <Field
+          label={
+            <>
+              {t("temperature")}{" "}
+              <span className="normal-case text-muted-foreground">
+                {t("optional")}
+              </span>
+            </>
+          }
+          error={errors.temperature}
+        >
           <input
             type="number"
             min={0}
             max={2}
             step={0.1}
             value={form.temperature}
-            onChange={(e) => update("temperature", { temperature: e.target.value })}
-            placeholder="default"
-            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.temperature ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
+            onChange={(e) =>
+              update("temperature", { temperature: e.target.value })
+            }
+            placeholder={t("temperaturePlaceholder")}
+            className={fieldClass(errors.temperature)}
           />
-          {errors.temperature && <p className="mt-0.5 text-[10px] text-red-500">{errors.temperature}</p>}
-        </div>
+        </Field>
 
-        {/* Timeout */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Timeout (secs)
-          </label>
+        <Field label={t("timeoutSecs")}>
           <input
             type="number"
             min={1}
             value={form.timeout_secs}
-            onChange={(e) => update("timeout_secs", { timeout_secs: Number(e.target.value) })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) =>
+              update("timeout_secs", { timeout_secs: Number(e.target.value) })
+            }
+            className={fieldClass(undefined)}
           />
-        </div>
+        </Field>
 
-        {/* Priority */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Priority
-          </label>
+        <Field label={t("priority")}>
           <input
             type="number"
             value={form.priority}
-            onChange={(e) => update("priority", { priority: Number(e.target.value) })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) =>
+              update("priority", { priority: Number(e.target.value) })
+            }
+            className={fieldClass(undefined)}
           />
-        </div>
+        </Field>
 
-        {/* API Key Env */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            API Key Env Var{" "}
-            <span className="normal-case text-muted-foreground">(optional)</span>
-          </label>
+        <Field
+          label={
+            <>
+              {t("apiKeyEnv")}{" "}
+              <span className="normal-case text-muted-foreground">
+                {t("optional")}
+              </span>
+            </>
+          }
+        >
           <input
             value={form.api_key_env}
-            onChange={(e) => update("api_key_env", { api_key_env: e.target.value })}
-            placeholder="e.g. ANTHROPIC_API_KEY"
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) =>
+              update("api_key_env", { api_key_env: e.target.value })
+            }
+            placeholder={t("apiKeyEnvPlaceholder")}
+            className={fieldClass(undefined)}
           />
-        </div>
+        </Field>
 
-        {/* Base URL */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Base URL{" "}
-            <span className="normal-case text-muted-foreground">(optional)</span>
-          </label>
+        <Field
+          label={
+            <>
+              {t("baseUrl")}{" "}
+              <span className="normal-case text-muted-foreground">
+                {t("optional")}
+              </span>
+            </>
+          }
+        >
           <input
             value={form.base_url}
-            onChange={(e) => update("base_url", { base_url: e.target.value })}
-            placeholder="e.g. https://api.example.com"
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) =>
+              update("base_url", { base_url: e.target.value })
+            }
+            placeholder={t("baseUrlPlaceholder")}
+            className={fieldClass(undefined)}
           />
-        </div>
+        </Field>
 
-        {/* Region */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Region{" "}
-            <span className="normal-case text-muted-foreground">(optional)</span>
-          </label>
+        <Field
+          label={
+            <>
+              {t("region")}{" "}
+              <span className="normal-case text-muted-foreground">
+                {t("optional")}
+              </span>
+            </>
+          }
+        >
           <input
             value={form.region}
             onChange={(e) => update("region", { region: e.target.value })}
-            placeholder="e.g. us-east-1"
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            placeholder={t("regionPlaceholder")}
+            className={fieldClass(undefined)}
           />
-        </div>
+        </Field>
 
-        {/* Cost per 1M Input */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Cost / 1M Input{" "}
-            <span className="normal-case text-muted-foreground">(USD)</span>
-          </label>
+        <Field
+          label={
+            <>
+              {t("costPerInput")}{" "}
+              <span className="normal-case text-muted-foreground">
+                {t("usd")}
+              </span>
+            </>
+          }
+        >
           <input
             type="number"
             step="0.01"
             min="0"
             value={form.cost_per_1m_input}
-            onChange={(e) => update("cost_per_1m_input", { cost_per_1m_input: e.target.value })}
-            placeholder="e.g. 3.00"
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) =>
+              update("cost_per_1m_input", {
+                cost_per_1m_input: e.target.value,
+              })
+            }
+            placeholder={t("costPerInputPlaceholder")}
+            className={fieldClass(undefined)}
           />
-        </div>
+        </Field>
 
-        {/* Cost per 1M Output */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Cost / 1M Output{" "}
-            <span className="normal-case text-muted-foreground">(USD)</span>
-          </label>
+        <Field
+          label={
+            <>
+              {t("costPerOutput")}{" "}
+              <span className="normal-case text-muted-foreground">
+                {t("usd")}
+              </span>
+            </>
+          }
+        >
           <input
             type="number"
             step="0.01"
             min="0"
             value={form.cost_per_1m_output}
-            onChange={(e) => update("cost_per_1m_output", { cost_per_1m_output: e.target.value })}
-            placeholder="e.g. 15.00"
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) =>
+              update("cost_per_1m_output", {
+                cost_per_1m_output: e.target.value,
+              })
+            }
+            placeholder={t("costPerOutputPlaceholder")}
+            className={fieldClass(undefined)}
           />
-        </div>
+        </Field>
 
-        {/* Daily Budget */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Daily Budget{" "}
-            <span className="normal-case text-muted-foreground">(USD)</span>
-          </label>
+        <Field
+          label={
+            <>
+              {t("dailyBudget")}{" "}
+              <span className="normal-case text-muted-foreground">
+                {t("usd")}
+              </span>
+            </>
+          }
+        >
           <input
             type="number"
             step="0.01"
             min="0"
             value={form.daily_budget_usd}
-            onChange={(e) => update("daily_budget_usd", { daily_budget_usd: e.target.value })}
-            placeholder="e.g. 50.00"
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) =>
+              update("daily_budget_usd", {
+                daily_budget_usd: e.target.value,
+              })
+            }
+            placeholder={t("dailyBudgetPlaceholder")}
+            className={fieldClass(undefined)}
           />
-        </div>
+        </Field>
 
-        {/* Enabled */}
         <div className="flex items-center self-end pb-1">
-          <SettingsSwitch label="Enabled" checked={form.enabled} onChange={(v) => update("enabled", { enabled: v })} />
+          <SettingsSwitch
+            label={t("enabled")}
+            checked={form.enabled}
+            onChange={(v) => update("enabled", { enabled: v })}
+          />
         </div>
       </div>
 
       <div className="mt-3 flex items-center gap-2">
-        <button
+        <Button
           type="submit"
+          variant="primary"
+          size="sm"
           disabled={!form.name.trim() || !form.model_id.trim() || saving}
-          className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-emerald-700"
         >
           {saving
             ? isEditing
-              ? "Updating..."
-              : "Creating..."
+              ? t("updating")
+              : t("creating")
             : isEditing
-              ? "Update Config"
-              : "Create Config"}
-        </button>
+              ? t("updateSubmit")
+              : t("createSubmit")}
+        </Button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-surface-inset"
         >
-          Cancel
+          {tCommon("cancel")}
         </button>
       </div>
     </form>
@@ -906,7 +952,7 @@ function ConfigForm({
 }
 
 // ---------------------------------------------------------------------------
-// Rule form (create / edit)
+// Rule form
 // ---------------------------------------------------------------------------
 
 function RuleForm({
@@ -926,35 +972,33 @@ function RuleForm({
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("settings.models.form.rule");
+  const tCommon = useTranslations("common");
   const update = (patch: Partial<RuleFormValues>) =>
     setForm((prev) => ({ ...prev, ...patch }));
 
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-4 rounded-lg border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-800 dark:bg-blue-950/20"
+      className="mt-4 rounded-lg border border-info-border bg-info-surface p-4"
     >
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">
-          {isEditing ? "Edit Routing Rule" : "New Routing Rule"}
+        <span className="text-xs font-semibold text-info-foreground">
+          {isEditing ? t("editTitle") : t("createTitle")}
         </span>
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-muted-foreground hover:text-zinc-600"
+          className="text-xs text-muted-foreground hover:text-foreground"
         >
-          Cancel
+          {tCommon("cancel")}
         </button>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {/* Operation */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Operation
-          </label>
+        <Field label={t("operation")}>
           <SettingsSelect
-            label="Operation"
+            label={t("operation")}
             hideLabel
             value={form.operation}
             onChange={(e) => update({ operation: e.target.value })}
@@ -965,15 +1009,11 @@ function RuleForm({
               </option>
             ))}
           </SettingsSelect>
-        </div>
+        </Field>
 
-        {/* Model Config */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Model Config
-          </label>
+        <Field label={t("modelConfig")}>
           <SettingsSelect
-            label="Model Config Id"
+            label={t("modelConfig")}
             hideLabel
             value={form.model_config_id}
             onChange={(e) => update({ model_config_id: e.target.value })}
@@ -984,49 +1024,83 @@ function RuleForm({
               </option>
             ))}
           </SettingsSelect>
-        </div>
+        </Field>
 
-        {/* Priority */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Priority
-          </label>
+        <Field label={t("priority")}>
           <input
             type="number"
             value={form.priority}
             onChange={(e) => update({ priority: Number(e.target.value) })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className={fieldClass(undefined)}
           />
-        </div>
+        </Field>
 
-        {/* Enabled */}
         <div className="flex items-center self-end pb-1">
-          <SettingsSwitch label="Enabled" checked={form.enabled} onChange={(v) => update({ enabled: v })} />
+          <SettingsSwitch
+            label={t("enabled")}
+            checked={form.enabled}
+            onChange={(v) => update({ enabled: v })}
+          />
         </div>
       </div>
 
       <div className="mt-3 flex items-center gap-2">
-        <button
+        <Button
           type="submit"
+          variant="primary"
+          size="sm"
           disabled={!form.model_config_id || saving}
-          className="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-blue-700"
         >
           {saving
             ? isEditing
-              ? "Updating..."
-              : "Creating..."
+              ? t("updating")
+              : t("creating")
             : isEditing
-              ? "Update Rule"
-              : "Create Rule"}
-        </button>
+              ? t("updateSubmit")
+              : t("createSubmit")}
+        </Button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-surface-inset"
         >
-          Cancel
+          {tCommon("cancel")}
         </button>
       </div>
     </form>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Field shell — keeps label/input/error layout consistent
+// ---------------------------------------------------------------------------
+
+function Field({
+  label,
+  error,
+  children,
+  className,
+}: {
+  label: React.ReactNode;
+  error?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </label>
+      {children}
+      {error && (
+        <p className="mt-0.5 text-2xs text-danger-foreground">{error}</p>
+      )}
+    </div>
+  );
+}
+
+function fieldClass(error: string | undefined): string {
+  return `mt-0.5 w-full rounded-md border bg-surface-base px-3 py-1.5 text-xs ${
+    error ? "border-danger-border" : "border-divider"
+  }`;
 }

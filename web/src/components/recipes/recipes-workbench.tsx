@@ -5,8 +5,12 @@ import { useTranslations } from "next-intl";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSelect } from "@/components/ui/form-input";
 import { FormInput } from "@/components/ui/form-input";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell";
 import { toast } from "sonner";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import type { AnalysisRecipe, RecipeStatus } from "@/types/api";
 import {
   type CreateRecipeRequest,
@@ -16,9 +20,11 @@ import {
   listRecipeVersions,
   updateRecipeStatus,
 } from "@/lib/api";
-import { useAuth } from "@/lib/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { RecipeCard } from "@/components/recipes/recipe-card";
 import { RecipeRunner } from "@/components/recipes/recipe-runner";
+import { Analytics01Icon } from "@hugeicons/core-free-icons";
+import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 
 const ALGORITHM_TYPES = [
   "time_series",
@@ -43,10 +49,10 @@ function isKnownAlgorithmType(s: string): s is KnownAlgorithmType {
   );
 }
 
-const STATUS_BADGE: Record<RecipeStatus, string> = {
-  draft: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  deprecated: "bg-zinc-200 text-zinc-500 dark:bg-zinc-700 dark:text-muted-foreground",
+const STATUS_TONE: Record<RecipeStatus, StatusTone> = {
+  draft: "warning",
+  approved: "success",
+  deprecated: "neutral",
 };
 
 export function RecipesWorkbench() {
@@ -56,6 +62,7 @@ export function RecipesWorkbench() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [runningRecipe, setRunningRecipe] = useState<AnalysisRecipe | null>(null);
   const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const { isAdmin } = useAuth();
   const confirm = useConfirm();
 
@@ -107,9 +114,11 @@ export function RecipesWorkbench() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner size="lg" />
-      </div>
+      <WorkbenchPageShell title={t("title")} subtitle={t("description")}>
+        <div className="flex h-full items-center justify-center py-12">
+          <Spinner size="lg" />
+        </div>
+      </WorkbenchPageShell>
     );
   }
 
@@ -123,41 +132,54 @@ export function RecipesWorkbench() {
   );
 
   return (
-    <div>
-      <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-        {t("title")}
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {t("description")}
-      </p>
+    <WorkbenchPageShell
+      title={t("title")}
+      subtitle={t("description")}
+      actions={
+        !createOpen && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setCreateOpen(true)}
+          >
+            {t("newRecipe")}
+          </Button>
+        )
+      }
+    >
+      <div className="px-4 py-4">
+        {createOpen && (
+          <RecipeCreateForm
+            onSubmit={handleCreate}
+            onClose={() => setCreateOpen(false)}
+          />
+        )}
 
-      <RecipeCreateForm onSubmit={handleCreate} />
+        {/* Search row */}
+        <div className="mb-4 max-w-xs">
+          <FormInput
+            placeholder={t("searchPlaceholder")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
 
-      <div className="mt-4 mb-4">
-        <FormInput
-          placeholder={t("searchPlaceholder")}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
-      </div>
-
-      {/* Gallery grid */}
-      <div className="mt-6">
+        {/* Gallery grid */}
         {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {recipes.length === 0 ? t("emptyAll") : t("emptyFiltered")}
-          </p>
+          <EmptyState
+            icon={Analytics01Icon}
+            title={recipes.length === 0 ? t("emptyAll") : t("emptyFiltered")}
+          />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((r) => (
               <div
                 key={r.id}
                 onClick={() => setSelectedId(r.id === selectedId ? null : r.id)}
                 className={`cursor-pointer rounded-lg ring-2 transition-shadow ${
                   r.id === selectedId
-                    ? "ring-emerald-500"
-                    : "ring-transparent hover:ring-zinc-300 dark:hover:ring-zinc-600"
+                    ? "ring-brand-foreground"
+                    : "ring-transparent hover:ring-divider dark:hover:ring-divider"
                 }`}
               >
                 <RecipeCard
@@ -171,19 +193,19 @@ export function RecipesWorkbench() {
             ))}
           </div>
         )}
-      </div>
 
-      {/* Detail panel */}
-      {selected && (
-        <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-700 dark:bg-zinc-900/50">
-          <RecipeDetail
-            recipe={selected}
-            onDelete={handleDelete}
-            onStatusChange={handleStatusChange}
-            isAdmin={isAdmin}
-          />
-        </div>
-      )}
+        {/* Detail panel */}
+        {selected && (
+          <Card variant="inset" padding="lg" className="mt-6">
+            <RecipeDetail
+              recipe={selected}
+              onDelete={handleDelete}
+              onStatusChange={handleStatusChange}
+              isAdmin={isAdmin}
+            />
+          </Card>
+        )}
+      </div>
 
       {/* Runner modal */}
       {runningRecipe && (
@@ -192,22 +214,17 @@ export function RecipesWorkbench() {
           onClose={() => setRunningRecipe(null)}
         />
       )}
-    </div>
+    </WorkbenchPageShell>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Status badge component
-// ---------------------------------------------------------------------------
 
-function StatusBadge({ status }: { status: RecipeStatus }) {
+function RecipeStatusBadge({ status }: { status: RecipeStatus }) {
   const t = useTranslations("settings.recipes");
   return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${STATUS_BADGE[status]}`}
-    >
+    <StatusBadge tone={STATUS_TONE[status]} className="font-semibold uppercase tracking-wider">
       {t(`status.${status}`)}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -262,10 +279,10 @@ function RecipeDetail({
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+            <h2 className="text-sm font-semibold text-foreground-strong">
               {recipe.name}
             </h2>
-            <StatusBadge status={recipe.status} />
+            <RecipeStatusBadge status={recipe.status} />
           </div>
           <p className="text-xs text-muted-foreground">
             {t("detail.meta", {
@@ -294,7 +311,7 @@ function RecipeDetail({
           <button
             onClick={loadVersions}
             disabled={isVersionsLoading}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
+            className="rounded-md px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-inset dark:text-muted-foreground dark:hover:bg-surface-base"
           >
             {isVersionsLoading ? (
               <Spinner size="sm" />
@@ -306,7 +323,7 @@ function RecipeDetail({
           </button>
           <button
             onClick={() => onDelete(recipe.id)}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+            className="rounded-md px-3 py-1.5 text-xs font-medium text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-surface"
           >
             {t("detail.delete")}
           </button>
@@ -318,23 +335,23 @@ function RecipeDetail({
       )}
 
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("detail.description")}
         </label>
-        <p className="mt-0.5 text-sm text-zinc-700 dark:text-zinc-300">
+        <p className="mt-0.5 text-sm text-foreground">
           {recipe.description}
         </p>
       </div>
 
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("detail.requiredColumns")}
         </label>
         <div className="mt-0.5 flex flex-wrap gap-1">
           {recipe.required_columns.map((col) => (
             <span
               key={col}
-              className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground"
+              className="rounded bg-surface-inset px-1.5 py-0.5 text-xs text-foreground dark:text-muted-foreground"
             >
               {col}
             </span>
@@ -344,30 +361,30 @@ function RecipeDetail({
 
       {recipe.output_description && (
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("detail.output")}
           </label>
-          <p className="mt-0.5 text-sm text-zinc-700 dark:text-zinc-300">
+          <p className="mt-0.5 text-sm text-foreground">
             {recipe.output_description}
           </p>
         </div>
       )}
 
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("detail.codeTemplate")}
         </label>
-        <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-zinc-900 p-3 text-xs text-emerald-400">
+        <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-surface-base p-3 text-xs text-brand-foreground">
           {recipe.code_template}
         </pre>
       </div>
 
       {recipe.parameters && Object.keys(recipe.parameters).length > 0 && (
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("detail.parameters")}
           </label>
-          <pre className="mt-1 rounded-md bg-zinc-50 p-2 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-muted-foreground">
+          <pre className="mt-1 rounded-md bg-surface-raised p-2 text-xs text-foreground dark:text-muted-foreground">
             {JSON.stringify(recipe.parameters, null, 2)}
           </pre>
         </div>
@@ -389,18 +406,18 @@ function VersionHistory({
 }) {
   const t = useTranslations("settings.recipes");
   return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-      <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <Card variant="inset" padding="none">
+      <Card.Header className="px-3 py-2">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("versions.heading")}
         </span>
-      </div>
+      </Card.Header>
       {versions.length === 0 ? (
-        <p className="px-3 py-4 text-xs text-muted-foreground">
+        <p className="px-3 py-4 text-xs text-foreground-muted">
           {t("versions.empty")}
         </p>
       ) : (
-        <div className="divide-y divide-zinc-200 dark:divide-zinc-700">
+        <div className="divide-y divide-divider">
           {versions.map((v) => (
             <VersionRow
               key={`${v.id}-${v.version}`}
@@ -410,7 +427,7 @@ function VersionHistory({
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -436,12 +453,12 @@ function VersionRow({
     <div>
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs hover:bg-surface-inset dark:hover:bg-surface-base"
       >
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">
+        <span className="font-medium text-foreground">
           {t("versions.versionPrefix", { version: version.version })}
         </span>
-        <StatusBadge status={version.status} />
+        <RecipeStatusBadge status={version.status} />
         <span className="flex-1 text-muted-foreground">
           {t("versions.meta", {
             date: new Date(version.created_at).toLocaleDateString(),
@@ -449,7 +466,7 @@ function VersionRow({
           })}
         </span>
         {isCurrent && (
-          <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <span className="rounded-full bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-semibold text-brand-foreground-strong">
             {t("versions.current")}
           </span>
         )}
@@ -465,29 +482,29 @@ function VersionRow({
         </svg>
       </button>
       {isExpanded && (
-        <div className="border-t border-zinc-200 bg-white px-3 py-3 dark:border-zinc-700 dark:bg-zinc-950">
+        <div className="border-t border-divider bg-surface-base px-3 py-3">
           <div className="space-y-2">
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("versions.description")}
               </label>
-              <p className="text-xs text-zinc-600 dark:text-muted-foreground">
+              <p className="text-xs text-foreground dark:text-muted-foreground">
                 {version.description || t("versions.noDescription")}
               </p>
             </div>
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("versions.algorithm")}
               </label>
-              <p className="text-xs text-zinc-600 dark:text-muted-foreground">
+              <p className="text-xs text-foreground dark:text-muted-foreground">
                 {algoLabel}
               </p>
             </div>
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("versions.code")}
               </label>
-              <pre className="mt-0.5 max-h-40 overflow-auto rounded-md bg-zinc-900 p-2 text-[10px] text-emerald-400">
+              <pre className="mt-0.5 max-h-40 overflow-auto rounded-md bg-surface-base p-2 text-2xs text-brand-foreground">
                 {version.code_template}
               </pre>
             </div>
@@ -504,11 +521,15 @@ function VersionRow({
 
 function RecipeCreateForm({
   onSubmit,
+  onClose,
 }: {
   onSubmit: (values: CreateRecipeRequest) => Promise<void>;
+  /** Close the form. Called after a successful submit and from the
+   *  inline cancel button. Open state is owned by the parent so the
+   *  workbench shell's action button can also drive it. */
+  onClose: () => void;
 }) {
   const t = useTranslations("settings.recipes");
-  const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const [name, setName] = useState("");
@@ -545,7 +566,7 @@ function RecipeCreateForm({
         output_description: outputDescription.trim(),
       });
       reset();
-      setIsOpen(false);
+      onClose();
     } catch {
       toast.error(t("toast.createFailed"));
     } finally {
@@ -553,30 +574,19 @@ function RecipeCreateForm({
     }
   };
 
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="mt-4 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
-      >
-        {t("newRecipe")}
-      </button>
-    );
-  }
-
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/20"
+      className="mb-4 rounded-lg border border-brand-border bg-brand-surface p-4"
     >
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+        <span className="text-xs font-semibold text-brand-foreground">
           {t("form.newTitle")}
         </span>
         <button
           type="button"
-          onClick={() => { reset(); setIsOpen(false); }}
-          className="text-xs text-muted-foreground hover:text-zinc-600"
+          onClick={() => { reset(); onClose(); }}
+          className="text-xs text-muted-foreground hover:text-foreground"
         >
           {t("form.cancel")}
         </button>
@@ -584,7 +594,7 @@ function RecipeCreateForm({
 
       <div className="space-y-3">
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.name")}
           </label>
           <input
@@ -592,12 +602,12 @@ function RecipeCreateForm({
             onChange={(e) => setName(e.target.value)}
             placeholder={t("form.namePlaceholder")}
             required
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.description")}
           </label>
           <textarea
@@ -605,12 +615,12 @@ function RecipeCreateForm({
             onChange={(e) => setDescription(e.target.value)}
             placeholder={t("form.descriptionPlaceholder")}
             rows={2}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.algorithmType")}
           </label>
           <SettingsSelect
@@ -628,7 +638,7 @@ function RecipeCreateForm({
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.codeTemplate")}
           </label>
           <textarea
@@ -637,38 +647,38 @@ function RecipeCreateForm({
             placeholder={t("form.codeTemplatePlaceholder")}
             rows={12}
             required
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 font-mono text-xs"
           />
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.requiredColumns")}
           </label>
           <input
             value={requiredColumns}
             onChange={(e) => setRequiredColumns(e.target.value)}
             placeholder={t("form.requiredColumnsPlaceholder")}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.outputDescription")}
           </label>
           <input
             value={outputDescription}
             onChange={(e) => setOutputDescription(e.target.value)}
             placeholder={t("form.outputDescriptionPlaceholder")}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
         </div>
 
         <button
           type="submit"
           disabled={!name.trim() || !codeTemplate.trim() || isSaving}
-          className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-emerald-700"
+          className="rounded-md bg-brand-solid px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-brand-solid"
         >
           {isSaving ? t("form.creating") : t("form.create")}
         </button>

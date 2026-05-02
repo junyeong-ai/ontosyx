@@ -13,19 +13,19 @@ type AlertVariant = "info" | "success" | "warning" | "error";
 
 const variantStyles: Record<AlertVariant, { container: string; icon: string }> = {
   info: {
-    container: "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
+    container: "border-info-border bg-info-surface text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
     icon: "text-sky-500",
   },
   success: {
-    container: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+    container: "border-brand-border bg-brand-surface text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
     icon: "text-emerald-500",
   },
   warning: {
-    container: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+    container: "border-warning-border bg-warning-surface text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
     icon: "text-amber-500",
   },
   error: {
-    container: "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300",
+    container: "border-danger-border bg-danger-surface text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300",
     icon: "text-red-500",
   },
 };

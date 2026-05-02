@@ -1,40 +1,64 @@
+"use client";
+
+import { useId } from "react";
 import { Tabs } from "@base-ui/react/tabs";
+import { motion } from "motion/react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { cn } from "@/lib/cn";
 
+interface TabBarTab {
+  id: string;
+  label: string;
+  icon?: IconSvgElement;
+  badge?: number;
+}
+
 interface TabBarProps {
-  tabs: Array<{ id: string; label: string; icon?: IconSvgElement; badge?: number }>;
+  tabs: TabBarTab[];
   activeTab: string;
   onTabChange: (tabId: string) => void;
 }
 
 export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
+  const layoutId = useId();
   return (
     <Tabs.Root value={activeTab} onValueChange={(v) => v && onTabChange(v)}>
       <Tabs.List className="flex items-center">
-        {tabs.map(({ id, label, icon, badge }) => (
-          <Tabs.Tab
-            key={id}
-            value={id}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors outline-none",
-              // emerald-600 (#009767) on white is 3.65:1 — fails WCAG AA
-              // (4.5:1) for normal text under 18px. emerald-700 is 5.4:1
-              // and visually still reads as the brand accent.
-              "data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-700",
-              "dark:data-[active]:border-emerald-400 dark:data-[active]:text-emerald-400",
-              "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300",
-            )}
-          >
-            {icon && <HugeiconsIcon icon={icon} className="h-3 w-3" size="100%" />}
-            {label}
-            {badge != null && badge > 0 && (
-              <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-100 px-1 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
-                {badge}
-              </span>
-            )}
-          </Tabs.Tab>
-        ))}
+        {tabs.map(({ id, label, icon, badge }) => {
+          const active = id === activeTab;
+          return (
+            <Tabs.Tab
+              key={id}
+              value={id}
+              className={cn(
+                "relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium outline-none",
+                "transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+                active
+                  ? "text-brand-foreground"
+                  : "text-foreground-muted hover:text-foreground-strong",
+              )}
+            >
+              {icon && <HugeiconsIcon icon={icon} className="h-3 w-3" size="100%" />}
+              {label}
+              {badge != null && badge > 0 && (
+                <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-warning-surface px-1 text-2xs font-bold text-warning-foreground">
+                  {badge}
+                </span>
+              )}
+              {active && (
+                <motion.span
+                  layoutId={layoutId}
+                  className="absolute inset-x-0 -bottom-px h-0.5 bg-brand-solid"
+                  transition={{
+                    type: "spring",
+                    bounce: 0.15,
+                    duration: 0.35,
+                  }}
+                />
+              )}
+            </Tabs.Tab>
+          );
+        })}
       </Tabs.List>
     </Tabs.Root>
   );

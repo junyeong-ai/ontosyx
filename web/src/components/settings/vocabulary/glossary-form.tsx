@@ -362,8 +362,8 @@ export function GlossaryForm({
         placeholder={t("categoryPlaceholder")}
       />
 
-      <fieldset className="flex flex-col gap-2 rounded border border-zinc-200 p-3 dark:border-zinc-700">
-        <legend className="px-1 text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+      <fieldset className="flex flex-col gap-2 rounded border border-divider-soft p-3 dark:border-divider">
+        <legend className="px-1 text-[11px] font-medium text-foreground-strong dark:text-muted-foreground">
           {t("lifecycle.legend")}
         </legend>
         <div
@@ -374,7 +374,7 @@ export function GlossaryForm({
           {(["active", "deprecated", "retired"] as const).map((option) => (
             <label
               key={option}
-              className="flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300"
+              className="flex items-center gap-1.5 text-foreground-strong dark:text-muted-foreground"
             >
               <input
                 type="radio"
@@ -389,12 +389,12 @@ export function GlossaryForm({
         </div>
         {state === "deprecated" && (
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-[11px] text-zinc-700 dark:text-zinc-300">
+            <label className="flex flex-col gap-1 text-[11px] text-foreground-strong dark:text-muted-foreground">
               {t("lifecycle.replacedBy")}
               <select
                 value={replacedBy}
                 onChange={(e) => setReplacedBy(e.target.value)}
-                className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+                className="rounded border border-divider bg-white px-2 py-1 text-xs dark:border-divider dark:bg-surface-base"
               >
                 <option value="">{t("lifecycle.replacedByEmpty")}</option>
                 {replacedByChoices.map((term) => (
@@ -404,50 +404,50 @@ export function GlossaryForm({
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-[11px] text-zinc-700 dark:text-zinc-300">
+            <label className="flex flex-col gap-1 text-[11px] text-foreground-strong dark:text-muted-foreground">
               {t("lifecycle.deprecatedAt")}
               <input
                 type="datetime-local"
                 value={deprecatedAt}
                 onChange={(e) => setDeprecatedAt(e.target.value)}
-                className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+                className="rounded border border-divider bg-white px-2 py-1 text-xs dark:border-divider dark:bg-surface-base"
               />
             </label>
           </div>
         )}
         {state === "retired" && (
-          <label className="flex flex-col gap-1 text-[11px] text-zinc-700 dark:text-zinc-300">
+          <label className="flex flex-col gap-1 text-[11px] text-foreground-strong dark:text-muted-foreground">
             {t("lifecycle.retiredAt")}
             <input
               type="datetime-local"
               value={retiredAt}
               onChange={(e) => setRetiredAt(e.target.value)}
-              className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+              className="rounded border border-divider bg-white px-2 py-1 text-xs dark:border-divider dark:bg-surface-base"
             />
           </label>
         )}
       </fieldset>
 
-      <fieldset className="grid gap-2 rounded border border-zinc-200 p-3 sm:grid-cols-2 dark:border-zinc-700">
-        <legend className="px-1 text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+      <fieldset className="grid gap-2 rounded border border-divider-soft p-3 sm:grid-cols-2 dark:border-divider">
+        <legend className="px-1 text-[11px] font-medium text-foreground-strong dark:text-muted-foreground">
           {t("validity.legend")}
         </legend>
-        <label className="flex flex-col gap-1 text-[11px] text-zinc-700 dark:text-zinc-300">
+        <label className="flex flex-col gap-1 text-[11px] text-foreground-strong dark:text-muted-foreground">
           {t("validity.validFrom")}
           <input
             type="datetime-local"
             value={validFrom}
             onChange={(e) => setValidFrom(e.target.value)}
-            className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+            className="rounded border border-divider bg-white px-2 py-1 text-xs dark:border-divider dark:bg-surface-base"
           />
         </label>
-        <label className="flex flex-col gap-1 text-[11px] text-zinc-700 dark:text-zinc-300">
+        <label className="flex flex-col gap-1 text-[11px] text-foreground-strong dark:text-muted-foreground">
           {t("validity.validTo")}
           <input
             type="datetime-local"
             value={validTo}
             onChange={(e) => setValidTo(e.target.value)}
-            className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+            className="rounded border border-divider bg-white px-2 py-1 text-xs dark:border-divider dark:bg-surface-base"
           />
         </label>
       </fieldset>
@@ -457,18 +457,18 @@ export function GlossaryForm({
         onToggle={(e) =>
           setGovernanceOpen((e.target as HTMLDetailsElement).open)
         }
-        className="rounded border border-zinc-200 dark:border-zinc-700"
+        className="rounded border border-divider-soft dark:border-divider"
       >
-        <summary className="cursor-pointer px-3 py-2 text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+        <summary className="cursor-pointer px-3 py-2 text-[11px] font-medium text-foreground-strong dark:text-muted-foreground">
           {t("governance.legend")}
         </summary>
         <div className="flex flex-col gap-2 px-3 pb-3 pt-1">
-          <label className="flex flex-col gap-1 text-[11px] text-zinc-700 dark:text-zinc-300">
+          <label className="flex flex-col gap-1 text-[11px] text-foreground-strong dark:text-muted-foreground">
             {t("governance.originLabel")}
             <select
               value={origin}
               onChange={(e) => setOriginState(e.target.value as OriginKind)}
-              className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+              className="rounded border border-divider bg-white px-2 py-1 text-xs dark:border-divider dark:bg-surface-base"
             >
               <option value="manual">{t("governance.originManual")}</option>
               <option value="derived_from_column">

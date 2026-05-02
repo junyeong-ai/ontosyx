@@ -82,7 +82,7 @@ export function JsonEntityEditor<T>({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+      <h3 className="text-sm font-semibold text-foreground-strong dark:text-foreground">
         {labels.title}
       </h3>
       <SettingsTextarea
@@ -97,7 +97,7 @@ export function JsonEntityEditor<T>({
         className="font-mono text-[11px]"
       />
       {error && (
-        <p className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
+        <p className="rounded border border-danger-border bg-danger-surface px-2 py-1 text-xs text-danger-foreground dark:border-danger-border/50 dark:text-danger-foreground">
           {error}
         </p>
       )}

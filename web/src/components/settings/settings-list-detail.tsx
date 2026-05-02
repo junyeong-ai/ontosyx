@@ -71,8 +71,8 @@ export function SettingsListDetail<T>({
                   className={cn(
                     "w-full rounded-md px-3 py-2 text-left text-sm transition-colors",
                     id === selectedId
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
-                      : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800",
+                      ? "bg-brand-surface text-brand-foreground-strong"
+                      : "text-foreground hover:bg-surface-raised-muted",
                   )}
                 >
                   {renderListItem(item)}

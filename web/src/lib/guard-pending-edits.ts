@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useAppStore } from "@/lib/store";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
 
 // ---------------------------------------------------------------------------
 // Shared guard: warn before actions that would discard unsaved local edits

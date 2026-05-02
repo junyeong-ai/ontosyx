@@ -1,12 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
-import { Spinner } from "@/components/ui/spinner";
-import { SettingsSelect } from "@/components/ui/form-input";
 import { toast } from "sonner";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
+import { SettingsSelect } from "@/components/ui/form-input";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import type {
   SavedReport,
   OntologyListItem,
@@ -23,7 +31,7 @@ import {
   executeReport,
   listOntologies,
 } from "@/lib/api";
-import { WIDGET_TYPES } from "@/components/widgets/widget-types";
+import { WIDGET_TYPES } from "@/components/dashboard/widgets/widget-types";
 import { useQueryState } from "@/hooks/use-query-state";
 
 // ---------------------------------------------------------------------------
@@ -38,11 +46,17 @@ function isKnownWidgetType(s: string): s is KnownWidgetType {
   return (WIDGET_TYPE_VALUES as readonly string[]).includes(s);
 }
 
+const reportsKeys = {
+  all: ["reports"] as const,
+  ontologies: () => [...reportsKeys.all, "ontologies"] as const,
+  list: (lineageId: string) => [...reportsKeys.all, "list", lineageId] as const,
+};
+
 export default function ReportsPage() {
   const t = useTranslations("settings.reports");
-  const [reports, setReports] = useState<SavedReport[]>([]);
-  const [ontologies, setOntologies] = useState<OntologyListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const tCommon = useTranslations("common");
+  const qc = useQueryClient();
+  const confirm = useConfirm();
 
   // URL-backed filter + selection. Sharing a URL with `?ontology=X&report=Y`
   // restores the exact view — useful when pointing teammates at a saved
@@ -58,33 +72,58 @@ export default function ReportsPage() {
     debounceMs: 0,
   });
 
+  const ontologiesQuery = useQuery({
+    queryKey: reportsKeys.ontologies(),
+    queryFn: () => listOntologies({ limit: 100 }),
+  });
+  const ontologies: OntologyListItem[] = ontologiesQuery.data?.items ?? [];
+
+  // Reports index by `ontology_lineage_id` (the cross-version handle),
+  // so the URL state stores the lineage string rather than the identity
+  // uuid. Clicking through a shared URL with a lineage id resolves stably
+  // even after the ontology bumps a new version.
   useEffect(() => {
-    listOntologies({ limit: 100 })
-      .then((page) => {
-        setOntologies(page.items);
-        if (page.items.length > 0 && !ontologyFilter) {
-          // Reports index by `ontology_lineage_id` (the cross-version handle),
-          // so the URL state stores the lineage string rather than the
-          // identity uuid. Clicking through a shared URL with a lineage id
-          // resolves stably even after the ontology bumps a new version.
-          setOntologyFilter(page.items[0].lineage_id);
-        }
-      })
-      .catch(() => toast.error(t("toast.loadOntologiesFailed")))
-      .finally(() => setLoading(false));
+    if (ontologies.length > 0 && !ontologyFilter) {
+      setOntologyFilter(ontologies[0].lineage_id);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ontologies.length, ontologyFilter]);
 
-  useEffect(() => {
-    if (!ontologyFilter) return;
-    setLoading(true);
-    listReports({ ontology_lineage_id: ontologyFilter })
-      .then((page) => setReports(page.items))
-      .catch(() => toast.error(t("toast.loadFailed")))
-      .finally(() => setLoading(false));
-  }, [ontologyFilter, t]);
+  const reportsQuery = useQuery({
+    queryKey: reportsKeys.list(ontologyFilter),
+    queryFn: () =>
+      listReports({ ontology_lineage_id: ontologyFilter }).then((p) => p.items),
+    enabled: !!ontologyFilter,
+  });
+  const reports: SavedReport[] = reportsQuery.data ?? [];
 
-  const confirm = useConfirm();
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteReport(id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: reportsKeys.list(ontologyFilter) });
+      if (selectedId === id) setSelectedId(null);
+      toast.success(t("toast.deleted"));
+    },
+    onError: () => toast.error(t("toast.deleteFailed")),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (values: ReportCreateRequest) => createReport(values),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: reportsKeys.list(ontologyFilter) });
+      toast.success(t("toast.created"));
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: ReportUpdateRequest }) =>
+      updateReport(id, patch),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: reportsKeys.list(ontologyFilter) });
+      toast.success(t("toast.updated"));
+    },
+    onError: () => toast.error(t("toast.updateFailed")),
+  });
 
   const handleDelete = async (id: string) => {
     const report = reports.find((r) => r.id === id);
@@ -94,54 +133,45 @@ export default function ReportsPage() {
       variant: "danger",
     });
     if (!ok) return;
-    try {
-      await deleteReport(id);
-      setReports((prev) => prev.filter((r) => r.id !== id));
-      if (selectedId === id) setSelectedId(null);
-      toast.success(t("toast.deleted"));
-    } catch {
-      toast.error(t("toast.deleteFailed"));
-    }
+    deleteMutation.mutate(id);
   };
 
-  const handleCreate = async (values: ReportCreateRequest) => {
-    const report = await createReport(values);
-    setReports((prev) => [report, ...prev]);
-    toast.success(t("toast.created"));
+  const handleCreate = async (values: ReportCreateRequest): Promise<void> => {
+    await createMutation.mutateAsync(values);
   };
 
-  const handleUpdate = async (id: string, patch: ReportUpdateRequest) => {
-    try {
-      const updated = await updateReport(id, patch);
-      setReports((prev) => prev.map((r) => (r.id === id ? updated : r)));
-      toast.success(t("toast.updated"));
-    } catch {
-      toast.error(t("toast.updateFailed"));
-    }
-  };
+  const handleUpdate = (id: string, patch: ReportUpdateRequest) =>
+    updateMutation.mutate({ id, patch });
 
-  if (loading && ontologies.length === 0) {
+  if (ontologiesQuery.isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner size="lg" />
-      </div>
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <SkeletonList count={4} />
+      </SettingsPageShell>
+    );
+  }
+
+  if (ontologiesQuery.isError) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <ErrorState
+          title={tCommon("loadError.title")}
+          description={tCommon("loadError.description")}
+          onRetry={() => ontologiesQuery.refetch()}
+          retryLabel={tCommon("retry")}
+        />
+      </SettingsPageShell>
     );
   }
 
   const selected = reports.find((r) => r.id === selectedId);
+  const reportsLoading = reportsQuery.isLoading && !!ontologyFilter;
 
   return (
-    <div>
-      <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-        {t("title")}
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {t("description")}
-      </p>
-
+    <SettingsPageShell title={t("title")} subtitle={t("description")}>
       {/* Ontology filter */}
       <div className="mt-4">
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("ontologyLabel")}
         </label>
         <SettingsSelect
@@ -172,9 +202,9 @@ export default function ReportsPage() {
         />
       )}
 
-      {loading ? (
-        <div className="mt-6 flex items-center justify-center py-8">
-          <Spinner size="sm" />
+      {reportsLoading ? (
+        <div className="mt-6">
+          <SkeletonList count={3} />
         </div>
       ) : (
         <div className="mt-6 flex gap-6">
@@ -191,17 +221,17 @@ export default function ReportsPage() {
                   onClick={() => setSelectedId(r.id)}
                   className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
                     r.id === selectedId
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
-                      : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                      ? "bg-brand-surface text-brand-foreground-strong"
+                      : "text-foreground hover:bg-surface-raised-muted dark:hover:bg-surface-base"
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-medium truncate">{r.title}</span>
                     <span
-                      className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
+                      className={`shrink-0 rounded-full px-1.5 py-0.5 text-2xs font-medium ${
                         r.is_public
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                          : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-muted-foreground"
+                          ? "bg-success-surface text-success-foreground"
+                          : "bg-surface-inset text-foreground-muted dark:text-muted-foreground"
                       }`}
                     >
                       {r.is_public ? t("visibility.public") : t("visibility.private")}
@@ -237,7 +267,7 @@ export default function ReportsPage() {
           </div>
         </div>
       )}
-    </div>
+    </SettingsPageShell>
   );
 }
 
@@ -313,7 +343,7 @@ function ReportDetail({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+          <h2 className="text-sm font-semibold text-foreground-strong">
             {report.title}
           </h2>
           <p className="text-xs text-muted-foreground">
@@ -326,7 +356,7 @@ function ReportDetail({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setEditing(!editing)}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:text-muted-foreground dark:hover:bg-zinc-800"
+            className="rounded-md px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-raised dark:text-muted-foreground dark:hover:bg-surface-base"
           >
             {editing ? t("detail.cancel") : t("detail.edit")}
           </button>
@@ -339,7 +369,7 @@ function ReportDetail({
               });
               if (ok) onDelete(report.id);
             }}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+            className="rounded-md px-3 py-1.5 text-xs font-medium text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-surface"
           >
             {t("detail.delete")}
           </button>
@@ -348,20 +378,20 @@ function ReportDetail({
 
       {/* Inline edit form */}
       {editing ? (
-        <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/30 p-4 dark:border-emerald-800 dark:bg-emerald-950/10">
+        <div className="space-y-3 rounded-lg border border-brand-border bg-brand-surface p-4">
           <div>
-            <label htmlFor="edit-report-title" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label htmlFor="edit-report-title" className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("edit.title")}
             </label>
             <input
               id="edit-report-title"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
-              className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+              className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
             />
           </div>
           <div>
-            <label htmlFor="edit-report-description" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label htmlFor="edit-report-description" className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("edit.description")}
             </label>
             <textarea
@@ -369,22 +399,22 @@ function ReportDetail({
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
               rows={2}
-              className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+              className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
             />
           </div>
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("edit.queryTemplate")}
             </label>
             <textarea
               value={editQueryTemplate}
               onChange={(e) => setEditQueryTemplate(e.target.value)}
               rows={6}
-              className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
+              className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 font-mono text-xs"
             />
           </div>
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("edit.widgetType")}
             </label>
             <SettingsSelect
@@ -402,18 +432,18 @@ function ReportDetail({
             </SettingsSelect>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("edit.public")}
             </label>
             <button
               type="button"
               onClick={() => setEditIsPublic(!editIsPublic)}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                editIsPublic ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600"
+                editIsPublic ? "bg-brand-solid" : "bg-surface-raised dark:bg-surface-base"
               }`}
             >
               <span
-                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-surface-base transition-transform ${
                   editIsPublic ? "translate-x-4.5" : "translate-x-0.5"
                 }`}
               />
@@ -421,7 +451,7 @@ function ReportDetail({
           </div>
           <button
             onClick={handleSaveEdit}
-            className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+            className="rounded-md bg-brand-solid px-4 py-1.5 text-xs font-medium text-white hover:bg-brand-solid"
           >
             {t("edit.save")}
           </button>
@@ -430,30 +460,30 @@ function ReportDetail({
         <>
           {report.description && (
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("detail.description")}
               </label>
-              <p className="mt-0.5 text-sm text-zinc-700 dark:text-zinc-300">
+              <p className="mt-0.5 text-sm text-foreground">
                 {report.description}
               </p>
             </div>
           )}
 
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("detail.queryTemplate")}
             </label>
-            <pre className="mt-1 max-h-48 overflow-auto rounded-md bg-zinc-900 p-3 text-xs text-emerald-400">
+            <pre className="mt-1 max-h-48 overflow-auto rounded-md bg-surface-base p-3 text-xs text-brand-foreground">
               {report.query_template}
             </pre>
           </div>
 
           {report.widget_type && (
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("detail.widgetType")}
               </label>
-              <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground">
+              <span className="ml-2 rounded bg-surface-inset px-1.5 py-0.5 text-xs text-foreground dark:text-muted-foreground">
                 {isKnownWidgetType(report.widget_type)
                   ? t(`widgetType.${report.widget_type}`)
                   : report.widget_type}
@@ -463,7 +493,7 @@ function ReportDetail({
 
           {/* Parameters + execute */}
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("detail.parameters")}
             </label>
             {report.parameters.length === 0 ? (
@@ -472,7 +502,7 @@ function ReportDetail({
               <div className="mt-1 space-y-2">
                 {report.parameters.map((p) => (
                   <div key={p.name} className="flex items-center gap-2">
-                    <span className="w-28 shrink-0 text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+                    <span className="w-28 shrink-0 text-xs font-medium text-foreground dark:text-muted-foreground">
                       {p.label || p.name}
                     </span>
                     {p.type === "boolean" ? (
@@ -486,12 +516,12 @@ function ReportDetail({
                         }
                         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                           paramValues[p.name]
-                            ? "bg-emerald-500"
-                            : "bg-zinc-300 dark:bg-zinc-600"
+                            ? "bg-brand-solid"
+                            : "bg-surface-raised dark:bg-surface-base"
                         }`}
                       >
                         <span
-                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-surface-base transition-transform ${
                             paramValues[p.name]
                               ? "translate-x-4.5"
                               : "translate-x-0.5"
@@ -512,10 +542,10 @@ function ReportDetail({
                           }))
                         }
                         placeholder={String(p.default ?? "")}
-                        className="w-48 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                        className="w-48 rounded-md border border-divider bg-surface-base px-2 py-1 text-xs"
                       />
                     )}
-                    <span className="text-[10px] text-muted-foreground">({p.type})</span>
+                    <span className="text-2xs text-muted-foreground">({p.type})</span>
                   </div>
                 ))}
               </div>
@@ -524,7 +554,7 @@ function ReportDetail({
             <button
               onClick={handleExecute}
               disabled={executing}
-              className="mt-3 rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-emerald-700"
+              className="mt-3 rounded-md bg-brand-solid px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-brand-solid"
             >
               {executing ? t("detail.executing") : t("detail.executeReport")}
             </button>
@@ -533,17 +563,17 @@ function ReportDetail({
           {/* Results */}
           {result && (
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("detail.results", { count: result.rows.length })}
               </label>
-              <div className="mt-1 max-h-64 overflow-auto rounded-md border border-zinc-200 dark:border-zinc-700">
+              <div className="mt-1 max-h-64 overflow-auto rounded-md border border-divider">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800">
+                    <tr className="border-b border-divider bg-surface-raised">
                       {result.columns.map((col) => (
                         <th
                           key={col}
-                          className="px-3 py-1.5 text-left font-medium text-zinc-600 dark:text-muted-foreground"
+                          className="px-3 py-1.5 text-left font-medium text-foreground dark:text-muted-foreground"
                         >
                           {col}
                         </th>
@@ -554,12 +584,12 @@ function ReportDetail({
                     {result.rows.slice(0, 50).map((row, i) => (
                       <tr
                         key={i}
-                        className="border-b border-zinc-100 dark:border-zinc-800"
+                        className="border-b border-divider-soft"
                       >
                         {result.columns.map((col) => (
                           <td
                             key={col}
-                            className="px-3 py-1 text-zinc-700 dark:text-zinc-300"
+                            className="px-3 py-1 text-foreground"
                           >
                             {formatCellValue(row[col])}
                           </td>
@@ -569,7 +599,7 @@ function ReportDetail({
                   </tbody>
                 </table>
                 {result.rows.length > 50 && (
-                  <div className="px-3 py-1.5 text-[10px] text-muted-foreground">
+                  <div className="px-3 py-1.5 text-2xs text-muted-foreground">
                     {t("detail.showingRows", { count: result.rows.length })}
                   </div>
                 )}
@@ -641,7 +671,7 @@ function ReportCreateForm({
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="mt-4 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
+        className="mt-4 rounded-md bg-brand-solid px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-solid-hover"
       >
         {t("newReport")}
       </button>
@@ -651,10 +681,10 @@ function ReportCreateForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/20"
+      className="mt-4 rounded-lg border border-brand-border bg-brand-surface p-4"
     >
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+        <span className="text-xs font-semibold text-brand-foreground">
           {t("create.newTitle")}
         </span>
         <button
@@ -663,7 +693,7 @@ function ReportCreateForm({
             reset();
             setIsOpen(false);
           }}
-          className="text-xs text-muted-foreground hover:text-zinc-600"
+          className="text-xs text-muted-foreground hover:text-foreground"
         >
           {t("create.cancel")}
         </button>
@@ -671,7 +701,7 @@ function ReportCreateForm({
 
       <div className="space-y-3">
         <div>
-          <label htmlFor="new-report-title" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label htmlFor="new-report-title" className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("create.title")}
           </label>
           <input
@@ -680,12 +710,12 @@ function ReportCreateForm({
             onChange={(e) => setTitle(e.target.value)}
             placeholder={t("create.titlePlaceholder")}
             required
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
         </div>
 
         <div>
-          <label htmlFor="new-report-description" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label htmlFor="new-report-description" className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("create.description")}
           </label>
           <textarea
@@ -694,12 +724,12 @@ function ReportCreateForm({
             onChange={(e) => setDescription(e.target.value)}
             placeholder={t("create.descriptionPlaceholder")}
             rows={2}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("create.queryTemplate")}
           </label>
           <textarea
@@ -708,12 +738,12 @@ function ReportCreateForm({
             placeholder={t("create.queryTemplatePlaceholder")}
             rows={6}
             required
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 font-mono text-xs"
           />
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("create.parameters")}
           </label>
           <textarea
@@ -721,15 +751,15 @@ function ReportCreateForm({
             onChange={(e) => setParamInput(e.target.value)}
             placeholder={t("create.parametersPlaceholder")}
             rows={3}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 font-mono text-xs"
           />
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
+          <p className="mt-0.5 text-2xs text-muted-foreground">
             {t("create.parametersHint", { shape: t("create.parametersShape") })}
           </p>
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("create.widgetType")}
           </label>
           <SettingsSelect
@@ -748,18 +778,18 @@ function ReportCreateForm({
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("create.public")}
           </label>
           <button
             type="button"
             onClick={() => setIsPublic(!isPublic)}
             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-              isPublic ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600"
+              isPublic ? "bg-brand-solid" : "bg-surface-raised dark:bg-surface-base"
             }`}
           >
             <span
-              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-surface-base transition-transform ${
                 isPublic ? "translate-x-4.5" : "translate-x-0.5"
               }`}
             />
@@ -769,7 +799,7 @@ function ReportCreateForm({
         <button
           type="submit"
           disabled={!title.trim() || !queryTemplate.trim() || isSaving}
-          className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-emerald-700"
+          className="rounded-md bg-brand-solid px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-brand-solid"
         >
           {isSaving ? t("create.creating") : t("create.create")}
         </button>

@@ -52,11 +52,11 @@ export const TableWrapper: ComponentType<HTMLAttributes<HTMLTableElement>> = ({
   return (
     <>
       {/* Inline view */}
-      <div className="group/table relative my-2 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
+      <div className="group/table relative my-2 overflow-x-auto rounded-lg border border-divider">
         {/* Fullscreen button */}
         <button
           onClick={() => setIsFullscreen(true)}
-          className="absolute right-2 top-2 z-10 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-zinc-100 hover:text-zinc-600 group-hover/table:opacity-100 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
+          className="absolute right-2 top-2 z-10 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-surface-inset hover:text-foreground group-hover/table:opacity-100 dark:hover:bg-surface-base dark:hover:text-foreground-muted"
           aria-label={t("viewFullscreen")}
           title={t("expandTable")}
         >
@@ -71,16 +71,16 @@ export const TableWrapper: ComponentType<HTMLAttributes<HTMLTableElement>> = ({
       {isFullscreen &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex flex-col bg-white dark:bg-zinc-900"
+            className="fixed inset-0 z-[9999] flex flex-col bg-surface-base"
             role="dialog"
             aria-modal="true"
             aria-label={t("tableFullscreenAria")}
           >
             {/* Header */}
-            <div className="flex items-center justify-end border-b border-zinc-200 px-4 py-2 dark:border-zinc-700">
+            <div className="flex items-center justify-end border-b border-divider px-4 py-2">
               <button
                 onClick={close}
-                className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-muted-foreground dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
+                className="rounded-md p-1.5 text-foreground-muted transition-colors hover:bg-surface-inset hover:text-foreground-strong dark:text-muted-foreground dark:hover:bg-surface-base dark:hover:text-foreground-strong"
                 aria-label={t("closeFullscreen")}
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -108,7 +108,7 @@ export const TableHead: ComponentType<HTMLAttributes<HTMLTableSectionElement>> =
   ...props
 }) => (
   <thead
-    className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800"
+    className="sticky top-0 z-10 border-b border-divider bg-surface-raised dark:border-divider"
     {...props}
   >
     {children}
@@ -120,7 +120,7 @@ export const TableHeaderCell: ComponentType<ThHTMLAttributes<HTMLTableCellElemen
   ...props
 }) => (
   <th
-    className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300"
+    className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-foreground-muted"
     {...props}
   >
     {children}
@@ -132,7 +132,7 @@ export const TableCell: ComponentType<TdHTMLAttributes<HTMLTableCellElement>> = 
   ...props
 }) => (
   <td
-    className="border-b border-zinc-100 px-3 py-2 text-zinc-700 dark:border-zinc-700/50 dark:text-zinc-300"
+    className="border-b border-divider-soft px-3 py-2 text-foreground-muted"
     {...props}
   >
     {children}
@@ -144,7 +144,7 @@ export const TableRow: ComponentType<HTMLAttributes<HTMLTableRowElement>> = ({
   ...props
 }) => (
   <tr
-    className="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+    className="transition-colors hover:bg-surface-raised dark:hover:bg-surface-base/50"
     {...props}
   >
     {children}
@@ -161,7 +161,7 @@ export const CodeBlock: ComponentType<HTMLAttributes<HTMLPreElement>> = ({
   ...props
 }) => (
   <pre
-    className="my-2 overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-zinc-700/60 bg-zinc-900 p-3 text-[0.75rem] leading-relaxed text-zinc-200 dark:border-zinc-700/40 dark:bg-zinc-900/80"
+    className="my-2 overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-divider bg-surface-base p-3 text-[0.75rem] leading-relaxed text-foreground-strong"
     {...props}
   >
     {children}
@@ -182,7 +182,7 @@ export const Code: ComponentType<HTMLAttributes<HTMLElement> & { className?: str
   }
   return (
     <code
-      className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[0.85em] text-emerald-700 dark:bg-zinc-800 dark:text-emerald-400"
+      className="rounded bg-surface-inset px-1.5 py-0.5 font-mono text-[0.85em] text-brand-foreground"
       {...props}
     >
       {children}
@@ -199,7 +199,7 @@ export const Link: ComponentType<HTMLAttributes<HTMLAnchorElement> & { href?: st
 }) => (
   <a
     href={href}
-    className="text-emerald-600 underline underline-offset-2 transition-colors hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
+    className="text-brand-foreground underline underline-offset-2 transition-colors hover:text-brand-foreground dark:hover:text-brand-foreground-strong"
     target={href?.startsWith("http") ? "_blank" : undefined}
     rel={href?.startsWith("http") ? "noopener noreferrer" : undefined}
     {...props}
@@ -215,7 +215,7 @@ export const Blockquote: ComponentType<HTMLAttributes<HTMLQuoteElement>> = ({
   ...props
 }) => (
   <blockquote
-    className="my-2 border-l-3 border-zinc-300 pl-3 text-zinc-500 dark:border-zinc-600 dark:text-muted-foreground"
+    className="my-2 border-l-3 border-divider pl-3 text-foreground-muted dark:border-divider dark:text-muted-foreground"
     {...props}
   >
     {children}

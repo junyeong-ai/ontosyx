@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 
 import messages from "../../../../../messages/en.json";
 
-vi.mock("@/lib/use-auth", () => ({
+vi.mock("@/hooks/use-auth", () => ({
   useAuth: vi.fn(),
 }));
 
@@ -19,7 +19,7 @@ vi.mock("@/lib/api/knowledge", () => ({
 }));
 
 const confirmMock = vi.fn();
-vi.mock("@/components/ui/confirm-dialog", () => ({
+vi.mock("@/components/providers/confirm-provider", () => ({
   useConfirm: () => confirmMock,
   ConfirmDialogProvider: ({ children }: { children: React.ReactNode }) =>
     children,
@@ -37,7 +37,7 @@ import {
   bulkReviewKnowledge,
 } from "@/lib/api/knowledge";
 import type { KnowledgeEntry } from "@/types/api";
-import { useAuth } from "@/lib/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 
 function sampleEntry(overrides: Partial<KnowledgeEntry> = {}): KnowledgeEntry {

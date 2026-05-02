@@ -49,9 +49,9 @@ export function DesignGateChecklist({
     // resolves the gate. Tailwind doesn't ship a built-in "pulse
     // ring" so we use a transient utility class added via JS — no
     // CSS leaks across the app, the class self-cleans after 1.2s.
-    el.classList.add("ring-2", "ring-emerald-400", "ring-offset-2");
+    el.classList.add("ring-2", "ring-brand-foreground", "ring-offset-2");
     window.setTimeout(() => {
-      el.classList.remove("ring-2", "ring-emerald-400", "ring-offset-2");
+      el.classList.remove("ring-2", "ring-brand-foreground", "ring-offset-2");
     }, 1200);
   }, []);
 
@@ -67,20 +67,20 @@ export function DesignGateChecklist({
       role="status"
       aria-live="polite"
       className={cn(
-        "rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900",
+        "rounded-md border border-divider bg-surface-base p-3",
         className,
       )}
     >
       <header className="mb-2 flex items-baseline justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-200">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground-strong">
           {t("heading")}
         </h3>
         <span
           className={cn(
             "text-xs font-medium",
             unmetCount === 0
-              ? "text-emerald-700 dark:text-emerald-400"
-              : "text-amber-600 dark:text-amber-400",
+              ? "text-brand-foreground"
+              : "text-warning-foreground",
           )}
         >
           {t("progress", { met: metCount, total: gates.length })}
@@ -116,9 +116,9 @@ function GateRow({
         disabled={!gate.anchor}
         className={cn(
           "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
-          "hover:bg-zinc-50 dark:hover:bg-zinc-800/40",
+          "hover:bg-surface-raised dark:hover:bg-surface-base/40",
           "disabled:cursor-default disabled:hover:bg-transparent",
-          isUnmetBlocker && "border border-amber-300/60 dark:border-amber-700/60",
+          isUnmetBlocker && "border border-warning-border",
         )}
         aria-label={t(`label.${gate.id}` as MessageKey, {
           ...(gate.params ?? {}),
@@ -130,8 +130,8 @@ function GateRow({
             className={cn(
               "text-xs",
               isMet
-                ? "text-zinc-600 line-through decoration-emerald-400/50 dark:text-zinc-400"
-                : "text-zinc-800 dark:text-zinc-100",
+                ? "text-foreground line-through decoration-brand-foreground-subtle"
+                : "text-foreground-strong-strong",
             )}
           >
             {t(`label.${gate.id}` as MessageKey, {
@@ -162,7 +162,7 @@ function GateIcon({
     return (
       <HugeiconsIcon
         icon={CheckmarkCircle01Icon}
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-foreground"
         size="100%"
       />
     );
@@ -171,7 +171,7 @@ function GateIcon({
     return (
       <HugeiconsIcon
         icon={Cancel01Icon}
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-foreground"
         size="100%"
       />
     );
@@ -179,7 +179,7 @@ function GateIcon({
   return (
     <HugeiconsIcon
       icon={AlertCircleIcon}
-      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-400"
+      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground-subtle"
       size="100%"
     />
   );
@@ -208,8 +208,8 @@ export function focusFirstUnmetGate(gates: ReadonlyArray<DesignGate>): void {
     typeof document !== "undefined" ? document.getElementById(target.anchor) : null;
   if (!el) return;
   el.scrollIntoView({ behavior: "smooth", block: "center" });
-  el.classList.add("ring-2", "ring-amber-400", "ring-offset-2");
+  el.classList.add("ring-2", "ring-warning-foreground", "ring-offset-2");
   window.setTimeout(() => {
-    el.classList.remove("ring-2", "ring-amber-400", "ring-offset-2");
+    el.classList.remove("ring-2", "ring-warning-foreground", "ring-offset-2");
   }, 1200);
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
-import { useWorkspaceMode } from "@/lib/use-workspace-mode";
+import { useWorkspaceMode } from "@/hooks/use-workspace-mode";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -30,10 +30,10 @@ import { useOntologies } from "@/hooks/api/use-ontologies";
 // ---------------------------------------------------------------------------
 
 const TRIGGER_CLASS =
-  "flex min-w-0 items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800";
+  "flex min-w-0 items-center gap-1.5 rounded-md border border-divider bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-inset-muted dark:hover:bg-surface-base";
 
 const POPOVER_CLASS =
-  "z-50 w-80 rounded-lg border border-zinc-200 bg-white shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all dark:border-zinc-700 dark:bg-zinc-900";
+  "z-50 w-80 rounded-lg border border-divider bg-surface-base shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all";
 
 // ---------------------------------------------------------------------------
 // ContextSelector — renders mode-appropriate selector in the header
@@ -112,12 +112,12 @@ function DesignSelector() {
               setDesignBottomTab("workflow");
               if (!bottomPanelOpen) toggleBottomPanel();
             }}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-concept-foreground hover:bg-concept-surface dark:text-concept-foreground"
           >
             <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
             {t("newProject")}
           </button>
-          <div className="my-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+          <div className="my-1 h-px bg-surface-inset" />
           {isFetching ? (
             <div className="flex items-center justify-center py-4">
               <Spinner size="sm" className="text-muted-foreground" />
@@ -129,12 +129,12 @@ function DesignSelector() {
               <div key={p.id} className="flex items-center gap-1">
                 <button
                   onClick={() => handleSelect(p.id)}
-                  className="flex flex-1 items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  className="flex flex-1 items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs hover:bg-surface-raised dark:hover:bg-surface-base"
                 >
-                  <span className="flex-1 truncate text-zinc-700 dark:text-zinc-300">
+                  <span className="flex-1 truncate text-foreground">
                     {p.title || p.id.slice(0, 8)}
                   </span>
-                  <span className="rounded bg-zinc-100 px-1 text-[9px] text-muted-foreground dark:bg-zinc-800">
+                  <span className="rounded bg-surface-inset px-1 text-2xs text-muted-foreground">
                     {p.status}
                   </span>
                 </button>
@@ -162,7 +162,7 @@ function DesignSelector() {
                         });
                       }
                     }}
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-zinc-100 hover:text-indigo-600 dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-concept-foreground dark:hover:bg-surface-base dark:hover:text-concept-foreground"
                   >
                     <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
                   </button>
@@ -385,7 +385,7 @@ function DashboardSelector() {
                 onChange={(e) => setNewName(e.target.value)}
                 autoFocus
                 placeholder={t("dashboardNamePlaceholder")}
-                className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                className="w-full rounded-md border border-divider bg-surface-base px-2.5 py-1.5 text-xs text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCreate();
                   if (e.key === "Escape") {
@@ -400,14 +400,14 @@ function DashboardSelector() {
                     setIsCreateOpen(false);
                     setNewName("");
                   }}
-                  className="rounded-md px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  className="rounded-md px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-surface-inset dark:hover:bg-surface-base"
                 >
                   {tCommon("cancel")}
                 </button>
                 <button
                   onClick={handleCreate}
                   disabled={!newName.trim()}
-                  className="rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                  className="rounded-md bg-brand-solid px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-solid disabled:opacity-50"
                 >
                   {tCommon("create")}
                 </button>
@@ -417,12 +417,12 @@ function DashboardSelector() {
             <>
               <button
                 onClick={() => setIsCreateOpen(true)}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-concept-foreground hover:bg-concept-surface dark:text-concept-foreground"
               >
                 <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
                 {t("newDashboard")}
               </button>
-              <div className="my-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+              <div className="my-1 h-px bg-surface-inset" />
               {loading ? (
                 <div className="flex items-center justify-center py-4">
                   <Spinner size="sm" className="text-muted-foreground" />
@@ -434,15 +434,15 @@ function DashboardSelector() {
                   <button
                     key={d.id}
                     onClick={() => handleSelect(d.id)}
-                    className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 ${
+                    className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs hover:bg-surface-raised dark:hover:bg-surface-base ${
                       d.id === activeDashboardId
-                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
-                        : "text-zinc-700 dark:text-zinc-300"
+                        ? "bg-brand-surface text-brand-foreground"
+                        : "text-foreground"
                     }`}
                   >
                     <span className="flex-1 truncate">{d.name}</span>
                     {d.is_public && (
-                      <span className="rounded bg-emerald-100 px-1 text-[9px] text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400">
+                      <span className="rounded bg-brand-surface-strong px-1 text-2xs text-brand-foreground-strong">
                         {t("publicBadge")}
                       </span>
                     )}

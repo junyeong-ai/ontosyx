@@ -52,14 +52,14 @@ export function ConstraintTargetField({
   };
 
   return (
-    <div className="flex flex-col gap-2 rounded border border-zinc-200 p-2 dark:border-zinc-700">
-      <label className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+    <div className="flex flex-col gap-2 rounded border border-divider-soft p-2 dark:border-divider">
+      <label className="text-2xs font-medium uppercase tracking-wide text-muted-foreground dark:text-muted-foreground">
         {label}
       </label>
       <select
         value={value.kind}
         onChange={handleKindChange}
-        className="rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+        className="rounded border border-divider-soft bg-white px-2 py-1 text-xs dark:border-divider dark:bg-surface-base"
       >
         <option value="inherit">{t("inherit")}</option>
         <option value="property">{t("property")}</option>

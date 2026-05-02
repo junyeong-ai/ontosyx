@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   useNodesState,
   useEdgesState,
@@ -28,10 +29,11 @@ import { useCanvasCommands } from "@/lib/store/canvas/commands";
 import { useCanvasKeyboard } from "@/lib/store/canvas/keyboard";
 import { useCanvasSelection } from "@/lib/store/canvas/selection";
 import { useCanvasViewport } from "@/lib/store/canvas/viewport";
-import { useGraphContextMenu } from "@/lib/use-graph-context-menu";
+import { useGraphContextMenu } from "@/hooks/use-graph-context-menu";
 import type { QualityGap } from "@/types/api";
 
 function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
+  const tModeActions = useTranslations("chrome.modeActions");
   const { ontology, select, clearSelection, setHighlightedBindings, setNeighborhoodFocus } = useCanvasState();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -54,6 +56,7 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
   const { handleSave, deleteSelected, selectAllNodes, handleExport, deselectAll } = useCanvasCommands({
     setIsPaletteOpen,
     setIsExportOpen,
+    exportToastCopy: { failedTitle: tModeActions("exportFailed") },
   });
 
   const { paletteCommands: getPaletteCommands } = useCanvasKeyboard({

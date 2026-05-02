@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../messages/en.json";
-import { TableWidget } from "@/components/widgets/table-widget";
+import { TableWidget } from "@/components/dashboard/widgets/table-widget";
 import type { QueryResult, WidgetSpec } from "@/types/ontology";
 
 function renderWithIntl(ui: React.ReactElement) {

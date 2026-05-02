@@ -10,7 +10,7 @@ import {
 import type { Cardinality, EdgeTypeDef, QualityGap } from "@/types/api";
 import { cn } from "@/lib/cn";
 import { localize } from "@/lib/locale/localize";
-import { useLocaleChain } from "@/lib/use-locale-chain";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 import type { DiffStatus } from "./schema-node";
 
 // ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ export interface SchemaEdgeData {
    *  Renders as a severity-tiered dot adjacent to the edge label
    *  (red for `high`, amber for `medium`); `low` gaps are suppressed
    *  at the canvas surface to keep it readable, and remain visible
-   *  inside the inspector's `GapsList`. */
+   *  inside the inspector's `QualityGapsList`. */
   gaps?: QualityGap[];
 }
 
@@ -71,11 +71,11 @@ function highlightStrokeColor(kind?: import("@/types/api").BindingKind): string 
 
 function highlightLabelClass(kind?: import("@/types/api").BindingKind): string {
   switch (kind) {
-    case "exists": return "bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300";
-    case "path_find": return "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300";
-    case "chain": return "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300";
-    case "mutation": return "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300";
-    default: return "bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300";
+    case "exists": return "bg-concept-surface text-concept-foreground";
+    case "path_find": return "bg-success-surface text-success-foreground dark:bg-success-foreground dark:text-success-foreground";
+    case "chain": return "bg-warning-surface text-warning-foreground";
+    case "mutation": return "bg-danger-surface text-danger-foreground dark:bg-danger-foreground dark:text-danger-foreground";
+    default: return "bg-info-surface text-info-foreground";
   }
 }
 
@@ -141,16 +141,16 @@ export const SchemaEdge = memo(function SchemaEdge({
         <div
           title={hoverTitle}
           className={cn(
-            "nodrag nopan pointer-events-auto absolute rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+            "nodrag nopan pointer-events-auto absolute rounded-md px-1.5 py-0.5 text-2xs font-medium",
             diffStatus === "added"
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
+              ? "bg-brand-surface-strong text-brand-foreground-strong-strong"
               : diffStatus === "modified"
-                ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+                ? "bg-warning-surface text-warning-foreground"
                 : selected
-                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
+                  ? "bg-brand-surface-strong text-brand-foreground-strong-strong"
                   : highlighted
                     ? highlightLabelClass(highlightKind)
-                    : "bg-white text-zinc-500 shadow-sm dark:bg-zinc-800 dark:text-muted-foreground",
+                    : "bg-surface-base text-foreground-muted shadow-sm dark:text-muted-foreground",
           )}
           style={{
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
@@ -158,21 +158,21 @@ export const SchemaEdge = memo(function SchemaEdge({
         >
           {diffStatus && (
             <span className={cn(
-              "mr-1 text-[8px] font-bold uppercase",
-              diffStatus === "added" ? "text-emerald-500" : "text-amber-500",
+              "mr-1 text-2xs font-bold uppercase",
+              diffStatus === "added" ? "text-brand-foreground" : "text-warning-foreground",
             )}>
               {diffStatus === "added" ? "+" : "~"}
             </span>
           )}
           {edgeDef?.label ?? id}
           {edgeDef?.cardinality && edgeDef.cardinality !== "many_to_many" && (
-            <span className="ml-1 text-[8px] text-muted-foreground">
+            <span className="ml-1 text-2xs text-muted-foreground">
               ({formatCardinality(edgeDef.cardinality)})
             </span>
           )}
           {highGapCount > 0 && (
             <span
-              className="ml-1 inline-flex h-3 min-w-3 items-center justify-center rounded-full bg-red-500 px-0.5 text-[8px] font-bold text-white"
+              className="ml-1 inline-flex h-3 min-w-3 items-center justify-center rounded-full bg-danger-solid px-0.5 text-2xs font-bold text-white"
               aria-label={`${highGapCount} high-severity quality gaps`}
             >
               {highGapCount}
@@ -180,7 +180,7 @@ export const SchemaEdge = memo(function SchemaEdge({
           )}
           {mediumGapCount > 0 && highGapCount === 0 && (
             <span
-              className="ml-1 inline-flex h-3 min-w-3 items-center justify-center rounded-full bg-amber-500 px-0.5 text-[8px] font-bold text-white"
+              className="ml-1 inline-flex h-3 min-w-3 items-center justify-center rounded-full bg-warning-foreground px-0.5 text-2xs font-bold text-white"
               aria-label={`${mediumGapCount} medium-severity quality gaps`}
             >
               {mediumGapCount}

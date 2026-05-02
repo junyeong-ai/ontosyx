@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
-import { useAuth } from "@/lib/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 
 interface NavItem {
   labelKey: string;
@@ -101,12 +101,12 @@ export function SettingsSidebar() {
   })).filter((group) => group.items.length > 0);
 
   return (
-    <aside className="flex w-52 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <aside className="flex w-52 shrink-0 flex-col border-r border-divider bg-surface-base">
       {/* Back link */}
-      <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <div className="border-b border-divider px-4 py-3">
         <Link
           href="/"
-          className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-800 dark:text-muted-foreground dark:hover:text-zinc-200"
+          className="flex items-center gap-1.5 text-xs font-medium text-foreground-muted transition-colors hover:text-foreground-strong dark:text-muted-foreground dark:hover:text-foreground-strong"
         >
           <svg
             className="h-3.5 w-3.5"
@@ -129,7 +129,7 @@ export function SettingsSidebar() {
       <nav className="flex flex-col overflow-y-auto px-2 pb-4 pt-2">
         {visibleGroups.map((group) => (
           <div key={group.titleKey} className="flex flex-col gap-0.5">
-            <span className="mt-4 mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-muted-foreground">
+            <span className="mt-4 mb-1 px-3 text-2xs font-semibold uppercase tracking-wider text-foreground dark:text-muted-foreground">
               {tSidebar(group.titleKey)}
             </span>
             {group.items.map((item) => {
@@ -138,11 +138,13 @@ export function SettingsSidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "block rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                    "relative block rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground focus-visible:ring-offset-1",
                     isActive
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
-                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-muted-foreground dark:hover:bg-zinc-800 dark:hover:text-zinc-200",
+                      ? "bg-brand-surface text-brand-foreground before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-brand-solid"
+                      : "text-foreground-muted hover:bg-surface-inset hover:text-foreground-strong",
                   )}
                 >
                   {tSidebar(item.labelKey)}

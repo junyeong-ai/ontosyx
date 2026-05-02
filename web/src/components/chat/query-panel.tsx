@@ -7,8 +7,9 @@ import { PlayIcon, CommandLineIcon } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
-import { WidgetWithToolbar } from "@/components/widgets/widget-toolbar";
-import { ResponseBasis } from "@/components/widgets/response-basis";
+import { EmptyState } from "@/components/ui/empty-state";
+import { WidgetToolbar } from "@/components/dashboard/widgets/widget-toolbar";
+import { ResponseBasis } from "@/components/dashboard/widgets/response-basis";
 import { rawQuery } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import type { QueryResult } from "@/types/api";
@@ -55,7 +56,7 @@ export function QueryPanel() {
   return (
     <div className="flex h-full flex-col">
       {/* Editor */}
-      <div className="border-b border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="border-b border-divider bg-surface-base p-4">
         <div className="mx-auto max-w-4xl">
           <div className="flex items-center justify-between pb-3">
             <div className="flex items-center gap-2">
@@ -85,13 +86,13 @@ export function QueryPanel() {
             placeholder={t("placeholder")}
             rows={4}
             className={cn(
-              "w-full resize-none rounded-lg border border-zinc-200 bg-zinc-900 p-3",
-              "font-mono text-sm text-emerald-400 placeholder:text-zinc-600",
-              "focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50",
-              "dark:border-zinc-700",
+              "w-full resize-none rounded-lg border border-divider bg-surface-raised p-3",
+              "font-mono text-sm text-brand-foreground placeholder:text-foreground",
+              "focus:border-brand-foreground focus:outline-none focus:ring-2 focus:ring-brand-foreground/50",
+              "dark:border-divider",
             )}
           />
-          <p className="mt-1.5 text-[10px] text-muted-foreground">
+          <p className="mt-1.5 text-2xs text-muted-foreground">
             {typeof navigator !== "undefined" &&
             navigator.userAgent?.includes("Mac")
               ? t("execHintPrefixMac")
@@ -102,7 +103,7 @@ export function QueryPanel() {
       </div>
 
       {/* Results */}
-      <div className="flex-1 overflow-auto bg-zinc-50/50 p-4 dark:bg-zinc-950">
+      <div className="flex-1 overflow-auto bg-surface-raised p-4">
         <div className="mx-auto max-w-4xl">
           {error && (
             <Alert variant="error" title={t("failedTitle")} onDismiss={() => setError(null)}>
@@ -112,7 +113,7 @@ export function QueryPanel() {
 
           {result && result.rows?.length > 0 && (
             <div className="space-y-3">
-              <WidgetWithToolbar spec={{ widget: "table" }} data={result} />
+              <WidgetToolbar spec={{ widget: "table" }} data={result} />
               <ResponseBasis provenance={result.metadata?.provenance} warnings={result.metadata?.warnings} />
             </div>
           )}
@@ -126,14 +127,7 @@ export function QueryPanel() {
           )}
 
           {!result && !error && (
-            <div className="flex h-64 flex-col items-center justify-center text-center">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
-                <HugeiconsIcon icon={CommandLineIcon} className="h-6 w-6 text-muted-foreground" size="100%" />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {t("emptyPrompt")}
-              </p>
-            </div>
+            <EmptyState icon={CommandLineIcon} title={t("emptyPrompt")} />
           )}
         </div>
       </div>

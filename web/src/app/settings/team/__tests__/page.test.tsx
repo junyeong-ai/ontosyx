@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 
 import messages from "../../../../../messages/en.json";
 
-vi.mock("@/lib/use-auth", () => ({
+vi.mock("@/hooks/use-auth", () => ({
   useAuth: vi.fn(),
 }));
 
@@ -16,7 +16,7 @@ vi.mock("@/lib/api", () => ({
 
 import TeamPage from "@/app/settings/team/page";
 import * as api from "@/lib/api";
-import { useAuth } from "@/lib/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import type { UserInfo } from "@/types/api";
 
 const MEMBER_A: UserInfo = {

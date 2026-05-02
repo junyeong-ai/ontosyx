@@ -12,7 +12,7 @@ import {
 import type { WorkbenchPerspective } from "@/types/api";
 import type { NodeGroup } from "@/lib/store/types";
 import { cn } from "@/lib/cn";
-import { useClickOutside } from "@/lib/use-click-outside";
+import { useClickOutside } from "@/hooks/use-click-outside";
 import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
@@ -177,9 +177,9 @@ export function PerspectiveSwitcher({
           });
         }}
         className={cn(
-          "flex items-center gap-1 rounded-md border bg-white px-2 py-1 text-[10px] font-medium shadow-sm transition-colors",
-          "border-zinc-200 text-zinc-600 hover:bg-zinc-50",
-          "dark:border-zinc-700 dark:bg-zinc-900 dark:text-muted-foreground dark:hover:bg-zinc-800",
+          "flex items-center gap-1 rounded-md border bg-surface-base px-2 py-1 text-2xs font-medium shadow-sm transition-colors",
+          "border-divider text-foreground hover:bg-surface-raised",
+          "dark:border-divider dark:text-muted-foreground",
         )}
       >
         <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -195,32 +195,32 @@ export function PerspectiveSwitcher({
       {/* Dropdown */}
       {open && (
         <div className={cn(
-          "absolute left-0 top-full z-50 mt-1 w-48 rounded-lg border bg-white shadow-lg",
-          "border-zinc-200 dark:border-zinc-700 dark:bg-zinc-900",
+          "absolute left-0 top-full z-50 mt-1 w-48 rounded-lg border bg-surface-base shadow-lg",
+          "border-divider",
         )}>
           {/* Perspective list */}
           <div className="max-h-40 overflow-y-auto py-1">
-            <div className="px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("savedViews")}
             </div>
             {perspectives.length === 0 && (
-              <div className="px-3 py-2 text-[10px] text-muted-foreground">{t("noSavedViews")}</div>
+              <div className="px-3 py-2 text-2xs text-muted-foreground">{t("noSavedViews")}</div>
             )}
             {perspectives.map((p) => (
               <div
                 key={p.id}
                 className={cn(
-                  "group flex items-center gap-1 px-3 py-1.5 text-[10px] hover:bg-zinc-50 dark:hover:bg-zinc-800",
-                  activeName === p.name && "bg-zinc-50 dark:bg-zinc-800",
+                  "group flex items-center gap-1 px-3 py-1.5 text-2xs hover:bg-surface-raised",
+                  activeName === p.name && "bg-surface-raised",
                 )}
               >
                 <button
                   onClick={() => handleSwitch(p)}
-                  className="flex-1 truncate text-left text-zinc-700 dark:text-zinc-300"
+                  className="flex-1 truncate text-left text-foreground"
                 >
                   {p.name}
                   {p.is_default && (
-                    <span className="ml-1 text-[8px] text-muted-foreground">{t("defaultTag")}</span>
+                    <span className="ml-1 text-2xs text-muted-foreground">{t("defaultTag")}</span>
                   )}
                 </button>
                 {!p.is_default && (
@@ -230,7 +230,7 @@ export function PerspectiveSwitcher({
                       handleDelete(p);
                     }}
                     disabled={deleting === p.id}
-                    className="hidden shrink-0 text-muted-foreground hover:text-red-500 group-hover:block disabled:opacity-50"
+                    className="hidden shrink-0 text-muted-foreground hover:text-danger-foreground group-hover:block disabled:opacity-50"
                   >
                     {deleting === p.id ? tCommon("deleting") : "\u00D7"}
                   </button>
@@ -240,7 +240,7 @@ export function PerspectiveSwitcher({
           </div>
 
           {/* Save as */}
-          <div className="border-t border-zinc-100 dark:border-zinc-800">
+          <div className="border-t border-divider-soft">
             {showSaveAs ? (
               <div className="flex items-center gap-1 px-2 py-1.5">
                 <input
@@ -256,12 +256,12 @@ export function PerspectiveSwitcher({
                     }
                   }}
                   placeholder={t("namePlaceholder")}
-                  className="flex-1 rounded border border-zinc-200 bg-transparent px-1.5 py-0.5 text-[10px] text-zinc-700 outline-none placeholder:text-zinc-500 dark:border-zinc-700 dark:text-zinc-300"
+                  className="flex-1 rounded border border-divider bg-transparent px-1.5 py-0.5 text-2xs text-foreground outline-none placeholder:text-foreground-muted-muted"
                 />
                 <button
                   onClick={handleSaveAs}
                   disabled={!newName.trim() || isSaving}
-                  className="rounded bg-emerald-600 px-2 py-0.5 text-[10px] text-white hover:bg-emerald-700 disabled:opacity-50"
+                  className="rounded bg-brand-solid px-2 py-0.5 text-2xs text-white hover:bg-brand-solid disabled:opacity-50"
                 >
                   {isSaving ? tCommon("saving") : tCommon("save")}
                 </button>
@@ -269,7 +269,7 @@ export function PerspectiveSwitcher({
             ) : (
               <button
                 onClick={() => setShowSaveAs(true)}
-                className="w-full px-3 py-1.5 text-left text-[10px] text-muted-foreground hover:bg-zinc-50 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                className="w-full px-3 py-1.5 text-left text-2xs text-muted-foreground hover:bg-surface-raised hover:text-foreground dark:hover:text-foreground-muted"
               >
                 {t("saveAs")}
               </button>

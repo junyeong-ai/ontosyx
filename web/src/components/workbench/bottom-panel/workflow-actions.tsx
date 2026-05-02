@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import {
   DesignGateChecklist,
   focusFirstUnmetGate,
@@ -33,7 +33,7 @@ import { arr } from "@/lib/ir-collections";
 import type { DesignOptions, DesignProject } from "@/types/api";
 
 import {
-  StatusBadge,
+  WorkflowStatusBadge,
   columnKey,
   relationshipKey,
 } from "./design-panel-shared";
@@ -276,7 +276,7 @@ export function WorkflowActions({
     <>
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+          <h3 className="text-sm font-semibold text-foreground">
             {project.title ?? t("untitledProject")}
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -287,7 +287,7 @@ export function WorkflowActions({
           </p>
         </div>
         <div className="flex items-center gap-1.5">
-          <StatusBadge status={project.status} />
+          <WorkflowStatusBadge status={project.status} />
           <Button
             variant="ghost"
             size="sm"
@@ -303,7 +303,7 @@ export function WorkflowActions({
             <button
               onClick={handleDelete}
               disabled={loading}
-              className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+              className="rounded p-1 text-muted-foreground hover:bg-danger-surface hover:text-danger-foreground dark:hover:bg-danger-surface"
             >
               <HugeiconsIcon icon={Delete01Icon} className="h-3.5 w-3.5" size="100%" />
             </button>
@@ -326,7 +326,7 @@ export function WorkflowActions({
       {!isDesigned && !isCompleted && (
         <>
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+            <label className="mb-1 block text-xs font-medium text-foreground dark:text-muted-foreground">
               {t("domainHintsLabel")}
             </label>
             <FormInput
@@ -356,7 +356,7 @@ export function WorkflowActions({
             className={cn(
               "w-full text-xs",
               !canDesign &&
-                "bg-zinc-200 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-muted-foreground dark:hover:bg-zinc-800",
+                "bg-surface-inset text-foreground-muted hover:bg-surface-inset dark:text-muted-foreground",
             )}
           >
             {loading ? (
@@ -397,8 +397,8 @@ export function WorkflowActions({
 
       {/* Designed: bridge to completed */}
       {isDesigned && !isCompleted && (
-        <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
-          <h4 className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+        <div className="space-y-2 rounded-lg border border-brand-border bg-brand-surface p-3">
+          <h4 className="text-xs font-semibold text-brand-foreground-strong-strong">
             {t("finalize")}
           </h4>
           <FormInput
@@ -407,12 +407,12 @@ export function WorkflowActions({
             value={form.complete.completeName}
             onChange={(e) => form.complete.setCompleteName(e.target.value)}
           />
-          <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-muted-foreground">
+          <label className="flex items-center gap-2 text-xs text-foreground dark:text-muted-foreground">
             <input
               type="checkbox"
               checked={form.complete.deployOnComplete}
               onChange={(e) => form.complete.setDeployOnComplete(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-zinc-300 text-emerald-600"
+              className="h-3.5 w-3.5 rounded border-divider text-brand-foreground"
             />
             {t("deployOnComplete")}
           </label>
@@ -434,14 +434,14 @@ export function WorkflowActions({
 
       {/* Completed status */}
       {isCompleted && (
-        <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
+        <div className="space-y-2 rounded-lg border border-brand-border bg-brand-surface p-3">
           <div className="flex items-center gap-2">
-            <HugeiconsIcon icon={Tick01Icon} className="h-4 w-4 text-emerald-600" size="100%" />
-            <h4 className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+            <HugeiconsIcon icon={Tick01Icon} className="h-4 w-4 text-brand-foreground" size="100%" />
+            <h4 className="text-xs font-semibold text-brand-foreground-strong-strong">
               {t("savedHeader")}
             </h4>
           </div>
-          <p className="text-xs text-emerald-700 dark:text-emerald-400">
+          <p className="text-xs text-brand-foreground">
             {project.ontology_id ? t("savedDescription") : t("completedDescription")}
           </p>
         </div>

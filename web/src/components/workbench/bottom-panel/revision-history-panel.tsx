@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Spinner } from "@/components/ui/spinner";
 import { useAppStore } from "@/lib/store";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
 import {
@@ -178,17 +178,17 @@ export function RevisionHistoryPanel({
         }
       }}
     >
-      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300">
+      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted">
         {t("title")}
       </summary>
       <div className="mt-2">
         {/* Compare mode instructions */}
         {diffCompareBase !== null && (
-          <div className="mb-2 flex items-center gap-2 rounded bg-blue-50 px-2 py-1.5 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+          <div className="mb-2 flex items-center gap-2 rounded bg-info-surface px-2 py-1.5 text-[11px] text-info-foreground dark:text-info-foreground">
             <span>{t("compareBase", { revision: diffCompareBase })}</span>
             <button
               onClick={() => setDiffCompareBase(null)}
-              className="ml-auto text-[10px] font-medium text-blue-500 hover:text-blue-700 dark:text-blue-400"
+              className="ml-auto text-2xs font-medium text-info-foreground hover:text-info-foreground dark:text-info-foreground"
             >
               {tCommon("cancel")}
             </button>
@@ -213,10 +213,10 @@ export function RevisionHistoryPanel({
                 className={cn(
                   "flex items-center justify-between rounded px-2 py-1.5 text-[11px]",
                   rev.revision === project.revision
-                    ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
+                    ? "bg-brand-surface text-brand-foreground-strong-strong"
                     : diffCompareBase === rev.revision
-                      ? "bg-blue-50 text-blue-800 dark:bg-blue-950/30 dark:text-blue-200"
-                      : "text-zinc-600 hover:bg-zinc-50 dark:text-muted-foreground dark:hover:bg-zinc-800/50",
+                      ? "bg-info-surface text-info-foreground"
+                      : "text-foreground hover:bg-surface-raised dark:text-muted-foreground dark:hover:bg-surface-base/50",
                 )}
               >
                 <div className="flex items-center gap-2">
@@ -241,7 +241,7 @@ export function RevisionHistoryPanel({
                   {diffCompareBase !== null && diffCompareBase !== rev.revision && !diffLoading && (
                     <button
                       onClick={() => handleCompare(rev.revision)}
-                      className="rounded px-1.5 py-0.5 text-[10px] font-medium text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/30"
+                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-concept-foreground hover:bg-concept-surface dark:text-concept-foreground"
                     >
                       {t("compare")}
                     </button>
@@ -249,7 +249,7 @@ export function RevisionHistoryPanel({
                   {diffCompareBase === null && revisions.length > 1 && (
                     <button
                       onClick={() => setDiffCompareBase(rev.revision)}
-                      className="rounded px-1.5 py-0.5 text-[10px] font-medium text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/30"
+                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-concept-foreground hover:bg-concept-surface dark:text-concept-foreground"
                     >
                       {t("diff")}
                     </button>
@@ -257,7 +257,7 @@ export function RevisionHistoryPanel({
                   {rev.revision !== project.revision && !loading && (
                     <button
                       onClick={() => handleRestore(rev.revision)}
-                      className="rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30"
+                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-info-foreground hover:bg-info-surface dark:text-info-foreground"
                     >
                       {t("restore")}
                     </button>
@@ -265,13 +265,13 @@ export function RevisionHistoryPanel({
                   {rev.revision !== project.revision && !loading && (
                     <button
                       onClick={() => handleMigrate(rev.revision)}
-                      className="rounded px-1.5 py-0.5 text-[10px] font-medium text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-warning-foreground hover:bg-warning-surface dark:hover:bg-warning-surface/30"
                     >
                       {t("migrate")}
                     </button>
                   )}
                   {rev.revision === project.revision && (
-                    <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                    <span className="text-2xs font-medium text-brand-foreground">
                       {t("current")}
                     </span>
                   )}
@@ -295,27 +295,27 @@ export function RevisionHistoryPanel({
 
         {/* Migration result panel */}
         {migrationResult && migrationResult.up.length > 0 && (
-          <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900 dark:bg-amber-950/20">
-            <h4 className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+          <div className="mt-3 space-y-2 rounded-lg border border-warning-border bg-warning-surface p-3">
+            <h4 className="text-xs font-semibold text-warning-foreground">
               {t("migrationPreview")}
             </h4>
             {migrationResult.breaking_changes.length > 0 && (
               <div className="space-y-1">
-                <p className="text-[10px] font-semibold text-red-600">{t("breakingChanges")}</p>
+                <p className="text-2xs font-semibold text-danger-foreground">{t("breakingChanges")}</p>
                 {migrationResult.breaking_changes.map((bc, i) => (
-                  <p key={i} className="text-[10px] text-red-600">{bc}</p>
+                  <p key={i} className="text-2xs text-danger-foreground">{bc}</p>
                 ))}
               </div>
             )}
             {migrationResult.warnings.length > 0 && (
               <div className="space-y-1">
-                <p className="text-[10px] font-semibold text-amber-600">{t("warnings")}</p>
+                <p className="text-2xs font-semibold text-warning-foreground">{t("warnings")}</p>
                 {migrationResult.warnings.map((w, i) => (
-                  <p key={i} className="text-[10px] text-amber-600">{w}</p>
+                  <p key={i} className="text-2xs text-warning-foreground">{w}</p>
                 ))}
               </div>
             )}
-            <pre className="max-h-32 overflow-auto rounded bg-zinc-900 p-2 text-[10px] text-zinc-300">
+            <pre className="max-h-32 overflow-auto rounded bg-surface-base p-2 text-2xs text-foreground-muted">
               {migrationResult.up.join(";\n")}
             </pre>
             <div className="flex gap-2">
@@ -323,14 +323,14 @@ export function RevisionHistoryPanel({
                 <button
                   onClick={() => handleExecuteMigration(migrationTargetRev)}
                   disabled={loading}
-                  className="rounded bg-amber-600 px-3 py-1 text-[10px] font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                  className="rounded bg-warning-foreground px-3 py-1 text-2xs font-medium text-white hover:bg-warning-foreground disabled:opacity-50"
                 >
                   {t("executeMigration")}
                 </button>
               )}
               <button
                 onClick={() => setMigrationResult(null)}
-                className="rounded px-3 py-1 text-[10px] font-medium text-zinc-600 hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
+                className="rounded px-3 py-1 text-2xs font-medium text-foreground hover:bg-surface-inset dark:text-muted-foreground dark:hover:bg-surface-base"
               >
                 {t("dismiss")}
               </button>

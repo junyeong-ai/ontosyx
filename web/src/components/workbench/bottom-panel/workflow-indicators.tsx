@@ -39,14 +39,14 @@ export function ProgressIndicator({
   const label = isKnownPhase(phase) ? t(phase) : phase;
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2 dark:border-emerald-900 dark:bg-emerald-950/20">
-      <Spinner size="xs" className="shrink-0 text-emerald-500" />
+    <div className="flex items-center gap-2 rounded-lg border border-brand-border bg-brand-surface px-3 py-2">
+      <Spinner size="xs" className="shrink-0 text-brand-foreground" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+        <p className="text-xs font-medium text-brand-foreground-strong">
           {label}
         </p>
         {detail && (
-          <p className="truncate text-xs text-emerald-600/70 dark:text-emerald-400/70">
+          <p className="truncate text-xs text-brand-foreground/70">
             {detail}
           </p>
         )}
@@ -77,7 +77,7 @@ export function SourceHistorySection({ entries }: { entries: SourceHistoryEntry[
   const hasMultiple = entries.length > 1;
   return (
     <details className="text-xs" open={hasMultiple}>
-      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300">
+      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted">
         {t("sourcesTitle")}
         <span className="ml-1.5 text-xs font-normal normal-case">
           {t("sourceCount", { count: entries.length })}
@@ -87,10 +87,10 @@ export function SourceHistorySection({ entries }: { entries: SourceHistoryEntry[
         {entries.map((entry, i) => (
           <div
             key={`${entry.source_type}-${entry.added_at}-${i}`}
-            className="rounded border border-zinc-100 px-2 py-1.5 dark:border-zinc-800"
+            className="rounded border border-divider-soft px-2 py-1.5"
           >
-            <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-muted-foreground">
-              <span className="inline-flex shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 font-medium dark:bg-zinc-800">
+            <div className="flex items-center gap-2 text-xs text-foreground dark:text-muted-foreground">
+              <span className="inline-flex shrink-0 rounded bg-surface-inset px-1.5 py-0.5 font-medium">
                 {isKnownSourceType(entry.source_type)
                   ? t(`sourceTypes.${entry.source_type}`)
                   : entry.source_type}
@@ -103,7 +103,7 @@ export function SourceHistorySection({ entries }: { entries: SourceHistoryEntry[
               </span>
             </div>
             {entry.fingerprint && (
-              <p className="mt-0.5 truncate pl-0.5 text-[9px] font-mono text-muted-foreground dark:text-zinc-600">
+              <p className="mt-0.5 truncate pl-0.5 text-2xs font-mono text-muted-foreground">
                 {entry.fingerprint}
               </p>
             )}

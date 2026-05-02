@@ -19,7 +19,7 @@ export function SettingsSection({
     <div className={cn(className)}>
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+          <h2 className="text-lg font-semibold text-foreground-strong">
             {title}
           </h2>
           {description && (

@@ -137,7 +137,7 @@ export function ReturnSelector({
     <div className="space-y-3">
       {/* RETURN fields */}
       <div>
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("heading")}
         </span>
 
@@ -149,7 +149,7 @@ export function ReturnSelector({
 
         {groups.map((group) => (
           <div key={group.alias} className="mt-2">
-            <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
+            <span className="text-[11px] font-medium text-foreground-muted">
               {group.alias}{" "}
               <span className="text-muted-foreground">
                 {t("groupType", { label: group.label })}
@@ -169,9 +169,9 @@ export function ReturnSelector({
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleField(group.alias, prop)}
-                        className="h-3 w-3 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600"
+                        className="h-3 w-3 rounded border-divider text-brand-foreground focus:ring-brand-foreground"
                       />
-                      <span className="text-xs text-zinc-700 dark:text-zinc-300">
+                      <span className="text-xs text-foreground">
                         {prop}
                       </span>
                     </label>
@@ -188,7 +188,7 @@ export function ReturnSelector({
                               (e.target.value as Aggregation) || null,
                             )
                           }
-                          className="h-6 rounded border border-zinc-200 bg-white px-1 text-[10px] text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-muted-foreground"
+                          className="h-6 rounded border border-divider bg-surface-base px-1 text-2xs text-foreground dark:text-muted-foreground"
                         >
                           {aggregations.map((a) => (
                             <option key={a.value} value={a.value}>
@@ -200,10 +200,10 @@ export function ReturnSelector({
                         {/* Order toggle */}
                         <button
                           onClick={() => toggleOrderBy(group.alias, prop)}
-                          className={`h-6 rounded px-1.5 text-[10px] font-medium transition-colors ${
+                          className={`h-6 rounded px-1.5 text-2xs font-medium transition-colors ${
                             dir
-                              ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
-                              : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+                              ? "bg-brand-surface text-brand-foreground"
+                              : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
                           }`}
                           title={t("sortToggleTitle")}
                         >
@@ -222,7 +222,7 @@ export function ReturnSelector({
       {/* LIMIT */}
       <div>
         <label className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("limitLabel")}
           </span>
           <input
@@ -235,7 +235,7 @@ export function ReturnSelector({
               onLimitChange(v ? parseInt(v, 10) : null);
             }}
             placeholder={t("limitPlaceholder")}
-            className="h-7 w-24 rounded border border-zinc-200 bg-white px-2 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            className="h-7 w-24 rounded border border-divider bg-surface-base px-2 text-xs text-foreground-muted"
           />
         </label>
       </div>

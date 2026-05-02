@@ -67,7 +67,7 @@ export function KeyboardShortcutsDialog() {
         >
           <h2
             id="kb-shortcuts-title"
-            className="mb-3 text-sm font-semibold text-zinc-800 dark:text-zinc-200"
+            className="mb-3 text-sm font-semibold text-foreground-strong"
           >
             Keyboard Shortcuts
           </h2>

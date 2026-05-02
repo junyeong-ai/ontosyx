@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 
 import messages from "../../../../../messages/en.json";
 
-vi.mock("@/lib/use-auth", () => ({
+vi.mock("@/hooks/use-auth", () => ({
   useAuth: vi.fn(),
 }));
 
@@ -20,7 +20,7 @@ vi.mock("sonner", () => ({
 
 import SystemSettingsPage from "@/app/settings/system/page";
 import * as api from "@/lib/api";
-import { useAuth } from "@/lib/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 
 const UI_CONFIG = {

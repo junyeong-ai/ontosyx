@@ -61,7 +61,7 @@ export function ReanalyzeForm({
   })();
 
   return (
-    <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+    <div className="space-y-2 rounded-lg border border-divider bg-surface-raised p-3">
       {sourceType === "postgresql" ? (
         <>
           <FormInput
@@ -104,7 +104,7 @@ export function ReanalyzeForm({
         />
       )}
       {modeledTablesAvailable > 0 && sourceType !== "code_repository" && (
-        <label className="flex cursor-pointer items-center gap-2 rounded border border-zinc-200 bg-white px-2 py-1.5 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800/50">
+        <label className="flex cursor-pointer items-center gap-2 rounded border border-divider bg-surface-base px-2 py-1.5 text-[11px] hover:bg-surface-raised dark:hover:bg-surface-base/50">
           <input
             type="checkbox"
             checked={modeledOnly}
@@ -271,8 +271,8 @@ export function ExtendSourceForm({
   );
 
   return (
-    <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900 dark:bg-blue-950/20">
-      <h4 className="text-xs font-semibold text-blue-800 dark:text-blue-200">
+    <div className="space-y-2 rounded-lg border border-info-border bg-info-surface/50 p-3 dark:border-info-border">
+      <h4 className="text-xs font-semibold text-info-foreground">
         {t("newSource")}
       </h4>
 
@@ -283,10 +283,10 @@ export function ExtendSourceForm({
             key={opt.value}
             onClick={() => setSourceType(opt.value)}
             className={cn(
-              "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
+              "rounded px-2 py-0.5 text-2xs font-medium transition-colors",
               sourceType === opt.value
-                ? "bg-blue-600 text-white dark:bg-blue-500"
-                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-muted-foreground dark:hover:bg-zinc-700",
+                ? "bg-info-foreground text-white dark:bg-info-foreground"
+                : "bg-surface-inset text-foreground hover:bg-surface-inset dark:text-muted-foreground dark:hover:bg-surface-base",
             )}
           >
             {opt.label}

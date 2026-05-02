@@ -83,9 +83,9 @@ export default function SharedDashboardPage({
 
   if (state.kind === "loading") {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+      <div className="flex min-h-dvh items-center justify-center bg-surface-raised">
         <div className="flex flex-col items-center gap-2">
-          <Spinner size="md" className="text-emerald-500" />
+          <Spinner size="md" className="text-brand-foreground" />
           <p className="text-xs text-muted-foreground">
             {t("loadingMessage")}
           </p>
@@ -121,18 +121,18 @@ export default function SharedDashboardPage({
   // The workbench sets `body { overflow: hidden }` globally — allow
   // scroll here so long dashboards aren't clipped.
   return (
-    <div className="h-dvh overflow-auto bg-zinc-50 dark:bg-zinc-950">
+    <div className="h-dvh overflow-auto bg-surface-raised">
       <div className="mx-auto max-w-6xl px-6 py-8">
-        <header className="border-b border-zinc-200 pb-4 dark:border-zinc-800">
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+        <header className="border-b border-divider pb-4">
+          <h1 className="text-xl font-semibold text-foreground-strong">
             {state.payload.dashboard.name}
           </h1>
           {state.payload.dashboard.description && (
-            <p className="mt-1 text-sm text-zinc-600 dark:text-muted-foreground">
+            <p className="mt-1 text-sm text-foreground dark:text-muted-foreground">
               {state.payload.dashboard.description}
             </p>
           )}
-          <p className="mt-2 text-[10px] text-muted-foreground">
+          <p className="mt-2 text-2xs text-muted-foreground">
             {t("header")}
           </p>
         </header>
@@ -144,13 +144,13 @@ export default function SharedDashboardPage({
             state.payload.widgets.map((w) => (
               <div
                 key={w.id}
-                className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
+                className="rounded-lg border border-divider bg-surface-base p-4"
               >
                 <div className="flex items-center justify-between">
-                  <h2 className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                  <h2 className="truncate text-sm font-medium text-foreground-strong">
                     {w.title}
                   </h2>
-                  <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500 dark:bg-zinc-800 dark:text-muted-foreground">
+                  <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs text-foreground-muted dark:text-muted-foreground">
                     {w.widget_type}
                   </span>
                 </div>
@@ -173,13 +173,13 @@ function SharedTerminalState({
   body: string;
 }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-zinc-50 px-4 dark:bg-zinc-950">
-      <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+    <div className="flex min-h-dvh items-center justify-center bg-surface-raised px-4">
+      <div className="w-full max-w-md rounded-xl border border-divider bg-surface-base p-6 text-center shadow-sm">
+        <h1 className="text-lg font-semibold text-foreground-strong">
           {title}
         </h1>
         <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
-        <p className="mt-4 text-sm text-zinc-600 dark:text-muted-foreground">{body}</p>
+        <p className="mt-4 text-sm text-foreground dark:text-muted-foreground">{body}</p>
       </div>
     </div>
   );

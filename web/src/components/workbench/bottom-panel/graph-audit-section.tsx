@@ -60,14 +60,14 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
         : "red";
 
   return (
-    <div className="space-y-2 rounded-lg border border-teal-200 bg-teal-50/50 p-3 dark:border-teal-900 dark:bg-teal-950/20">
-      <h4 className="text-xs font-semibold text-teal-800 dark:text-teal-200">
+    <div className="space-y-2 rounded-lg border border-success-border bg-success-surface/50 p-3 dark:border-success-border">
+      <h4 className="text-xs font-semibold text-success-foreground">
         {t("graphSync")}
       </h4>
 
       {!report ? (
         <div className="space-y-2">
-          <p className="text-[10px] text-teal-700 dark:text-teal-400">
+          <p className="text-2xs text-success-foreground dark:text-success-foreground">
             {t("graphSyncDescription")}
           </p>
           <Button size="sm" onClick={handleAudit} disabled={loading}>
@@ -83,12 +83,12 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+              className={`rounded-full px-2 py-0.5 text-2xs font-medium ${
                 syncColor === "emerald"
-                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
+                  ? "bg-brand-surface-strong text-brand-foreground-strong-strong"
                   : syncColor === "amber"
-                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
-                    : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                    ? "bg-warning-surface text-warning-foreground"
+                    : "bg-danger-surface text-danger-foreground"
               }`}
             >
               {report.sync_status === "synced"
@@ -97,13 +97,13 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
                   ? t("syncStatusPartial")
                   : t("syncStatusUnsynced")}
             </span>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {t("syncPercentage", { percent: report.sync_percentage })}
             </span>
           </div>
 
           {report.matched_nodes.length > 0 && (
-            <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
+            <p className="text-2xs text-brand-foreground">
               {t("syncMatched", {
                 nodeCount: report.matched_nodes.length,
                 edgeCount: report.matched_edges.length,
@@ -112,15 +112,15 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
           )}
 
           {report.orphan_graph_edges.length > 0 && (
-            <details className="text-[10px]">
-              <summary className="cursor-pointer text-amber-600 dark:text-amber-400">
+            <details className="text-2xs">
+              <summary className="cursor-pointer text-warning-foreground">
                 {t("orphanGraphEdges", { count: report.orphan_graph_edges.length })}
               </summary>
               <div className="mt-1 flex flex-wrap gap-1">
                 {report.orphan_graph_edges.map((e) => (
                   <span
                     key={e}
-                    className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+                    className="rounded bg-warning-surface px-1.5 py-0.5 text-warning-foreground"
                   >
                     {e}
                   </span>
@@ -130,15 +130,15 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
           )}
 
           {report.missing_graph_edges.length > 0 && (
-            <details className="text-[10px]">
-              <summary className="cursor-pointer text-red-600 dark:text-red-400">
+            <details className="text-2xs">
+              <summary className="cursor-pointer text-danger-foreground">
                 {t("missingGraphEdges", { count: report.missing_graph_edges.length })}
               </summary>
               <div className="mt-1 flex flex-wrap gap-1">
                 {report.missing_graph_edges.map((e) => (
                   <span
                     key={e}
-                    className="rounded bg-red-100 px-1.5 py-0.5 text-red-700 dark:bg-red-900 dark:text-red-300"
+                    className="rounded bg-danger-surface px-1.5 py-0.5 text-danger-foreground"
                   >
                     {e}
                   </span>

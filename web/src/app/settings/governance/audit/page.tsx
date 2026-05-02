@@ -19,6 +19,7 @@ import { useTranslations } from "next-intl";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSelect } from "@/components/ui/form-input";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { useOntologies } from "@/hooks/api/use-ontologies";
 import { useAuditTrail } from "@/hooks/api/use-audit-trail";
 import {
@@ -72,18 +73,11 @@ export default function AuditTrailPage() {
   const showOntologyBadge = ontologyFilter === "all" && items.length > 1;
 
   return (
-    <div className="flex flex-col gap-4">
-      <header>
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          {t("pageTitle")}
-        </h1>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          {t("pageSubtitle")}
-        </p>
-      </header>
+    <SettingsPageShell title={t("pageTitle")} subtitle={t("pageSubtitle")}>
+      <div className="flex flex-col gap-4">
 
       {items.length === 0 && (
-        <p className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+        <p className="rounded border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground">
           {t("noOntology")}
         </p>
       )}
@@ -166,7 +160,7 @@ export default function AuditTrailPage() {
                 {records.map((r) => (
                   <li
                     key={`${r.ontology_id}:${r.provenance.id}`}
-                    className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
+                    className="rounded border border-divider bg-surface-base p-3"
                   >
                     <ProvenanceRow
                       record={r}
@@ -182,7 +176,7 @@ export default function AuditTrailPage() {
                     type="button"
                     onClick={() => trail.fetchNextPage()}
                     disabled={trail.isFetchingNextPage}
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    className="rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50-strong"
                   >
                     {trail.isFetchingNextPage
                       ? t("loadingMore")
@@ -194,7 +188,8 @@ export default function AuditTrailPage() {
           )}
         </>
       )}
-    </div>
+      </div>
+    </SettingsPageShell>
   );
 }
 
@@ -225,32 +220,32 @@ function ProvenanceRow({
           <div className="flex items-center gap-2 flex-wrap">
             {showOntology && (
               <span
-                className="max-w-[180px] truncate rounded bg-violet-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                className="max-w-[180px] truncate rounded bg-concept-surface px-2 py-0.5 text-2xs font-medium uppercase tracking-wider text-concept-foreground"
                 title={record.ontology_name}
               >
                 {record.ontology_name}
               </span>
             )}
-            <span className="rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+            <span className="rounded bg-surface-inset px-2 py-0.5 text-2xs font-medium uppercase tracking-wider text-foreground-strong">
               {p.activity.kind}
             </span>
-            <span className="rounded bg-sky-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+            <span className="rounded bg-info-surface px-2 py-0.5 text-2xs font-medium uppercase tracking-wider text-info-foreground">
               {p.agent.kind}
             </span>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {at.toLocaleString()}
             </span>
           </div>
-          <p className="mt-1 font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
+          <p className="mt-1 font-mono text-[11px] text-foreground">
             {summariseSubject(p.subject)}
           </p>
-          <p className="mt-0.5 text-[11px] text-zinc-600 dark:text-zinc-400">
+          <p className="mt-0.5 text-[11px] text-foreground-muted">
             {summariseActivity(p.activity)}
             {" · "}
             {summariseAgent(p.agent)}
           </p>
           {(p.used?.length ?? 0) > 0 && (
-            <p className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-500">
+            <p className="mt-1 text-2xs text-foreground-subtle">
               {t("usedLabel")}:{" "}
               {(p.used ?? []).slice(0, 5).map(summariseSubject).join(", ")}
               {(p.used?.length ?? 0) > 5 &&

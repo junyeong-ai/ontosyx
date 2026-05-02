@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { editProject } from "@/lib/api";
 import { defaultText } from "@/lib/locale/localize";
@@ -51,16 +52,16 @@ export function AiSuggestionRow({
   })();
 
   return (
-    <div className="flex items-center gap-1.5 border-b border-dashed border-violet-200 bg-violet-50/40 px-3 py-1.5 dark:border-violet-800 dark:bg-violet-950/20">
-      <HugeiconsIcon icon={MagicWand01Icon} className="h-2.5 w-2.5 shrink-0 text-violet-400" size="100%" />
-      <span className="min-w-0 flex-1 truncate text-violet-700 dark:text-violet-300">
+    <div className="flex items-center gap-1.5 border-b border-dashed border-concept-border bg-concept-surface px-3 py-1.5">
+      <HugeiconsIcon icon={MagicWand01Icon} className="h-2.5 w-2.5 shrink-0 text-concept-foreground" size="100%" />
+      <span className="min-w-0 flex-1 truncate text-concept-foreground">
         {label}
       </span>
       <Tooltip content="Accept">
         <button
           onClick={onAccept}
           aria-label="Accept"
-          className="rounded p-0.5 text-emerald-500 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950"
+          className="rounded p-0.5 text-brand-foreground hover:bg-brand-surface hover:text-brand-foreground dark:hover:bg-brand-surface"
         >
           <HugeiconsIcon icon={Tick01Icon} className="h-3 w-3" size="100%" />
         </button>
@@ -69,7 +70,7 @@ export function AiSuggestionRow({
         <button
           onClick={onReject}
           aria-label="Reject"
-          className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+          className="rounded p-0.5 text-muted-foreground hover:bg-surface-inset hover:text-foreground"
         >
           <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
         </button>
@@ -91,13 +92,14 @@ export function AiSuggestionList({
   explanation: string;
   onDismiss: () => void;
 }) {
+  const t = useTranslations("inspector.toast");
   const applyCommand = useAppStore((s) => s.applyCommand);
   const [remaining, setRemaining] = useState(commands);
 
   const handleAccept = (idx: number) => {
     const cmd = remaining[idx];
     applyCommand(cmd);
-    toast.success("Suggestion applied");
+    toast.success(t("suggestionApplied"));
     const next = remaining.filter((_, i) => i !== idx);
     setRemaining(next);
     if (next.length === 0) onDismiss();
@@ -120,9 +122,9 @@ export function AiSuggestionList({
   if (remaining.length === 0) return null;
 
   return (
-    <div className="border-b border-violet-200 dark:border-violet-800">
+    <div className="border-b border-concept-border">
       {explanation && (
-        <p className="px-3 py-1 text-[10px] text-violet-500 dark:text-violet-400">
+        <p className="px-3 py-1 text-2xs text-concept-foreground">
           {explanation}
         </p>
       )}
@@ -138,13 +140,13 @@ export function AiSuggestionList({
         <div className="flex items-center gap-1.5 px-3 py-1">
           <button
             onClick={handleAcceptAll}
-            className="rounded bg-violet-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-violet-700"
+            className="rounded bg-concept-foreground px-2 py-0.5 text-2xs font-medium text-white hover:bg-concept-foreground"
           >
             Accept All ({remaining.length})
           </button>
           <button
             onClick={onDismiss}
-            className="rounded px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded px-2 py-0.5 text-2xs text-muted-foreground hover:bg-surface-inset"
           >
             Dismiss
           </button>
@@ -159,6 +161,7 @@ export function AiSuggestionList({
 // ---------------------------------------------------------------------------
 
 export function useAiEdit() {
+  const t = useTranslations("inspector.toast");
   const activeProject = useAppStore((s) => s.activeProject);
   const ontology = useAppStore((s) => s.ontology);
   const [loading, setLoading] = useState(false);
@@ -180,7 +183,7 @@ export function useAiEdit() {
           dry_run: true,
         });
         if (resp.commands.length === 0) {
-          toast.info("AI found no changes to suggest");
+          toast.info(t("noSuggestions"));
         } else {
           setSuggestions({
             commands: resp.commands,
@@ -193,7 +196,7 @@ export function useAiEdit() {
         setLoading(false);
       }
     },
-    [activeProject],
+    [activeProject, t],
   );
 
   const dismiss = useCallback(() => setSuggestions(null), []);
@@ -220,7 +223,7 @@ export function AiAssistButton({
         onClick={onClick}
         disabled={loading}
         aria-label={tooltip}
-        className="rounded p-0.5 text-violet-400 hover:bg-violet-50 hover:text-violet-600 disabled:opacity-50 dark:hover:bg-violet-950"
+        className="rounded p-0.5 text-concept-foreground hover:bg-concept-surface hover:text-concept-foreground disabled:opacity-50 dark:hover:bg-concept-surface"
       >
         {loading ? (
           <Spinner size="xs" />

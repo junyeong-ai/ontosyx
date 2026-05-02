@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+
 import { request } from "@/lib/api/client";
-import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonTable } from "@/components/ui/skeleton";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import { cn } from "@/lib/cn";
 
 interface LineageSummary {
@@ -68,43 +72,13 @@ function formatDate(iso: string | null) {
   });
 }
 
-function StatusBadge({
-  status,
-  label,
-}: {
-  status: string;
-  label: string;
-}) {
-  const map: Record<string, { bg: string; text: string }> = {
-    completed: {
-      bg: "bg-emerald-50 dark:bg-emerald-950/40",
-      text: "text-emerald-700 dark:text-emerald-400",
-    },
-    running: {
-      bg: "bg-blue-50 dark:bg-blue-950/40",
-      text: "text-blue-700 dark:text-blue-400",
-    },
-    failed: {
-      bg: "bg-red-50 dark:bg-red-950/40",
-      text: "text-red-700 dark:text-red-400",
-    },
-    partial: {
-      bg: "bg-amber-50 dark:bg-amber-950/40",
-      text: "text-amber-700 dark:text-amber-400",
-    },
-  };
-  const s = map[status] ?? map.running;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ring-current/20",
-        s.bg,
-        s.text,
-      )}
-    >
-      {label}
-    </span>
-  );
+function ExecutionStatusBadge({ status, label }: { status: string; label: string }) {
+  const tone: StatusTone =
+    status === "completed" ? "success"
+      : status === "failed"  ? "danger"
+      : status === "partial" ? "warning"
+      : "info";
+  return <StatusBadge tone={tone} size="md">{label}</StatusBadge>;
 }
 
 interface MappingGroup {
@@ -163,13 +137,13 @@ function MappingCard({
   );
 
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+    <div className="rounded-lg border border-divider overflow-hidden">
       <button
         onClick={onToggle}
-        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-raised dark:hover:bg-surface-base/50 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 px-2.5 py-1 text-sm font-mono font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-surface-inset px-2.5 py-1 text-sm font-mono font-medium text-foreground-muted">
             <svg className="h-3.5 w-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125" />
             </svg>
@@ -184,8 +158,8 @@ function MappingCard({
             className={cn(
               "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-mono font-medium",
               group.elementType === "node"
-                ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
-                : "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400",
+                ? "bg-info-surface text-info-foreground dark:text-info-foreground"
+                : "bg-concept-surface text-concept-foreground",
             )}
           >
             {group.elementType === "node" ? (
@@ -217,10 +191,10 @@ function MappingCard({
       </button>
 
       {expanded && (
-        <div className="border-t border-zinc-100 dark:border-zinc-800 px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/30">
+        <div className="border-t border-divider-soft px-4 py-3 bg-surface-raised/30">
           {matchMappings.length > 0 && (
             <div className="mb-3">
-              <div className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground mb-1.5">
+              <div className="text-2xs uppercase tracking-wider font-medium text-muted-foreground mb-1.5">
                 {t("identity")}
               </div>
               <div className="space-y-1">
@@ -232,7 +206,7 @@ function MappingCard({
           )}
           {setMappings.length > 0 && (
             <div>
-              <div className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground mb-1.5">
+              <div className="text-2xs uppercase tracking-wider font-medium text-muted-foreground mb-1.5">
                 {t("properties")}
               </div>
               <div className="space-y-1">
@@ -265,25 +239,25 @@ function MappingRow({
         className={cn(
           "rounded px-1.5 py-0.5 font-mono",
           isIdentity
-            ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-            : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
+            ? "bg-warning-surface text-warning-foreground"
+            : "bg-surface-inset text-foreground dark:text-muted-foreground",
         )}
       >
         {mapping.source_column}
       </code>
-      <svg className="h-3 w-3 text-zinc-300 dark:text-zinc-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <svg className="h-3 w-3 text-foreground-muted flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
       </svg>
-      <code className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
+      <code className="rounded bg-info-surface px-1.5 py-0.5 font-mono text-info-foreground dark:text-info-foreground">
         {mapping.graph_property}
       </code>
       {mapping.transform && (
-        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-muted-foreground dark:bg-zinc-800">
+        <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs text-muted-foreground">
           {mapping.transform}
         </span>
       )}
       {isIdentity && (
-        <span className="rounded bg-amber-50 px-1 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+        <span className="rounded bg-warning-surface px-1 py-0.5 text-2xs font-medium text-warning-foreground">
           {t("key")}
         </span>
       )}
@@ -291,40 +265,48 @@ function MappingRow({
   );
 }
 
+const lineageKeys = {
+  all: ["lineage"] as const,
+  summary: () => [...lineageKeys.all, "summary"] as const,
+  byLabel: (label: string) => [...lineageKeys.all, "label", label] as const,
+};
+
 export default function LineageSettingsPage() {
   const t = useTranslations("settings.lineage");
-  const [summary, setSummary] = useState<LineageSummary[]>([]);
-  const [entries, setEntries] = useState<LineageEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const tCommon = useTranslations("common");
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const [summaryData] = await Promise.all([
-        request<LineageSummary[]>("/lineage"),
-      ]);
-      setSummary(summaryData);
+  const summaryQuery = useQuery({
+    queryKey: lineageKeys.summary(),
+    queryFn: async () => {
+      try {
+        return await request<LineageSummary[]>("/lineage");
+      } catch (err) {
+        toast.error(t("toast.loadFailed"));
+        throw err;
+      }
+    },
+  });
 
-      const labels = summaryData.map((s) => s.graph_label);
-      const uniqueLabels = [...new Set(labels)];
-      const entryResults = await Promise.all(
+  const summary = summaryQuery.data ?? [];
+  const uniqueLabels = [...new Set(summary.map((s) => s.graph_label))];
+
+  const entriesQuery = useQuery({
+    queryKey: [...lineageKeys.all, "entries", uniqueLabels],
+    queryFn: async () => {
+      const results = await Promise.all(
         uniqueLabels.map((label) =>
-          request<LineageEntry[]>(
-            `/lineage/label/${encodeURIComponent(label)}`,
-          ),
+          request<LineageEntry[]>(`/lineage/label/${encodeURIComponent(label)}`),
         ),
       );
-      setEntries(entryResults.flat());
-    } catch {
-      toast.error(t("toast.loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+      return results.flat();
+    },
+    enabled: summaryQuery.isSuccess,
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const entries = entriesQuery.data ?? [];
+  const isLoading = summaryQuery.isLoading || entriesQuery.isLoading;
+  const isError = summaryQuery.isError || entriesQuery.isError;
 
   const totalRecords = summary.reduce((acc, l) => acc + l.total_records, 0);
   const totalSources = summary.reduce((acc, l) => acc + l.source_count, 0);
@@ -344,27 +326,35 @@ export default function LineageSettingsPage() {
         title={t("title")}
         description={t("description")}
       >
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Spinner />
-          </div>
+        {isLoading ? (
+          <SkeletonTable rows={6} cols={5} />
+        ) : isError ? (
+          <ErrorState
+            title={tCommon("loadError.title")}
+            description={tCommon("loadError.description")}
+            onRetry={() => {
+              summaryQuery.refetch();
+              entriesQuery.refetch();
+            }}
+            retryLabel={tCommon("retry")}
+          />
         ) : (
           <>
             <div className="mt-6 grid grid-cols-3 gap-4">
-              <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
-                <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+              <div className="rounded-lg border border-divider p-4">
+                <div className="text-2xl font-bold text-foreground-strong">
                   {totalLabels}
                 </div>
                 <div className="text-xs text-muted-foreground">{t("summary.labels")}</div>
               </div>
-              <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
-                <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+              <div className="rounded-lg border border-divider p-4">
+                <div className="text-2xl font-bold text-foreground-strong">
                   {totalSources}
                 </div>
                 <div className="text-xs text-muted-foreground">{t("summary.sources")}</div>
               </div>
-              <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
-                <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+              <div className="rounded-lg border border-divider p-4">
+                <div className="text-2xl font-bold text-foreground-strong">
                   {formatNumber(totalRecords)}
                 </div>
                 <div className="text-xs text-muted-foreground">{t("summary.records")}</div>
@@ -373,7 +363,7 @@ export default function LineageSettingsPage() {
 
             {mappingGroups.length > 0 && (
               <div className="mt-8">
-                <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">
+                <h2 className="text-sm font-semibold text-foreground mb-3">
                   {t("columnMappings")}
                 </h2>
                 <p className="text-xs text-muted-foreground mb-4">
@@ -400,13 +390,13 @@ export default function LineageSettingsPage() {
             )}
 
             <div className="mt-8">
-              <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">
+              <h2 className="text-sm font-semibold text-foreground mb-3">
                 {t("loadHistory")}
               </h2>
-              <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
+              <div className="overflow-x-auto rounded-lg border border-divider">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700 dark:bg-zinc-800/50">
+                    <tr className="border-b border-divider bg-surface-raised text-left text-xs font-medium uppercase text-foreground-muted">
                       <th className="py-3 pr-6">{t("column.label")}</th>
                       <th className="py-3 pr-6">{t("column.source")}</th>
                       <th className="py-3 pr-6 text-right">{t("column.records")}</th>
@@ -418,17 +408,17 @@ export default function LineageSettingsPage() {
                     {historyEntries.map((e) => (
                       <tr
                         key={e.id}
-                        className="border-b border-zinc-100 dark:border-zinc-800 last:border-b-0"
+                        className="border-b border-divider-soft last:border-b-0"
                         title={e.error_message ?? undefined}
                       >
-                        <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
+                        <td className="py-3 pr-6 font-medium text-foreground-strong">
                           <div className="flex items-center gap-1.5">
                             <span
                               className={cn(
                                 "inline-block h-2 w-2 rounded-full",
                                 e.graph_element_type === "node"
-                                  ? "bg-blue-500"
-                                  : "bg-violet-500",
+                                  ? "bg-info-foreground"
+                                  : "bg-concept-foreground",
                               )}
                             />
                             {e.graph_label}
@@ -446,7 +436,7 @@ export default function LineageSettingsPage() {
                           {formatDate(e.started_at)}
                         </td>
                         <td className="py-3 pr-6 text-right">
-                          <StatusBadge status={e.status} label={statusLabel(e.status)} />
+                          <ExecutionStatusBadge status={e.status} label={statusLabel(e.status)} />
                         </td>
                       </tr>
                     ))}

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { MagicWand01Icon } from "@hugeicons/core-free-icons";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { toast } from "sonner";
 import type {
   OntologyQualityReport,
@@ -80,12 +80,12 @@ function formatCategory(
 
 function countBadgeClass(severity: QualityGapSeverity): string {
   return cn(
-    "rounded-full px-1.5 py-0.5 text-[9px] font-medium tabular-nums",
+    "rounded-full px-1.5 py-0.5 text-2xs font-medium tabular-nums",
     severity === "high"
-      ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+      ? "bg-danger-surface text-danger-foreground"
       : severity === "medium"
-        ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
+        ? "bg-warning-surface text-warning-foreground"
+        : "bg-surface-inset text-foreground dark:text-muted-foreground",
   );
 }
 
@@ -382,8 +382,8 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
               className={cn(
                 "flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors",
                 enabledSeverities.has(sev)
-                  ? "border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-800"
-                  : "border-zinc-200 bg-zinc-100 opacity-40 dark:border-zinc-800 dark:bg-zinc-900",
+                  ? "border-divider bg-surface-base"
+                  : "border-divider bg-surface-inset opacity-40",
               )}
             >
               <span className={countBadgeClass(sev)}>{counts[sev]}</span>
@@ -398,8 +398,8 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
             onClick={fixAll}
             className={cn(
               "ml-auto flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
-              "border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100",
-              "dark:border-violet-700 dark:bg-violet-950 dark:text-violet-300 dark:hover:bg-violet-900",
+              "border-concept-border bg-concept-surface text-concept-foreground hover:bg-concept-surface",
+              "dark:border-concept-border dark:hover:bg-concept-surface",
             )}
           >
             <HugeiconsIcon icon={MagicWand01Icon} className="h-3 w-3" size="100%" />
@@ -414,7 +414,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         placeholder={t("searchPlaceholder")}
-        className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-700 placeholder-zinc-500 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+        className="w-full rounded-md border border-divider bg-surface-base px-2.5 py-1.5 text-xs text-foreground placeholder-foreground-muted focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
       />
 
       {/* Grouped gaps */}
@@ -429,11 +429,11 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
             <button
               type="button"
               onClick={() => toggleCategory(category)}
-              className="flex w-full items-center gap-1.5 py-1 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300"
+              className="flex w-full items-center gap-1.5 py-1 text-left text-2xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
             >
               <span
                 className={cn(
-                  "transition-transform text-[8px]",
+                  "transition-transform text-2xs",
                   collapsed ? "rotate-0" : "rotate-90",
                 )}
               >

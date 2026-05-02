@@ -1,17 +1,50 @@
 {
   "collaboration": {
     "errors": {
-      "auth_required": "Authentication required.",
-      "auth_invalid": "Your session is invalid. Please sign in again.",
-      "auth_unavailable": "The collaboration server is unavailable.",
-      "auth_timeout": "Authentication timed out. Reconnecting…",
-      "malformed_frame": "An unrecognised message was received.",
-      "unauthorized_workspace": "You are not a member of this workspace.",
-      "unauthorized_project": "You do not have access to this project.",
-      "too_many_connections": "Too many concurrent sessions. Close another tab and retry.",
-      "broadcast_lagged": "Live updates lagged. Reconnecting to resync.",
-      "not_joined": "Tried to act on a room you have not joined.",
-      "session_revoked": "Your session was revoked. Please sign in again."
+      "auth_required": {
+        "title": "Sign-in required",
+        "description": "Please sign in again to continue."
+      },
+      "auth_invalid": {
+        "title": "Session invalid",
+        "description": "Your session has ended for security reasons. Please sign in again."
+      },
+      "auth_unavailable": {
+        "title": "Collaboration server unavailable",
+        "description": "Please try again shortly. Contact your administrator if the issue persists."
+      },
+      "auth_timeout": {
+        "title": "Authentication timed out",
+        "description": "Reconnecting…"
+      },
+      "malformed_frame": {
+        "title": "Unrecognised message",
+        "description": "The collaboration channel is unstable. Refreshing the page is recommended."
+      },
+      "unauthorized_workspace": {
+        "title": "Workspace access denied",
+        "description": "You are not a member of this workspace. Ask an administrator for an invite."
+      },
+      "unauthorized_project": {
+        "title": "Project access denied",
+        "description": "You do not have access to this project."
+      },
+      "too_many_connections": {
+        "title": "Too many concurrent sessions",
+        "description": "Close another tab and try again."
+      },
+      "broadcast_lagged": {
+        "title": "Live updates lagging",
+        "description": "Reconnecting to resync shortly."
+      },
+      "not_joined": {
+        "title": "Not joined to room",
+        "description": "Rejoin the collaboration session and try again."
+      },
+      "session_revoked": {
+        "title": "Session expired",
+        "description": "Your session was revoked for security reasons. Please sign in again to continue."
+      }
     },
     "status": {
       "idle": "Collaboration disconnected",
@@ -22,7 +55,12 @@
       "closed": "Collaboration unavailable"
     },
     "actions": {
-      "signInAgain": "Sign in again"
+      "signInAgain": "Sign in again",
+      "dismiss": "Dismiss notice"
+    },
+    "lock": {
+      "editingByYou": "You are editing",
+      "editingBy": "{name} is editing"
     }
   },
   "errorBoundary": {
@@ -437,7 +475,23 @@
       "distribution": "{distinct} distinct / {nulls} null",
       "piiRedactedBadge": "Redacted: {kind}",
       "piiRedactedTooltip": "Column name matched a PII heuristic — raw values were dropped at sample-collection time."
+    },
+    "toast": {
+      "saved": "Ontology saved",
+      "saveFailed": "Failed to save",
+      "nodeDeleted": "Node deleted",
+      "edgeDeleted": "Edge deleted",
+      "suggestionApplied": "Suggestion applied",
+      "noSuggestions": "AI found no changes to suggest",
+      "noImprovements": "No improvements suggested",
+      "improvementFailed": "AI improvement failed",
+      "undoLimit": "Undo history limit reached"
     }
+  },
+  "narrowViewport": {
+    "title": "Optimised for desktop",
+    "description": "Ontosyx's canvas and multi-panel layout work best on screens ≥1024px. Some features may be limited on smaller viewports.",
+    "dismissLabel": "Dismiss notice"
   },
   "common": {
     "loading": "Loading…",
@@ -455,7 +509,11 @@
     "discard": "Discard",
     "saving": "Saving…",
     "deleting": "Deleting…",
-    "creating": "Creating…"
+    "creating": "Creating…",
+    "loadError": {
+      "title": "Could not load data",
+      "description": "Check your network or authentication and try again."
+    }
   },
   "qualityGap": {
     "small_sample": {
@@ -668,6 +726,7 @@
       "auditResult": "Graph Audit: {percentage}% synced",
       "auditDescription": "Matched: {matched} | Orphaned: {orphaned} | Missing: {missing}",
       "auditFailed": "Audit failed",
+      "exportFailed": "Export failed",
       "importInvalid": "Invalid ontology: missing node_types/edge_types",
       "importWarning": "Import completed with warnings",
       "importedDescription": "{nodes}N, {edges}E",
@@ -1674,6 +1733,7 @@
       "title": "Audit Log",
       "description": "Track user actions, resource changes, and system events.",
       "empty": "No audit entries for the selected period",
+      "tableAria": "Audit entries — scroll horizontally",
       "column": {
         "action": "Action",
         "resourceType": "Resource Type",
@@ -1763,6 +1823,7 @@
     },
     "approvals": {
       "title": "Approval Queue",
+      "subtitle": "Review and approve schema deployments and other gated operations.",
       "description": "Review and approve schema deployments and other gated operations.",
       "approve": "Approve",
       "reject": "Reject",
@@ -1896,7 +1957,8 @@
     "team": {
       "title": "Team",
       "description": "Manage team members and their roles.",
-      "authRequired": "Team management is available when authentication is enabled.",
+      "authRequired": "Authentication is not enabled",
+      "authRequiredDescription": "Team management is only available in workspaces with authentication enabled. Contact your system administrator.",
       "rolesHeading": "Roles",
       "membersHeading": "Members",
       "changeRoleAria": "Change role for {name}",
@@ -2007,6 +2069,125 @@
         "mustBeNumber": "Must be a valid number",
         "updated": "Updated {count} {count, plural, one {setting} other {settings}}",
         "saveFailed": "Failed to save configuration"
+      }
+    },
+    "models": {
+      "title": "Model Configurations",
+      "description": "Configure LLM providers, models, cost limits, and test connectivity.",
+      "addAction": "Add Model",
+      "kpis": {
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "rules": "Routing Rules"
+      },
+      "table": {
+        "regionLabel": "Model configs",
+        "name": "Name",
+        "provider": "Provider",
+        "model": "Model",
+        "priority": "Priority",
+        "enabled": "Enabled",
+        "actions": "Actions",
+        "on": "On",
+        "off": "Off",
+        "test": "Test",
+        "edit": "Edit",
+        "delete": "Delete",
+        "testing": "…",
+        "deleting": "…",
+        "empty": "No model configurations"
+      },
+      "rules": {
+        "heading": "Routing Rules",
+        "subtitle": "Map operations to specific model configurations by priority.",
+        "addAction": "Add Rule",
+        "regionLabel": "Routing rules",
+        "operation": "Operation",
+        "modelConfig": "Model Config",
+        "priority": "Priority",
+        "enabled": "Enabled",
+        "actions": "Actions",
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleting": "…",
+        "empty": "No routing rules configured"
+      },
+      "toast": {
+        "loadFailed": "Failed to load model configurations",
+        "configCreated": "Model config created",
+        "configUpdated": "Model config updated",
+        "configDeleted": "Model config deleted",
+        "configCreateFailed": "Failed to create config",
+        "configUpdateFailed": "Failed to update config",
+        "configDeleteFailed": "Failed to delete config",
+        "toggleFailed": "Failed to toggle model",
+        "testSuccess": "Model responded in {ms}ms",
+        "testFailed": "Test failed: {error}",
+        "testError": "Failed to test model",
+        "ruleCreated": "Routing rule created",
+        "ruleUpdated": "Routing rule updated",
+        "ruleDeleted": "Routing rule deleted",
+        "ruleCreateFailed": "Failed to create rule",
+        "ruleUpdateFailed": "Failed to update rule",
+        "ruleDeleteFailed": "Failed to delete rule"
+      },
+      "confirm": {
+        "deleteConfigTitle": "Delete model config '{name}'?",
+        "deleteConfigDescription": "This action cannot be undone. Any routing rules referencing this config will also be affected.",
+        "deleteRuleTitle": "Delete routing rule for '{operation}'?",
+        "deleteRuleDescription": "This action cannot be undone. The routing rule will be permanently removed."
+      },
+      "form": {
+        "config": {
+          "createTitle": "New Model Config",
+          "editTitle": "Edit Model Config",
+          "createSubmit": "Create Config",
+          "updateSubmit": "Update Config",
+          "creating": "Creating…",
+          "updating": "Updating…",
+          "name": "Name",
+          "namePlaceholder": "e.g. Claude 4 Sonnet",
+          "provider": "Provider",
+          "modelId": "Model ID",
+          "modelIdPlaceholder": "e.g. claude-sonnet-4-20250514",
+          "maxTokens": "Max Tokens",
+          "temperature": "Temperature",
+          "optional": "(optional)",
+          "temperaturePlaceholder": "default",
+          "timeoutSecs": "Timeout (secs)",
+          "priority": "Priority",
+          "apiKeyEnv": "API Key Env Var",
+          "apiKeyEnvPlaceholder": "e.g. ANTHROPIC_API_KEY",
+          "baseUrl": "Base URL",
+          "baseUrlPlaceholder": "e.g. https://api.example.com",
+          "region": "Region",
+          "regionPlaceholder": "e.g. us-east-1",
+          "costPerInput": "Cost / 1M Input",
+          "costPerInputPlaceholder": "e.g. 3.00",
+          "costPerOutput": "Cost / 1M Output",
+          "costPerOutputPlaceholder": "e.g. 15.00",
+          "dailyBudget": "Daily Budget",
+          "dailyBudgetPlaceholder": "e.g. 50.00",
+          "usd": "(USD)",
+          "enabled": "Enabled"
+        },
+        "rule": {
+          "createTitle": "New Routing Rule",
+          "editTitle": "Edit Routing Rule",
+          "createSubmit": "Create Rule",
+          "updateSubmit": "Update Rule",
+          "creating": "Creating…",
+          "updating": "Updating…",
+          "operation": "Operation",
+          "modelConfig": "Model Config",
+          "priority": "Priority",
+          "enabled": "Enabled"
+        }
+      },
+      "validation": {
+        "required": "Required",
+        "minOne": "Must be at least 1",
+        "temperatureRange": "Must be 0-2"
       }
     },
     "prompts": {
@@ -2792,6 +2973,8 @@
   },
   "workbench": {
     "glossary": {
+      "heading": "Glossary",
+      "subtitle": "Workspace canon vocabulary — anchors referenced by nodes, edges, and properties.",
       "noOntology": {
         "title": "No committed ontology",
         "description": "Create one in Design mode first — the workbench reads vocabulary off the latest committed ontology snapshot."
@@ -4230,6 +4413,55 @@
       }
     },
     "dashboard": {
+      "layout": {
+        "actions": {
+          "aiGenerate": "AI Generate Widgets",
+          "share": "Share Dashboard",
+          "makePrivate": "Make Private",
+          "exportPdf": "Export as PDF",
+          "duplicate": "Duplicate Dashboard",
+          "refreshAll": "Refresh All Widgets",
+          "delete": "Delete Dashboard",
+          "filtersLabel": "Filters",
+          "clearAllFilters": "Clear all"
+        },
+        "toast": {
+          "loadDashboardsFailed": "Failed to load dashboards",
+          "loadWidgetsFailed": "Failed to load widgets",
+          "created": "Dashboard created",
+          "createFailed": "Failed to create dashboard",
+          "duplicated": "Dashboard duplicated",
+          "duplicateFailed": "Failed to duplicate dashboard",
+          "deleted": "Dashboard deleted",
+          "deleteFailed": "Failed to delete dashboard",
+          "shared": "Dashboard shared",
+          "madePrivate": "Dashboard made private",
+          "shareFailed": "Failed to update sharing"
+        },
+        "empty": {
+          "dashboardTitle": "No Dashboard Selected",
+          "dashboardDescription": "Create dashboards to monitor your graph data with charts, tables, and KPI cards.",
+          "dashboardCta": "Create Dashboard",
+          "widgetsTitle": "No Widgets Yet",
+          "widgetsDescription": "Add widgets manually or use AI to generate them automatically.",
+          "widgetsHint": "Use the AI button in the toolbar above to auto-generate widgets",
+          "selectWidget": "Select a widget to configure"
+        },
+        "create": {
+          "title": "Create Dashboard",
+          "nameLabel": "Name",
+          "namePlaceholder": "Dashboard name",
+          "descriptionLabel": "Description",
+          "descriptionPlaceholder": "Optional description",
+          "submit": "Create",
+          "cancel": "Cancel",
+          "defaultName": "Dashboard {number}",
+          "duplicateSuffix": " (Copy)"
+        },
+        "inspector": {
+          "heading": "Widget Inspector"
+        }
+      },
       "addWidget": {
         "trigger": "Add Widget",
         "modalTitle": "Add Widget",

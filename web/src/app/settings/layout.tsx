@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { NARROW_SETTINGS_PAGES } from "@/lib/constants/settings";
 import { cn } from "@/lib/cn";
-import { useIsClient } from "@/lib/use-is-client";
+import { useIsClient } from "@/hooks/use-is-client";
 
 /**
  * Derive a page title from the settings pathname. Runs at render time —
@@ -43,7 +43,7 @@ export default function SettingsLayout({
   const mounted = useIsClient();
 
   return (
-    <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="flex h-screen bg-surface-raised">
       <SettingsSidebar />
       <main
         id="main"
@@ -55,7 +55,7 @@ export default function SettingsLayout({
         // keyboard activation, not mouse clicks — so casual scrolling
         // doesn't paint a ring.
         tabIndex={0}
-        className="flex-1 overflow-y-auto p-6 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-inset lg:p-8"
+        className="flex-1 overflow-y-auto p-6 outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/50 focus-visible:ring-inset lg:p-8"
       >
         <div className={cn("mx-auto", isNarrow ? "max-w-3xl" : "max-w-7xl")}>
           {/* Visually-hidden page title — subpages render their own

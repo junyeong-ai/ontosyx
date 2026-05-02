@@ -1,34 +1,82 @@
+import { type HTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
-const DEFAULT_COLOR_MAP: Record<string, string> = {
-  draft: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  deprecated: "bg-zinc-200 text-zinc-500 dark:bg-zinc-700 dark:text-muted-foreground",
-  inactive: "bg-zinc-200 text-zinc-500 dark:bg-zinc-700 dark:text-muted-foreground",
-  error: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-};
+export type StatusTone =
+  | "neutral"
+  | "brand"
+  | "success"
+  | "warning"
+  | "danger"
+  | "info"
+  | "concept";
 
-interface StatusBadgeProps {
-  status: string;
-  colorMap?: Record<string, string>;
-  className?: string;
+type StatusVariant = "soft" | "outline" | "solid";
+type StatusSize = "sm" | "md";
+
+interface StatusBadgeProps extends HTMLAttributes<HTMLSpanElement> {
+  tone?: StatusTone;
+  variant?: StatusVariant;
+  size?: StatusSize;
 }
 
-export function StatusBadge({ status, colorMap, className }: StatusBadgeProps) {
-  const colors = colorMap ?? DEFAULT_COLOR_MAP;
-  const colorClass =
-    colors[status] ?? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground";
+const softClass: Record<StatusTone, string> = {
+  neutral: "bg-surface-inset text-foreground-muted",
+  brand:   "bg-brand-surface text-brand-foreground",
+  success: "bg-success-surface text-success-foreground",
+  warning: "bg-warning-surface text-warning-foreground",
+  danger:  "bg-danger-surface text-danger-foreground",
+  info:    "bg-info-surface text-info-foreground",
+  concept: "bg-concept-surface text-concept-foreground",
+};
+
+const outlineClass: Record<StatusTone, string> = {
+  neutral: "border border-divider text-foreground-muted",
+  brand:   "border border-brand-border text-brand-foreground",
+  success: "border border-success-border text-success-foreground",
+  warning: "border border-warning-border text-warning-foreground",
+  danger:  "border border-danger-border text-danger-foreground",
+  info:    "border border-info-border text-info-foreground",
+  concept: "border border-concept-border text-concept-foreground",
+};
+
+const solidClass: Record<StatusTone, string> = {
+  neutral: "bg-foreground text-foreground-onbrand",
+  brand:   "bg-brand-solid text-foreground-onbrand",
+  success: "bg-brand-solid text-foreground-onbrand",
+  warning: "bg-warning-foreground text-surface-base",
+  danger:  "bg-danger-solid text-foreground-onbrand",
+  info:    "bg-info-foreground text-surface-base",
+  concept: "bg-concept-foreground text-surface-base",
+};
+
+const sizeClass: Record<StatusSize, string> = {
+  sm: "px-1.5 py-0.5 text-2xs",
+  md: "px-2 py-0.5 text-xs",
+};
+
+export function StatusBadge({
+  tone = "neutral",
+  variant = "soft",
+  size = "sm",
+  className,
+  ...rest
+}: StatusBadgeProps) {
+  const toneClass =
+    variant === "outline"
+      ? outlineClass[tone]
+      : variant === "solid"
+        ? solidClass[tone]
+        : softClass[tone];
 
   return (
     <span
       className={cn(
-        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-        colorClass,
+        "inline-flex items-center rounded-full font-medium",
+        sizeClass[size],
+        toneClass,
         className,
       )}
-    >
-      {status}
-    </span>
+      {...rest}
+    />
   );
 }

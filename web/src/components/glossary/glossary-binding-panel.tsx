@@ -15,7 +15,8 @@ import type {
 } from "@/lib/api/binding-suggestions";
 import type { LocalizedText } from "@/types/ontology";
 import { localize } from "@/lib/locale/localize";
-import { useLocaleChain } from "@/lib/use-locale-chain";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface BindingTermContext {
   term_id: string;
@@ -133,15 +134,15 @@ export function GlossaryBindingPanel({
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden text-xs">
-      <header className="flex items-center justify-between gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-800">
+      <header className="flex items-center justify-between gap-2 border-b border-divider pb-2">
         <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <p className="text-2xs uppercase tracking-wider text-muted-foreground">
             {t("embedded.targetLabel")}
           </p>
-          <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+          <p className="truncate font-medium text-foreground-strong">
             {displayTerm}
           </p>
-          <p className="truncate font-mono text-[10px] text-muted-foreground">
+          <p className="truncate font-mono text-2xs text-muted-foreground">
             {term.term_id}
           </p>
         </div>
@@ -156,7 +157,7 @@ export function GlossaryBindingPanel({
             })
           }
           disabled={suggest.isPending}
-          className="shrink-0 rounded border border-violet-300 px-2 py-1 text-[10px] font-medium text-violet-700 hover:bg-violet-50 disabled:opacity-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/40"
+          className="shrink-0 rounded border border-concept-border px-2 py-1 text-2xs font-medium text-concept-foreground hover:bg-concept-surface disabled:opacity-50 dark:hover:bg-concept-surface/40"
         >
           {suggest.isPending
             ? t("actions.searching")
@@ -166,21 +167,17 @@ export function GlossaryBindingPanel({
 
       <div className="flex-1 overflow-y-auto">
         {suggest.isPending && candidates.length === 0 && (
-          <p className="py-6 text-center text-[11px] text-muted-foreground">
-            {t("actions.searching")}
-          </p>
+          <EmptyState size="sm" title={t("actions.searching")} />
         )}
 
         {suggest.isSuccess && candidates.length === 0 && (
-          <p className="py-6 text-center text-[11px] text-muted-foreground">
-            {t("empty")}
-          </p>
+          <EmptyState size="sm" title={t("empty")} />
         )}
 
         {candidates.length > 0 && (
           <table className="w-full border-collapse text-xs">
             <thead>
-              <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-muted-foreground dark:border-zinc-800">
+              <tr className="border-b border-divider text-left text-2xs uppercase tracking-wider text-muted-foreground">
                 <th className="w-8 py-2 pr-2"></th>
                 <th className="py-2 pr-3 font-medium">
                   {t("columns.owner")}
@@ -200,7 +197,7 @@ export function GlossaryBindingPanel({
                 return (
                   <tr
                     key={key}
-                    className="border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800/50 dark:hover:bg-zinc-800/30"
+                    className="border-b border-divider-soft hover:bg-surface-raised dark:hover:bg-surface-base/30"
                   >
                     <td className="py-1.5 pr-2">
                       <input
@@ -214,14 +211,14 @@ export function GlossaryBindingPanel({
                       />
                     </td>
                     <td className="py-1.5 pr-3">
-                      <span className="rounded bg-zinc-100 px-1 py-0.5 text-[9px] uppercase text-muted-foreground dark:bg-zinc-800">
+                      <span className="rounded bg-surface-inset px-1 py-0.5 text-2xs uppercase text-muted-foreground">
                         {c.owner_kind}
                       </span>{" "}
                       <span className="text-[11px] font-medium">
                         {c.owner_label || c.owner_type_id}
                       </span>
                     </td>
-                    <td className="py-1.5 pr-3 font-mono text-[10px]">
+                    <td className="py-1.5 pr-3 font-mono text-2xs">
                       {c.property_name}
                     </td>
                     <td className="py-1.5 pr-2">
@@ -236,12 +233,12 @@ export function GlossaryBindingPanel({
       </div>
 
       {anySelected && (
-        <footer className="flex items-center justify-end gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-800">
+        <footer className="flex items-center justify-end gap-2 border-t border-divider pt-2">
           <button
             type="button"
             onClick={onBatchBind}
             disabled={apply.isPending}
-            className="rounded bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="rounded bg-brand-solid px-3 py-1 text-[11px] font-medium text-white hover:bg-brand-solid disabled:opacity-50"
           >
             {apply.isPending
               ? t("actions.binding")
@@ -257,13 +254,13 @@ function ScoreBar({ score }: { score: number }) {
   const pct = Math.round(Math.max(0, Math.min(1, score)) * 100);
   return (
     <div className="flex items-center gap-1.5">
-      <div className="h-1 w-10 overflow-hidden rounded bg-zinc-200 dark:bg-zinc-800">
+      <div className="h-1 w-10 overflow-hidden rounded bg-surface-inset">
         <div
-          className="h-full bg-violet-500"
+          className="h-full bg-concept-foreground"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="tabular-nums text-[9px] text-muted-foreground">
+      <span className="tabular-nums text-2xs text-muted-foreground">
         {pct}%
       </span>
     </div>

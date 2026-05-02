@@ -231,13 +231,6 @@ _stop_fe() {
 }
 
 # ── Health Check ────────────────────────────────────────────────
-# Hits /api/healthz — the dedicated probe endpoint that returns flat
-# JSON (no envelope, no auth). Industry-standard k8s/Datadog/Prometheus
-# convention. /api/health stays wrapped for the FE admin page; both
-# share body construction in the backend so they cannot drift.
-#
-# Uses `jq` (already a dev-machine standard) instead of inline python3
-# for cleaner parsing, faster execution, and trivial multi-key lookups.
 _jq_or_die() {
   if ! command -v jq >/dev/null 2>&1; then
     echo "  ${R}jq not found — install with \`brew install jq\` (macOS) or your package manager${N}" >&2
@@ -257,15 +250,12 @@ _health() {
     local resp
     resp=$(curl -s "http://localhost:${BE_PORT}/api/healthz" --max-time 5 2>/dev/null || echo '{}')
 
-    # Defensive: accept both flat (/api/healthz) and wrapped
-    # (/api/health, legacy) shapes so this script tolerates a future
-    # endpoint rename without silently going dark.
     local status pg_ok neo4j_ok llm_model graph_backend
-    status=$(echo "$resp"        | jq -r '.data.status // .status // "?"')
-    pg_ok=$(echo "$resp"         | jq -r '.data.components.postgres // .components.postgres // "?"')
-    neo4j_ok=$(echo "$resp"      | jq -r '.data.components.neo4j // .components.neo4j // "?"')
-    graph_backend=$(echo "$resp" | jq -r '.data.components.graph_backend // .components.graph_backend // ""')
-    llm_model=$(echo "$resp"     | jq -r '.data.components.llm.model // .components.llm.model // "?"')
+    status=$(echo "$resp"        | jq -r '.status // "?"')
+    pg_ok=$(echo "$resp"         | jq -r '.components.postgres // "?"')
+    neo4j_ok=$(echo "$resp"      | jq -r '.components.neo4j // "?"')
+    graph_backend=$(echo "$resp" | jq -r '.components.graph_backend // ""')
+    llm_model=$(echo "$resp"     | jq -r '.components.llm.model // "?"')
 
     case "$status" in
       ok)        echo "  ${OK} ${G}API health: ok${N}" ;;
@@ -273,8 +263,6 @@ _health() {
       *)         echo "  ${NO} ${R}API health: ${status}${N}" ;;
     esac
 
-    # Component details — colourise OK vs anything else so an unhealthy
-    # component pops in a quick scan.
     _component_line() {
       local label=$1 value=$2
       if [ "$value" = "ok" ]; then
@@ -306,9 +294,6 @@ _health() {
     echo "  ${NO} ${D}Frontend not running${N}"
   fi
 
-  # Model configs — protected endpoint, still wrapped in `data`. Use
-  # the same defensive `// .` fallback so the script works regardless
-  # of envelope changes upstream.
   if _is_running $BE_PORT; then
     local model_count
     model_count=$(curl -s "http://localhost:${BE_PORT}/api/models/configs" \

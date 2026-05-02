@@ -1,4 +1,4 @@
-import { RecipesWorkbench } from "@/components/workbench/recipes/recipes-workbench";
+import { RecipesWorkbench } from "@/components/recipes/recipes-workbench";
 
 export default function RecipesPage() {
   return <RecipesWorkbench />;

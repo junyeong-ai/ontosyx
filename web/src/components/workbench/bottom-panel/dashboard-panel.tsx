@@ -1,12 +1,12 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/lib/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { Spinner } from "@/components/ui/spinner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import {
   useCreateDashboard,
   useDashboards,
@@ -56,15 +56,15 @@ export function DashboardPanel() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Spinner size="lg" className="text-emerald-500" />
+        <Spinner size="lg" className="text-brand-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col bg-zinc-50/50 p-4 dark:bg-zinc-950">
+    <div className="flex h-full flex-col bg-surface-raised p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+        <h2 className="text-sm font-semibold text-foreground">
           {t("title")}
           <span className="ml-2 text-xs font-normal text-muted-foreground">
             {dashboards.length}
@@ -74,7 +74,7 @@ export function DashboardPanel() {
           <button
             onClick={handleCreate}
             disabled={createMutation.isPending}
-            className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            className="flex items-center gap-1 rounded-md bg-brand-solid px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-brand-solid disabled:opacity-50"
           >
             <HugeiconsIcon icon={Add01Icon} className="h-3 w-3" size="100%" />
             {t("new")}
@@ -96,23 +96,23 @@ export function DashboardPanel() {
           {dashboards.map((d) => (
             <div
               key={d.id}
-              className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
+              className="flex items-center justify-between rounded-lg border border-divider bg-surface-base px-4 py-3"
             >
               <div>
-                <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                <h3 className="text-sm font-medium text-foreground-strong">
                   {d.name}
                 </h3>
                 {d.description && (
                   <p className="mt-0.5 text-xs text-muted-foreground">{d.description}</p>
                 )}
-                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                <p className="mt-0.5 text-2xs text-muted-foreground">
                   {t("updated", { date: new Date(d.updated_at).toLocaleDateString() })}
                 </p>
               </div>
               {canWrite && (
                 <button
                   onClick={() => handleDelete(d.id)}
-                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-danger-surface hover:text-danger-foreground dark:hover:bg-danger-surface"
                   aria-label={t("deleteAria")}
                 >
                   <HugeiconsIcon icon={Delete01Icon} className="h-3.5 w-3.5" size="100%" />

@@ -6,7 +6,7 @@ import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import type { Suggestion } from "./use-suggestions";
 import { arr } from "@/lib/ir-collections";
 import { localize } from "@/lib/locale/localize";
-import { useLocaleChain } from "@/lib/use-locale-chain";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 
 // ---------------------------------------------------------------------------
 // PatternPalette — Available node/edge types from ontology
@@ -84,18 +84,18 @@ export function PatternPalette({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t("searchPlaceholder")}
-          className="h-7 w-full rounded border border-zinc-200 bg-white px-2 text-xs text-zinc-700 placeholder:text-muted-foreground dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+          className="h-7 w-full rounded border border-divider bg-surface-base px-2 text-xs text-foreground placeholder:text-muted-foreground-muted"
         />
       </div>
 
       {/* Tabs */}
-      <div className="flex shrink-0 border-b border-zinc-200 px-2 dark:border-zinc-800">
+      <div className="flex shrink-0 border-b border-divider px-2">
         <button
           onClick={() => setTab("nodes")}
           className={`px-3 py-1.5 text-xs font-medium transition-colors ${
             tab === "nodes"
-              ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
-              : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
+              ? "border-b-2 border-brand-foreground text-brand-foreground"
+              : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-muted"
           }`}
         >
           {t("tabNodes", { count: filteredNodes.length })}
@@ -104,8 +104,8 @@ export function PatternPalette({
           onClick={() => setTab("edges")}
           className={`px-3 py-1.5 text-xs font-medium transition-colors ${
             tab === "edges"
-              ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
-              : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
+              ? "border-b-2 border-brand-foreground text-brand-foreground"
+              : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-muted"
           }`}
         >
           {t("tabEdges", { count: filteredEdges.length })}
@@ -115,8 +115,8 @@ export function PatternPalette({
             onClick={() => setTab("suggested")}
             className={`px-3 py-1.5 text-xs font-medium transition-colors ${
               tab === "suggested"
-                ? "border-b-2 border-violet-600 text-violet-600 dark:border-violet-400 dark:text-violet-400"
-                : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
+                ? "border-b-2 border-concept-foreground text-concept-foreground dark:border-concept-foreground"
+                : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-muted"
             }`}
           >
             {t("tabSuggested", { count: suggestions.length })}
@@ -135,20 +135,20 @@ export function PatternPalette({
                 draggable
                 onDragStart={(e) => handleDragStartNode(e, nt)}
                 onClick={() => onAddNode(nt)}
-                className="group cursor-grab rounded-lg border border-zinc-200 bg-white px-3 py-2 transition-colors hover:border-emerald-300 hover:bg-emerald-50/50 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/20"
+                className="group cursor-grab rounded-lg border border-divider bg-surface-base px-3 py-2 transition-colors hover:border-brand-border hover:bg-brand-surface active:cursor-grabbing dark:hover:border-brand-border dark:hover:bg-brand-surface/20"
               >
                 <div className="flex items-center gap-2">
-                  <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-400 dark:bg-blue-500" />
-                  <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-info-foreground dark:bg-info-foreground" />
+                  <span className="text-xs font-medium text-foreground">
                     {nt.label}
                   </span>
                 </div>
                 {description && (
-                  <p className="mt-0.5 text-[10px] text-muted-foreground line-clamp-1">
+                  <p className="mt-0.5 text-2xs text-muted-foreground line-clamp-1">
                     {description}
                   </p>
                 )}
-                <div className="mt-1 text-[10px] text-muted-foreground">
+                <div className="mt-1 text-2xs text-muted-foreground">
                   {t("propertiesCount", { count: arr(nt.properties).length })}
                 </div>
               </div>
@@ -167,15 +167,15 @@ export function PatternPalette({
                 draggable
                 onDragStart={(e) => handleDragStartEdge(e, et)}
                 onClick={() => onAddEdge(et)}
-                className="group cursor-grab rounded-lg border border-zinc-200 bg-white px-3 py-2 transition-colors hover:border-emerald-300 hover:bg-emerald-50/50 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/20"
+                className="group cursor-grab rounded-lg border border-divider bg-surface-base px-3 py-2 transition-colors hover:border-brand-border hover:bg-brand-surface active:cursor-grabbing dark:hover:border-brand-border dark:hover:bg-brand-surface/20"
               >
                 <div className="flex items-center gap-2">
-                  <div className="h-2.5 w-2.5 shrink-0 rounded-sm bg-amber-400 dark:bg-amber-500" />
-                  <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  <div className="h-2.5 w-2.5 shrink-0 rounded-sm bg-warning-foreground" />
+                  <span className="text-xs font-medium text-foreground">
                     {et.label}
                   </span>
                 </div>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                <p className="mt-0.5 text-2xs text-muted-foreground">
                   {srcLabel} &rarr; {tgtLabel}
                 </p>
               </div>
@@ -205,24 +205,24 @@ export function PatternPalette({
             <div
               key={`${s.edge.id}-${s.direction}-${i}`}
               onClick={() => onAddSuggestion?.(s)}
-              className="group cursor-pointer rounded-lg border border-zinc-200 bg-white px-3 py-2 transition-colors hover:border-violet-300 hover:bg-violet-50/50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-violet-700 dark:hover:bg-violet-950/20"
+              className="group cursor-pointer rounded-lg border border-divider bg-surface-base px-3 py-2 transition-colors hover:border-concept-border hover:bg-concept-surface dark:hover:border-concept-border dark:hover:bg-concept-surface/20"
             >
               <div className="flex items-center gap-2">
-                <span className="shrink-0 text-[10px] text-muted-foreground">
+                <span className="shrink-0 text-2xs text-muted-foreground">
                   {s.direction === "outgoing" ? "\u2192" : "\u2190"}
                 </span>
-                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                <span className="text-xs font-medium text-foreground">
                   {s.edge.label}
                 </span>
                 <span
                   className={`ml-auto h-2 w-2 shrink-0 rounded-full ${
                     s.alreadyInPattern
-                      ? "bg-emerald-400 dark:bg-emerald-500"
-                      : "bg-blue-400 dark:bg-blue-500"
+                      ? "bg-brand-solid"
+                      : "bg-info-foreground dark:bg-info-foreground"
                   }`}
                 />
               </div>
-              <p className="mt-0.5 text-[10px] text-muted-foreground">
+              <p className="mt-0.5 text-2xs text-muted-foreground">
                 {s.direction === "outgoing" ? "\u2192 " : "\u2190 "}
                 {s.targetNode.label}
               </p>

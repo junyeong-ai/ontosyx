@@ -10,7 +10,7 @@ import { render, cleanup } from "@testing-library/react";
 import { axe } from "vitest-axe";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../../messages/en.json";
-import { BarChartWidget } from "@/components/widgets/bar-chart-widget";
+import { BarChartWidget } from "@/components/dashboard/widgets/bar-chart-widget";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 
 function renderWithIntl(ui: React.ReactElement) {
@@ -38,7 +38,7 @@ vi.mock("recharts", async () => {
   };
 });
 
-vi.mock("@/lib/use-dark-mode", () => ({ useIsDarkMode: () => false }));
+vi.mock("@/hooks/use-dark-mode", () => ({ useIsDarkMode: () => false }));
 
 describe("BarChartWidget (a11y)", () => {
   const spec: WidgetSpec = { widget_type: "bar_chart", title: "Revenue" };

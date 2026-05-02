@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
+import { StatusBadge as StatusBadgePrimitive, type StatusTone } from "@/components/ui/status-badge";
 import type { DesignSource } from "@/types/api";
 
 // Known project statuses — localized via workbench.bottomPanel.workflow.stepXxx keys.
@@ -28,10 +29,10 @@ export function columnKey(table: string, column: string) {
 }
 
 export const selectClassName = cn(
-  "w-full rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm",
-  "outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50",
-  "dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100",
-  "dark:focus:border-emerald-400 dark:focus:ring-emerald-400/50",
+  "w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-sm",
+  "outline-none focus:border-brand-foreground focus:ring-1 focus:ring-brand-foreground/50",
+  "dark:border-divider-strong",
+  "dark:focus:border-brand-border dark:focus:ring-brand-foreground/50",
 );
 
 export function formatGapLocation(loc: Record<string, unknown>): string {
@@ -45,11 +46,8 @@ export function formatGapLocation(loc: Record<string, unknown>): string {
   return "";
 }
 
-export function StatusBadge({ status }: { status: string }) {
+export function WorkflowStatusBadge({ status }: { status: string }) {
   const t = useTranslations("workbench.bottomPanel.workflow");
-  // Wire values for status mirror the Analyze / Design / Complete steps —
-  // re-use the step labels already declared in the workflow bundle, and
-  // fall back to the raw value for any future variants.
   const label = isKnownStatus(status)
     ? status === "analyzed"
       ? t("stepAnalyze")
@@ -57,18 +55,16 @@ export function StatusBadge({ status }: { status: string }) {
         ? t("stepDesign")
         : t("stepComplete")
     : status;
+  const tone: StatusTone =
+    status === "completed" ? "success"
+      : status === "designed" ? "info"
+      : "warning";
   return (
-    <span
-      className={cn(
-        "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase",
-        status === "completed"
-          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-          : status === "designed"
-            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-      )}
+    <StatusBadgePrimitive
+      tone={tone}
+      className="shrink-0 font-medium uppercase"
     >
       {label}
-    </span>
+    </StatusBadgePrimitive>
   );
 }

@@ -2,39 +2,32 @@
 
 import { useTranslations } from "next-intl";
 import type { AnalysisRecipe, RecipeStatus } from "@/types/api";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 
 // ---------------------------------------------------------------------------
-// Algorithm type badge colors
+// Algorithm type → tone mapping for the algorithm chip.
 // ---------------------------------------------------------------------------
 
-const ALGO_BADGE: Record<string, string> = {
-  time_series:
-    "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  segmentation:
-    "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  statistical_analysis:
-    "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
-  anomaly_detection:
-    "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  classification:
-    "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
-  regression:
-    "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-  custom:
-    "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
+const ALGO_TONE: Record<string, StatusTone> = {
+  time_series: "info",
+  segmentation: "concept",
+  statistical_analysis: "success",
+  anomaly_detection: "danger",
+  classification: "concept",
+  regression: "warning",
+  custom: "neutral",
 };
 
-const STATUS_BADGE: Record<RecipeStatus, string> = {
-  draft:
-    "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  approved:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  deprecated:
-    "bg-zinc-200 text-zinc-500 dark:bg-zinc-700 dark:text-muted-foreground",
+const STATUS_TONE: Record<RecipeStatus, StatusTone> = {
+  draft: "warning",
+  approved: "success",
+  deprecated: "neutral",
 };
 
 // ---------------------------------------------------------------------------
-// Algorithm type icons (simple SVG)
+// Algorithm type icons (simple SVG path data)
 // ---------------------------------------------------------------------------
 
 const ALGO_ICON: Record<string, string> = {
@@ -46,10 +39,6 @@ const ALGO_ICON: Record<string, string> = {
   regression: "M3 20L21 4M3 20h18M3 20V4",
   custom: "M12 6v6l4 2M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z",
 };
-
-// ---------------------------------------------------------------------------
-// RecipeCard
-// ---------------------------------------------------------------------------
 
 interface ParamDef {
   type: string;
@@ -75,13 +64,11 @@ export function RecipeCard({
     (recipe.parameters ?? {}) as Record<string, ParamDef>,
   );
   const algoKey = recipe.algorithm_type;
-  const algoBadge = ALGO_BADGE[algoKey] ?? ALGO_BADGE.custom;
   const iconPath = ALGO_ICON[algoKey] ?? ALGO_ICON.custom;
   const resolvedActionLabel = actionLabel ?? t("defaultAction");
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4 transition-shadow hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">
-      {/* Header row */}
+    <Card padding="md" className="transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <svg
@@ -90,47 +77,44 @@ export function RecipeCard({
             viewBox="0 0 24 24"
             strokeWidth={1.5}
             stroke="currentColor"
-            className="h-4 w-4 shrink-0 text-muted-foreground"
+            className="h-4 w-4 shrink-0 text-foreground-muted"
           >
             <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
           </svg>
-          <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 line-clamp-1">
+          <h3 className="line-clamp-1 text-sm font-semibold text-foreground-strong">
             {recipe.name}
           </h3>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${algoBadge}`}
-          >
+          <StatusBadge tone={ALGO_TONE[algoKey] ?? ALGO_TONE.custom}>
             {algoKey.replace(/_/g, " ")}
-          </span>
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${STATUS_BADGE[recipe.status]}`}
+          </StatusBadge>
+          <StatusBadge
+            tone={STATUS_TONE[recipe.status]}
+            className="font-semibold uppercase tracking-wider"
           >
             {recipe.status}
-          </span>
+          </StatusBadge>
         </div>
       </div>
 
-      {/* Description */}
-      <p className="mt-1.5 text-xs text-zinc-500 dark:text-muted-foreground line-clamp-2">
+      <p className="mt-1.5 line-clamp-2 text-xs text-foreground-muted">
         {recipe.description}
       </p>
 
-      {/* Parameters (non-compact only) */}
       {!compact && params.length > 0 && (
         <div className="mt-3">
-          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <h4 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
             {t("parameters")}
           </h4>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {params.map(([name, def]) => (
               <span
                 key={name}
-                className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground"
+                className="inline-flex items-center gap-1 rounded bg-surface-inset px-1.5 py-0.5 text-[11px] text-foreground"
               >
                 <span className="font-medium">{name}</span>
-                <span className="text-muted-foreground">
+                <span className="text-foreground-muted">
                   {String(def.default)}
                 </span>
               </span>
@@ -139,18 +123,19 @@ export function RecipeCard({
         </div>
       )}
 
-      {/* Action */}
       {onRun && (
-        <button
+        <Button
+          variant="primary"
+          size="sm"
+          className="mt-3"
           onClick={(e) => {
             e.stopPropagation();
             onRun(recipe);
           }}
-          className="mt-3 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 transition-colors"
         >
           {resolvedActionLabel}
-        </button>
+        </Button>
       )}
-    </div>
+    </Card>
   );
 }

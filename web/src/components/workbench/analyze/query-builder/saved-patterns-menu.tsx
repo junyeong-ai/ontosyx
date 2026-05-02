@@ -6,8 +6,8 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useConfirm } from "@/components/ui/confirm-dialog";
-import { usePrompt } from "@/components/ui/prompt-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
+import { usePrompt } from "@/components/providers/prompt-provider";
 import {
   createSavedPattern,
   deleteSavedPattern,
@@ -220,7 +220,7 @@ export function SavedPatternsMenu({
       <button
         onClick={handleSave}
         disabled={disabled || noOntology}
-        className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
+        className="flex items-center gap-1 rounded px-2 py-0.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-surface-inset disabled:opacity-40"
         title={
           currentId
             ? isDirty
@@ -233,26 +233,26 @@ export function SavedPatternsMenu({
         {isDirty && (
           <span
             aria-label={t("unsavedChanges")}
-            className="h-1.5 w-1.5 rounded-full bg-amber-500"
+            className="h-1.5 w-1.5 rounded-full bg-warning-foreground"
           />
         )}
       </button>
       <button
         onClick={handleSaveAs}
         disabled={disabled || noOntology}
-        className="rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
+        className="rounded px-2 py-0.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-surface-inset disabled:opacity-40"
         title={t("saveAsTitle")}
       >
         {t("saveAs")}
       </button>
 
       <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <PopoverTrigger className="cursor-pointer rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800">
+        <PopoverTrigger className="cursor-pointer rounded px-2 py-0.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-surface-inset disabled:opacity-40">
           {t("library")}
         </PopoverTrigger>
-        <PopoverContent className="z-50 max-h-[70vh] w-72 overflow-auto rounded-lg border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <PopoverContent className="z-50 max-h-[70vh] w-72 overflow-auto rounded-lg border border-divider bg-surface-base p-2 shadow-lg">
           <div className="flex items-center justify-between px-1 pb-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("listTitle")}
             </span>
             <div className="flex items-center gap-1">
@@ -261,7 +261,7 @@ export function SavedPatternsMenu({
                   onNewPattern();
                   setIsOpen(false);
                 }}
-                className="rounded px-1.5 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="rounded px-1.5 py-0.5 text-2xs text-foreground-muted hover:bg-surface-inset"
                 title={t("newPatternTitle")}
               >
                 {t("newPattern")}
@@ -272,7 +272,7 @@ export function SavedPatternsMenu({
                   void handleSaveAs();
                 }}
                 disabled={disabled || noOntology}
-                className="rounded px-1.5 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
+                className="rounded px-1.5 py-0.5 text-2xs text-foreground-muted hover:bg-surface-inset disabled:opacity-40"
                 title={t("saveAsLibraryTitle")}
               >
                 {t("saveAs")}
@@ -297,8 +297,8 @@ export function SavedPatternsMenu({
                   key={p.id}
                   className={`group flex items-center justify-between rounded px-2 py-1.5 text-xs ${
                     p.id === currentId
-                      ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
-                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      ? "bg-brand-surface text-brand-foreground-strong-strong"
+                      : "hover:bg-surface-inset"
                   }`}
                 >
                   <button
@@ -311,7 +311,7 @@ export function SavedPatternsMenu({
                     title={t("loadTitle", { name: p.name })}
                   >
                     <span className="truncate font-medium">{p.name}</span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       {new Date(p.updated_at).toLocaleString()}
                     </span>
                   </button>
@@ -321,7 +321,7 @@ export function SavedPatternsMenu({
                       e.stopPropagation();
                       void handleDelete(p);
                     }}
-                    className="ml-2 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground opacity-0 transition-opacity hover:bg-red-100 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                    className="ml-2 rounded px-1.5 py-0.5 text-2xs text-muted-foreground opacity-0 transition-opacity hover:bg-danger-surface hover:text-danger-foreground group-hover:opacity-100 dark:hover:bg-danger-surface dark:hover:text-danger-foreground"
                     title={t("deleteTitle")}
                   >
                     {t("deleteTitle")}

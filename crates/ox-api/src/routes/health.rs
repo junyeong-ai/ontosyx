@@ -1,17 +1,12 @@
 //! # Health probes
 //!
-//! Two endpoints expose the same component check, intentionally:
-//!
 //! - `GET /api/health`  — wrapped in [`ApiResponse`], consumed by the
-//!   FE admin page (`getHealth()` → unwraps `data` like every other
-//!   endpoint). Preserves the universal envelope invariant.
+//!   admin UI through the standard envelope-aware client.
 //! - `GET /api/healthz` — flat shape, no envelope, no auth. The
-//!   industry-standard probe surface (k8s liveness/readiness,
-//!   Datadog, Prometheus blackbox exporter, ops scripts). Probes
-//!   want a stable, minimal contract — they should not have to
-//!   know about API envelopes.
+//!   liveness/readiness probe consumed by k8s, Datadog, Prometheus,
+//!   and ops scripts.
 //!
-//! Body construction is shared so the two endpoints cannot drift.
+//! Body construction is shared between both endpoints.
 
 use axum::{Json, extract::State};
 use serde::Serialize;

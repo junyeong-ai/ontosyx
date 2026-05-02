@@ -176,7 +176,7 @@ export function JsonEntityCrudPage<T extends { id?: string }>({
     return (
       <div className="flex flex-col gap-4">
         <Header title={labels.title} subtitle={labels.subtitle} />
-        <p className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+        <p className="rounded border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground dark:text-warning-foreground">
           {labels.noOntology}
         </p>
       </div>
@@ -209,7 +209,7 @@ export function JsonEntityCrudPage<T extends { id?: string }>({
             return (
               <li
                 key={id}
-                className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
+                className="rounded border border-divider-soft bg-white p-3 dark:border-divider dark:bg-surface-base"
               >
                 {editing && itemId(editing) === id ? (
                   <JsonEntityEditor
@@ -241,13 +241,13 @@ export function JsonEntityCrudPage<T extends { id?: string }>({
         <Dialog.Portal>
           <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
           <Dialog.Popup
-            className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+            className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-divider-soft bg-white p-6 shadow-xl dark:border-divider dark:bg-surface-base"
             style={{ maxHeight: "90vh" }}
           >
-            <Dialog.Title className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            <Dialog.Title className="text-base font-semibold text-foreground-strong dark:text-foreground">
               {labels.createDialogTitle}
             </Dialog.Title>
-            <Dialog.Description className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            <Dialog.Description className="mt-1 text-xs text-muted-foreground dark:text-muted-foreground">
               {labels.createDialogDescription}
             </Dialog.Description>
             <div className="mt-4">
@@ -269,10 +269,10 @@ export function JsonEntityCrudPage<T extends { id?: string }>({
 function Header({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h1 className="text-xl font-semibold text-foreground-strong dark:text-foreground">
         {title}
       </h1>
-      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+      <p className="mt-1 text-xs text-muted-foreground dark:text-muted-foreground">
         {subtitle}
       </p>
     </div>

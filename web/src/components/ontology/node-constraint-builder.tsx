@@ -56,7 +56,7 @@ export function NodeConstraintBuilder({
           {t("emptyState")}
         </p>
       ) : (
-        <ul className="divide-y divide-zinc-100 rounded border border-zinc-100 dark:divide-zinc-800/60 dark:border-zinc-800/60">
+        <ul className="divide-y divide-divider-soft rounded border border-divider-soft">
           {constraints.map((c) => (
             <ConstraintRow
               key={c.id}
@@ -93,7 +93,7 @@ function ConstraintRow({
   const summary = formatConstraint(constraint, properties, t);
   return (
     <li className="group flex items-center justify-between gap-2 px-2 py-1.5">
-      <span className="text-[11px] text-zinc-700 dark:text-zinc-200">
+      <span className="text-[11px] text-foreground-strong">
         {summary}
       </span>
       {onRemove && (
@@ -104,7 +104,7 @@ function ConstraintRow({
             aria-label={t("removeAriaLabel", {
               summary,
             })}
-            className="rounded p-0.5 text-zinc-300 opacity-0 transition-opacity hover:text-rose-500 group-hover:opacity-100"
+            className="rounded p-0.5 text-foreground-muted opacity-0 transition-opacity hover:text-danger-foreground group-hover:opacity-100"
           >
             <HugeiconsIcon
               icon={Delete01Icon}
@@ -163,7 +163,7 @@ function AddConstraintForm({
         type="button"
         onClick={() => setOpen(true)}
         disabled={properties.length === 0}
-        className="inline-flex items-center gap-1 rounded border border-dashed border-zinc-300 px-2 py-1 text-[11px] text-muted-foreground hover:border-violet-300 hover:text-violet-600 disabled:opacity-50 dark:border-zinc-700 dark:hover:border-violet-700 dark:hover:text-violet-400"
+        className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-[11px] text-muted-foreground hover:border-concept-border hover:text-concept-foreground disabled:opacity-50 dark:hover:border-concept-border dark:hover:text-concept-foreground"
       >
         <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
         {t("addAction")}
@@ -172,7 +172,7 @@ function AddConstraintForm({
   }
 
   return (
-    <div className="rounded border border-violet-200 bg-violet-50/40 p-2 dark:border-violet-900/40 dark:bg-violet-950/20">
+    <div className="rounded border border-concept-border bg-concept-surface p-2">
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={kind}
@@ -181,7 +181,7 @@ function AddConstraintForm({
             setKind(next);
             if (next === "exists") setSelected(selected.slice(0, 1));
           }}
-          className="rounded border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-900"
+          className="rounded border border-divider bg-surface-base px-2 py-1 text-[11px]"
         >
           {KINDS.map((k) => (
             <option key={k} value={k}>
@@ -189,14 +189,14 @@ function AddConstraintForm({
             </option>
           ))}
         </select>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-2xs text-muted-foreground">
           {t(`kinds.${kind}.hint`)}
         </span>
         <button
           type="button"
           onClick={reset}
           aria-label={t("cancelAction")}
-          className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-surface-inset"
         >
           <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
         </button>
@@ -215,7 +215,7 @@ function AddConstraintForm({
           type="button"
           onClick={submit}
           disabled={!validSelection}
-          className="rounded bg-violet-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+          className="rounded bg-concept-foreground px-2.5 py-1 text-[11px] font-medium text-white hover:bg-concept-foreground disabled:opacity-50"
         >
           {t("submitAction")}
         </button>
@@ -239,7 +239,7 @@ function PropertyMultiSelect({
 }) {
   if (properties.length === 0) {
     return (
-      <p className="mt-1 text-[10px] italic text-muted-foreground">
+      <p className="mt-1 text-2xs italic text-muted-foreground">
         {emptyLabel}
       </p>
     );
@@ -265,10 +265,10 @@ function PropertyMultiSelect({
               type="button"
               onClick={() => toggle(prop.id)}
               className={
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors " +
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs transition-colors " +
                 (isSelected
-                  ? "border-violet-300 bg-violet-100 text-violet-700 dark:border-violet-800 dark:bg-violet-900/40 dark:text-violet-300"
-                  : "border-zinc-200 bg-white text-zinc-600 hover:border-violet-200 hover:text-violet-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300")
+                  ? "border-concept-border bg-concept-surface text-concept-foreground"
+                  : "border-divider bg-surface-base text-foreground hover:border-concept-border hover:text-concept-foreground-muted")
               }
             >
               {prop.name}

@@ -39,10 +39,10 @@ function nodeLayerColor(
   highGapCount: number,
   isAdded: boolean,
 ): string {
-  if (highGapCount > 0) return "bg-red-500";
-  if (isAdded) return "bg-sky-500";
-  if (sourceTable) return "bg-emerald-500";
-  return "bg-zinc-300 dark:bg-zinc-600";
+  if (highGapCount > 0) return "bg-danger-solid";
+  if (isAdded) return "bg-info-surface";
+  if (sourceTable) return "bg-brand-solid";
+  return "bg-surface-raised dark:bg-surface-base";
 }
 
 // ---------------------------------------------------------------------------
@@ -78,8 +78,8 @@ const NodeItem = memo(function NodeItem({
     <button
       onClick={handleClick}
       className={cn(
-        "flex w-full items-center gap-2 px-4 py-1.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900",
-        selected && "bg-emerald-50 dark:bg-emerald-950/30",
+        "flex w-full items-center gap-2 px-4 py-1.5 text-left hover:bg-surface-raised dark:hover:bg-surface-base",
+        selected && "bg-brand-surface",
       )}
     >
       <Tooltip content={nodeLayerTooltip(tNode, node.source_lineage?.table, highGapCount, isAdded)}>
@@ -88,26 +88,26 @@ const NodeItem = memo(function NodeItem({
           nodeLayerColor(node.source_lineage?.table, highGapCount, isAdded),
         )} />
       </Tooltip>
-      <span className="flex-1 truncate text-zinc-700 dark:text-zinc-300">
+      <span className="flex-1 truncate text-foreground">
         {node.label}
       </span>
       <Tooltip content={tNode("propertyCount", { count: propCount })}>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-2xs text-muted-foreground">
           {tNode("propertyAbbrev", { count: propCount })}
         </span>
       </Tooltip>
       {isAdded && (
-        <span className="rounded bg-emerald-100 px-1 text-[8px] font-bold uppercase text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+        <span className="rounded bg-brand-surface-strong px-1 text-2xs font-bold uppercase text-brand-foreground-strong-strong">
           {tNode("newBadge")}
         </span>
       )}
       {isModified && (
-        <span className="rounded bg-amber-100 px-1 text-[8px] font-bold uppercase text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+        <span className="rounded bg-warning-surface px-1 text-2xs font-bold uppercase text-warning-foreground">
           {tNode("modifiedBadge")}
         </span>
       )}
       {gapCount > 0 && (
-        <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-100 text-[8px] font-bold text-amber-600">
+        <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-warning-surface text-2xs font-bold text-warning-foreground">
           {gapCount}
         </span>
       )}
@@ -142,12 +142,12 @@ const EdgeItem = memo(function EdgeItem({
     <button
       onClick={handleClick}
       className={cn(
-        "flex w-full items-center gap-2 px-4 py-1.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900",
-        selected && "bg-emerald-50 dark:bg-emerald-950/30",
+        "flex w-full items-center gap-2 px-4 py-1.5 text-left hover:bg-surface-raised dark:hover:bg-surface-base",
+        selected && "bg-brand-surface",
       )}
     >
       <HugeiconsIcon icon={ArrowRight01Icon} className="h-2.5 w-2.5 text-muted-foreground" size="100%" />
-      <span className="flex-1 truncate text-zinc-700 dark:text-zinc-300">
+      <span className="flex-1 truncate text-foreground">
         <span className="text-muted-foreground">{sourceLabel}</span>
         {" → "}
         <span className="font-medium">{edge.label.replace(/_/g, " ").toLowerCase()}</span>
@@ -155,17 +155,17 @@ const EdgeItem = memo(function EdgeItem({
         <span className="text-muted-foreground">{targetLabel}</span>
       </span>
       {isAdded && (
-        <span className="rounded bg-emerald-100 px-1 text-[8px] font-bold uppercase text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+        <span className="rounded bg-brand-surface-strong px-1 text-2xs font-bold uppercase text-brand-foreground-strong-strong">
           new
         </span>
       )}
       {isModified && (
-        <span className="rounded bg-amber-100 px-1 text-[8px] font-bold uppercase text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+        <span className="rounded bg-warning-surface px-1 text-2xs font-bold uppercase text-warning-foreground">
           mod
         </span>
       )}
       {gapCount > 0 && (
-        <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-100 text-[8px] font-bold text-amber-600">
+        <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-warning-surface text-2xs font-bold text-warning-foreground">
           {gapCount}
         </span>
       )}
@@ -294,25 +294,25 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
   return (
     <div className="flex h-full flex-col">
       {/* Search */}
-      <div className="border-b border-zinc-200 p-2 dark:border-zinc-800">
-        <div className="flex items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="border-b border-divider p-2">
+        <div className="flex items-center gap-1.5 rounded-md border border-divider bg-surface-raised px-2 py-1">
           <HugeiconsIcon icon={Search01Icon} className="h-3 w-3 text-muted-foreground" size="100%" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search..."
-            className="w-full bg-transparent text-xs text-zinc-700 outline-none placeholder:text-zinc-500 dark:text-zinc-300"
+            className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-foreground-muted-muted"
           />
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-zinc-200 px-3 py-1.5 text-[9px] text-muted-foreground dark:border-zinc-800">
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Asserted</span>
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-sky-500" />Suggested</span>
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600" />Inferred</span>
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-red-500" />Problematic</span>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-divider px-3 py-1.5 text-2xs text-muted-foreground">
+        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-solid" />Asserted</span>
+        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-info-surface" />Suggested</span>
+        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-surface-raised dark:bg-surface-base" />Inferred</span>
+        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger-solid" />Problematic</span>
       </div>
 
       {/* Tree — virtualized for 1000+ node scale */}
@@ -344,7 +344,7 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
           <>
             <button
               onClick={toggleFindings}
-              className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-muted-foreground hover:bg-zinc-50 dark:hover:bg-zinc-900"
+              className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-muted-foreground hover:bg-surface-raised dark:hover:bg-surface-base"
             >
               {findingsOpen ? <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3" size="100%" /> : <HugeiconsIcon icon={ArrowRight01Icon} className="h-3 w-3" size="100%" />}
               Source Findings ({sourceFindings.length})
@@ -354,12 +354,12 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
                 {sourceFindings.map((gap, i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-2 px-4 py-1.5 text-[10px] text-muted-foreground"
+                    className="flex items-start gap-2 px-4 py-1.5 text-2xs text-muted-foreground"
                   >
                     <span
                       className={cn(
                         "mt-0.5 h-1.5 w-1.5 rounded-full",
-                        gap.severity === "high" ? "bg-red-500" : "bg-amber-400",
+                        gap.severity === "high" ? "bg-danger-solid" : "bg-warning-foreground",
                       )}
                     />
                     <span>{localizeQualityGapIssue(gap, tGap)}</span>
@@ -367,7 +367,7 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
                 ))}
                 <button
                   onClick={viewInQualityReport}
-                  className="w-full px-4 py-1 text-left text-[10px] font-medium text-violet-600 hover:text-violet-700 hover:bg-zinc-50 dark:text-violet-400 dark:hover:text-violet-300 dark:hover:bg-zinc-900"
+                  className="w-full px-4 py-1 text-left text-2xs font-medium text-concept-foreground hover:text-concept-foreground hover:bg-surface-raised dark:hover:text-concept-foreground dark:hover:bg-surface-base"
                 >
                   View in Quality Report →
                 </button>
@@ -472,7 +472,7 @@ function VirtualizedTree({
               {row.kind === "section-header" ? (
                 <button
                   onClick={row.section === "nodes" ? toggleNodes : toggleEdges}
-                  className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-muted-foreground hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                  className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-muted-foreground hover:bg-surface-raised dark:hover:bg-surface-base"
                 >
                   <HugeiconsIcon
                     icon={row.open ? ArrowDown01Icon : ArrowRight01Icon}

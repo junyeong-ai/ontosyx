@@ -98,20 +98,20 @@ export function DiffOverlayBar() {
         className={cn(
           "rounded-lg border shadow-lg backdrop-blur-sm",
           report.confidence === "low"
-            ? "border-red-200 bg-red-50/95 dark:border-red-900 dark:bg-red-950/95"
+            ? "border-danger-border bg-danger-surface"
             : report.confidence === "medium"
-              ? "border-amber-200 bg-amber-50/95 dark:border-amber-900 dark:bg-amber-950/95"
-              : "border-emerald-200 bg-emerald-50/95 dark:border-emerald-900 dark:bg-emerald-950/95",
+              ? "border-warning-border bg-warning-surface"
+              : "border-brand-border bg-brand-surface",
         )}
       >
         {/* Summary row */}
         <div className="flex items-center gap-3 px-4 py-2 text-xs">
-          <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+          <span className="font-semibold text-foreground">
             {t("title")}
           </span>
           <ConfidenceBadge confidence={report.confidence} />
           {addedCount > 0 && (
-            <span className="text-emerald-700 dark:text-emerald-400">
+            <span className="text-brand-foreground">
               {t("addedCount", { count: addedCount })}
             </span>
           )}
@@ -119,7 +119,7 @@ export function DiffOverlayBar() {
             <button
               onClick={() => pending && setExpanded((v) => !v)}
               className={cn(
-                "text-amber-600 dark:text-amber-400",
+                "text-warning-foreground",
                 pending && "cursor-pointer underline decoration-dotted",
               )}
             >
@@ -127,7 +127,7 @@ export function DiffOverlayBar() {
             </button>
           )}
           {deletedCount > 0 && (
-            <span className="text-red-600 dark:text-red-400">
+            <span className="text-danger-foreground">
               {t("deletedCount", { count: deletedCount })}
             </span>
           )}
@@ -139,7 +139,7 @@ export function DiffOverlayBar() {
               onClick={handleApplyDecisions}
               disabled={applying}
               className={cn(
-                "ml-1 rounded-md bg-emerald-600 px-3 py-1 text-white hover:bg-emerald-700 disabled:opacity-50",
+                "ml-1 rounded-md bg-brand-solid px-3 py-1 text-white hover:bg-brand-solid disabled:opacity-50",
                 applying && "cursor-wait",
               )}
             >
@@ -148,7 +148,7 @@ export function DiffOverlayBar() {
           )}
           <button
             onClick={handleDismiss}
-            className="ml-1 rounded-md px-2 py-0.5 text-muted-foreground hover:bg-white/50 hover:text-zinc-700 dark:hover:bg-zinc-800/50"
+            className="ml-1 rounded-md px-2 py-0.5 text-muted-foreground hover:bg-surface-base hover:text-foreground"
           >
             {t("dismiss")}
           </button>
@@ -156,14 +156,14 @@ export function DiffOverlayBar() {
 
         {/* Expanded uncertain match list */}
         {pending && expanded && uncertainCount > 0 && (
-          <div className="border-t border-zinc-200 px-4 py-2 dark:border-zinc-700">
+          <div className="border-t border-divider px-4 py-2">
             <div className="max-h-48 space-y-1.5 overflow-y-auto">
               {pending.report.uncertain_matches.map((m) => (
                 <div
                   key={m.original_id}
-                  className="flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-white/50 dark:hover:bg-zinc-800/30"
+                  className="flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-surface-base"
                 >
-                  <span className="min-w-0 flex-1 truncate text-zinc-700 dark:text-zinc-300">
+                  <span className="min-w-0 flex-1 truncate text-foreground">
                     <span className="font-medium">{m.original_label}</span>
                     {m.original_label !== m.matched_label && (
                       <span className="text-muted-foreground">
@@ -181,10 +181,10 @@ export function DiffOverlayBar() {
                   <button
                     onClick={() => toggleDecision(m.original_id)}
                     className={cn(
-                      "shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold uppercase transition-colors",
+                      "shrink-0 rounded px-2 py-0.5 text-2xs font-semibold uppercase transition-colors",
                       decisions[m.original_id]
-                        ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-800"
-                        : "bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800",
+                        ? "bg-brand-surface-strong text-brand-foreground hover:bg-brand-surface-strong-strong-strong dark:hover:bg-brand-solid-hover"
+                        : "bg-danger-surface text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-solid",
                     )}
                   >
                     {decisions[m.original_id] ? t("accept") : t("reject")}
@@ -215,12 +215,12 @@ function ConfidenceBadge({
   return (
     <span
       className={cn(
-        "rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+        "rounded px-1.5 py-0.5 text-2xs font-bold uppercase",
         confidence === "high"
-          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
+          ? "bg-brand-surface-strong text-brand-foreground-strong-strong"
           : confidence === "medium"
-            ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
-            : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+            ? "bg-warning-surface text-warning-foreground"
+            : "bg-danger-surface text-danger-foreground",
       )}
     >
       {label}

@@ -44,13 +44,13 @@ export function ExistingPilotDialog({
       <AlertDialog.Portal>
         <AlertDialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 transition-opacity" />
         <AlertDialog.Popup
-          className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-zinc-200 bg-white p-6 shadow-xl data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all dark:border-zinc-700 dark:bg-zinc-900"
+          className="fixed left-1/2 top-1 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-divider bg-surface-base p-6 shadow-xl data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all"
           data-testid="existing-pilot-dialog"
         >
-          <AlertDialog.Title className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          <AlertDialog.Title className="text-base font-semibold text-foreground-strong">
             {t("title", { name })}
           </AlertDialog.Title>
-          <AlertDialog.Description className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-muted-foreground">
+          <AlertDialog.Description className="mt-2 text-sm leading-relaxed text-foreground dark:text-muted-foreground">
             {t("description", { name, suggestion: renameSuggestion })}
           </AlertDialog.Description>
 
@@ -58,7 +58,7 @@ export function ExistingPilotDialog({
             <button
               type="button"
               onClick={() => onChoose("continue")}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
+              className="rounded-lg bg-brand-solid px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-solid"
               data-testid="existing-pilot-continue"
             >
               {t("continue")}
@@ -66,13 +66,13 @@ export function ExistingPilotDialog({
             <button
               type="button"
               onClick={() => onChoose("rename")}
-              className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+              className="rounded-lg border border-divider bg-surface-base px-4 py-2 text-sm font-medium text-foreground-strong transition-colors hover:bg-surface-raised-strong"
               data-testid="existing-pilot-rename"
             >
               {t("rename", { suggestion: renameSuggestion })}
             </button>
             <AlertDialog.Close
-              className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-inset dark:text-muted-foreground"
               data-testid="existing-pilot-cancel"
             >
               {t("cancel")}

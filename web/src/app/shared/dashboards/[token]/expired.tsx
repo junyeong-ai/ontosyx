@@ -8,30 +8,30 @@ import { Link04Icon, Home01Icon } from "@hugeicons/core-free-icons";
 export default function Expired() {
   const t = useTranslations("page.sharedDashboard");
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-zinc-50 px-4 dark:bg-zinc-950">
-      <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/30">
+    <div className="flex min-h-dvh items-center justify-center bg-surface-raised px-4">
+      <div className="w-full max-w-md rounded-xl border border-divider bg-surface-base p-6 text-center shadow-sm">
+        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-warning-surface/30">
           <HugeiconsIcon
             icon={Link04Icon}
-            className="h-5 w-5 text-amber-500"
+            className="h-5 w-5 text-warning-foreground"
             size="100%"
           />
         </div>
-        <h1 className="mt-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+        <h1 className="mt-4 text-base font-semibold text-foreground-strong">
           {t("expiredTitle")}
         </h1>
         <p className="mt-1 text-xs text-muted-foreground">
           {t("expiredSubtitle")}
         </p>
 
-        <p className="mt-4 text-sm text-zinc-600 dark:text-muted-foreground">
+        <p className="mt-4 text-sm text-foreground dark:text-muted-foreground">
           {t("expiredBody")}
         </p>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-4 py-2 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="inline-flex items-center gap-1.5 rounded-md border border-divider bg-surface-base px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-surface-raised-muted"
           >
             <HugeiconsIcon
               icon={Home01Icon}

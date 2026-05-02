@@ -1,12 +1,22 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+
 import { request } from "@/lib/api/client";
-import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonTable } from "@/components/ui/skeleton";
 import { SettingsSelect } from "@/components/ui/form-input";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { Button } from "@/components/ui/button";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
+import { useConfirm } from "@/components/providers/confirm-provider";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,36 +96,31 @@ const EMPTY_FORM: RuleFormValues = {
 // Page
 // ---------------------------------------------------------------------------
 
+const qualityKeys = {
+  all: ["quality"] as const,
+  dashboard: () => [...qualityKeys.all, "dashboard"] as const,
+};
+
 export default function QualitySettingsPage() {
   const t = useTranslations("settings.quality");
-  const [dashboard, setDashboard] = useState<DashboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const tCommon = useTranslations("common");
+  const qc = useQueryClient();
 
   // Form state
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<RuleFormValues>(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [executingId, setExecutingId] = useState<string | null>(null);
-  const [executingAll, setExecutingAll] = useState(false);
   const confirm = useConfirm();
 
-  const load = useCallback(async () => {
-    try {
-      const data = await request<DashboardEntry[]>("/quality/dashboard");
-      setDashboard(data);
-    } catch {
-      toast.error(t("toast.loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const dashboardQuery = useQuery({
+    queryKey: qualityKeys.dashboard(),
+    queryFn: () => request<DashboardEntry[]>("/quality/dashboard"),
+  });
+  const dashboard = dashboardQuery.data ?? [];
+  const reload = () =>
+    qc.invalidateQueries({ queryKey: qualityKeys.dashboard() });
 
   // ---- Open create form ----
   const openCreate = () => {
@@ -164,8 +169,57 @@ export default function QualitySettingsPage() {
     return Object.keys(e).length === 0;
   };
 
+  const submitMutation = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      editingId
+        ? request(`/quality/rules/${editingId}`, {
+            method: "PATCH",
+            body: JSON.stringify(body),
+          })
+        : request("/quality/rules", {
+            method: "POST",
+            body: JSON.stringify(body),
+          }),
+    onSuccess: () => {
+      toast.success(editingId ? t("toast.updated") : t("toast.created"));
+      cancelForm();
+      reload();
+    },
+    onError: () =>
+      toast.error(
+        editingId ? t("toast.updateFailed") : t("toast.createFailed"),
+      ),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (ruleId: string) =>
+      request(`/quality/rules/${ruleId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast.success(t("toast.deleted"));
+      reload();
+    },
+    onError: () => toast.error(t("toast.deleteFailed")),
+  });
+
+  const executeAllMutation = useMutation({
+    mutationFn: () =>
+      request<QualityResult[]>("/quality/execute-all", { method: "POST" }),
+    onSuccess: (results) => {
+      const passedCount = results.filter((r) => r.passed).length;
+      toast.success(
+        t("toast.executed", {
+          total: results.length,
+          passed: passedCount,
+          failed: results.length - passedCount,
+        }),
+      );
+      reload();
+    },
+    onError: () => toast.error(t("toast.executeAllError")),
+  });
+
   // ---- Submit (create or update) ----
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -181,29 +235,7 @@ export default function QualitySettingsPage() {
           ? form.cypher_check.trim()
           : null,
     };
-
-    setSaving(true);
-    try {
-      if (editingId) {
-        await request(`/quality/rules/${editingId}`, {
-          method: "PATCH",
-          body: JSON.stringify(body),
-        });
-        toast.success(t("toast.updated"));
-      } else {
-        await request("/quality/rules", {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-        toast.success(t("toast.created"));
-      }
-      cancelForm();
-      await load();
-    } catch {
-      toast.error(editingId ? t("toast.updateFailed") : t("toast.createFailed"));
-    } finally {
-      setSaving(false);
-    }
+    submitMutation.mutate(body);
   };
 
   // ---- Delete ----
@@ -215,32 +247,25 @@ export default function QualitySettingsPage() {
       variant: "danger",
     });
     if (!ok) return;
-    setDeletingId(ruleId);
-    try {
-      await request(`/quality/rules/${ruleId}`, { method: "DELETE" });
-      toast.success(t("toast.deleted"));
-      await load();
-    } catch {
-      toast.error(t("toast.deleteFailed"));
-    } finally {
-      setDeletingId(null);
-    }
+    deleteMutation.mutate(ruleId);
   };
 
   // ---- Execute single rule ----
   const handleExecute = async (ruleId: string) => {
     setExecutingId(ruleId);
     try {
-      const result = await request<QualityResult>(`/quality/rules/${ruleId}/execute`, {
-        method: "POST",
-      });
-      const valueStr = result.actual_value !== null ? result.actual_value.toFixed(1) : "-";
+      const result = await request<QualityResult>(
+        `/quality/rules/${ruleId}/execute`,
+        { method: "POST" },
+      );
+      const valueStr =
+        result.actual_value !== null ? result.actual_value.toFixed(1) : "-";
       toast.success(
         result.passed
           ? t("toast.rulePassed", { value: valueStr })
           : t("toast.ruleFailed", { value: valueStr }),
       );
-      await load();
+      reload();
     } catch {
       toast.error(t("toast.executeError"));
     } finally {
@@ -248,87 +273,62 @@ export default function QualitySettingsPage() {
     }
   };
 
-  // ---- Execute all rules ----
-  const handleExecuteAll = async () => {
-    setExecutingAll(true);
-    try {
-      const results = await request<QualityResult[]>("/quality/execute-all", {
-        method: "POST",
-      });
-      const passedCount = results.filter((r) => r.passed).length;
-      toast.success(
-        t("toast.executed", {
-          total: results.length,
-          passed: passedCount,
-          failed: results.length - passedCount,
-        }),
-      );
-      await load();
-    } catch {
-      toast.error(t("toast.executeAllError"));
-    } finally {
-      setExecutingAll(false);
-    }
-  };
+  if (dashboardQuery.isLoading) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <SkeletonTable rows={6} cols={6} />
+      </SettingsPageShell>
+    );
+  }
 
-  if (loading) return <Spinner />;
+  if (dashboardQuery.isError) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <ErrorState
+          title={tCommon("loadError.title")}
+          description={tCommon("loadError.description")}
+          onRetry={() => dashboardQuery.refetch()}
+          retryLabel={tCommon("retry")}
+        />
+      </SettingsPageShell>
+    );
+  }
+
+  const saving = submitMutation.isPending;
+  const deletingId = deleteMutation.isPending ? deleteMutation.variables : null;
+  const executingAll = executeAllMutation.isPending;
+  const handleExecuteAll = () => executeAllMutation.mutate();
 
   const passed = dashboard.filter((d) => d.latest_passed === true).length;
   const failed = dashboard.filter((d) => d.latest_passed === false).length;
   const pending = dashboard.filter((d) => d.latest_passed === null).length;
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            {t("title")}
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
-            {t("description")}
-          </p>
-        </div>
-        {!formOpen && (
-          <div className="flex items-center gap-2">
-            <button
+    <SettingsPageShell
+      title={t("title")}
+      subtitle={t("description")}
+      actions={
+        !formOpen && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleExecuteAll}
               disabled={executingAll || dashboard.length === 0}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
             >
               {executingAll ? t("executingAll") : t("executeAll")}
-            </button>
-            <button
-              onClick={openCreate}
-              className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
-            >
+            </Button>
+            <Button variant="primary" size="sm" onClick={openCreate}>
               {t("createRule")}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Summary */}
-      <div className="mt-6 grid grid-cols-3 gap-4">
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950">
-          <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-            {passed}
-          </div>
-          <div className="text-xs text-emerald-700 dark:text-emerald-500">
-            {t("summary.passing")}
-          </div>
-        </div>
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
-          <div className="text-2xl font-bold text-red-700 dark:text-red-400">
-            {failed}
-          </div>
-          <div className="text-xs text-red-700 dark:text-red-300">{t("summary.failing")}</div>
-        </div>
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900">
-          <div className="text-2xl font-bold text-zinc-700 dark:text-zinc-300">
-            {pending}
-          </div>
-          <div className="text-xs text-muted-foreground">{t("summary.pending")}</div>
-        </div>
+            </Button>
+          </>
+        )
+      }
+    >
+      <div className="grid grid-cols-3 gap-4">
+        <KpiCard tone="success" label={t("summary.passing")} value={passed} />
+        <KpiCard tone="danger"  label={t("summary.failing")} value={failed} />
+        <KpiCard tone="neutral" label={t("summary.pending")} value={pending} />
       </div>
 
       {/* Inline form */}
@@ -349,7 +349,7 @@ export default function QualitySettingsPage() {
       <div className="mt-6 overflow-x-auto -mx-6 px-6" tabIndex={0} role="region" aria-label="Table data — scroll horizontally">
         <table className="w-full min-w-[900px] text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
+            <tr className="border-b border-divider text-left text-xs font-medium uppercase text-muted-foreground">
               <th className="py-3 pr-6">{t("column.rule")}</th>
               <th className="py-3 pr-6">{t("column.type")}</th>
               <th className="py-3 pr-6">{t("column.target")}</th>
@@ -364,9 +364,9 @@ export default function QualitySettingsPage() {
             {dashboard.map((d) => (
               <tr
                 key={d.rule_id}
-                className="border-b border-zinc-100 dark:border-zinc-800"
+                className="border-b border-divider-soft"
               >
-                <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
+                <td className="py-3 pr-6 font-medium text-foreground-strong">
                   {d.name}
                 </td>
                 <td className="py-3 pr-6 text-muted-foreground">
@@ -384,11 +384,11 @@ export default function QualitySettingsPage() {
                   {d.latest_passed === null ? (
                     <span className="text-muted-foreground">{t("status.none")}</span>
                   ) : d.latest_passed ? (
-                    <span className="text-emerald-700 dark:text-emerald-400">
+                    <span className="text-brand-foreground">
                       {t("status.pass")}
                     </span>
                   ) : (
-                    <span className="text-red-600 dark:text-red-400">{t("status.fail")}</span>
+                    <span className="text-danger-foreground">{t("status.fail")}</span>
                   )}
                 </td>
                 <td className="py-3 pr-6 text-muted-foreground">
@@ -401,20 +401,20 @@ export default function QualitySettingsPage() {
                     <button
                       onClick={() => handleExecute(d.rule_id)}
                       disabled={executingId === d.rule_id || executingAll}
-                      className="rounded px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
+                      className="rounded px-2 py-1 text-xs text-brand-foreground hover:bg-brand-surface hover:text-brand-foreground-strong disabled:opacity-50 dark:hover:bg-brand-surface"
                     >
                       {executingId === d.rule_id ? t("action.running") : t("action.run")}
                     </button>
                     <button
                       onClick={() => openEdit(d)}
-                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-surface-inset hover:text-foreground dark:hover:text-foreground-muted"
                     >
                       {t("action.edit")}
                     </button>
                     <button
                       onClick={() => handleDelete(d.rule_id)}
                       disabled={deletingId === d.rule_id}
-                      className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:hover:bg-red-950"
+                      className="rounded px-2 py-1 text-xs text-danger-foreground hover:bg-danger-surface hover:text-danger-foreground disabled:opacity-50 dark:hover:bg-danger-surface"
                     >
                       {deletingId === d.rule_id ? t("action.deleting") : t("action.delete")}
                     </button>
@@ -432,7 +432,7 @@ export default function QualitySettingsPage() {
           </tbody>
         </table>
       </div>
-    </div>
+    </SettingsPageShell>
   );
 }
 
@@ -444,16 +444,16 @@ function SeverityBadge({ severity }: { severity: string }) {
   const t = useTranslations("settings.quality");
   const color =
     severity === "critical"
-      ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+      ? "bg-danger-surface text-danger-foreground"
       : severity === "warning"
-        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground";
+        ? "bg-warning-surface text-warning-foreground"
+        : "bg-surface-inset text-foreground dark:text-muted-foreground";
 
   const label = isKnownSeverity(severity) ? t(`severityLevel.${severity}`) : severity;
 
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${color}`}
+      className={`inline-flex rounded-full px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider ${color}`}
     >
       {label}
     </span>
@@ -492,16 +492,16 @@ function RuleForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/20"
+      className="mt-4 rounded-lg border border-brand-border bg-brand-surface p-4"
     >
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+        <span className="text-xs font-semibold text-brand-foreground">
           {isEditing ? t("form.editTitle") : t("form.newTitle")}
         </span>
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-muted-foreground hover:text-zinc-600"
+          className="text-xs text-muted-foreground hover:text-foreground"
         >
           {t("form.cancel")}
         </button>
@@ -510,7 +510,7 @@ function RuleForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.name")}
           </label>
           <input
@@ -518,14 +518,14 @@ function RuleForm({
             onChange={(e) => update("name", { name: e.target.value })}
             placeholder={t("form.namePlaceholder")}
             required
-            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.name ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
+            className={`mt-0.5 w-full rounded-md border bg-surface-base px-3 py-1.5 text-xs ${errors.name ? "border-danger-border" : "border-divider"}`}
           />
-          {errors.name && <p className="mt-0.5 text-[10px] text-red-500">{errors.name}</p>}
+          {errors.name && <p className="mt-0.5 text-2xs text-danger-foreground">{errors.name}</p>}
         </div>
 
         {/* Rule type */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.ruleType")}
           </label>
           <SettingsSelect
@@ -544,7 +544,7 @@ function RuleForm({
 
         {/* Severity */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.severity")}
           </label>
           <SettingsSelect
@@ -563,7 +563,7 @@ function RuleForm({
 
         {/* Target label */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.targetLabel")}
           </label>
           <input
@@ -571,14 +571,14 @@ function RuleForm({
             onChange={(e) => update("target_label", { target_label: e.target.value })}
             placeholder={t("form.targetLabelPlaceholder")}
             required
-            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.target_label ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
+            className={`mt-0.5 w-full rounded-md border bg-surface-base px-3 py-1.5 text-xs ${errors.target_label ? "border-danger-border" : "border-divider"}`}
           />
-          {errors.target_label && <p className="mt-0.5 text-[10px] text-red-500">{errors.target_label}</p>}
+          {errors.target_label && <p className="mt-0.5 text-2xs text-danger-foreground">{errors.target_label}</p>}
         </div>
 
         {/* Target property */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.targetProperty")}{" "}
             <span className="normal-case text-muted-foreground">{t("form.targetPropertyHint")}</span>
           </label>
@@ -586,13 +586,13 @@ function RuleForm({
             value={form.target_property}
             onChange={(e) => update("target_property", { target_property: e.target.value })}
             placeholder={t("form.targetPropertyPlaceholder")}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
         </div>
 
         {/* Threshold */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("form.threshold")}
           </label>
           <input
@@ -602,15 +602,15 @@ function RuleForm({
             step={1}
             value={form.threshold}
             onChange={(e) => update("threshold", { threshold: Number(e.target.value) })}
-            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.threshold ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
+            className={`mt-0.5 w-full rounded-md border bg-surface-base px-3 py-1.5 text-xs ${errors.threshold ? "border-danger-border" : "border-divider"}`}
           />
-          {errors.threshold && <p className="mt-0.5 text-[10px] text-red-500">{errors.threshold}</p>}
+          {errors.threshold && <p className="mt-0.5 text-2xs text-danger-foreground">{errors.threshold}</p>}
         </div>
 
         {/* Cypher check — only for custom type */}
         {form.rule_type === "custom" && (
           <div className="col-span-2">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("form.cypherCheck")}
             </label>
             <textarea
@@ -618,7 +618,7 @@ function RuleForm({
               onChange={(e) => update("cypher_check", { cypher_check: e.target.value })}
               placeholder={t("form.cypherCheckPlaceholder")}
               rows={3}
-              className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
+              className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 font-mono text-xs"
             />
           </div>
         )}
@@ -628,7 +628,7 @@ function RuleForm({
         <button
           type="submit"
           disabled={!form.name.trim() || !form.target_label.trim() || saving}
-          className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-emerald-700"
+          className="rounded-md bg-brand-solid px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-brand-solid"
         >
           {saving
             ? isEditing
@@ -641,7 +641,7 @@ function RuleForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-surface-inset"
         >
           {t("form.cancel")}
         </button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore, selectStateSelectedNodeId, selectStateSelectedEdgeId } from "@/lib/store";
 import { applyOntologyCommands } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -21,6 +22,7 @@ import { useEntityLockGuard } from "@/components/collab/use-entity-lock-guard";
 // ---------------------------------------------------------------------------
 
 export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
+  const t = useTranslations("inspector.toast");
   const ontology = useAppStore((s) => s.ontology);
   const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
   const selectedNodeId = useAppStore(selectStateSelectedNodeId);
@@ -67,9 +69,9 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
       // Server canonical replaces local state + clears command stack
       // atomically — both halves can never drift.
       applyProjectSnapshot(resp.project);
-      toast.success("Ontology saved");
+      toast.success(t("saved"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save");
+      toast.error(err instanceof Error ? err.message : t("saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -128,7 +130,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
             onClick={undo}
             disabled={commandStack.length === 0}
             aria-label="Undo"
-            className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-30 dark:hover:bg-zinc-800"
+            className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-30"
           >
             <HugeiconsIcon icon={UndoIcon} className="h-3 w-3" size="100%" />
           </button>
@@ -138,7 +140,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
             onClick={redo}
             disabled={redoStack.length === 0}
             aria-label="Redo"
-            className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-30 dark:hover:bg-zinc-800"
+            className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-30"
           >
             <HugeiconsIcon icon={RedoIcon} className="h-3 w-3" size="100%" />
           </button>

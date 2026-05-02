@@ -1,17 +1,20 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/lib/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { Spinner } from "@/components/ui/spinner";
 import { Avatar } from "@/components/ui/avatar";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 
 const ROLE_COLORS: Record<string, string> = {
   admin:
-    "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
+    "bg-concept-surface text-concept-foreground dark:bg-concept-foreground/30 dark:text-concept-foreground",
   designer:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    "bg-success-surface text-success-foreground",
   viewer:
-    "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
+    "bg-surface-inset text-foreground dark:text-muted-foreground",
 };
 
 export default function ProfilePage() {
@@ -23,58 +26,49 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Spinner size="lg" className="text-emerald-500" />
+        <Spinner size="lg" className="text-brand-foreground" />
       </div>
     );
   }
 
-  // Dev mode — no auth configured
   if (!authEnabled) {
     return (
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          {t("title")}
-        </h1>
-        <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+      <SettingsPageShell title={t("title")}>
+        <Card padding="lg">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-200 text-lg font-semibold text-zinc-500 dark:bg-zinc-700 dark:text-muted-foreground">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-inset text-lg font-semibold text-foreground-muted">
               D
             </div>
             <div>
-              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              <p className="text-sm font-medium text-foreground-strong">
                 {t("devMode.userName")}
               </p>
-              <p className="text-xs text-zinc-500 dark:text-muted-foreground">
+              <p className="text-xs text-foreground-muted">
                 {t("devMode.userEmail")}
               </p>
             </div>
           </div>
-          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+          <div className="mt-4 rounded-md border border-warning-border bg-warning-surface px-4 py-3 text-sm text-warning-foreground">
             {t("devMode.notice")}
           </div>
-        </div>
-      </div>
+        </Card>
+      </SettingsPageShell>
     );
   }
 
   if (!user) {
     return (
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          {t("title")}
-        </h1>
-        <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-6 text-center dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-sm text-zinc-500 dark:text-muted-foreground">
-            {t("notSignedIn")}
-          </p>
+      <SettingsPageShell title={t("title")}>
+        <Card padding="lg" className="text-center">
+          <p className="text-sm text-foreground-muted">{t("notSignedIn")}</p>
           <a
             href="/login"
-            className="mt-3 inline-block rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            className="mt-3 inline-block rounded-md bg-brand-solid px-4 py-2 text-sm font-medium text-foreground-onbrand hover:bg-brand-solid-hover"
           >
             {authT("signIn")}
           </a>
-        </div>
-      </div>
+        </Card>
+      </SettingsPageShell>
     );
   }
 
@@ -86,25 +80,21 @@ export default function ProfilePage() {
     : undefined;
   const roleColor = role
     ? ROLE_COLORS[role] ??
-      "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground"
+      "bg-surface-inset text-foreground dark:text-muted-foreground"
     : undefined;
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-        {t("title")}
-      </h1>
-
-      <div className="mt-6 space-y-6">
+    <SettingsPageShell title={t("title")}>
+      <div className="space-y-6">
         {/* Avatar & Identity */}
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+        <Card padding="lg">
           <div className="flex items-center gap-4">
             <Avatar src={user.picture} name={user.name} size="lg" />
             <div>
-              <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              <p className="text-lg font-semibold text-foreground-strong">
                 {user.name}
               </p>
-              <p className="text-sm text-zinc-500 dark:text-muted-foreground">
+              <p className="text-sm text-foreground-muted">
                 {user.email}
               </p>
               {roleLabel && roleColor && (
@@ -116,16 +106,14 @@ export default function ProfilePage() {
               )}
             </div>
           </div>
-        </section>
+        </Card>
 
         {/* Account Details */}
-        <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              {t("accountDetails")}
-            </h2>
-          </div>
-          <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        <Card padding="none">
+          <Card.Header className="px-6 py-4">
+            <Card.Title>{t("accountDetails")}</Card.Title>
+          </Card.Header>
+          <div className="divide-y divide-divider-soft">
             <DetailRow label={t("field.name")} value={user.name} />
             <DetailRow label={t("field.email")} value={user.email} />
             <DetailRow
@@ -136,37 +124,32 @@ export default function ProfilePage() {
               <DetailRow label={t("field.role")} value={roleLabel} />
             )}
           </div>
-        </section>
+        </Card>
 
         {/* Sign Out */}
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            {t("session.title")}
-          </h2>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-muted-foreground">
+        <Card padding="lg">
+          <Card.Title>{t("session.title")}</Card.Title>
+          <Card.Description className="mt-1">
             {t("session.description")}
-          </p>
+          </Card.Description>
           <form action="/auth/logout" method="POST" className="mt-4">
-            <button
-              type="submit"
-              className="rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:bg-zinc-900 dark:text-red-400 dark:hover:bg-red-950/30"
-            >
+            <Button type="submit" variant="danger" size="md">
               {t("session.signOut")}
-            </button>
+            </Button>
           </form>
-        </section>
+        </Card>
       </div>
-    </div>
+    </SettingsPageShell>
   );
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between px-6 py-3">
-      <span className="text-sm text-zinc-500 dark:text-muted-foreground">
+      <span className="text-sm text-foreground-muted">
         {label}
       </span>
-      <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+      <span className="text-sm font-medium text-foreground-strong">
         {value}
       </span>
     </div>

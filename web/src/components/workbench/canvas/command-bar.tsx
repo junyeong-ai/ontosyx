@@ -21,7 +21,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { CommandPreview } from "./command-preview";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import type { OntologyCommand } from "@/types/api";
 
 // Re-export extracted components for backward compatibility
@@ -56,9 +56,9 @@ function LoadingHint({ baseMessage }: { baseMessage: string }) {
 
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[10px] text-muted-foreground">{baseMessage}</span>
+      <span className="text-2xs text-muted-foreground">{baseMessage}</span>
       {showTip && (
-        <span className="text-[9px] text-muted-foreground/50 transition-opacity duration-300">
+        <span className="text-2xs text-foreground-muted transition-opacity duration-300">
           · {tips[tipIndex]}
         </span>
       )}
@@ -312,9 +312,9 @@ export function CommandBar() {
           }}
           aria-expanded={open}
           className={cn(
-            "flex items-center gap-2 rounded-full border border-zinc-200 bg-white/90 px-4 py-2 text-xs font-medium text-zinc-600 shadow-lg backdrop-blur-sm transition-all",
-            "hover:border-emerald-300 hover:bg-white hover:text-emerald-700 hover:shadow-emerald-100",
-            "dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-muted-foreground dark:hover:border-emerald-600 dark:hover:text-emerald-400",
+            "flex items-center gap-2 rounded-full border border-divider bg-surface-base px-4 py-2 text-xs font-medium text-foreground shadow-lg backdrop-blur-sm transition-all",
+            "hover:border-brand-border hover:bg-surface-base hover:text-brand-foreground hover:shadow-md",
+            "dark:border-divider dark:text-muted-foreground dark:hover:border-brand-foreground dark:hover:text-brand-foreground",
           )}
         >
           <HugeiconsIcon
@@ -323,7 +323,7 @@ export function CommandBar() {
             size="100%"
           />
           {t("askOntosyx")}
-          <kbd className="ml-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground dark:bg-zinc-800">
+          <kbd className="ml-1 rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-mono text-muted-foreground">
             {"\u2318"}K
           </kbd>
         </button>
@@ -333,7 +333,7 @@ export function CommandBar() {
 
   // Expanded: command bar
   return (
-    <div className="absolute bottom-4 left-1/2 z-10 w-[560px] -translate-x-1/2" role="dialog" aria-label={t("commandBarAria")}>
+    <div className="absolute bottom-4 left-1/2 z-10 w-panel-wide -translate-x-1/2" role="dialog" aria-label={t("commandBarAria")}>
       {/* Preview panel (rendered above input when in preview phase) */}
       {phase.type === "preview" && (
         <div className="mb-2">
@@ -350,16 +350,16 @@ export function CommandBar() {
       {/* Main input panel */}
       <div
         className={cn(
-          "rounded-xl border bg-white/95 shadow-2xl backdrop-blur-sm",
-          "dark:border-zinc-700 dark:bg-zinc-900/95",
+          "rounded-xl border bg-surface-base shadow-2xl backdrop-blur-sm",
+          "dark:border-divider",
           loading
-            ? "border-emerald-300 dark:border-emerald-700"
-            : "border-zinc-200",
+            ? "border-brand-border"
+            : "border-divider",
         )}
       >
         {/* Unsaved changes warning for refine mode */}
         {mode === "refine" && commandStack.length > 0 && (
-          <div className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-[10px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-400">
+          <div className="border-b border-warning-border bg-warning-surface px-4 py-1.5 text-2xs text-warning-foreground">
             {t("saveFirst")}
           </div>
         )}
@@ -367,7 +367,7 @@ export function CommandBar() {
         {/* Mode toggle + input row */}
         <div className="flex items-center gap-2 px-3 py-3">
           {/* Mode toggle */}
-          <div className="flex shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
+          <div className="flex shrink-0 rounded-lg border border-divider bg-surface-raised p-0.5">
             <button
               onClick={() => {
                 if (canEdit) setMode("edit");
@@ -375,10 +375,10 @@ export function CommandBar() {
               disabled={!canEdit || loading}
               title={t("editTitle")}
               className={cn(
-                "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all",
+                "flex items-center gap-1 rounded-md px-2 py-1 text-2xs font-medium transition-all",
                 mode === "edit"
-                  ? "bg-white text-zinc-800 shadow-sm dark:bg-zinc-700 dark:text-zinc-200"
-                  : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300",
+                  ? "bg-surface-base text-foreground-strong shadow-sm-strong"
+                  : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted",
                 (!canEdit || loading) && "cursor-not-allowed opacity-40",
               )}
             >
@@ -396,10 +396,10 @@ export function CommandBar() {
               disabled={!canRefine || loading}
               title={t("refineTitle")}
               className={cn(
-                "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all",
+                "flex items-center gap-1 rounded-md px-2 py-1 text-2xs font-medium transition-all",
                 mode === "refine"
-                  ? "bg-white text-zinc-800 shadow-sm dark:bg-zinc-700 dark:text-zinc-200"
-                  : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300",
+                  ? "bg-surface-base text-foreground-strong shadow-sm-strong"
+                  : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted",
                 (!canRefine || loading) && "cursor-not-allowed opacity-40",
               )}
             >
@@ -414,7 +414,7 @@ export function CommandBar() {
 
           {/* Loading spinner or wand icon */}
           {loading ? (
-            <Spinner size="sm" className="shrink-0 text-emerald-500" />
+            <Spinner size="sm" className="shrink-0 text-brand-foreground" />
           ) : (
             <HugeiconsIcon
               icon={MagicWand01Icon}
@@ -446,8 +446,8 @@ export function CommandBar() {
             disabled={loading || phase.type === "preview"}
             aria-label={t("inputAria")}
             className={cn(
-              "flex-1 bg-transparent text-sm text-zinc-800 outline-none placeholder:text-muted-foreground",
-              "dark:text-zinc-200 dark:placeholder:text-zinc-500",
+              "flex-1 bg-transparent text-sm text-foreground-strong outline-none placeholder:text-muted-foreground",
+              "dark:text-foreground-strong dark:placeholder:text-foreground-muted",
             )}
           />
 
@@ -456,7 +456,7 @@ export function CommandBar() {
             <button
               onClick={handleSubmit}
               disabled={mode === "refine" && !canRefine}
-              className="flex items-center gap-1 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+              className="flex items-center gap-1 rounded-lg bg-brand-solid px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-solid-hover disabled:opacity-50"
             >
               <HugeiconsIcon
                 icon={Tick01Icon}
@@ -472,7 +472,7 @@ export function CommandBar() {
             onClick={handleClose}
             disabled={loading}
             aria-label={t("closeAria")}
-            className="rounded-md p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-50 dark:hover:bg-zinc-800"
+            className="rounded-md p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-50 dark:hover:bg-surface-base"
           >
             <HugeiconsIcon
               icon={Cancel01Icon}
@@ -483,11 +483,11 @@ export function CommandBar() {
         </div>
 
         {/* Hint */}
-        <div className="border-t border-zinc-100 px-4 py-1.5 dark:border-zinc-800">
+        <div className="border-t border-divider-soft px-4 py-1.5">
           {loading && phase.type === "loading" ? (
             <LoadingHint baseMessage={phase.message} />
           ) : (
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {phase.type === "preview"
                 ? t("hintPreview")
                 : mode === "edit"

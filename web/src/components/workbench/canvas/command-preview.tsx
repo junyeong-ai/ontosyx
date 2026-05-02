@@ -66,13 +66,13 @@ export function CommandPreview({
     return (
       <div
         className={cn(
-          "w-full rounded-xl border bg-white/95 shadow-2xl backdrop-blur-sm",
-          "dark:border-zinc-700 dark:bg-zinc-900/95",
-          "border-zinc-200",
+          "w-full rounded-xl border bg-surface-base shadow-2xl backdrop-blur-sm",
+          "dark:border-divider",
+          "border-divider",
         )}
       >
         <div className="px-4 py-4">
-          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          <p className="text-sm font-medium text-foreground">
             {t("noChangesTitle")}
           </p>
           {explanation && (
@@ -81,10 +81,10 @@ export function CommandPreview({
             </p>
           )}
         </div>
-        <div className="flex justify-end border-t border-zinc-100 px-4 py-2.5 dark:border-zinc-800">
+        <div className="flex justify-end border-t border-divider-soft px-4 py-2.5">
           <button
             onClick={onCancel}
-            className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-inset dark:hover:bg-surface-base"
           >
             <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
             {tCommon("close")}
@@ -101,40 +101,40 @@ export function CommandPreview({
   return (
     <div
       className={cn(
-        "w-full rounded-xl border bg-white/95 shadow-2xl backdrop-blur-sm",
-        "dark:border-zinc-700 dark:bg-zinc-900/95",
-        "border-zinc-200",
+        "w-full rounded-xl border bg-surface-base shadow-2xl backdrop-blur-sm",
+        "dark:border-divider",
+        "border-divider",
       )}
     >
       {/* Explanation */}
-      <div className="border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
-        <p className="text-xs leading-relaxed text-zinc-600 dark:text-muted-foreground">
+      <div className="border-b border-divider-soft px-4 py-3">
+        <p className="text-xs leading-relaxed text-foreground dark:text-muted-foreground">
           {explanation}
         </p>
       </div>
 
       {/* Quick actions */}
-      <div className="flex items-center gap-2 border-b border-zinc-100 px-4 py-2 dark:border-zinc-800">
+      <div className="flex items-center gap-2 border-b border-divider-soft px-4 py-2">
         <HugeiconsIcon
           icon={CheckListIcon}
           className="h-3.5 w-3.5 text-muted-foreground"
           size="100%"
         />
-        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
           {t("selectedCount", { selected: selectedCount, total: flatCommands.length })}
         </span>
         <div className="ml-auto flex gap-1">
           <button
             onClick={() => toggleAll(true)}
             disabled={allChecked}
-            className="rounded px-2 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-30 dark:text-emerald-400 dark:hover:bg-emerald-950"
+            className="rounded px-2 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface disabled:opacity-30 dark:hover:bg-brand-surface"
           >
             {t("selectAll")}
           </button>
           <button
             onClick={() => toggleAll(false)}
             disabled={noneChecked}
-            className="rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800"
+            className="rounded px-2 py-0.5 text-2xs font-medium text-muted-foreground hover:bg-surface-inset disabled:opacity-30 dark:hover:bg-surface-base"
           >
             {t("deselectAll")}
           </button>
@@ -151,30 +151,30 @@ export function CommandPreview({
               className={cn(
                 "flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors",
                 checked[i]
-                  ? "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                  : "opacity-50 hover:bg-zinc-50 hover:opacity-70 dark:hover:bg-zinc-800/50",
+                  ? "hover:bg-surface-raised dark:hover:bg-surface-base/50"
+                  : "opacity-50 hover:bg-surface-raised hover:opacity-70 dark:hover:bg-surface-base/50",
               )}
             >
               <input
                 type="checkbox"
                 checked={checked[i]}
                 onChange={() => toggle(i)}
-                className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600"
+                className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-divider text-brand-foreground focus:ring-brand-foreground dark:border-divider"
               />
               <span
                 className={cn(
-                  "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                  "shrink-0 rounded px-1.5 py-0.5 text-2xs font-bold uppercase",
                   badge.color === "green" &&
-                    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
+                    "bg-brand-surface-strong text-brand-foreground-strong-strong",
                   badge.color === "red" &&
-                    "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+                    "bg-danger-surface text-danger-foreground",
                   badge.color === "blue" &&
-                    "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+                    "bg-info-surface text-info-foreground dark:bg-info-foreground dark:text-info-foreground",
                 )}
               >
                 {badge.label}
               </span>
-              <span className="min-w-0 flex-1 truncate text-xs text-zinc-700 dark:text-zinc-300">
+              <span className="min-w-0 flex-1 truncate text-xs text-foreground">
                 {formatCommand(cmd, ontology)}
               </span>
             </label>
@@ -183,10 +183,10 @@ export function CommandPreview({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-2 border-t border-zinc-100 px-4 py-2.5 dark:border-zinc-800">
+      <div className="flex items-center justify-end gap-2 border-t border-divider-soft px-4 py-2.5">
         <button
           onClick={onCancel}
-          className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-inset dark:hover:bg-surface-base"
         >
           <HugeiconsIcon
             icon={Cancel01Icon}
@@ -198,7 +198,7 @@ export function CommandPreview({
         <button
           onClick={handleApply}
           disabled={noneChecked}
-          className="flex items-center gap-1 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-lg bg-brand-solid px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-solid-hover disabled:opacity-50"
         >
           <HugeiconsIcon
             icon={Tick01Icon}

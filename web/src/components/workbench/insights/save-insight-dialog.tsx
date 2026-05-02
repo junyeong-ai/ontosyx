@@ -12,10 +12,10 @@
 // ---------------------------------------------------------------------------
 
 import { useState } from "react";
-import { Dialog } from "@base-ui/react/dialog";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { FormTextarea } from "@/components/ui/form-textarea";
@@ -87,81 +87,76 @@ export function SaveInsightDialog({
   };
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 transition-opacity" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-zinc-200 bg-white p-6 shadow-xl data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all dark:border-zinc-700 dark:bg-zinc-900">
-          <Dialog.Title className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            {t("title")}
-          </Dialog.Title>
-          <Dialog.Description className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            {t("subtitle")}
-          </Dialog.Description>
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t("title")}
+      description={t("subtitle")}
+      size="md"
+    >
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <label className="block text-xs font-medium text-foreground">
+          {t("questionLabel")}
+          <FormInput
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder={t("questionPlaceholder")}
+            className="mt-1"
+            autoFocus
+          />
+        </label>
 
-          <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-              {t("questionLabel")}
-              <FormInput
-                type="text"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                placeholder={t("questionPlaceholder")}
-                className="mt-1"
-                autoFocus
-              />
-            </label>
+        <label className="block text-xs font-medium text-foreground">
+          {t("descriptionLabel")}
+          <FormTextarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={t("descriptionPlaceholder")}
+            rows={3}
+            className="mt-1"
+          />
+        </label>
 
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-              {t("descriptionLabel")}
-              <FormTextarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t("descriptionPlaceholder")}
-                rows={3}
-                className="mt-1"
-              />
-            </label>
+        <label className="block text-xs font-medium text-foreground">
+          {t("tagsLabel")}
+          <FormInput
+            type="text"
+            value={tagsInput}
+            onChange={(e) => setTagsInput(e.target.value)}
+            placeholder={t("tagsPlaceholder")}
+            className="mt-1"
+          />
+        </label>
 
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-              {t("tagsLabel")}
-              <FormInput
-                type="text"
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                placeholder={t("tagsPlaceholder")}
-                className="mt-1"
-              />
-            </label>
+        <label className="block text-xs font-medium text-foreground">
+          {t("conceptAnchorsLabel")}
+          <FormInput
+            type="text"
+            value={conceptAnchorsInput}
+            onChange={(e) => setConceptAnchorsInput(e.target.value)}
+            placeholder={t("conceptAnchorsPlaceholder")}
+            className="mt-1"
+          />
+          <span className="mt-1 block text-2xs text-foreground-muted">
+            {t("conceptAnchorsHint")}
+          </span>
+        </label>
 
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-              {t("conceptAnchorsLabel")}
-              <FormInput
-                type="text"
-                value={conceptAnchorsInput}
-                onChange={(e) => setConceptAnchorsInput(e.target.value)}
-                placeholder={t("conceptAnchorsPlaceholder")}
-                className="mt-1"
-              />
-              <span className="mt-1 block text-[10px] text-muted-foreground">
-                {t("conceptAnchorsHint")}
-              </span>
-            </label>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Dialog.Close
-                render={
-                  <Button type="button" variant="ghost" size="sm">
-                    {t("cancel")}
-                  </Button>
-                }
-              />
-              <Button type="submit" size="sm" disabled={create.isPending}>
-                {create.isPending ? t("saving") : t("save")}
-              </Button>
-            </div>
-          </form>
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+          >
+            {t("cancel")}
+          </Button>
+          <Button type="submit" size="sm" disabled={create.isPending}>
+            {create.isPending ? t("saving") : t("save")}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

@@ -7,7 +7,7 @@ import { PlusSignIcon, Search01Icon } from "@hugeicons/core-free-icons";
 
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
 import { localize, localizePresent } from "@/lib/locale/localize";
-import { useLocaleChain } from "@/lib/use-locale-chain";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 import { compareKorean } from "@/lib/locale/sort";
 import { cn } from "@/lib/cn";
 
@@ -103,14 +103,14 @@ export function TermTree({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
-        <h2 className="flex-1 text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+      <div className="flex items-center gap-2 border-b border-divider px-3 py-2">
+        <h2 className="flex-1 text-xs font-semibold text-foreground-strong">
           {t("heading", { count: terms.length })}
         </h2>
         <button
           type="button"
           onClick={onCreate}
-          className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow-sm transition-colors hover:bg-emerald-700"
+          className="inline-flex items-center gap-1 rounded bg-brand-solid px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-white shadow-sm transition-colors hover:bg-brand-solid"
           aria-label={t("createAria")}
         >
           <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
@@ -118,12 +118,12 @@ export function TermTree({
         </button>
       </div>
 
-      <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+      <div className="border-b border-divider px-3 py-2">
         <label className="relative block">
           <span className="sr-only">{t("searchAria")}</span>
           <HugeiconsIcon
             icon={Search01Icon}
-            className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground"
+            className="pointer-events-none absolute left-2 top-1 h-3 w-3 -translate-y-1/2 text-muted-foreground"
             size="100%"
           />
           <input
@@ -131,7 +131,7 @@ export function TermTree({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("searchPlaceholder")}
-            className="w-full rounded border border-zinc-200 bg-white py-1.5 pl-7 pr-2 text-[11px] text-zinc-700 placeholder:text-muted-foreground focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400/40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+            className="w-full rounded border border-divider bg-surface-base py-1.5 pl-7 pr-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-brand-border focus:outline-none focus:ring-1 focus:ring-brand-foreground/40-strong"
           />
         </label>
       </div>
@@ -191,9 +191,9 @@ function CategoryGroup({
     <div className="mt-2 flex flex-col gap-0.5">
       <span
         className={cn(
-          "px-2 pb-0.5 text-[9px] font-semibold uppercase tracking-wider",
+          "px-2 pb-0.5 text-2xs font-semibold uppercase tracking-wider",
           tone === "muted"
-            ? "text-zinc-400 dark:text-zinc-500"
+            ? "text-foreground-subtle"
             : "text-muted-foreground",
         )}
       >
@@ -212,8 +212,8 @@ function CategoryGroup({
             className={cn(
               "group flex items-center gap-2 rounded px-2 py-1 text-left transition-colors",
               isSelected
-                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
-                : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800",
+                ? "bg-brand-surface-strong text-brand-foreground-strong-strong/40-strong"
+                : "text-foreground hover:bg-surface-inset-muted",
             )}
           >
             <span
@@ -227,10 +227,10 @@ function CategoryGroup({
             {usageCount > 0 && (
               <span
                 className={cn(
-                  "rounded px-1.5 py-0 text-[9px] font-medium",
+                  "rounded px-1.5 py-0 text-2xs font-medium",
                   isSelected
-                    ? "bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100"
-                    : "bg-zinc-100 text-muted-foreground dark:bg-zinc-800",
+                    ? "bg-brand-surface-strong text-brand-foreground-strong"
+                    : "bg-surface-inset text-muted-foreground",
                 )}
                 title={`${usageCount}`}
               >

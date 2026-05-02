@@ -27,22 +27,22 @@ import { useWorkspaces } from "@/hooks/api/use-workspaces";
 // ---------------------------------------------------------------------------
 
 const TRIGGER_CLASS =
-  "flex min-w-0 items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800";
+  "flex min-w-0 items-center gap-1.5 rounded-md border border-divider bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-inset-muted dark:hover:bg-surface-base";
 
 const POPOVER_CLASS =
-  "z-50 w-72 rounded-lg border border-zinc-200 bg-white shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all dark:border-zinc-700 dark:bg-zinc-900";
+  "z-50 w-72 rounded-lg border border-divider bg-surface-base shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all";
 
 // ---------------------------------------------------------------------------
 
 const ROLE_COLORS: Record<string, string> = {
   owner:
-    "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400",
+    "bg-warning-surface text-warning-foreground",
   admin:
-    "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400",
+    "bg-concept-surface text-concept-foreground dark:bg-concept-foreground/50 dark:text-concept-foreground",
   member:
-    "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
+    "bg-surface-inset text-foreground dark:text-muted-foreground",
   viewer:
-    "bg-zinc-100 text-muted-foreground dark:bg-zinc-800",
+    "bg-surface-inset text-muted-foreground",
 };
 
 export function WorkspaceSwitcher() {
@@ -114,28 +114,28 @@ export function WorkspaceSwitcher() {
                 <button
                   key={ws.id}
                   onClick={() => handleSwitch(ws)}
-                  className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 ${
+                  className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs hover:bg-surface-raised dark:hover:bg-surface-base ${
                     ws.id === currentId
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
-                      : "text-zinc-700 dark:text-zinc-300"
+                      ? "bg-brand-surface text-brand-foreground"
+                      : "text-foreground"
                   }`}
                 >
                   <span className="flex-1 truncate">{ws.name}</span>
                   <span
-                    className={`rounded px-1 text-[9px] font-medium ${ROLE_COLORS[ws.role] ?? ROLE_COLORS.member}`}
+                    className={`rounded px-1 text-2xs font-medium ${ROLE_COLORS[ws.role] ?? ROLE_COLORS.member}`}
                   >
                     {ws.role}
                   </span>
                 </button>
               ))
             )}
-            <div className="my-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+            <div className="my-1 h-px bg-surface-inset" />
             <button
               onClick={() => {
                 setOpen(false);
                 setDialogOpen(true);
               }}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-concept-foreground hover:bg-concept-surface dark:text-concept-foreground"
             >
               <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
               {t("newWorkspace")}
@@ -143,7 +143,7 @@ export function WorkspaceSwitcher() {
             <Link
               href="/settings/workspace"
               onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs text-zinc-500 hover:bg-zinc-50 dark:text-muted-foreground dark:hover:bg-zinc-800"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs text-foreground-muted hover:bg-surface-raised dark:text-muted-foreground dark:hover:bg-surface-base"
             >
               <HugeiconsIcon icon={Settings01Icon} className="h-3 w-3" size="100%" />
               {t("workspaceSettings")}

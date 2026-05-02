@@ -7,10 +7,12 @@ import { toast } from "sonner";
 
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useConfirm } from "@/components/ui/confirm-dialog";
-import { GlossaryForm } from "@/components/settings/vocabulary/glossary-form";
+import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell";
+import { BookOpen01Icon } from "@hugeicons/core-free-icons";
+import { useConfirm } from "@/components/providers/confirm-provider";
+import { GlossaryForm } from "@/components/vocabulary/glossary-form";
 import { ResolutionModal } from "@/components/ambiguity/resolution-modal";
-import { GlossaryBindingPanel } from "@/components/glossary/binding-panel";
+import { GlossaryBindingPanel } from "@/components/glossary/glossary-binding-panel";
 import {
   useOntologies,
   useOntologyDetail,
@@ -22,7 +24,7 @@ import {
 } from "@/hooks/api/use-ambiguities";
 import type { AmbiguityMapping } from "@/lib/api/ambiguity";
 import { localize } from "@/lib/locale/localize";
-import { useLocaleChain } from "@/lib/use-locale-chain";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 import { arr } from "@/lib/ir-collections";
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
 import type { OntologyIR } from "@/types/api";
@@ -231,34 +233,39 @@ export function GlossaryWorkbench() {
 
   if (ontologiesQuery.isLoading || ontologyDetailQuery.isLoading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner />
-      </div>
+      <WorkbenchPageShell title={t("heading")} subtitle={t("subtitle")}>
+        <div className="flex h-full items-center justify-center">
+          <Spinner />
+        </div>
+      </WorkbenchPageShell>
     );
   }
 
   if (!ontology || !ontologyMeta) {
     return (
-      <div className="flex h-full items-center justify-center px-6 py-12">
-        <EmptyState
-          title={t("noOntology.title")}
-          description={t("noOntology.description")}
-        />
-      </div>
+      <WorkbenchPageShell title={t("heading")} subtitle={t("subtitle")}>
+        <div className="flex h-full items-center justify-center px-6 py-12">
+          <EmptyState
+            icon={BookOpen01Icon}
+            title={t("noOntology.title")}
+            description={t("noOntology.description")}
+          />
+        </div>
+      </WorkbenchPageShell>
     );
   }
 
   const ambiguityContextId = searchParams.get(AMBIGUITY_PARAM);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-white dark:bg-zinc-950">
+    <div className="flex h-full flex-col overflow-hidden bg-surface-base">
       {ambiguityContextId && (
         <AmbiguityResolutionBanner
           contextId={ambiguityContextId}
           onDismiss={dismissAmbiguityHint}
         />
       )}
-      <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)_340px] divide-x divide-zinc-200 dark:divide-zinc-800">
+      <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)_340px] divide-x divide-divider">
         <TermTree
         terms={glossary}
         selectedTermId={selectedTermId}
@@ -353,7 +360,7 @@ function RightPane({
     <div className="flex h-full flex-col overflow-hidden">
       <nav
         aria-label={t("tabsAria")}
-        className="flex shrink-0 gap-1 border-b border-zinc-200 px-2 dark:border-zinc-800"
+        className="flex shrink-0 gap-1 border-b border-divider px-2"
       >
         {(["usage", "bindings"] as const).map((k) => (
           <button
@@ -363,13 +370,13 @@ function RightPane({
             aria-pressed={tab === k}
             className={`relative px-2.5 py-2 text-[11px] font-medium ${
               tab === k
-                ? "text-violet-700 dark:text-violet-400"
-                : "text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300"
+                ? "text-brand-foreground"
+                : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
             }`}
           >
             {t(`tabs.${k}`)}
             {tab === k && (
-              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-violet-500" />
+              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-brand-solid" />
             )}
           </button>
         ))}
@@ -424,15 +431,15 @@ function EditorPane({
 
   return (
     <>
-      <header className="flex items-center gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400">
+      <header className="flex items-center gap-3 border-b border-divider px-4 py-3">
+        <span className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-bold uppercase text-brand-foreground-strong">
           {t(mode === "create" ? "badges.create" : "badges.term")}
         </span>
-        <h1 className="flex-1 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+        <h1 className="flex-1 truncate text-sm font-semibold text-foreground-strong">
           {title}
         </h1>
         {mode === "edit" && isInactive && (
-          <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+          <span className="rounded bg-warning-surface px-2 py-0.5 text-2xs font-medium uppercase tracking-wider text-warning-foreground">
             {t(`lifecycle.${lifecycleState}`)}
           </span>
         )}
@@ -441,7 +448,7 @@ function EditorPane({
             type="button"
             onClick={onDelete}
             disabled={pending}
-            className="rounded border border-red-200 px-2.5 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
+            className="rounded border border-danger-border px-2.5 py-1 text-[11px] font-medium text-danger-foreground hover:bg-danger-surface disabled:opacity-50 dark:hover:bg-danger-surface/30"
           >
             {t("deleteAction")}
           </button>
@@ -495,32 +502,32 @@ function AmbiguityResolutionBanner({
 
   return (
     <>
-      <div className="flex items-start gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs dark:border-amber-900/40 dark:bg-amber-950/30">
+      <div className="flex items-start gap-3 border-b border-warning-border bg-warning-surface px-4 py-2.5 text-xs">
         <div className="flex-1">
-          <p className="font-medium text-amber-900 dark:text-amber-200">
+          <p className="font-medium text-warning-foreground">
             {t("title")}
           </p>
-          <p className="mt-0.5 text-amber-800 dark:text-amber-300">
+          <p className="mt-0.5 text-warning-foreground">
             {t("description")}
           </p>
           {ambiguityQuery.isLoading && (
-            <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-400">
+            <p className="mt-1 text-2xs text-warning-foreground">
               {t("loading")}
             </p>
           )}
           {ambiguityQuery.isError && (
-            <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-400">
+            <p className="mt-1 text-2xs text-warning-foreground">
               {t("loadFailed")}
             </p>
           )}
           {context && (
-            <p className="mt-1 font-mono text-[10px] text-amber-700 dark:text-amber-400">
+            <p className="mt-1 font-mono text-2xs text-warning-foreground">
               {t("columnLabel")}: {context.column.relation}.
               {context.column.column}
             </p>
           )}
           {!context && (
-            <p className="mt-1 font-mono text-[10px] text-amber-700 dark:text-amber-400">
+            <p className="mt-1 font-mono text-2xs text-warning-foreground">
               {t("contextLabel")}: {contextId}
             </p>
           )}
@@ -529,7 +536,7 @@ function AmbiguityResolutionBanner({
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-amber-700"
+            className="rounded bg-warning-foreground px-2.5 py-1 text-[11px] font-medium text-white hover:bg-warning-foreground"
           >
             {t("resolve")}
           </button>
@@ -537,7 +544,7 @@ function AmbiguityResolutionBanner({
         <button
           type="button"
           onClick={onDismiss}
-          className="rounded p-1 text-amber-700 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40"
+          className="rounded p-1 text-warning-foreground hover:bg-warning-surface dark:hover:bg-warning-surface/40"
           aria-label={t("dismissAria")}
         >
           ✕

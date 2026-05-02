@@ -124,12 +124,12 @@ export function RelationsField({
   );
 
   return (
-    <fieldset className="flex flex-col gap-2 rounded border border-zinc-200 p-3 dark:border-zinc-700">
-      <legend className="px-1 text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+    <fieldset className="flex flex-col gap-2 rounded border border-divider-soft p-3 dark:border-divider">
+      <legend className="px-1 text-[11px] font-medium text-foreground-strong dark:text-muted-foreground">
         {t("title")}
       </legend>
-      <p className="text-[10px] text-muted-foreground">{t("hint")}</p>
-      <p className="text-[10px] text-muted-foreground italic">
+      <p className="text-2xs text-muted-foreground">{t("hint")}</p>
+      <p className="text-2xs text-muted-foreground italic">
         {t("inverseHint")}
       </p>
 
@@ -149,7 +149,7 @@ export function RelationsField({
               onChange={(e) =>
                 update(row.rowId, { kind: e.target.value as TermRelationKind })
               }
-              className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+              className="rounded border border-divider bg-white px-2 py-1 text-xs dark:border-divider dark:bg-surface-base"
             >
               {SKOS_RELATION_KINDS.map((k) => (
                 <option key={k} value={k}>
@@ -161,7 +161,7 @@ export function RelationsField({
               aria-label={t("targetAria")}
               value={row.target}
               onChange={(e) => update(row.rowId, { target: e.target.value })}
-              className="flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+              className="flex-1 rounded border border-divider bg-white px-2 py-1 text-xs dark:border-divider dark:bg-surface-base"
             >
               <option value="">{t("targetPlaceholder")}</option>
               {choices.map((term) => (

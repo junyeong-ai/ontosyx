@@ -73,7 +73,7 @@ export function ChatInput({
   const canSend = !disabled && value.trim().length > 0;
 
   return (
-    <div className="border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="border-t border-divider bg-surface-base px-4 py-3">
       <div className="mx-auto flex max-w-3xl items-end gap-2">
         <div className="relative flex-1">
           <textarea
@@ -88,11 +88,11 @@ export function ChatInput({
             rows={1}
             disabled={disabled}
             className={cn(
-              "w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 pr-12",
+              "w-full resize-none rounded-xl border border-divider bg-surface-raised px-4 py-3 pr-12",
               "text-sm placeholder:text-muted-foreground",
-              "focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50",
-              "dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100",
-              "dark:focus:border-emerald-400 dark:focus:bg-zinc-900 dark:focus:ring-emerald-400/50",
+              "focus:border-brand-foreground focus:bg-surface-base focus:outline-none focus:ring-2 focus:ring-brand-foreground/50",
+              "dark:border-divider-strong",
+              "dark:focus:border-brand-border dark:focus:ring-brand-foreground/50",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               "transition-all",
             )}
@@ -101,7 +101,7 @@ export function ChatInput({
             <Tooltip content={disabledReason}>
               <button
                 disabled
-                className="absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-zinc-200 text-muted-foreground dark:bg-zinc-700"
+                className="absolute right-2.5 top-1 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-surface-inset text-muted-foreground"
                 aria-label={disabledReason}
               >
                 <HugeiconsIcon icon={ArrowUp01Icon} className="h-3.5 w-3.5" size="100%" strokeWidth={2.5} />
@@ -112,10 +112,10 @@ export function ChatInput({
               onClick={handleSend}
               disabled={!canSend}
               className={cn(
-                "absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg transition-all",
+                "absolute right-2.5 top-1 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg transition-all",
                 canSend
-                  ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
-                  : "bg-zinc-200 text-muted-foreground dark:bg-zinc-700",
+                  ? "bg-brand-solid text-white shadow-sm hover:bg-brand-solid"
+                  : "bg-surface-inset text-muted-foreground",
               )}
               aria-label={t("sendAria")}
             >
@@ -124,10 +124,10 @@ export function ChatInput({
           )}
         </div>
       </div>
-      <div className="mx-auto mt-1.5 flex max-w-3xl items-center gap-2 text-[10px] text-muted-foreground">
+      <div className="mx-auto mt-1.5 flex max-w-3xl items-center gap-2 text-2xs text-muted-foreground">
         <span>
           {isRawMode ? (
-            <span className="text-amber-500">{t("rawMode")}</span>
+            <span className="text-warning-foreground">{t("rawMode")}</span>
           ) : (
             t("enterHint")
           )}
@@ -142,7 +142,7 @@ export function ChatInput({
           <select
             value={modelOverride ?? ""}
             onChange={(e) => setModelOverride(e.target.value || null)}
-            className="rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-muted-foreground"
+            className="rounded-md border border-divider bg-surface-raised px-1.5 py-0.5 text-2xs text-foreground-muted dark:text-muted-foreground"
             title={t("modelSelectTitle")}
           >
             <option value="">{t("defaultModel")}</option>
@@ -159,10 +159,10 @@ export function ChatInput({
             store.setExecutionMode(store.executionMode === "auto" ? "supervised" : "auto");
           }}
           className={cn(
-            "rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
+            "rounded-md px-2 py-0.5 text-2xs font-medium transition-colors",
             executionMode === "supervised"
-              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-              : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+              ? "bg-warning-surface text-warning-foreground"
+              : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
           )}
           title={executionMode === "auto" ? t("executionMode.autoTitle") : t("executionMode.supervisedTitle")}
         >

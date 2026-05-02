@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonTable } from "@/components/ui/skeleton";
 import {
   useAmbiguities,
   useResolveAmbiguity,
@@ -27,10 +30,12 @@ function classify(summary: AmbiguitySummary): TabKey {
 
 export default function AmbiguityAdminPage() {
   const t = useTranslations("settings.ambiguity");
+  const tCommon = useTranslations("common");
   const [tab, setTab] = useState<TabKey>("pending");
   const [editing, setEditing] = useState<AmbiguitySummary | null>(null);
 
-  const { data, isLoading } = useAmbiguities();
+  const ambiguitiesQuery = useAmbiguities();
+  const { data, isLoading, isError, refetch } = ambiguitiesQuery;
   const resolve = useResolveAmbiguity({
     onSuccess: () => {
       toast.success(t("toast.resolved"));
@@ -59,17 +64,10 @@ export default function AmbiguityAdminPage() {
   const activeList = grouped[tab];
 
   return (
-    <div className="flex flex-col gap-4">
-      <header>
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          {t("title")}
-        </h1>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          {t("subtitle")}
-        </p>
-      </header>
+    <SettingsPageShell title={t("title")} subtitle={t("subtitle")}>
+      <div className="flex flex-col gap-4">
 
-      <nav aria-label={t("tabsLabel")} className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
+      <nav aria-label={t("tabsLabel")} className="flex gap-1 border-b border-divider">
         {(["pending", "stale", "resolved"] as const).map((k) => (
           <button
             key={k}
@@ -78,35 +76,42 @@ export default function AmbiguityAdminPage() {
             aria-pressed={tab === k}
             className={`relative px-3 py-2 text-xs font-medium ${
               tab === k
-                ? "text-violet-700 dark:text-violet-400"
-                : "text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300"
+                ? "text-brand-foreground"
+                : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
             }`}
           >
             {t(`tabs.${k}`)}
-            <span className="ml-1 rounded bg-zinc-100 px-1 text-[10px] dark:bg-zinc-800">
+            <span className="ml-1 rounded bg-surface-inset px-1 text-2xs">
               {grouped[k].length}
             </span>
             {tab === k && (
-              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-violet-500" />
+              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-brand-solid" />
             )}
           </button>
         ))}
       </nav>
 
-      {isLoading && (
-        <p className="py-6 text-center text-xs text-muted-foreground">{t("loading")}</p>
+      {isLoading && <SkeletonTable rows={4} cols={6} />}
+
+      {isError && (
+        <ErrorState
+          title={tCommon("loadError.title")}
+          description={tCommon("loadError.description")}
+          onRetry={() => refetch()}
+          retryLabel={tCommon("retry")}
+        />
       )}
 
-      {!isLoading && activeList.length === 0 && (
+      {!isLoading && !isError && activeList.length === 0 && (
         <p className="py-6 text-center text-xs text-muted-foreground">
           {t(`empty.${tab}`)}
         </p>
       )}
 
-      {!isLoading && activeList.length > 0 && (
+      {!isLoading && !isError && activeList.length > 0 && (
         <table className="w-full border-collapse text-xs">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-muted-foreground dark:border-zinc-800">
+            <tr className="border-b border-divider text-left text-2xs uppercase tracking-wider text-muted-foreground">
               <th className="py-2 pr-4 font-medium">{t("columns.source")}</th>
               <th className="py-2 pr-4 font-medium">{t("columns.column")}</th>
               <th className="py-2 pr-4 font-medium">{t("columns.kind")}</th>
@@ -121,7 +126,7 @@ export default function AmbiguityAdminPage() {
             {activeList.map((row) => (
               <tr
                 key={row.context.id}
-                className="border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800/50 dark:hover:bg-zinc-800/30"
+                className="border-b border-divider-soft hover:bg-surface-raised"
               >
                 <td className="py-2 pr-4 font-mono">{row.context.source_id}</td>
                 <td className="py-2 pr-4">
@@ -147,7 +152,7 @@ export default function AmbiguityAdminPage() {
                   <button
                     type="button"
                     onClick={() => setEditing(row)}
-                    className="rounded px-2 py-1 text-[10px] font-medium text-violet-700 hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-950/40"
+                    className="rounded px-2 py-1 text-2xs font-medium text-concept-foreground hover:bg-concept-surface"
                   >
                     {row.active_resolution ? t("actions.edit") : t("actions.resolve")}
                   </button>
@@ -156,7 +161,7 @@ export default function AmbiguityAdminPage() {
                       type="button"
                       onClick={() => revoke.mutate(row.context.id)}
                       disabled={revoke.isPending}
-                      className="ml-1 rounded px-2 py-1 text-[10px] font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                      className="ml-1 rounded px-2 py-1 text-2xs font-medium text-danger-foreground hover:bg-danger-surface disabled:opacity-50"
                     >
                       {t("actions.revoke")}
                     </button>
@@ -179,7 +184,8 @@ export default function AmbiguityAdminPage() {
           }}
         />
       )}
-    </div>
+      </div>
+    </SettingsPageShell>
   );
 }
 
@@ -187,12 +193,12 @@ function KindBadge({ kind }: { kind: "numeric_code" | "opaque_short_code" | "ove
   const t = useTranslations("settings.ambiguity.kind");
   const classes =
     kind === "numeric_code"
-      ? "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
+      ? "bg-info-surface text-info-foreground"
       : kind === "opaque_short_code"
-        ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
-        : "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300";
+        ? "bg-warning-surface text-warning-foreground"
+        : "bg-danger-surface text-danger-foreground";
   return (
-    <span className={`inline-flex rounded px-1.5 py-0.5 text-[10px] ${classes}`}>
+    <span className={`inline-flex rounded px-1.5 py-0.5 text-2xs ${classes}`}>
       {t(kind)}
     </span>
   );
@@ -208,7 +214,7 @@ function MappingBadge({ mapping }: { mapping: AmbiguityMapping }) {
     );
   }
   if (mapping.kind === "code_system_ref") {
-    return <span className="font-mono text-[10px]">CS: {mapping.code_system_id}</span>;
+    return <span className="font-mono text-2xs">CS: {mapping.code_system_id}</span>;
   }
-  return <span className="font-mono text-[10px]">G: {mapping.term_id}</span>;
+  return <span className="font-mono text-2xs">G: {mapping.term_id}</span>;
 }

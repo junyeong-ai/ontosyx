@@ -23,7 +23,7 @@ import {
 import { useSuggestions, type Suggestion } from "./use-suggestions";
 import { SavedPatternsMenu } from "./saved-patterns-menu";
 import { toPatternIR, fromPatternIR } from "./saved-pattern-io";
-import { WidgetRenderer } from "@/components/widgets/widget-renderer";
+import { WidgetRenderer } from "@/components/dashboard/widgets/widget-renderer";
 import { normalizeQueryResult } from "@/lib/api";
 import type { SavedPattern } from "@/lib/api/queries";
 import { toast } from "sonner";
@@ -577,7 +577,7 @@ export function QueryBuilder() {
     return (
       <div className="flex h-full items-center justify-center p-8 text-center">
         <div>
-          <p className="text-sm font-medium text-zinc-600 dark:text-muted-foreground">
+          <p className="text-sm font-medium text-foreground dark:text-muted-foreground">
             {t("emptyOntology.title")}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -610,13 +610,13 @@ export function QueryBuilder() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Toolbar */}
-      <div className="flex h-9 shrink-0 items-center justify-between border-b border-zinc-200 px-3 dark:border-zinc-800">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="flex h-9 shrink-0 items-center justify-between border-b border-divider px-3">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("toolbar.title")}
         </span>
         <div className="flex items-center gap-2">
           {nodes.length > 0 && returnFields.length === 0 && (
-            <span className="text-[9px] text-amber-500">
+            <span className="text-2xs text-warning-foreground">
               {t("toolbar.autoReturnHint")}
             </span>
           )}
@@ -634,7 +634,7 @@ export function QueryBuilder() {
           <button
             onClick={handleClear}
             disabled={nodes.length === 0}
-            className="rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
+            className="rounded px-2 py-0.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-surface-inset disabled:opacity-40 dark:hover:bg-surface-base"
           >
             {t("toolbar.clear")}
           </button>
@@ -646,7 +646,7 @@ export function QueryBuilder() {
                 ? blockingIssues[0].message
                 : undefined
             }
-            className="rounded bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            className="rounded bg-brand-solid px-3 py-1 text-[11px] font-medium text-white transition-colors hover:bg-brand-solid disabled:opacity-50"
           >
             {isRunning ? t("toolbar.running") : t("toolbar.run")}
           </button>
@@ -660,7 +660,7 @@ export function QueryBuilder() {
       {readOnlyLabel && (
         <div
           role="alert"
-          className="flex shrink-0 items-center gap-2 border-b border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+          className="flex shrink-0 items-center gap-2 border-b border-warning-border bg-warning-surface px-3 py-1.5 text-[11px] text-warning-foreground"
         >
           <span className="font-semibold">{t("readOnly.prefix")}</span>
           <span>{t("readOnly.message", { kind: readOnlyLabel })}</span>
@@ -670,7 +670,7 @@ export function QueryBuilder() {
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Palette */}
-        <div className="w-52 shrink-0 border-r border-zinc-200 dark:border-zinc-800">
+        <div className="w-52 shrink-0 border-r border-divider">
           <PatternPalette
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
@@ -711,16 +711,16 @@ export function QueryBuilder() {
               issues the pattern has picked up. Empty canvas falls back
               to the info-level "canvas-empty" issue message, so the
               user always has something actionable to read. */}
-          <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800">
+          <div className="shrink-0 border-t border-divider">
             <div className="flex items-center justify-between px-3 py-1">
-              <span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("preview.title")}
                 {validation.issues.length > 0 && (
                   <span
                     className={
                       blockingIssues.length > 0
-                        ? "rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-medium text-red-700 dark:bg-red-950/60 dark:text-red-300"
-                        : "rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+                        ? "rounded bg-danger-surface px-1.5 py-0.5 text-2xs font-medium text-danger-foreground"
+                        : "rounded bg-warning-surface px-1.5 py-0.5 text-2xs font-medium text-warning-foreground"
                     }
                   >
                     {blockingIssues.length > 0
@@ -732,32 +732,32 @@ export function QueryBuilder() {
               {cypherPreview && (
                 <button
                   onClick={() => navigator.clipboard.writeText(cypherPreview)}
-                  className="cursor-pointer text-[10px] text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+                  className="cursor-pointer text-2xs text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
                 >
                   {t("preview.copy")}
                 </button>
               )}
             </div>
             {cypherPreview ? (
-              <pre className="max-h-24 overflow-auto bg-zinc-900 px-3 py-2 text-[11px] font-mono leading-relaxed text-emerald-400">
+              <pre className="max-h-24 overflow-auto bg-surface-base px-3 py-2 text-[11px] font-mono leading-relaxed text-brand-foreground">
                 {cypherPreview}
               </pre>
             ) : (
-              <p className="bg-zinc-50 px-3 py-2 text-[11px] text-muted-foreground dark:bg-zinc-900/40">
+              <p className="bg-surface-raised px-3 py-2 text-[11px] text-foreground-muted">
                 {t("preview.emptyHint")}
               </p>
             )}
             {validation.issues.length > 0 && (
-              <ul className="max-h-24 space-y-0.5 overflow-auto border-t border-zinc-200 bg-zinc-50 px-3 py-1.5 dark:border-zinc-800 dark:bg-zinc-900/40">
+              <ul className="max-h-24 space-y-0.5 overflow-auto border-t border-divider bg-surface-raised px-3 py-1.5">
                 {validation.issues.map((issue, i) => (
                   <li
                     key={`${issue.code}-${issue.elementId ?? "global"}-${i}`}
                     className={
                       issue.severity === "error"
-                        ? "flex items-start gap-1.5 text-[10px] text-red-700 dark:text-red-300"
+                        ? "flex items-start gap-1.5 text-2xs text-danger-foreground"
                         : issue.severity === "warning"
-                          ? "flex items-start gap-1.5 text-[10px] text-amber-700 dark:text-amber-300"
-                          : "flex items-start gap-1.5 text-[10px] text-muted-foreground"
+                          ? "flex items-start gap-1.5 text-2xs text-warning-foreground"
+                          : "flex items-start gap-1.5 text-2xs text-muted-foreground"
                     }
                   >
                     <span aria-hidden className="mt-0.5 shrink-0">
@@ -776,20 +776,20 @@ export function QueryBuilder() {
 
           {/* Error */}
           {error && (
-            <div className="shrink-0 border-t border-red-200 bg-red-50 px-3 py-2 dark:border-red-900 dark:bg-red-950/30">
-              <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+            <div className="shrink-0 border-t border-danger-border bg-danger-surface px-3 py-2">
+              <p className="text-xs text-danger-foreground">{error}</p>
             </div>
           )}
 
           {/* Results */}
           {result && (
-            <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800">
+            <div className="shrink-0 border-t border-divider">
               <div className="flex items-center justify-between px-3 py-1">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t("results.title", { count: result.rows.length })}
                 </span>
                 {compiledCypher && (
-                  <span className="max-w-xs truncate text-[10px] text-muted-foreground">
+                  <span className="max-w-xs truncate text-2xs text-muted-foreground">
                     {compiledCypher}
                   </span>
                 )}
@@ -811,26 +811,26 @@ export function QueryBuilder() {
         </div>
 
         {/* Right: Config panel */}
-        <div className="w-60 shrink-0 overflow-auto border-l border-zinc-200 dark:border-zinc-800">
+        <div className="w-60 shrink-0 overflow-auto border-l border-divider">
           {selectedElement ? (
             <div className="p-3">
               <div className="mb-3">
-                <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                <span className="text-xs font-semibold text-foreground">
                   {selectedNode ? selectedNode.label : selectedEdge?.relType}
                 </span>
-                <span className="ml-2 text-[10px] text-muted-foreground">
+                <span className="ml-2 text-2xs text-muted-foreground">
                   ({selectedElement.alias})
                 </span>
               </div>
 
               {/* Config tabs */}
-              <div className="mb-3 flex border-b border-zinc-200 dark:border-zinc-800">
+              <div className="mb-3 flex border-b border-divider">
                 <button
                   onClick={() => setConfigTab("filter")}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                     configTab === "filter"
-                      ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
-                      : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground"
+                      ? "border-b-2 border-brand-foreground text-brand-foreground"
+                      : "text-foreground-muted hover:text-foreground dark:text-muted-foreground"
                   }`}
                 >
                   {t("config.tabFilter")}
@@ -839,8 +839,8 @@ export function QueryBuilder() {
                   onClick={() => setConfigTab("return")}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                     configTab === "return"
-                      ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
-                      : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground"
+                      ? "border-b-2 border-brand-foreground text-brand-foreground"
+                      : "text-foreground-muted hover:text-foreground dark:text-muted-foreground"
                   }`}
                 >
                   {t("config.tabReturn")}

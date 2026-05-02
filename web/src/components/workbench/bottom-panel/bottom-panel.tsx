@@ -104,9 +104,9 @@ export function BottomPanel({
   const ActivePanel = panelMap[effectiveTab];
 
   return (
-    <div className="flex h-full flex-col border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="flex h-full flex-col border-t border-divider bg-surface-base">
       {/* Tab bar — manual click handling for active-tab-toggle */}
-      <div className="flex h-8 shrink-0 items-center border-b border-zinc-200 dark:border-zinc-800">
+      <div className="flex h-8 shrink-0 items-center border-b border-divider">
         <div className="flex items-center" role="tablist">
           {visibleTabs.map(({ id, icon }) => {
             const isActive = isBottomPanelOpen && effectiveTab === id;
@@ -119,8 +119,8 @@ export function BottomPanel({
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors outline-none",
                   isActive
-                    ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
-                    : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300",
+                    ? "border-b-2 border-brand-foreground text-brand-foreground"
+                    : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-muted",
                 )}
               >
                 <HugeiconsIcon icon={icon} className="h-3 w-3" size="100%" />
@@ -149,7 +149,7 @@ export function BottomPanel({
                     ? t("enterFullscreen")
                     : t("enterTall")
               }
-              className="px-2 text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+              className="px-2 text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
             >
               <HugeiconsIcon
                 icon={isFullscreen ? MinimizeScreenIcon : MaximizeScreenIcon}
@@ -163,7 +163,7 @@ export function BottomPanel({
           <button
             onClick={toggleBottomPanel}
             aria-label={isBottomPanelOpen ? t("collapsePanel") : t("expandPanel")}
-            className="px-2 text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+            className="px-2 text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
           >
             {isBottomPanelOpen
               ? <HugeiconsIcon icon={ArrowDown01Icon} className="h-3.5 w-3.5" size="100%" />

@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/lib/use-auth";
-import { Spinner } from "@/components/ui/spinner";
+import { toast } from "sonner";
+import { ChatBotIcon } from "@hugeicons/core-free-icons";
+
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { SettingsSwitch, SettingsSelect, SettingsInput } from "@/components/ui/form-input";
-import { useImeAwareInput } from "@/lib/use-ime-aware-input";
+import { useImeAwareInput } from "@/hooks/use-ime-aware-input";
 import { CodeEditor } from "@/components/ui/code-editor";
-import { useConfirm } from "@/components/ui/confirm-dialog";
-import { toast } from "sonner";
+import { useConfirm } from "@/components/providers/confirm-provider";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { cn } from "@/lib/cn";
 import type { PromptTemplate } from "@/types/api";
 import {
@@ -19,11 +25,16 @@ import {
   deletePromptTemplate,
 } from "@/lib/api";
 
+const promptsKeys = {
+  all: ["prompts"] as const,
+  list: () => [...promptsKeys.all, "list"] as const,
+};
+
 export default function PromptsPage() {
   const t = useTranslations("settings.prompts");
+  const tCommon = useTranslations("common");
   const { isAdmin } = useAuth();
-  const [templates, setTemplates] = useState<PromptTemplate[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
   const [expandedName, setExpandedName] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const searchInput = useImeAwareInput("");
@@ -35,24 +46,16 @@ export default function PromptsPage() {
   }, [searchInput.committedValue]);
   const [statusFilter, setStatusFilter] = useState<"" | "active" | "inactive">("");
 
-  const reload = useCallback(async () => {
-    try {
-      const data = await listPromptTemplates();
-      setTemplates(data);
-    } catch {
-      toast.error(t("toast.loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    reload();
-  }, [reload]);
+  const query = useQuery({
+    queryKey: promptsKeys.list(),
+    queryFn: () => listPromptTemplates(),
+  });
+  const templates: PromptTemplate[] | undefined = query.data;
+  const reload = () => qc.invalidateQueries({ queryKey: promptsKeys.list() });
 
   const grouped = useMemo(() => {
     const map = new Map<string, PromptTemplate[]>();
-    for (const tmpl of templates) {
+    for (const tmpl of templates ?? []) {
       const list = map.get(tmpl.name) || [];
       list.push(tmpl);
       map.set(tmpl.name, list);
@@ -74,32 +77,35 @@ export default function PromptsPage() {
 
   if (!isAdmin) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        {t("adminOnly")}
-      </div>
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <EmptyState title={t("adminOnly")} />
+      </SettingsPageShell>
     );
   }
 
-  if (loading) {
+  if (query.isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner size="lg" />
-      </div>
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <SkeletonList count={4} />
+      </SettingsPageShell>
+    );
+  }
+
+  if (query.isError) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <ErrorState
+          title={tCommon("loadError.title")}
+          description={tCommon("loadError.description")}
+          onRetry={() => query.refetch()}
+          retryLabel={tCommon("retry")}
+        />
+      </SettingsPageShell>
     );
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto">
-        <div>
-          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            {t("title")}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("description")}
-          </p>
-        </div>
-
+    <SettingsPageShell title={t("title")} subtitle={t("description")}>
         <div className="mt-4 flex items-center gap-3">
           <SettingsInput
             label={t("searchLabel")}
@@ -129,13 +135,12 @@ export default function PromptsPage() {
 
         <div className="mt-5">
           {filtered.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-700">
-              <p className="text-sm text-muted-foreground">{t("empty")}</p>
-              {search && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("emptyHint")}
-                </p>
-              )}
+            <div className="rounded-xl border border-dashed border-divider">
+              <EmptyState
+                icon={ChatBotIcon}
+                title={t("empty")}
+                description={search ? t("emptyHint") : undefined}
+              />
             </div>
           ) : (
             <div className="space-y-2">
@@ -150,27 +155,26 @@ export default function PromptsPage() {
                   }
                   onUpdate={async (id, req) => {
                     await updatePromptTemplate(id, req);
-                    await reload();
+                    reload();
                   }}
                   onDelete={async (id) => {
                     await deletePromptTemplate(id);
-                    setTemplates((prev) => prev.filter((x) => x.id !== id));
+                    reload();
                   }}
                   onNewVersion={async (vName, version, content) => {
-                    const created = await createPromptTemplate({
+                    await createPromptTemplate({
                       name: vName,
                       version,
                       content,
                     });
-                    setTemplates((prev) => [created, ...prev]);
+                    reload();
                   }}
                 />
               ))}
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </SettingsPageShell>
   );
 }
 
@@ -199,15 +203,15 @@ function PromptCard({
       className={cn(
         "rounded-xl border transition-all",
         isExpanded
-          ? "border-emerald-200 bg-white shadow-sm dark:border-emerald-800/40 dark:bg-zinc-900"
-          : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700",
+          ? "border-brand-border bg-surface-base shadow-sm/40"
+          : "border-divider bg-surface-base hover:border-divider dark:hover:border-divider",
       )}
     >
       <button
         onClick={onToggle}
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
       >
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground-strong">
           {name}
         </span>
         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -217,12 +221,12 @@ function PromptCard({
           <span
             className={cn(
               "h-2 w-2 rounded-full",
-              activeVersion.is_active ? "bg-emerald-500" : "bg-zinc-400",
+              activeVersion.is_active ? "bg-brand-solid" : "bg-muted-foreground",
             )}
           />
           {activeVersion.is_active ? t("active") : t("inactive")}
         </span>
-        <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-500 dark:bg-zinc-800 dark:text-muted-foreground">
+        <span className="shrink-0 rounded bg-surface-inset px-1.5 py-0.5 text-2xs tabular-nums text-foreground-muted dark:text-muted-foreground">
           {t("versions", { count: versions.length })}
         </span>
         <svg
@@ -330,7 +334,7 @@ function PromptCardDetail({
   };
 
   return (
-    <div className="border-t border-zinc-100 px-4 pb-4 pt-3 dark:border-zinc-800">
+    <div className="border-t border-divider-soft px-4 pb-4 pt-3">
       <div className="flex flex-wrap items-center gap-3">
         <SettingsSelect
           label={t("selectedVersion")}

@@ -17,7 +17,7 @@ import { FormInput } from "@/components/ui/form-input";
 import { FormTextarea } from "@/components/ui/form-textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Spinner } from "@/components/ui/spinner";
-import { TableSelector } from "@/components/source/TableSelector";
+import { TableSelector } from "@/components/source/table-selector";
 import { useSourcePreview } from "@/hooks/use-source-preview";
 import type {
   AnalyzeSelection,
@@ -354,10 +354,10 @@ export function CreateProjectForm({
   if (phase === "select_tables" && previewedSource) {
     return (
       <div>
-        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-muted-foreground">
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("selectTablesHeading")}
-        </h3>
-        <p className="mb-3 text-xs text-zinc-500 dark:text-muted-foreground">
+        </h2>
+        <p className="mb-3 text-xs text-foreground-muted">
           {t("selectTablesIntro")}
         </p>
 
@@ -367,7 +367,7 @@ export function CreateProjectForm({
             <span>{t("previewLoading")}</span>
           </div>
         ) : preview.isError ? (
-          <div className="flex flex-col gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+          <div className="flex flex-col gap-2 rounded-md border border-danger-border/30 bg-danger-solid/10 px-3 py-2 text-xs text-danger-foreground">
             <div className="flex items-center gap-1.5">
               <HugeiconsIcon
                 icon={CancelCircleIcon}
@@ -376,7 +376,7 @@ export function CreateProjectForm({
               />
               <span>{t("previewFailed")}</span>
             </div>
-            <span className="text-red-400/80">
+            <span className="text-danger-foreground">
               {preview.error instanceof Error
                 ? preview.error.message
                 : String(preview.error ?? "")}
@@ -442,12 +442,12 @@ export function CreateProjectForm({
 
   return (
     <div>
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-muted-foreground">
+      <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
         {t("heading")}
-      </h3>
-      <p className="mb-3 text-xs text-zinc-500 dark:text-muted-foreground">
+      </h2>
+      <p className="mb-3 text-xs text-foreground-muted">
         {t.rich("intro", {
-          asterisk: (chunks) => <span className="text-red-500">{chunks}</span>,
+          asterisk: (chunks) => <span className="text-danger-foreground">{chunks}</span>,
         })}
       </p>
 
@@ -913,14 +913,14 @@ function CreateProgressBanner({
     <div
       role="status"
       aria-live="polite"
-      className="mt-3 flex max-w-2xl items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-900 dark:bg-emerald-950/30"
+      className="mt-3 flex max-w-2xl items-start gap-3 rounded-md border border-brand-border bg-brand-surface px-3 py-2"
     >
-      <Spinner size="sm" className="mt-0.5 shrink-0 text-emerald-500" />
+      <Spinner size="sm" className="mt-0.5 shrink-0 text-brand-foreground" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-emerald-800 dark:text-emerald-200">
+        <p className="text-xs font-medium text-brand-foreground-strong-strong">
           {t("heading", { elapsed, count: tableCount })}
         </p>
-        <p className="mt-0.5 text-xs text-emerald-700/80 dark:text-emerald-300/80">
+        <p className="mt-0.5 text-xs text-brand-foreground-strong">
           {isUsageBilled ? t("hintUsageBilled") : t("hintGeneric")}
         </p>
       </div>

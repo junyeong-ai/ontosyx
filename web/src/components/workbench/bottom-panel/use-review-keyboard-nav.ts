@@ -75,8 +75,8 @@ function focusAnchor(anchor: string): void {
   const el = document.getElementById(anchor);
   if (!el) return;
   el.scrollIntoView({ behavior: "smooth", block: "start" });
-  el.classList.add("ring-2", "ring-emerald-300", "ring-offset-2");
+  el.classList.add("ring-2", "ring-brand-foreground", "ring-offset-2");
   window.setTimeout(() => {
-    el.classList.remove("ring-2", "ring-emerald-300", "ring-offset-2");
+    el.classList.remove("ring-2", "ring-brand-foreground", "ring-offset-2");
   }, 800);
 }

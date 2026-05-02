@@ -225,13 +225,13 @@ export function EnhanceActions({
   return (
     <>
       <div className="space-y-1.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("enhanceHeader")}
         </p>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           {t.rich("enhanceHint", {
             kbd: (chunks) => (
-              <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">
+              <kbd className="rounded bg-surface-inset px-1 py-0.5 font-mono text-2xs">
                 {chunks}
               </kbd>
             ),
@@ -282,7 +282,7 @@ export function EnhanceActions({
       )}
 
       <details className="text-xs">
-        <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300">
+        <summary className="cursor-pointer text-2xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted">
           {t("advanced")}
         </summary>
         <div className="mt-2 space-y-2">

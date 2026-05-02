@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../messages/en.json";
-import { StatCardWidget } from "@/components/widgets/stat-card-widget";
+import { StatCardWidget } from "@/components/dashboard/widgets/stat-card-widget";
 import type { QueryResult, WidgetSpec } from "@/types/ontology";
 
 function renderWithIntl(ui: React.ReactElement) {

@@ -79,7 +79,7 @@ export function MappingsFacet({
           type="button"
           onClick={handleCreate}
           disabled={!project?.source_id}
-          className="inline-flex items-center gap-1 rounded border border-dashed border-zinc-300 px-2 py-1 text-[11px] text-muted-foreground hover:border-violet-300 hover:text-violet-600 disabled:opacity-50 dark:border-zinc-700 dark:hover:border-violet-700 dark:hover:text-violet-400"
+          className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-[11px] text-muted-foreground hover:border-concept-border hover:text-concept-foreground disabled:opacity-50 dark:hover:border-concept-border dark:hover:text-concept-foreground"
         >
           {t("createAction")}
         </button>
@@ -90,7 +90,7 @@ export function MappingsFacet({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[10px] text-muted-foreground">
+        <span className="font-mono text-2xs text-muted-foreground">
           {t("primaryLabel", { id: primary.id })}
         </span>
         <Tooltip content={t("deleteTooltip")}>
@@ -98,7 +98,7 @@ export function MappingsFacet({
             type="button"
             onClick={() => handleDelete(primary.id)}
             aria-label={t("deleteTooltip")}
-            className="rounded p-0.5 text-zinc-300 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950"
+            className="rounded p-0.5 text-foreground-muted hover:bg-danger-surface hover:text-danger-foreground"
           >
             <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
           </button>
@@ -111,7 +111,7 @@ export function MappingsFacet({
         onChange={handleUpdate}
       />
       {additional > 0 && (
-        <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+        <p className="rounded border border-warning-border bg-warning-surface px-3 py-2 text-[11px] text-warning-foreground/30">
           {t("multiMappingHint", { count: additional })}
         </p>
       )}

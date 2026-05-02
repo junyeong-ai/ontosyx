@@ -73,4 +73,4 @@ export const SETTINGS_TABLE = {
  * change (e.g. contrast audit bumps the ring to `emerald-600`)
  * stays a one-line edit.
  */
-export const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950";
+export const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950";

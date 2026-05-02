@@ -54,7 +54,7 @@ export function StepShell(props: StepShellProps) {
   return (
     <section>
       <header className="mb-6">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+        <h2 className="text-lg font-semibold text-foreground-strong">
           {title}
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
@@ -62,11 +62,11 @@ export function StepShell(props: StepShellProps) {
 
       <div className="space-y-4">{children}</div>
 
-      <footer className="mt-8 flex items-center justify-between border-t border-zinc-200 pt-4 dark:border-zinc-800">
+      <footer className="mt-8 flex items-center justify-between border-t border-divider pt-4">
         <button
           type="button"
           onClick={() => (backPath ? router.push(backPath) : router.back())}
-          className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-surface-inset"
         >
           {t("back")}
         </button>
@@ -75,7 +75,7 @@ export function StepShell(props: StepShellProps) {
             <button
               type="button"
               onClick={handleSkip}
-              className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-surface-inset"
             >
               {t("skip")}
             </button>
@@ -84,7 +84,7 @@ export function StepShell(props: StepShellProps) {
             type="button"
             onClick={handleNext}
             disabled={!canAdvance && !!nextPath}
-            className="rounded bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+            className="rounded bg-concept-foreground px-3 py-1.5 text-xs font-medium text-white hover:bg-concept-foreground disabled:opacity-50"
           >
             {nextPath ? t("next") : t("finish")}
           </button>

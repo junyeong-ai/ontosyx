@@ -1,17 +1,50 @@
 {
   "collaboration": {
     "errors": {
-      "auth_required": "인증이 필요합니다.",
-      "auth_invalid": "세션이 유효하지 않습니다. 다시 로그인해 주세요.",
-      "auth_unavailable": "협업 서버를 사용할 수 없습니다.",
-      "auth_timeout": "인증 시간이 초과되었습니다. 다시 연결합니다…",
-      "malformed_frame": "잘못된 메시지를 받았습니다.",
-      "unauthorized_workspace": "이 워크스페이스의 구성원이 아닙니다.",
-      "unauthorized_project": "이 프로젝트에 접근할 수 없습니다.",
-      "too_many_connections": "동시 세션 수가 한도를 초과했습니다. 다른 탭을 닫고 다시 시도해 주세요.",
-      "broadcast_lagged": "실시간 동기화가 지연되어 다시 연결합니다.",
-      "not_joined": "참여하지 않은 방에서 작업을 시도했습니다.",
-      "session_revoked": "세션이 만료되었습니다. 다시 로그인해 주세요."
+      "auth_required": {
+        "title": "로그인이 필요합니다",
+        "description": "이 작업을 계속하려면 다시 로그인해 주세요."
+      },
+      "auth_invalid": {
+        "title": "세션이 유효하지 않습니다",
+        "description": "보안을 위해 세션이 종료되었습니다. 다시 로그인해 주세요."
+      },
+      "auth_unavailable": {
+        "title": "협업 서버를 사용할 수 없습니다",
+        "description": "잠시 후 다시 시도해 주세요. 문제가 지속되면 관리자에게 문의하세요."
+      },
+      "auth_timeout": {
+        "title": "인증 시간이 초과되었습니다",
+        "description": "재연결을 시도하는 중입니다."
+      },
+      "malformed_frame": {
+        "title": "잘못된 메시지를 받았습니다",
+        "description": "협업 채널이 일시적으로 불안정합니다. 페이지를 새로 고치는 것이 좋습니다."
+      },
+      "unauthorized_workspace": {
+        "title": "워크스페이스 접근 권한이 없습니다",
+        "description": "이 워크스페이스의 구성원이 아닙니다. 관리자에게 초대를 요청하세요."
+      },
+      "unauthorized_project": {
+        "title": "프로젝트 접근 권한이 없습니다",
+        "description": "이 프로젝트에 접근할 권한이 없습니다."
+      },
+      "too_many_connections": {
+        "title": "동시 세션 한도를 초과했습니다",
+        "description": "다른 탭을 닫고 다시 시도해 주세요."
+      },
+      "broadcast_lagged": {
+        "title": "실시간 동기화가 지연됩니다",
+        "description": "잠시 후 자동으로 재연결됩니다."
+      },
+      "not_joined": {
+        "title": "참여하지 않은 방입니다",
+        "description": "협업 세션에 다시 참여한 뒤 시도해 주세요."
+      },
+      "session_revoked": {
+        "title": "세션이 만료되었습니다",
+        "description": "보안을 위해 세션이 종료되었습니다. 계속 작업하려면 다시 로그인해 주세요."
+      }
     },
     "status": {
       "idle": "협업 연결 끊김",
@@ -22,7 +55,12 @@
       "closed": "협업 서버 사용 불가"
     },
     "actions": {
-      "signInAgain": "다시 로그인"
+      "signInAgain": "다시 로그인",
+      "dismiss": "알림 닫기"
+    },
+    "lock": {
+      "editingByYou": "내가 편집 중",
+      "editingBy": "{name} 님이 편집 중"
     }
   },
   "errorBoundary": {
@@ -419,7 +457,23 @@
       "distribution": "고유값 {distinct} / NULL {nulls}",
       "piiRedactedBadge": "마스킹: {kind}",
       "piiRedactedTooltip": "컬럼명이 PII 휴리스틱과 일치 — 샘플 수집 단계에서 원본 값이 제거되었습니다."
+    },
+    "toast": {
+      "saved": "온톨로지가 저장되었습니다",
+      "saveFailed": "저장에 실패했습니다",
+      "nodeDeleted": "노드가 삭제되었습니다",
+      "edgeDeleted": "엣지가 삭제되었습니다",
+      "suggestionApplied": "제안이 적용되었습니다",
+      "noSuggestions": "AI가 제안할 변경사항을 찾지 못했습니다",
+      "noImprovements": "개선 제안이 없습니다",
+      "improvementFailed": "AI 개선에 실패했습니다",
+      "undoLimit": "되돌리기 한도에 도달했습니다"
     }
+  },
+  "narrowViewport": {
+    "title": "데스크탑에 최적화된 도구입니다",
+    "description": "Ontosyx 의 캔버스 · 다중 패널은 1024px 이상 화면에서 가장 잘 작동합니다. 작은 화면에서는 일부 기능이 제한될 수 있습니다.",
+    "dismissLabel": "안내 닫기"
   },
   "common": {
     "loading": "불러오는 중…",
@@ -437,7 +491,11 @@
     "discard": "버리기",
     "saving": "저장 중…",
     "deleting": "삭제 중…",
-    "creating": "생성 중…"
+    "creating": "생성 중…",
+    "loadError": {
+      "title": "데이터를 불러오지 못했습니다",
+      "description": "네트워크 또는 인증 상태를 확인하고 다시 시도하세요."
+    }
   },
   "qualityGap": {
     "small_sample": {
@@ -650,6 +708,7 @@
       "auditResult": "그래프 감사: {percentage}% 동기화됨",
       "auditDescription": "일치: {matched} | 그래프 전용: {orphaned} | 온톨로지 전용: {missing}",
       "auditFailed": "감사에 실패했습니다",
+      "exportFailed": "내보내기에 실패했습니다",
       "importInvalid": "잘못된 온톨로지: node_types/edge_types가 없습니다",
       "importWarning": "가져오기가 경고와 함께 완료되었습니다",
       "importedDescription": "{nodes}N, {edges}E",
@@ -1660,6 +1719,7 @@
       "title": "감사 로그",
       "description": "사용자 동작, 리소스 변경, 시스템 이벤트를 추적합니다.",
       "empty": "선택한 기간에 감사 기록이 없습니다",
+      "tableAria": "감사 기록 — 가로 스크롤 가능",
       "column": {
         "action": "동작",
         "resourceType": "리소스 유형",
@@ -1749,6 +1809,7 @@
     },
     "approvals": {
       "title": "승인 대기열",
+      "subtitle": "스키마 배포 및 기타 승인 대상 작업을 검토·승인합니다.",
       "description": "스키마 배포 및 기타 승인 대상 작업을 검토·승인합니다.",
       "approve": "승인",
       "reject": "거절",
@@ -1882,7 +1943,8 @@
     "team": {
       "title": "팀",
       "description": "팀 구성원과 역할을 관리합니다.",
-      "authRequired": "인증이 활성화된 경우 팀 관리를 사용할 수 있습니다.",
+      "authRequired": "인증이 활성화되지 않았습니다",
+      "authRequiredDescription": "팀 관리는 인증이 활성화된 워크스페이스에서만 사용할 수 있습니다. 시스템 관리자에게 문의하세요.",
       "rolesHeading": "역할",
       "membersHeading": "구성원",
       "changeRoleAria": "{name} 역할 변경",
@@ -1993,6 +2055,125 @@
         "mustBeNumber": "유효한 숫자여야 합니다",
         "updated": "{count}개 설정 업데이트됨",
         "saveFailed": "설정을 저장하지 못했습니다"
+      }
+    },
+    "models": {
+      "title": "모델 구성",
+      "description": "LLM 프로바이더 · 모델 · 비용 한도 · 연결 테스트를 관리합니다.",
+      "addAction": "모델 추가",
+      "kpis": {
+        "enabled": "활성",
+        "disabled": "비활성",
+        "rules": "라우팅 규칙"
+      },
+      "table": {
+        "regionLabel": "모델 구성",
+        "name": "이름",
+        "provider": "프로바이더",
+        "model": "모델",
+        "priority": "우선순위",
+        "enabled": "활성",
+        "actions": "작업",
+        "on": "켜짐",
+        "off": "꺼짐",
+        "test": "테스트",
+        "edit": "편집",
+        "delete": "삭제",
+        "testing": "…",
+        "deleting": "…",
+        "empty": "등록된 모델 구성이 없습니다"
+      },
+      "rules": {
+        "heading": "라우팅 규칙",
+        "subtitle": "작업을 우선순위에 따라 모델 구성에 매핑합니다.",
+        "addAction": "규칙 추가",
+        "regionLabel": "라우팅 규칙",
+        "operation": "작업",
+        "modelConfig": "모델 구성",
+        "priority": "우선순위",
+        "enabled": "활성",
+        "actions": "작업",
+        "edit": "편집",
+        "delete": "삭제",
+        "deleting": "…",
+        "empty": "라우팅 규칙이 없습니다"
+      },
+      "toast": {
+        "loadFailed": "모델 구성을 불러오지 못했습니다",
+        "configCreated": "모델 구성이 생성되었습니다",
+        "configUpdated": "모델 구성이 수정되었습니다",
+        "configDeleted": "모델 구성이 삭제되었습니다",
+        "configCreateFailed": "모델 구성 생성에 실패했습니다",
+        "configUpdateFailed": "모델 구성 수정에 실패했습니다",
+        "configDeleteFailed": "모델 구성 삭제에 실패했습니다",
+        "toggleFailed": "모델 활성 상태 변경에 실패했습니다",
+        "testSuccess": "{ms}ms 만에 응답했습니다",
+        "testFailed": "테스트 실패: {error}",
+        "testError": "모델 테스트에 실패했습니다",
+        "ruleCreated": "라우팅 규칙이 생성되었습니다",
+        "ruleUpdated": "라우팅 규칙이 수정되었습니다",
+        "ruleDeleted": "라우팅 규칙이 삭제되었습니다",
+        "ruleCreateFailed": "라우팅 규칙 생성에 실패했습니다",
+        "ruleUpdateFailed": "라우팅 규칙 수정에 실패했습니다",
+        "ruleDeleteFailed": "라우팅 규칙 삭제에 실패했습니다"
+      },
+      "confirm": {
+        "deleteConfigTitle": "모델 구성 '{name}' 을(를) 삭제할까요?",
+        "deleteConfigDescription": "되돌릴 수 없습니다. 이 구성을 참조하는 모든 라우팅 규칙도 영향을 받습니다.",
+        "deleteRuleTitle": "'{operation}' 의 라우팅 규칙을 삭제할까요?",
+        "deleteRuleDescription": "되돌릴 수 없습니다. 라우팅 규칙이 영구적으로 제거됩니다."
+      },
+      "form": {
+        "config": {
+          "createTitle": "새 모델 구성",
+          "editTitle": "모델 구성 편집",
+          "createSubmit": "구성 생성",
+          "updateSubmit": "구성 수정",
+          "creating": "생성 중…",
+          "updating": "수정 중…",
+          "name": "이름",
+          "namePlaceholder": "예: Claude 4 Sonnet",
+          "provider": "프로바이더",
+          "modelId": "모델 ID",
+          "modelIdPlaceholder": "예: claude-sonnet-4-20250514",
+          "maxTokens": "최대 토큰",
+          "temperature": "온도",
+          "optional": "(선택)",
+          "temperaturePlaceholder": "기본값",
+          "timeoutSecs": "타임아웃 (초)",
+          "priority": "우선순위",
+          "apiKeyEnv": "API 키 환경변수",
+          "apiKeyEnvPlaceholder": "예: ANTHROPIC_API_KEY",
+          "baseUrl": "베이스 URL",
+          "baseUrlPlaceholder": "예: https://api.example.com",
+          "region": "리전",
+          "regionPlaceholder": "예: us-east-1",
+          "costPerInput": "1M 입력 비용",
+          "costPerInputPlaceholder": "예: 3.00",
+          "costPerOutput": "1M 출력 비용",
+          "costPerOutputPlaceholder": "예: 15.00",
+          "dailyBudget": "일일 한도",
+          "dailyBudgetPlaceholder": "예: 50.00",
+          "usd": "(USD)",
+          "enabled": "활성"
+        },
+        "rule": {
+          "createTitle": "새 라우팅 규칙",
+          "editTitle": "라우팅 규칙 편집",
+          "createSubmit": "규칙 생성",
+          "updateSubmit": "규칙 수정",
+          "creating": "생성 중…",
+          "updating": "수정 중…",
+          "operation": "작업",
+          "modelConfig": "모델 구성",
+          "priority": "우선순위",
+          "enabled": "활성"
+        }
+      },
+      "validation": {
+        "required": "필수 입력",
+        "minOne": "1 이상이어야 합니다",
+        "temperatureRange": "0~2 사이여야 합니다"
       }
     },
     "prompts": {
@@ -2778,6 +2959,8 @@
   },
   "workbench": {
     "glossary": {
+      "heading": "용어집",
+      "subtitle": "워크스페이스의 표준 어휘 — 노드 · 엣지 · 속성이 anchor 로 참조하는 캐논 용어를 관리합니다.",
       "noOntology": {
         "title": "커밋된 온톨로지 없음",
         "description": "먼저 Design 모드에서 온톨로지를 만드세요 — Glossary 워크벤치는 가장 최근 커밋된 온톨로지 스냅샷의 어휘를 읽습니다."
@@ -4216,6 +4399,55 @@
       }
     },
     "dashboard": {
+      "layout": {
+        "actions": {
+          "aiGenerate": "AI 위젯 생성",
+          "share": "대시보드 공유",
+          "makePrivate": "비공개로 전환",
+          "exportPdf": "PDF로 내보내기",
+          "duplicate": "대시보드 복제",
+          "refreshAll": "모든 위젯 새로고침",
+          "delete": "대시보드 삭제",
+          "filtersLabel": "필터",
+          "clearAllFilters": "모두 지우기"
+        },
+        "toast": {
+          "loadDashboardsFailed": "대시보드를 불러오지 못했습니다",
+          "loadWidgetsFailed": "위젯을 불러오지 못했습니다",
+          "created": "대시보드가 생성되었습니다",
+          "createFailed": "대시보드 생성에 실패했습니다",
+          "duplicated": "대시보드가 복제되었습니다",
+          "duplicateFailed": "대시보드 복제에 실패했습니다",
+          "deleted": "대시보드가 삭제되었습니다",
+          "deleteFailed": "대시보드 삭제에 실패했습니다",
+          "shared": "대시보드가 공유되었습니다",
+          "madePrivate": "대시보드가 비공개로 전환되었습니다",
+          "shareFailed": "공유 설정 변경에 실패했습니다"
+        },
+        "empty": {
+          "dashboardTitle": "선택된 대시보드 없음",
+          "dashboardDescription": "차트, 테이블, KPI 카드로 그래프 데이터를 모니터링하기 위해 대시보드를 만드세요.",
+          "dashboardCta": "대시보드 생성",
+          "widgetsTitle": "아직 위젯이 없습니다",
+          "widgetsDescription": "위젯을 직접 추가하거나 AI로 자동 생성할 수 있습니다.",
+          "widgetsHint": "위 툴바의 AI 버튼을 눌러 위젯을 자동 생성하세요",
+          "selectWidget": "구성할 위젯을 선택하세요"
+        },
+        "create": {
+          "title": "대시보드 생성",
+          "nameLabel": "이름",
+          "namePlaceholder": "대시보드 이름",
+          "descriptionLabel": "설명",
+          "descriptionPlaceholder": "선택 사항",
+          "submit": "생성",
+          "cancel": "취소",
+          "defaultName": "대시보드 {number}",
+          "duplicateSuffix": " (사본)"
+        },
+        "inspector": {
+          "heading": "위젯 인스펙터"
+        }
+      },
       "addWidget": {
         "trigger": "위젯 추가",
         "modalTitle": "위젯 추가",

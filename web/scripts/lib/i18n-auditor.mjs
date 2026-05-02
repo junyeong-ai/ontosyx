@@ -566,6 +566,108 @@ export function walkSource(rootDir) {
 }
 
 /**
+ * Scan `src/app/**\/page.tsx` files and return any that render JSX
+ * without calling `useTranslations` — these pages are guaranteed to
+ * carry hard-coded copy in violation of the i18n policy. Heuristic:
+ * pages that render *only* a child component (e.g. `<RecipesWorkbench />`)
+ * are exempt because their copy lives in the child.
+ *
+ * @typedef {{ file: string, line: number }} UntranslatedPage
+ *
+ * @param {string} rootDir absolute path to `web/src`
+ * @returns {UntranslatedPage[]}
+ */
+export function findPagesMissingI18n(rootDir) {
+  /** @type {UntranslatedPage[]} */
+  const out = [];
+  const appDir = path.join(rootDir, "app");
+  if (!fs.existsSync(appDir)) return out;
+
+  /** @param {string} dir */
+  const recurse = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === "node_modules" || entry.name === ".next") continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        recurse(full);
+        continue;
+      }
+      if (entry.name !== "page.tsx" || full.includes("__tests__")) continue;
+      const source = fs.readFileSync(full, "utf8");
+      // Quick reject: file calls useTranslations anywhere.
+      if (/\buseTranslations\b/.test(source)) continue;
+      // Render-only-child shells (`return <X />`) carry no copy — exempt.
+      if (isRenderOnlyChildShell(source)) continue;
+      out.push({ file: full, line: 1 });
+    }
+  };
+  recurse(appDir);
+  return out;
+}
+
+/**
+ * True when a page carries no copy of its own — either it just
+ * `redirect()`s, or it forwards to a child component that owns the
+ * i18n surface. Both patterns are exempt from the
+ * `useTranslations` requirement.
+ *
+ * Patterns recognised:
+ *   - Body has no JSX at all (typical for `redirect()`-only pages)
+ *   - Body's terminal statement is `return <ChildComponent ... />`
+ *   - Body's terminal statement is `return <Tag>...</Tag>` whose
+ *     children are all JSX element nodes (no text). Text children
+ *     would be hard-coded copy and disqualify the shell.
+ *
+ * @param {string} source
+ * @returns {boolean}
+ */
+function isRenderOnlyChildShell(source) {
+  // Cheap fast-path: if the source has no JSX at all (no `</` close
+  // tags and no `<Capital` opener), it's a redirect-style shell.
+  if (!/<\/|<[A-Z]/.test(source)) return true;
+
+  const sf = ts.createSourceFile(
+    "page.tsx",
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  let isShell = false;
+  /** @param {ts.Node} node */
+  const visit = (node) => {
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) &&
+      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword) &&
+      node.body
+    ) {
+      const stmts = node.body.statements;
+      const last = stmts[stmts.length - 1];
+      if (!last || !ts.isReturnStatement(last)) return;
+      const expr = last.expression;
+      if (!expr) return;
+      if (ts.isJsxSelfClosingElement(expr)) {
+        isShell = true;
+        return;
+      }
+      if (ts.isJsxElement(expr)) {
+        const allElementChildren = expr.children.every(
+          (c) =>
+            ts.isJsxElement(c) ||
+            ts.isJsxSelfClosingElement(c) ||
+            ts.isJsxFragment(c) ||
+            (ts.isJsxText(c) && !c.text.trim()),
+        );
+        if (allElementChildren) isShell = true;
+      }
+    }
+  };
+  ts.forEachChild(sf, visit);
+  return isShell;
+}
+
+/**
  * Human-readable label for a finding reason. Kept in sync with the
  * CLI output so tests can assert on it.
  *

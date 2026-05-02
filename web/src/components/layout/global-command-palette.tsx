@@ -151,9 +151,9 @@ export function GlobalCommandPalette({
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+          className="w-full max-w-xl overflow-hidden rounded-xl border border-divider bg-surface-base shadow-2xl"
         >
-          <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+          <div className="flex items-center gap-2 border-b border-divider px-3 py-2">
             <HugeiconsIcon
               icon={Search01Icon}
               className="h-3.5 w-3.5 text-muted-foreground"
@@ -166,13 +166,13 @@ export function GlobalCommandPalette({
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={t("placeholder")}
-              className="flex-1 bg-transparent text-sm text-zinc-800 outline-none placeholder:text-muted-foreground dark:text-zinc-200"
+              className="flex-1 bg-transparent text-sm text-foreground-strong outline-none placeholder:text-muted-foreground-strong"
             />
             <button
               type="button"
               onClick={onClose}
               aria-label={t("closeAria")}
-              className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+              className="rounded p-0.5 text-muted-foreground hover:bg-surface-inset hover:text-foreground dark:hover:bg-surface-base dark:hover:text-foreground-muted"
             >
               <HugeiconsIcon
                 icon={Cancel01Icon}
@@ -204,16 +204,16 @@ export function GlobalCommandPalette({
                     className={cn(
                       "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors",
                       active
-                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
-                        : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800/60",
+                        ? "bg-brand-surface text-brand-foreground-strong"
+                        : "text-foreground hover:bg-surface-raised-muted dark:hover:bg-surface-base/60",
                     )}
                   >
-                    <span className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <span className="w-16 shrink-0 text-2xs uppercase tracking-wider text-muted-foreground">
                       {t(`groups.${cmd.group}`)}
                     </span>
                     <span className="flex-1 truncate">{resolveLabel(cmd.id)}</span>
                     {shortcut && (
-                      <kbd className="rounded border border-zinc-300 px-1 text-[9px] text-muted-foreground dark:border-zinc-600">
+                      <kbd className="rounded border border-divider px-1 text-2xs text-muted-foreground dark:border-divider">
                         {shortcut}
                       </kbd>
                     )}
@@ -222,7 +222,7 @@ export function GlobalCommandPalette({
               })
             )}
           </div>
-          <div className="flex items-center justify-between border-t border-zinc-200 bg-zinc-50/60 px-3 py-1.5 text-[10px] text-muted-foreground dark:border-zinc-800 dark:bg-zinc-950/30">
+          <div className="flex items-center justify-between border-t border-divider bg-surface-raised px-3 py-1.5 text-2xs text-foreground-muted">
             <span>{t("footerNav")}</span>
             <span>{t("footerCount", { count: filtered.length })}</span>
           </div>

@@ -25,8 +25,8 @@ export default function SourceStep() {
             key={k}
             className={`cursor-pointer rounded border px-3 py-3 text-xs ${
               state.sourceKind === k
-                ? "border-violet-500 bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
-                : "border-zinc-200 bg-white text-muted-foreground hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                ? "border-concept-foreground bg-concept-surface text-concept-foreground"
+                : "border-divider bg-surface-base text-muted-foreground hover:bg-surface-raised"
             }`}
           >
             <input
@@ -38,7 +38,7 @@ export default function SourceStep() {
               className="sr-only"
             />
             <p className="font-medium">{t(`kinds.${k}.label`)}</p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">
+            <p className="mt-0.5 text-2xs text-muted-foreground">
               {t(`kinds.${k}.hint`)}
             </p>
           </label>
@@ -48,7 +48,7 @@ export default function SourceStep() {
       <div>
         <label
           htmlFor="connection"
-          className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300"
+          className="mb-1 block text-xs font-medium text-foreground"
         >
           {t("connectionLabel")}
         </label>
@@ -57,7 +57,7 @@ export default function SourceStep() {
           value={state.sourceConnection}
           onChange={(e) => update({ sourceConnection: e.target.value })}
           placeholder={t("connectionPlaceholder")}
-          className="w-full rounded border border-zinc-300 bg-white px-3 py-2 font-mono text-xs dark:border-zinc-600 dark:bg-zinc-900"
+          className="w-full rounded border border-divider bg-surface-base px-3 py-2 font-mono text-xs"
         />
         <p className="mt-1 text-[11px] text-muted-foreground">
           {t("connectionHint")}

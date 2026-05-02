@@ -49,10 +49,10 @@ export function ExploreFacetSidebar({
   return (
     <aside
       aria-label={t("title")}
-      className="flex h-full w-56 shrink-0 flex-col gap-4 border-r border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
+      className="flex h-full w-56 shrink-0 flex-col gap-4 border-r border-divider bg-surface-base p-3"
     >
       <section>
-        <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("depth.label")}
         </h2>
         <div
@@ -69,29 +69,29 @@ export function ExploreFacetSidebar({
               onClick={() => onChangeDepth(d)}
               className={`flex-1 rounded border px-2 py-1 text-[11px] font-medium ${
                 d === expandDepth
-                  ? "border-violet-500 bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
-                  : "border-zinc-200 bg-white text-muted-foreground hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                  ? "border-concept-foreground bg-concept-surface text-concept-foreground"
+                  : "border-divider bg-surface-base text-muted-foreground hover:bg-surface-raised"
               }`}
             >
               {t("depth.hops", { n: d })}
             </button>
           ))}
         </div>
-        <p className="mt-1 text-[10px] text-muted-foreground">
+        <p className="mt-1 text-2xs text-muted-foreground">
           {t("depth.cmdHint")}
         </p>
       </section>
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("types.label")}
           </h2>
           {selectedLabels.length > 0 && (
             <button
               type="button"
               onClick={onClearLabels}
-              className="text-[10px] text-violet-600 hover:underline dark:text-violet-400"
+              className="text-2xs text-concept-foreground hover:underline"
             >
               {t("types.clear")}
             </button>
@@ -105,7 +105,7 @@ export function ExploreFacetSidebar({
             onChange={(e) => setLabelFilter(e.target.value)}
             placeholder={t("types.searchPlaceholder")}
             aria-label={t("types.searchAria")}
-            className="mb-1 w-full rounded border border-zinc-200 bg-white px-1.5 py-1 text-[11px] outline-none focus:border-violet-400 dark:border-zinc-700 dark:bg-zinc-900"
+            className="mb-1 w-full rounded border border-divider bg-surface-base px-1.5 py-1 text-[11px] outline-none focus:border-concept-foreground"
           />
         )}
 
@@ -136,12 +136,12 @@ export function ExploreFacetSidebar({
                     aria-pressed={selected}
                     className={`flex w-full items-center justify-between rounded px-2 py-1 ${
                       selected
-                        ? "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
-                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        ? "bg-concept-surface text-concept-foreground"
+                        : "hover:bg-surface-inset"
                     }`}
                   >
                     <span className="truncate">{l.label}</span>
-                    <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+                    <span className="shrink-0 font-mono text-2xs tabular-nums text-muted-foreground">
                       {l.count.toLocaleString()}
                     </span>
                   </button>
@@ -153,32 +153,32 @@ export function ExploreFacetSidebar({
       </section>
 
       {!loading && overview && overview.relationships.length > 0 && (
-        <section className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
-          <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <section className="border-t border-divider pt-3">
+          <h2 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("relationships.label")}
           </h2>
           <ul className="flex max-h-40 flex-col gap-0.5 overflow-auto pr-1 text-[11px]">
             {overview.relationships.map((r, idx) => (
               <li
                 key={`${r.from_label}-${r.rel_type}-${r.to_label}-${idx}`}
-                className="rounded px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="rounded px-2 py-1 hover:bg-surface-inset"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 flex-1 truncate font-mono text-[10px]">
+                  <span className="min-w-0 flex-1 truncate font-mono text-2xs">
                     {r.from_label}
                     <span className="text-muted-foreground"> ─[</span>
                     <span className="font-medium">{r.rel_type}</span>
                     <span className="text-muted-foreground">]→ </span>
                     {r.to_label}
                   </span>
-                  <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+                  <span className="shrink-0 font-mono text-2xs tabular-nums text-muted-foreground">
                     {r.count.toLocaleString()}
                   </span>
                 </div>
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-[10px] italic text-muted-foreground">
+          <p className="mt-1 text-2xs italic text-muted-foreground">
             {t("relationships.readOnlyHint")}
           </p>
         </section>
@@ -188,7 +188,7 @@ export function ExploreFacetSidebar({
         <button
           type="button"
           onClick={onSaveSegment}
-          className="rounded bg-emerald-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-700"
+          className="rounded bg-brand-solid px-3 py-1.5 text-[11px] font-medium text-white hover:bg-brand-solid"
         >
           {t("saveSegment", { count: selectedLabels.length })}
         </button>

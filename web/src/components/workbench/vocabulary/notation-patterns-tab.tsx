@@ -37,19 +37,19 @@ export function NotationPatternsTab() {
       renderRow={(np) => (
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            <span className="font-mono text-sm font-medium text-foreground-strong dark:text-foreground">
               {np.id}
             </span>
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            <span className="text-xs text-muted-foreground dark:text-muted-foreground">
               · {np.name}
             </span>
             {np.template && (
-              <span className="rounded bg-zinc-100 px-2 py-0.5 font-mono text-[10px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              <span className="rounded bg-surface-inset px-2 py-0.5 font-mono text-2xs text-foreground-muted dark:bg-surface-base dark:text-muted-foreground">
                 {np.template}
               </span>
             )}
           </div>
-          <p className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-500">
+          <p className="mt-1 text-2xs text-muted-foreground dark:text-muted-foreground">
             {t("componentCount", { count: np.components?.length ?? 0 })}
           </p>
         </div>

@@ -16,6 +16,8 @@ import { useProjects } from "@/hooks/api/use-projects";
 import { useAppStore } from "@/lib/store";
 import { getProject } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Card } from "@/components/ui/card";
 import type {
   DesignProjectStatus,
   DesignProjectSummary,
@@ -94,9 +96,9 @@ export function ProjectHub() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+      <header className="flex shrink-0 items-center justify-between border-b border-divider px-6 py-4">
         <div>
-          <h1 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">
+          <h1 className="text-base font-semibold text-foreground-strong">
             {t("heading")}
           </h1>
           <p className="text-xs text-muted-foreground">
@@ -106,18 +108,18 @@ export function ProjectHub() {
         <button
           type="button"
           onClick={onCreate}
-          className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+          className="flex items-center gap-1.5 rounded-md bg-brand-solid px-3 py-1.5 text-xs font-medium text-foreground-onbrand hover:bg-brand-solid-hover"
         >
           <HugeiconsIcon icon={Add01Icon} className="h-3.5 w-3.5" size="100%" />
           {t("createButton")}
         </button>
       </header>
 
-      <div className="flex shrink-0 items-center gap-3 border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
+      <div className="flex shrink-0 items-center gap-3 border-b border-divider px-6 py-3">
         <div className="relative flex-1 max-w-md">
           <HugeiconsIcon
             icon={Search01Icon}
-            className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            className="pointer-events-none absolute left-2 top-1 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
             size="100%"
           />
           <input
@@ -125,7 +127,7 @@ export function ProjectHub() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("searchPlaceholder")}
-            className="w-full rounded-md border border-zinc-200 bg-white py-1.5 pl-7 pr-3 text-xs text-zinc-800 placeholder-muted-foreground focus:border-emerald-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+            className="w-full rounded-md border border-divider bg-surface-base py-1.5 pl-7 pr-3 text-xs text-foreground-strong placeholder-muted-foreground focus:border-brand-border focus:outline-none-strong"
             aria-label={t("searchLabel")}
           />
         </div>
@@ -139,10 +141,10 @@ export function ProjectHub() {
                 onClick={() => toggleStatus(status)}
                 aria-pressed={active}
                 className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors",
+                  "rounded-full border px-2.5 py-0.5 text-2xs font-medium transition-colors",
                   active
-                    ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                    : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-muted-foreground dark:hover:bg-zinc-800",
+                    ? "border-brand-border bg-brand-surface text-brand-foreground-strong"
+                    : "border-divider bg-surface-raised text-foreground hover:bg-surface-inset dark:text-muted-foreground dark:hover:bg-surface-base",
                 )}
               >
                 {t(`status.${status}`)}
@@ -156,7 +158,12 @@ export function ProjectHub() {
         {isLoading ? (
           <p className="text-xs text-muted-foreground">{t("loading")}</p>
         ) : filtered.length === 0 ? (
-          <EmptyState onCreate={onCreate} />
+          <EmptyState
+            icon={Add01Icon}
+            title={t("empty.heading")}
+            description={t("empty.subheading")}
+            action={{ label: t("empty.cta"), onClick: onCreate }}
+          />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((p) => (
@@ -165,28 +172,6 @@ export function ProjectHub() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function EmptyState({ onCreate }: { onCreate: () => void }) {
-  const t = useTranslations("workbench.projects.hub");
-  return (
-    <div className="flex h-full flex-col items-center justify-center text-center">
-      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        {t("empty.heading")}
-      </p>
-      <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-        {t("empty.subheading")}
-      </p>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="mt-4 flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
-      >
-        <HugeiconsIcon icon={Add01Icon} className="h-3.5 w-3.5" size="100%" />
-        {t("empty.cta")}
-      </button>
     </div>
   );
 }
@@ -200,35 +185,44 @@ function ProjectCard({
 }) {
   const t = useTranslations("workbench.projects.hub");
   return (
-    <button
-      type="button"
+    <Card
+      variant="raised"
+      interactive
       onClick={onOpen}
-      className="group flex flex-col items-stretch rounded-lg border border-zinc-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/20"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className="flex flex-col items-stretch text-left"
     >
       <div className="flex items-center gap-2">
         <StatusIcon status={project.status as DesignProjectStatus} />
-        <span className="truncate text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+        <span className="truncate text-sm font-semibold text-foreground-strong">
           {project.title ?? t("untitled")}
         </span>
       </div>
-      <p className="mt-3 truncate text-[10px] text-muted-foreground">
+      <p className="mt-3 truncate text-2xs text-foreground-muted">
         {t("cardMeta", {
           source: stringifySource(project.source_config),
           updated: relativeTime(project.updated_at, t),
         })}
       </p>
-      <span className="mt-2 inline-flex w-fit items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground">
+      <span className="mt-2 inline-flex w-fit items-center rounded-full bg-surface-inset px-2 py-0.5 text-2xs font-medium uppercase tracking-wide text-foreground-muted">
         {t(`status.${project.status as DesignProjectStatus}`)}
       </span>
-    </button>
+    </Card>
   );
 }
 
 function StatusIcon({ status }: { status: DesignProjectStatus }) {
   const visual = {
-    analyzed: { icon: ChartUpIcon, color: "text-amber-600 dark:text-amber-400" },
-    designed: { icon: PencilEdit01Icon, color: "text-emerald-700 dark:text-emerald-400" },
-    completed: { icon: CheckmarkCircle02Icon, color: "text-blue-600 dark:text-blue-400" },
+    analyzed: { icon: ChartUpIcon, color: "text-warning-foreground" },
+    designed: { icon: PencilEdit01Icon, color: "text-brand-foreground" },
+    completed: { icon: CheckmarkCircle02Icon, color: "text-info-foreground dark:text-info-foreground" },
   } as const;
   const v = visual[status];
   return (

@@ -5,8 +5,8 @@ import { useTranslations } from "next-intl";
 import { useAppStore, type ChatMessage } from "@/lib/store";
 import type { OntologyIR, QueryExecution } from "@/types/api";
 import { getOntologyDetail } from "@/lib/api";
-import { WidgetWithToolbar } from "@/components/widgets/widget-toolbar";
-import { ResponseBasis } from "@/components/widgets/response-basis";
+import { WidgetToolbar } from "@/components/dashboard/widgets/widget-toolbar";
+import { ResponseBasis } from "@/components/dashboard/widgets/response-basis";
 import { Button } from "@/components/ui/button";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -150,12 +150,12 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <div className="flex items-center gap-2 border-b border-divider px-4 py-3">
         <Button variant="ghost" size="icon" onClick={onBack} aria-label={t("backAria")} className="shrink-0">
           <HugeiconsIcon icon={ArrowLeft01Icon} className="h-4 w-4" size="100%" />
         </Button>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">
+          <p className="truncate text-sm font-medium text-foreground-strong">
             {execution.question}
           </p>
           <p className="text-xs text-muted-foreground">
@@ -190,14 +190,14 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {/* Explanation */}
         <Section title={t("sectionExplanation")}>
-          <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+          <p className="text-sm leading-relaxed text-foreground">
             {execution.explanation}
           </p>
         </Section>
 
         {/* Compiled query */}
         <Section title={t("sectionQueryTitle", { target: execution.compiled_target })}>
-          <pre className="overflow-x-auto rounded-lg bg-zinc-900 p-3 text-xs text-emerald-400 dark:bg-zinc-950">
+          <pre className="overflow-x-auto rounded-lg bg-surface-base p-3 text-xs text-brand-foreground">
             {execution.compiled_query}
           </pre>
         </Section>
@@ -206,7 +206,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
         {execution.results && execution.results.rows.length > 0 && (
           <Section title={t("sectionResultsTitle", { count: execution.results.rows.length })}>
             <div className="space-y-3">
-              <WidgetWithToolbar
+              <WidgetToolbar
                 spec={(execution.widget as Record<string, unknown>) ?? { widget: "auto" }}
                 data={execution.results}
               />

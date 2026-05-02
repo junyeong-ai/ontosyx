@@ -32,7 +32,7 @@ export interface ReviewTOCEntry {
   unresolved: number;
 }
 
-export function ReviewTOC({
+export function ReviewToc({
   entries,
   className,
 }: {
@@ -48,8 +48,8 @@ export function ReviewTOC({
       aria-label={t("ariaLabel")}
       className={cn(
         "sticky top-0 z-10 -mx-2 flex flex-wrap items-center gap-1.5",
-        "border-b border-zinc-200 bg-white/95 px-2 py-1.5 backdrop-blur",
-        "dark:border-zinc-800 dark:bg-zinc-900/95",
+        "border-b border-divider bg-surface-base px-2 py-1.5 backdrop-blur",
+        "dark:border-divider",
         className,
       )}
     >
@@ -59,19 +59,19 @@ export function ReviewTOC({
           type="button"
           onClick={() => focusAnchor(entry.anchor)}
           className={cn(
-            "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+            "flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium transition-colors",
             entry.unresolved === 0
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-              : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
+              ? "border-brand-border bg-brand-surface text-brand-foreground hover:bg-brand-surface-strong/40-strong"
+              : "border-warning-border bg-warning-surface text-warning-foreground hover:bg-warning-surface/40",
           )}
         >
           <span>{t(`label.${entry.labelKey}`)}</span>
           {entry.unresolved > 0 ? (
-            <span className="rounded-full bg-amber-500/80 px-1 text-[9px] font-bold text-white">
+            <span className="rounded-full bg-warning-foreground px-1 text-2xs font-bold text-white">
               {entry.unresolved}
             </span>
           ) : (
-            <span className="rounded-full bg-emerald-500/80 px-1 text-[9px] font-bold text-white">
+            <span className="rounded-full bg-brand-solid/80 px-1 text-2xs font-bold text-white">
               ✓
             </span>
           )}
@@ -86,8 +86,8 @@ function focusAnchor(anchor: string): void {
   const el = document.getElementById(anchor);
   if (!el) return;
   el.scrollIntoView({ behavior: "smooth", block: "start" });
-  el.classList.add("ring-2", "ring-emerald-300", "ring-offset-2");
+  el.classList.add("ring-2", "ring-brand-foreground", "ring-offset-2");
   window.setTimeout(() => {
-    el.classList.remove("ring-2", "ring-emerald-300", "ring-offset-2");
+    el.classList.remove("ring-2", "ring-brand-foreground", "ring-offset-2");
   }, 1000);
 }

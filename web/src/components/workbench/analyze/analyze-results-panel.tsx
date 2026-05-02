@@ -10,8 +10,8 @@ import { useExecution } from "@/hooks/api/use-executions";
 import { Message01Icon } from "@hugeicons/core-free-icons";
 import { CopyButton } from "@/components/ui/copy-button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { WidgetRenderer } from "@/components/widgets/widget-renderer";
-import { ResponseBasis } from "@/components/widgets/response-basis";
+import { WidgetRenderer } from "@/components/dashboard/widgets/widget-renderer";
+import { ResponseBasis } from "@/components/dashboard/widgets/response-basis";
 import { SaveInsightDialog } from "@/components/workbench/insights/save-insight-dialog";
 import { toast } from "sonner";
 import { STEP_TIMING_LABELS } from "@/lib/constants/tool-meta";
@@ -68,8 +68,8 @@ export function AnalyzeResultsPanel() {
               key={i}
               className={`rounded-lg border px-4 py-2.5 text-xs ${
                 insight.type === "warning"
-                  ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
-                  : "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300"
+                  ? "border-warning-border bg-warning-surface text-warning-foreground"
+                  : "border-info-border bg-info-surface text-info-foreground dark:border-info-border dark:text-info-foreground"
               }`}
             >
               <span className="font-medium">{insight.label}: </span>
@@ -175,15 +175,15 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
   };
 
   return (
-    <div data-tool-id={toolCall.id} className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <div data-tool-id={toolCall.id} className="rounded-lg border border-divider bg-surface-base">
       {/* Header — consistent for all tool types */}
-      <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-4 py-2 dark:border-zinc-800">
-        <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+      <div className="flex items-center justify-between gap-3 border-b border-divider-soft px-4 py-2">
+        <span className="text-xs font-medium text-foreground">
           {toolCall.name}
         </span>
         <div className="flex shrink-0 items-center gap-2">
           {toolCall.durationMs != null && toolCall.durationMs > 0 && (
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {toolCall.durationMs < 100 ? "<0.1s" : `${(toolCall.durationMs / 1000).toFixed(1)}s`}
             </span>
           )}
@@ -191,7 +191,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
             <button
               onClick={() => setSaveInsightOpen(true)}
               disabled={saveState !== "ready"}
-              className="cursor-pointer rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-indigo-50 hover:text-indigo-600 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground dark:hover:bg-indigo-950 dark:hover:text-indigo-400"
+              className="cursor-pointer rounded px-1.5 py-0.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-concept-surface hover:text-concept-foreground disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground dark:hover:text-concept-foreground"
               title={tSave(`tooltip.${saveState}`)}
             >
               {tSave("label")}
@@ -199,7 +199,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
           )}
           <button
             onClick={() => setPinOpen(!pinOpen)}
-            className="cursor-pointer rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950 dark:hover:text-emerald-400"
+            className="cursor-pointer rounded px-1.5 py-0.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-brand-surface hover:text-brand-foreground dark:hover:bg-brand-surface dark:hover:text-brand-foreground"
             title="Pin to Dashboard"
           >
             Pin
@@ -223,7 +223,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
       )}
       {/* Step timings — populated from SSE progress events on toolCall.steps */}
       {toolCall.steps && toolCall.steps.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 pt-1 text-[10px] text-muted-foreground">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 pt-1 text-2xs text-muted-foreground">
           {toolCall.steps.map((st) => {
             const label = STEP_TIMING_LABELS[st.step] ?? st.step;
             const ms = st.durationMs ?? 0;
@@ -238,11 +238,11 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
 
       {/* Pin-to-dashboard inline form */}
       {pinOpen && (
-        <div className="flex items-center gap-2 border-b border-zinc-100 bg-zinc-50 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex items-center gap-2 border-b border-divider-soft bg-surface-raised px-4 py-2">
           <select
             value={selectedDashId}
             onChange={(e) => setSelectedDashId(e.target.value)}
-            className="h-7 rounded border border-zinc-200 bg-white px-2 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            className="h-7 rounded border border-divider bg-surface-base px-2 text-xs text-foreground-muted"
           >
             {dashboards.length === 0 && (
               <option value="">No dashboards</option>
@@ -258,18 +258,18 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
             value={widgetTitle}
             onChange={(e) => setWidgetTitle(e.target.value)}
             placeholder="Widget title"
-            className="h-7 flex-1 rounded border border-zinc-200 bg-white px-2 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            className="h-7 flex-1 rounded border border-divider bg-surface-base px-2 text-xs text-foreground-muted"
           />
           <button
             onClick={handlePin}
             disabled={!selectedDashId || isPinning}
-            className="h-7 rounded bg-emerald-600 px-3 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            className="h-7 rounded bg-brand-solid px-3 text-xs font-medium text-white transition-colors hover:bg-brand-solid disabled:opacity-50"
           >
             {isPinning ? "..." : "Confirm"}
           </button>
           <button
             onClick={() => setPinOpen(false)}
-            className="h-7 rounded px-2 text-xs text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+            className="h-7 rounded px-2 text-xs text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
           >
             Cancel
           </button>
@@ -369,11 +369,11 @@ function AnalysisResultBlock({
     <div className="space-y-2">
       {/* Metadata badges */}
       <div className="flex items-center gap-2">
-        <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${exitCode === 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
+        <span className={`rounded px-1.5 py-0.5 text-2xs font-medium ${exitCode === 0 ? "bg-success-surface text-success-foreground" : "bg-danger-surface text-danger-foreground"}`}>
           exit {exitCode}
         </span>
         {ms > 0 && (
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-2xs text-muted-foreground">
             {(ms / 1000).toFixed(1)}s
           </span>
         )}
@@ -381,14 +381,14 @@ function AnalysisResultBlock({
 
       {/* stderr warning */}
       {stderr && (
-        <pre className="rounded-md bg-red-950/30 p-2 text-xs text-red-400 leading-relaxed">
+        <pre className="rounded-md bg-danger-surface p-2 text-xs text-danger-foreground leading-relaxed">
           {stderr}
         </pre>
       )}
 
       {/* stdout content */}
       <div className="relative">
-        <pre className="max-h-80 overflow-auto rounded-md bg-zinc-900 p-3 text-xs text-emerald-400 leading-relaxed">
+        <pre className="max-h-80 overflow-auto rounded-md bg-surface-base p-3 text-xs text-brand-foreground leading-relaxed">
           {display}
           {!expanded && isLarge && (
             <span className="text-muted-foreground">{"\n... "}({formatted.length.toLocaleString()} chars)</span>
@@ -397,7 +397,7 @@ function AnalysisResultBlock({
         {isLarge && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="absolute bottom-2 right-2 rounded bg-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-600"
+            className="absolute bottom-2 right-2 rounded bg-surface-base px-2 py-0.5 text-2xs text-foreground-muted hover:bg-surface-base"
           >
             {expanded ? "Collapse" : "Expand"}
           </button>
@@ -426,7 +426,7 @@ function JsonPreview({ raw }: { raw?: string }) {
 
   return (
     <div className="relative">
-      <pre className="max-h-80 overflow-auto rounded-md bg-zinc-900 p-3 text-xs text-emerald-400 leading-relaxed">
+      <pre className="max-h-80 overflow-auto rounded-md bg-surface-base p-3 text-xs text-brand-foreground leading-relaxed">
         {display}
         {!expanded && isLarge && (
           <span className="text-muted-foreground">{"\n... "}({formatted.length.toLocaleString()} chars)</span>
@@ -435,7 +435,7 @@ function JsonPreview({ raw }: { raw?: string }) {
       {isLarge && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="absolute bottom-2 right-2 rounded bg-zinc-700 px-2 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-600"
+          className="absolute bottom-2 right-2 rounded bg-surface-base px-2 py-0.5 text-2xs text-foreground-muted hover:bg-surface-base"
         >
           {expanded ? "Collapse" : "Expand"}
         </button>
@@ -584,7 +584,7 @@ function QueryBlock({ query }: { query: string }) {
   return (
     <div className="group/qb relative">
       <code
-        className="block max-h-20 overflow-auto rounded bg-zinc-900 px-2 py-1.5 pr-8 text-[11px] font-mono leading-relaxed text-zinc-300"
+        className="block max-h-20 overflow-auto rounded bg-surface-base px-2 py-1.5 pr-8 text-[11px] font-mono leading-relaxed text-foreground-muted"
         dangerouslySetInnerHTML={{ __html: highlightCypher(query) }}
       />
       <div className="opacity-0 group-hover/qb:opacity-100 transition-opacity">
@@ -618,17 +618,17 @@ function MemoryHitsList({ raw }: { raw?: string }) {
       {hits.map((hit, i) => (
         <div
           key={i}
-          className="rounded border-l-2 border-amber-400 bg-zinc-50 py-1.5 pl-3 pr-2 dark:bg-zinc-900"
+          className="rounded border-l-2 border-warning-border bg-surface-raised py-1.5 pl-3 pr-2"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+            <span className="text-2xs font-medium text-warning-foreground">
               {hit.source}
             </span>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {(hit.score * 100).toFixed(0)}% match
             </span>
           </div>
-          <p className="mt-0.5 text-xs text-zinc-700 line-clamp-2 dark:text-zinc-300">
+          <p className="mt-0.5 text-xs text-foreground line-clamp-2-muted">
             {hit.content}
           </p>
         </div>

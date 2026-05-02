@@ -44,7 +44,7 @@ export function ChangeLogFacet({ ontology, entity, kind }: ChangeLogFacetProps) 
   }
   if (audit.isError) {
     return (
-      <p className="text-[11px] text-rose-600 dark:text-rose-400">
+      <p className="text-[11px] text-danger-foreground dark:text-danger-foreground">
         {t("loadError")}
       </p>
     );
@@ -62,16 +62,16 @@ export function ChangeLogFacet({ ontology, entity, kind }: ChangeLogFacetProps) 
       {records.map((row, idx) => (
         <li
           key={`${row.at_time}-${idx}`}
-          className="flex items-start gap-3 rounded border border-zinc-100 bg-zinc-50/40 px-3 py-2 dark:border-zinc-800/60 dark:bg-zinc-900/40"
+          className="flex items-start gap-3 rounded border border-divider-soft bg-surface-raised px-3 py-2"
         >
-          <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+          <span className="shrink-0 font-mono text-2xs text-muted-foreground">
             {formatRelative(row.at_time)}
           </span>
           <span className="flex flex-1 flex-col gap-0.5">
-            <span className="text-[11px] text-zinc-700 dark:text-zinc-200">
+            <span className="text-[11px] text-foreground-strong">
               {row.summary}
             </span>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {row.agent}
             </span>
           </span>
@@ -83,7 +83,7 @@ export function ChangeLogFacet({ ontology, entity, kind }: ChangeLogFacetProps) 
             type="button"
             onClick={() => audit.fetchNextPage()}
             disabled={audit.isFetchingNextPage}
-            className="text-[11px] text-violet-600 hover:underline disabled:opacity-50 dark:text-violet-400"
+            className="text-[11px] text-concept-foreground hover:underline disabled:opacity-50"
           >
             {audit.isFetchingNextPage ? t("loadingMore") : t("loadMore")}
           </button>

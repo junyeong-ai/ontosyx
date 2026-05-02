@@ -126,7 +126,7 @@ export function CodeEditor({
   return (
     <div
       ref={containerRef}
-      className="overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700"
+      className="overflow-hidden rounded-md border border-divider"
       style={{ height }}
     />
   );

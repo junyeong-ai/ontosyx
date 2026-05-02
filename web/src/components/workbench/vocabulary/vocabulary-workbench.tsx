@@ -45,10 +45,10 @@ export function VocabularyWorkbench() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-white dark:bg-zinc-950">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+    <div className="flex h-full flex-col overflow-hidden bg-white dark:bg-surface-base">
+      <header className="flex items-center justify-between border-b border-divider-soft px-4 py-3 dark:border-divider">
         <div>
-          <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          <h1 className="text-sm font-semibold text-foreground-strong dark:text-foreground">
             {t("heading")}
           </h1>
           <p className="text-[11px] text-muted-foreground">{t("subtitle")}</p>
@@ -56,7 +56,7 @@ export function VocabularyWorkbench() {
       </header>
       <nav
         aria-label={t("tabsAria")}
-        className="flex shrink-0 gap-1 border-b border-zinc-200 px-4 dark:border-zinc-800"
+        className="flex shrink-0 gap-1 border-b border-divider-soft px-4 dark:border-divider"
       >
         {TABS.map((k) => (
           <button
@@ -66,13 +66,13 @@ export function VocabularyWorkbench() {
             aria-pressed={tab === k}
             className={`relative px-3 py-2 text-xs font-medium ${
               tab === k
-                ? "text-violet-700 dark:text-violet-400"
-                : "text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300"
+                ? "text-concept-foreground dark:text-concept-foreground"
+                : "text-muted-foreground hover:text-foreground-strong dark:hover:text-muted-foreground"
             }`}
           >
             {t(`tabs.${k}`)}
             {tab === k && (
-              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-violet-500" />
+              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-concept-foreground" />
             )}
           </button>
         ))}

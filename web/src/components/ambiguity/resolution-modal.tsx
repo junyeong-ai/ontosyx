@@ -126,14 +126,14 @@ export function ResolutionModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="ambiguity-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-surface-base/40 p-4 backdrop-blur-sm"
     >
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-950">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-divider bg-surface-base shadow-xl">
         {/* Header */}
-        <header className="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
+        <header className="border-b border-divider px-5 py-3">
           <h2
             id="ambiguity-modal-title"
-            className="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+            className="text-sm font-semibold text-foreground-strong"
           >
             {t("title", {
               relation: context.column.relation,
@@ -154,8 +154,8 @@ export function ResolutionModal({
                 key={m}
                 className={`cursor-pointer rounded border px-3 py-1.5 ${
                   mode === m
-                    ? "border-violet-500 bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
-                    : "border-zinc-200 bg-white text-muted-foreground hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                    ? "border-concept-foreground bg-concept-surface text-concept-foreground"
+                    : "border-divider bg-surface-base text-muted-foreground hover:bg-surface-raised dark:hover:bg-surface-base"
                 }`}
               >
                 <input
@@ -178,7 +178,7 @@ export function ResolutionModal({
             <div className="space-y-1">
               <label
                 htmlFor="code-system-id"
-                className="block text-[11px] font-medium text-zinc-700 dark:text-zinc-300"
+                className="block text-[11px] font-medium text-foreground"
               >
                 {t("codeSystemIdLabel")}
               </label>
@@ -187,9 +187,9 @@ export function ResolutionModal({
                 value={codeSystemId}
                 onChange={(e) => setCodeSystemId(e.target.value)}
                 placeholder="cs-order-status"
-                className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+                className="w-full rounded border border-divider bg-surface-base px-2 py-1.5 text-xs dark:border-divider"
               />
-              <p className="mt-1 text-[10px] text-muted-foreground">
+              <p className="mt-1 text-2xs text-muted-foreground">
                 {t("codeSystemHint")}
               </p>
             </div>
@@ -198,7 +198,7 @@ export function ResolutionModal({
             <div className="space-y-1">
               <label
                 htmlFor="term-id"
-                className="block text-[11px] font-medium text-zinc-700 dark:text-zinc-300"
+                className="block text-[11px] font-medium text-foreground"
               >
                 {t("termIdLabel")}
               </label>
@@ -207,23 +207,23 @@ export function ResolutionModal({
                 value={termId}
                 onChange={(e) => setTermId(e.target.value)}
                 placeholder="g-vip-tier"
-                className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+                className="w-full rounded border border-divider bg-surface-base px-2 py-1.5 text-xs dark:border-divider"
               />
-              <p className="mt-1 text-[10px] text-muted-foreground">
+              <p className="mt-1 text-2xs text-muted-foreground">
                 {t("termHint")}
               </p>
             </div>
           )}
 
           {context.repo_hint && (
-            <aside className="mt-4 rounded border border-amber-200 bg-amber-50 p-2 text-[11px] dark:border-amber-900 dark:bg-amber-950/30">
-              <p className="font-medium text-amber-700 dark:text-amber-400">
+            <aside className="mt-4 rounded border border-warning-border bg-warning-surface p-2 text-2xs">
+              <p className="font-medium text-warning-foreground">
                 {t("repoHintLabel")}
               </p>
               <p className="mt-0.5 text-muted-foreground">
                 {context.repo_hint.source_file}
               </p>
-              <pre className="mt-1 whitespace-pre-wrap font-mono text-[10px]">
+              <pre className="mt-1 whitespace-pre-wrap font-mono text-2xs">
                 {context.repo_hint.suggested_values}
               </pre>
             </aside>
@@ -231,11 +231,11 @@ export function ResolutionModal({
         </div>
 
         {/* Footer */}
-        <footer className="flex items-center justify-end gap-2 border-t border-zinc-200 px-5 py-3 dark:border-zinc-800">
+        <footer className="flex items-center justify-end gap-2 border-t border-divider px-5 py-3">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-surface-inset dark:hover:bg-surface-base"
           >
             {t("cancel")}
           </button>
@@ -243,7 +243,7 @@ export function ResolutionModal({
             type="button"
             onClick={handleSubmit}
             disabled={busy}
-            className="rounded bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+            className="rounded bg-concept-foreground px-3 py-1.5 text-xs font-medium text-white hover:bg-concept-foreground disabled:opacity-50"
           >
             {busy ? t("saving") : t("save")}
           </button>
@@ -263,7 +263,7 @@ function ValueMapEditor({
   const t = useTranslations("settings.ambiguity.modal");
   return (
     <div className="space-y-1.5">
-      <div className="grid grid-cols-[1fr_1fr_2fr_24px] gap-2 text-[10px] font-medium text-muted-foreground">
+      <div className="grid grid-cols-[1fr_1fr_2fr_24px] gap-2 text-2xs font-medium text-muted-foreground">
         <span>{t("valueHeader")}</span>
         <span>{t("displayHeader")}</span>
         <span>{t("definitionHeader")}</span>
@@ -282,7 +282,7 @@ function ValueMapEditor({
               next[idx] = { ...e, value: ev.target.value };
               onChange(next);
             }}
-            className="rounded border border-zinc-300 bg-white px-1.5 py-1 dark:border-zinc-600 dark:bg-zinc-900"
+            className="rounded border border-divider bg-surface-base px-1.5 py-1 dark:border-divider"
           />
           <input
             aria-label={t("displayInput", { index: idx + 1 })}
@@ -292,7 +292,7 @@ function ValueMapEditor({
               next[idx] = { ...e, display: ev.target.value };
               onChange(next);
             }}
-            className="rounded border border-zinc-300 bg-white px-1.5 py-1 dark:border-zinc-600 dark:bg-zinc-900"
+            className="rounded border border-divider bg-surface-base px-1.5 py-1 dark:border-divider"
           />
           <input
             aria-label={t("definitionInput", { index: idx + 1 })}
@@ -302,13 +302,13 @@ function ValueMapEditor({
               next[idx] = { ...e, definition: ev.target.value };
               onChange(next);
             }}
-            className="rounded border border-zinc-300 bg-white px-1.5 py-1 dark:border-zinc-600 dark:bg-zinc-900"
+            className="rounded border border-divider bg-surface-base px-1.5 py-1 dark:border-divider"
           />
           <button
             type="button"
             onClick={() => onChange(entries.filter((_, i) => i !== idx))}
             aria-label={t("removeRow", { index: idx + 1 })}
-            className="rounded text-muted-foreground hover:text-rose-500"
+            className="rounded text-muted-foreground hover:text-danger-foreground"
           >
             ×
           </button>
@@ -319,7 +319,7 @@ function ValueMapEditor({
         onClick={() =>
           onChange([...entries, { value: "", display: "", definition: "" }])
         }
-        className="text-[10px] text-violet-600 hover:underline dark:text-violet-400"
+        className="text-2xs text-concept-foreground hover:underline"
       >
         + {t("addRow")}
       </button>

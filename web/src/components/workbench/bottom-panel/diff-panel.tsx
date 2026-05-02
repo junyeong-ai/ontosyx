@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
 import type {
   OntologyDiff,
   NodeDiffEntry,
@@ -15,7 +16,7 @@ import type {
 } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
 import { localizePresent } from "@/lib/locale/localize";
-import { useLocaleChain } from "@/lib/use-locale-chain";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 
 type DiffTranslator = ReturnType<typeof useTranslations<"workbench.bottomPanel.diff">>;
 
@@ -40,35 +41,35 @@ export function DiffPanel({
 
   if (summary.total_changes === 0) {
     return (
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-900/50">
+      <Card variant="inset" padding="sm" className="text-xs">
         <div className="flex items-center justify-between">
-          <h4 className="font-semibold text-zinc-700 dark:text-zinc-300">
+          <h4 className="font-semibold text-foreground">
             {t("noChanges")}
           </h4>
           <button
             onClick={onDismiss}
-            className="text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+            className="text-foreground-muted hover:text-foreground"
           >
             &times;
           </button>
         </div>
-        <p className="mt-1 text-zinc-500 dark:text-muted-foreground">
+        <p className="mt-1 text-foreground-muted">
           {t("noChangesDescription", { baseLabel, targetLabel })}
         </p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-3 text-xs dark:border-zinc-700 dark:bg-zinc-900">
+    <Card padding="sm" className="text-xs">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h4 className="font-semibold text-zinc-700 dark:text-zinc-300">
+        <h4 className="font-semibold text-foreground">
           {t("heading", { baseLabel, targetLabel })}
         </h4>
         <button
           onClick={onDismiss}
-          className="text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+          className="text-foreground-muted hover:text-foreground"
         >
           &times;
         </button>
@@ -152,7 +153,7 @@ export function DiffPanel({
           </DiffSection>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -164,10 +165,10 @@ function SummaryBadge({ color, label }: { color: "emerald" | "red" | "amber"; la
   return (
     <span
       className={cn(
-        "rounded px-1.5 py-0.5 text-[10px] font-semibold",
-        color === "emerald" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-        color === "red" && "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300",
-        color === "amber" && "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+        "rounded px-1.5 py-0.5 text-2xs font-semibold",
+        color === "emerald" && "bg-brand-surface-strong text-brand-foreground-strong",
+        color === "red" && "bg-danger-surface text-danger-foreground",
+        color === "amber" && "bg-warning-surface text-warning-foreground",
       )}
     >
       {label}
@@ -190,18 +191,18 @@ function DiffSection({
     <div
       className={cn(
         "rounded border p-2",
-        color === "emerald" && "border-emerald-200 dark:border-emerald-900/60",
-        color === "red" && "border-red-200 dark:border-red-900/60",
-        color === "amber" && "border-amber-200 dark:border-amber-900/60",
+        color === "emerald" && "border-brand-border/60",
+        color === "red" && "border-danger-border/60",
+        color === "amber" && "border-warning-border/60",
       )}
     >
       <button
         onClick={() => setOpen(!open)}
         className={cn(
           "flex w-full items-center gap-1 text-left text-[11px] font-semibold",
-          color === "emerald" && "text-emerald-700 dark:text-emerald-400",
-          color === "red" && "text-red-700 dark:text-red-400",
-          color === "amber" && "text-amber-700 dark:text-amber-400",
+          color === "emerald" && "text-brand-foreground",
+          color === "red" && "text-danger-foreground",
+          color === "amber" && "text-warning-foreground",
         )}
       >
         <span className="select-none">{open ? "\u25BE" : "\u25B8"}</span>
@@ -214,8 +215,8 @@ function DiffSection({
 
 function AddedNodeItem({ node, t }: { node: NodeTypeDef; t: DiffTranslator }) {
   return (
-    <div className="rounded bg-emerald-50/50 px-2 py-1 dark:bg-emerald-950/20">
-      <span className="font-medium text-emerald-700 dark:text-emerald-300">
+    <div className="rounded bg-brand-surface px-2 py-1">
+      <span className="font-medium text-brand-foreground-strong">
         + {node.label}
       </span>
       {arr(node.properties).length > 0 && (
@@ -229,8 +230,8 @@ function AddedNodeItem({ node, t }: { node: NodeTypeDef; t: DiffTranslator }) {
 
 function RemovedNodeItem({ node, t }: { node: NodeTypeDef; t: DiffTranslator }) {
   return (
-    <div className="rounded bg-red-50/50 px-2 py-1 dark:bg-red-950/20">
-      <span className="font-medium text-red-700 dark:text-red-300">
+    <div className="rounded bg-danger-surface px-2 py-1">
+      <span className="font-medium text-danger-foreground">
         - {node.label}
       </span>
       {arr(node.properties).length > 0 && (
@@ -254,13 +255,13 @@ function ModifiedNodeItem({
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="rounded bg-amber-50/50 px-2 py-1 dark:bg-amber-950/20">
+    <div className="rounded bg-warning-surface px-2 py-1">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="flex w-full items-center gap-1 text-left"
       >
         <span className="select-none text-muted-foreground">{isExpanded ? "\u25BE" : "\u25B8"}</span>
-        <span className="font-medium text-amber-700 dark:text-amber-300">
+        <span className="font-medium text-warning-foreground">
           ~ {node.label}
         </span>
         <span className="ml-1 text-muted-foreground">
@@ -306,20 +307,20 @@ function NodeChangeItem({
       );
     case "property_added":
       return (
-        <div className="text-emerald-700 dark:text-emerald-400">
+        <div className="text-brand-foreground">
           + {t("propertyLabel")}: <span className="font-medium">{change.property.name}</span>
         </div>
       );
     case "property_removed":
       return (
-        <div className="text-red-600 dark:text-red-400">
+        <div className="text-danger-foreground">
           - {t("propertyLabel")}: <span className="font-medium">{change.property.name}</span>
         </div>
       );
     case "property_modified":
       return (
         <div>
-          <span className="text-amber-600 dark:text-amber-400">
+          <span className="text-warning-foreground">
             ~ {t("propertyLabel")}: <span className="font-medium">{change.property_name}</span>
           </span>
           <div className="ml-3 space-y-0.5">
@@ -331,13 +332,13 @@ function NodeChangeItem({
       );
     case "constraint_added":
       return (
-        <div className="text-emerald-700 dark:text-emerald-400">
+        <div className="text-brand-foreground">
           + {t("constraintLabel")}: <span className="font-mono">{change.constraint}</span>
         </div>
       );
     case "constraint_removed":
       return (
-        <div className="text-red-600 dark:text-red-400">
+        <div className="text-danger-foreground">
           - {t("constraintLabel")}: <span className="font-mono">{change.constraint}</span>
         </div>
       );
@@ -346,8 +347,8 @@ function NodeChangeItem({
 
 function AddedEdgeItem({ edge }: { edge: EdgeTypeDef }) {
   return (
-    <div className="rounded bg-emerald-50/50 px-2 py-1 dark:bg-emerald-950/20">
-      <span className="font-medium text-emerald-700 dark:text-emerald-300">
+    <div className="rounded bg-brand-surface px-2 py-1">
+      <span className="font-medium text-brand-foreground-strong">
         + {edge.label}
       </span>
       <span className="ml-1.5 text-muted-foreground">
@@ -359,8 +360,8 @@ function AddedEdgeItem({ edge }: { edge: EdgeTypeDef }) {
 
 function RemovedEdgeItem({ edge }: { edge: EdgeTypeDef }) {
   return (
-    <div className="rounded bg-red-50/50 px-2 py-1 dark:bg-red-950/20">
-      <span className="font-medium text-red-700 dark:text-red-300">
+    <div className="rounded bg-danger-surface px-2 py-1">
+      <span className="font-medium text-danger-foreground">
         - {edge.label}
       </span>
       <span className="ml-1.5 text-muted-foreground">
@@ -382,13 +383,13 @@ function ModifiedEdgeItem({
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="rounded bg-amber-50/50 px-2 py-1 dark:bg-amber-950/20">
+    <div className="rounded bg-warning-surface px-2 py-1">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="flex w-full items-center gap-1 text-left"
       >
         <span className="select-none text-muted-foreground">{isExpanded ? "\u25BE" : "\u25B8"}</span>
-        <span className="font-medium text-amber-700 dark:text-amber-300">
+        <span className="font-medium text-warning-foreground">
           ~ {edge.label}
         </span>
         <span className="ml-1 text-muted-foreground">
@@ -434,20 +435,20 @@ function EdgeChangeItem({
       return <ChangeRow label={t("cardinalityTxt")} old={change.old} new_val={change.new} />;
     case "property_added":
       return (
-        <div className="text-emerald-700 dark:text-emerald-400">
+        <div className="text-brand-foreground">
           + {t("propertyLabel")}: <span className="font-medium">{change.property.name}</span>
         </div>
       );
     case "property_removed":
       return (
-        <div className="text-red-600 dark:text-red-400">
+        <div className="text-danger-foreground">
           - {t("propertyLabel")}: <span className="font-medium">{change.property.name}</span>
         </div>
       );
     case "property_modified":
       return (
         <div>
-          <span className="text-amber-600 dark:text-amber-400">
+          <span className="text-warning-foreground">
             ~ {t("propertyLabel")}: <span className="font-medium">{change.property_name}</span>
           </span>
           <div className="ml-3 space-y-0.5">
@@ -509,11 +510,11 @@ function ChangeRow({
   new_val: string;
 }) {
   return (
-    <div className="flex items-baseline gap-1 text-zinc-600 dark:text-muted-foreground">
+    <div className="flex items-baseline gap-1 text-foreground dark:text-muted-foreground">
       <span className="font-medium text-muted-foreground">{label}:</span>
-      <span className="line-through text-red-500/70 dark:text-red-400/70">{old}</span>
-      <span className="text-muted-foreground dark:text-zinc-600">&rarr;</span>
-      <span className="text-emerald-700 dark:text-emerald-400">{new_val}</span>
+      <span className="line-through text-danger-foreground/70">{old}</span>
+      <span className="text-muted-foreground">&rarr;</span>
+      <span className="text-brand-foreground">{new_val}</span>
     </div>
   );
 }

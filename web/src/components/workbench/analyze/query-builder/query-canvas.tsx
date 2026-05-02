@@ -26,8 +26,8 @@ import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
 import { ContextMenu, type ContextMenuItem } from "@/components/workbench/canvas/context-menu";
 import { GraphCanvas } from "@/components/workbench/canvas/graph-canvas";
-import { useGraphInteractions } from "@/lib/use-graph-interactions";
-import type { GraphContextMenuTarget } from "@/lib/use-graph-context-menu";
+import { useGraphInteractions } from "@/hooks/use-graph-interactions";
+import type { GraphContextMenuTarget } from "@/hooks/use-graph-context-menu";
 import type { PatternNode, PatternEdge } from "./ir-builder";
 
 // ---------------------------------------------------------------------------
@@ -78,22 +78,22 @@ function QueryNodeRenderer({ data }: NodeProps & { data: QueryNodeData }) {
   // node with a validation issue still advertises the problem; the
   // secondary outline (ring) keeps the selection cue visible.
   const borderClass = data.hasError
-    ? "border-red-500 bg-red-50 dark:border-red-500 dark:bg-red-950/30"
+    ? "border-danger-border bg-danger-surface/30"
     : data.selected
-      ? "border-emerald-500 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/30"
-      : "border-zinc-200 hover:border-emerald-300 dark:border-zinc-700 dark:hover:border-emerald-700";
+      ? "border-brand-foreground bg-brand-surface dark:border-brand-foreground"
+      : "border-divider hover:border-brand-border dark:hover:border-brand-border";
 
   return (
     <div
-      className={`group/node relative cursor-pointer rounded-xl border-2 bg-white px-4 py-3 text-left shadow-sm transition-all dark:bg-zinc-800 ${borderClass} ${
+      className={`group/node relative cursor-pointer rounded-xl border-2 bg-surface-base px-4 py-3 text-left shadow-sm transition-all ${borderClass} ${
         data.hasError && data.selected
-          ? "ring-2 ring-emerald-400/60 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900"
+          ? "ring-2 ring-brand-foreground/60 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900"
           : ""
       }`}
       aria-invalid={data.hasError || undefined}
     >
-      <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-zinc-400 !bg-white" />
-      <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-zinc-400 !bg-white" />
+      <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-divider !bg-surface-base" />
+      <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-divider !bg-surface-base" />
       <button
         type="button"
         onClick={(e) => {
@@ -101,21 +101,21 @@ function QueryNodeRenderer({ data }: NodeProps & { data: QueryNodeData }) {
           data.onRemove();
         }}
         aria-label={data.i18n.removeAria}
-        className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white shadow-sm group-hover/node:flex"
+        className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-danger-solid text-2xs text-white shadow-sm group-hover/node:flex"
         title={data.i18n.removeTitle}
       >
         &times;
       </button>
       <div className="flex items-center gap-2">
-        <div className="h-3 w-3 shrink-0 rounded-full bg-blue-400 dark:bg-blue-500" />
-        <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+        <div className="h-3 w-3 shrink-0 rounded-full bg-info-foreground dark:bg-info-foreground" />
+        <span className="text-xs font-semibold text-foreground-strong">
           {data.label}
         </span>
       </div>
-      <div className="mt-1 text-[10px] text-muted-foreground">
+      <div className="mt-1 text-2xs text-muted-foreground">
         {data.i18n.meta}
         {data.filterCount > 0 && (
-          <span className="ml-1 text-amber-500">{data.i18n.filters}</span>
+          <span className="ml-1 text-warning-foreground">{data.i18n.filters}</span>
         )}
       </div>
     </div>
@@ -170,17 +170,17 @@ function QueryEdgeRenderer(props: EdgeProps) {
         <div
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           aria-invalid={hasError || undefined}
-          className={`group/edge pointer-events-auto absolute flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
+          className={`group/edge pointer-events-auto absolute flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium transition-colors ${
             hasError
-              ? "border-red-400 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/30 dark:text-red-300"
+              ? "border-danger-border bg-danger-surface text-danger-foreground"
               : selected
-                ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
-                : "border-zinc-300 bg-white text-zinc-500 hover:border-amber-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground"
+                ? "border-warning-border bg-warning-surface text-warning-foreground"
+                : "border-divider bg-surface-base text-foreground-muted hover:border-warning-border dark:border-divider dark:text-muted-foreground"
           }`}
         >
           <span>{data?.relType}</span>
           {data?.filterCount ? (
-            <span className="text-amber-500">&middot; {data.filterCount}</span>
+            <span className="text-warning-foreground">&middot; {data.filterCount}</span>
           ) : null}
           <button
             type="button"
@@ -189,7 +189,7 @@ function QueryEdgeRenderer(props: EdgeProps) {
               data?.onRemove();
             }}
             aria-label={data?.i18n.removeAria ?? ""}
-            className="ml-0.5 hidden text-muted-foreground hover:text-red-500 group-hover/edge:inline dark:hover:text-red-400"
+            className="ml-0.5 hidden text-muted-foreground hover:text-danger-foreground group-hover/edge:inline dark:hover:text-danger-foreground"
             title={data?.i18n.removeTitle ?? ""}
           >
             &times;
@@ -512,9 +512,9 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
         ref={wrapperRef}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
-        className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-zinc-200 p-8 text-center dark:border-zinc-700"
+        className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-divider p-8 text-center"
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-inset">
           <svg
             className="h-5 w-5 text-muted-foreground"
             fill="none"
@@ -525,7 +525,7 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
             <path d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
         </div>
-        <p className="text-sm font-medium text-zinc-600 dark:text-muted-foreground">
+        <p className="text-sm font-medium text-foreground dark:text-muted-foreground">
           {t("emptyTitle")}
         </p>
         <p className="text-xs text-muted-foreground">
@@ -540,7 +540,7 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
       ref={wrapperRef}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-      className="relative h-full overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
+      className="relative h-full overflow-hidden rounded-lg border border-divider"
     >
       <GraphCanvas
         nodes={flowNodes}
@@ -554,7 +554,7 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
         nodeTypes={nodeTypesRegistry}
         edgeTypes={edgeTypesRegistry}
         minZoom={0.2}
-        className="bg-zinc-50/50 dark:bg-zinc-900/50"
+        className="bg-surface-raised/50"
       />
       {contextMenu.state && contextMenuItems.length > 0 && (
         <ContextMenu

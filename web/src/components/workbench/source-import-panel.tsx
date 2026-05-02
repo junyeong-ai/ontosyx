@@ -89,8 +89,8 @@ export function SourceImportPanel({ source, value, onChange }: Props) {
             key={m}
             className={`cursor-pointer rounded border px-3 py-3 text-xs ${
               value.mode === m
-                ? "border-violet-500 bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
-                : "border-zinc-200 bg-white text-muted-foreground hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                ? "border-concept-foreground bg-concept-surface text-concept-foreground"
+                : "border-divider bg-surface-base text-muted-foreground hover:bg-surface-raised dark:hover:bg-surface-base"
             }`}
           >
             <input
@@ -102,7 +102,7 @@ export function SourceImportPanel({ source, value, onChange }: Props) {
               className="sr-only"
             />
             <p className="font-medium">{t(`modes.${m}.label`)}</p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">
+            <p className="mt-0.5 text-2xs text-muted-foreground">
               {t(`modes.${m}.hint`)}
             </p>
           </label>
@@ -112,7 +112,7 @@ export function SourceImportPanel({ source, value, onChange }: Props) {
       {(value.mode === "subset" || value.mode === "staged") && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+            <p className="text-xs font-medium text-foreground">
               {tables
                 ? t("selectionSummary", {
                     selected: value.selectedTables.length,
@@ -147,35 +147,35 @@ export function SourceImportPanel({ source, value, onChange }: Props) {
           )}
 
           {error && (
-            <p className="rounded border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+            <p className="rounded border border-danger-border bg-danger-surface p-3 text-xs text-danger-foreground dark:border-danger-border dark:text-danger-foreground">
               {t("error", { error })}
             </p>
           )}
 
           {tables && tables.length === 0 && (
-            <p className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+            <p className="rounded border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground">
               {t("emptyTables")}
             </p>
           )}
 
           {tables && tables.length > 0 && (
-            <ul className="max-h-96 overflow-y-auto rounded border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+            <ul className="max-h-96 overflow-y-auto rounded border border-divider bg-surface-base">
               {tables.map((row) => (
                 <li
                   key={row.name}
-                  className="border-b border-zinc-100 last:border-b-0 dark:border-zinc-800"
+                  className="border-b border-divider-soft last:border-b-0"
                 >
-                  <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-surface-raised dark:hover:bg-surface-base/50">
                     <input
                       type="checkbox"
                       checked={selectedSet.has(row.name)}
                       onChange={() => toggleTable(row.name)}
-                      className="h-3.5 w-3.5 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+                      className="h-3.5 w-3.5 rounded border-divider text-brand-foreground focus:ring-brand-foreground"
                     />
-                    <span className="font-mono text-xs text-zinc-900 dark:text-zinc-100">
+                    <span className="font-mono text-xs text-foreground-strong">
                       {row.name}
                     </span>
-                    <span className="ml-auto flex items-center gap-2 text-[10px] text-zinc-500 dark:text-zinc-500">
+                    <span className="ml-auto flex items-center gap-2 text-2xs text-foreground-subtle">
                       <span>{t("columnCount", { count: row.column_count })}</span>
                       {row.estimated_row_count !== null && (
                         <span>

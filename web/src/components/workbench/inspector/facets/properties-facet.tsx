@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { useAppStore } from "@/lib/store";
 import { Tooltip } from "@/components/ui/tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
 import { arr } from "@/lib/ir-collections";
 import type {
   EdgeTypeDef,
@@ -16,7 +17,7 @@ import type {
   PropertyPatch,
 } from "@/types/api";
 
-import { AddPropertyForm, PropertyRow } from "../property-editor";
+import { PropertyEditor, PropertyRow } from "../property-editor";
 import { AiAssistButton, AiSuggestionList, useAiEdit } from "../ai-suggestions";
 
 // ---------------------------------------------------------------------------
@@ -90,7 +91,7 @@ export function PropertiesFacet({
             <button
               type="button"
               onClick={() => setAdding(true)}
-              className="inline-flex items-center gap-1 rounded border border-dashed border-zinc-300 px-2 py-1 text-[11px] text-muted-foreground hover:border-emerald-300 hover:text-emerald-600 dark:border-zinc-700 dark:hover:border-emerald-700 dark:hover:text-emerald-400"
+              className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-[11px] text-muted-foreground hover:border-brand-border hover:text-brand-foreground dark:hover:border-brand-border dark:hover:text-brand-foreground"
             >
               <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
               {t("addAction")}
@@ -106,17 +107,15 @@ export function PropertiesFacet({
         />
       )}
       {adding && (
-        <AddPropertyForm
+        <PropertyEditor
           ownerId={entity.id}
           onClose={() => setAdding(false)}
         />
       )}
       {properties.length === 0 && !adding ? (
-        <p className="text-[11px] italic text-muted-foreground">
-          {t("emptyState")}
-        </p>
+        <EmptyState size="sm" title={t("emptyState")} />
       ) : (
-        <ul className="divide-y divide-zinc-100 rounded border border-zinc-100 dark:divide-zinc-800/60 dark:border-zinc-800/60">
+        <ul className="divide-y divide-divider-soft rounded border border-divider-soft">
           {properties.map((prop) => (
             <li key={prop.id}>
               <PropertyRow

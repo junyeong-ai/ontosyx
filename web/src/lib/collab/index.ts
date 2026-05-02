@@ -22,6 +22,8 @@ export {
   useCollabStore,
 } from "./store";
 export { useNetworkAwareness, useVisibilityAwareness } from "./network-awareness";
+export { classifyError, isReauthCode } from "./error-classification";
+export type { ErrorSurface } from "./error-classification";
 export type { CollabState, RoomState } from "./store";
 export { clearCollabClient, useCollab, useCollabRoom } from "./hooks";
 export type { UseCollabOptions } from "./hooks";

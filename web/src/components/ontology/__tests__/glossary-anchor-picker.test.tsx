@@ -6,7 +6,7 @@ import enMessages from "../../../../messages/en.json";
 import { GlossaryAnchorPicker } from "@/components/ontology/glossary-anchor-picker";
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
 
-vi.mock("@/lib/use-locale-chain", () => ({
+vi.mock("@/hooks/use-locale-chain", () => ({
   useLocaleChain: () => ["en", "ko"],
 }));
 

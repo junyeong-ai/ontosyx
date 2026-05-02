@@ -32,16 +32,16 @@ export default function BootstrapLayout({
 
   return (
     <BootstrapProvider>
-      <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
-        <aside className="flex w-64 flex-col border-r border-zinc-200 bg-white px-5 py-6 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="flex min-h-screen bg-surface-raised">
+        <aside className="flex w-64 flex-col border-r border-divider bg-surface-base px-5 py-6">
           <Link
             href="/"
-            className="mb-6 text-xs font-medium text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300"
+            className="mb-6 text-xs font-medium text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
           >
             ← {t("exit")}
           </Link>
 
-          <h1 className="mb-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          <h1 className="mb-1 text-sm font-semibold text-foreground-strong">
             {t("title")}
           </h1>
           <p className="mb-6 text-xs text-muted-foreground">
@@ -58,20 +58,20 @@ export default function BootstrapLayout({
                     href={step.path}
                     className={`flex items-start gap-3 rounded px-2 py-2 ${
                       active
-                        ? "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+                        ? "bg-concept-surface text-concept-foreground"
                         : done
-                          ? "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                          : "text-muted-foreground hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                          ? "text-foreground hover:bg-surface-inset-muted"
+                          : "text-muted-foreground hover:bg-surface-raised"
                     }`}
                   >
                     <span
                       aria-hidden
-                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${
+                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-2xs font-semibold ${
                         done
-                          ? "border-emerald-500 bg-emerald-500 text-white"
+                          ? "border-brand-foreground bg-brand-solid text-white"
                           : active
-                            ? "border-violet-500 bg-violet-500 text-white"
-                            : "border-zinc-300 text-muted-foreground dark:border-zinc-700"
+                            ? "border-concept-foreground bg-concept-foreground text-white"
+                            : "border-divider text-muted-foreground"
                       }`}
                     >
                       {done ? "✓" : idx + 1}
@@ -80,7 +80,7 @@ export default function BootstrapLayout({
                       <p className="font-medium">
                         {t(`steps.${step.key}.title`)}
                       </p>
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      <p className="mt-0.5 text-2xs text-muted-foreground">
                         {t(`steps.${step.key}.summary`)}
                       </p>
                     </div>
@@ -93,7 +93,7 @@ export default function BootstrapLayout({
           <button
             type="button"
             onClick={handleExit}
-            className="mt-auto rounded px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="mt-auto rounded px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-surface-inset"
           >
             {t("saveExit")}
           </button>

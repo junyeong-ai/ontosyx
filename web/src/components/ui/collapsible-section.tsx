@@ -35,7 +35,7 @@ export function CollapsibleSection({
       <header
         className={cn(
           "flex items-center gap-3 px-4 py-3",
-          open && "border-b border-zinc-200 dark:border-zinc-800",
+          open && "border-b border-divider",
         )}
       >
         <button
@@ -49,7 +49,7 @@ export function CollapsibleSection({
             className="h-3.5 w-3.5 text-muted-foreground"
             size="100%"
           />
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-sm font-semibold text-foreground-strong">
             {title}
           </h2>
           {badge}

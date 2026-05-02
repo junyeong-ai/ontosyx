@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
-import { useWorkspaceMode } from "@/lib/use-workspace-mode";
+import { useWorkspaceMode } from "@/hooks/use-workspace-mode";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
@@ -42,12 +42,12 @@ function ModeLink({
         className={cn(
           "relative flex h-10 w-full items-center justify-center transition-colors",
           active
-            ? "text-emerald-700 dark:text-emerald-400"
-            : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300",
+            ? "text-brand-foreground"
+            : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted",
         )}
       >
         {active && (
-          <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full bg-emerald-500" />
+          <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full bg-brand-solid" />
         )}
         <HugeiconsIcon icon={icon} className="h-[18px] w-[18px]" size="100%" />
       </Link>
@@ -75,7 +75,7 @@ function PanelToggle({
         className={cn(
           "flex h-9 w-full items-center justify-center transition-colors",
           active
-            ? "text-zinc-600 dark:text-zinc-300"
+            ? "text-foreground-muted"
             : "text-muted-foreground hover:text-muted-foreground dark:hover:text-muted-foreground",
         )}
       >
@@ -96,10 +96,10 @@ export function Sidebar() {
   const toggleInspector = useAppStore((s) => s.toggleInspector);
 
   return (
-    <nav aria-label={t("navAria")} className="flex h-full w-12 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50">
+    <nav aria-label={t("navAria")} className="flex h-full w-12 flex-col border-r border-divider bg-surface-raised">
       {/* Logo */}
-      <div className="flex h-11 items-center justify-center border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 shadow-sm">
+      <div className="flex h-11 items-center justify-center border-b border-divider">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-solid shadow-sm">
           <HugeiconsIcon icon={AiNetworkIcon} className="h-3.5 w-3.5 text-white" size="100%" />
         </div>
       </div>
@@ -151,7 +151,7 @@ export function Sidebar() {
       </nav>
 
       {/* Separator */}
-      <div className="mx-2 my-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mx-2 my-1 h-px bg-surface-inset" />
 
       {/* Context-sensitive panel toggles (Design mode only) */}
       {!onSettings && workspaceMode === "design" && (
@@ -184,8 +184,8 @@ export function Sidebar() {
             className={cn(
               "flex h-10 w-full items-center justify-center transition-colors",
               onSettings
-                ? "text-emerald-700 dark:text-emerald-400"
-                : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300",
+                ? "text-brand-foreground"
+                : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted",
             )}
           >
             <HugeiconsIcon icon={Settings02Icon} className="h-[18px] w-[18px]" size="100%" />

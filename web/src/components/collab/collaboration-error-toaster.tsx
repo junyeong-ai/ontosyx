@@ -1,96 +1,63 @@
 // CollaborationErrorToaster — translates `ServerMessage::Error`
 // frames into localised toasts. Mounted once at the workbench
-// shell; the i18n catalogue carries one message per `ErrorCode`.
+// shell.
+//
+// Re-auth codes are owned by `<SessionExpiredOverlay>` — a
+// persistent corner card with a dedicated CTA. The classification
+// table in `error-classification.ts` is the single source of truth
+// for which surface handles which code.
 
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { clearWsTokenCache, selectLastError, useCollabStore } from "@/lib/collab";
+import {
+  classifyError,
+  clearWsTokenCache,
+  selectLastError,
+  useCollabStore,
+} from "@/lib/collab";
 
-/**
- * Background warnings — surface as transient toasts and let the
- * user keep working. Everything else is treated as fatal.
- */
-const TRANSIENT_CODES: ReadonlySet<string> = new Set([
-  "broadcast_lagged",
-  "not_joined",
-]);
-
-/**
- * Codes for which the only meaningful action is re-authentication.
- * The toast carries an explicit "Sign in again" button so the user
- * isn't stranded — clicking routes to the login flow rather than
- * waiting for them to figure out where the session bounced from.
- */
-const REAUTH_CODES: ReadonlySet<string> = new Set([
-  "auth_required",
-  "auth_invalid",
-  "auth_timeout",
-  "session_revoked",
-  "unauthorized_workspace",
-]);
+/** Identical-code de-dupe window. Slow clients can fan-out the same
+ *  warning multiple times within a single tick — this collapses the
+ *  burst to one visible toast. */
+const DEDUPE_WINDOW_MS = 2_000;
 
 export function CollaborationErrorToaster() {
   const lastError = useCollabStore(selectLastError);
   const t = useTranslations("collaboration.errors");
-  const tActions = useTranslations("collaboration.actions");
-  const router = useRouter();
   const lastSeenRef = useRef<{ code: string; ts: number } | null>(null);
 
   useEffect(() => {
     if (!lastError) return;
-    // De-dupe back-to-back identical codes (e.g. broadcast_lagged
-    // bursts on a slow client) within a 2-second window.
     const now = Date.now();
     const seen = lastSeenRef.current;
-    if (seen && seen.code === lastError.code && now - seen.ts < 2_000) {
+    if (seen && seen.code === lastError.code && now - seen.ts < DEDUPE_WINDOW_MS) {
       return;
     }
     lastSeenRef.current = { code: lastError.code, ts: now };
 
-    const message = safeTranslate(t, lastError.code);
-    if (TRANSIENT_CODES.has(lastError.code)) {
-      toast.warning(message);
-      return;
-    }
-    if (REAUTH_CODES.has(lastError.code)) {
+    const surface = classifyError(lastError.code);
+    if (surface === "reauth") {
       // The cached WS token is the one the server just rejected.
-      // Drop it so the next reconnect (or the user's manual
-      // re-login) mints a fresh JWT instead of replaying the
-      // revoked one.
+      // Drop it so the next reconnect mints a fresh JWT instead of
+      // replaying the revoked one. The overlay owns the user-facing
+      // surface from here.
       clearWsTokenCache();
-      toast.error(message, {
-        action: {
-          label: tActions("signInAgain"),
-          onClick: () => router.push("/login"),
-        },
-        duration: Infinity,
-      });
       return;
     }
-    toast.error(message);
-  }, [lastError, t, tActions, router]);
+
+    const title = t(`${lastError.code}.title`);
+    const description = t(`${lastError.code}.description`);
+    const opts = { description };
+    if (surface === "transient") {
+      toast.warning(title, opts);
+      return;
+    }
+    toast.error(title, opts);
+  }, [lastError, t]);
 
   return null;
-}
-
-/**
- * `next-intl` throws when a key is missing. Server-side enums can
- * outpace the catalogue between releases, so we render the raw
- * `code` as a last-resort placeholder rather than crashing the
- * tree.
- */
-function safeTranslate(
-  t: (key: string) => string,
-  code: string,
-): string {
-  try {
-    return t(code);
-  } catch {
-    return code;
-  }
 }

@@ -5,9 +5,12 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Spinner } from "@/components/ui/spinner";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { SettingsSelect } from "@/components/ui/form-input";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { cn } from "@/lib/cn";
 import type { MetricWindow } from "@/lib/api/quality";
 import type {
@@ -47,16 +50,10 @@ export default function QualitySignalsPage() {
   const stale = useStaleTypes(staleDays);
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            {t("title")}
-          </h1>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            {t("subtitle")}
-          </p>
-        </div>
+    <SettingsPageShell
+      title={t("title")}
+      subtitle={t("subtitle")}
+      actions={
         <SettingsSelect
           label={t("window.label")}
           hideLabel
@@ -67,12 +64,14 @@ export default function QualitySignalsPage() {
           <option value="30d">{t("window.last30d")}</option>
           <option value="90d">{t("window.last90d")}</option>
         </SettingsSelect>
-      </header>
+      }
+    >
+      <div className="flex flex-col gap-6">
 
       <MetricsGrid report={metrics.data} loading={metrics.isLoading} />
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+        <h2 className="mb-3 text-sm font-semibold text-foreground-strong">
           {t("shacl.title")}
         </h2>
         <ShaclFailureBars
@@ -84,10 +83,10 @@ export default function QualitySignalsPage() {
       <section>
         <div className="mb-3 flex items-end justify-between gap-4">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+            <h2 className="text-sm font-semibold text-foreground-strong">
               {t("stale.title")}
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+            <p className="mt-0.5 text-xs text-foreground-muted">
               {t("stale.subtitle", { days: staleDays })}
             </p>
           </div>
@@ -104,7 +103,8 @@ export default function QualitySignalsPage() {
         </div>
         <StaleTypesTable rows={stale.data ?? []} loading={stale.isLoading} />
       </section>
-    </div>
+      </div>
+    </SettingsPageShell>
   );
 }
 
@@ -123,9 +123,9 @@ function MetricsGrid({
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-950">
+      <Card padding="lg" className="text-center">
         <Spinner />
-      </div>
+      </Card>
     );
   }
 
@@ -144,11 +144,11 @@ function MetricsGrid({
   return (
     <section>
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+        <h2 className="text-sm font-semibold text-foreground-strong">
           {t("tiles.title")}
         </h2>
         {report && (
-          <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+          <span className="text-[11px] text-foreground-muted">
             {t("tiles.sampleSize", { n: report.sample_size })}
           </span>
         )}
@@ -185,26 +185,26 @@ function MetricTile({
   const bandWide = hasData && band > 0.3;
 
   return (
-    <article className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <header className="mb-2 flex items-start justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+    <Card padding="md">
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">
           {label}
         </h3>
         <TrendBadge delta={trend} />
-      </header>
+      </div>
       <div className="flex items-baseline gap-2">
         <span
           className={cn(
             "text-2xl font-semibold tabular-nums",
             hasData
-              ? "text-zinc-900 dark:text-zinc-100"
-              : "text-zinc-400 dark:text-zinc-600",
+              ? "text-foreground-strong"
+              : "text-foreground-subtle",
           )}
         >
           {pct !== null ? `${pct.toFixed(1)}%` : "—"}
         </span>
         {hasData && (
-          <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+          <span className="text-[11px] text-foreground-muted">
             {`[${(metric!.lower_bound_95 * 100).toFixed(1)}%, ${(
               metric!.upper_bound_95 * 100
             ).toFixed(1)}%]`}
@@ -212,14 +212,14 @@ function MetricTile({
         )}
       </div>
       {bandWide && (
-        <p className="mt-1 text-[10px] italic text-amber-600 dark:text-amber-400">
+        <p className="mt-1 text-2xs italic text-warning-foreground">
           wide confidence band — limited samples
         </p>
       )}
-      <p className="mt-2 text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+      <p className="mt-2 text-[11px] leading-snug text-foreground-muted">
         {description}
       </p>
-    </article>
+    </Card>
   );
 }
 
@@ -227,7 +227,7 @@ function TrendBadge({ delta }: { delta: number }) {
   // Dead-band below ±0.5pp renders flat so noise doesn't flip arrows.
   if (Math.abs(delta) < 0.005) {
     return (
-      <span className="rounded px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
+      <span className="rounded px-1.5 py-0.5 text-2xs font-medium text-foreground-muted">
         = flat
       </span>
     );
@@ -236,10 +236,10 @@ function TrendBadge({ delta }: { delta: number }) {
   return (
     <span
       className={cn(
-        "rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
+        "rounded px-1.5 py-0.5 text-2xs font-medium tabular-nums",
         up
-          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-          : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400",
+          ? "bg-brand-surface text-brand-foreground"
+          : "bg-danger-surface text-danger-foreground dark:text-danger-foreground",
       )}
     >
       {up ? "▲" : "▼"} {(Math.abs(delta) * 100).toFixed(1)} pp
@@ -262,22 +262,22 @@ function ShaclFailureBars({
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-950">
+      <Card padding="lg" className="text-center">
         <Spinner />
-      </div>
+      </Card>
     );
   }
   if (!rows.length) {
     return (
-      <div className="rounded-lg border border-zinc-200 bg-white p-6 text-center text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-        {t("shacl.empty")}
-      </div>
+      <Card padding="none">
+        <EmptyState size="sm" title={t("shacl.empty")} />
+      </Card>
     );
   }
 
   const total = rows.reduce((sum, r) => sum + r.count, 0);
   return (
-    <div className="space-y-2 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <Card padding="md" className="space-y-2">
       {rows.map((r) => {
         const pct = total === 0 ? 0 : Math.round((r.count / total) * 1000) / 10;
         return (
@@ -287,14 +287,14 @@ function ShaclFailureBars({
           >
             <div>
               <div className="flex items-baseline justify-between">
-                <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200">
+                <span className="text-xs font-medium text-foreground-strong">
                   {t(`shacl.kind.${r.kind}`)}
                 </span>
-                <span className="text-[11px] tabular-nums text-zinc-500 dark:text-zinc-400">
+                <span className="text-[11px] tabular-nums text-foreground-muted">
                   {r.count} · {pct.toFixed(1)}%
                 </span>
               </div>
-              <div className="mt-1 h-2 overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800">
+              <div className="mt-1 h-2 overflow-hidden rounded bg-surface-inset">
                 <div
                   className={cn("h-full", shaclFailureBarTone(r.kind))}
                   style={{ width: `${pct}%` }}
@@ -304,7 +304,7 @@ function ShaclFailureBars({
           </div>
         );
       })}
-    </div>
+    </Card>
   );
 }
 
@@ -315,17 +315,17 @@ function ShaclFailureBars({
 function shaclFailureBarTone(kind: ShaclFailureKind): string {
   switch (kind) {
     case "cardinality_violation":
-      return "bg-rose-500";
+      return "bg-danger-foreground";
     case "measure_group_by":
-      return "bg-amber-500";
+      return "bg-warning-foreground";
     case "unknown_coded_value":
-      return "bg-violet-500";
+      return "bg-concept-foreground";
     case "mandatory_property_missing":
-      return "bg-sky-500";
+      return "bg-info-surface";
     case "temporal_grain_mismatch":
-      return "bg-emerald-500";
+      return "bg-brand-solid";
     case "other":
-      return "bg-zinc-400";
+      return "bg-muted-foreground";
   }
 }
 
@@ -397,37 +397,37 @@ function StaleTypesTable({
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-950">
+      <Card padding="lg" className="text-center">
         <Spinner />
-      </div>
+      </Card>
     );
   }
   if (!data.length) {
     return (
-      <div className="rounded-lg border border-zinc-200 bg-white p-6 text-center text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-        {t("stale.empty")}
-      </div>
+      <Card padding="none">
+        <EmptyState size="sm" title={t("stale.empty")} />
+      </Card>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <Card padding="none" className="overflow-hidden">
       <table className="w-full min-w-[720px] text-left text-xs">
-        <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+        <thead className="border-b border-divider bg-surface-raised">
           <tr>
-            <th className="py-3 pl-4 pr-6 font-semibold text-zinc-600 dark:text-zinc-400">
+            <th className="py-3 pl-4 pr-6 font-semibold text-foreground-muted">
               {t("stale.col.kind")}
             </th>
-            <th className="py-3 pr-6 font-semibold text-zinc-600 dark:text-zinc-400">
+            <th className="py-3 pr-6 font-semibold text-foreground-muted">
               {t("stale.col.typeId")}
             </th>
-            <th className="py-3 pr-6 font-semibold text-zinc-600 dark:text-zinc-400">
+            <th className="py-3 pr-6 font-semibold text-foreground-muted">
               {t("stale.col.lastUsed")}
             </th>
-            <th className="py-3 pr-6 text-right font-semibold text-zinc-600 dark:text-zinc-400">
+            <th className="py-3 pr-6 text-right font-semibold text-foreground-muted">
               {t("stale.col.daysSince")}
             </th>
-            <th className="py-3 pl-2 pr-4 text-right font-semibold text-zinc-600 dark:text-zinc-400">
+            <th className="py-3 pl-2 pr-4 text-right font-semibold text-foreground-muted">
               {t("stale.col.action")}
             </th>
           </tr>
@@ -436,20 +436,20 @@ function StaleTypesTable({
           {data.map((r) => (
             <tr
               key={`${r.workspace_id}-${r.type_id}`}
-              className="border-b border-zinc-100 last:border-b-0 dark:border-zinc-900"
+              className="border-b border-divider-soft last:border-b-0 dark:border-divider"
             >
-              <td className="py-2 pl-4 pr-6 font-medium text-zinc-800 dark:text-zinc-200">
+              <td className="py-2 pl-4 pr-6 font-medium text-foreground-strong">
                 {r.type_kind}
               </td>
-              <td className="py-2 pr-6 font-mono text-[11px] text-zinc-600 dark:text-zinc-400">
+              <td className="py-2 pr-6 font-mono text-[11px] text-foreground-muted">
                 {r.type_id}
               </td>
-              <td className="py-2 pr-6 text-zinc-600 dark:text-zinc-400">
+              <td className="py-2 pr-6 text-foreground-muted">
                 {r.last_used_at
                   ? new Date(r.last_used_at).toLocaleDateString()
                   : t("stale.never")}
               </td>
-              <td className="py-2 pr-6 text-right tabular-nums text-zinc-600 dark:text-zinc-400">
+              <td className="py-2 pr-6 text-right tabular-nums text-foreground-muted">
                 {r.days_since_last_use}
               </td>
               <td className="py-2 pl-2 pr-4 text-right">
@@ -466,6 +466,6 @@ function StaleTypesTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </Card>
   );
 }

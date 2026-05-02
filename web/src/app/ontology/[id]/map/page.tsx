@@ -87,7 +87,7 @@ export default function OntologyMapPage({
 
   if (error || !data) {
     return (
-      <div className="mx-auto mt-20 max-w-xl rounded border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+      <div className="mx-auto mt-20 max-w-xl rounded border border-danger-border bg-danger-surface p-6 text-sm text-danger-foreground dark:border-danger-border dark:text-danger-foreground">
         {t("loadError", {
           message: error instanceof Error ? error.message : t("unknownError"),
         })}
@@ -103,7 +103,7 @@ export default function OntologyMapPage({
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
       <header className="mb-6">
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+        <h1 className="text-xl font-semibold text-foreground-strong">
           {t("title")}
         </h1>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -115,25 +115,25 @@ export default function OntologyMapPage({
       </header>
 
       {data.danglers.length > 0 && (
-        <aside className="mb-6 rounded border border-rose-200 bg-rose-50 p-4 dark:border-rose-900 dark:bg-rose-950/30">
-          <h2 className="text-xs font-semibold text-rose-700 dark:text-rose-300">
+        <aside className="mb-6 rounded border border-danger-border bg-danger-surface p-4 dark:border-danger-border">
+          <h2 className="text-xs font-semibold text-danger-foreground dark:text-danger-foreground">
             {t("danglers.title", { count: data.danglers.length })}
           </h2>
-          <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400">
+          <p className="mt-1 text-[11px] text-danger-foreground dark:text-danger-foreground">
             {t("danglers.hint")}
           </p>
           <ul className="mt-2 space-y-0.5 text-[11px]">
             {data.danglers.slice(0, 10).map((d, idx) => (
               <li
                 key={`${d.source_path}-${idx}`}
-                className="font-mono text-rose-700 dark:text-rose-300"
+                className="font-mono text-danger-foreground dark:text-danger-foreground"
               >
-                {d.kind} → <span className="text-rose-500">{d.missing_id}</span>
+                {d.kind} → <span className="text-danger-foreground">{d.missing_id}</span>
                 <span className="ml-2 text-muted-foreground">{d.source_path}</span>
               </li>
             ))}
             {data.danglers.length > 10 && (
-              <li className="text-[10px] italic text-muted-foreground">
+              <li className="text-2xs italic text-muted-foreground">
                 {t("danglers.more", { n: data.danglers.length - 10 })}
               </li>
             )}
@@ -187,12 +187,12 @@ function AxisCard({
   const t = useTranslations("ontology.map.drill");
   const total = entries.reduce((s, e) => s + e.count, 0);
   return (
-    <article className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+    <article className="rounded-lg border border-divider bg-surface-base p-5">
       <header className="mb-3 flex items-baseline justify-between">
-        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+        <h3 className="text-sm font-semibold text-foreground-strong">
           {title}
         </h3>
-        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+        <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-medium text-foreground-muted">
           {total}
         </span>
       </header>
@@ -214,7 +214,7 @@ function AxisCard({
                 "flex w-full items-center justify-between rounded px-1 py-0.5 text-left " +
                 (disabled
                   ? "cursor-default text-muted-foreground"
-                  : "cursor-pointer text-zinc-700 hover:bg-zinc-100 hover:text-violet-700 dark:text-zinc-300 dark:hover:bg-zinc-800/60 dark:hover:text-violet-400")
+                  : "cursor-pointer text-foreground hover:bg-surface-inset hover:text-concept-foreground-muted dark:hover:bg-surface-base/60 dark:hover:text-concept-foreground")
               }
             >
               <dt>{labelFor(e.kind)}</dt>
@@ -252,17 +252,17 @@ function AxisDrillModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="axis-drill-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-surface-base/40 p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-950">
-        <header className="flex items-baseline justify-between border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
+      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-divider bg-surface-base shadow-xl">
+        <header className="flex items-baseline justify-between border-b border-divider px-5 py-3">
           <div>
             <h2
               id="axis-drill-title"
-              className="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+              className="text-sm font-semibold text-foreground-strong"
             >
               {t(`axes.${axis}.kinds.${kind}`)}
             </h2>
@@ -274,7 +274,7 @@ function AxisDrillModal({
             type="button"
             onClick={onClose}
             aria-label={tDrill("close")}
-            className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-surface-inset dark:hover:bg-surface-base"
           >
             ✕
           </button>
@@ -287,7 +287,7 @@ function AxisDrillModal({
             </p>
           )}
           {error && (
-            <p className="py-10 text-center text-rose-600 dark:text-rose-400">
+            <p className="py-10 text-center text-danger-foreground dark:text-danger-foreground">
               {tDrill("loadError", {
                 message:
                   error instanceof Error ? error.message : tDrill("unknownError"),
@@ -300,19 +300,19 @@ function AxisDrillModal({
             </p>
           )}
           {!isLoading && !error && data && data.length > 0 && (
-            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+            <ul className="divide-y divide-divider-soft/60">
               {data.map((item) => (
                 <li key={item.id} className="py-2">
-                  <p className="font-medium text-zinc-900 dark:text-zinc-100">
+                  <p className="font-medium text-foreground-strong">
                     {item.label}
                   </p>
                   {item.id !== item.label && (
-                    <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                    <p className="mt-0.5 font-mono text-2xs text-muted-foreground">
                       {item.id}
                     </p>
                   )}
                   {item.description && (
-                    <p className="mt-1 text-[11px] text-zinc-600 dark:text-zinc-400">
+                    <p className="mt-1 text-[11px] text-foreground-muted">
                       {item.description}
                     </p>
                   )}

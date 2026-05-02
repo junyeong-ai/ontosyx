@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { useWidgets } from "@/hooks/api/use-widgets";
-import { useWorkspaceMode } from "@/lib/use-workspace-mode";
+import { useWorkspaceMode } from "@/hooks/use-workspace-mode";
 import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ export function ContextBadge() {
     case "analyze":
       if (!ontology) return null;
       return (
-        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400">
+        <span className="rounded-full bg-brand-surface px-2 py-0.5 text-2xs font-medium text-brand-foreground-strong">
           {t("nodesEdges", {
             nodes: arr(ontology.node_types).length,
             edges: arr(ontology.edge_types).length,
@@ -35,7 +35,7 @@ export function ContextBadge() {
       );
     case "dashboard":
       return (
-        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">
+        <span className="rounded-full bg-info-surface px-2 py-0.5 text-2xs font-medium text-info-foreground dark:bg-info-foreground/50 dark:text-info-foreground">
           {t("widgetCount", { count: widgets?.length ?? 0 })}
         </span>
       );

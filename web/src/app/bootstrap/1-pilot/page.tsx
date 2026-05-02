@@ -19,7 +19,7 @@ export default function PilotStep() {
       <div>
         <label
           htmlFor="pilot-name"
-          className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300"
+          className="mb-1 block text-xs font-medium text-foreground"
         >
           {t("nameLabel")}
         </label>
@@ -28,14 +28,14 @@ export default function PilotStep() {
           value={state.pilotName}
           onChange={(e) => update({ pilotName: e.target.value })}
           placeholder={t("namePlaceholder")}
-          className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+          className="w-full rounded border border-divider bg-surface-base px-3 py-2 text-sm"
         />
       </div>
 
       <div>
         <label
           htmlFor="pilot-scope"
-          className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300"
+          className="mb-1 block text-xs font-medium text-foreground"
         >
           {t("scopeLabel")}
         </label>
@@ -45,7 +45,7 @@ export default function PilotStep() {
           value={state.pilotScope}
           onChange={(e) => update({ pilotScope: e.target.value })}
           placeholder={t("scopePlaceholder")}
-          className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+          className="w-full rounded border border-divider bg-surface-base px-3 py-2 text-sm"
         />
         <p className="mt-1 text-[11px] text-muted-foreground">{t("scopeHint")}</p>
       </div>

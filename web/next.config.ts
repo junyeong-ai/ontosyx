@@ -22,6 +22,14 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "avatars.githubusercontent.com" },
     ],
   },
+  // Native page-transition cross-fades on supported browsers — the
+  // route swap reuses a snapshot of the previous page during the
+  // outgoing fade so the eye lands on the new content without a
+  // hard cut. Falls back to instant swap on browsers without the
+  // View Transitions API; no user-facing failure.
+  experimental: {
+    viewTransition: true,
+  },
 };
 
 export default withNextIntl(nextConfig);

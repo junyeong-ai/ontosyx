@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../messages/en.json";
-import { ResponseBasis } from "@/components/widgets/response-basis";
+import { ResponseBasis } from "@/components/dashboard/widgets/response-basis";
 import type {
   OntologyDetail,
   QueryDiagnostic,
@@ -21,7 +21,7 @@ vi.mock("@/hooks/api/use-ontologies", () => ({
 // `useLocaleChain` is also a TanStack-backed hook (workspace fetch).
 // Tests don't exercise the chain itself, so a fixed boot fallback
 // keeps the resolution path deterministic.
-vi.mock("@/lib/use-locale-chain", () => ({
+vi.mock("@/hooks/use-locale-chain", () => ({
   useLocaleChain: () => ["en"],
 }));
 

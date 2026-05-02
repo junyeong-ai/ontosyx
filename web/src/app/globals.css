@@ -35,9 +35,10 @@
   --success-surface:    var(--brand-surface);
   --success-border:     var(--brand-border);
 
-  --warning-foreground: #b75000;   /* amber-700 */
-  --warning-surface:    #fffbeb;   /* amber-50  */
-  --warning-border:     #fee685;   /* amber-200 */
+  --warning-foreground:    #b75000;   /* amber-700 */
+  --warning-surface:       #fffbeb;   /* amber-50  */
+  --warning-surface-strong:#fef3c7;   /* amber-100 */
+  --warning-border:        #fee685;   /* amber-200 */
 
   --danger-foreground:  #bf000f;   /* red-700  */
   --danger-surface:     #fef2f2;   /* red-50   */
@@ -101,9 +102,10 @@
     --success-surface:    var(--brand-surface);
     --success-border:     var(--brand-border);
 
-    --warning-foreground: #fcbb00;   /* amber-400 */
-    --warning-surface:    color-mix(in oklab, #461901 40%, transparent);
-    --warning-border:     #953d00;   /* amber-800 */
+    --warning-foreground:    #fcbb00;   /* amber-400 */
+    --warning-surface:       color-mix(in oklab, #461901 40%, transparent);
+    --warning-surface-strong:color-mix(in oklab, #461901 60%, transparent);
+    --warning-border:        #953d00;   /* amber-800 */
 
     --danger-foreground:  #ff6568;   /* red-400 */
     --danger-surface:     color-mix(in oklab, #460809 40%, transparent);
@@ -232,9 +234,10 @@
   --color-success-surface:    var(--success-surface);
   --color-success-border:     var(--success-border);
 
-  --color-warning-foreground: var(--warning-foreground);
-  --color-warning-surface:    var(--warning-surface);
-  --color-warning-border:     var(--warning-border);
+  --color-warning-foreground:     var(--warning-foreground);
+  --color-warning-surface:        var(--warning-surface);
+  --color-warning-surface-strong: var(--warning-surface-strong);
+  --color-warning-border:         var(--warning-border);
 
   --color-danger-foreground:  var(--danger-foreground);
   --color-danger-surface:     var(--danger-surface);
@@ -294,6 +297,17 @@ body {
   color: var(--foreground);
 }
 
+/* Korean wraps cleanly only when broken on word/phrase boundaries; the
+   default UA `break-word` cuts mid-syllable and produces ragged lines.
+   `:lang(ko)` scopes the override so other locales keep the universal
+   default. Pair with `line-height: var(--leading-relaxed)` on Korean
+   prose surfaces — Hangul glyphs sit taller than Latin and need more
+   leading to breathe. */
+:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 768px) {
   .text-\[10px\], .text-\[11px\] {
     font-size: 0.75rem;
@@ -348,6 +362,50 @@ body {
 }
 .animate-blink {
   animation: blink 1s step-end infinite;
+}
+
+/* View transitions — native cross-fade on route swap. Browsers without
+   the API simply swap the DOM as before; the rules below kick in only
+   when `document.startViewTransition` is present (Chrome 111+). The
+   180ms timing matches our `--duration-quick` token so transitions
+   feel calibrated against the rest of the motion system. */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+/* Skeleton shimmer — left-to-right gradient sweep over the bg-surface-inset
+   token. The 200% width keeps the highlight visible across the element
+   width without snapping. Reduced motion halts the keyframes; the
+   token-tinted base stays visible so the placeholder still reads as
+   "loading" without the kinetic cue. */
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--surface-inset) 0%, var(--foreground-muted) 12%) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer { animation: none; }
 }
 
 ::-webkit-scrollbar {

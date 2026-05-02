@@ -1,10 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/lib/use-auth";
+import { toast } from "sonner";
+
+import { useAuth } from "@/hooks/use-auth";
 import { listUsers, updateUserRole } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonCard, SkeletonTable } from "@/components/ui/skeleton";
 import { SettingsSelect } from "@/components/ui/form-input";
 import { Avatar } from "@/components/ui/avatar";
 import type { UserInfo } from "@/types/api";
@@ -16,94 +23,108 @@ function isKnownRole(r: string): r is KnownRole {
   return r === "admin" || r === "designer" || r === "viewer";
 }
 
+const teamKeys = {
+  all: ["team"] as const,
+  members: () => [...teamKeys.all, "members"] as const,
+};
+
 export default function TeamPage() {
   const t = useTranslations("settings.team");
+  const tCommon = useTranslations("common");
   const tRoles = useTranslations("settings.roles");
   const { user, loading: authLoading, authEnabled, isAdmin } = useAuth();
-  const [users, setUsers] = useState<UserInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const qc = useQueryClient();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      setError(null);
+  const query = useQuery({
+    queryKey: teamKeys.members(),
+    queryFn: async () => {
       const page = await listUsers({ limit: 100 });
-      setUsers(page.items);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("toast.loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+      return page.items;
+    },
+    enabled: !authLoading && authEnabled,
+  });
 
-  useEffect(() => {
-    if (!authLoading && authEnabled) {
-      fetchUsers();
-    } else if (!authLoading) {
-      setLoading(false);
-    }
-  }, [authLoading, authEnabled, fetchUsers]);
-
-  const handleRoleChange = async (userId: string, newRole: string) => {
-    setUpdatingId(userId);
-    try {
-      const { user: updated } = await updateUserRole(userId, newRole);
-      setUsers((prev) =>
-        prev.map((u) => (u.id === updated.id ? updated : u)),
+  const updateRoleMutation = useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: string }) =>
+      updateUserRole(userId, role),
+    onMutate: ({ userId }) => setUpdatingId(userId),
+    onSuccess: ({ user: updated }) => {
+      qc.setQueryData<UserInfo[]>(teamKeys.members(), (prev) =>
+        prev?.map((u) => (u.id === updated.id ? updated : u)) ?? prev,
       );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("toast.updateRoleFailed"));
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+    },
+    onError: () => toast.error(t("toast.updateRoleFailed")),
+    onSettled: () => setUpdatingId(null),
+  });
 
-  if (authLoading || loading) {
+  if (authLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Spinner size="lg" className="text-emerald-500" />
-      </div>
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <div className="space-y-4">
+          <SkeletonCard />
+          <SkeletonTable rows={4} cols={3} />
+        </div>
+      </SettingsPageShell>
     );
   }
 
   if (!authEnabled) {
     return (
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          {t("title")}
-        </h1>
-        <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-sm text-zinc-500 dark:text-muted-foreground">
-            {t("authRequired")}
-          </p>
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <div className="py-12">
+          <EmptyState
+            title={t("authRequired")}
+            description={t("authRequiredDescription")}
+          />
         </div>
-      </div>
+      </SettingsPageShell>
     );
   }
 
-  return (
-    <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-        {t("title")}
-      </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
-        {t("description")}
-      </p>
+  if (query.isLoading) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <div className="space-y-4">
+          <SkeletonCard />
+          <SkeletonTable rows={4} cols={3} />
+        </div>
+      </SettingsPageShell>
+    );
+  }
 
-      <div className="mt-6 space-y-6">
+  if (query.isError) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <ErrorState
+          title={tCommon("loadError.title")}
+          description={tCommon("loadError.description")}
+          onRetry={() => query.refetch()}
+          retryLabel={tCommon("retry")}
+        />
+      </SettingsPageShell>
+    );
+  }
+
+  const users = query.data ?? [];
+  const handleRoleChange = (userId: string, role: string) =>
+    updateRoleMutation.mutate({ userId, role });
+
+  return (
+    <SettingsPageShell title={t("title")} subtitle={t("description")}>
+      <div className="space-y-6">
         {/* Role Descriptions */}
-        <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+        <section className="rounded-lg border border-divider bg-surface-base">
+          <div className="border-b border-divider-soft px-6 py-4">
+            <h2 className="text-sm font-semibold text-foreground-strong">
               {t("rolesHeading")}
             </h2>
           </div>
-          <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <div className="divide-y divide-divider-soft">
             {ROLES.map((role) => (
               <div key={role} className="flex items-start gap-3 px-6 py-3">
                 <RoleBadge role={role} roleLabel={tRoles(role)} />
-                <p className="text-xs text-zinc-500 dark:text-muted-foreground">
+                <p className="text-xs text-foreground-muted">
                   {t(`roleDescriptions.${role}`)}
                 </p>
               </div>
@@ -111,17 +132,10 @@ export default function TeamPage() {
           </div>
         </section>
 
-        {/* Error */}
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
-            {error}
-          </div>
-        )}
-
         {/* Members Table */}
-        <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+        <section className="rounded-lg border border-divider bg-surface-base">
+          <div className="border-b border-divider-soft px-6 py-4">
+            <h2 className="text-sm font-semibold text-foreground-strong">
               {t("membersHeading")}
               <span className="ml-2 text-xs font-normal text-muted-foreground">
                 {users.length}
@@ -131,19 +145,19 @@ export default function TeamPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-zinc-100 dark:border-zinc-800">
-                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-muted-foreground">
+                <tr className="border-b border-divider-soft">
+                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-foreground-muted">
                     {t("column.user")}
                   </th>
-                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-muted-foreground">
+                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-foreground-muted">
                     {t("column.email")}
                   </th>
-                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-muted-foreground">
+                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-foreground-muted">
                     {t("column.role")}
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              <tbody className="divide-y divide-divider-soft">
                 {users.map((member) => {
                   const isMe = member.id === user?.sub;
                   const displayName = member.name ?? member.email;
@@ -156,17 +170,17 @@ export default function TeamPage() {
                             name={displayName}
                             size="sm"
                           />
-                          <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                          <span className="font-medium text-foreground-strong">
                             {displayName}
                           </span>
                           {isMe && (
-                            <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-muted-foreground dark:bg-zinc-800">
+                            <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs text-muted-foreground">
                               {t("you")}
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="py-3 pr-6 text-zinc-600 dark:text-muted-foreground">
+                      <td className="py-3 pr-6 text-foreground">
                         {member.email}
                       </td>
                       <td className="py-3 pr-6">
@@ -192,7 +206,7 @@ export default function TeamPage() {
                             {updatingId === member.id && (
                               <Spinner
                                 size="sm"
-                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-indigo-500"
+                                className="absolute right-1.5 top-1 -translate-y-1/2 text-concept-foreground"
                               />
                             )}
                           </div>
@@ -216,16 +230,16 @@ export default function TeamPage() {
         </section>
 
         {/* Invite Note */}
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+        <section className="rounded-lg border border-divider bg-surface-base p-6">
+          <h2 className="text-sm font-semibold text-foreground-strong">
             {t("addingMembers.heading")}
           </h2>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-muted-foreground">
+          <p className="mt-1 text-xs text-foreground-muted">
             {t("addingMembers.description")}
           </p>
         </section>
       </div>
-    </div>
+    </SettingsPageShell>
   );
 }
 
@@ -240,10 +254,10 @@ function RoleBadge({
 
   const styles =
     role === "admin"
-      ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
+      ? "bg-concept-surface text-concept-foreground"
       : role === "designer"
-        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground";
+        ? "bg-success-surface text-success-foreground"
+        : "bg-surface-inset text-muted-foreground";
 
   return (
     <span

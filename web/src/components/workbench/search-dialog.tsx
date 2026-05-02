@@ -8,7 +8,7 @@ import { searchGraph } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/cn";
 import { useAppStore } from "@/lib/store";
-import { useImeAwareInput } from "@/lib/use-ime-aware-input";
+import { useImeAwareInput } from "@/hooks/use-ime-aware-input";
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import {
   type SearchResultNode,
@@ -18,7 +18,7 @@ import {
 } from "./explore/graph-utils";
 import { arr } from "@/lib/ir-collections";
 import { localize } from "@/lib/locale/localize";
-import { useLocaleChain } from "@/lib/use-locale-chain";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 
 // ---------------------------------------------------------------------------
 // SearchDialog — Cmd+K graph entity search overlay
@@ -210,10 +210,10 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
         onClick={onClose}
       />
       <div
-        className="relative w-full max-w-lg rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+        className="relative w-full max-w-lg rounded-xl border border-divider bg-surface-base shadow-2xl"
       >
         {/* Search input */}
-        <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-700">
+        <div className="flex items-center gap-2 border-b border-divider px-3 py-2.5">
           <HugeiconsIcon icon={Search01Icon} className="h-4 w-4 text-muted-foreground" size="100%" />
           <input
             ref={inputRef}
@@ -245,10 +245,10 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
               }
             }}
             placeholder="Search schema and data..."
-            className="flex-1 bg-transparent text-sm text-zinc-800 outline-none placeholder:text-zinc-500 dark:text-zinc-200"
+            className="flex-1 bg-transparent text-sm text-foreground-strong outline-none placeholder:text-foreground-muted-strong"
           />
           {loading && <Spinner size="xs" className="text-muted-foreground" />}
-          <button onClick={onClose} className="text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted">
             <HugeiconsIcon icon={Cancel01Icon} className="h-3.5 w-3.5" size="100%" />
           </button>
         </div>
@@ -272,7 +272,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
           {/* Schema results section */}
           {hasSchemaResults && (
             <div>
-              <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Schema Matches
               </div>
               {schemaMatches.map((match, i) => {
@@ -288,17 +288,17 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                       className={cn(
                         "flex w-full items-center gap-2 px-4 py-1.5 text-left transition-colors",
                         isSelected
-                          ? "bg-emerald-50 dark:bg-emerald-950/30"
-                          : "hover:bg-zinc-50 dark:hover:bg-zinc-800",
+                          ? "bg-brand-surface"
+                          : "hover:bg-surface-raised dark:hover:bg-surface-base",
                       )}
                     >
-                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400">
+                      <span className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground-strong">
                         Node
                       </span>
-                      <span className="flex-1 truncate text-xs font-medium text-zinc-800 dark:text-zinc-200">
+                      <span className="flex-1 truncate text-xs font-medium text-foreground-strong">
                         {match.node.label}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-2xs text-muted-foreground">
                         {propCount} prop{propCount !== 1 ? "s" : ""}
                         {constraintCount > 0 && `, ${constraintCount} constraint${constraintCount !== 1 ? "s" : ""}`}
                       </span>
@@ -313,14 +313,14 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                       className={cn(
                         "flex w-full items-center gap-2 px-4 py-1.5 text-left transition-colors",
                         isSelected
-                          ? "bg-emerald-50 dark:bg-emerald-950/30"
-                          : "hover:bg-zinc-50 dark:hover:bg-zinc-800",
+                          ? "bg-brand-surface"
+                          : "hover:bg-surface-raised dark:hover:bg-surface-base",
                       )}
                     >
-                      <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-900 dark:text-sky-400">
+                      <span className="rounded bg-info-surface px-1.5 py-0.5 text-2xs font-medium text-info-foreground">
                         Edge
                       </span>
-                      <span className="flex-1 truncate text-xs text-zinc-800 dark:text-zinc-200">
+                      <span className="flex-1 truncate text-xs text-foreground-strong">
                         <span className="text-muted-foreground">{match.sourceLabel}</span>
                         {" → "}
                         <span className="font-medium">{match.edge.label}</span>
@@ -336,20 +336,20 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
 
           {/* Data search hint — shown when schema results exist but data not yet searched */}
           {hasQuery && hasSchemaResults && !dataSearched && !loading && (
-            <div className="border-t border-zinc-100 px-4 py-2 text-center text-[10px] text-muted-foreground dark:border-zinc-800">
+            <div className="border-t border-divider-soft px-4 py-2 text-center text-2xs text-muted-foreground">
               Press Enter to also search Neo4j data
             </div>
           )}
 
           {/* Data results section */}
           {dataSearched && (
-            <div className={cn(hasSchemaResults && "border-t border-zinc-100 dark:border-zinc-800")}>
-              <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className={cn(hasSchemaResults && "border-t border-divider-soft")}>
+              <div className="px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Data Matches
                 {loading && <Spinner size="xs" className="ml-1 inline-block text-muted-foreground" />}
               </div>
               {!loading && !hasDataResults && (
-                <p className="px-4 py-3 text-center text-[10px] text-muted-foreground">
+                <p className="px-4 py-3 text-center text-2xs text-muted-foreground">
                   No data results for &ldquo;{query}&rdquo;
                 </p>
               )}
@@ -364,25 +364,25 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                     className={cn(
                       "flex w-full items-start gap-3 px-4 py-2 text-left transition-colors",
                       isSelected
-                        ? "bg-emerald-50 dark:bg-emerald-950/30"
-                        : "hover:bg-zinc-50 dark:hover:bg-zinc-800",
+                        ? "bg-brand-surface"
+                        : "hover:bg-surface-raised dark:hover:bg-surface-base",
                     )}
                   >
                     <div className="flex flex-wrap gap-1 pt-0.5">
                       {hit.labels.map((l) => (
                         <span
                           key={l}
-                          className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground"
+                          className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-medium text-foreground dark:text-muted-foreground"
                         >
                           {l}
                         </span>
                       ))}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium text-zinc-800 dark:text-zinc-200">
+                      <p className="truncate text-xs font-medium text-foreground-strong">
                         {resolveDisplayName(hit.props)}
                       </p>
-                      <p className="truncate text-[10px] text-muted-foreground">
+                      <p className="truncate text-2xs text-muted-foreground">
                         {resolveSubtitle(hit.props)}
                       </p>
                     </div>
@@ -394,11 +394,11 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
         </div>
 
         {/* Footer hint */}
-        <div className="flex items-center gap-3 border-t border-zinc-200 px-3 py-1.5 text-[10px] text-muted-foreground dark:border-zinc-700">
-          <span><kbd className="rounded border border-zinc-300 px-1 dark:border-zinc-600">Enter</kbd> search data</span>
-          <span><kbd className="rounded border border-zinc-300 px-1 dark:border-zinc-600">&uarr;&darr;</kbd> navigate</span>
-          <span><kbd className="rounded border border-zinc-300 px-1 dark:border-zinc-600">Esc</kbd> close</span>
-          <span className="ml-auto text-zinc-300 dark:text-zinc-600">Schema results appear as you type</span>
+        <div className="flex items-center gap-3 border-t border-divider px-3 py-1.5 text-2xs text-muted-foreground">
+          <span><kbd className="rounded border border-divider px-1 dark:border-divider">Enter</kbd> search data</span>
+          <span><kbd className="rounded border border-divider px-1 dark:border-divider">&uarr;&darr;</kbd> navigate</span>
+          <span><kbd className="rounded border border-divider px-1 dark:border-divider">Esc</kbd> close</span>
+          <span className="ml-auto text-foreground-muted">Schema results appear as you type</span>
         </div>
       </div>
     </div>

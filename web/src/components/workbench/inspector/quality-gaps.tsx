@@ -18,7 +18,7 @@ import { Section } from "./shared";
 // Quality gaps list (with "Fix with AI" buttons)
 // ---------------------------------------------------------------------------
 
-export function GapsList({
+export function QualityGapsList({
   gaps,
 }: {
   gaps: QualityGap[];
@@ -53,7 +53,7 @@ export function GapsList({
             key={i}
             className={cn(
               "px-3 py-1.5",
-              focusable && "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900",
+              focusable && "cursor-pointer hover:bg-surface-raised",
             )}
           >
             <div className="flex items-center gap-1.5">
@@ -63,16 +63,16 @@ export function GapsList({
                   className={cn(
                     "h-1.5 w-1.5 shrink-0 rounded-full",
                     gap.severity === "high"
-                      ? "bg-red-500"
+                      ? "bg-danger-solid"
                       : gap.severity === "medium"
-                        ? "bg-amber-400"
-                        : "bg-sky-400",
+                        ? "bg-warning-foreground"
+                        : "bg-info-surface",
                   )}
                 />
               </Tooltip>
               <span
                 onClick={focusable ? () => navigateToGap(gap) : undefined}
-                className="min-w-0 flex-1 truncate text-zinc-600 dark:text-muted-foreground"
+                className="min-w-0 flex-1 truncate text-foreground dark:text-muted-foreground"
               >
                 {issue}
               </span>
@@ -85,7 +85,7 @@ export function GapsList({
                     }}
                     disabled={loading}
                     aria-label="Fix with AI"
-                    className="shrink-0 rounded p-0.5 text-violet-400 opacity-40 transition-opacity hover:bg-violet-50 hover:opacity-100 hover:text-violet-600 dark:hover:bg-violet-950"
+                    className="shrink-0 rounded p-0.5 text-concept-foreground opacity-40 transition-opacity hover:bg-concept-surface hover:opacity-100 hover:text-concept-foreground dark:hover:bg-concept-surface"
                   >
                     {fixingIndex === i && loading ? (
                       <Spinner size="xs" />

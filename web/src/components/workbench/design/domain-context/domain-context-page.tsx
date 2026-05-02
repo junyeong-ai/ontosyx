@@ -223,22 +223,22 @@ function PageHeader({
   const total = readiness.length;
   const allPassed = readinessPassed === total;
   return (
-    <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-6 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+    <header className="flex shrink-0 items-center gap-3 border-b border-divider bg-surface-base px-6 py-3">
       <Link
         href="/design"
         aria-label={backLabel}
-        className="rounded p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground dark:hover:bg-surface-base dark:hover:text-foreground-strong"
       >
         <HugeiconsIcon icon={ArrowLeft01Icon} className="h-4 w-4" size="100%" />
       </Link>
-      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400">
+      <span className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-bold uppercase text-brand-foreground-strong">
         Node
       </span>
       <div className="flex flex-1 flex-col">
         <InlineEdit
           value={label}
           onSave={onRename}
-          className="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+          className="text-sm font-semibold text-foreground-strong"
         />
       </div>
       <Tooltip
@@ -246,7 +246,7 @@ function PageHeader({
           <ul className="space-y-0.5 text-[11px]">
             {readiness.map((r) => (
               <li key={r.id} className="flex items-center gap-2">
-                <span className={r.passed ? "text-emerald-400" : "text-rose-400"}>
+                <span className={r.passed ? "text-brand-foreground" : "text-danger-foreground"}>
                   {r.passed ? "✓" : "✗"}
                 </span>
                 <span>{t(`checks.${r.id}`)}</span>
@@ -259,8 +259,8 @@ function PageHeader({
           className={
             "inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs " +
             (allPassed
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-              : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300")
+              ? "border-brand-border bg-brand-surface text-brand-foreground-strong"
+              : "border-warning-border bg-warning-surface text-warning-foreground")
           }
           aria-label={validateLabel}
         >
@@ -282,7 +282,7 @@ function EmptyShell({ message }: { message: string }) {
 
 function CountBadge({ count }: { count: number }) {
   return (
-    <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+    <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-medium text-foreground-muted">
       {count}
     </span>
   );

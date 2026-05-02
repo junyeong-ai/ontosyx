@@ -11,7 +11,7 @@ import { render, cleanup } from "@testing-library/react";
 import { axe } from "vitest-axe";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../../messages/en.json";
-import { TableWidget } from "@/components/widgets/table-widget";
+import { TableWidget } from "@/components/dashboard/widgets/table-widget";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 
 function renderWithIntl(ui: React.ReactElement) {
@@ -24,7 +24,7 @@ function renderWithIntl(ui: React.ReactElement) {
 
 afterEach(cleanup);
 
-vi.mock("@/lib/use-dark-mode", () => ({ useIsDarkMode: () => false }));
+vi.mock("@/hooks/use-dark-mode", () => ({ useIsDarkMode: () => false }));
 
 // TableWidget calls `useRouter()` to enable row-click navigation. The
 // a11y test doesn't exercise clicks, but `useRouter` still throws

@@ -10,7 +10,7 @@ vi.mock("@/lib/api/client", () => ({
 }));
 
 const confirmMock = vi.fn();
-vi.mock("@/components/ui/confirm-dialog", () => ({
+vi.mock("@/components/providers/confirm-provider", () => ({
   useConfirm: () => confirmMock,
   ConfirmDialogProvider: ({ children }: { children: React.ReactNode }) =>
     children,

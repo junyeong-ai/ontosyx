@@ -1,11 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+
 import { request } from "@/lib/api/client";
-import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/error-state";
+import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
 import { SettingsSelect } from "@/components/ui/form-input";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 
 interface UsageSummary {
   resource_type: string;
@@ -15,31 +20,39 @@ interface UsageSummary {
   request_count: number;
 }
 
+const usageKeys = {
+  list: (days: number) => ["usage", "list", days] as const,
+};
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toString();
+}
+
 export default function UsageSettingsPage() {
   const t = useTranslations("settings.usage");
+  const tCommon = useTranslations("common");
   const datePickerT = useTranslations("settings.datePicker");
-  const [usage, setUsage] = useState<UsageSummary[]>([]);
-  const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
+  const query = useQuery({
+    queryKey: usageKeys.list(days),
+    queryFn: async () => {
       const from = new Date(Date.now() - days * 86400000).toISOString();
       const to = new Date().toISOString();
-      const data = await request<UsageSummary[]>(
-        `/usage?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
-      );
-      setUsage(data);
-    } catch {
-      toast.error(t("toast.loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [days, t]);
+      try {
+        return await request<UsageSummary[]>(
+          `/usage?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        );
+      } catch (err) {
+        toast.error(t("toast.loadFailed"));
+        throw err;
+      }
+    },
+  });
 
-  useEffect(() => { load(); }, [load]);
-
+  const usage = query.data ?? [];
   const totalTokens = usage.reduce(
     (acc, u) => acc + u.total_input_tokens + u.total_output_tokens,
     0,
@@ -47,23 +60,11 @@ export default function UsageSettingsPage() {
   const totalCost = usage.reduce((acc, u) => acc + u.total_cost_usd, 0);
   const totalRequests = usage.reduce((acc, u) => acc + u.request_count, 0);
 
-  const formatTokens = (n: number) => {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-    return n.toString();
-  };
-
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            {t("title")}
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
-            {t("description")}
-          </p>
-        </div>
+    <SettingsPageShell
+      title={t("title")}
+      subtitle={t("description")}
+      actions={
         <SettingsSelect
           label={datePickerT("daysLabel")}
           hideLabel
@@ -74,50 +75,66 @@ export default function UsageSettingsPage() {
           <option value={30}>{datePickerT("last30Days")}</option>
           <option value={90}>{datePickerT("last90Days")}</option>
         </SettingsSelect>
-      </div>
-
-      {loading ? (
-        <Spinner />
+      }
+    >
+      {query.isLoading ? (
+        <div className="space-y-6">
+          <div className="grid grid-cols-3 gap-4">
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+          </div>
+          <SkeletonTable rows={5} cols={5} />
+        </div>
+      ) : query.isError ? (
+        <div className="py-12">
+          <ErrorState
+            title={tCommon("loadError.title")}
+            description={tCommon("loadError.description")}
+            onRetry={() => query.refetch()}
+            retryLabel={tCommon("retry")}
+          />
+        </div>
       ) : (
         <>
-          {/* Summary cards */}
-          <div className="mt-6 grid grid-cols-3 gap-4">
-            <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
-              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                {formatTokens(totalTokens)}
-              </div>
-              <div className="text-xs text-muted-foreground">{t("summary.totalTokens")}</div>
-            </div>
-            <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
-              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                {totalRequests.toLocaleString()}
-              </div>
-              <div className="text-xs text-muted-foreground">{t("summary.requests")}</div>
-            </div>
-            <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
-              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                ${totalCost.toFixed(4)}
-              </div>
-              <div className="text-xs text-muted-foreground">{t("summary.estimatedCost")}</div>
-            </div>
+          <div className="grid grid-cols-3 gap-4">
+            <KpiCard
+              label={t("summary.totalTokens")}
+              value={totalTokens}
+              format={formatTokens}
+            />
+            <KpiCard label={t("summary.requests")} value={totalRequests} />
+            <KpiCard
+              label={t("summary.estimatedCost")}
+              value={totalCost}
+              format={(n) => `$${n.toFixed(4)}`}
+            />
           </div>
 
-          {/* Breakdown table */}
           <div className="mt-6">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
+                <tr className="border-b border-divider text-left text-xs font-medium uppercase text-muted-foreground">
                   <th className="py-3 pr-6">{t("column.resourceType")}</th>
-                  <th className="py-3 pr-6 text-right">{t("column.inputTokens")}</th>
-                  <th className="py-3 pr-6 text-right">{t("column.outputTokens")}</th>
-                  <th className="py-3 pr-6 text-right">{t("column.requests")}</th>
+                  <th className="py-3 pr-6 text-right">
+                    {t("column.inputTokens")}
+                  </th>
+                  <th className="py-3 pr-6 text-right">
+                    {t("column.outputTokens")}
+                  </th>
+                  <th className="py-3 pr-6 text-right">
+                    {t("column.requests")}
+                  </th>
                   <th className="py-3 pr-6 text-right">{t("column.cost")}</th>
                 </tr>
               </thead>
               <tbody>
                 {usage.map((u) => (
-                  <tr key={u.resource_type} className="border-b border-zinc-100 dark:border-zinc-800">
-                    <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
+                  <tr
+                    key={u.resource_type}
+                    className="border-b border-divider-soft"
+                  >
+                    <td className="py-3 pr-6 font-medium text-foreground-strong">
                       {u.resource_type}
                     </td>
                     <td className="py-3 pr-6 text-right text-muted-foreground">
@@ -136,7 +153,10 @@ export default function UsageSettingsPage() {
                 ))}
                 {usage.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <td
+                      colSpan={5}
+                      className="py-8 text-center text-muted-foreground"
+                    >
                       {t("empty")}
                     </td>
                   </tr>
@@ -146,6 +166,6 @@ export default function UsageSettingsPage() {
           </div>
         </>
       )}
-    </div>
+    </SettingsPageShell>
   );
 }

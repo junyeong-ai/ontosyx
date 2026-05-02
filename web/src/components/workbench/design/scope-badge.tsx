@@ -35,11 +35,11 @@ export function ScopeBadge() {
 
   return (
     <Popover>
-      <PopoverTrigger className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-white px-2 py-1 text-[10px] text-emerald-700 shadow-sm hover:bg-emerald-50 dark:border-emerald-900 dark:bg-zinc-900 dark:text-emerald-300 dark:hover:bg-zinc-800">
+      <PopoverTrigger className="inline-flex items-center gap-1 rounded-md border border-brand-border bg-surface-base px-2 py-1 text-2xs text-brand-foreground shadow-sm hover:bg-brand-surface-strong">
         <HugeiconsIcon icon={Database01Icon} className="h-3 w-3" size="100%" />
         {summary}
       </PopoverTrigger>
-      <PopoverContent className="z-50 w-[360px] rounded-lg border border-zinc-200 bg-white p-3 shadow-xl outline-none dark:border-zinc-700 dark:bg-zinc-900">
+      <PopoverContent className="z-50 w-inspector rounded-lg border border-divider bg-surface-base p-3 shadow-xl outline-none">
         <ScopePanel
           projectId={project.id}
           revision={project.revision}
@@ -114,7 +114,7 @@ function ScopePanel({
     <div className="flex max-h-[420px] flex-col gap-3 overflow-y-auto text-xs">
       {included.length > 0 && (
         <section>
-          <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+          <h3 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-brand-foreground-strong">
             {t("includedLabel")}
             <span className="ml-1 font-mono text-muted-foreground">
               ({included.length})
@@ -124,7 +124,7 @@ function ScopePanel({
             {included.map((table) => (
               <li
                 key={table}
-                className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-surface-raised"
               >
                 <span className="flex-1 truncate font-mono text-[11px]">
                   {table}
@@ -145,7 +145,7 @@ function ScopePanel({
                     type="button"
                     onClick={() => setDeferTarget(table)}
                     disabled={busy}
-                    className="rounded px-1.5 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:text-amber-300 dark:hover:bg-amber-950/40"
+                    className="rounded px-1.5 py-0.5 text-2xs font-medium text-warning-foreground hover:bg-warning-surface disabled:opacity-50 dark:hover:bg-warning-surface/40"
                   >
                     {t("actions.defer")}
                   </button>
@@ -158,7 +158,7 @@ function ScopePanel({
 
       {deferred.length > 0 && (
         <section>
-          <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+          <h3 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-warning-foreground">
             {t("deferredLabel")}
             <span className="ml-1 font-mono text-muted-foreground">
               ({deferred.length})
@@ -168,11 +168,11 @@ function ScopePanel({
             {deferred.map((d) => (
               <li
                 key={d.table}
-                className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-surface-raised"
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-mono text-[11px]">{d.table}</p>
-                  <p className="truncate text-[10px] italic text-muted-foreground">
+                  <p className="truncate text-2xs italic text-muted-foreground">
                     {d.reason}
                   </p>
                 </div>
@@ -180,7 +180,7 @@ function ScopePanel({
                   type="button"
                   onClick={() => handlePromote(d.table)}
                   disabled={busy}
-                  className="rounded px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+                  className="rounded px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface disabled:opacity-50-strong dark:hover:bg-brand-surface/40"
                 >
                   {t("actions.promote")}
                 </button>
@@ -218,13 +218,13 @@ function DeferReasonInline({
           else if (e.key === "Escape") onCancel();
         }}
         placeholder={t("deferReasonPlaceholder")}
-        className="w-32 rounded border border-amber-300 bg-white px-1.5 py-0.5 text-[10px] focus:border-amber-500 focus:outline-none dark:border-amber-800 dark:bg-zinc-950"
+        className="w-32 rounded border border-warning-border bg-surface-base px-1.5 py-0.5 text-2xs focus:border-warning-border focus:outline-none"
       />
       <button
         type="button"
         onClick={onConfirm}
         disabled={busy || reason.trim() === ""}
-        className="rounded bg-amber-600 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+        className="rounded bg-warning-foreground px-1.5 py-0.5 text-2xs font-medium text-white hover:bg-warning-foreground disabled:opacity-50"
       >
         {t("actions.deferConfirm")}
       </button>
@@ -232,7 +232,7 @@ function DeferReasonInline({
         type="button"
         onClick={onCancel}
         disabled={busy}
-        className="rounded px-1 py-0.5 text-[10px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        className="rounded px-1 py-0.5 text-2xs text-muted-foreground hover:bg-surface-inset"
         aria-label={t("actions.cancel")}
       >
         ✕

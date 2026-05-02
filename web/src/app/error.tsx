@@ -34,21 +34,21 @@ export default function RootError({ error, reset }: RootErrorProps) {
 
   return (
     <html lang="ko">
-      <body className="flex min-h-dvh items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <div className="mx-4 w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <body className="flex min-h-dvh items-center justify-center bg-surface-raised">
+        <div className="mx-4 w-full max-w-md rounded-xl border border-divider bg-surface-base p-6 shadow-sm">
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50 dark:bg-red-950/30">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger-surface/30">
               <HugeiconsIcon
                 icon={AlertCircleIcon}
-                className="h-5 w-5 text-red-500"
+                className="h-5 w-5 text-danger-foreground"
                 size="100%"
               />
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+              <h1 className="text-base font-semibold text-foreground-strong">
                 {t("title")}
               </h1>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-muted-foreground">
+              <p className="mt-1 text-sm text-foreground dark:text-muted-foreground">
                 {t("description")}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -56,7 +56,7 @@ export default function RootError({ error, reset }: RootErrorProps) {
               </p>
 
               {error.digest && (
-                <p className="mt-3 rounded bg-zinc-50 px-2 py-1 font-mono text-[10px] text-zinc-500 dark:bg-zinc-950 dark:text-muted-foreground">
+                <p className="mt-3 rounded bg-surface-raised px-2 py-1 font-mono text-2xs text-foreground-muted dark:text-muted-foreground">
                   {t("refPrefix")} {error.digest}
                 </p>
               )}
@@ -64,7 +64,7 @@ export default function RootError({ error, reset }: RootErrorProps) {
               <div className="mt-5 flex flex-wrap gap-2">
                 <button
                   onClick={reset}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-brand-solid px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-solid"
                 >
                   <HugeiconsIcon
                     icon={RefreshIcon}
@@ -75,7 +75,7 @@ export default function RootError({ error, reset }: RootErrorProps) {
                 </button>
                 <Link
                   href="/"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-raised-muted"
                 >
                   <HugeiconsIcon
                     icon={Home01Icon}
@@ -90,7 +90,7 @@ export default function RootError({ error, reset }: RootErrorProps) {
                   )}&body=${encodeURIComponent(
                     `Error message: ${error.message}\nDigest: ${error.digest ?? "n/a"}\nURL: ${typeof window !== "undefined" ? window.location.href : ""}\n`,
                   )}`}
-                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-200"
+                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-foreground-muted transition-colors hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-strong"
                 >
                   {t("reportError")}
                 </a>

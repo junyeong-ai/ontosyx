@@ -110,7 +110,7 @@ export function SelectOption({
       disabled={disabled}
       className={cn(
         "flex cursor-default items-center px-3 py-1.5 text-xs outline-none select-none",
-        "text-zinc-700 dark:text-zinc-300",
+        "text-foreground",
         "data-[highlighted]:bg-zinc-50 dark:data-[highlighted]:bg-zinc-800",
         "data-[selected]:bg-emerald-50 data-[selected]:text-emerald-700",
         "dark:data-[selected]:bg-emerald-950/30 dark:data-[selected]:text-emerald-400",
@@ -134,7 +134,7 @@ function ChevronIcon() {
       height="10"
       viewBox="0 0 10 10"
       fill="none"
-      className="text-zinc-500 dark:text-muted-foreground"
+      className="text-foreground-muted"
     >
       <path
         d="M2.5 3.75L5 6.25L7.5 3.75"

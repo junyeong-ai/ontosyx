@@ -49,7 +49,7 @@ export function ConstraintForm({
     // operator that this constraint won't render correctly. The
     // wire shape passes through unchanged via `onChange`.
     return (
-      <div className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+      <div className="rounded border border-warning-border bg-warning-surface p-2 text-xs text-warning-foreground dark:text-warning-foreground">
         {t("unknownKind", { kind: value.kind })}
         <Button
           type="button"
@@ -74,14 +74,14 @@ export function ConstraintForm({
   };
 
   return (
-    <div className="flex flex-col gap-2 rounded border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
+    <div className="flex flex-col gap-2 rounded border border-divider-soft bg-surface-base p-3 dark:border-divider dark:bg-surface-base/40">
       <div className="flex items-center justify-between gap-2">
         <select
           value={value.kind}
           onChange={(e) =>
             handleKindChange(e.target.value as ShaclConstraint["kind"])
           }
-          className="rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          className="rounded border border-divider-soft bg-white px-2 py-1 text-xs dark:border-divider dark:bg-surface-base"
         >
           {CONSTRAINT_KINDS.map((kind) => (
             <option key={kind} value={kind}>
@@ -151,12 +151,12 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
       );
     case "select":
       return (
-        <label className="flex flex-col gap-1 text-xs text-zinc-600 dark:text-zinc-300">
+        <label className="flex flex-col gap-1 text-xs text-foreground-muted dark:text-muted-foreground">
           <span className="font-medium">{label}</span>
           <select
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
-            className="rounded border border-zinc-200 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
+            className="rounded border border-divider-soft bg-white px-2 py-1 dark:border-divider dark:bg-surface-base"
           >
             {(field.options ?? []).map((opt) => (
               <option key={opt} value={opt}>
@@ -216,7 +216,7 @@ export function AddConstraintMenu({
           onAdd(spec.toConstraint(spec.defaults()) as ShaclConstraint);
           e.target.value = "";
         }}
-        className="rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+        className="rounded border border-divider-soft bg-white px-2 py-1 text-xs dark:border-divider dark:bg-surface-base"
       >
         <option value="">{t("addPlaceholder")}</option>
         {CONSTRAINT_KINDS.map((kind) => (

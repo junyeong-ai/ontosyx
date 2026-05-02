@@ -4,7 +4,7 @@ import { useCallback, useEffect } from "react";
 import { useReactFlow } from "@xyflow/react";
 
 import { useAppStore } from "@/lib/store";
-import { usePrompt } from "@/components/ui/prompt-dialog";
+import { usePrompt } from "@/components/providers/prompt-provider";
 import type { PaletteCommand } from "@/components/workbench/canvas/command-palette";
 
 interface KeyboardActions {

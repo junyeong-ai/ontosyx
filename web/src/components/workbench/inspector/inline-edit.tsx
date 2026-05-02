@@ -54,15 +54,15 @@ export function InlineEdit({
             if (e.key === "Escape") cancel();
           }}
           className={cn(
-            "w-full rounded border border-emerald-300 bg-white px-1.5 py-0.5 text-xs outline-none dark:border-emerald-700 dark:bg-zinc-900",
+            "w-full rounded border border-brand-border bg-surface-base px-1.5 py-0.5 text-xs outline-none",
             inputClassName,
           )}
           placeholder={placeholder}
         />
-        <button onClick={commit} className="text-emerald-600 hover:text-emerald-700">
+        <button onClick={commit} className="text-brand-foreground hover:text-brand-foreground">
           <HugeiconsIcon icon={Tick01Icon} className="h-3 w-3" size="100%" />
         </button>
-        <button onClick={cancel} className="text-muted-foreground hover:text-zinc-600">
+        <button onClick={cancel} className="text-muted-foreground hover:text-foreground">
           <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
         </button>
       </div>
@@ -82,7 +82,7 @@ export function InlineEdit({
       aria-label="Click to edit"
     >
       <span className="flex-1 truncate">{value || placeholder}</span>
-      <HugeiconsIcon icon={PencilEdit01Icon} className="h-2.5 w-2.5 text-zinc-300 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" size="100%" />
+      <HugeiconsIcon icon={PencilEdit01Icon} className="h-2.5 w-2.5 text-foreground-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" size="100%" />
     </button>
   );
 }

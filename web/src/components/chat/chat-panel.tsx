@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAppStore, type ChatMessage, type ToolStep } from "@/lib/store";
-import { useWorkspaceMode } from "@/lib/use-workspace-mode";
+import { useWorkspaceMode } from "@/hooks/use-workspace-mode";
 import { chatStream, fetchSessionMessages, listAgentSessions, rawQuery, suggestInsights, type InsightHint } from "@/lib/api";
 import type { AgentSession } from "@/types/api";
 import { errorMessage } from "@/lib/error-messages";
@@ -397,8 +397,8 @@ export function ChatPanel() {
 
   return (
     <ErrorBoundary name="Chat">
-    <div className="flex h-full flex-col bg-zinc-50/50 dark:bg-zinc-950">
-      <div ref={scrollRef} role="log" aria-label={t("logAria")} aria-live="polite" className="flex-1 overflow-y-auto px-4 py-4">
+    <div className="flex h-full flex-col bg-surface-raised">
+      <div ref={scrollRef} role="log" aria-label={t("logAria")} aria-live="polite" tabIndex={0} className="flex-1 overflow-y-auto px-4 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-foreground">
         <div className="mx-auto max-w-4xl space-y-5">
           {messages.length === 0 && (
             // Compact empty state — the chat lives in the bottom panel
@@ -406,10 +406,10 @@ export function ChatPanel() {
             // Vertical padding stays tight so the title and the hint stay
             // inside the visible area at the smallest snap height.
             <div className="flex flex-col items-center justify-center text-center">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-surface-inset">
                 <HugeiconsIcon icon={ChatBotIcon} className="h-5 w-5 text-muted-foreground" size="100%" />
               </div>
-              <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+              <h2 className="text-sm font-semibold text-foreground-strong">
                 {t("appTitle")}
               </h2>
               {ontology && suggestions.length > 0 ? (
@@ -418,19 +418,19 @@ export function ChatPanel() {
                     <button
                       key={`${s.category}-${s.question}`}
                       onClick={() => handleSend(s.question)}
-                      className="group flex items-start gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left text-sm transition-all hover:border-emerald-300 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-700"
+                      className="group flex items-start gap-3 rounded-xl border border-divider bg-surface-base px-4 py-3 text-left text-sm transition-all hover:border-brand-border hover:shadow-sm dark:hover:border-brand-border"
                     >
-                      <span className="mt-0.5 shrink-0 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium uppercase text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
+                      <span className="mt-0.5 shrink-0 rounded-md bg-brand-surface px-1.5 py-0.5 text-2xs font-medium uppercase text-brand-foreground">
                         {s.category}
                       </span>
-                      <span className="flex-1 text-zinc-700 group-hover:text-zinc-900 dark:text-zinc-300 dark:group-hover:text-zinc-100">
+                      <span className="flex-1 text-foreground group-hover:text-foreground-strong-muted dark:group-hover:text-foreground-strong">
                         {s.question}
                       </span>
                     </button>
                   ))}
                   <button
                     onClick={() => handleSend(t("edaPrompt"))}
-                    className="mt-4 rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 px-6 py-3 text-sm font-medium text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-100/50 dark:border-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 dark:hover:border-emerald-600"
+                    className="mt-4 rounded-xl border-2 border-dashed border-brand-border bg-brand-surface px-6 py-3 text-sm font-medium text-brand-foreground transition-all hover:border-brand-border hover:bg-brand-surface-strong dark:hover:border-brand-foreground"
                   >
                     {t("runEda")}
                   </button>
@@ -452,7 +452,7 @@ export function ChatPanel() {
               )}
               {recentSessions.length > 0 && (
                 <div className="mt-6 w-full max-w-lg">
-                  <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <h3 className="mb-2 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                     {t("recentSessions")}
                   </h3>
                   <div className="space-y-1">
@@ -460,13 +460,13 @@ export function ChatPanel() {
                       <button
                         key={s.id}
                         onClick={() => handleResumeSession(s)}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-surface-inset"
                       >
-                        <span className="min-w-0 flex-1 truncate text-zinc-600 dark:text-zinc-300">
+                        <span className="min-w-0 flex-1 truncate text-foreground-muted">
                           {s.user_message?.substring(0, 80) || t("untitledSession")}
                           {(s.user_message?.length ?? 0) > 80 ? "..." : ""}
                         </span>
-                        <span className="shrink-0 text-[10px] text-muted-foreground">
+                        <span className="shrink-0 text-2xs text-muted-foreground">
                           {new Date(s.created_at).toLocaleDateString()}
                         </span>
                       </button>

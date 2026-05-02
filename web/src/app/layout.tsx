@@ -3,8 +3,10 @@ import { Geist, Geist_Mono, Noto_Sans_KR } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { Toaster } from "sonner";
-import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import { ConfirmProvider } from "@/components/providers/confirm-provider";
 import { WelcomeModal } from "@/components/onboarding/welcome-modal";
+import { NarrowViewportBanner } from "@/components/ui/narrow-viewport-banner";
+import { SessionExpiredOverlay } from "@/components/collab/session-expired-overlay";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { A11yProvider } from "@/components/providers/a11y-provider";
 import "./globals.css";
@@ -47,15 +49,6 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    // next/font variable classes live on <html> so the runtime
-    // CSS variables (`--font-geist-sans`, `--font-noto-sans-kr`,
-    // `--font-geist-mono`) are in `:root` scope. globals.css's
-    // `@theme inline` defines `--font-sans` on `:root, :host`
-    // referencing those variables; if they aren't defined at the
-    // same scope CSS treats the declaration as "invalid at computed
-    // value time" and the whole font stack falls back to the UA
-    // serif default. This is the official Next.js + Tailwind v4
-    // pattern (see Tailwind docs: "Referencing other variables").
     <html
       lang={locale}
       className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable}`}
@@ -74,28 +67,18 @@ export default async function RootLayout({
         />
       </head>
       <body className="antialiased">
-        {/* Skip-to-main — hidden until focused, lets keyboard users
-            jump past the shell chrome straight to the content. */}
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-emerald-600 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground-onbrand focus:outline-none focus:ring-2 focus:ring-brand-foreground/40 focus:ring-offset-2"
         >
           본문으로 건너뛰기
         </a>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <QueryProvider>
-            {/* No wrapping <div> here. Next.js auto-wraps the route
-                segment in a <Suspense> boundary when `loading.tsx`
-                exists, and any DOM wrapper between the providers and
-                {children} causes the streaming RSC tree to position
-                that boundary differently than the client expects —
-                producing a hydration mismatch. The skip-to-main link
-                instead targets the semantic `<main id="main">` that
-                each route group's layout owns; that's the
-                accessibility-correct anchor anyway (skipping to the
-                main landmark, not a non-semantic div). */}
             <ConfirmProvider>{children}</ConfirmProvider>
             <WelcomeModal />
+            <SessionExpiredOverlay />
+            <NarrowViewportBanner />
           </QueryProvider>
           {/* Dev-only axe-core runtime — tree-shaken in production. */}
           {process.env.NODE_ENV === "development" && <A11yProvider />}

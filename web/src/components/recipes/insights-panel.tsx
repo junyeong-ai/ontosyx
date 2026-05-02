@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import type { AnalysisRecipe } from "@/types/api";
 import { useRecipes } from "@/hooks/api/use-recipes";
 import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
 import { RecipeCard } from "./recipe-card";
 import { RecipeRunner } from "./recipe-runner";
 
@@ -40,17 +41,13 @@ export function InsightsPanel() {
   }
 
   if (isError) {
-    return (
-      <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-        {t("toast.loadFailed")}
-      </div>
-    );
+    return <EmptyState size="sm" title={t("toast.loadFailed")} />;
   }
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="px-4 py-4">
-        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+        <h2 className="text-sm font-semibold text-foreground-strong">
           {t("heading")}
         </h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -58,9 +55,7 @@ export function InsightsPanel() {
         </p>
 
         {recipes.length === 0 ? (
-          <p className="mt-8 text-center text-sm text-muted-foreground">
-            {t("emptyApproved")}
-          </p>
+          <EmptyState size="sm" title={t("emptyApproved")} />
         ) : (
           <div className="mt-4 grid grid-cols-1 gap-3">
             {recipes.map((recipe) => (

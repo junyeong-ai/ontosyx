@@ -81,10 +81,9 @@ export function TableSelector({
           onChange={(e) => setQuery(e.target.value)}
           disabled={disabled}
           className={cn(
-            "min-w-0 flex-1 rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 text-sm",
+            "min-w-0 flex-1 rounded-md border border-divider bg-transparent px-3 py-1.5 text-sm",
             "outline-none transition-colors",
-            "focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50",
-            "dark:border-zinc-600 dark:focus:border-emerald-400 dark:focus:ring-emerald-400/50",
+            "focus:border-brand-foreground focus:ring-1 focus:ring-brand-foreground/50",
             "disabled:cursor-not-allowed disabled:opacity-50",
           )}
         />
@@ -108,7 +107,7 @@ export function TableSelector({
             }}
             onChange={toggleFilteredAll}
             disabled={disabled || filtered.length === 0}
-            className="h-3.5 w-3.5 accent-emerald-500"
+            className="h-3.5 w-3.5 accent-brand-foreground"
           />
           <span>
             {query.trim()
@@ -120,7 +119,7 @@ export function TableSelector({
           type="button"
           onClick={clearAll}
           disabled={disabled || selected.size === 0}
-          className="text-emerald-600 underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:text-zinc-400 disabled:no-underline dark:text-emerald-400 dark:disabled:text-zinc-500"
+          className="text-brand-foreground underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:text-foreground-subtle disabled:no-underline dark:disabled:text-foreground-muted"
         >
           {t("clearAll")}
         </button>
@@ -130,8 +129,8 @@ export function TableSelector({
         role="listbox"
         aria-multiselectable
         className={cn(
-          "overflow-y-auto rounded-md border border-zinc-200 bg-white text-sm",
-          "dark:border-zinc-700 dark:bg-zinc-900",
+          "overflow-y-auto rounded-md border border-divider bg-surface-base text-sm",
+          "dark:border-divider",
         )}
         style={{ maxHeight }}
       >
@@ -140,7 +139,7 @@ export function TableSelector({
             {tables.length === 0 ? t("emptyDataset") : t("noMatches")}
           </p>
         ) : (
-          <ul className="divide-y divide-zinc-200 dark:divide-zinc-700">
+          <ul className="divide-y divide-divider">
             {filtered.map((tbl) => {
               const isSelected = selected.has(tbl.name);
               return (
@@ -151,8 +150,8 @@ export function TableSelector({
                   className={cn(
                     "flex items-center gap-3 px-3 py-2",
                     isSelected
-                      ? "bg-emerald-50/60 dark:bg-emerald-500/10"
-                      : "hover:bg-zinc-50 dark:hover:bg-zinc-800/40",
+                      ? "bg-brand-surface"
+                      : "hover:bg-surface-raised",
                   )}
                 >
                   <input
@@ -160,11 +159,11 @@ export function TableSelector({
                     checked={isSelected}
                     onChange={() => toggleOne(tbl.name)}
                     disabled={disabled}
-                    className="h-3.5 w-3.5 accent-emerald-500"
+                    className="h-3.5 w-3.5 accent-brand-foreground"
                     aria-label={tbl.name}
                   />
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate font-mono text-xs text-zinc-900 dark:text-zinc-100">
+                    <span className="truncate font-mono text-xs text-foreground-strong">
                       {tbl.name}
                     </span>
                     <span className="text-xs text-muted-foreground">

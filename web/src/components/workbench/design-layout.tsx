@@ -146,12 +146,12 @@ export function DesignLayout() {
           {explorerOpen && hasContent && (
             <>
               <Panel defaultSize="18%" minSize="10%" maxSize="35%">
-                <div className="flex h-full flex-col border-r border-zinc-200 dark:border-zinc-800">
-                  <div className="flex h-7 items-center justify-between border-b border-zinc-200 px-2 dark:border-zinc-800">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="flex h-full flex-col border-r border-divider">
+                  <div className="flex h-7 items-center justify-between border-b border-divider px-2">
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Explorer
                     </span>
-                    <button onClick={toggleExplorer} className="text-muted-foreground hover:text-zinc-600">
+                    <button onClick={toggleExplorer} className="text-muted-foreground hover:text-foreground">
                       <HugeiconsIcon icon={PanelLeftIcon} className="h-3 w-3" size="100%" />
                     </button>
                   </div>
@@ -171,7 +171,7 @@ export function DesignLayout() {
               {!explorerOpen && hasContent && (
                 <button
                   onClick={toggleExplorer}
-                  className="absolute left-2 top-2 z-10 rounded-md border border-zinc-200 bg-white p-1 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
+                  className="absolute left-2 top-2 z-10 rounded-md border border-divider bg-surface-base p-1 shadow-sm hover:bg-surface-raised"
                   aria-label="Show Explorer"
                 >
                   <HugeiconsIcon icon={PanelLeftIcon} className="h-3.5 w-3.5 text-muted-foreground" size="100%" />
@@ -180,12 +180,12 @@ export function DesignLayout() {
               {hasContent && (
                 <button
                   onClick={() => setSearchOpen(true)}
-                  className="absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2 py-1 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
+                  className="absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-md border border-divider bg-surface-base px-2 py-1 shadow-sm hover:bg-surface-raised"
                   aria-label="Search graph entities"
                 >
                   <HugeiconsIcon icon={Search01Icon} className="h-3 w-3 text-muted-foreground" size="100%" />
-                  <span className="text-[10px] font-medium text-muted-foreground">Search...</span>
-                  <kbd className="ml-1 rounded border border-zinc-300 px-1 text-[9px] text-muted-foreground dark:border-zinc-600">
+                  <span className="text-2xs font-medium text-muted-foreground">Search...</span>
+                  <kbd className="ml-1 rounded border border-divider px-1 text-2xs text-muted-foreground">
                     {typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "\u2318" : "Ctrl+"}K
                   </kbd>
                 </button>
@@ -200,7 +200,7 @@ export function DesignLayout() {
                       if (!store.isBottomPanelOpen) store.toggleBottomPanel();
                       store.requestExtendSource();
                     }}
-                    className="flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 shadow-sm hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
+                    className="flex items-center gap-1 rounded-md border border-brand-border bg-brand-surface px-2 py-1 text-2xs font-medium text-brand-foreground shadow-sm hover:bg-brand-surface-strong/40-strong dark:hover:bg-brand-surface/60"
                     aria-label="Extend with new source"
                     title="Extend with new source"
                   >
@@ -212,7 +212,7 @@ export function DesignLayout() {
               {!inspectorOpen && hasContent && (
                 <button
                   onClick={toggleInspector}
-                  className="absolute right-2 top-2 z-10 rounded-md border border-zinc-200 bg-white p-1 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
+                  className="absolute right-2 top-2 z-10 rounded-md border border-divider bg-surface-base p-1 shadow-sm hover:bg-surface-raised"
                   aria-label="Show Inspector"
                 >
                   <HugeiconsIcon icon={PanelRightIcon} className="h-3.5 w-3.5 text-muted-foreground" size="100%" />
@@ -228,12 +228,12 @@ export function DesignLayout() {
             <>
               <ResizeHandle />
               <Panel defaultSize="22%" minSize="15%" maxSize="40%">
-                <div className="flex h-full flex-col border-l border-zinc-200 dark:border-zinc-800">
-                  <div className="flex h-7 items-center justify-between border-b border-zinc-200 px-2 dark:border-zinc-800">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="flex h-full flex-col border-l border-divider">
+                  <div className="flex h-7 items-center justify-between border-b border-divider px-2">
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Inspector
                     </span>
-                    <button onClick={toggleInspector} className="text-muted-foreground hover:text-zinc-600">
+                    <button onClick={toggleInspector} className="text-muted-foreground hover:text-foreground">
                       <HugeiconsIcon icon={PanelRightIcon} className="h-3 w-3" size="100%" />
                     </button>
                   </div>

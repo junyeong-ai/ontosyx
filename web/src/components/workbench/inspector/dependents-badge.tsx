@@ -46,7 +46,7 @@ export function DependentsBadge({ ontologyId, target }: DependentsBadgeProps) {
 
   return (
     <span
-      className="rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+      className="rounded bg-concept-surface px-1.5 py-0.5 text-2xs font-medium text-concept-foreground"
       title={`Dependents: ${summary.breakdown}`}
     >
       {summary.count} dependent{summary.count === 1 ? "" : "s"}

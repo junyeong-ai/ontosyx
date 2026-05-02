@@ -3,9 +3,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { ReactElement } from "react";
 
-import messages from "../../../../../messages/en.json";
+import messages from "../../../../messages/en.json";
 
-vi.mock("@/lib/use-auth", () => ({
+vi.mock("@/hooks/use-auth", () => ({
   useAuth: vi.fn(),
 }));
 
@@ -18,7 +18,7 @@ vi.mock("@/lib/api", () => ({
 }));
 
 const confirmMock = vi.fn();
-vi.mock("@/components/ui/confirm-dialog", () => ({
+vi.mock("@/components/providers/confirm-provider", () => ({
   useConfirm: () => confirmMock,
   ConfirmDialogProvider: ({ children }: { children: React.ReactNode }) =>
     children,
@@ -34,9 +34,9 @@ vi.mock("@/components/recipes/recipe-runner", () => ({
   RecipeRunner: () => <div data-testid="recipe-runner" />,
 }));
 
-import { RecipesWorkbench } from "@/components/workbench/recipes/recipes-workbench";
+import { RecipesWorkbench } from "@/components/recipes/recipes-workbench";
 import * as api from "@/lib/api";
-import { useAuth } from "@/lib/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import type { AnalysisRecipe } from "@/types/api";
 import { toast } from "sonner";
 

@@ -17,7 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/cn";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useQueryState } from "@/hooks/use-query-state";
-import { useImeAwareInput } from "@/lib/use-ime-aware-input";
+import { useImeAwareInput } from "@/hooks/use-ime-aware-input";
 import { sortKorean } from "@/lib/locale/sort";
 import {
   ExploreCanvas,
@@ -337,10 +337,10 @@ export function ExploreLayout() {
       />
 
       {/* Left: Search + Results */}
-      <div className="flex h-full w-72 shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
+      <div className="flex h-full w-72 shrink-0 flex-col border-r border-divider">
         {/* Search input */}
-        <div className="border-b border-zinc-200 p-3 dark:border-zinc-800">
-          <div className="flex items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="border-b border-divider p-3">
+          <div className="flex items-center gap-1.5 rounded-md border border-divider bg-surface-raised px-2 py-1.5">
             <HugeiconsIcon
               icon={Search01Icon}
               className="h-3 w-3 text-muted-foreground"
@@ -359,7 +359,7 @@ export function ExploreLayout() {
                 if (e.key === "Enter" && !e.nativeEvent.isComposing) runSearch();
               }}
               placeholder="Search nodes..."
-              className="w-full bg-transparent text-xs text-zinc-700 outline-none placeholder:text-zinc-500 dark:text-zinc-300"
+              className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-foreground-muted-muted"
             />
             {loading && <Spinner size="xs" className="text-muted-foreground" />}
           </div>
@@ -372,17 +372,17 @@ export function ExploreLayout() {
             <div className="p-3 space-y-4">
               {/* Stats summary */}
               <div className="flex gap-3">
-                <div className="rounded bg-zinc-100 px-2 py-1 dark:bg-zinc-800">
-                  <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                <div className="rounded bg-surface-inset px-2 py-1">
+                  <div className="text-xs font-semibold text-foreground">
                     {overview.total_nodes.toLocaleString()}
                   </div>
-                  <div className="text-[9px] text-muted-foreground">nodes</div>
+                  <div className="text-2xs text-muted-foreground">nodes</div>
                 </div>
-                <div className="rounded bg-zinc-100 px-2 py-1 dark:bg-zinc-800">
-                  <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                <div className="rounded bg-surface-inset px-2 py-1">
+                  <div className="text-xs font-semibold text-foreground">
                     {overview.total_relationships.toLocaleString()}
                   </div>
-                  <div className="text-[9px] text-muted-foreground">relationships</div>
+                  <div className="text-2xs text-muted-foreground">relationships</div>
                 </div>
               </div>
 
@@ -390,7 +390,7 @@ export function ExploreLayout() {
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5">
                   <HugeiconsIcon icon={DatabaseIcon} className="h-3 w-3 text-muted-foreground" size="100%" />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Node Labels
                   </span>
                 </div>
@@ -399,18 +399,18 @@ export function ExploreLayout() {
                     <button
                       key={label}
                       onClick={() => handleBrowseLabel(label)}
-                      className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left transition-colors hover:bg-surface-inset dark:hover:bg-surface-base"
                     >
                       <div className="flex items-center gap-2">
                         <span
                           className="h-2.5 w-2.5 rounded-full shrink-0"
                           style={{ backgroundColor: resolveNodeColor(label, false) }}
                         />
-                        <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                        <span className="text-xs font-medium text-foreground">
                           {label}
                         </span>
                       </div>
-                      <span className="text-[10px] tabular-nums text-muted-foreground">
+                      <span className="text-2xs tabular-nums text-muted-foreground">
                         {count.toLocaleString()}
                       </span>
                     </button>
@@ -421,20 +421,20 @@ export function ExploreLayout() {
               {/* Relationship patterns */}
               {overview.relationships.length > 0 && (
                 <div>
-                  <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <div className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Relationship Patterns
                   </div>
                   <div className="space-y-0.5">
                     {overview.relationships.slice(0, 15).map((rel) => (
                       <div
                         key={`${rel.from_label}-${rel.rel_type}-${rel.to_label}`}
-                        className="flex items-center gap-1 rounded px-2 py-1 text-[10px]"
+                        className="flex items-center gap-1 rounded px-2 py-1 text-2xs"
                       >
-                        <span className="font-medium text-zinc-600 dark:text-muted-foreground">{rel.from_label}</span>
+                        <span className="font-medium text-foreground dark:text-muted-foreground">{rel.from_label}</span>
                         <span className="text-muted-foreground">→</span>
                         <span className="font-mono text-muted-foreground">{rel.rel_type}</span>
                         <span className="text-muted-foreground">→</span>
-                        <span className="font-medium text-zinc-600 dark:text-muted-foreground">{rel.to_label}</span>
+                        <span className="font-medium text-foreground dark:text-muted-foreground">{rel.to_label}</span>
                         <span className="ml-auto tabular-nums text-muted-foreground">{rel.count.toLocaleString()}</span>
                       </div>
                     ))}
@@ -455,18 +455,18 @@ export function ExploreLayout() {
           {/* Empty graph fallback */}
           {!searched && !overviewLoading && (!overview || overview.labels.length === 0) && (
             <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950/30">
-                <HugeiconsIcon icon={Search02Icon} className="h-4 w-4 text-emerald-500" size="100%" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-surface">
+                <HugeiconsIcon icon={Search02Icon} className="h-4 w-4 text-brand-foreground" size="100%" />
               </div>
               <div>
-                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">No graph data yet</p>
+                <p className="text-sm font-medium text-foreground">No graph data yet</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Deploy a schema and load data from Design mode to start exploring.
                 </p>
               </div>
               <button
                 onClick={() => router.push("/design")}
-                className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
+                className="rounded-lg border border-brand-border bg-brand-surface px-4 py-2 text-xs font-medium text-brand-foreground transition-colors hover:bg-brand-surface-strong/30 dark:hover:bg-brand-surface/50"
               >
                 Switch to Design
               </button>
@@ -484,23 +484,23 @@ export function ExploreLayout() {
               key={result.elementId || i}
               onClick={() => handleSelectResult(result)}
               className={cn(
-                "flex w-full items-start gap-2 border-b border-zinc-100 px-3 py-2 text-left transition-colors dark:border-zinc-800",
+                "flex w-full items-start gap-2 border-b border-divider-soft px-3 py-2 text-left transition-colors",
                 focusedNode?.elementId === result.elementId
-                  ? "bg-emerald-50 dark:bg-emerald-950/30"
-                  : "hover:bg-zinc-50 dark:hover:bg-zinc-800",
+                  ? "bg-brand-surface"
+                  : "hover:bg-surface-raised dark:hover:bg-surface-base",
               )}
             >
               <div className="flex flex-wrap gap-1">
                 {result.labels.map((l) => (
                   <span
                     key={l}
-                    className="rounded bg-zinc-100 px-1 py-0.5 text-[9px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground"
+                    className="rounded bg-surface-inset px-1 py-0.5 text-2xs font-medium text-foreground dark:text-muted-foreground"
                   >
                     {l}
                   </span>
                 ))}
               </div>
-              <span className="min-w-0 flex-1 truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">
+              <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
                 {resolveDisplayName(result.props)}
               </span>
             </button>
@@ -518,7 +518,7 @@ export function ExploreLayout() {
                 setNeighbors([]);
                 setBreadcrumb([]);
               }}
-              className="w-full px-3 py-2 text-left text-[10px] text-muted-foreground transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+              className="w-full px-3 py-2 text-left text-2xs text-muted-foreground transition-colors hover:text-foreground dark:hover:text-foreground-muted"
             >
               ← Back to overview
             </button>
@@ -527,10 +527,10 @@ export function ExploreLayout() {
       </div>
 
       {/* Center: Graph Visualization */}
-      <div className="flex flex-1 flex-col overflow-hidden bg-zinc-50 dark:bg-zinc-950">
+      <div className="flex flex-1 flex-col overflow-hidden bg-surface-raised">
         {/* Breadcrumb navigation */}
         {breadcrumb.length > 0 && (
-          <div className="flex items-center gap-1 border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
+          <div className="flex items-center gap-1 border-b border-divider px-3 py-1.5">
             {breadcrumb.map((entry, i) => (
               <span key={`${entry.elementId}-${i}`} className="flex items-center gap-1">
                 {i > 0 && (
@@ -543,13 +543,13 @@ export function ExploreLayout() {
                 <button
                   onClick={() => handleBreadcrumbClick(i)}
                   className={cn(
-                    "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors",
+                    "flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs transition-colors",
                     i === breadcrumb.length - 1
-                      ? "bg-emerald-100 font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400"
-                      : "text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300",
+                      ? "bg-brand-surface-strong font-medium text-brand-foreground-strong"
+                      : "text-muted-foreground hover:bg-surface-inset hover:text-foreground dark:hover:bg-surface-base dark:hover:text-foreground-muted",
                   )}
                 >
-                  <span className="text-[9px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     {entry.label}:
                   </span>
                   <span className="max-w-24 truncate">{entry.name}</span>
@@ -563,8 +563,8 @@ export function ExploreLayout() {
         {/* Graph view */}
         <div className="relative flex-1">
           {expanding && !focusedNode && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-zinc-50/80 dark:bg-zinc-950/80">
-              <Spinner size="md" className="text-emerald-500" />
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface-raised/80">
+              <Spinner size="md" className="text-brand-foreground" />
             </div>
           )}
           <ExploreCanvas
@@ -575,7 +575,7 @@ export function ExploreLayout() {
           />
           {/* Stats bar */}
           {focusedNode && neighbors.length > 0 && (
-            <div className="absolute bottom-2 right-2 rounded bg-zinc-900/70 px-2 py-1 text-[10px] text-zinc-300">
+            <div className="absolute bottom-2 right-2 rounded bg-surface-base/70 px-2 py-1 text-2xs text-foreground-muted">
               {neighbors.length} neighbor{neighbors.length !== 1 ? "s" : ""}
             </div>
           )}
@@ -583,10 +583,10 @@ export function ExploreLayout() {
       </div>
 
       {/* Right: Detail panel */}
-      <div className="flex h-full w-80 shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-800">
+      <div className="flex h-full w-80 shrink-0 flex-col border-l border-divider">
         {/* Properties section */}
-        <div className="flex h-7 items-center border-b border-zinc-200 px-3 dark:border-zinc-800">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="flex h-7 items-center border-b border-divider px-3">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             Properties
           </span>
         </div>
@@ -598,7 +598,7 @@ export function ExploreLayout() {
                 {focusedNode.labels.map((l) => (
                   <span
                     key={l}
-                    className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400"
+                    className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground-strong"
                   >
                     {l}
                   </span>
@@ -608,44 +608,44 @@ export function ExploreLayout() {
               <div className="space-y-1 pt-2">
                 {Object.entries(focusedNode.props).map(([key, value]) => (
                   <div key={key} className="flex items-start gap-2 text-xs">
-                    <span className="shrink-0 font-medium text-zinc-500 dark:text-muted-foreground">
+                    <span className="shrink-0 font-medium text-foreground-muted">
                       {key}
                     </span>
-                    <span className="min-w-0 break-all text-zinc-700 dark:text-zinc-300">
+                    <span className="min-w-0 break-all text-foreground">
                       {formatPropertyValue(value)}
                     </span>
                   </div>
                 ))}
               </div>
               {/* Element ID */}
-              <div className="border-t border-zinc-100 pt-2 dark:border-zinc-800">
-                <span className="text-[9px] text-muted-foreground">
+              <div className="border-t border-divider-soft pt-2">
+                <span className="text-2xs text-muted-foreground">
                   ID: {focusedNode.elementId}
                 </span>
               </div>
 
               {/* Relationships section */}
               {groupedRelationships.length > 0 && (
-                <div className="border-t border-zinc-100 pt-3 dark:border-zinc-800">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="border-t border-divider-soft pt-3">
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Relationships
                   </span>
                   <div className="mt-2 space-y-1.5">
                     {groupedRelationships.map((group) => (
                       <div key={`${group.direction}:${group.type}`}>
                         {/* Group header */}
-                        <div className="flex items-center gap-1.5 text-[10px]">
+                        <div className="flex items-center gap-1.5 text-2xs">
                           <span
                             className={cn(
-                              "text-[9px] font-bold",
+                              "text-2xs font-bold",
                               group.direction === "outgoing"
-                                ? "text-blue-400"
-                                : "text-amber-400",
+                                ? "text-info-foreground"
+                                : "text-warning-foreground",
                             )}
                           >
                             {group.direction === "outgoing" ? "\u2192" : "\u2190"}
                           </span>
-                          <span className="font-mono font-medium text-zinc-600 dark:text-muted-foreground">
+                          <span className="font-mono font-medium text-foreground dark:text-muted-foreground">
                             {group.type}
                           </span>
                           <span className="text-muted-foreground">
@@ -660,12 +660,12 @@ export function ExploreLayout() {
                               onClick={() =>
                                 handleRelationshipClick(neighbor)
                               }
-                              className="flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left text-[10px] transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                              className="flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left text-2xs transition-colors hover:bg-surface-inset dark:hover:bg-surface-base"
                             >
-                              <span className="rounded bg-zinc-100 px-1 py-0.5 text-[8px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-muted-foreground">
+                              <span className="rounded bg-surface-inset px-1 py-0.5 text-2xs font-medium text-foreground-muted dark:text-muted-foreground">
                                 {neighbor.labels[0] || "Node"}
                               </span>
-                              <span className="min-w-0 flex-1 truncate text-zinc-600 dark:text-zinc-300">
+                              <span className="min-w-0 flex-1 truncate text-foreground-muted">
                                 {resolveDisplayName(neighbor.props)}
                               </span>
                             </button>

@@ -8,7 +8,7 @@ import { FormInput } from "@/components/ui/form-input";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
 import { WarningGroupList } from "@/components/workbench/warnings/warning-group-card";
-import { ReviewTOC, type ReviewTOCEntry } from "./review-toc";
+import { ReviewToc, type ReviewTOCEntry } from "./review-toc";
 import { useReviewKeyboardNav } from "./use-review-keyboard-nav";
 import type {
   AmbiguityContext,
@@ -162,7 +162,7 @@ function GroupedSection({
         <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
         </h4>
-        <p className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+        <p className="rounded border border-brand-border bg-brand-surface px-2 py-1.5 text-xs text-brand-foreground-strong">
           {t("sectionAllResolved", { count: totalItems })}
         </p>
       </div>
@@ -179,11 +179,11 @@ function GroupedSection({
           const unresolved = getUnresolvedCount(tableName);
           return (
             <details key={tableName} open={unresolved > 0}>
-              <summary className="flex cursor-pointer select-none items-center gap-2 rounded border border-zinc-200 bg-zinc-100/60 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:bg-zinc-800/60">
+              <summary className="flex cursor-pointer select-none items-center gap-2 rounded border border-divider bg-surface-inset px-2 py-1 text-xs font-medium text-foreground hover:bg-surface-inset-muted">
                 <span className="flex-1">{tableName}</span>
                 {renderBatchAction?.(tableName)}
                 {unresolved > 0 && (
-                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                  <span className="rounded-full bg-warning-surface px-1.5 py-0.5 text-2xs font-medium text-warning-foreground">
                     {unresolved}
                   </span>
                 )}
@@ -294,7 +294,7 @@ export function AnalysisReviewSection({
   // Sticky-TOC backing data. Keep this declarative so adding a new
   // review section is one entry here + one anchor id on the
   // rendered <section>. Sections with zero items are filtered
-  // inside `<ReviewTOC>` and do not produce TOC pills.
+  // inside `<ReviewToc>` and do not produce TOC pills.
   const tocEntries: ReviewTOCEntry[] = [
     {
       anchor: "review-warnings",
@@ -544,10 +544,10 @@ export function AnalysisReviewSection({
   const hasUnresolved = unresolvedPiiCount > 0 || unresolvedClarificationCount > 0;
 
   return (
-    <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+    <div className="space-y-3 rounded-lg border border-divider bg-surface-raised p-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+          <p className="text-xs font-semibold text-foreground-strong">
             {t("heading")}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -567,8 +567,8 @@ export function AnalysisReviewSection({
               onClick={autoFill}
               className={cn(
                 "flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
-                "border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100",
-                "dark:border-violet-700 dark:bg-violet-950 dark:text-violet-300 dark:hover:bg-violet-900",
+                "border-concept-border bg-concept-surface text-concept-foreground hover:bg-concept-surface",
+                "dark:border-concept-border dark:hover:bg-concept-surface",
               )}
             >
               <HugeiconsIcon icon={MagicWand01Icon} className="h-3 w-3" size="100%" />
@@ -577,10 +577,10 @@ export function AnalysisReviewSection({
           )}
           <span
             className={cn(
-              "rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase",
+              "rounded-full px-1.5 py-0.5 text-2xs font-medium uppercase",
               report.analysis_completeness === "partial"
-                ? "bg-amber-100 text-amber-800"
-                : "bg-emerald-100 text-emerald-800",
+                ? "bg-warning-surface text-warning-foreground"
+                : "bg-brand-surface-strong text-brand-foreground-strong",
             )}
           >
             {report.analysis_completeness === "partial"
@@ -596,15 +596,15 @@ export function AnalysisReviewSection({
             <span>{t("progressResolved", { percent: progressPercent, resolved: totalResolved, total: totalItems })}</span>
             <span className="text-muted-foreground">{t("progressRemaining", { count: totalUnresolved })}</span>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-inset">
             <div
               className={cn(
                 "h-full rounded-full transition-all duration-300",
                 progressPercent === 100
-                  ? "bg-emerald-500"
+                  ? "bg-brand-solid"
                   : progressPercent >= 50
-                    ? "bg-emerald-400"
-                    : "bg-amber-400",
+                    ? "bg-brand-solid"
+                    : "bg-warning-foreground",
               )}
               style={{ width: `${progressPercent}%` }}
             />
@@ -612,26 +612,26 @@ export function AnalysisReviewSection({
         </div>
       )}
 
-      <ReviewTOC entries={tocEntries} />
+      <ReviewToc entries={tocEntries} />
 
       {totalItems > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 bg-white px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/60">
-          <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-divider bg-surface-base px-2 py-1.5">
+          <label className="flex items-center gap-1.5 text-xs text-foreground-muted">
             <input
               type="checkbox"
               checked={unresolvedOnly}
               onChange={(e) => setUnresolvedOnly(e.target.checked)}
-              className="accent-emerald-600"
+              className="accent-brand-foreground"
             />
             {t("unresolvedOnly")}
           </label>
-          <div className="h-3 w-px bg-zinc-200 dark:bg-zinc-700" />
+          <div className="h-3 w-px bg-surface-inset" />
           <input
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder={t("filterPlaceholder")}
-            className="flex-1 border-none bg-transparent text-xs text-zinc-700 outline-none placeholder:text-zinc-500 dark:text-zinc-200 dark:placeholder:text-zinc-500"
+            className="flex-1 border-none bg-transparent text-xs text-foreground outline-none placeholder:text-foreground-muted-strong dark:placeholder:text-foreground-muted"
           />
           <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
             {t("filterCount", { remaining: totalUnresolved, total: totalItems })}
@@ -642,11 +642,11 @@ export function AnalysisReviewSection({
       {report.analysis_warnings.length > 0 && (
         <div
           id="review-warnings"
-          className="rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950/40"
+          className="rounded-md border border-warning-border bg-warning-surface p-2"
         >
           <div className="flex items-center gap-1.5">
-            <HugeiconsIcon icon={Alert01Icon} className="h-3 w-3 text-amber-600" size="100%" />
-            <span className="text-xs font-medium text-amber-900 dark:text-amber-100">
+            <HugeiconsIcon icon={Alert01Icon} className="h-3 w-3 text-warning-foreground" size="100%" />
+            <span className="text-xs font-medium text-warning-foreground">
               {t("warningsTitle")}
             </span>
           </div>
@@ -655,7 +655,7 @@ export function AnalysisReviewSection({
           </div>
           <label
             id="review-partial-acknowledgement"
-            className="mt-2 flex items-start gap-1.5 text-xs text-zinc-700 dark:text-zinc-300"
+            className="mt-2 flex items-start gap-1.5 text-xs text-foreground"
           >
             <input
               type="checkbox"
@@ -671,23 +671,23 @@ export function AnalysisReviewSection({
       {report.large_schema_warning && (
         <div
           id="review-large-schema"
-          className="rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950/40"
+          className="rounded-md border border-warning-border bg-warning-surface p-2"
         >
           <div className="flex items-center gap-1.5">
-            <HugeiconsIcon icon={Alert01Icon} className="h-3 w-3 text-amber-600" size="100%" />
-            <span className="text-xs font-medium text-amber-900 dark:text-amber-100">
+            <HugeiconsIcon icon={Alert01Icon} className="h-3 w-3 text-warning-foreground" size="100%" />
+            <span className="text-xs font-medium text-warning-foreground">
               {t("largeSchemaTitle", {
                 tableCount: report.large_schema_warning.table_count,
                 recommendedMax: report.large_schema_warning.recommended_max,
               })}
             </span>
           </div>
-          <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+          <p className="mt-1 text-xs text-warning-foreground">
             {t("largeSchemaHint")}
           </p>
           <label
             id="review-large-schema-acknowledgement"
-            className="mt-2 flex items-start gap-1.5 text-xs text-zinc-700 dark:text-zinc-300"
+            className="mt-2 flex items-start gap-1.5 text-xs text-foreground"
           >
             <input
               type="checkbox"
@@ -712,7 +712,7 @@ export function AnalysisReviewSection({
               t("repoEnums", { count: report.repo_summary.enums_found })}
           </p>
           {report.repo_summary.failure_reason && (
-            <p className="text-amber-700 dark:text-amber-400">
+            <p className="text-warning-foreground">
               {t(`repoFailure.${report.repo_summary.failure_reason}`)}
             </p>
           )}
@@ -737,7 +737,7 @@ export function AnalysisReviewSection({
                   e.preventDefault();
                   acceptAllRelInTable(tableName);
                 }}
-                className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/60"
+                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong-strong/40-strong dark:hover:bg-brand-solid-hover/60"
               >
                 {t("acceptAll")}
               </button>
@@ -746,7 +746,7 @@ export function AnalysisReviewSection({
           renderItem={(entry) => {
             const rel = entry.item as ImpliedRelationship;
             return (
-              <label className="flex items-center gap-1.5 rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-800 dark:bg-zinc-950/60">
+              <label className="flex items-center gap-1.5 rounded border border-divider bg-surface-base px-2 py-1 text-xs/60">
                 <input
                   type="checkbox"
                   checked={!!confirmedRelationships[entry.key]}
@@ -754,7 +754,7 @@ export function AnalysisReviewSection({
                     setConfirmedRelationships((c) => ({ ...c, [entry.key]: e.target.checked }))
                   }
                 />
-                <span className="text-zinc-600 dark:text-zinc-300">
+                <span className="text-foreground-muted">
                   {t("relationshipRow", {
                     fromTable: rel.from_table,
                     fromColumn: rel.from_column,
@@ -788,7 +788,7 @@ export function AnalysisReviewSection({
                   e.preventDefault();
                   acceptAllPiiInTable(tableName);
                 }}
-                className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/60"
+                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong-strong/40-strong dark:hover:bg-brand-solid-hover/60"
               >
                 {t("acceptAll")}
               </button>
@@ -800,8 +800,8 @@ export function AnalysisReviewSection({
             const excluded = !!excludedColumns[entry.key];
             const selectedValue = annotation ? annotation.kind.kind : "";
             return (
-              <div className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950/60">
-                <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200">
+              <div className="rounded border border-divider bg-surface-base p-2">
+                <p className="text-xs font-medium text-foreground-strong">
                   {t("piiRow", {
                     table: suggestion.table,
                     column: suggestion.column,
@@ -851,7 +851,7 @@ export function AnalysisReviewSection({
                       </option>
                     ))}
                   </select>
-                  <label className="flex items-center gap-1 text-xs text-zinc-600 dark:text-zinc-300">
+                  <label className="flex items-center gap-1 text-xs text-foreground-muted">
                     <input
                       type="checkbox"
                       checked={excluded}
@@ -908,7 +908,7 @@ export function AnalysisReviewSection({
                   e.preventDefault();
                   acceptAllClarInTable(tableName);
                 }}
-                className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/60"
+                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong-strong/40-strong dark:hover:bg-brand-solid-hover/60"
               >
                 {t("acceptAll")}
               </button>
@@ -917,8 +917,8 @@ export function AnalysisReviewSection({
           renderItem={(entry) => {
             const column = entry.item as AmbiguityContext;
             return (
-              <div className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950/60">
-                <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200">
+              <div className="rounded border border-divider bg-surface-base p-2">
+                <p className="text-xs font-medium text-foreground-strong">
                   {t("clarificationRowHeader", {
                     table: column.column.relation,
                     column: column.column.column,
@@ -927,7 +927,7 @@ export function AnalysisReviewSection({
                 <p className="text-xs text-muted-foreground">{column.clarification_prompt}</p>
                 {column.repo_hint && (
                   <div className="mt-0.5 flex items-center gap-1.5">
-                    <span className="text-xs text-emerald-600">{column.repo_hint.suggested_values}</span>
+                    <span className="text-xs text-brand-foreground">{column.repo_hint.suggested_values}</span>
                     {!clarifications[entry.key]?.trim() && (
                       <button
                         onClick={() =>
@@ -936,7 +936,7 @@ export function AnalysisReviewSection({
                             [entry.key]: column.repo_hint!.suggested_values,
                           }))
                         }
-                        className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-emerald-200"
+                        className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong"
                       >
                         {t("clarificationAccept")}
                       </button>
@@ -976,7 +976,7 @@ export function AnalysisReviewSection({
                   e.preventDefault();
                   acceptAllExcludedInTable(tableName);
                 }}
-                className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/60"
+                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong-strong/40-strong dark:hover:bg-brand-solid-hover/60"
               >
                 {t("acceptAll")}
               </button>
@@ -985,7 +985,7 @@ export function AnalysisReviewSection({
           renderItem={(entry) => {
             const s = entry.item as TableExclusionSuggestion;
             return (
-              <label className="flex items-center gap-1.5 rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-800 dark:bg-zinc-950/60">
+              <label className="flex items-center gap-1.5 rounded border border-divider bg-surface-base px-2 py-1 text-xs/60">
                 <input
                   type="checkbox"
                   checked={!!excludedTables[s.table_name]}
@@ -993,7 +993,7 @@ export function AnalysisReviewSection({
                     setExcludedTables((c) => ({ ...c, [s.table_name]: e.target.checked }))
                   }
                 />
-                <span className="text-zinc-600 dark:text-zinc-300">
+                <span className="text-foreground-muted">
                   {t("excludedRow", {
                     table: s.table_name,
                     reason: s.reason,

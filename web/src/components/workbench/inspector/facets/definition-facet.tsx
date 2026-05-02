@@ -98,7 +98,7 @@ export function DefinitionFacet({
   return (
     <div className="space-y-3">
       <div>
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("descriptionLabel")}
         </span>
         <div className="mt-1 flex items-center gap-1">
@@ -106,7 +106,7 @@ export function DefinitionFacet({
             value={defaultText(entity.description)}
             placeholder={t("descriptionPlaceholder")}
             onSave={handleUpdateDescription}
-            className="flex-1 text-zinc-700 dark:text-zinc-200"
+            className="flex-1 text-foreground-strong"
           />
           {showAiAssist && ai.canEdit && (
             <AiAssistButton
@@ -125,10 +125,10 @@ export function DefinitionFacet({
         )}
       </div>
       <div>
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("anchorsLabel")}
         </span>
-        <p className="mt-0.5 text-[10px] text-muted-foreground">
+        <p className="mt-0.5 text-2xs text-muted-foreground">
           {t("anchorsHint")}
         </p>
         <div className="mt-1.5">

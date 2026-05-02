@@ -29,11 +29,11 @@ function ParamField({
   onChange: (v: string) => void;
 }) {
   const inputCls =
-    "w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200";
+    "w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs-strong";
 
   return (
     <div>
-      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
         {name}
         {def.description && (
           <span className="ml-1 font-normal normal-case text-muted-foreground">
@@ -164,11 +164,11 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="mx-4 flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="mx-4 flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border border-divider bg-surface-base shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3 dark:border-zinc-700">
+        <div className="flex items-center justify-between border-b border-divider px-5 py-3">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+            <h2 className="text-sm font-semibold text-foreground-strong">
               {recipe.name}
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
@@ -177,7 +177,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+            className="rounded-md p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
               <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
@@ -190,7 +190,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           {/* Parameters */}
           {paramEntries.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("parameters")}
               </h3>
               {paramEntries.map(([name, def]) => (
@@ -207,15 +207,15 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
 
           {/* Data Source */}
           <div className="space-y-2">
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("dataSource")}
             </h3>
-            <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-muted-foreground">
+            <label className="flex items-center gap-2 text-xs text-foreground dark:text-muted-foreground">
               <input
                 type="checkbox"
                 checked={useLastResult}
                 onChange={(e) => setUseLastResult(e.target.checked)}
-                className="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+                className="rounded border-divider text-brand-foreground focus:ring-brand-foreground"
               />
               {t("useLastResult")}
             </label>
@@ -225,7 +225,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
                 onChange={(e) => setCypherQuery(e.target.value)}
                 placeholder={t("cypherPlaceholder")}
                 rows={3}
-                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+                className="w-full rounded-md border border-divider bg-surface-base px-3 py-2 font-mono text-xs-strong"
               />
             )}
           </div>
@@ -233,10 +233,10 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           {/* Result */}
           {resultText && (
             <div>
-              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("result")}
               </h3>
-              <pre className="mt-1 max-h-60 overflow-auto rounded-md bg-zinc-50 p-3 text-xs text-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+              <pre className="mt-1 max-h-60 overflow-auto rounded-md bg-surface-raised p-3 text-xs text-foreground-muted">
                 {resultText}
               </pre>
             </div>
@@ -244,13 +244,13 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-zinc-200 px-5 py-3 dark:border-zinc-700">
+        <div className="flex items-center justify-end gap-2 border-t border-divider px-5 py-3">
           {isRunning ? (
             <>
               <Spinner size="sm" />
               <button
                 onClick={handleCancel}
-                className="rounded-md px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-surface"
               >
                 {tCommon("cancel")}
               </button>
@@ -259,14 +259,14 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
             <>
               <button
                 onClick={onClose}
-                className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-inset dark:text-muted-foreground"
               >
                 {tCommon("close")}
               </button>
               <button
                 onClick={handleRun}
                 disabled={!ontology}
-                className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                className="rounded-md bg-brand-solid px-4 py-1.5 text-xs font-medium text-white hover:bg-brand-solid disabled:opacity-50"
               >
                 {t("run")}
               </button>

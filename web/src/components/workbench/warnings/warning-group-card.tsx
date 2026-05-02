@@ -85,14 +85,14 @@ function WarningGroupCard({ group }: { group: WarningGroup }) {
       >
         <SeverityIcon level={group.level} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium text-zinc-800 dark:text-zinc-100">
+          <p className="truncate text-xs font-medium text-foreground-strong-strong">
             {summary}
           </p>
           {!open && hint && (
             <p className="truncate text-[11px] text-muted-foreground">{hint}</p>
           )}
         </div>
-        <span className="rounded-full border border-zinc-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200">
+        <span className="rounded-full border border-divider bg-surface-base px-1.5 py-0.5 text-2xs font-medium text-foreground dark:border-divider-strong">
           {t("affectedCount", { count: group.warnings.length })}
         </span>
         <HugeiconsIcon
@@ -103,20 +103,20 @@ function WarningGroupCard({ group }: { group: WarningGroup }) {
       </button>
 
       {open && (
-        <div className="space-y-2 border-t border-zinc-200 px-3 pb-2 pt-2 dark:border-zinc-700">
+        <div className="space-y-2 border-t border-divider px-3 pb-2 pt-2">
           {hint && (
-            <p className="rounded-md bg-emerald-50 px-2 py-1.5 text-[11px] text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+            <p className="rounded-md bg-brand-surface px-2 py-1.5 text-[11px] text-brand-foreground-strong">
               {hint}
             </p>
           )}
           <ul className="flex flex-col gap-1">
             {group.warnings.map((w, idx) => (
               <li key={`${w.group_key}-${idx}`} className="text-[11px]">
-                <p className="font-mono text-zinc-700 dark:text-zinc-300">
+                <p className="font-mono text-foreground">
                   {scopeLabel(w)}
                 </p>
                 {w.detail && (
-                  <pre className="mt-0.5 overflow-x-auto whitespace-pre-wrap break-all rounded bg-zinc-100 px-2 py-1 text-[10px] text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-400">
+                  <pre className="mt-0.5 overflow-x-auto whitespace-pre-wrap break-all rounded bg-surface-inset px-2 py-1 text-2xs text-foreground-subtle">
                     {w.detail}
                   </pre>
                 )}
@@ -194,7 +194,7 @@ function SeverityIcon({ level }: { level: WarningLevel }) {
       return (
         <HugeiconsIcon
           icon={InformationCircleIcon}
-          className="h-4 w-4 shrink-0 text-blue-500"
+          className="h-4 w-4 shrink-0 text-info-foreground"
           size="100%"
         />
       );
@@ -202,7 +202,7 @@ function SeverityIcon({ level }: { level: WarningLevel }) {
       return (
         <HugeiconsIcon
           icon={Alert02Icon}
-          className="h-4 w-4 shrink-0 text-amber-500"
+          className="h-4 w-4 shrink-0 text-warning-foreground"
           size="100%"
         />
       );
@@ -210,7 +210,7 @@ function SeverityIcon({ level }: { level: WarningLevel }) {
       return (
         <HugeiconsIcon
           icon={Cancel01Icon}
-          className="h-4 w-4 shrink-0 text-red-500"
+          className="h-4 w-4 shrink-0 text-danger-foreground"
           size="100%"
         />
       );
@@ -220,22 +220,22 @@ function SeverityIcon({ level }: { level: WarningLevel }) {
 function levelToBorder(level: WarningLevel): string {
   switch (level) {
     case "info":
-      return "border-blue-200 dark:border-blue-900";
+      return "border-info-border dark:border-info-border";
     case "warning":
-      return "border-amber-200 dark:border-amber-900";
+      return "border-warning-border";
     case "error":
-      return "border-red-300 dark:border-red-900";
+      return "border-danger-border";
   }
 }
 
 function levelToBg(level: WarningLevel): string {
   switch (level) {
     case "info":
-      return "bg-blue-50/40 dark:bg-blue-950/20";
+      return "bg-info-surface/40";
     case "warning":
-      return "bg-amber-50/40 dark:bg-amber-950/20";
+      return "bg-warning-surface";
     case "error":
-      return "bg-red-50/40 dark:bg-red-950/20";
+      return "bg-danger-surface";
   }
 }
 

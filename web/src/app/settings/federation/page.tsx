@@ -1,14 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { DatabaseIcon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonCard, SkeletonList } from "@/components/ui/skeleton";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { SettingsInput, SettingsSelect, SettingsSwitch } from "@/components/ui/form-input";
-import { useConfirm } from "@/components/ui/confirm-dialog";
-import { useAuth } from "@/lib/use-auth";
+import { useConfirm } from "@/components/providers/confirm-provider";
+import { useAuth } from "@/hooks/use-auth";
 import {
   listFederationAdapters,
   registerFederationAdapter,
@@ -17,12 +26,16 @@ import {
   getFederationHealth,
   previewFederationAdapter,
   type Credential,
-  type FederationAdapterSummary,
-  type FederationHealthResponse,
   type RegisterFederationAdapterRequest,
   type PreviewFederationAdapterRequest,
   type PreviewFederationAdapterResponse,
 } from "@/lib/api";
+
+const federationKeys = {
+  all: ["federation"] as const,
+  adapters: () => [...federationKeys.all, "adapters"] as const,
+  health: () => [...federationKeys.all, "health"] as const,
+};
 
 type AdapterKind = "csv" | "json" | "postgres" | "mysql" | "bigquery";
 
@@ -89,62 +102,78 @@ function formToRequest(form: FormState): RegisterFederationAdapterRequest {
 
 export default function FederationAdaptersPage() {
   const t = useTranslations("settings.federation");
+  const tCommon = useTranslations("common");
   const { isAdmin } = useAuth();
   const confirm = useConfirm();
+  const qc = useQueryClient();
 
-  const [adapters, setAdapters] = useState<FederationAdapterSummary[]>([]);
-  const [health, setHealth] = useState<FederationHealthResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
-  // Preview state — separate from `submitting` so the user can refine
+  // Preview state — separate from submission so the user can refine
   // the form between a preview and a final register without the
-  // preview panel disappearing. `null` = not yet previewed; a stored
-  // response stays visible until the user edits + previews again.
-  const [previewing, setPreviewing] = useState(false);
+  // preview panel disappearing.
   const [preview, setPreview] = useState<PreviewFederationAdapterResponse | null>(null);
 
-  const reload = useCallback(async () => {
-    try {
-      const [list, h] = await Promise.all([
-        listFederationAdapters(),
-        getFederationHealth(),
-      ]);
-      setAdapters(list);
-      setHealth(h);
-    } catch {
-      toast.error(t("toast.loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+  const adaptersQuery = useQuery({
+    queryKey: federationKeys.adapters(),
+    queryFn: () => listFederationAdapters(),
+    enabled: isAdmin,
+  });
+  const healthQuery = useQuery({
+    queryKey: federationKeys.health(),
+    queryFn: () => getFederationHealth(),
+    enabled: isAdmin,
+  });
 
-  useEffect(() => {
-    if (!isAdmin) {
-      setLoading(false);
-      return;
-    }
-    reload();
-  }, [isAdmin, reload]);
+  const adapters = adaptersQuery.data ?? [];
+  const health = healthQuery.data;
+  const reload = () => {
+    qc.invalidateQueries({ queryKey: federationKeys.adapters() });
+    qc.invalidateQueries({ queryKey: federationKeys.health() });
+  };
+
+  const registerMutation = useMutation({
+    mutationFn: (req: RegisterFederationAdapterRequest) =>
+      registerFederationAdapter(req),
+    onSuccess: () => {
+      toast.success(t("toast.registered", { sourceId: form.sourceId }));
+      setForm(INITIAL_FORM);
+      reload();
+    },
+    onError: () => toast.error(t("toast.registerFailed")),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (sourceId: string) => deleteFederationAdapter(sourceId),
+    onSuccess: (_data, sourceId) => {
+      toast.success(t("toast.deleted", { sourceId }));
+      reload();
+    },
+    onError: () => toast.error(t("toast.deleteFailed")),
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: () => refreshFederationAdapters(),
+    onSuccess: ({ count }) => {
+      toast.success(t("toast.refreshed", { count }));
+      reload();
+    },
+    onError: () => toast.error(t("toast.refreshFailed")),
+  });
+
+  const previewMutation = useMutation({
+    mutationFn: (req: PreviewFederationAdapterRequest) =>
+      previewFederationAdapter(req),
+    onSuccess: setPreview,
+    onError: () => toast.error(t("toast.previewFailed")),
+  });
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    (e: React.FormEvent) => {
       e.preventDefault();
       if (!form.sourceId.trim()) return;
-      setSubmitting(true);
-      try {
-        const req = formToRequest(form);
-        await registerFederationAdapter(req);
-        toast.success(t("toast.registered", { sourceId: form.sourceId }));
-        setForm(INITIAL_FORM);
-        await reload();
-      } catch {
-        toast.error(t("toast.registerFailed"));
-      } finally {
-        setSubmitting(false);
-      }
+      registerMutation.mutate(formToRequest(form));
     },
-    [form, reload, t],
+    [form, registerMutation],
   );
 
   const handleDelete = useCallback(
@@ -156,74 +185,64 @@ export default function FederationAdaptersPage() {
         variant: "danger",
       });
       if (!ok) return;
-      try {
-        await deleteFederationAdapter(sourceId);
-        toast.success(t("toast.deleted", { sourceId }));
-        await reload();
-      } catch {
-        toast.error(t("toast.deleteFailed"));
-      }
+      deleteMutation.mutate(sourceId);
     },
-    [confirm, reload, t],
+    [confirm, deleteMutation, t],
   );
 
-  const handleRefresh = useCallback(async () => {
-    try {
-      const { count } = await refreshFederationAdapters();
-      toast.success(t("toast.refreshed", { count }));
-      await reload();
-    } catch {
-      toast.error(t("toast.refreshFailed"));
-    }
-  }, [reload, t]);
+  const handleRefresh = useCallback(() => refreshMutation.mutate(), [refreshMutation]);
 
   /// Preview dry-runs the adapter against the live source: connects,
   /// lists tables, describes each. No persistence — nothing enters the
   /// store or the resolver. Errors surface as a toast but keep the
   /// form populated so the user can correct + retry.
-  const handlePreview = useCallback(async () => {
-    setPreviewing(true);
-    try {
-      const req = formToPreviewRequest(form);
-      const resp = await previewFederationAdapter(req);
-      setPreview(resp);
-    } catch {
-      toast.error(t("toast.previewFailed"));
-    } finally {
-      setPreviewing(false);
-    }
-  }, [form, t]);
+  const handlePreview = useCallback(() => {
+    previewMutation.mutate(formToPreviewRequest(form));
+  }, [form, previewMutation]);
+
+  const submitting = registerMutation.isPending;
+  const previewing = previewMutation.isPending;
 
   if (!isAdmin) {
     return (
-      <div className="p-6">
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-          {t("adminOnly")}
-        </p>
-      </div>
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <EmptyState title={t("adminOnly")} />
+      </SettingsPageShell>
     );
   }
 
-  if (loading) {
+  if (adaptersQuery.isLoading || healthQuery.isLoading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <Spinner />
-      </div>
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <div className="space-y-4">
+          <SkeletonCard />
+          <SkeletonList count={3} />
+        </div>
+      </SettingsPageShell>
+    );
+  }
+
+  if (adaptersQuery.isError || healthQuery.isError) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <ErrorState
+          title={tCommon("loadError.title")}
+          description={tCommon("loadError.description")}
+          onRetry={() => {
+            adaptersQuery.refetch();
+            healthQuery.refetch();
+          }}
+          retryLabel={tCommon("retry")}
+        />
+      </SettingsPageShell>
     );
   }
 
   return (
-    <div className="space-y-8 p-6">
-      <header>
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-          {t("description")}
-        </p>
-      </header>
-
+    <SettingsPageShell title={t("title")} subtitle={t("description")}>
+      <div className="space-y-8">
       {health && (
-        <section className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <section className="rounded-lg border border-divider-soft bg-surface-base p-4 text-sm dark:border-divider dark:bg-surface-base">
           <div className="flex items-center justify-between">
             <h2 className="font-medium">{t("health.title")}</h2>
             <Button size="sm" variant="outline" onClick={handleRefresh}>
@@ -232,19 +251,19 @@ export default function FederationAdaptersPage() {
           </div>
           <dl className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
             <div>
-              <dt className="text-xs text-neutral-500">{t("health.hydrated")}</dt>
+              <dt className="text-xs text-muted-foreground">{t("health.hydrated")}</dt>
               <dd>{health.resolver_hydrated ? "✓" : "–"}</dd>
             </div>
             <div>
-              <dt className="text-xs text-neutral-500">{t("health.resolverCount")}</dt>
+              <dt className="text-xs text-muted-foreground">{t("health.resolverCount")}</dt>
               <dd>{health.resolver_count}</dd>
             </div>
             <div>
-              <dt className="text-xs text-neutral-500">{t("health.storeCount")}</dt>
+              <dt className="text-xs text-muted-foreground">{t("health.storeCount")}</dt>
               <dd>{health.store_count}</dd>
             </div>
             <div>
-              <dt className="text-xs text-neutral-500">
+              <dt className="text-xs text-muted-foreground">
                 {health.in_sync ? t("health.inSync") : t("health.outOfSync")}
               </dt>
               <dd>{health.in_sync ? "✓" : "⚠"}</dd>
@@ -252,7 +271,7 @@ export default function FederationAdaptersPage() {
           </dl>
           {(health.orphans_in_resolver.length > 0 ||
             health.missing_from_resolver.length > 0) && (
-            <ul className="mt-3 space-y-1 text-xs text-amber-700 dark:text-amber-400">
+            <ul className="mt-3 space-y-1 text-xs text-warning-foreground">
               {health.orphans_in_resolver.length > 0 && (
                 <li>
                   {t("health.orphans", { count: health.orphans_in_resolver.length })}:{" "}
@@ -272,7 +291,7 @@ export default function FederationAdaptersPage() {
 
       <section>
         <h2 className="mb-3 text-lg font-medium">{t("register.title")}</h2>
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
+        <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-divider-soft bg-surface-base p-4 dark:border-divider dark:bg-surface-base">
           <SettingsInput
             label={t("register.sourceId")}
             placeholder={t("register.sourceIdPlaceholder")}
@@ -299,7 +318,7 @@ export default function FederationAdaptersPage() {
             checked={form.useSecretRef}
             onChange={(v) => setForm((f) => ({ ...f, useSecretRef: v }))}
           />
-          <p className="text-xs text-neutral-500">{t("register.secretRefHint")}</p>
+          <p className="text-xs text-muted-foreground">{t("register.secretRefHint")}</p>
           {requiresPayload(form.kind) && (
             <SettingsInput
               label={t("register.data")}
@@ -348,13 +367,13 @@ export default function FederationAdaptersPage() {
         </form>
 
         {preview && (
-          <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 text-sm dark:border-emerald-900/40 dark:bg-emerald-950/20">
+          <div className="mt-4 rounded-lg border border-brand-border bg-brand-surface p-4 text-sm">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-medium">
                   {t("preview.title", { sourceType: preview.source_type })}
                 </h3>
-                <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                <p className="mt-0.5 text-xs text-muted-foreground dark:text-muted-foreground">
                   {t("preview.summary", {
                     tables: preview.tables.length,
                     columns: preview.tables.reduce(
@@ -373,7 +392,7 @@ export default function FederationAdaptersPage() {
               </Button>
             </div>
             {preview.tables.length === 0 ? (
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                 {t("preview.empty")}
               </p>
             ) : (
@@ -381,18 +400,18 @@ export default function FederationAdaptersPage() {
                 {preview.tables.map((tbl) => (
                   <details
                     key={tbl.name}
-                    className="rounded border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950"
+                    className="rounded border border-divider-soft bg-surface-base dark:border-divider dark:bg-surface-base"
                     open={preview.tables.length <= 3}
                   >
                     <summary className="cursor-pointer px-3 py-2 text-xs font-mono font-medium">
                       {tbl.name}{" "}
-                      <span className="text-neutral-500">
+                      <span className="text-muted-foreground">
                         ({tbl.columns.length})
                       </span>
                     </summary>
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="border-t border-neutral-100 text-left text-neutral-500 dark:border-neutral-800">
+                        <tr className="border-t border-divider-soft text-left text-muted-foreground dark:border-divider">
                           <th className="py-1.5 pl-3 pr-4">
                             {t("preview.columnName")}
                           </th>
@@ -408,13 +427,13 @@ export default function FederationAdaptersPage() {
                         {tbl.columns.map((col) => (
                           <tr
                             key={col.name}
-                            className="border-t border-neutral-100 dark:border-neutral-900"
+                            className="border-t border-divider-soft dark:border-divider"
                           >
                             <td className="py-1 pl-3 pr-4 font-mono">
                               {col.name}
                             </td>
                             <td className="py-1 pr-4">{col.data_type}</td>
-                            <td className="py-1 pr-3 text-neutral-500">
+                            <td className="py-1 pr-3 text-muted-foreground">
                               {col.nullable ? "✓" : "–"}
                             </td>
                           </tr>
@@ -431,11 +450,11 @@ export default function FederationAdaptersPage() {
 
       <section>
         {adapters.length === 0 ? (
-          <p className="py-8 text-center text-sm text-neutral-500">{t("empty")}</p>
+          <EmptyState icon={DatabaseIcon} title={t("empty")} />
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-neutral-200 text-left dark:border-neutral-800">
+              <tr className="border-b border-divider-soft text-left dark:border-divider">
                 <th className="py-3 pr-6">{t("list.sourceId")}</th>
                 <th className="py-3 pr-6">{t("list.kind")}</th>
                 <th className="py-3 pr-6">{t("list.actions")}</th>
@@ -445,7 +464,7 @@ export default function FederationAdaptersPage() {
               {adapters.map((a) => (
                 <tr
                   key={a.source_id}
-                  className="border-b border-neutral-100 dark:border-neutral-900"
+                  className="border-b border-divider-soft dark:border-divider"
                 >
                   <td className="py-3 pr-6 font-mono">{a.source_id}</td>
                   <td className="py-3 pr-6">{a.source_type}</td>
@@ -464,6 +483,7 @@ export default function FederationAdaptersPage() {
           </table>
         )}
       </section>
-    </div>
+      </div>
+    </SettingsPageShell>
   );
 }

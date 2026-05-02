@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { getConfig, updateConfig } from "@/lib/api";
-import { useAuth } from "@/lib/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import type { ConfigResponse, ConfigEntry, ConfigUpdateItem } from "@/types/api";
 import { FormInput } from "@/components/ui/form-input";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { Spinner } from "@/components/ui/spinner";
 import { TabBar } from "@/components/ui/tab-bar";
+import { ErrorState } from "@/components/ui/error-state";
 
 const CATEGORY_ORDER = ["ui", "llm", "thresholds", "profiling", "timeouts", "lifecycle"] as const;
 type KnownCategory = (typeof CATEGORY_ORDER)[number];
@@ -122,85 +124,93 @@ export default function SystemSettingsPage() {
     setEditedValues({});
   };
 
-  const categories = config
-    ? CATEGORY_ORDER.filter((c) => c in config)
-    : [];
-
   const editCountByCategory = (category: string): number =>
     Object.keys(editedValues).filter((ck) => ck.startsWith(`${category}.`))
       .length;
 
-  return (
-    <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-        {t("title")}
-      </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
-        {t("description")}
-      </p>
-
-      {loading ? (
+  if (loading) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
         <div className="flex items-center justify-center py-20">
-          <Spinner size="lg" className="text-emerald-500" />
+          <Spinner size="lg" className="text-brand-foreground" />
         </div>
-      ) : (
-        <>
-          <div className="mt-6 border-b border-zinc-200 dark:border-zinc-800">
-            <TabBar
-              tabs={categories.map((category) => ({
-                id: category,
-                label: categoryLabel(category),
-                badge: editCountByCategory(category),
-              }))}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
+      </SettingsPageShell>
+    );
+  }
+
+  if (!config) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <div className="py-12">
+          <ErrorState
+            title={tCommon("loadError.title")}
+            description={tCommon("loadError.description")}
+            onRetry={loadConfig}
+            retryLabel={tCommon("retry")}
+          />
+        </div>
+      </SettingsPageShell>
+    );
+  }
+
+  const categories = CATEGORY_ORDER.filter((c) => c in config);
+
+  return (
+    <SettingsPageShell title={t("title")} subtitle={t("description")}>
+      <div className="mt-6 border-b border-divider">
+        <TabBar
+          tabs={categories.map((category) => ({
+            id: category,
+            label: categoryLabel(category),
+            badge: editCountByCategory(category),
+          }))}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+      </div>
+
+      <div className="mt-4">
+        {categories
+          .filter((c) => c === activeTab)
+          .map((category) => (
+            <ConfigCategory
+              key={category}
+              label={categoryLabel(category)}
+              description={categoryDescription(category)}
+              entries={config[category]}
+              getCurrentValue={(entry) =>
+                getCurrentValue(category, entry)
+              }
+              onChange={(key, value) =>
+                handleChange(category, key, value)
+              }
             />
-          </div>
+          ))}
+      </div>
 
-          <div className="mt-4">
-            {categories
-              .filter((c) => c === activeTab)
-              .map((category) => (
-                <ConfigCategory
-                  key={category}
-                  label={categoryLabel(category)}
-                  description={categoryDescription(category)}
-                  entries={config![category]}
-                  getCurrentValue={(entry) =>
-                    getCurrentValue(category, entry)
-                  }
-                  onChange={(key, value) =>
-                    handleChange(category, key, value)
-                  }
-                />
-              ))}
-          </div>
-
-          <div className="sticky bottom-0 mt-8 flex items-center justify-end gap-2 border-t border-zinc-200 bg-zinc-50 px-0 py-4 dark:border-zinc-800 dark:bg-zinc-950">
-            {hasChanges && (
-              <span className="mr-auto text-xs text-amber-600 dark:text-amber-400">
-                {t("unsavedChanges", { count: Object.keys(editedValues).length })}
-              </span>
-            )}
-            {hasChanges && (
-              <button
-                onClick={handleReset}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-200 dark:text-muted-foreground dark:hover:bg-zinc-800"
-              >
-                {t("discard")}
-              </button>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={!isAdmin || !hasChanges || isSaving}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSaving ? tCommon("saving") : tCommon("save")}
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+      <div className="sticky bottom-0 mt-8 flex items-center justify-end gap-2 border-t border-divider bg-surface-raised px-0 py-4">
+        {hasChanges && (
+          <span className="mr-auto text-xs text-warning-foreground">
+            {t("unsavedChanges", { count: Object.keys(editedValues).length })}
+          </span>
+        )}
+        {hasChanges && (
+          <button
+            onClick={handleReset}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-inset"
+          >
+            {t("discard")}
+          </button>
+        )}
+        <button
+          onClick={handleSave}
+          disabled={!isAdmin || !hasChanges || isSaving}
+          className="rounded-lg bg-brand-solid px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-solid-hover disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isSaving ? tCommon("saving") : tCommon("save")}
+        </button>
+      </div>
+    </SettingsPageShell>
   );
 }
 
@@ -220,18 +230,18 @@ function ConfigCategory({
   onChange,
 }: ConfigCategoryProps) {
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+    <section className="rounded-lg border border-divider bg-surface-base">
+      <div className="border-b border-divider-soft px-6 py-4">
+        <h2 className="text-sm font-semibold text-foreground-strong">
           {label}
         </h2>
         {description && (
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-muted-foreground">
+          <p className="mt-0.5 text-xs text-foreground-muted">
             {description}
           </p>
         )}
       </div>
-      <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+      <div className="divide-y divide-divider-soft">
         {entries.map((entry) => (
           <ConfigField
             key={entry.key}
@@ -259,19 +269,19 @@ function ConfigField({ entry, value, onChange }: ConfigFieldProps) {
     <div className="flex items-center gap-3 px-6 py-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          <span className="text-sm font-medium text-foreground">
             {formatKeyLabel(entry.key)}
           </span>
-          <span className="rounded bg-zinc-200/60 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-700 dark:text-muted-foreground">
+          <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-medium text-foreground-muted dark:text-muted-foreground">
             {entry.data_type}
           </span>
           {isModified && (
-            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+            <span className="rounded bg-warning-surface px-1.5 py-0.5 text-2xs font-medium text-warning-foreground">
               {t("modified")}
             </span>
           )}
         </div>
-        <p className="mt-0.5 text-xs text-zinc-500 dark:text-muted-foreground">
+        <p className="mt-0.5 text-xs text-foreground-muted">
           {entry.description}
         </p>
       </div>
@@ -286,7 +296,7 @@ function ConfigField({ entry, value, onChange }: ConfigFieldProps) {
           }
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={`text-right text-sm ${isModified ? "border-amber-400 dark:border-amber-600" : ""}`}
+          className={`text-right text-sm ${isModified ? "border-warning-border" : ""}`}
         />
       </div>
     </div>

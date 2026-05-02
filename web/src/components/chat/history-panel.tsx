@@ -42,20 +42,20 @@ export function HistoryPanel() {
   };
 
   return (
-    <div className="flex h-full flex-col bg-zinc-50/50 dark:bg-zinc-950">
+    <div className="flex h-full flex-col bg-surface-raised">
       <Tabs.Root value={tab} onValueChange={handleTabChange}>
         {/* Tab bar */}
-        <Tabs.List className="flex border-b border-zinc-200 dark:border-zinc-800">
+        <Tabs.List className="flex border-b border-divider">
           <Tabs.Tab
             value="recent"
-            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300 data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-700 dark:data-[active]:text-emerald-400"
+            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted data-[active]:border-b-2 data-[active]:border-brand-foreground data-[active]:text-brand-foreground dark:data-[active]:text-brand-foreground"
           >
             <HugeiconsIcon icon={Clock01Icon} className="h-3.5 w-3.5" size="100%" />
             {t("tabRecent")}
           </Tabs.Tab>
           <Tabs.Tab
             value="pinned"
-            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300 data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-700 dark:data-[active]:text-emerald-400"
+            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted data-[active]:border-b-2 data-[active]:border-brand-foreground data-[active]:text-brand-foreground dark:data-[active]:text-brand-foreground"
           >
             <HugeiconsIcon icon={PinIcon} className="h-3.5 w-3.5" size="100%" />
             {t("tabPinned")}
@@ -210,7 +210,7 @@ function PinnedTab() {
         {items.map((item) => (
           <div
             key={item.id}
-            className="group flex items-start gap-2 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900"
+            className="group flex items-start gap-2 rounded-lg border border-divider bg-surface-base p-3"
           >
             <button
               onClick={async () => {
@@ -226,7 +226,7 @@ function PinnedTab() {
               aria-label={t("viewPinnedAria", { title: item.title ?? t("untitledPin") })}
               className="min-w-0 flex-1 text-left"
             >
-              <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 line-clamp-2">
+              <p className="text-sm font-medium text-foreground-strong line-clamp-2">
                 {item.title ?? t("untitledPin")}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -240,7 +240,7 @@ function PinnedTab() {
             </button>
             <button
               onClick={() => handleUnpin(item.id)}
-              className="rounded p-1 text-zinc-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 group-focus-within:opacity-100 dark:hover:bg-red-900/20"
+              className="rounded p-1 text-foreground-muted opacity-0 transition-all hover:bg-danger-surface hover:text-danger-foreground group-hover:opacity-100 group-focus-within:opacity-100 dark:hover:bg-danger-surface/20"
               aria-label={t("unpinAria")}
             >
               <HugeiconsIcon icon={Delete01Icon} className="h-3.5 w-3.5" size="100%" />

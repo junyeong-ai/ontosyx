@@ -14,10 +14,10 @@ import type { WorkspaceMember } from "@/types/workspace";
 import type { UserInfo } from "@/types/admin";
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400",
-  admin: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400",
-  member: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
-  viewer: "bg-zinc-100 text-muted-foreground dark:bg-zinc-800",
+  owner: "bg-warning-surface text-warning-foreground",
+  admin: "bg-concept-surface text-concept-foreground dark:bg-concept-foreground/50 dark:text-concept-foreground",
+  member: "bg-surface-inset text-foreground dark:text-muted-foreground",
+  viewer: "bg-surface-inset text-muted-foreground",
 };
 
 const ROLES = ["admin", "member", "viewer"];
@@ -85,26 +85,26 @@ export function MembersTable({ wsId, members, onReload }: Props) {
   return (
     <section className="mt-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+        <h2 className="text-sm font-semibold text-foreground-strong">
           {t("heading")}
         </h2>
         <button
           onClick={openAdd}
-          className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+          className="rounded-md bg-concept-foreground px-3 py-1 text-xs font-medium text-white hover:bg-concept-foreground"
         >
           {t("add")}
         </button>
       </div>
 
       {showAdd && (
-        <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
+        <div className="mt-3 rounded-md border border-divider bg-surface-raised p-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+            <span className="text-xs font-medium text-foreground dark:text-muted-foreground">
               {t("selectUserPrompt")}
             </span>
             <button
               onClick={() => setShowAdd(false)}
-              className="text-xs text-muted-foreground hover:text-zinc-600"
+              className="text-xs text-muted-foreground hover:text-foreground"
             >
               {tCommon("cancel")}
             </button>
@@ -119,9 +119,9 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                 <button
                   key={u.id}
                   onClick={() => handleAdd(u.id)}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-white dark:hover:bg-zinc-700"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-surface-base dark:hover:bg-surface-base"
                 >
-                  <span className="text-zinc-700 dark:text-zinc-300">
+                  <span className="text-foreground">
                     {u.name || u.email}
                   </span>
                   {u.name && <span className="text-muted-foreground">{u.email}</span>}
@@ -135,7 +135,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
       <div className="mt-3">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
+            <tr className="border-b border-divider text-left text-xs font-medium uppercase text-muted-foreground">
               <th className="py-2">{t("column.user")}</th>
               <th className="py-2">{t("column.role")}</th>
               <th className="py-2">{t("column.joined")}</th>
@@ -146,15 +146,15 @@ export function MembersTable({ wsId, members, onReload }: Props) {
             {members.map((m) => (
               <tr
                 key={m.user_id}
-                className="border-b border-zinc-100 dark:border-zinc-800"
+                className="border-b border-divider-soft"
               >
-                <td className="py-2 text-zinc-900 dark:text-zinc-100">
+                <td className="py-2 text-foreground-strong">
                   {m.name || m.email}
                 </td>
                 <td className="py-2">
                   {m.role === "owner" ? (
                     <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${ROLE_COLORS.owner}`}
+                      className={`rounded px-1.5 py-0.5 text-2xs font-medium ${ROLE_COLORS.owner}`}
                     >
                       {t("ownerBadge")}
                     </span>
@@ -164,7 +164,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                       onChange={(e) =>
                         handleRoleChange(m.user_id, e.target.value)
                       }
-                      className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-xs dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                      className="rounded border border-divider bg-surface-base px-1.5 py-0.5 text-xs-muted"
                     >
                       {ROLES.map((r) => (
                         <option key={r} value={r}>
@@ -185,13 +185,13 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                       <span className="space-x-1">
                         <button
                           onClick={() => handleRemove(m.user_id)}
-                          className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-red-700"
+                          className="rounded bg-danger-solid px-2 py-0.5 text-2xs font-medium text-white hover:bg-danger-solid-hover"
                         >
                           {t("confirmRemove")}
                         </button>
                         <button
                           onClick={() => setConfirmRemove(null)}
-                          className="rounded px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          className="rounded px-2 py-0.5 text-2xs text-muted-foreground hover:bg-surface-inset dark:hover:bg-surface-base"
                         >
                           {tCommon("cancel")}
                         </button>
@@ -199,7 +199,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                     ) : (
                       <button
                         onClick={() => setConfirmRemove(m.user_id)}
-                        className="rounded px-2 py-0.5 text-[10px] text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        className="rounded px-2 py-0.5 text-2xs text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-surface/30"
                       >
                         {t("remove")}
                       </button>

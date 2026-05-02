@@ -24,12 +24,12 @@ export function CanvasEmptyState() {
   if (hasProject) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950/30">
-          <HugeiconsIcon icon={PencilEdit01Icon} className="h-6 w-6 text-emerald-500" size="100%" />
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-surface">
+          <HugeiconsIcon icon={PencilEdit01Icon} className="h-6 w-6 text-brand-foreground" size="100%" />
         </div>
         <div className="text-center">
-          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">{t("readyTitle")}</h2>
-          <p className="mt-1.5 max-w-md text-sm text-zinc-600 dark:text-muted-foreground">
+          <h2 className="text-lg font-semibold text-foreground-strong">{t("readyTitle")}</h2>
+          <p className="mt-1.5 max-w-md text-sm text-foreground dark:text-muted-foreground">
             {t.rich("readyHint", {
               bold: (chunks) => <strong>{chunks}</strong>,
             })}
@@ -41,7 +41,7 @@ export function CanvasEmptyState() {
             s.setDesignBottomTab("workflow");
             if (!s.isBottomPanelOpen) s.toggleBottomPanel();
           }}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-700"
+          className="rounded-lg bg-brand-solid px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-solid"
         >
           {t("openWorkflow")}
         </button>
@@ -51,12 +51,12 @@ export function CanvasEmptyState() {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 p-8">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950/30">
-        <HugeiconsIcon icon={PencilEdit01Icon} className="h-6 w-6 text-emerald-500" size="100%" />
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-surface">
+        <HugeiconsIcon icon={PencilEdit01Icon} className="h-6 w-6 text-brand-foreground" size="100%" />
       </div>
       <div className="text-center">
-        <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">{t("startTitle")}</h2>
-        <p className="mt-1.5 max-w-md text-sm text-zinc-600 dark:text-muted-foreground">
+        <h2 className="text-lg font-semibold text-foreground-strong">{t("startTitle")}</h2>
+        <p className="mt-1.5 max-w-md text-sm text-foreground dark:text-muted-foreground">
           {t("startHint")}
         </p>
       </div>
@@ -67,11 +67,11 @@ export function CanvasEmptyState() {
             s.setDesignBottomTab("workflow");
             if (!s.isBottomPanelOpen) s.toggleBottomPanel();
           }}
-          className="flex flex-col items-center gap-2 rounded-xl border border-zinc-200 bg-white p-5 text-center transition-all hover:border-emerald-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-emerald-700"
+          className="flex flex-col items-center gap-2 rounded-xl border border-divider bg-surface-base p-5 text-center transition-all hover:border-brand-border hover:shadow-md dark:hover:border-brand-border"
         >
-          <HugeiconsIcon icon={DatabaseIcon} className="h-5 w-5 text-emerald-700 dark:text-emerald-400" size="100%" />
-          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{t("createProject")}</span>
-          <span className="text-[10px] text-muted-foreground">{t("createProjectHint")}</span>
+          <HugeiconsIcon icon={DatabaseIcon} className="h-5 w-5 text-brand-foreground" size="100%" />
+          <span className="text-xs font-medium text-foreground">{t("createProject")}</span>
+          <span className="text-2xs text-muted-foreground">{t("createProjectHint")}</span>
         </button>
         <span className="text-xs text-muted-foreground">{t("or")}</span>
         <button
@@ -79,11 +79,11 @@ export function CanvasEmptyState() {
             const fileInput = document.querySelector('input[type="file"][accept=".json,.ttl,.owl"]') as HTMLInputElement;
             fileInput?.click();
           }}
-          className="flex flex-col items-center gap-2 rounded-xl border border-zinc-200 bg-white p-5 text-center transition-all hover:border-emerald-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-emerald-700"
+          className="flex flex-col items-center gap-2 rounded-xl border border-divider bg-surface-base p-5 text-center transition-all hover:border-brand-border hover:shadow-md dark:hover:border-brand-border"
         >
-          <HugeiconsIcon icon={Upload04Icon} className="h-5 w-5 text-indigo-600 dark:text-indigo-400" size="100%" />
-          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{t("importOntology")}</span>
-          <span className="text-[10px] text-muted-foreground">{t("importOntologyHint")}</span>
+          <HugeiconsIcon icon={Upload04Icon} className="h-5 w-5 text-concept-foreground dark:text-concept-foreground" size="100%" />
+          <span className="text-xs font-medium text-foreground">{t("importOntology")}</span>
+          <span className="text-2xs text-muted-foreground">{t("importOntologyHint")}</span>
         </button>
       </div>
     </div>
@@ -104,18 +104,18 @@ export function CanvasZeroNodesState() {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/30">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-warning-surface/30">
         <HugeiconsIcon
           icon={Alert02Icon}
-          className="h-6 w-6 text-amber-500"
+          className="h-6 w-6 text-warning-foreground"
           size="100%"
         />
       </div>
       <div className="text-center">
-        <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+        <h2 className="text-lg font-semibold text-foreground-strong">
           {t("title")}
         </h2>
-        <p className="mt-1.5 max-w-md text-sm text-zinc-600 dark:text-muted-foreground">
+        <p className="mt-1.5 max-w-md text-sm text-foreground dark:text-muted-foreground">
           {t("description")}
         </p>
       </div>
@@ -132,7 +132,7 @@ export function CanvasZeroNodesState() {
               ?.scrollIntoView({ behavior: "smooth", block: "start" });
           });
         }}
-        className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-700"
+        className="rounded-lg bg-brand-solid px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-solid"
       >
         {t("openReview")}
       </button>

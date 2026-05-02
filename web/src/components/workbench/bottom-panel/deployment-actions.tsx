@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { compileLoad, deploySchema, generateLoadPlan } from "@/lib/api";
 import type { LoadPlan } from "@/types/api";
 
@@ -95,19 +95,19 @@ export function DeploymentActions({
   return (
     <>
       {/* Schema Deployment */}
-      <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900 dark:bg-blue-950/20">
-        <h4 className="text-xs font-semibold text-blue-800 dark:text-blue-200">
+      <div className="space-y-2 rounded-lg border border-info-border bg-info-surface/50 p-3 dark:border-info-border">
+        <h4 className="text-xs font-semibold text-info-foreground">
           {t("schemaDeployment")}
         </h4>
         {deployPreview ? (
           <div className="space-y-2">
-            <p className="text-[10px] text-blue-700 dark:text-blue-400">
+            <p className="text-2xs text-info-foreground dark:text-info-foreground">
               {t("ddlStatements", {
                 count: deployPreview.length,
                 plural: deployPreview.length !== 1 ? t("ddlStatementsPlural") : "",
               })}
             </p>
-            <pre className="max-h-32 overflow-auto rounded bg-zinc-900 p-2 text-[10px] text-zinc-300">
+            <pre className="max-h-32 overflow-auto rounded bg-surface-base p-2 text-2xs text-foreground-muted">
               {deployPreview.join(";\n")}
             </pre>
             <div className="flex gap-2">
@@ -153,13 +153,13 @@ export function DeploymentActions({
       </div>
 
       {/* Load Data */}
-      <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50/50 p-3 dark:border-purple-900 dark:bg-purple-950/20">
-        <h4 className="text-xs font-semibold text-purple-800 dark:text-purple-200">
+      <div className="space-y-2 rounded-lg border border-concept-border bg-concept-surface/50 p-3 dark:border-concept-border">
+        <h4 className="text-xs font-semibold text-concept-foreground">
           {t("dataLoading")}
         </h4>
         {loadPlan ? (
           <div className="space-y-2">
-            <p className="text-[10px] text-purple-700 dark:text-purple-400">
+            <p className="text-2xs text-concept-foreground dark:text-concept-foreground">
               {t("loadSteps", {
                 count: loadPlan.steps.length,
                 plural: loadPlan.steps.length !== 1 ? t("ddlStatementsPlural") : "",
@@ -169,7 +169,7 @@ export function DeploymentActions({
               {loadPlan.steps.map((step, i) => (
                 <div
                   key={i}
-                  className="rounded bg-zinc-100 px-2 py-1 text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                  className="rounded bg-surface-inset px-2 py-1 text-2xs text-foreground-muted"
                 >
                   {t("loadStepItem", { order: step.order + 1, description: step.description })}
                 </div>

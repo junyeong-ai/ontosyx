@@ -20,7 +20,7 @@ export function UserMenu() {
     return (
       <a
         href="/login"
-        className="rounded-md border border-divider bg-surface-raised px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-inset-muted dark:hover:bg-zinc-800"
+        className="rounded-md border border-divider bg-surface-raised px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-inset-muted"
       >
         {t("signIn")}
       </a>
@@ -29,7 +29,7 @@ export function UserMenu() {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-surface-inset dark:hover:bg-zinc-800">
+      <PopoverTrigger className="flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-surface-inset">
         <Avatar src={user.picture} name={user.name} size="xs" />
         <span className="max-w-[120px] truncate text-xs text-foreground dark:text-muted-foreground">
           {user.name}

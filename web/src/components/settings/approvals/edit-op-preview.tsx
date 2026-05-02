@@ -49,14 +49,14 @@ function classifyOp(op: OntologyEditOp): OpKind {
 
 const KIND_STYLES: Record<OpKind, string> = {
   create:
-    "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800",
+    "bg-brand-surface-strong text-brand-foreground border-brand-border-strong/30-strong",
   update:
-    "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800",
+    "bg-warning-surface text-warning-foreground border-warning-border/30",
   delete:
-    "bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800",
+    "bg-danger-surface text-danger-foreground border-danger-border dark:bg-danger-foreground/30 dark:text-danger-foreground dark:border-danger-border",
   deprecate:
-    "bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-800",
-  bind: "bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-800",
+    "bg-concept-surface text-concept-foreground border-concept-border/30",
+  bind: "bg-info-surface text-info-foreground border-info-border/30",
 };
 
 /** Pull a short identifier out of an op for the chip label. Each
@@ -87,7 +87,7 @@ export function EditOpPreview({ payload }: EditOpPreviewProps) {
     // Non-edit payload (or malformed). Surface as raw JSON so a
     // reviewer still has *something* to read instead of nothing.
     return (
-      <pre className="mt-2 max-h-64 overflow-auto rounded border border-zinc-200 bg-zinc-50 p-2 text-[10px] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+      <pre className="mt-2 max-h-64 overflow-auto rounded border border-divider bg-surface-raised p-2 text-2xs text-foreground-muted">
         {JSON.stringify(payload, null, 2)}
       </pre>
     );
@@ -106,7 +106,7 @@ export function EditOpPreview({ payload }: EditOpPreviewProps) {
     <div className="mt-3 flex flex-col gap-2">
       {/* Summary row — one line, scannable at a glance. */}
       <div className="flex items-center gap-2 flex-wrap text-xs">
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">
+        <span className="font-medium text-foreground">
           {t("summary", { count: parsed.operations.length })}
         </span>
         {(["create", "update", "delete", "deprecate", "bind"] as const).map(
@@ -114,14 +114,14 @@ export function EditOpPreview({ payload }: EditOpPreviewProps) {
             counts[kind] > 0 && (
               <span
                 key={kind}
-                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${KIND_STYLES[kind]}`}
+                className={`rounded-full border px-2 py-0.5 text-2xs font-medium ${KIND_STYLES[kind]}`}
               >
                 {t(`kinds.${kind}`, { count: counts[kind] })}
               </span>
             ),
         )}
         {parsed.expected_version !== undefined && (
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-2xs text-muted-foreground">
             {t("expectedVersion", { v: parsed.expected_version })}
           </span>
         )}
@@ -136,28 +136,28 @@ export function EditOpPreview({ payload }: EditOpPreviewProps) {
           return (
             <li
               key={i}
-              className="flex items-center gap-2 rounded border border-zinc-200 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
+              className="flex items-center gap-2 rounded border border-divider bg-surface-base px-2 py-1"
             >
               <span
-                className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-mono ${KIND_STYLES[kind]}`}
+                className={`shrink-0 rounded border px-1.5 py-0.5 text-2xs font-mono ${KIND_STYLES[kind]}`}
               >
                 {op.op}
               </span>
-              <span className="truncate font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
+              <span className="truncate font-mono text-[11px] text-foreground">
                 {opSummary(op)}
               </span>
             </li>
           );
         })}
         {parsed.operations.length > 50 && (
-          <li className="text-[10px] italic text-muted-foreground">
+          <li className="text-2xs italic text-muted-foreground">
             {t("truncated", { remaining: parsed.operations.length - 50 })}
           </li>
         )}
       </ul>
 
       {parsed.message && (
-        <p className="rounded border border-zinc-200 bg-zinc-50 p-2 text-[11px] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+        <p className="rounded border border-divider bg-surface-raised p-2 text-[11px] text-foreground-muted">
           <span className="font-medium">{t("messageLabel")}:</span>{" "}
           {parsed.message}
         </p>

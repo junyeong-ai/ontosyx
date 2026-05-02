@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import type { QualityGap } from "@/types/api";
 
-import { GapsList } from "../quality-gaps";
+import { QualityGapsList } from "../quality-gaps";
 
 // ---------------------------------------------------------------------------
 // QualityFacet — surfaces this entity's quality gaps + a
@@ -26,7 +26,7 @@ export function QualityFacet({ gaps }: { gaps: QualityGap[] }) {
         </p>
         <Link
           href="/settings/quality/signals"
-          className="text-[11px] font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+          className="text-[11px] font-medium text-brand-foreground hover:underline"
         >
           {t("viewWorkspaceSignals")}
         </Link>
@@ -36,10 +36,10 @@ export function QualityFacet({ gaps }: { gaps: QualityGap[] }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <GapsList gaps={gaps} />
+      <QualityGapsList gaps={gaps} />
       <Link
         href="/settings/quality/signals"
-        className="text-[11px] font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+        className="text-[11px] font-medium text-brand-foreground hover:underline"
       >
         {t("viewWorkspaceSignals")}
       </Link>

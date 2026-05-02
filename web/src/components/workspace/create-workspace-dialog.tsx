@@ -75,18 +75,18 @@ function CreateWorkspaceDialogBody({ onClose }: { onClose: () => void }) {
         onClick={onClose}
       />
       {/* Dialog */}
-      <div className="relative w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+      <div className="relative w-full max-w-md rounded-lg border border-divider bg-surface-base p-6 shadow-xl">
+        <h2 className="text-lg font-semibold text-foreground-strong">
           {t("createTitle")}
         </h2>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
+        <p className="mt-1 text-sm text-foreground-muted">
           {t("createDescription")}
         </p>
 
         <div className="mt-5 space-y-4">
           {/* Name */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="mb-1 block text-xs font-medium text-foreground">
               {t("nameLabel")}
             </label>
             <input
@@ -94,7 +94,7 @@ function CreateWorkspaceDialogBody({ onClose }: { onClose: () => void }) {
               onChange={(e) => setName(e.target.value)}
               autoFocus
               placeholder={t("namePlaceholder")}
-              className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+              className="w-full rounded-md border border-divider bg-surface-base px-3 py-2 text-sm text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSubmit();
                 if (e.key === "Escape") onClose();
@@ -104,14 +104,14 @@ function CreateWorkspaceDialogBody({ onClose }: { onClose: () => void }) {
 
           {/* Slug */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+            <label className="mb-1 block text-xs font-medium text-foreground">
               {t("slugLabel")}
             </label>
             <input
               value={slug}
               onChange={(e) => setSlugOverride(e.target.value)}
               placeholder={t("slugPlaceholder")}
-              className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-mono text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+              className="w-full rounded-md border border-divider bg-surface-base px-3 py-2 text-sm font-mono text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSubmit();
                 if (e.key === "Escape") onClose();
@@ -127,14 +127,14 @@ function CreateWorkspaceDialogBody({ onClose }: { onClose: () => void }) {
         <div className="mt-6 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-surface-inset"
           >
             {tCommon("cancel")}
           </button>
           <button
             onClick={handleSubmit}
             disabled={!name.trim() || !slug.trim() || submitting}
-            className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="rounded-md bg-brand-solid px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-solid disabled:opacity-50"
           >
             {submitting ? tCommon("creating") : tCommon("create")}
           </button>

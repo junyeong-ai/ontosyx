@@ -110,16 +110,16 @@ function KindGroupBlock({
   kindLabel: string;
 }) {
   return (
-    <div className="rounded border border-zinc-100 dark:border-zinc-800/60">
-      <header className="flex items-center justify-between gap-2 bg-zinc-50/60 px-2 py-1 dark:bg-zinc-900/40">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="rounded border border-divider-soft">
+      <header className="flex items-center justify-between gap-2 bg-surface-raised px-2 py-1">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {kindLabel}
         </span>
-        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+        <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-medium text-foreground-muted">
           {group.edges.length}
         </span>
       </header>
-      <ul className="divide-y divide-zinc-100 dark:divide-zinc-800/40">
+      <ul className="divide-y divide-divider-soft/40">
         {group.edges.map((edge) => (
           <EdgeRow
             key={`${entityRefKey(edge.endpoint)}::${edge.label}`}
@@ -157,7 +157,7 @@ function EdgeRow({
         className={
           "flex w-full items-center gap-2 px-2 py-1 text-left text-[11px] " +
           (interactive
-            ? "hover:bg-violet-50 dark:hover:bg-violet-950/30"
+            ? "hover:bg-concept-surface dark:hover:bg-concept-surface/30"
             : "")
         }
       >
@@ -167,14 +167,14 @@ function EdgeRow({
           size="100%"
         />
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate font-medium text-zinc-700 dark:text-zinc-200">
+          <span className="truncate font-medium text-foreground-strong">
             {label}
           </span>
-          <span className="truncate text-[10px] text-muted-foreground">
+          <span className="truncate text-2xs text-muted-foreground">
             {edge.label}
           </span>
         </span>
-        <span className="shrink-0 rounded bg-zinc-100 px-1 text-[9px] font-mono text-muted-foreground dark:bg-zinc-800/60">
+        <span className="shrink-0 rounded bg-surface-inset px-1 text-2xs font-mono text-foreground-muted">
           {edge.endpoint.kind}
         </span>
       </Cell>

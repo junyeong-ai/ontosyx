@@ -16,16 +16,16 @@ export default async function NotFound() {
   return (
     <main
       id="main"
-      className="flex min-h-dvh items-center justify-center bg-zinc-50 px-4 dark:bg-zinc-950"
+      className="flex min-h-dvh items-center justify-center bg-surface-raised px-4"
     >
       <div className="w-full max-w-md text-center">
-        <p className="text-xs font-semibold uppercase tracking-widest text-emerald-500">
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-foreground">
           {t("code")}
         </p>
-        <h1 className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+        <h1 className="mt-2 text-2xl font-semibold text-foreground-strong">
           {t("title")}
         </h1>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-muted-foreground">
+        <p className="mt-2 text-sm text-foreground dark:text-muted-foreground">
           {t("description")}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">{t("hint")}</p>
@@ -34,7 +34,7 @@ export default async function NotFound() {
           <Link
             href="/"
             aria-label={t("homeAria")}
-            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-700"
+            className="inline-flex items-center gap-1.5 rounded-md bg-brand-solid px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-solid"
           >
             <HugeiconsIcon icon={Home01Icon} className="h-3.5 w-3.5" size="100%" />
             {t("home")}
@@ -42,18 +42,18 @@ export default async function NotFound() {
           <Link
             href="/?onboarding=1"
             aria-label={t("getStartedAria")}
-            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-4 py-2 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="inline-flex items-center gap-1.5 rounded-md border border-divider bg-surface-base px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-surface-raised-muted"
           >
             <HugeiconsIcon icon={HelpCircleIcon} className="h-3.5 w-3.5" size="100%" />
             {t("getStarted")}
           </Link>
         </div>
 
-        <p className="mt-8 flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
+        <p className="mt-8 flex items-center justify-center gap-1.5 text-2xs text-muted-foreground">
           <HugeiconsIcon icon={Search01Icon} className="h-3 w-3" size="100%" />
           <span>
             {t("searchTipPrefix")}
-            <kbd className="mx-1 rounded border border-zinc-200 bg-white px-1 py-0.5 font-mono text-[9px] dark:border-zinc-700 dark:bg-zinc-900">
+            <kbd className="mx-1 rounded border border-divider bg-surface-base px-1 py-0.5 font-mono text-2xs">
               ⌘K
             </kbd>
             {t("searchTipSuffix")}

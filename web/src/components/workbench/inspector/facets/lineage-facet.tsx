@@ -75,7 +75,7 @@ export function LineageFacet({
       {showOutbound && (
         <div className="space-y-1">
           {direction === undefined && (
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("outboundHeader")}
             </h3>
           )}
@@ -89,7 +89,7 @@ export function LineageFacet({
       {showInbound && (
         <div className="space-y-1">
           {direction === undefined && (
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("inboundHeader")}
             </h3>
           )}

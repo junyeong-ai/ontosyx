@@ -104,7 +104,7 @@ export function BindingStrengthSelect({
       {showLabel && (
         <label
           htmlFor={selectId}
-          className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+          className="text-2xs font-medium uppercase tracking-wider text-muted-foreground"
         >
           {t("label")}
         </label>
@@ -115,7 +115,7 @@ export function BindingStrengthSelect({
         onChange={(e) => onChange(e.target.value as BindingStrength)}
         disabled={disabled}
         aria-describedby={reason ? reasonId : undefined}
-        className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-900"
+        className="rounded border border-divider bg-surface-base px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
       >
         {policy.options.map((s) => (
           <option key={s} value={s}>

@@ -14,6 +14,7 @@ import { useProjects } from "@/hooks/api/use-projects";
 import { useAppStore } from "@/lib/store";
 import { getProject } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
 import type {
   DesignProjectSummary,
   DesignProjectStatus,
@@ -44,9 +45,9 @@ export function RecentProjects() {
   const items = data?.items ?? [];
   if (isLoading) {
     return (
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50/40 p-3 text-xs text-muted-foreground dark:border-zinc-800 dark:bg-zinc-900/40">
+      <Card variant="inset" padding="sm" className="text-xs text-foreground-muted">
         {t("loading")}
-      </div>
+      </Card>
     );
   }
   if (items.length === 0) {
@@ -59,32 +60,34 @@ export function RecentProjects() {
   };
 
   return (
-    <section
+    <Card
+      role="region"
+      padding="none"
+      className="bg-surface-raised/40"
       aria-label={t("ariaLabel")}
-      className="rounded-lg border border-zinc-200 bg-zinc-50/40 dark:border-zinc-800 dark:bg-zinc-900/40"
     >
-      <header className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <Card.Header className="px-3 py-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("heading")}
         </h3>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-2xs text-foreground-muted">
           {t("count", { count: items.length })}
         </span>
-      </header>
-      <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+      </Card.Header>
+      <ul className="divide-y divide-divider">
         {items.map((p) => (
           <li key={p.id}>
             <button
               type="button"
               onClick={() => void onResume(p.id)}
-              className="group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
+              className="group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-inset"
             >
-              <StatusBadge status={p.status} />
+              <ProjectStatusIcon status={p.status} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-zinc-800 dark:text-zinc-200">
+                <p className="truncate text-xs font-medium text-foreground-strong">
                   {p.title ?? t("untitled")}
                 </p>
-                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                <p className="mt-0.5 truncate text-2xs text-muted-foreground">
                   {t("meta", {
                     source: p.source_config.source_type,
                     updated: relativeTime(p.updated_at, t),
@@ -104,45 +107,35 @@ export function RecentProjects() {
           the compact 5-row "resume" list. */}
       <Link
         href="/projects"
-        className="flex items-center justify-center gap-1 border-t border-zinc-200 px-3 py-2 text-[10px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50/40 dark:border-zinc-800 dark:text-emerald-400 dark:hover:bg-emerald-950/20"
+        className="flex items-center justify-center gap-1 border-t border-divider px-3 py-2 text-2xs font-medium text-brand-foreground transition-colors hover:bg-brand-surface dark:hover:bg-brand-surface/20"
       >
         {t("viewAll")}
         <HugeiconsIcon icon={ArrowRight01Icon} className="h-3 w-3" size="100%" />
       </Link>
-    </section>
+    </Card>
   );
 }
 
-function StatusBadge({ status }: { status: DesignProjectStatus }) {
+const STATUS_VISUAL: Record<DesignProjectStatus, { icon: typeof ChartUpIcon; tone: "warning" | "success" | "info" }> = {
+  analyzed:  { icon: ChartUpIcon,            tone: "warning" },
+  designed:  { icon: PencilEdit01Icon,       tone: "success" },
+  completed: { icon: CheckmarkCircle02Icon,  tone: "info" },
+};
+
+function ProjectStatusIcon({ status }: { status: DesignProjectStatus }) {
   const t = useTranslations("workbench.bottomPanel.recentProjects.status");
-  const visual = {
-    analyzed: {
-      icon: ChartUpIcon,
-      color:
-        "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300",
-    },
-    designed: {
-      icon: PencilEdit01Icon,
-      color:
-        "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
-    },
-    completed: {
-      icon: CheckmarkCircle02Icon,
-      color:
-        "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
-    },
-  } as const;
-  const v = visual[status];
+  const { icon, tone } = STATUS_VISUAL[status];
+  const toneClass =
+    tone === "warning" ? "bg-warning-surface text-warning-foreground"
+    : tone === "success" ? "bg-success-surface text-success-foreground"
+    : "bg-info-surface text-info-foreground";
   return (
     <span
-      className={cn(
-        "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
-        v.color,
-      )}
+      className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md", toneClass)}
       aria-label={t(status)}
       title={t(status)}
     >
-      <HugeiconsIcon icon={v.icon} className="h-3.5 w-3.5" size="100%" />
+      <HugeiconsIcon icon={icon} className="h-3.5 w-3.5" size="100%" />
     </span>
   );
 }

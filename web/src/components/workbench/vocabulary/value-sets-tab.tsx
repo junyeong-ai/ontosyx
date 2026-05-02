@@ -34,14 +34,14 @@ export function ValueSetsTab() {
       renderRow={(vs) => (
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            <span className="font-mono text-sm font-medium text-foreground-strong dark:text-foreground">
               {vs.id}
             </span>
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            <span className="text-xs text-muted-foreground dark:text-muted-foreground">
               · {vs.name} · v{vs.version}
             </span>
           </div>
-          <p className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-500">
+          <p className="mt-1 text-2xs text-muted-foreground dark:text-muted-foreground">
             {t("includeCount", { count: vs.composition?.length ?? 0 })}
           </p>
         </div>

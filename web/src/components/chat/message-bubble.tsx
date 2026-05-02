@@ -71,11 +71,11 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
   if (message.role === "user") {
     return (
       <div role="article" aria-label={t("userAria")} className="flex flex-row-reverse gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-base text-white dark:text-foreground-strong">
           <HugeiconsIcon icon={UserIcon} className="h-4 w-4" size="100%" />
         </div>
         <div className="flex max-w-[80%] justify-end">
-          <div className="rounded-2xl bg-zinc-800 px-4 py-2.5 text-sm leading-relaxed text-white dark:bg-zinc-200 dark:text-zinc-900">
+          <div className="rounded-2xl bg-surface-base px-4 py-2.5 text-sm leading-relaxed text-white-strong">
             <p className="whitespace-pre-wrap text-left">{message.content}</p>
           </div>
         </div>
@@ -85,7 +85,7 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
 
   return (
     <div role="article" aria-label={t("assistantAria")} className="flex gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-400">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-surface-strong text-brand-foreground-strong">
         <HugeiconsIcon icon={BotIcon} className="h-4 w-4" size="100%" />
       </div>
 
@@ -107,10 +107,10 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
               group.type === "single" ? (
                 <ToolCallCard key={group.items[0].id} toolCall={group.items[0]} />
               ) : (
-                <details key={group.items[0].id} className="rounded-lg border border-red-200/40 bg-red-50/10 dark:border-red-900/30 dark:bg-red-950/10">
-                  <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+                <details key={group.items[0].id} className="rounded-lg border border-danger-border/40 bg-danger-surface/10">
+                  <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs text-danger-foreground">
                     <span className="font-medium">{group.items[0].name}</span>
-                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium dark:bg-red-900/40">
+                    <span className="rounded bg-danger-surface px-1.5 py-0.5 text-2xs font-medium/40">
                       {t("failedCount", { count: group.items.length })}
                     </span>
                   </summary>
@@ -127,7 +127,7 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
 
         {/* Text content */}
         {(message.content || message.isStreaming) && !message.error && (
-          <div className="group/msg relative max-w-none rounded-2xl bg-white px-4 py-2.5 text-sm leading-relaxed text-zinc-800 shadow-sm ring-1 ring-zinc-100 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700">
+          <div className="group/msg relative max-w-none rounded-2xl bg-surface-base px-4 py-2.5 text-sm leading-relaxed text-foreground-strong shadow-sm ring-1 ring-divider-strong dark:ring-divider">
             {/* Copy button — visible on hover */}
             {message.content && !message.isStreaming && (
               <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity">
@@ -148,9 +148,9 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
             ) : null}
             {message.isStreaming && !message.content && !message.thinking && noToolsRunning(message) && (
               <div className="flex items-center gap-1 py-1">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:0ms]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:150ms]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:300ms]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:0ms]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:150ms]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:300ms]" />
               </div>
             )}
             {/* Streaming caret handled by Streamdown's built-in caret prop */}
@@ -231,7 +231,7 @@ function SuggestedFollowups({ content, onSend }: { content: string; onSend?: (te
         <button
           key={q}
           onClick={() => handleClick(q)}
-          className="block w-full text-left text-sm text-emerald-400 hover:text-emerald-300 hover:underline"
+          className="block w-full text-left text-sm text-brand-foreground hover:text-brand-foreground-strong hover:underline"
         >
           <span className="mr-2 text-muted-foreground">{i + 1}.</span>
           {q}
@@ -259,8 +259,8 @@ function MessageFeedback() {
         onClick={() => toggle("positive")}
         className={`rounded p-1 text-xs transition-colors ${
           feedback === "positive"
-            ? "text-emerald-500"
-            : "text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-muted-foreground"
+            ? "text-brand-foreground"
+            : "text-foreground-muted hover:text-foreground-muted dark:hover:text-muted-foreground"
         }`}
         aria-label={feedback === "positive" ? t("removeHelpful") : t("helpful")}
       >
@@ -270,8 +270,8 @@ function MessageFeedback() {
         onClick={() => toggle("negative")}
         className={`rounded p-1 text-xs transition-colors ${
           feedback === "negative"
-            ? "text-red-500"
-            : "text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-muted-foreground"
+            ? "text-danger-foreground"
+            : "text-foreground-muted hover:text-foreground-muted dark:hover:text-muted-foreground"
         }`}
         aria-label={feedback === "negative" ? t("removeNotHelpful") : t("notHelpful")}
       >

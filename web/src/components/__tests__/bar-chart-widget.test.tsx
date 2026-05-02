@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../messages/en.json";
-import { BarChartWidget } from "@/components/widgets/bar-chart-widget";
+import { BarChartWidget } from "@/components/dashboard/widgets/bar-chart-widget";
 import type { QueryResult, WidgetSpec } from "@/types/ontology";
 
 function renderWithIntl(ui: React.ReactElement) {
@@ -33,7 +33,7 @@ vi.mock("recharts", async () => {
   };
 });
 
-vi.mock("@/lib/use-dark-mode", () => ({
+vi.mock("@/hooks/use-dark-mode", () => ({
   useIsDarkMode: () => false,
 }));
 

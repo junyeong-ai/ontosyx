@@ -5,11 +5,16 @@ import { toast } from "sonner";
 
 import { useAppStore } from "@/lib/store";
 import { applyOntologyCommands } from "@/lib/api";
-import { handleSchemaExport, type ExportFormat } from "@/lib/export-utils";
+import {
+  handleSchemaExport,
+  type ExportFormat,
+  type SchemaExportToastCopy,
+} from "@/lib/export-utils";
 
 interface CanvasCommandsOptions {
   setIsPaletteOpen: (v: boolean | ((v: boolean) => boolean)) => void;
   setIsExportOpen: (v: boolean | ((v: boolean) => boolean)) => void;
+  exportToastCopy: SchemaExportToastCopy;
 }
 
 export interface CanvasCommands {
@@ -29,7 +34,7 @@ export interface CanvasCommands {
  * and UI-local setters owned by the canvas component.
  */
 export function useCanvasCommands(options: CanvasCommandsOptions): CanvasCommands {
-  const { setIsPaletteOpen, setIsExportOpen } = options;
+  const { setIsPaletteOpen, setIsExportOpen, exportToastCopy } = options;
   const ontology = useAppStore((s) => s.ontology);
   const select = useAppStore((s) => s.select);
   const clearSelection = useAppStore((s) => s.clearSelection);
@@ -80,9 +85,9 @@ export function useCanvasCommands(options: CanvasCommandsOptions): CanvasCommand
   const handleExport = useCallback(
     async (format: ExportFormat) => {
       if (!ontology) return;
-      await handleSchemaExport(ontology, format);
+      await handleSchemaExport(ontology, format, exportToastCopy);
     },
-    [ontology],
+    [ontology, exportToastCopy],
   );
 
   const deselectAll = useCallback(() => {

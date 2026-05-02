@@ -37,23 +37,23 @@ export function ReconcileReportPanel({
       className={cn(
         "mt-2 rounded-lg border p-3 text-xs",
         report.confidence === "low"
-          ? "border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20"
+          ? "border-danger-border bg-danger-surface"
           : report.confidence === "medium"
-            ? "border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20"
-            : "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20",
+            ? "border-warning-border bg-warning-surface"
+            : "border-brand-border bg-brand-surface",
       )}
     >
       <div className="flex items-center justify-between">
-        <h4 className="font-semibold text-zinc-700 dark:text-zinc-300">
+        <h4 className="font-semibold text-foreground">
           {t("title")}
           <span
             className={cn(
-              "ml-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+              "ml-2 rounded px-1.5 py-0.5 text-2xs font-bold uppercase",
               report.confidence === "low"
-                ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                ? "bg-danger-surface text-danger-foreground"
                 : report.confidence === "medium"
-                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
-                  : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
+                  ? "bg-warning-surface text-warning-foreground"
+                  : "bg-brand-surface-strong text-brand-foreground-strong-strong",
             )}
           >
             {confidenceLabel}
@@ -61,7 +61,7 @@ export function ReconcileReportPanel({
         </h4>
         <button
           onClick={onDismiss}
-          className="text-muted-foreground hover:text-zinc-600"
+          className="text-muted-foreground hover:text-foreground"
         >
           ✕
         </button>
@@ -70,19 +70,19 @@ export function ReconcileReportPanel({
       <div className="mt-2 space-y-1.5">
         {report.preserved_ids.length > 0 && (
           <p className="text-muted-foreground">
-            <span className="font-medium text-emerald-600">{t("preserved")}</span>{" "}
+            <span className="font-medium text-brand-foreground">{t("preserved")}</span>{" "}
             {t("preservedCount", { count: report.preserved_ids.length })}
           </p>
         )}
 
         {hasGenerated && (
           <div>
-            <p className="font-medium text-blue-600 dark:text-blue-400">
+            <p className="font-medium text-info-foreground dark:text-info-foreground">
               {t("added", { count: report.generated_ids.length })}
             </p>
             <ul className="ml-3 mt-0.5 space-y-0.5">
               {report.generated_ids.map((e) => (
-                <li key={e.id} className="text-zinc-600 dark:text-muted-foreground">
+                <li key={e.id} className="text-foreground dark:text-muted-foreground">
                   {e.entity_kind}: {e.label}
                 </li>
               ))}
@@ -92,12 +92,12 @@ export function ReconcileReportPanel({
 
         {hasDeleted && (
           <div>
-            <p className="font-medium text-red-600 dark:text-red-400">
+            <p className="font-medium text-danger-foreground">
               {t("removed", { count: report.deleted_entities.length })}
             </p>
             <ul className="ml-3 mt-0.5 space-y-0.5">
               {report.deleted_entities.map((e) => (
-                <li key={e.id} className="text-zinc-600 dark:text-muted-foreground">
+                <li key={e.id} className="text-foreground dark:text-muted-foreground">
                   {e.entity_kind}: {e.label}
                 </li>
               ))}
@@ -107,12 +107,12 @@ export function ReconcileReportPanel({
 
         {hasUncertain && (
           <div>
-            <p className="font-medium text-amber-600 dark:text-amber-400">
+            <p className="font-medium text-warning-foreground">
               {t("uncertain", { count: report.uncertain_matches.length })}
             </p>
             <ul className="ml-3 mt-0.5 space-y-1">
               {report.uncertain_matches.map((m) => (
-                <li key={m.original_id} className="text-zinc-600 dark:text-muted-foreground">
+                <li key={m.original_id} className="text-foreground dark:text-muted-foreground">
                   <span className="font-medium">{m.original_label}</span>
                   {" → "}
                   <span className="font-medium">{m.matched_label}</span>

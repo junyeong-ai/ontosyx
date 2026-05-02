@@ -1,15 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { z } from "zod";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+import { Clock01Icon } from "@hugeicons/core-free-icons";
+
 import { Spinner } from "@/components/ui/spinner";
 import { FormInput, SettingsSelect } from "@/components/ui/form-input";
 import { useQueryState } from "@/hooks/use-query-state";
-import { useImeAwareInput } from "@/lib/use-ime-aware-input";
+import { useImeAwareInput } from "@/hooks/use-ime-aware-input";
 import { Button } from "@/components/ui/button";
-import { useConfirm } from "@/components/ui/confirm-dialog";
-import { toast } from "sonner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import type { AgentSession, AgentEvent, SessionMessage } from "@/types/api";
 import {
   listAgentSessions,
@@ -20,11 +32,18 @@ import {
 
 const PAGE_LIMIT = 50;
 
+const sessionsKeys = {
+  all: ["sessions"] as const,
+  list: () => [...sessionsKeys.all, "list"] as const,
+  events: (id: string) => [...sessionsKeys.all, "events", id] as const,
+  messages: (id: string) => [...sessionsKeys.all, "messages", id] as const,
+};
+
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{value}</p>
+    <div className="rounded-lg border border-divider bg-surface-base px-4 py-3">
+      <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-foreground-strong">{value}</p>
     </div>
   );
 }
@@ -32,11 +51,10 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
 export default function SessionsPage() {
   const t = useTranslations("settings.sessions");
   const tCommon = useTranslations("common");
-  const [sessions, setSessions] = useState<AgentSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const confirm = useConfirm();
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [events, setEvents] = useState<AgentEvent[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
   const [search, setSearch] = useQueryState("q", {
     default: "",
     parser: z.string(),
@@ -54,41 +72,49 @@ export default function SessionsPage() {
     parser: z.string(),
     debounceMs: 0,
   });
-  const [nextCursor, setNextCursor] = useState<string | undefined>();
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
 
   const [viewMode, setViewMode] = useState<"conversation" | "events">("conversation");
-  const [messages, setMessages] = useState<SessionMessage[]>([]);
-  const [messagesLoading, setMessagesLoading] = useState(false);
 
-  const confirm = useConfirm();
+  const sessionsQuery = useInfiniteQuery({
+    queryKey: sessionsKeys.list(),
+    queryFn: ({ pageParam }) =>
+      listAgentSessions({
+        limit: PAGE_LIMIT,
+        cursor: pageParam as string | undefined,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) =>
+      last.items.length === PAGE_LIMIT ? last.next_cursor : undefined,
+  });
 
-  useEffect(() => {
-    listAgentSessions({ limit: PAGE_LIMIT })
-      .then((page) => {
-        setSessions(page.items);
-        setNextCursor(page.next_cursor);
-        setHasMore(page.items.length === PAGE_LIMIT);
-      })
-      .catch(() => toast.error(t("toast.loadFailed")))
-      .finally(() => setLoading(false));
-  }, [t]);
+  const sessions: AgentSession[] = useMemo(
+    () => sessionsQuery.data?.pages.flatMap((p) => p.items) ?? [],
+    [sessionsQuery.data],
+  );
 
-  const handleLoadMore = async () => {
-    if (!hasMore || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const page = await listAgentSessions({ limit: PAGE_LIMIT, cursor: nextCursor });
-      setSessions((prev) => [...prev, ...page.items]);
-      setNextCursor(page.next_cursor);
-      setHasMore(page.items.length === PAGE_LIMIT);
-    } catch {
-      toast.error(t("toast.loadMoreFailed"));
-    } finally {
-      setLoadingMore(false);
-    }
-  };
+  const eventsQuery = useQuery({
+    queryKey: selectedId ? sessionsKeys.events(selectedId) : sessionsKeys.all,
+    queryFn: () => listAgentEvents(selectedId!),
+    enabled: !!selectedId,
+  });
+  const events: AgentEvent[] = eventsQuery.data ?? [];
+
+  const messagesQuery = useQuery({
+    queryKey: selectedId ? sessionsKeys.messages(selectedId) : sessionsKeys.all,
+    queryFn: () => fetchSessionMessages(selectedId!),
+    enabled: !!selectedId && viewMode === "conversation",
+  });
+  const messages: SessionMessage[] = messagesQuery.data?.messages ?? [];
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteSession(id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: sessionsKeys.list() });
+      if (selectedId === id) setSelectedId(null);
+      toast.success(t("toast.deleted"));
+    },
+    onError: () => toast.error(t("toast.deleteFailed")),
+  });
 
   const stats = useMemo(() => {
     const total = sessions.length;
@@ -112,29 +138,6 @@ export default function SessionsPage() {
     return true;
   });
 
-  useEffect(() => {
-    if (!selectedId) {
-      setEvents([]);
-      setMessages([]);
-      return;
-    }
-    setEventsLoading(true);
-    listAgentEvents(selectedId)
-      .then(setEvents)
-      .catch(() => toast.error(t("toast.eventsLoadFailed")))
-      .finally(() => setEventsLoading(false));
-  }, [selectedId, t]);
-
-  useEffect(() => {
-    if (viewMode === "conversation" && selectedId) {
-      setMessagesLoading(true);
-      fetchSessionMessages(selectedId)
-        .then((res) => setMessages(res.messages))
-        .catch(() => toast.error(t("toast.messagesLoadFailed")))
-        .finally(() => setMessagesLoading(false));
-    }
-  }, [viewMode, selectedId, t]);
-
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
     const ok = await confirm({
@@ -144,35 +147,34 @@ export default function SessionsPage() {
       variant: "danger",
     });
     if (!ok) return;
-    try {
-      await deleteSession(sessionId);
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-      if (selectedId === sessionId) setSelectedId(null);
-      toast.success(t("toast.deleted"));
-    } catch {
-      toast.error(t("toast.deleteFailed"));
-    }
+    deleteMutation.mutate(sessionId);
   };
 
-  if (loading) {
+  if (sessionsQuery.isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner size="lg" />
-      </div>
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <SkeletonList count={5} />
+      </SettingsPageShell>
+    );
+  }
+
+  if (sessionsQuery.isError) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("description")}>
+        <ErrorState
+          title={tCommon("loadError.title")}
+          description={tCommon("loadError.description")}
+          onRetry={() => sessionsQuery.refetch()}
+          retryLabel={tCommon("retry")}
+        />
+      </SettingsPageShell>
     );
   }
 
   const selected = sessions.find((s) => s.id === selectedId);
 
   return (
-    <div>
-      <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-        {t("title")}
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {t("description")}
-      </p>
-
+    <SettingsPageShell title={t("title")} subtitle={t("description")}>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label={t("stats.total")} value={stats.total} />
         <StatCard label={t("stats.completed")} value={stats.completed} />
@@ -208,17 +210,18 @@ export default function SessionsPage() {
 
       <div className="mt-6 space-y-2">
         {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {sessions.length === 0 ? t("empty") : t("emptyFiltered")}
-          </p>
+          <EmptyState
+            icon={Clock01Icon}
+            title={sessions.length === 0 ? t("empty") : t("emptyFiltered")}
+          />
         ) : (
           filtered.map((s) => (
             <div
               key={s.id}
               className={`group relative rounded-md border px-4 py-3 text-left transition-colors ${
                 s.id === selectedId
-                  ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
-                  : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
+                  ? "border-brand-foreground bg-brand-surface"
+                  : "border-divider hover:border-divider"
               }`}
             >
               <button
@@ -226,25 +229,25 @@ export default function SessionsPage() {
                 className="w-full text-left"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate max-w-md">
+                  <span className="text-sm font-medium text-foreground truncate max-w-md">
                     {s.user_message}
                   </span>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                  <span className="shrink-0 text-2xs text-muted-foreground">
                     {new Date(s.created_at).toLocaleString()}
                   </span>
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+                <div className="mt-1 flex items-center gap-3 text-2xs text-muted-foreground">
                   <span>{s.model_id.split("/").pop()}</span>
                   {s.completed_at ? (
-                    <span className="text-emerald-500">{t("completed")}</span>
+                    <span className="text-brand-foreground">{t("completed")}</span>
                   ) : (
-                    <span className="text-amber-500">{t("incomplete")}</span>
+                    <span className="text-warning-foreground">{t("incomplete")}</span>
                   )}
                 </div>
               </button>
               <button
                 onClick={(e) => handleDelete(e, s.id)}
-                className="absolute right-2 top-2 hidden rounded px-1.5 py-0.5 text-[10px] font-medium text-red-600 transition-colors hover:bg-red-50 group-hover:inline-block dark:text-red-400 dark:hover:bg-red-950/30"
+                className="absolute right-2 top-2 hidden rounded px-1.5 py-0.5 text-2xs font-medium text-danger-foreground transition-colors hover:bg-danger-surface group-hover:inline-block"
               >
                 {tCommon("delete")}
               </button>
@@ -253,10 +256,15 @@ export default function SessionsPage() {
         )}
       </div>
 
-      {hasMore && sessions.length > 0 && (
+      {sessionsQuery.hasNextPage && sessions.length > 0 && (
         <div className="mt-4 flex justify-center">
-          <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={loadingMore}>
-            {loadingMore
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => sessionsQuery.fetchNextPage()}
+            disabled={sessionsQuery.isFetchingNextPage}
+          >
+            {sessionsQuery.isFetchingNextPage
               ? tCommon("loading")
               : t("loadMore", { count: sessions.length })}
           </Button>
@@ -266,16 +274,16 @@ export default function SessionsPage() {
       {selected && (
         <div className="mt-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+            <h2 className="text-sm font-semibold text-foreground">
               {t("detailHeading")}
             </h2>
-            <div className="flex rounded-md border border-zinc-200 text-[10px] font-medium dark:border-zinc-700">
+            <div className="flex rounded-md border border-divider text-2xs font-medium">
               <button
                 onClick={() => setViewMode("conversation")}
                 className={`px-3 py-1 transition-colors ${
                   viewMode === "conversation"
-                    ? "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
-                    : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+                    ? "bg-surface-inset text-foreground-strong"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {t("viewConversation")}
@@ -284,15 +292,15 @@ export default function SessionsPage() {
                 onClick={() => setViewMode("events")}
                 className={`px-3 py-1 transition-colors ${
                   viewMode === "events"
-                    ? "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
-                    : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+                    ? "bg-surface-inset text-foreground-strong"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {t("viewEvents")}
               </button>
             </div>
           </div>
-          <div className="mt-1 text-[10px] text-muted-foreground font-mono">
+          <div className="mt-1 text-2xs text-muted-foreground font-mono">
             {t("hashLine", {
               prompt: selected.prompt_hash.slice(0, 16),
               tool: selected.tool_schema_hash.slice(0, 16),
@@ -300,13 +308,13 @@ export default function SessionsPage() {
           </div>
 
           {viewMode === "conversation" ? (
-            <ConversationView messages={messages} loading={messagesLoading} />
+            <ConversationView messages={messages} loading={messagesQuery.isLoading} />
           ) : (
-            <EventsView events={events} loading={eventsLoading} />
+            <EventsView events={events} loading={eventsQuery.isLoading} />
           )}
         </div>
       )}
-    </div>
+    </SettingsPageShell>
   );
 }
 
@@ -336,11 +344,11 @@ function ConversationView({
         <div key={i}>
           {msg.role === "user" ? (
             <div className="flex justify-end">
-              <div className="max-w-[80%] rounded-lg bg-zinc-100 px-3 py-2 dark:bg-zinc-800">
-                <p className="mb-1 text-[10px] font-semibold text-muted-foreground">
+              <div className="max-w-[80%] rounded-lg bg-surface-inset px-3 py-2">
+                <p className="mb-1 text-2xs font-semibold text-muted-foreground">
                   {t("roleUser")}
                 </p>
-                <p className="whitespace-pre-wrap text-xs text-zinc-700 dark:text-zinc-300">
+                <p className="whitespace-pre-wrap text-xs text-foreground">
                   {msg.content}
                 </p>
               </div>
@@ -348,12 +356,12 @@ function ConversationView({
           ) : (
             <div className="flex justify-start">
               <div className="max-w-[80%] space-y-2">
-                <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
-                  <p className="mb-1 text-[10px] font-semibold text-muted-foreground">
+                <div className="rounded-lg border border-divider bg-surface-base px-3 py-2">
+                  <p className="mb-1 text-2xs font-semibold text-muted-foreground">
                     {t("roleAssistant")}
                   </p>
                   {msg.content && (
-                    <p className="whitespace-pre-wrap text-xs text-zinc-700 dark:text-zinc-300">
+                    <p className="whitespace-pre-wrap text-xs text-foreground">
                       {msg.content}
                     </p>
                   )}
@@ -361,10 +369,10 @@ function ConversationView({
                 {msg.tool_calls?.map((tc, j) => (
                   <div
                     key={j}
-                    className="rounded-md border border-amber-200 bg-amber-50/50 px-3 py-1.5 dark:border-amber-800/50 dark:bg-amber-950/20"
+                    className="rounded-md border border-warning-border bg-warning-surface px-3 py-1.5"
                   >
-                    <div className="flex items-center gap-2 text-[10px]">
-                      <span className="font-semibold text-amber-700 dark:text-amber-400">
+                    <div className="flex items-center gap-2 text-2xs">
+                      <span className="font-semibold text-warning-foreground">
                         {tc.name}
                       </span>
                       {tc.duration_ms != null && (
@@ -373,10 +381,10 @@ function ConversationView({
                       <span
                         className={
                           tc.status === "error"
-                            ? "text-red-500"
+                            ? "text-danger-foreground"
                             : tc.status === "review"
-                              ? "text-blue-500"
-                              : "text-emerald-500"
+                              ? "text-info-foreground"
+                              : "text-brand-foreground"
                         }
                       >
                         {tc.status}
@@ -413,16 +421,16 @@ function EventsView({
       {events.map((e) => (
         <div
           key={e.id}
-          className="flex items-start gap-3 rounded-md border border-zinc-100 px-3 py-2 dark:border-zinc-800"
+          className="flex items-start gap-3 rounded-md border border-divider-soft px-3 py-2"
         >
-          <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground">
+          <span className="shrink-0 rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-mono text-foreground dark:text-muted-foreground">
             #{e.sequence}
           </span>
           <EventBadge type={e.event_type} />
-          <span className="flex-1 truncate text-xs text-zinc-600 dark:text-muted-foreground font-mono">
+          <span className="flex-1 truncate text-xs text-foreground dark:text-muted-foreground font-mono">
             {JSON.stringify(e.payload).slice(0, 120)}
           </span>
-          <span className="shrink-0 text-[10px] text-muted-foreground">
+          <span className="shrink-0 text-2xs text-muted-foreground">
             {new Date(e.created_at).toLocaleTimeString()}
           </span>
         </div>
@@ -433,18 +441,18 @@ function EventsView({
 
 function EventBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
-    text: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-    tool_start: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-    tool_complete: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-    complete: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-    usage: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
-    error: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    text: "bg-info-surface text-info-foreground",
+    tool_start: "bg-warning-surface text-warning-foreground",
+    tool_complete: "bg-success-surface text-success-foreground",
+    complete: "bg-concept-surface text-concept-foreground",
+    usage: "bg-surface-inset text-foreground",
+    error: "bg-danger-surface text-danger-foreground",
   };
 
   return (
     <span
-      className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
-        colors[type] ?? "bg-zinc-100 text-zinc-600"
+      className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium ${
+        colors[type] ?? "bg-surface-inset text-foreground"
       }`}
     >
       {type}

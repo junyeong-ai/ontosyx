@@ -84,13 +84,13 @@ export function AnalyzeLayout() {
     <ErrorBoundary name="Analyze">
       <div className="flex h-full flex-col">
         {/* Mode toggle bar */}
-        <div className="flex h-8 shrink-0 items-center gap-1 border-b border-zinc-200 px-3 dark:border-zinc-800">
+        <div className="flex h-8 shrink-0 items-center gap-1 border-b border-divider px-3">
           <button
             onClick={() => setAnalyzeMode("chat")}
             className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
               analyzeMode === "chat"
-                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
+                ? "bg-brand-surface text-brand-foreground"
+                : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-muted"
             }`}
           >
             {t("mode.chat")}
@@ -99,8 +99,8 @@ export function AnalyzeLayout() {
             onClick={() => setAnalyzeMode("builder")}
             className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
               analyzeMode === "builder"
-                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
+                ? "bg-brand-surface text-brand-foreground"
+                : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-muted"
             }`}
           >
             {t("mode.builder")}
@@ -127,9 +127,9 @@ export function AnalyzeLayout() {
 
               {/* Right: Results / Query / History */}
               <Panel minSize="30%">
-                <div className="flex h-full flex-col border-l border-zinc-200 dark:border-zinc-800">
+                <div className="flex h-full flex-col border-l border-divider">
                   {/* Tab bar */}
-                  <div className="flex h-8 shrink-0 items-center border-b border-zinc-200 px-1 dark:border-zinc-800">
+                  <div className="flex h-8 shrink-0 items-center border-b border-divider px-1">
                     <TabBar
                       tabs={analyzeTabs}
                       activeTab={rightTab}

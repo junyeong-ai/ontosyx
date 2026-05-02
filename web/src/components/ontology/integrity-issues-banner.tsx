@@ -37,30 +37,30 @@ export function IntegrityIssuesBanner({
   const hidden = issues.length - visible.length;
 
   return (
-    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
+    <div className="rounded-md border border-warning-border bg-warning-surface p-3">
       <div className="mb-2 flex items-center gap-1.5">
         <HugeiconsIcon
           icon={AlertCircleIcon}
-          className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400"
+          className="h-3.5 w-3.5 text-warning-foreground"
           size="100%"
         />
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-warning-foreground">
           {t("heading", { count: issues.length })}
         </span>
       </div>
       <ul className="space-y-1.5">
         {visible.map((issue, index) => (
           <li key={`${issue.code}-${index}`} className="text-[11px]">
-            <span className="font-mono text-amber-700 dark:text-amber-400">
+            <span className="font-mono text-warning-foreground">
               {issue.code}
             </span>
-            <span className="ml-2 text-amber-800 dark:text-amber-200">
+            <span className="ml-2 text-warning-foreground">
               {issue.message}
             </span>
           </li>
         ))}
         {hidden > 0 && (
-          <li className="text-[10px] italic text-muted-foreground">
+          <li className="text-2xs italic text-muted-foreground">
             {t("more", { n: hidden })}
           </li>
         )}

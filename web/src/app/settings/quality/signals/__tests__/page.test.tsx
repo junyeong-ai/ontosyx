@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
-import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import { ConfirmProvider } from "@/components/providers/confirm-provider";
 
 import messages from "../../../../../../messages/en.json";
 

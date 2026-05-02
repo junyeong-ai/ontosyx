@@ -6,6 +6,16 @@ import { toast } from "sonner";
 
 export type ExportFormat = "json" | "cypher" | "mermaid" | "graphql" | "owl" | "shacl" | "typescript" | "python";
 
+/**
+ * Toast copy injected by the caller. Keeping the strings out of this
+ * module preserves the React-context-free guarantee — `lib/` runs
+ * outside `useTranslations`, so the caller resolves the i18n in
+ * its own component scope and threads them in.
+ */
+export interface SchemaExportToastCopy {
+  failedTitle: string;
+}
+
 export function downloadAsFile(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
@@ -16,7 +26,11 @@ export function downloadAsFile(content: string, filename: string, mimeType: stri
   URL.revokeObjectURL(url);
 }
 
-export async function handleSchemaExport(ontology: OntologyIR, format: ExportFormat) {
+export async function handleSchemaExport(
+  ontology: OntologyIR,
+  format: ExportFormat,
+  toastCopy: SchemaExportToastCopy,
+) {
   const baseName = ontology.name || "ontology";
   try {
     switch (format) {
@@ -62,7 +76,7 @@ export async function handleSchemaExport(ontology: OntologyIR, format: ExportFor
       }
     }
   } catch (err) {
-    toast.error("Export failed", {
+    toast.error(toastCopy.failedTitle, {
       description: err instanceof Error ? err.message : String(err),
     });
   }

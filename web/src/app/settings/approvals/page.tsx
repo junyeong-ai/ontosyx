@@ -1,10 +1,14 @@
 "use client";
 
-import { Fragment, useState, useEffect, useCallback } from "react";
+import { Fragment, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+
 import { request } from "@/lib/api/client";
-import { Spinner } from "@/components/ui/spinner";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonCard } from "@/components/ui/skeleton";
+import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { EditOpPreview } from "@/components/settings/approvals/edit-op-preview";
 import { CommentThread } from "@/components/settings/approvals/comment-thread";
 import type { components } from "@/types/api.generated";
@@ -17,67 +21,95 @@ function isKnownStatus(s: string): s is KnownStatus {
   return s === "pending" || s === "approved" || s === "rejected" || s === "expired";
 }
 
+const approvalsKeys = {
+  all: ["approvals"] as const,
+  list: () => [...approvalsKeys.all, "list"] as const,
+};
+
 export default function ApprovalsSettingsPage() {
   const t = useTranslations("settings.approvals");
-  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const tCommon = useTranslations("common");
+  const qc = useQueryClient();
   const [expanded, setExpanded] = useState<string | null>(null);
   // Per-row decision-time rationale. Keyed on approval id so a
   // partly-typed note survives a row-toggle. Cleared on successful
   // review.
   const [notes, setNotes] = useState<Record<string, string>>({});
 
-  const load = useCallback(async () => {
-    try {
+  const query = useQuery({
+    queryKey: approvalsKeys.list(),
+    queryFn: async () => {
       const data = await request<ApprovalRequest[]>("/approvals");
-      setApprovals(Array.isArray(data) ? data : []);
-    } catch {
-      toast.error(t("toast.loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+      return Array.isArray(data) ? data : [];
+    },
+  });
 
-  useEffect(() => { load(); }, [load]);
-
-  const handleReview = async (id: string, approved: boolean) => {
-    try {
-      const note = notes[id]?.trim();
-      // Backend `ReviewApprovalRequest.note: Option<String>` with
-      // `#[serde(default)]` — absent / missing both deserialise to
-      // `None`. Send via `undefined` so JSON.stringify omits the
-      // field, matching the spec exactly.
-      await request(`/approvals/${id}/review`, {
+  const reviewMutation = useMutation({
+    mutationFn: ({
+      id,
+      approved,
+      note,
+    }: {
+      id: string;
+      approved: boolean;
+      note: string | undefined;
+    }) =>
+      request(`/approvals/${id}/review`, {
         method: "POST",
-        body: JSON.stringify({
-          approved,
-          note: note ? note : undefined,
-        }),
-      });
+        body: JSON.stringify({ approved, note }),
+      }),
+    onSuccess: (_data, { id, approved }) => {
       setNotes((prev) => {
         const next = { ...prev };
         delete next[id];
         return next;
       });
       toast.success(approved ? t("toast.approved") : t("toast.rejected"));
-      load();
-    } catch {
-      toast.error(t("toast.reviewFailed"));
-    }
+      qc.invalidateQueries({ queryKey: approvalsKeys.list() });
+    },
+    onError: () => toast.error(t("toast.reviewFailed")),
+  });
+
+  const handleReview = (id: string, approved: boolean) => {
+    const note = notes[id]?.trim();
+    reviewMutation.mutate({ id, approved, note: note ? note : undefined });
   };
 
-  if (loading) return <Spinner />;
+  if (query.isLoading) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("subtitle")}>
+        <div className="space-y-3">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </SettingsPageShell>
+    );
+  }
 
+  if (query.isError) {
+    return (
+      <SettingsPageShell title={t("title")} subtitle={t("subtitle")}>
+        <ErrorState
+          title={tCommon("loadError.title")}
+          description={tCommon("loadError.description")}
+          onRetry={() => query.refetch()}
+          retryLabel={tCommon("retry")}
+        />
+      </SettingsPageShell>
+    );
+  }
+
+  const approvals = query.data ?? [];
   const pending = approvals.filter((a) => a.status === "pending");
   const resolved = approvals.filter((a) => a.status !== "pending");
 
   const statusBadge = (status: string) => {
     switch (status) {
-      case "pending": return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
-      case "approved": return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
-      case "rejected": return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-      case "expired": return "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-muted-foreground";
-      default: return "bg-zinc-100 text-muted-foreground";
+      case "pending": return "bg-warning-surface text-warning-foreground";
+      case "approved": return "bg-success-surface text-success-foreground";
+      case "rejected": return "bg-danger-surface text-danger-foreground";
+      case "expired": return "bg-surface-inset text-foreground-muted";
+      default: return "bg-surface-inset text-muted-foreground";
     }
   };
 
@@ -87,18 +119,10 @@ export default function ApprovalsSettingsPage() {
     isKnownStatus(status) ? t(`status.${status}`) : status;
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-        {t("title")}
-      </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
-        {t("description")}
-      </p>
-
-      {/* Pending approvals */}
+    <SettingsPageShell title={t("title")} subtitle={t("description")}>
       {pending.length > 0 && (
-        <div className="mt-6">
-          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">
             {t("pendingHeading", { count: pending.length })}
           </h2>
           <div className="mt-2 space-y-3">
@@ -107,7 +131,7 @@ export default function ApprovalsSettingsPage() {
               return (
                 <div
                   key={a.id}
-                  className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950"
+                  className="rounded-lg border border-warning-border bg-warning-surface"
                 >
                   <div className="flex items-center justify-between p-4">
                     <button
@@ -116,7 +140,7 @@ export default function ApprovalsSettingsPage() {
                       className="flex-1 text-left"
                       aria-expanded={isOpen}
                     >
-                      <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                      <div className="font-medium text-foreground-strong">
                         {a.action_type.replace(/_/g, " ")}
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -129,23 +153,23 @@ export default function ApprovalsSettingsPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleReview(a.id, true)}
-                        className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
+                        className="rounded-md bg-brand-solid px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-solid-hover"
                       >
                         {t("approve")}
                       </button>
                       <button
                         onClick={() => handleReview(a.id, false)}
-                        className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+                        className="rounded-md bg-danger-solid px-3 py-1.5 text-xs font-medium text-white hover:bg-danger-solid-hover"
                       >
                         {t("reject")}
                       </button>
                     </div>
                   </div>
                   {isOpen && (
-                    <div className="flex flex-col gap-3 border-t border-amber-200 bg-white px-4 pb-4 pt-3 dark:border-amber-900 dark:bg-zinc-900">
+                    <div className="flex flex-col gap-3 border-t border-warning-border bg-surface-base px-4 pb-4 pt-3">
                       <EditOpPreview payload={a.payload} />
                       <label className="flex flex-col gap-1.5">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                           {t("reviewerNote.label")}
                         </span>
                         <textarea
@@ -158,7 +182,7 @@ export default function ApprovalsSettingsPage() {
                           }
                           placeholder={t("reviewerNote.placeholder")}
                           rows={2}
-                          className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-emerald-400"
+                          className="rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs transition-colors focus:border-brand-foreground focus:outline-none focus:ring-1 focus:ring-brand-foreground/50 dark:focus:border-brand-border"
                         />
                       </label>
                       <CommentThread approvalId={a.id} />
@@ -173,12 +197,12 @@ export default function ApprovalsSettingsPage() {
 
       {/* History */}
       <div className="mt-6">
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+        <h2 className="text-sm font-semibold text-foreground">
           {t("historyHeading")}
         </h2>
         <table className="mt-2 w-full text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
+            <tr className="border-b border-divider text-left text-xs font-medium uppercase text-muted-foreground">
               <th className="py-3 pr-6">{t("column.action")}</th>
               <th className="py-3 pr-6">{t("column.resource")}</th>
               <th className="py-3 pr-6">{t("column.status")}</th>
@@ -207,9 +231,9 @@ export default function ApprovalsSettingsPage() {
                         toggle();
                       }
                     }}
-                    className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 dark:border-zinc-800 dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
+                    className="cursor-pointer border-b border-divider-soft hover:bg-surface-raised focus:bg-surface-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/60 dark:hover:bg-surface-base dark:focus:bg-surface-base"
                   >
-                    <td className="py-3 pr-6 text-zinc-900 dark:text-zinc-100">
+                    <td className="py-3 pr-6 text-foreground-strong">
                       {a.action_type.replace(/_/g, " ")}
                     </td>
                     <td className="py-3 pr-6 text-muted-foreground">
@@ -225,8 +249,8 @@ export default function ApprovalsSettingsPage() {
                     </td>
                   </tr>
                   {isOpen && (
-                    <tr className="border-b border-zinc-100 dark:border-zinc-800">
-                      <td colSpan={4} className="bg-zinc-50 px-4 py-3 dark:bg-zinc-900/40">
+                    <tr className="border-b border-divider-soft">
+                      <td colSpan={4} className="bg-surface-raised px-4 py-3">
                         <CommentThread approvalId={a.id} readOnly />
                       </td>
                     </tr>
@@ -244,6 +268,6 @@ export default function ApprovalsSettingsPage() {
           </tbody>
         </table>
       </div>
-    </div>
+    </SettingsPageShell>
   );
 }

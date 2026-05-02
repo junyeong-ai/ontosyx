@@ -24,10 +24,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip } from "@/components/ui/tooltip";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { useDeleteInsight, useInsights } from "@/hooks/api/use-insights";
 import { localizePresent } from "@/lib/locale/localize";
-import { useLocaleChain } from "@/lib/use-locale-chain";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 import type { InsightDef } from "@/types/api";
 
 interface Props {
@@ -94,23 +94,23 @@ export function InsightListPanel({ onOpen }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+      <div className="flex items-center gap-2 border-b border-divider px-3 py-2">
         <HugeiconsIcon
           icon={Analytics01Icon}
-          className="h-3.5 w-3.5 text-emerald-600"
+          className="h-3.5 w-3.5 text-brand-foreground"
           size="100%"
         />
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground-strong">
           {t("panelTitle")}
-        </h3>
-        <span className="ml-auto text-[10px] text-muted-foreground">
+        </h2>
+        <span className="ml-auto text-2xs text-muted-foreground">
           {t("countSummary", { count: items.length })}
         </span>
       </div>
 
       {conceptAnchorChips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1 border-b border-zinc-100 px-3 py-1.5 dark:border-zinc-800">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-1 border-b border-divider-soft px-3 py-1.5">
+          <span className="text-2xs uppercase tracking-wider text-muted-foreground">
             {t("filterByConcept")}
           </span>
           {conceptAnchorChips.map((anchor) => {
@@ -122,8 +122,8 @@ export function InsightListPanel({ onOpen }: Props) {
                 aria-pressed={active}
                 className={
                   active
-                    ? "rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-medium text-white"
-                    : "rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                    ? "rounded bg-brand-solid px-1.5 py-0.5 text-2xs font-medium text-white"
+                    : "rounded bg-surface-inset px-1.5 py-0.5 text-2xs text-foreground hover:bg-surface-inset-muted dark:hover:bg-surface-base"
                 }
               >
                 {anchor}
@@ -133,7 +133,7 @@ export function InsightListPanel({ onOpen }: Props) {
           {activeAnchor && (
             <button
               onClick={() => setActiveAnchor(null)}
-              className="text-[10px] text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300"
+              className="text-2xs text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
             >
               {t("filterClear")}
             </button>
@@ -162,18 +162,18 @@ export function InsightListPanel({ onOpen }: Props) {
             return (
               <li
                 key={insight.id}
-                className="border-b border-zinc-100 last:border-b-0 dark:border-zinc-800"
+                className="border-b border-divider-soft last:border-b-0"
               >
                 <div className="flex items-start gap-2 px-3 py-2">
                   <button
                     onClick={() => onOpen?.(insight)}
                     className="flex-1 text-left"
                   >
-                    <p className="truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">
+                    <p className="truncate text-xs font-medium text-foreground-strong">
                       {title}
                     </p>
                     {desc && (
-                      <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
+                      <p className="mt-0.5 line-clamp-2 text-2xs text-muted-foreground">
                         {desc}
                       </p>
                     )}
@@ -183,7 +183,7 @@ export function InsightListPanel({ onOpen }: Props) {
                         {insight.concept_anchors.map((anchor) => (
                           <span
                             key={`anchor-${anchor}`}
-                            className="rounded bg-emerald-100 px-1 text-[9px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            className="rounded bg-brand-surface-strong px-1 text-2xs font-medium text-brand-foreground-strong-strong"
                             title={t("conceptAnchorTooltip")}
                           >
                             {anchor}
@@ -192,7 +192,7 @@ export function InsightListPanel({ onOpen }: Props) {
                         {insight.tags.map((tag) => (
                           <span
                             key={`tag-${tag}`}
-                            className="rounded bg-zinc-100 px-1 text-[9px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                            className="rounded bg-surface-inset px-1 text-2xs text-foreground-subtle"
                           >
                             {tag}
                           </span>

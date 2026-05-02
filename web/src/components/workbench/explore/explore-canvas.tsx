@@ -18,8 +18,8 @@ import {
 
 import { GraphCanvas } from "@/components/workbench/canvas/graph-canvas";
 import { computeElkLayout } from "@/components/workbench/canvas/elk-layout";
-import { useIsDarkMode } from "@/lib/use-dark-mode";
-import { useTypeFilter } from "@/lib/use-type-filter";
+import { useIsDarkMode } from "@/hooks/use-dark-mode";
+import { useTypeFilter } from "@/hooks/use-type-filter";
 import type { ExpandNeighbor, GraphOverview } from "@/lib/api/queries";
 
 import { resolveDisplayName, resolveNodeColor } from "./graph-utils";
@@ -101,8 +101,8 @@ function ExploreNodeRenderer({ data }: NodeProps & { data: ExploreNodeData }) {
       <div
         className={`flex items-center justify-center rounded-full border-2 text-white transition-shadow ${
           data.focused
-            ? "border-emerald-300 shadow-[0_0_0_3px_rgba(16,185,129,0.25)]"
-            : "border-white/60 shadow-sm dark:border-zinc-800"
+            ? "border-brand-border shadow-[0_0_0_3px_rgba(16,185,129,0.25)]"
+            : "border-white/60 shadow-sm"
         }`}
         style={{
           width: diameter,
@@ -114,7 +114,7 @@ function ExploreNodeRenderer({ data }: NodeProps & { data: ExploreNodeData }) {
       >
         {data.caption.split("\n")[0]}
       </div>
-      <div className="pointer-events-none mt-1 max-w-[140px] truncate rounded bg-white/80 px-1 text-[10px] text-zinc-600 shadow-sm backdrop-blur dark:bg-zinc-900/80 dark:text-zinc-300">
+      <div className="pointer-events-none mt-1 max-w-[140px] truncate rounded bg-surface-base px-1 text-2xs text-foreground shadow-sm backdrop-blur/80-muted">
         {data.subtitle ?? data.caption}
       </div>
     </div>
@@ -150,7 +150,7 @@ function ExploreEdgeRenderer(props: EdgeProps) {
         <EdgeLabelRenderer>
           <div
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            className="pointer-events-none rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[9px] text-zinc-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-muted-foreground"
+            className="pointer-events-none rounded-full border border-divider bg-surface-base px-1.5 py-0.5 text-2xs text-foreground-muted shadow-sm dark:text-muted-foreground"
           >
             {data.caption}
           </div>
@@ -425,7 +425,7 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
         </div>
       )}
       {isSchemaMode && !laying && (
-        <div className="pointer-events-none absolute right-3 top-3 rounded bg-white/80 px-2.5 py-1 text-[10px] text-zinc-500 shadow-sm dark:bg-zinc-900/80 dark:text-muted-foreground">
+        <div className="pointer-events-none absolute right-3 top-3 rounded bg-surface-base px-2.5 py-1 text-2xs text-foreground-muted shadow-sm/80 dark:text-muted-foreground">
           Data Model — click a node to explore
         </div>
       )}
@@ -441,10 +441,10 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
                 onClick={() => typeFilter.toggle(label)}
                 aria-pressed={!hidden}
                 aria-label={`${hidden ? "Show" : "Hide"} ${label} nodes`}
-                className={`flex cursor-pointer items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] shadow-sm transition-opacity dark:bg-zinc-900/80 ${
+                className={`flex cursor-pointer items-center gap-1 rounded-full bg-surface-base px-2 py-0.5 text-2xs shadow-sm transition-opacity/80 ${
                   hidden
-                    ? "text-muted-foreground line-through opacity-60 dark:text-zinc-500"
-                    : "text-zinc-500 dark:text-muted-foreground"
+                    ? "text-muted-foreground line-through opacity-60-muted"
+                    : "text-foreground-muted"
                 }`}
               >
                 <span

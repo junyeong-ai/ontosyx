@@ -12,7 +12,7 @@ import {
 
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
 import { localizePresent } from "@/lib/locale/localize";
-import { useLocaleChain } from "@/lib/use-locale-chain";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 
 export interface GlossaryAnchorPickerProps {
   /** Currently-selected term ids. */
@@ -140,7 +140,7 @@ export function GlossaryAnchorPicker({
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="inline-flex items-center gap-1 rounded border border-dashed border-zinc-300 px-2 py-1 text-[11px] text-muted-foreground hover:border-violet-300 hover:text-violet-600 dark:border-zinc-700 dark:hover:border-violet-700 dark:hover:text-violet-400"
+              className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-[11px] text-muted-foreground hover:border-concept-border hover:text-concept-foreground dark:hover:border-concept-border dark:hover:text-concept-foreground"
             >
               <HugeiconsIcon
                 icon={PlusSignIcon}
@@ -172,8 +172,8 @@ function AnchorChip({
   removeLabel: string;
 }) {
   const baseColor = missing
-    ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
-    : "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300";
+    ? "bg-danger-surface text-danger-foreground dark:text-danger-foreground"
+    : "bg-concept-surface text-concept-foreground";
   return (
     <li
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${baseColor}`}
@@ -188,13 +188,13 @@ function AnchorChip({
         </span>
       )}
       <span className="font-medium">{label}</span>
-      <span className="font-mono text-[9px] opacity-60">{id}</span>
+      <span className="font-mono text-2xs opacity-60">{id}</span>
       {onRemove && (
         <button
           type="button"
           onClick={onRemove}
           aria-label={removeLabel}
-          className="rounded-full p-0.5 hover:bg-violet-200 dark:hover:bg-violet-900/60"
+          className="rounded-full p-0.5 hover:bg-concept-surface dark:hover:bg-concept-surface/60"
         >
           <HugeiconsIcon icon={Cancel01Icon} className="h-2.5 w-2.5" size="100%" />
         </button>
@@ -223,8 +223,8 @@ function SearchPopover({
   labelSearch: string;
 }) {
   return (
-    <div className="rounded-md border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-      <div className="flex items-center gap-1.5 border-b border-zinc-100 pb-1.5 dark:border-zinc-800">
+    <div className="rounded-md border border-divider bg-surface-base p-2 shadow-sm">
+      <div className="flex items-center gap-1.5 border-b border-divider-soft pb-1.5">
         <HugeiconsIcon
           icon={Search01Icon}
           className="h-3 w-3 text-muted-foreground"
@@ -260,18 +260,18 @@ function SearchPopover({
                 <button
                   type="button"
                   onClick={() => onPick(term.id)}
-                  className="flex w-full flex-col rounded px-1.5 py-1 text-left hover:bg-violet-50 dark:hover:bg-violet-950/30"
+                  className="flex w-full flex-col rounded px-1.5 py-1 text-left hover:bg-concept-surface dark:hover:bg-concept-surface/30"
                 >
                   <span className="flex items-baseline gap-2 text-[11px]">
-                    <span className="font-medium text-zinc-800 dark:text-zinc-100">
+                    <span className="font-medium text-foreground-strong-strong">
                       {label}
                     </span>
-                    <span className="font-mono text-[9px] text-muted-foreground">
+                    <span className="font-mono text-2xs text-muted-foreground">
                       {term.id}
                     </span>
                   </span>
                   {description && (
-                    <span className="text-[10px] text-muted-foreground line-clamp-1">
+                    <span className="text-2xs text-muted-foreground line-clamp-1">
                       {description}
                     </span>
                   )}

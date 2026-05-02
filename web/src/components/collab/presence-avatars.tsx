@@ -82,7 +82,7 @@ export function PresenceAvatars({
             </ul>
           }
         >
-          <div className="flex h-7 w-7 items-center justify-center rounded-full border border-background bg-zinc-200 text-2xs font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full border border-background bg-surface-raised text-2xs font-semibold text-foreground-strong dark:bg-surface-base dark:text-foreground">
             +{overflow}
           </div>
         </Tooltip>

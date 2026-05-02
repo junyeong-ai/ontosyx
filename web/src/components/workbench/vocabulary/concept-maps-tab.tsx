@@ -33,14 +33,14 @@ export function ConceptMapsTab() {
       renderRow={(cm) => (
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            <span className="font-mono text-sm font-medium text-foreground-strong dark:text-foreground">
               {cm.id}
             </span>
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            <span className="text-xs text-muted-foreground dark:text-muted-foreground">
               · {cm.name} · v{cm.version}
             </span>
           </div>
-          <p className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-500">
+          <p className="mt-1 text-2xs text-muted-foreground dark:text-muted-foreground">
             {t("mappingSummary", {
               source: cm.source_system_id,
               target: cm.target_system_id,

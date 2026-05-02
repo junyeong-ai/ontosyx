@@ -128,7 +128,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
             onClick={() => commitBinding(null)}
             disabled={apply.isPending}
             aria-label={t("unlinkAria", { term: boundTermId })}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-violet-600 hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-950/40 disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs text-concept-foreground hover:bg-concept-surface dark:hover:bg-concept-surface disabled:opacity-50"
           >
             <HugeiconsIcon
               icon={LinkSquare02Icon}
@@ -145,7 +145,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
             onClick={() => setOpen((v) => !v)}
             aria-label={t("linkAria")}
             aria-expanded={open}
-            className="rounded p-0.5 text-muted-foreground opacity-0 hover:bg-zinc-100 hover:text-violet-600 group-hover:opacity-100 group-focus-within:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-violet-400"
+            className="rounded p-0.5 text-muted-foreground opacity-0 hover:bg-surface-inset hover:text-concept-foreground group-hover:opacity-100 group-focus-within:opacity-100 dark:hover:bg-surface-base dark:hover:text-concept-foreground"
           >
             <HugeiconsIcon icon={Link01Icon} className="h-2.5 w-2.5" size="100%" />
           </button>
@@ -156,7 +156,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
         <div
           role="listbox"
           aria-label={t("suggestionsLabel")}
-          className="absolute right-0 top-full z-20 mt-1 w-64 rounded-md border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+          className="absolute right-0 top-full z-20 mt-1 w-64 rounded-md border border-divider bg-surface-base p-2 shadow-lg"
         >
           {suggest.isPending && (
             <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
@@ -164,7 +164,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
             </p>
           )}
           {suggest.isError && (
-            <p className="px-2 py-1.5 text-[11px] text-rose-600 dark:text-rose-400">
+            <p className="px-2 py-1.5 text-[11px] text-danger-foreground dark:text-danger-foreground">
               {t("fetchFailed")}
             </p>
           )}
@@ -183,7 +183,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
               />
             ))}
           {apply.isPending && (
-            <p className="px-2 pt-1.5 text-[10px] italic text-muted-foreground">
+            <p className="px-2 pt-1.5 text-2xs italic text-muted-foreground">
               {t("applying")}
             </p>
           )}
@@ -210,17 +210,17 @@ function CandidateRow({
       type="button"
       onClick={onPick}
       disabled={disabled}
-      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-violet-50 disabled:opacity-50 dark:hover:bg-violet-950/30"
+      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-concept-surface disabled:opacity-50 dark:hover:bg-concept-surface/30"
     >
       <HugeiconsIcon
         icon={UnlinkIcon}
         className="h-2.5 w-2.5 text-muted-foreground"
         size="100%"
       />
-      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-zinc-700 dark:text-zinc-200">
+      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground-strong">
         {candidate.term}
       </span>
-      <span className="shrink-0 rounded bg-violet-100 px-1 text-[9px] font-medium text-violet-700 dark:bg-violet-900/50 dark:text-violet-300">
+      <span className="shrink-0 rounded bg-concept-surface px-1 text-2xs font-medium text-concept-foreground">
         {pct}%
       </span>
     </button>

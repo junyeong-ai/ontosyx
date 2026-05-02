@@ -75,10 +75,10 @@ export function SourceSampleMini({ tableName }: Props) {
 
   return (
     <details
-      className="rounded border border-zinc-200 bg-white text-xs dark:border-zinc-800 dark:bg-zinc-950"
+      className="rounded border border-divider bg-surface-base text-xs"
       open
     >
-      <summary className="cursor-pointer select-none border-b border-zinc-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:border-zinc-800">
+      <summary className="cursor-pointer select-none border-b border-divider-soft px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
         {t("title", {
           table: tableName,
           rowCount: rowCount.toLocaleString(),
@@ -86,18 +86,18 @@ export function SourceSampleMini({ tableName }: Props) {
       </summary>
 
       {rows.length === 0 ? (
-        <p className="px-2 py-2 text-[10px] text-muted-foreground">
+        <p className="px-2 py-2 text-2xs text-muted-foreground">
           {t("noSamples")}
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[10px]">
-            <thead className="bg-zinc-50 dark:bg-zinc-900">
+          <table className="w-full border-collapse text-2xs">
+            <thead className="bg-surface-raised">
               <tr>
                 {stats.map((c) => (
                   <th
                     key={c.column_name}
-                    className="border-b border-zinc-200 px-2 py-1 text-left font-mono font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-300"
+                    className="border-b border-divider px-2 py-1 text-left font-mono font-medium text-foreground-muted"
                   >
                     {c.column_name}
                   </th>
@@ -106,14 +106,14 @@ export function SourceSampleMini({ tableName }: Props) {
             </thead>
             <tbody>
               {rows.map((row, i) => (
-                <tr key={i} className="even:bg-zinc-50 dark:even:bg-zinc-900/50">
+                <tr key={i} className="even:bg-surface-raised dark:even:bg-surface-base/50">
                   {row.map((cell, j) => (
                     <td
                       key={j}
-                      className="border-b border-zinc-100 px-2 py-1 font-mono text-zinc-600 dark:border-zinc-800/50 dark:text-zinc-400"
+                      className="border-b border-divider-soft px-2 py-1 font-mono text-foreground-subtle"
                     >
                       {cell || (
-                        <span className="text-zinc-400 italic">∅</span>
+                        <span className="text-foreground-subtle italic">∅</span>
                       )}
                     </td>
                   ))}
@@ -130,18 +130,18 @@ export function SourceSampleMini({ tableName }: Props) {
           a "Redacted" badge in place of the distribution detail so
           the operator sees both that the column was flagged and
           that no raw values entered the profile. */}
-      <ul className="border-t border-zinc-100 px-2 py-1 dark:border-zinc-800">
+      <ul className="border-t border-divider-soft px-2 py-1">
         {stats.map((c) => (
           <li
             key={c.column_name}
-            className="flex items-center justify-between gap-2 py-0.5 text-[10px]"
+            className="flex items-center justify-between gap-2 py-0.5 text-2xs"
           >
-            <span className="font-mono text-zinc-600 dark:text-zinc-400">
+            <span className="font-mono text-foreground-muted">
               {c.column_name}
             </span>
             {c.pii_redacted ? (
               <span
-                className="rounded bg-rose-50 px-1.5 py-0.5 font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                className="rounded bg-danger-surface px-1.5 py-0.5 font-medium text-danger-foreground dark:text-danger-foreground"
                 title={t("piiRedactedTooltip")}
               >
                 {t("piiRedactedBadge", {

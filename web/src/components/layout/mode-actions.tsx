@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
-import { useWorkspaceMode } from "@/lib/use-workspace-mode";
+import { useWorkspaceMode } from "@/hooks/use-workspace-mode";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -126,7 +126,9 @@ function DesignActions() {
   const handleExportFormat = async (format: ExportFormat) => {
     if (!ontology) return;
     setExportMenuOpen(false);
-    await handleSchemaExport(ontology, format);
+    await handleSchemaExport(ontology, format, {
+      failedTitle: t("exportFailed"),
+    });
   };
 
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
@@ -173,56 +175,56 @@ function DesignActions() {
       )}
       {ontology && (
         <Popover open={exportMenuOpen} onOpenChange={setExportMenuOpen}>
-          <PopoverTrigger aria-label={t("exportAria")} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
+          <PopoverTrigger aria-label={t("exportAria")} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-inset hover:text-foreground dark:hover:text-foreground-muted">
             <HugeiconsIcon icon={Download04Icon} className="h-3.5 w-3.5" size="100%" />
           </PopoverTrigger>
-          <PopoverContent className="z-50 w-48 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all dark:border-zinc-700 dark:bg-zinc-900">
+          <PopoverContent className="z-50 w-48 rounded-lg border border-divider bg-surface-base p-1 shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all">
             <button
               onClick={() => handleExportFormat("json")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
             >
               {t("exportJson")}
             </button>
             <button
               onClick={() => handleExportFormat("cypher")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
             >
               {t("exportCypher")}
             </button>
             <button
               onClick={() => handleExportFormat("mermaid")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
             >
               {t("exportMermaid")}
             </button>
             <button
               onClick={() => handleExportFormat("graphql")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
             >
               {t("exportGraphql")}
             </button>
             <button
               onClick={() => handleExportFormat("owl")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
             >
               {t("exportOwl")}
             </button>
             <button
               onClick={() => handleExportFormat("shacl")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
             >
               {t("exportShacl")}
             </button>
-            <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+            <div className="my-1 border-t border-divider-soft" />
             <button
               onClick={() => handleExportFormat("typescript")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
             >
               {t("exportTypescript")}
             </button>
             <button
               onClick={() => handleExportFormat("python")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
             >
               {t("exportPython")}
             </button>

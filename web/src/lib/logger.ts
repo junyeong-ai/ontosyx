@@ -17,6 +17,9 @@
  * only info/debug console calls in the codebase; the `eslint-disable-next-line`
  * comments localize the exemption to this file alone.
  */
+// `console.{debug,info}` calls below are intentional — this file is
+// the project's logging primitive; every other call site is forbidden
+// from `console` and routes through these methods.
 export const logger = {
   debug: (...args: unknown[]) => {
     if (process.env.NEXT_PUBLIC_LOG_LEVEL === "debug") {

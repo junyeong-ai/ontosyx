@@ -5,11 +5,11 @@ import { toast } from "sonner";
 import type { NodeMouseHandler, EdgeMouseHandler } from "@xyflow/react";
 
 import { useAppStore } from "@/lib/store";
-import { useConfirm } from "@/components/ui/confirm-dialog";
-import { usePrompt } from "@/components/ui/prompt-dialog";
+import { useConfirm } from "@/components/providers/confirm-provider";
+import { usePrompt } from "@/components/providers/prompt-provider";
 import { editProject } from "@/lib/api";
 import type { ContextMenuItem } from "@/components/workbench/canvas/context-menu";
-import type { UseGraphContextMenuResult } from "@/lib/use-graph-context-menu";
+import type { UseGraphContextMenuResult } from "@/hooks/use-graph-context-menu";
 import type { OntologyIR, OntologyCommand } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
 
