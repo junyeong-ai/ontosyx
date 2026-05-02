@@ -18,17 +18,17 @@ use crate::state::AppState;
 // Request / Query types
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct ListConfigsParams {
     pub workspace_id: Option<Uuid>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct ListRulesParams {
     pub workspace_id: Option<Uuid>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct TestModelRequest {
     pub provider: String,
     pub model_id: String,
@@ -37,7 +37,7 @@ pub struct TestModelRequest {
     pub base_url: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 pub struct TestModelResponse {
     pub ok: bool,
     pub message: String,
@@ -47,6 +47,14 @@ pub struct TestModelResponse {
 // GET /api/models/configs — list model configs
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/models/configs",
+    params(ListConfigsParams),
+    responses((status = 200, description = "Model configs", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Models",
+)]
 pub(crate) async fn list_model_configs(
     State(state): State<AppState>,
     _principal: Principal,
@@ -65,6 +73,14 @@ pub(crate) async fn list_model_configs(
 // POST /api/models/configs — create a model config
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    post,
+    path = "/api/models/configs",
+    request_body = Object,
+    responses((status = 201, description = "Model config created", body = Object)),
+    security(("api_key" = [])),
+    tag = "Models",
+)]
 pub(crate) async fn create_model_config(
     State(state): State<AppState>,
     principal: Principal,
@@ -91,6 +107,15 @@ pub(crate) async fn create_model_config(
 // PATCH /api/models/configs/{id} — update a model config
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    patch,
+    path = "/api/models/configs/{id}",
+    params(("id" = Uuid, Path, description = "Model config ID")),
+    request_body = Object,
+    responses((status = 200, description = "Updated model config", body = Object)),
+    security(("api_key" = [])),
+    tag = "Models",
+)]
 pub(crate) async fn update_model_config(
     State(state): State<AppState>,
     principal: Principal,
@@ -117,6 +142,17 @@ pub(crate) async fn update_model_config(
 // DELETE /api/models/configs/{id} — delete a model config
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/models/configs/{id}",
+    params(("id" = Uuid, Path, description = "Model config ID")),
+    responses(
+        (status = 204, description = "Model config deleted"),
+        (status = 404, description = "Config not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Models",
+)]
 pub(crate) async fn delete_model_config(
     State(state): State<AppState>,
     principal: Principal,
@@ -145,6 +181,15 @@ pub(crate) async fn delete_model_config(
 // GET /api/models/routing-rules — list routing rules
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/models/routing-rules",
+    operation_id = "list_model_routing_rules",
+    params(ListRulesParams),
+    responses((status = 200, description = "Routing rules", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Models",
+)]
 pub(crate) async fn list_routing_rules(
     State(state): State<AppState>,
     _principal: Principal,
@@ -163,6 +208,14 @@ pub(crate) async fn list_routing_rules(
 // POST /api/models/routing-rules — create a routing rule
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    post,
+    path = "/api/models/routing-rules",
+    request_body = Object,
+    responses((status = 201, description = "Routing rule created", body = Object)),
+    security(("api_key" = [])),
+    tag = "Models",
+)]
 pub(crate) async fn create_routing_rule(
     State(state): State<AppState>,
     principal: Principal,
@@ -188,6 +241,15 @@ pub(crate) async fn create_routing_rule(
 // PATCH /api/models/routing-rules/{id} — update a routing rule
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    patch,
+    path = "/api/models/routing-rules/{id}",
+    params(("id" = Uuid, Path, description = "Routing rule ID")),
+    request_body = Object,
+    responses((status = 200, description = "Updated routing rule", body = Object)),
+    security(("api_key" = [])),
+    tag = "Models",
+)]
 pub(crate) async fn update_routing_rule(
     State(state): State<AppState>,
     principal: Principal,
@@ -214,6 +276,18 @@ pub(crate) async fn update_routing_rule(
 // DELETE /api/models/routing-rules/{id} — delete a routing rule
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/models/routing-rules/{id}",
+    operation_id = "delete_model_routing_rule",
+    params(("id" = Uuid, Path, description = "Routing rule ID")),
+    responses(
+        (status = 204, description = "Routing rule deleted"),
+        (status = 404, description = "Rule not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Models",
+)]
 pub(crate) async fn delete_routing_rule(
     State(state): State<AppState>,
     principal: Principal,
@@ -242,6 +316,14 @@ pub(crate) async fn delete_routing_rule(
 // POST /api/models/test — test model connection
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    post,
+    path = "/api/models/test",
+    request_body = TestModelRequest,
+    responses((status = 200, description = "Connection probe result", body = TestModelResponse)),
+    security(("api_key" = [])),
+    tag = "Models",
+)]
 pub(crate) async fn test_model_connection(
     State(state): State<AppState>,
     principal: Principal,

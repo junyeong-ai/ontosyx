@@ -4,9 +4,9 @@ use utoipa::{Modify, OpenApi, ToSchema};
 
 use crate::routes::{
     acl, approvals, audit, auth, chat, config, dashboards, federation_admin, governance_audit,
-    governance_routing, health, insights, knowledge, lineage, load, notifications, ontology,
-    perspectives, pins, prompts_admin, query, recipes, reports, schedules, sessions, usage, users,
-    workspaces,
+    governance_routing, health, insights, knowledge, lineage, load, models, notifications,
+    ontology, perspectives, pins, prompts_admin, query, recipes, reports, schedules, sessions,
+    usage, users, workspaces,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -112,6 +112,7 @@ impl Modify for SecurityAddon {
         (name = "ACL", description = "Workspace access-control policies"),
         (name = "Recipes", description = "Reusable analysis recipe templates"),
         (name = "Knowledge", description = "Knowledge base entries + admin review"),
+        (name = "Models", description = "LLM model configs + routing rules"),
     ),
     paths(
         // Health
@@ -319,6 +320,16 @@ impl Modify for SecurityAddon {
         knowledge::list_stale,
         knowledge::knowledge_stats,
         knowledge::bulk_review,
+        // Models
+        models::list_model_configs,
+        models::create_model_config,
+        models::update_model_config,
+        models::delete_model_config,
+        models::list_routing_rules,
+        models::create_routing_rule,
+        models::update_routing_rule,
+        models::delete_routing_rule,
+        models::test_model_connection,
     ),
     components(
         schemas(
@@ -532,6 +543,9 @@ impl Modify for SecurityAddon {
             knowledge::DeletedResponse,
             knowledge::BulkReviewResponse,
             knowledge::KnowledgeStats,
+            // Models
+            models::TestModelRequest,
+            models::TestModelResponse,
         ),
     ),
     modifiers(&SecurityAddon),
