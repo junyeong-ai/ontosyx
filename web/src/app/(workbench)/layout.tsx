@@ -7,6 +7,7 @@ import { GlobalCommandPalette } from "@/components/layout/global-command-palette
 import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts-dialog";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { PromptProvider } from "@/components/providers/prompt-provider";
+import { I18nBridgeProvider } from "@/lib/i18n-bridge";
 import { QualityBanner } from "@/components/quality/quality-banner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useHydrated } from "@/lib/store/use-hydrated";
@@ -99,6 +100,7 @@ export default function WorkbenchLayout({
   return (
     <ErrorBoundary>
       <TooltipProvider>
+        <I18nBridgeProvider>
         <PromptProvider>
           <div className="flex h-dvh overflow-hidden" aria-busy={!hydrated}>
             {hydrated ? (
@@ -139,6 +141,7 @@ export default function WorkbenchLayout({
           />
           <CollaborationErrorToaster />
         </PromptProvider>
+        </I18nBridgeProvider>
       </TooltipProvider>
     </ErrorBoundary>
   );
