@@ -1,4 +1,9 @@
+import type { components } from "@/types/api.generated";
 import { request } from "./client";
+
+// `NotificationChannel` / `NotificationLog` flow through `ox_store` and
+// the OpenAPI surface keeps them opaque (`body = Object`); this module
+// owns the FE-side typed contract for both shapes.
 
 export interface NotificationChannel {
   id: string;
@@ -24,16 +29,20 @@ export interface NotificationLog {
   created_at: string;
 }
 
+export type CreateChannelRequest =
+  components["schemas"]["CreateChannelRequest"];
+export type UpdateChannelRequest =
+  components["schemas"]["UpdateChannelRequest"];
+export type TestChannelResponse =
+  components["schemas"]["TestChannelResponse"];
+
 export function listChannels(): Promise<NotificationChannel[]> {
   return request("/notifications/channels");
 }
 
-export function createChannel(data: {
-  name: string;
-  channel_type: string;
-  config: Record<string, unknown>;
-  events: string[];
-}): Promise<NotificationChannel> {
+export function createChannel(
+  data: CreateChannelRequest,
+): Promise<NotificationChannel> {
   return request("/notifications/channels", {
     method: "POST",
     body: JSON.stringify(data),
@@ -42,12 +51,7 @@ export function createChannel(data: {
 
 export function updateChannel(
   id: string,
-  data: Partial<{
-    name: string;
-    config: Record<string, unknown>;
-    events: string[];
-    enabled: boolean;
-  }>,
+  data: UpdateChannelRequest,
 ): Promise<void> {
   return request(`/notifications/channels/${id}`, {
     method: "PATCH",
@@ -59,9 +63,7 @@ export function deleteChannel(id: string): Promise<void> {
   return request(`/notifications/channels/${id}`, { method: "DELETE" });
 }
 
-export function testChannel(
-  id: string,
-): Promise<{ success: boolean; error?: string }> {
+export function testChannel(id: string): Promise<TestChannelResponse> {
   return request(`/notifications/channels/${id}/test`, { method: "POST" });
 }
 

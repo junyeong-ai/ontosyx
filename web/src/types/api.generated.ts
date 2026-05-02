@@ -452,6 +452,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notifications/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_channels"];
+        put?: never;
+        post: operations["create_channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/channels/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_channel"];
+        options?: never;
+        head?: never;
+        patch: operations["update_channel"];
+        trace?: never;
+    };
+    "/api/notifications/channels/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["test_channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_logs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ontologies": {
         parameters: {
             query?: never;
@@ -2389,6 +2453,12 @@ export interface components {
         CreateAuthTokenResponse: {
             token: string;
             user: components["schemas"]["UserInfo"];
+        };
+        CreateChannelRequest: {
+            channel_type: string;
+            config: components["schemas"]["WebhookChannelConfig"];
+            events?: string[];
+            name: string;
         };
         CreateDashboardRequest: {
             description?: string | null;
@@ -6219,6 +6289,10 @@ export interface components {
          * @enum {string}
          */
         TermRelationKind: "broader" | "narrower" | "related" | "see_also" | "exact_match" | "close_match";
+        TestChannelResponse: {
+            error?: string | null;
+            success: boolean;
+        };
         UiConfig: {
             elk_direction: string;
             elk_edge_routing: string;
@@ -6228,6 +6302,12 @@ export interface components {
             elk_node_spacing: number;
             /** Format: int64 */
             worker_timeout_ms: number;
+        };
+        UpdateChannelRequest: {
+            config?: null | components["schemas"]["WebhookChannelConfig"];
+            enabled?: boolean | null;
+            events?: string[] | null;
+            name?: string | null;
         };
         UpdateConfigRequest: {
             updates: components["schemas"]["ConfigUpdate"][];
@@ -6456,6 +6536,13 @@ export interface components {
         };
         /** @enum {string} */
         VectorSimilarity: "cosine" | "euclidean";
+        WebhookChannelConfig: {
+            /**
+             * @description Webhook endpoint URL. HTTP(S) only; private network ranges are
+             *     blocked at validation time.
+             */
+            url: string;
+        };
         WidgetUpdateRequest: {
             query?: string | null;
             /** Format: int32 */
@@ -8147,6 +8234,155 @@ export interface operations {
                     "application/json": {
                         error: components["schemas"]["ErrorBody"];
                     };
+                };
+            };
+        };
+    };
+    list_channels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Channel list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    create_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateChannelRequest"];
+            };
+        };
+        responses: {
+            /** @description Channel created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    delete_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notification channel ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Channel deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Channel not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notification channel ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateChannelRequest"];
+            };
+        };
+        responses: {
+            /** @description Channel updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    test_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notification channel ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Delivery attempt result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestChannelResponse"];
+                };
+            };
+            /** @description Channel not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_logs: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Delivery log entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
                 };
             };
         };

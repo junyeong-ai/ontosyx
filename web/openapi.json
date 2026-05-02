@@ -2334,6 +2334,217 @@
         ]
       }
     },
+    "/api/notifications/channels": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "list_channels",
+        "responses": {
+          "200": {
+            "description": "Channel list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "create_channel",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChannelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Channel created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/channels/{id}": {
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "delete_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Notification channel ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Channel deleted"
+          },
+          "404": {
+            "description": "Channel not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "update_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Notification channel ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChannelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Channel updated"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/channels/{id}/test": {
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "test_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Notification channel ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery attempt result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestChannelResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Channel not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/log": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "list_logs",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery log entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/ontologies": {
       "get": {
         "tags": [
@@ -8531,6 +8742,31 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserInfo"
+          }
+        }
+      },
+      "CreateChannelRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "channel_type",
+          "config"
+        ],
+        "properties": {
+          "channel_type": {
+            "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/WebhookChannelConfig"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -17868,6 +18104,23 @@
           "close_match"
         ]
       },
+      "TestChannelResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "UiConfig": {
         "type": "object",
         "required": [
@@ -17895,6 +18148,42 @@
           "worker_timeout_ms": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "UpdateChannelRequest": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WebhookChannelConfig"
+              }
+            ]
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "events": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -18458,6 +18747,18 @@
           "euclidean"
         ]
       },
+      "WebhookChannelConfig": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Webhook endpoint URL. HTTP(S) only; private network ranges are\nblocked at validation time."
+          }
+        }
+      },
       "WidgetUpdateRequest": {
         "type": "object",
         "properties": {
@@ -18766,6 +19067,10 @@
     {
       "name": "Audit",
       "description": "Workspace-wide PROV-O audit trail"
+    },
+    {
+      "name": "Notifications",
+      "description": "Webhook channel routing + delivery log"
     }
   ]
 }

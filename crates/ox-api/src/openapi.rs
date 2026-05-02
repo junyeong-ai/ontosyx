@@ -4,8 +4,8 @@ use utoipa::{Modify, OpenApi, ToSchema};
 
 use crate::routes::{
     approvals, auth, chat, config, dashboards, federation_admin, governance_audit,
-    governance_routing, health, insights, load, ontology, perspectives, pins, prompts_admin,
-    query, users, workspaces,
+    governance_routing, health, insights, load, notifications, ontology, perspectives, pins,
+    prompts_admin, query, users, workspaces,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -103,6 +103,7 @@ impl Modify for SecurityAddon {
         (name = "Admin", description = "Platform administration (admin role required)"),
         (name = "Approvals", description = "Approval queue + comment thread"),
         (name = "Audit", description = "Workspace-wide PROV-O audit trail"),
+        (name = "Notifications", description = "Webhook channel routing + delivery log"),
     ),
     paths(
         // Health
@@ -250,6 +251,13 @@ impl Modify for SecurityAddon {
         dashboards::share_dashboard,
         dashboards::unshare_dashboard,
         dashboards::get_shared_dashboard,
+        // Notifications
+        notifications::create_channel,
+        notifications::list_channels,
+        notifications::update_channel,
+        notifications::delete_channel,
+        notifications::test_channel,
+        notifications::list_logs,
     ),
     components(
         schemas(
@@ -432,6 +440,11 @@ impl Modify for SecurityAddon {
             ox_ontology::change_routing::RoleRef,
             ox_ontology::change_routing::ScopeKind,
             ox_ontology::change_routing::RiskLevel,
+            // Notifications
+            notifications::WebhookChannelConfig,
+            notifications::CreateChannelRequest,
+            notifications::UpdateChannelRequest,
+            notifications::TestChannelResponse,
         ),
     ),
     modifiers(&SecurityAddon),
