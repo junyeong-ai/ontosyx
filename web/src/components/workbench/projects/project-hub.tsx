@@ -227,7 +227,7 @@ function ProjectCard({
 function StatusIcon({ status }: { status: DesignProjectStatus }) {
   const visual = {
     analyzed: { icon: ChartUpIcon, color: "text-amber-600 dark:text-amber-400" },
-    designed: { icon: PencilEdit01Icon, color: "text-emerald-600 dark:text-emerald-400" },
+    designed: { icon: PencilEdit01Icon, color: "text-emerald-700 dark:text-emerald-400" },
     completed: { icon: CheckmarkCircle02Icon, color: "text-blue-600 dark:text-blue-400" },
   } as const;
   const v = visual[status];

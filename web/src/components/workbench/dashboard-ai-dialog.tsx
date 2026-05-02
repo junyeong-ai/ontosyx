@@ -406,7 +406,7 @@ function WidgetPreviewCard({
       {/* Action button */}
       <div className="px-3 py-2">
         {preview.isAdded ? (
-          <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+          <span className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"

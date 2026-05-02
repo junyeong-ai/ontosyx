@@ -829,7 +829,7 @@ export function QueryBuilder() {
                   onClick={() => setConfigTab("filter")}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                     configTab === "filter"
-                      ? "border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400"
+                      ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
                       : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground"
                   }`}
                 >
@@ -839,7 +839,7 @@ export function QueryBuilder() {
                   onClick={() => setConfigTab("return")}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                     configTab === "return"
-                      ? "border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400"
+                      ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
                       : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground"
                   }`}
                 >

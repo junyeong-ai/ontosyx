@@ -119,7 +119,7 @@ export function BottomPanel({
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors outline-none",
                   isActive
-                    ? "border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400"
+                    ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
                     : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300",
                 )}
               >

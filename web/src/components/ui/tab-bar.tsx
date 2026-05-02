@@ -18,7 +18,10 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
             value={id}
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors outline-none",
-              "data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-600",
+              // emerald-600 (#009767) on white is 3.65:1 — fails WCAG AA
+              // (4.5:1) for normal text under 18px. emerald-700 is 5.4:1
+              // and visually still reads as the brand accent.
+              "data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-700",
               "dark:data-[active]:border-emerald-400 dark:data-[active]:text-emerald-400",
               "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300",
             )}

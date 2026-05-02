@@ -271,7 +271,7 @@ export function RevisionHistoryPanel({
                     </button>
                   )}
                   {rev.revision === project.revision && (
-                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                    <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
                       {t("current")}
                     </span>
                   )}

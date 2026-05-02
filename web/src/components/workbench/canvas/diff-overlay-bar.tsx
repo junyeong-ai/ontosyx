@@ -111,7 +111,7 @@ export function DiffOverlayBar() {
           </span>
           <ConfidenceBadge confidence={report.confidence} />
           {addedCount > 0 && (
-            <span className="text-emerald-600 dark:text-emerald-400">
+            <span className="text-emerald-700 dark:text-emerald-400">
               {t("addedCount", { count: addedCount })}
             </span>
           )}

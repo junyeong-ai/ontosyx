@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
-import { WIDE_SETTINGS_PAGES } from "@/lib/constants/settings";
+import { NARROW_SETTINGS_PAGES } from "@/lib/constants/settings";
 import { cn } from "@/lib/cn";
 import { useIsClient } from "@/lib/use-is-client";
 
@@ -30,7 +30,8 @@ export default function SettingsLayout({
 }) {
   const pathname = usePathname();
   const t = useTranslations("settings.chrome");
-  const isWide = WIDE_SETTINGS_PAGES.has(pathname);
+  // Wide-by-default; only pure-form pages opt into narrow.
+  const isNarrow = NARROW_SETTINGS_PAGES.has(pathname);
   const pageTitle = deriveTitle(pathname);
 
   // Prevent hydration mismatch: client-only state (useAuth, localStorage)
@@ -56,7 +57,7 @@ export default function SettingsLayout({
         tabIndex={0}
         className="flex-1 overflow-y-auto p-6 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-inset lg:p-8"
       >
-        <div className={cn("mx-auto", isWide ? "max-w-6xl" : "max-w-3xl")}>
+        <div className={cn("mx-auto", isNarrow ? "max-w-3xl" : "max-w-7xl")}>
           {/* Visually-hidden page title — subpages render their own
               human-facing heading via `SettingsSection`, which is now an
               `<h2>` to preserve the page hierarchy. */}

@@ -104,7 +104,7 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
                     "hover:bg-zinc-100 dark:hover:bg-zinc-700",
                     "transition-colors",
                     sortCol === key &&
-                      "text-emerald-600 dark:text-emerald-400",
+                      "text-emerald-700 dark:text-emerald-400",
                   )}
                 >
                   {label}

@@ -306,7 +306,7 @@ function NodeChangeItem({
       );
     case "property_added":
       return (
-        <div className="text-emerald-600 dark:text-emerald-400">
+        <div className="text-emerald-700 dark:text-emerald-400">
           + {t("propertyLabel")}: <span className="font-medium">{change.property.name}</span>
         </div>
       );
@@ -331,7 +331,7 @@ function NodeChangeItem({
       );
     case "constraint_added":
       return (
-        <div className="text-emerald-600 dark:text-emerald-400">
+        <div className="text-emerald-700 dark:text-emerald-400">
           + {t("constraintLabel")}: <span className="font-mono">{change.constraint}</span>
         </div>
       );
@@ -434,7 +434,7 @@ function EdgeChangeItem({
       return <ChangeRow label={t("cardinalityTxt")} old={change.old} new_val={change.new} />;
     case "property_added":
       return (
-        <div className="text-emerald-600 dark:text-emerald-400">
+        <div className="text-emerald-700 dark:text-emerald-400">
           + {t("propertyLabel")}: <span className="font-medium">{change.property.name}</span>
         </div>
       );
@@ -513,7 +513,7 @@ function ChangeRow({
       <span className="font-medium text-muted-foreground">{label}:</span>
       <span className="line-through text-red-500/70 dark:text-red-400/70">{old}</span>
       <span className="text-muted-foreground dark:text-zinc-600">&rarr;</span>
-      <span className="text-emerald-600 dark:text-emerald-400">{new_val}</span>
+      <span className="text-emerald-700 dark:text-emerald-400">{new_val}</span>
     </div>
   );
 }

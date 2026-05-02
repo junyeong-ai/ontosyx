@@ -313,7 +313,7 @@ export default function QualitySettingsPage() {
           <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
             {passed}
           </div>
-          <div className="text-xs text-emerald-600 dark:text-emerald-500">
+          <div className="text-xs text-emerald-700 dark:text-emerald-500">
             {t("summary.passing")}
           </div>
         </div>
@@ -384,7 +384,7 @@ export default function QualitySettingsPage() {
                   {d.latest_passed === null ? (
                     <span className="text-muted-foreground">{t("status.none")}</span>
                   ) : d.latest_passed ? (
-                    <span className="text-emerald-600 dark:text-emerald-400">
+                    <span className="text-emerald-700 dark:text-emerald-400">
                       {t("status.pass")}
                     </span>
                   ) : (

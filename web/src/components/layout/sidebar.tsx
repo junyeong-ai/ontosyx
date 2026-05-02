@@ -42,7 +42,7 @@ function ModeLink({
         className={cn(
           "relative flex h-10 w-full items-center justify-center transition-colors",
           active
-            ? "text-emerald-600 dark:text-emerald-400"
+            ? "text-emerald-700 dark:text-emerald-400"
             : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300",
         )}
       >
@@ -184,7 +184,7 @@ export function Sidebar() {
             className={cn(
               "flex h-10 w-full items-center justify-center transition-colors",
               onSettings
-                ? "text-emerald-600 dark:text-emerald-400"
+                ? "text-emerald-700 dark:text-emerald-400"
                 : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300",
             )}
           >

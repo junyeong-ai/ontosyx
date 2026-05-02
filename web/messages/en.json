@@ -1603,6 +1603,7 @@
         "dataLineage": "Data Lineage",
         "auditLog": "Audit Log",
         "provenanceAudit": "PROV-O Audit",
+        "routingMatrix": "Change Routing Matrix",
         "approvals": "Approvals",
         "development": "Development",
         "prompts": "Prompts",

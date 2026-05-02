@@ -69,7 +69,7 @@ export function CanvasEmptyState() {
           }}
           className="flex flex-col items-center gap-2 rounded-xl border border-zinc-200 bg-white p-5 text-center transition-all hover:border-emerald-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-emerald-700"
         >
-          <HugeiconsIcon icon={DatabaseIcon} className="h-5 w-5 text-emerald-600 dark:text-emerald-400" size="100%" />
+          <HugeiconsIcon icon={DatabaseIcon} className="h-5 w-5 text-emerald-700 dark:text-emerald-400" size="100%" />
           <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{t("createProject")}</span>
           <span className="text-[10px] text-muted-foreground">{t("createProjectHint")}</span>
         </button>

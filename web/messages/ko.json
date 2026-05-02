@@ -1589,6 +1589,7 @@
         "dataLineage": "데이터 계보",
         "auditLog": "감사 로그",
         "provenanceAudit": "PROV-O 감사",
+        "routingMatrix": "변경 라우팅 매트릭스",
         "approvals": "승인 대기열",
         "development": "개발",
         "prompts": "프롬프트",

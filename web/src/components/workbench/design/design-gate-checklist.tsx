@@ -79,7 +79,7 @@ export function DesignGateChecklist({
           className={cn(
             "text-xs font-medium",
             unmetCount === 0
-              ? "text-emerald-600 dark:text-emerald-400"
+              ? "text-emerald-700 dark:text-emerald-400"
               : "text-amber-600 dark:text-amber-400",
           )}
         >

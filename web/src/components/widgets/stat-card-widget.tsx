@@ -22,7 +22,7 @@ function getThresholdColor(
     if (critical != null && value <= critical) return "text-red-600 dark:text-red-400";
     if (warning != null && value <= warning) return "text-amber-600 dark:text-amber-400";
   }
-  return "text-emerald-600 dark:text-emerald-400";
+  return "text-emerald-700 dark:text-emerald-400";
 }
 
 // ---------------------------------------------------------------------------
@@ -98,7 +98,7 @@ export function StatCardWidget({ spec, data }: StatCardWidgetProps) {
           className={cn(
             "mt-1 text-xs font-medium",
             delta > 0
-              ? "text-emerald-600 dark:text-emerald-400"
+              ? "text-emerald-700 dark:text-emerald-400"
               : delta < 0
                 ? "text-red-500 dark:text-red-400"
                 : "text-muted-foreground",

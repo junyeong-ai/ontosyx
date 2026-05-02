@@ -60,7 +60,7 @@ export function PhaseStepper({
               className={cn(
                 "text-[9px] font-medium capitalize",
                 i <= currentStepIndex
-                  ? "text-emerald-600 dark:text-emerald-400"
+                  ? "text-emerald-700 dark:text-emerald-400"
                   : "text-muted-foreground",
               )}
             >

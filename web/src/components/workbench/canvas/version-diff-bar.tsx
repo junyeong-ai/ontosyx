@@ -23,7 +23,7 @@ export function VersionDiffBar() {
           {t("title")}
         </span>
         {summary.nodes_added > 0 && (
-          <span className="text-emerald-600 dark:text-emerald-400">
+          <span className="text-emerald-700 dark:text-emerald-400">
             +{summary.nodes_added}N
           </span>
         )}
@@ -38,7 +38,7 @@ export function VersionDiffBar() {
           </span>
         )}
         {summary.edges_added > 0 && (
-          <span className="text-emerald-600 dark:text-emerald-400">
+          <span className="text-emerald-700 dark:text-emerald-400">
             +{summary.edges_added}E
           </span>
         )}

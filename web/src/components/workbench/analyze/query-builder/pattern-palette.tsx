@@ -94,7 +94,7 @@ export function PatternPalette({
           onClick={() => setTab("nodes")}
           className={`px-3 py-1.5 text-xs font-medium transition-colors ${
             tab === "nodes"
-              ? "border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400"
+              ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
               : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
           }`}
         >
@@ -104,7 +104,7 @@ export function PatternPalette({
           onClick={() => setTab("edges")}
           className={`px-3 py-1.5 text-xs font-medium transition-colors ${
             tab === "edges"
-              ? "border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400"
+              ? "border-b-2 border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400"
               : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
           }`}
         >

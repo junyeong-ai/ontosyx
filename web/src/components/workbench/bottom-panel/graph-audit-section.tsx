@@ -103,7 +103,7 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
           </div>
 
           {report.matched_nodes.length > 0 && (
-            <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
+            <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
               {t("syncMatched", {
                 nodeCount: report.matched_nodes.length,
                 edgeCount: report.matched_edges.length,
