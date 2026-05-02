@@ -19,20 +19,36 @@ use crate::workspace::WorkspaceContext;
 // POST /api/recipes — save an analysis recipe
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateRecipeRequest {
     pub name: String,
     pub description: String,
     pub algorithm_type: String,
     pub code_template: String,
+    /// Free-form parameter map. The recipe runner reads keys per
+    /// algorithm; the API layer doesn't constrain the shape.
     #[serde(default)]
+    #[schema(value_type = HashMap<String, Object>, additional_properties)]
     pub parameters: serde_json::Value,
+    /// Column names the recipe needs from the source. Order is
+    /// preserved end-to-end.
     #[serde(default)]
-    pub required_columns: serde_json::Value,
+    pub required_columns: Vec<String>,
     #[serde(default)]
     pub output_description: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/recipes",
+    request_body = CreateRecipeRequest,
+    responses(
+        (status = 200, description = "Recipe created", body = Object),
+        (status = 400, description = "Validation failure"),
+    ),
+    security(("api_key" = [])),
+    tag = "Recipes",
+)]
 pub(crate) async fn create_recipe(
     State(state): State<AppState>,
     principal: Principal,
@@ -52,7 +68,7 @@ pub(crate) async fn create_recipe(
         algorithm_type: req.algorithm_type,
         code_template: req.code_template,
         parameters: req.parameters,
-        required_columns: req.required_columns,
+        required_columns: serde_json::Value::from(req.required_columns),
         output_description: req.output_description,
         created_by: principal.id,
         created_at: Utc::now(),
@@ -74,11 +90,40 @@ pub(crate) async fn create_recipe(
 // GET /api/recipes — list analysis recipes
 // ---------------------------------------------------------------------------
 
+#[derive(Deserialize, utoipa::IntoParams)]
+pub struct RecipesCursorQuery {
+    #[serde(default = "default_recipes_limit")]
+    pub limit: u32,
+    pub cursor: Option<String>,
+}
+
+fn default_recipes_limit() -> u32 {
+    50
+}
+
+impl From<RecipesCursorQuery> for CursorParams {
+    fn from(q: RecipesCursorQuery) -> Self {
+        Self {
+            limit: q.limit,
+            cursor: q.cursor,
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/recipes",
+    params(RecipesCursorQuery),
+    responses((status = 200, description = "Analysis recipes", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Recipes",
+)]
 pub(crate) async fn list_recipes(
     State(state): State<AppState>,
     _principal: Principal,
-    axum::extract::Query(pagination): axum::extract::Query<CursorParams>,
+    axum::extract::Query(pagination): axum::extract::Query<RecipesCursorQuery>,
 ) -> Result<Json<ApiResponse<Vec<AnalysisRecipe>>>, AppError> {
+    let pagination: CursorParams = pagination.into();
     let page = state
         .store
         .list_recipes(&pagination)
@@ -91,6 +136,17 @@ pub(crate) async fn list_recipes(
 // GET /api/recipes/:id — get a single recipe
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/recipes/{id}",
+    params(("id" = Uuid, Path, description = "Recipe ID")),
+    responses(
+        (status = 200, description = "Recipe", body = Object),
+        (status = 404, description = "Recipe not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Recipes",
+)]
 pub(crate) async fn get_recipe(
     State(state): State<AppState>,
     _principal: Principal,
@@ -109,6 +165,18 @@ pub(crate) async fn get_recipe(
 // DELETE /api/recipes/:id — delete a recipe
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/recipes/{id}",
+    params(("id" = Uuid, Path, description = "Recipe ID")),
+    responses(
+        (status = 204, description = "Recipe deleted"),
+        (status = 403, description = "Caller does not own the recipe"),
+        (status = 404, description = "Recipe not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Recipes",
+)]
 pub(crate) async fn delete_recipe(
     State(state): State<AppState>,
     principal: Principal,
@@ -141,6 +209,14 @@ pub(crate) async fn delete_recipe(
 // GET /api/recipes/:id/results — list past results for a recipe
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/recipes/{id}/results",
+    params(("id" = Uuid, Path, description = "Recipe ID")),
+    responses((status = 200, description = "Recent analysis results", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Recipes",
+)]
 pub(crate) async fn list_recipe_results(
     State(state): State<AppState>,
     _principal: Principal,
@@ -158,11 +234,24 @@ pub(crate) async fn list_recipe_results(
 // PATCH /api/recipes/:id/status — update recipe status (approve/deprecate)
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
-pub(crate) struct RecipeStatusUpdateRequest {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct RecipeStatusUpdateRequest {
     pub status: String,
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/recipes/{id}/status",
+    params(("id" = Uuid, Path, description = "Recipe ID")),
+    request_body = RecipeStatusUpdateRequest,
+    responses(
+        (status = 204, description = "Status updated"),
+        (status = 400, description = "Invalid status"),
+        (status = 404, description = "Recipe not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Recipes",
+)]
 pub(crate) async fn update_recipe_status(
     State(state): State<AppState>,
     principal: Principal,
@@ -200,6 +289,18 @@ pub(crate) async fn update_recipe_status(
 // POST /api/recipes/:id/versions — create a new version of a recipe
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    post,
+    path = "/api/recipes/{id}/versions",
+    params(("id" = Uuid, Path, description = "Parent recipe ID")),
+    request_body = CreateRecipeRequest,
+    responses(
+        (status = 200, description = "New recipe version created", body = Object),
+        (status = 404, description = "Parent recipe not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Recipes",
+)]
 pub(crate) async fn create_recipe_version(
     State(state): State<AppState>,
     principal: Principal,
@@ -228,7 +329,7 @@ pub(crate) async fn create_recipe_version(
         algorithm_type: req.algorithm_type,
         code_template: req.code_template,
         parameters: req.parameters,
-        required_columns: req.required_columns,
+        required_columns: serde_json::Value::from(req.required_columns),
         output_description: req.output_description,
         created_by: principal.id,
         created_at: Utc::now(),
@@ -250,6 +351,14 @@ pub(crate) async fn create_recipe_version(
 // GET /api/recipes/:id/versions — list all versions of a recipe
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/recipes/{id}/versions",
+    params(("id" = Uuid, Path, description = "Recipe ID")),
+    responses((status = 200, description = "Recipe versions", body = Vec<Object>)),
+    security(("api_key" = [])),
+    tag = "Recipes",
+)]
 pub(crate) async fn list_recipe_versions(
     State(state): State<AppState>,
     _principal: Principal,

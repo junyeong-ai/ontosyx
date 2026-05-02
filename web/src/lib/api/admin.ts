@@ -16,6 +16,7 @@ import type {
   SavedReport,
   ReportUpdateRequest,
 } from "@/types/api";
+import type { components } from "@/types/api.generated";
 import { request } from "./client";
 import { normalizeQueryResult } from "./normalization";
 
@@ -173,24 +174,11 @@ export async function listRecipes(params?: {
   return request(`/recipes${qs ? `?${qs}` : ""}`);
 }
 
-/**
- * Wire shape the backend `CreateRecipeRequest` accepts. `version`,
- * `status`, and `parent_id` live on the response (`AnalysisRecipe`)
- * but the create handler doesn't accept them — they're stamped
- * server-side. Earlier this surface accepted the full
- * `Omit<AnalysisRecipe, ...>` shape and serde silently dropped the
- * extra fields; the narrow type makes the contract honest.
- */
-export type CreateRecipeRequest = Pick<
-  AnalysisRecipe,
-  | "name"
-  | "description"
-  | "algorithm_type"
-  | "code_template"
-  | "parameters"
-  | "required_columns"
-  | "output_description"
->;
+// `version`, `status`, and `parent_id` live on the response
+// (`AnalysisRecipe`) but the create handler doesn't accept them — the
+// generated wire type already excludes them, so it's the honest source.
+export type CreateRecipeRequest =
+  components["schemas"]["CreateRecipeRequest"];
 
 export async function createRecipe(
   req: CreateRecipeRequest,

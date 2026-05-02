@@ -6551,6 +6551,207 @@
         ]
       }
     },
+    "/api/recipes": {
+      "get": {
+        "tags": [
+          "Recipes"
+        ],
+        "operationId": "list_recipes",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analysis recipes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Recipes"
+        ],
+        "operationId": "create_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/recipes/{id}": {
+      "get": {
+        "tags": [
+          "Recipes"
+        ],
+        "operationId": "get_recipe",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Recipe ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recipe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recipe not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Recipes"
+        ],
+        "operationId": "delete_recipe",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Recipe ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Recipe deleted"
+          },
+          "403": {
+            "description": "Caller does not own the recipe"
+          },
+          "404": {
+            "description": "Recipe not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/recipes/{id}/results": {
+      "get": {
+        "tags": [
+          "Recipes"
+        ],
+        "operationId": "list_recipe_results",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Recipe ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent analysis results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/recipes/{id}/schedule": {
       "post": {
         "tags": [
@@ -6595,6 +6796,140 @@
           },
           "404": {
             "description": "Recipe not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/recipes/{id}/status": {
+      "patch": {
+        "tags": [
+          "Recipes"
+        ],
+        "operationId": "update_recipe_status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Recipe ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeStatusUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Status updated"
+          },
+          "400": {
+            "description": "Invalid status"
+          },
+          "404": {
+            "description": "Recipe not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/recipes/{id}/versions": {
+      "get": {
+        "tags": [
+          "Recipes"
+        ],
+        "operationId": "list_recipe_versions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Recipe ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recipe versions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Recipes"
+        ],
+        "operationId": "create_recipe_version",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Parent recipe ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "New recipe version created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Parent recipe not found"
           }
         },
         "security": [
@@ -10238,6 +10573,44 @@
             ],
             "format": "uuid",
             "description": "When set, the prompt is a workspace-scoped override of the\nglobal template. When `None`, it's a new global version."
+          }
+        }
+      },
+      "CreateRecipeRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "algorithm_type",
+          "code_template"
+        ],
+        "properties": {
+          "algorithm_type": {
+            "type": "string"
+          },
+          "code_template": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "output_description": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "description": "Free-form parameter map. The recipe runner reads keys per\nalgorithm; the API layer doesn't constrain the shape.",
+            "additionalProperties": true
+          },
+          "required_columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Column names the recipe needs from the source. Order is\npreserved end-to-end."
           }
         }
       },
@@ -16462,6 +16835,17 @@
           }
         }
       },
+      "RecipeStatusUpdateRequest": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "ReconcileProjectRequest": {
         "type": "object",
         "required": [
@@ -20549,6 +20933,10 @@
     {
       "name": "ACL",
       "description": "Workspace access-control policies"
+    },
+    {
+      "name": "Recipes",
+      "description": "Reusable analysis recipe templates"
     }
   ]
 }

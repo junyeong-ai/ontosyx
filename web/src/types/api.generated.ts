@@ -1515,6 +1515,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/recipes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_recipes"];
+        put?: never;
+        post: operations["create_recipe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_recipe"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_recipe"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/{id}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_recipe_results"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/recipes/{id}/schedule": {
         parameters: {
             query?: never;
@@ -1525,6 +1573,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["create_schedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recipes/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["update_recipe_status"];
+        trace?: never;
+    };
+    "/api/recipes/{id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_recipe_versions"];
+        put?: never;
+        post: operations["create_recipe_version"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2896,6 +2976,25 @@ export interface components {
              *     global template. When `None`, it's a new global version.
              */
             workspace_id?: string | null;
+        };
+        CreateRecipeRequest: {
+            algorithm_type: string;
+            code_template: string;
+            description: string;
+            name: string;
+            output_description?: string;
+            /**
+             * @description Free-form parameter map. The recipe runner reads keys per
+             *     algorithm; the API layer doesn't constrain the shape.
+             */
+            parameters?: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Column names the recipe needs from the source. Order is
+             *     preserved end-to-end.
+             */
+            required_columns?: string[];
         };
         CreateReportRequest: {
             description?: string | null;
@@ -5512,6 +5611,9 @@ export interface components {
             /** @description Design decisions that were invalidated by the schema change. */
             invalidated_decisions?: string[];
             project: Record<string, never>;
+        };
+        RecipeStatusUpdateRequest: {
+            status: string;
         };
         ReconcileProjectRequest: {
             /** @description User accept/reject decisions for uncertain matches. */
@@ -11305,6 +11407,148 @@ export interface operations {
             };
         };
     };
+    list_recipes: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Analysis recipes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    create_recipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRecipeRequest"];
+            };
+        };
+        responses: {
+            /** @description Recipe created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation failure */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_recipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Recipe ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recipe */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Recipe not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_recipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Recipe ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recipe deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller does not own the recipe */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Recipe not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_recipe_results: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Recipe ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent analysis results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
     create_schedule: {
         parameters: {
             query?: never;
@@ -11338,6 +11582,102 @@ export interface operations {
                 content?: never;
             };
             /** @description Recipe not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_recipe_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Recipe ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeStatusUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Status updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid status */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Recipe not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_recipe_versions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Recipe ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recipe versions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    create_recipe_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Parent recipe ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRecipeRequest"];
+            };
+        };
+        responses: {
+            /** @description New recipe version created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Parent recipe not found */
             404: {
                 headers: {
                     [name: string]: unknown;
