@@ -1,17 +1,16 @@
-// Coverage check — every `ErrorCode` variant the server may emit
-// must have a localised message in both `en` and `ko`. The test
-// fails if the server adds a new variant without updating
-// messages, or a translator drops a key.
+// Coverage check — every collaboration message key the FE
+// references must have a localised string in both `en` and `ko`.
+// The stable lists below are kept in sync with the FE source: a
+// new `ConnectionState`, `ErrorCode`, lock state, or action all
+// land here too, and the test fails if either catalogue drops a
+// key.
 
 import { describe, it, expect } from "vitest";
 
 import en from "../../../../messages/en.json";
 import ko from "../../../../messages/ko.json";
 
-// Stable list — kept in sync with `crate::collaboration::ErrorCode`.
-// Each rename / addition on the server side has to land here too;
-// the test below ensures nothing else is required to keep the FE
-// catalogue honest.
+/** Mirrors `crate::collaboration::ErrorCode`. */
 const ERROR_CODES = [
   "auth_required",
   "auth_invalid",
@@ -26,24 +25,72 @@ const ERROR_CODES = [
   "session_revoked",
 ] as const;
 
-describe("collaboration ErrorCode i18n coverage", () => {
-  it("every ErrorCode has an en message", () => {
-    const messages = (en as { collaboration: { errors: Record<string, string> } }).collaboration.errors;
-    for (const code of ERROR_CODES) {
-      expect(messages[code], `missing en key collaboration.errors.${code}`).toBeTypeOf(
-        "string",
-      );
-      expect(messages[code]?.length, `empty en key collaboration.errors.${code}`).toBeGreaterThan(0);
-    }
+/** Mirrors the `ConnectionState` union in `lib/collab/client.ts`. */
+const STATUS_KEYS = [
+  "idle",
+  "connecting",
+  "authenticating",
+  "ready",
+  "reconnecting",
+  "closed",
+] as const;
+
+/** Lock-status messages rendered by `<LockIndicator>` and
+ *  `<LockedByOtherBanner>`. */
+const LOCK_KEYS = ["editingByYou", "editingBy"] as const;
+
+/** Action labels (sonner action buttons, etc.). */
+const ACTION_KEYS = ["signInAgain"] as const;
+
+interface CollaborationCatalogue {
+  collaboration: {
+    errors: Record<string, string>;
+    status: Record<string, string>;
+    lock: Record<string, string>;
+    actions: Record<string, string>;
+  };
+}
+
+function assertCovered(
+  locale: string,
+  bundle: CollaborationCatalogue,
+  group: keyof CollaborationCatalogue["collaboration"],
+  keys: readonly string[],
+) {
+  const messages = bundle.collaboration[group];
+  for (const key of keys) {
+    expect(
+      messages[key],
+      `missing ${locale} key collaboration.${group}.${key}`,
+    ).toBeTypeOf("string");
+    expect(
+      messages[key]?.length,
+      `empty ${locale} key collaboration.${group}.${key}`,
+    ).toBeGreaterThan(0);
+  }
+}
+
+describe("collaboration i18n coverage", () => {
+  const enBundle = en as unknown as CollaborationCatalogue;
+  const koBundle = ko as unknown as CollaborationCatalogue;
+
+  it("every ErrorCode has en + ko messages", () => {
+    assertCovered("en", enBundle, "errors", ERROR_CODES);
+    assertCovered("ko", koBundle, "errors", ERROR_CODES);
   });
 
-  it("every ErrorCode has a ko message", () => {
-    const messages = (ko as { collaboration: { errors: Record<string, string> } }).collaboration.errors;
-    for (const code of ERROR_CODES) {
-      expect(messages[code], `missing ko key collaboration.errors.${code}`).toBeTypeOf(
-        "string",
-      );
-      expect(messages[code]?.length, `empty ko key collaboration.errors.${code}`).toBeGreaterThan(0);
-    }
+  it("every ConnectionState has en + ko status messages", () => {
+    assertCovered("en", enBundle, "status", STATUS_KEYS);
+    assertCovered("ko", koBundle, "status", STATUS_KEYS);
+  });
+
+  it("every lock-state message has en + ko translations", () => {
+    assertCovered("en", enBundle, "lock", LOCK_KEYS);
+    assertCovered("ko", koBundle, "lock", LOCK_KEYS);
+  });
+
+  it("every collaboration action label has en + ko translations", () => {
+    assertCovered("en", enBundle, "actions", ACTION_KEYS);
+    assertCovered("ko", koBundle, "actions", ACTION_KEYS);
   });
 });

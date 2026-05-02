@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useReactFlow } from "@xyflow/react";
 
 import {
@@ -45,6 +45,20 @@ const CURSOR_FADE_MS = 30_000;
  *  wall clock; one second is well below the perception threshold
  *  and runs cheaply for any plausible cursor count. */
 const FADE_TICK_MS = 1_000;
+
+// `useSyncExternalStore` requires stable subscribe / getSnapshot
+// references — defined at module scope so React's identity check
+// doesn't re-subscribe across renders.
+function subscribeClockTick(notify: () => void): () => void {
+  const t = setInterval(notify, FADE_TICK_MS);
+  return () => clearInterval(t);
+}
+function getClockNow(): number {
+  return Date.now();
+}
+function getSsrClock(): number {
+  return 0;
+}
 
 interface RemoteCursorLayerProps {
   projectId: string;
@@ -128,17 +142,15 @@ function CursorRenderer({
   const presence = useCollabStore(selectPresence(projectId));
   const { flowToScreenPosition } = useReactFlow();
 
-  // Idle-fade tick — re-evaluates opacity against the wall clock
-  // even when no new cursor frames arrive. The state holds the
-  // latest `Date.now()` so the render-time `useMemo` can read it
-  // without calling the impure `Date.now()` itself. Lazy
-  // initialiser captures `now` at first mount; `setInterval`
-  // refreshes it from inside the effect.
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), FADE_TICK_MS);
-    return () => clearInterval(t);
-  }, []);
+  // Idle-fade tick — `useSyncExternalStore` models the wall
+  // clock as an external store React subscribes to. Each
+  // `FADE_TICK_MS` interval triggers the subscriber callback;
+  // `getSnapshot` returns the fresh `Date.now()` and React
+  // re-renders if it changed. The pattern keeps every render
+  // pure (no `Date.now()` in the component body) and ships an
+  // SSR snapshot of `0` so the server / first hydration render
+  // doesn't run the timer logic.
+  const now = useSyncExternalStore(subscribeClockTick, getClockNow, getSsrClock);
 
   // user_id → user_name lookup. Presence is the source of truth
   // for naming; cursor frames carry it too but presence is a

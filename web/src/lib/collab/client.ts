@@ -172,10 +172,14 @@ export class CollaborationClient {
    * arrives are queued and flushed on auth success — call sites
    * don't need to await readiness.
    *
-   * The queue caps at [`MAX_OUTBOX_SIZE`]; once full, the oldest
-   * frame is dropped to make room for the new one. Cursor floods
-   * during an outage are the only realistic source of pressure
-   * and they're already lossy at the server's throttle.
+   * The queue caps at [`MAX_OUTBOX_SIZE`]. When full, the policy
+   * is to drop the oldest `move_cursor` first — cursor data is
+   * lossy by design at the server's throttle anyway, so dropping
+   * one preserves the at-most-once semantics that lock and
+   * join/leave frames need. If no cursor is queued (rare: the
+   * user only sent control frames during the outage), fall back
+   * to dropping the oldest entry so the queue can't grow
+   * unbounded.
    */
   send(msg: ClientMessage): void {
     if (this.state === "ready" && this.socket?.readyState === WebSocket.OPEN) {
@@ -183,7 +187,9 @@ export class CollaborationClient {
       return;
     }
     if (this.outbox.length >= MAX_OUTBOX_SIZE) {
-      this.outbox.shift();
+      const idx = this.outbox.findIndex((m) => m.type === "move_cursor");
+      if (idx >= 0) this.outbox.splice(idx, 1);
+      else this.outbox.shift();
     }
     this.outbox.push(msg);
   }

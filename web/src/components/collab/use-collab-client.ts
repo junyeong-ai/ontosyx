@@ -11,7 +11,8 @@
 "use client";
 
 import type { CollaborationClient } from "@/lib/collab";
-import { getActiveCollabClient, useCollabStore } from "@/lib/collab";
+import { useCollabStore } from "@/lib/collab";
+import { getActiveCollabClient } from "@/lib/collab/hooks";
 
 export function useCollabClient(): CollaborationClient | null {
   const ready = useCollabStore((s) => s.clientReady);
