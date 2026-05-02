@@ -105,6 +105,7 @@ impl Modify for SecurityAddon {
         (name = "Approvals", description = "Approval queue + comment thread"),
         (name = "Audit", description = "Workspace-wide PROV-O audit trail"),
         (name = "Notifications", description = "Webhook channel routing + delivery log"),
+        (name = "Collaboration", description = "Realtime WebSocket protocol (schema-only — see /ws/collab)"),
         (name = "Lineage", description = "Ontology ↔ source binding lineage"),
         (name = "Schedules", description = "Cron-style recipe scheduling"),
         (name = "Reports", description = "Saved report templates + execution"),
@@ -537,6 +538,15 @@ impl Modify for SecurityAddon {
             ox_ontology::change_routing::RoleRef,
             ox_ontology::change_routing::ScopeKind,
             ox_ontology::change_routing::RiskLevel,
+            // Collaboration — WebSocket wire protocol (no HTTP path).
+            // Both halves of the protocol are emitted as schemas so
+            // generated clients see the same `discriminated union`
+            // shape the server reads / writes.
+            crate::collaboration::ClientMessage,
+            crate::collaboration::ServerMessage,
+            crate::collaboration::ErrorCode,
+            crate::collaboration::PresenceInfo,
+            crate::collaboration::CursorPosition,
             // Notifications
             notifications::WebhookChannelConfig,
             notifications::CreateChannelRequest,

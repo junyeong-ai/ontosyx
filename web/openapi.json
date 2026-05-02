@@ -11199,6 +11199,159 @@
           }
         }
       },
+      "ClientMessage": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Bind this connection to a JWT principal + workspace.",
+            "required": [
+              "token",
+              "workspace_id",
+              "type"
+            ],
+            "properties": {
+              "token": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "authenticate"
+                ]
+              },
+              "workspace_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Join a project room. The server responds with\n[`ServerMessage::Presence`] (unicast snapshot) and broadcasts\n[`ServerMessage::UserJoined`] to existing members.",
+            "required": [
+              "project_id",
+              "type"
+            ],
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "join"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Leave a room — releases every lock the caller holds in it.",
+            "required": [
+              "project_id",
+              "type"
+            ],
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "leave"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Update cursor position. Throttled per\n`collaboration.cursor_throttle_ms`; events inside the window\nare silently dropped.",
+            "required": [
+              "project_id",
+              "x",
+              "y",
+              "type"
+            ],
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "selected_element": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "move_cursor"
+                ]
+              },
+              "x": {
+                "type": "number",
+                "format": "double"
+              },
+              "y": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Request exclusive lock on an entity. Idempotent for the\ncaller — repeated acquires by the same user refresh the TTL.",
+            "required": [
+              "project_id",
+              "entity_id",
+              "type"
+            ],
+            "properties": {
+              "entity_id": {
+                "type": "string"
+              },
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "acquire_lock"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Release a lock the caller holds. No-op for foreign locks.",
+            "required": [
+              "project_id",
+              "entity_id",
+              "type"
+            ],
+            "properties": {
+              "entity_id": {
+                "type": "string"
+              },
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "release_lock"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Messages the client may send. The first frame after WS open MUST\nbe [`ClientMessage::Authenticate`]; anything else is rejected with\n[`ErrorCode::AuthRequired`] and the socket closed."
+      },
       "CodeSystemDef": {
         "type": "object",
         "description": "A named, versioned set of codes that together carry semantic\nmeaning for one domain concept.\n\nA `CodeSystemDef` is the terminology equivalent of a typed\nenumeration. The `uri` field is how two systems with the same\nshort `name` stay distinguishable — \"A\" in\n`urn:ox:order-status` and \"A\" in `urn:ox:customer-tier` are\ndistinct codes even though their `code` strings collide.",
@@ -12550,6 +12703,29 @@
           }
         }
       },
+      "CursorPosition": {
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "properties": {
+          "selected_element": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "Dashboard": {
         "type": "object",
         "description": "Saved dashboard — workspace-scoped, owner-private until shared.",
@@ -13648,6 +13824,21 @@
             "description": "Machine-readable error type (e.g., \"not_found\", \"bad_request\")"
           }
         }
+      },
+      "ErrorCode": {
+        "type": "string",
+        "description": "Stable identifier for collaboration error conditions. The FE\ncatalogue maps each variant to a localised message.",
+        "enum": [
+          "auth_required",
+          "auth_invalid",
+          "auth_unavailable",
+          "auth_timeout",
+          "malformed_frame",
+          "unauthorized_workspace",
+          "unauthorized_project",
+          "too_many_connections",
+          "broadcast_lagged"
+        ]
       },
       "ErrorResponse": {
         "type": "object",
@@ -16728,6 +16919,36 @@
             "type": "string"
           },
           "widget_spec": {}
+        }
+      },
+      "PresenceInfo": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "user_name",
+          "joined_at"
+        ],
+        "properties": {
+          "cursor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CursorPosition"
+              }
+            ]
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "user_name": {
+            "type": "string"
+          }
         }
       },
       "PreviewAdapterRequest": {
@@ -20468,6 +20689,263 @@
         ],
         "description": "Semantic type of a property value — higher-level than PropertyType.\n\nCanonical variants cover globally common semantics. `LocalizedText` marks\na property whose runtime value is a `{locale: text}` map (pairs with\n`PropertyDef::is_localized`). `Other(String)` is an open extension point\nfor domain-specific semantics (e.g. \"ISBN\", \"VIN\", \"CUSIP\") that the\nplatform does not want to hardcode."
       },
+      "ServerMessage": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Auth ACK — sent once after a successful\n[`ClientMessage::Authenticate`].",
+            "required": [
+              "user_id",
+              "user_name",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "authenticated"
+                ]
+              },
+              "user_id": {
+                "type": "string"
+              },
+              "user_name": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Presence snapshot of the room — unicast to a freshly joined\nclient. Existing members receive [`ServerMessage::UserJoined`]\ninstead.",
+            "required": [
+              "project_id",
+              "users",
+              "type"
+            ],
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "presence"
+                ]
+              },
+              "users": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PresenceInfo"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Another member's cursor moved. Broadcast to all members\nincluding the originator (clients filter own user_id).",
+            "required": [
+              "project_id",
+              "user_id",
+              "user_name",
+              "x",
+              "y",
+              "type"
+            ],
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "selected_element": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "remote_cursor"
+                ]
+              },
+              "user_id": {
+                "type": "string"
+              },
+              "user_name": {
+                "type": "string"
+              },
+              "x": {
+                "type": "number",
+                "format": "double"
+              },
+              "y": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Lock granted. `expires_at` is the TTL deadline; clients\nshould renew or release before then.",
+            "required": [
+              "project_id",
+              "entity_id",
+              "expires_at",
+              "type"
+            ],
+            "properties": {
+              "entity_id": {
+                "type": "string"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "lock_granted"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Lock denied — `held_by` is the current owner. Unicast to the\nrequester only; other members don't see denials.",
+            "required": [
+              "project_id",
+              "entity_id",
+              "held_by",
+              "type"
+            ],
+            "properties": {
+              "entity_id": {
+                "type": "string"
+              },
+              "held_by": {
+                "type": "string"
+              },
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "lock_denied"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Lock released — by the holder, by leave, or by TTL expiry.",
+            "required": [
+              "project_id",
+              "entity_id",
+              "type"
+            ],
+            "properties": {
+              "entity_id": {
+                "type": "string"
+              },
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "lock_released"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Member joined the room.",
+            "required": [
+              "project_id",
+              "user",
+              "type"
+            ],
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "user_joined"
+                ]
+              },
+              "user": {
+                "$ref": "#/components/schemas/PresenceInfo"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Member left the room.",
+            "required": [
+              "project_id",
+              "user_id",
+              "type"
+            ],
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "user_left"
+                ]
+              },
+              "user_id": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Structured error. The frontend renders the message via i18n\nkeyed on `code`; `params` interpolate into the localised\nstring. The backend never produces user-facing prose\ndirectly — see `crates/ox-api/CLAUDE.md`\n\"Language-neutral wire shape\".",
+            "required": [
+              "code",
+              "params",
+              "type"
+            ],
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/ErrorCode"
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "propertyNames": {
+                  "type": "string"
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Messages the server may send. The client filters\n`RemoteCursor.user_id == self` and `LockGranted` echoes for\nlocks it requested itself."
+      },
       "Severity": {
         "type": "string",
         "description": "Violation severity.",
@@ -22855,6 +23333,10 @@
     {
       "name": "Notifications",
       "description": "Webhook channel routing + delivery log"
+    },
+    {
+      "name": "Collaboration",
+      "description": "Realtime WebSocket protocol (schema-only — see /ws/collab)"
     },
     {
       "name": "Lineage",

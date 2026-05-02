@@ -2963,6 +2963,50 @@ export interface components {
             session_id?: string | null;
         };
         /**
+         * @description Messages the client may send. The first frame after WS open MUST
+         *     be [`ClientMessage::Authenticate`]; anything else is rejected with
+         *     [`ErrorCode::AuthRequired`] and the socket closed.
+         */
+        ClientMessage: {
+            token: string;
+            /** @enum {string} */
+            type: "authenticate";
+            /** Format: uuid */
+            workspace_id: string;
+        } | {
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            type: "join";
+        } | {
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            type: "leave";
+        } | {
+            /** Format: uuid */
+            project_id: string;
+            selected_element?: string | null;
+            /** @enum {string} */
+            type: "move_cursor";
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+        } | {
+            entity_id: string;
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            type: "acquire_lock";
+        } | {
+            entity_id: string;
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            type: "release_lock";
+        };
+        /**
          * @description A named, versioned set of codes that together carry semantic
          *     meaning for one domain concept.
          *
@@ -3598,6 +3642,13 @@ export interface components {
              */
             limit?: number | null;
         };
+        CursorPosition: {
+            selected_element?: string | null;
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+        };
         /** @description Saved dashboard — workspace-scoped, owner-private until shared. */
         Dashboard: {
             /** Format: date-time */
@@ -4091,6 +4142,12 @@ export interface components {
             /** @description Machine-readable error type (e.g., "not_found", "bad_request") */
             type: string;
         };
+        /**
+         * @description Stable identifier for collaboration error conditions. The FE
+         *     catalogue maps each variant to a localised message.
+         * @enum {string}
+         */
+        ErrorCode: "auth_required" | "auth_invalid" | "auth_unavailable" | "auth_timeout" | "malformed_frame" | "unauthorized_workspace" | "unauthorized_project" | "too_many_connections" | "broadcast_lagged";
         ErrorResponse: {
             error: components["schemas"]["ErrorBody"];
         };
@@ -5475,6 +5532,13 @@ export interface components {
             user_id: string;
             widget_spec: unknown;
         };
+        PresenceInfo: {
+            cursor?: null | components["schemas"]["CursorPosition"];
+            /** Format: date-time */
+            joined_at: string;
+            user_id: string;
+            user_name: string;
+        };
         PreviewAdapterRequest: components["schemas"]["RegisterAdapterKind"];
         PreviewAdapterResponse: {
             source_type: string;
@@ -6786,6 +6850,75 @@ export interface components {
             kind: "other";
             /** @description Open extension: caller-supplied semantic identifier (e.g. "ISBN", "VIN"). */
             value: string;
+        };
+        /**
+         * @description Messages the server may send. The client filters
+         *     `RemoteCursor.user_id == self` and `LockGranted` echoes for
+         *     locks it requested itself.
+         */
+        ServerMessage: {
+            /** @enum {string} */
+            type: "authenticated";
+            user_id: string;
+            user_name: string;
+        } | {
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            type: "presence";
+            users: components["schemas"]["PresenceInfo"][];
+        } | {
+            /** Format: uuid */
+            project_id: string;
+            selected_element?: string | null;
+            /** @enum {string} */
+            type: "remote_cursor";
+            user_id: string;
+            user_name: string;
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+        } | {
+            entity_id: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            type: "lock_granted";
+        } | {
+            entity_id: string;
+            held_by: string;
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            type: "lock_denied";
+        } | {
+            entity_id: string;
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            type: "lock_released";
+        } | {
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            type: "user_joined";
+            user: components["schemas"]["PresenceInfo"];
+        } | {
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            type: "user_left";
+            user_id: string;
+        } | {
+            code: components["schemas"]["ErrorCode"];
+            params: {
+                [key: string]: string;
+            };
+            /** @enum {string} */
+            type: "error";
         };
         /**
          * @description Violation severity.

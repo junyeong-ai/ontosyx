@@ -60,3 +60,21 @@ Public routes (e.g., shared dashboards) bypass auth but RLS still blocks queries
 ## MCP Server
 
 `mcp.rs` exposes ontology tools via the `rmcp` crate (separate from branchforge's MCP client). Custom domain logic — not a candidate for branchforge delegation.
+
+## Collaboration WebSocket protocol
+
+`/ws/collab` is the only non-HTTP route. It carries the realtime collaboration channel — presence, cursor sharing, entity locks. The wire types live in `crate::collaboration` (`ClientMessage`, `ServerMessage`, `ErrorCode`, `PresenceInfo`, `CursorPosition`) and are emitted into the OpenAPI `components/schemas` block — generated FE clients read them via `components["schemas"]["ClientMessage"]` etc.
+
+Direction is split at the type level: `ClientMessage` is what the client sends, `ServerMessage` is what the server returns. Mixing the two would let either side accidentally produce the other's frames.
+
+Auth flow:
+1. Client opens `/ws/collab`.
+2. First frame within `AUTH_TIMEOUT` (5s) MUST be `ClientMessage::Authenticate { token, workspace_id }`.
+3. Server validates the JWT, confirms membership in `workspace_id` via RLS-backed `get_workspace`, reserves a session slot (`max_sessions_per_user`), and replies with `ServerMessage::Authenticated`.
+4. The remainder of the connection runs inside `WORKSPACE_ID` + `GRAPH_WORKSPACE_ID` task-locals — every store/graph call rejects cross-workspace identifiers automatically. `Join { project_id }` calls `get_design_project` and a foreign id resolves to `None` → `ErrorCode::UnauthorizedProject`.
+
+Entity locks have a TTL (`collaboration.lock_ttl_secs`, default 300s). Stale locks are reaped on contention; `LockGranted.expires_at` carries the deadline so clients can renew. `LockGranted` broadcasts to the room (clients filter their own request via `entity_id`); `LockDenied` is unicast to the requester only.
+
+Cursor events are throttled at the hub (`collaboration.cursor_throttle_ms`, default 50ms per user-room pair). Floods inside the window are silently dropped.
+
+Adding a new collaboration message: extend `ClientMessage` or `ServerMessage`, add the matching `Hub` method, wire the variant through `ws::serve_collab`'s match block. The OpenAPI spec picks up the schema change automatically — no separate registry edit.

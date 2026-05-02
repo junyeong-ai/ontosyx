@@ -48,6 +48,9 @@ fn default_cypher_config() -> CypherConfig {
 fn default_collaboration_config() -> CollaborationConfig {
     CollaborationConfig {
         broadcast_buffer: default_collaboration_broadcast_buffer(),
+        lock_ttl_secs: default_collaboration_lock_ttl_secs(),
+        max_sessions_per_user: default_collaboration_max_sessions_per_user(),
+        cursor_throttle_ms: default_collaboration_cursor_throttle_ms(),
     }
 }
 
@@ -285,10 +288,48 @@ pub struct CollaborationConfig {
     /// collaborators; lower to limit memory if rooms are long-lived.
     #[serde(default = "default_collaboration_broadcast_buffer")]
     pub broadcast_buffer: usize,
+
+    /// Entity-lock TTL in seconds (default: 300 = 5 min).
+    ///
+    /// `acquire_lock` stamps `expires_at = now + ttl`; later acquire
+    /// attempts on the same entity reap stale locks instead of
+    /// rejecting the caller. Clients renew by re-issuing
+    /// `AcquireLock` before expiry.
+    #[serde(default = "default_collaboration_lock_ttl_secs")]
+    pub lock_ttl_secs: u64,
+
+    /// Max concurrent WebSocket sessions per user (default: 5).
+    ///
+    /// A user with multiple tabs / devices opens multiple sessions.
+    /// The cap prevents one principal from monopolising broadcast
+    /// channels or dispatcher state.
+    #[serde(default = "default_collaboration_max_sessions_per_user")]
+    pub max_sessions_per_user: usize,
+
+    /// Minimum interval between accepted `MoveCursor` events per
+    /// user-room pair, in milliseconds (default: 50).
+    ///
+    /// Cursor floods are silently throttled at the hub. The default
+    /// rate (~20 Hz) matches a smooth cursor without burning CPU on
+    /// busy boards.
+    #[serde(default = "default_collaboration_cursor_throttle_ms")]
+    pub cursor_throttle_ms: u64,
 }
 
 fn default_collaboration_broadcast_buffer() -> usize {
     256
+}
+
+fn default_collaboration_lock_ttl_secs() -> u64 {
+    300
+}
+
+fn default_collaboration_max_sessions_per_user() -> usize {
+    5
+}
+
+fn default_collaboration_cursor_throttle_ms() -> u64 {
+    50
 }
 
 /// OpenTelemetry tracing export configuration.

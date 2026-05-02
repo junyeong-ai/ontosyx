@@ -5,101 +5,194 @@
 // design.
 #![allow(clippy::let_underscore_must_use)]
 
-// ---------------------------------------------------------------------------
-// Collaboration — real-time presence and cursor sharing
-// ---------------------------------------------------------------------------
-// WebSocket-based collaboration for multi-user ontology editing.
-//
-// Architecture:
-//   - Each project has a "room" (channel) identified by project_id
-//   - Users join/leave rooms via WebSocket
-//   - Presence (who is online) broadcasts to all room members
-//   - Cursor positions broadcast to all room members (except sender)
-//   - Entity locks prevent concurrent edits on the same node/edge
-//
-// No external dependencies (Redis, etc.) — in-process state.
-// Sufficient for single-instance deployment. For multi-instance,
-// replace RoomState with a Redis-backed implementation.
-// ---------------------------------------------------------------------------
+//! Realtime collaboration — presence, cursor sharing, entity locks.
+//!
+//! Each project has a "room" identified by `project_id`. WebSocket
+//! clients join rooms, broadcast cursor positions and lock state
+//! changes, and receive a presence snapshot on entry.
+//!
+//! All state is in-process (RwLock + tokio broadcast). Single-instance
+//! by design — for multi-instance deployment swap [`CollaborationHub`]
+//! for a Redis-backed implementation that fans out via pub/sub.
+//!
+//! ## Wire protocol
+//!
+//! Two split enums — [`ClientMessage`] (client → server) and
+//! [`ServerMessage`] (server → client). Splitting the directions at
+//! the type level prevents either side from accidentally producing
+//! the other side's frames. Both serialize as
+//! `{"type": "<variant>", ...payload}` (snake_case, internally tagged).
+//!
+//! Auth flow: the first frame after WS open MUST be
+//! `ClientMessage::Authenticate { token, workspace_id }`. The server
+//! validates the JWT, confirms the principal has membership in the
+//! claimed workspace (RLS-backed), reserves a session slot
+//! (`max_sessions_per_user`), and replies with
+//! `ServerMessage::Authenticated`. Workspace context is bound for
+//! the rest of the connection — every subsequent `Join` runs
+//! through RLS and rejects cross-workspace `project_id`s.
+//!
+//! ## Self-echo
+//!
+//! `ServerMessage::RemoteCursor` and `LockGranted` are broadcast to
+//! every member, including the originator. Clients filter by their
+//! own `user_id` to avoid rendering the loopback. The simpler
+//! "broadcast to everyone" rule keeps the hub free of per-subscriber
+//! filtering and scales the same regardless of room size.
 
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::{Mutex, RwLock, broadcast};
+use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
-// Protocol messages (client ↔ server)
+// Wire protocol
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Messages the client may send. The first frame after WS open MUST
+/// be [`ClientMessage::Authenticate`]; anything else is rejected with
+/// [`ErrorCode::AuthRequired`] and the socket closed.
+#[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum CollabMessage {
-    /// Client → Server: Join a project room
-    Join { project_id: String },
-    /// Client → Server: Leave a project room
-    Leave { project_id: String },
-    /// Client → Server: Update cursor position on canvas
-    CursorMove {
-        project_id: String,
+pub enum ClientMessage {
+    /// Bind this connection to a JWT principal + workspace.
+    Authenticate {
+        token: String,
+        workspace_id: Uuid,
+    },
+    /// Join a project room. The server responds with
+    /// [`ServerMessage::Presence`] (unicast snapshot) and broadcasts
+    /// [`ServerMessage::UserJoined`] to existing members.
+    Join {
+        project_id: Uuid,
+    },
+    /// Leave a room — releases every lock the caller holds in it.
+    Leave {
+        project_id: Uuid,
+    },
+    /// Update cursor position. Throttled per
+    /// `collaboration.cursor_throttle_ms`; events inside the window
+    /// are silently dropped.
+    MoveCursor {
+        project_id: Uuid,
         x: f64,
         y: f64,
         selected_element: Option<String>,
     },
-    /// Client → Server: Request exclusive lock on an entity
-    LockAcquire {
-        project_id: String,
+    /// Request exclusive lock on an entity. Idempotent for the
+    /// caller — repeated acquires by the same user refresh the TTL.
+    AcquireLock {
+        project_id: Uuid,
         entity_id: String,
     },
-    /// Client → Server: Release a lock
-    LockRelease {
-        project_id: String,
+    /// Release a lock the caller holds. No-op for foreign locks.
+    ReleaseLock {
+        project_id: Uuid,
         entity_id: String,
     },
+}
 
-    // --- Server → Client messages ---
-    /// Server → Client: Current room presence
+/// Messages the server may send. The client filters
+/// `RemoteCursor.user_id == self` and `LockGranted` echoes for
+/// locks it requested itself.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ServerMessage {
+    /// Auth ACK — sent once after a successful
+    /// [`ClientMessage::Authenticate`].
+    Authenticated {
+        user_id: String,
+        user_name: String,
+    },
+    /// Presence snapshot of the room — unicast to a freshly joined
+    /// client. Existing members receive [`ServerMessage::UserJoined`]
+    /// instead.
     Presence {
-        project_id: String,
+        project_id: Uuid,
         users: Vec<PresenceInfo>,
     },
-    /// Server → Client: Another user's cursor moved
+    /// Another member's cursor moved. Broadcast to all members
+    /// including the originator (clients filter own user_id).
     RemoteCursor {
-        project_id: String,
+        project_id: Uuid,
         user_id: String,
         user_name: String,
         x: f64,
         y: f64,
         selected_element: Option<String>,
     },
-    /// Server → Client: Lock granted
+    /// Lock granted. `expires_at` is the TTL deadline; clients
+    /// should renew or release before then.
     LockGranted {
-        project_id: String,
+        project_id: Uuid,
         entity_id: String,
+        expires_at: DateTime<Utc>,
     },
-    /// Server → Client: Lock denied (held by another user)
+    /// Lock denied — `held_by` is the current owner. Unicast to the
+    /// requester only; other members don't see denials.
     LockDenied {
-        project_id: String,
+        project_id: Uuid,
         entity_id: String,
         held_by: String,
     },
-    /// Server → Client: Lock released (by any user)
+    /// Lock released — by the holder, by leave, or by TTL expiry.
     LockReleased {
-        project_id: String,
+        project_id: Uuid,
         entity_id: String,
     },
-    /// Server → Client: User joined the room
+    /// Member joined the room.
     UserJoined {
-        project_id: String,
+        project_id: Uuid,
         user: PresenceInfo,
     },
-    /// Server → Client: User left the room
-    UserLeft { project_id: String, user_id: String },
-    /// Server → Client: Error message
-    Error { message: String },
+    /// Member left the room.
+    UserLeft {
+        project_id: Uuid,
+        user_id: String,
+    },
+    /// Structured error. The frontend renders the message via i18n
+    /// keyed on `code`; `params` interpolate into the localised
+    /// string. The backend never produces user-facing prose
+    /// directly — see `crates/ox-api/CLAUDE.md`
+    /// "Language-neutral wire shape".
+    Error {
+        code: ErrorCode,
+        params: HashMap<String, String>,
+    },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Stable identifier for collaboration error conditions. The FE
+/// catalogue maps each variant to a localised message.
+#[derive(Debug, Clone, Copy, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorCode {
+    /// First frame wasn't `Authenticate`, or auth never completed.
+    AuthRequired,
+    /// Auth frame arrived but the JWT is invalid / expired.
+    AuthInvalid,
+    /// JWT subsystem isn't configured on the server.
+    AuthUnavailable,
+    /// No frame arrived inside the auth timeout window.
+    AuthTimeout,
+    /// JSON parse failed on a frame.
+    MalformedFrame,
+    /// `workspace_id` claimed at auth doesn't match the principal's
+    /// memberships.
+    UnauthorizedWorkspace,
+    /// `project_id` doesn't belong to the bound workspace.
+    UnauthorizedProject,
+    /// Per-user concurrent connection cap reached.
+    TooManyConnections,
+    /// Broadcast channel lagged — the receiver couldn't keep up.
+    /// Clients should re-join the room to resync presence.
+    BroadcastLagged,
+}
+
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct PresenceInfo {
     pub user_id: String,
     pub user_name: String,
@@ -107,7 +200,7 @@ pub struct PresenceInfo {
     pub cursor: Option<CursorPosition>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct CursorPosition {
     pub x: f64,
     pub y: f64,
@@ -115,34 +208,32 @@ pub struct CursorPosition {
 }
 
 // ---------------------------------------------------------------------------
-// Room state — per-project collaboration context
+// Internal state
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)] // Fields read via presence_list(); compiler can't trace through Room methods
 struct RoomMember {
-    user_id: String,
     user_name: String,
     joined_at: DateTime<Utc>,
     cursor: Option<CursorPosition>,
+    /// Last accepted cursor event (for throttling). `None` until
+    /// the first `MoveCursor`.
+    last_cursor_at: Option<Instant>,
 }
 
-#[allow(dead_code)] // Fields read in try_lock/release_lock; awaiting WebSocket route integration
-struct EntityLock {
+struct EntityLockEntry {
     held_by: String,
-    acquired_at: DateTime<Utc>,
+    expires_at: DateTime<Utc>,
 }
 
-#[allow(dead_code)] // Fields used by CollaborationHub methods; awaiting WebSocket route integration
 struct Room {
     members: HashMap<String, RoomMember>, // user_id → member
-    locks: HashMap<String, EntityLock>,   // entity_id → lock
-    broadcast: broadcast::Sender<CollabMessage>,
+    locks: HashMap<String, EntityLockEntry>, // entity_id → lock
+    broadcast: broadcast::Sender<ServerMessage>,
 }
 
-#[allow(dead_code)]
 impl Room {
-    fn new(broadcast_buffer: usize) -> Self {
-        let (tx, _) = broadcast::channel(broadcast_buffer);
+    fn new(buffer: usize) -> Self {
+        let (tx, _) = broadcast::channel(buffer);
         Self {
             members: HashMap::new(),
             locks: HashMap::new(),
@@ -150,11 +241,11 @@ impl Room {
         }
     }
 
-    fn presence_list(&self) -> Vec<PresenceInfo> {
+    fn presence_snapshot(&self) -> Vec<PresenceInfo> {
         self.members
-            .values()
-            .map(|m| PresenceInfo {
-                user_id: m.user_id.clone(),
+            .iter()
+            .map(|(user_id, m)| PresenceInfo {
+                user_id: user_id.clone(),
                 user_name: m.user_name.clone(),
                 joined_at: m.joined_at,
                 cursor: m.cursor.clone(),
@@ -164,208 +255,502 @@ impl Room {
 }
 
 // ---------------------------------------------------------------------------
-// CollaborationHub — manages all rooms
+// Hub
 // ---------------------------------------------------------------------------
 
-pub struct CollaborationHub {
-    #[allow(dead_code)] // Used by all Hub methods; awaiting WebSocket route integration
-    rooms: RwLock<HashMap<String, Room>>, // project_id → room
-    #[allow(dead_code)]
-    broadcast_buffer: usize,
+/// Tuning knobs surfaced through `OxConfig.collaboration`.
+#[derive(Debug, Clone)]
+pub struct HubLimits {
+    pub broadcast_buffer: usize,
+    pub lock_ttl: Duration,
+    pub max_sessions_per_user: usize,
+    pub cursor_throttle: Duration,
 }
 
-#[allow(dead_code)] // All methods awaiting WebSocket route integration
+/// Outcome of [`CollaborationHub::join`] — the broadcast receiver
+/// the WS handler subscribes to plus a unicast snapshot it forwards
+/// directly to the joining socket.
+pub struct JoinOutcome {
+    pub receiver: broadcast::Receiver<ServerMessage>,
+    pub snapshot: Vec<PresenceInfo>,
+}
+
+/// RAII guard returned by [`CollaborationHub::open_session`]. The
+/// session slot is freed when the handle drops — even on panic /
+/// error paths in the WS handler.
+pub struct SessionHandle {
+    hub: Arc<CollaborationHub>,
+    user_id: String,
+}
+
+impl Drop for SessionHandle {
+    fn drop(&mut self) {
+        let hub = Arc::clone(&self.hub);
+        let user_id = std::mem::take(&mut self.user_id);
+        // `close_session` only mutates the hub's in-memory
+        // session-count map; it never touches the store, so it's
+        // independent of the WORKSPACE_ID / SYSTEM_BYPASS
+        // task-locals that `spawn_scoped` exists to preserve.
+        // Plain `tokio::spawn` is correct here.
+        #[allow(clippy::disallowed_methods)]
+        tokio::spawn(async move { hub.close_session(&user_id).await });
+    }
+}
+
+pub struct CollaborationHub {
+    rooms: RwLock<HashMap<Uuid, Arc<Mutex<Room>>>>,
+    sessions: RwLock<HashMap<String, usize>>, // user_id → active session count
+    limits: HubLimits,
+}
+
 impl CollaborationHub {
-    pub fn new(broadcast_buffer: usize) -> Self {
+    pub fn new(limits: HubLimits) -> Self {
         Self {
             rooms: RwLock::new(HashMap::new()),
-            broadcast_buffer,
+            sessions: RwLock::new(HashMap::new()),
+            limits,
         }
     }
 
-    /// Join a project room. Returns a broadcast receiver for room events.
+    /// Reserve a session slot for `user_id`. Returns `None` when
+    /// the per-user concurrent cap is reached; otherwise a guard
+    /// that frees the slot on drop.
+    pub async fn open_session(self: &Arc<Self>, user_id: &str) -> Option<SessionHandle> {
+        let mut sessions = self.sessions.write().await;
+        let count = sessions.entry(user_id.to_string()).or_insert(0);
+        if *count >= self.limits.max_sessions_per_user {
+            return None;
+        }
+        *count += 1;
+        Some(SessionHandle {
+            hub: Arc::clone(self),
+            user_id: user_id.to_string(),
+        })
+    }
+
+    async fn close_session(&self, user_id: &str) {
+        let mut sessions = self.sessions.write().await;
+        if let Some(count) = sessions.get_mut(user_id) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                sessions.remove(user_id);
+            }
+        }
+    }
+
+    /// Borrow (or create) the room arc. Two-phase locking keeps
+    /// the common case (room exists) on the read path.
+    async fn room(&self, project_id: Uuid) -> Arc<Mutex<Room>> {
+        if let Some(room) = self.rooms.read().await.get(&project_id) {
+            return Arc::clone(room);
+        }
+        let mut rooms = self.rooms.write().await;
+        Arc::clone(
+            rooms
+                .entry(project_id)
+                .or_insert_with(|| Arc::new(Mutex::new(Room::new(self.limits.broadcast_buffer)))),
+        )
+    }
+
+    /// Join a project room. Broadcasts `UserJoined` to existing
+    /// members; returns a fresh receiver plus a unicast snapshot
+    /// the WS handler forwards directly to the joining socket.
     pub async fn join(
         &self,
-        project_id: &str,
+        project_id: Uuid,
         user_id: &str,
         user_name: &str,
-    ) -> broadcast::Receiver<CollabMessage> {
-        let mut rooms = self.rooms.write().await;
-        let buffer = self.broadcast_buffer;
-        let room = rooms
-            .entry(project_id.to_string())
-            .or_insert_with(|| Room::new(buffer));
+    ) -> JoinOutcome {
+        let room_arc = self.room(project_id).await;
+        let mut room = room_arc.lock().await;
 
-        let member = RoomMember {
-            user_id: user_id.to_string(),
-            user_name: user_name.to_string(),
-            joined_at: Utc::now(),
-            cursor: None,
-        };
+        let now = Utc::now();
+        room.members.insert(
+            user_id.to_string(),
+            RoomMember {
+                user_name: user_name.to_string(),
+                joined_at: now,
+                cursor: None,
+                last_cursor_at: None,
+            },
+        );
 
-        room.members.insert(user_id.to_string(), member);
-
-        // Broadcast join to other members
-        let _ = room.broadcast.send(CollabMessage::UserJoined {
-            project_id: project_id.to_string(),
+        let snapshot = room.presence_snapshot();
+        // Subscribe before broadcasting so this connection receives
+        // every frame from its own join onward — including the
+        // `UserJoined` it just emitted. Drainage is the FE's
+        // responsibility (presence is also delivered via
+        // `JoinOutcome.snapshot`, so the duplicate is harmless).
+        let receiver = room.broadcast.subscribe();
+        let _ = room.broadcast.send(ServerMessage::UserJoined {
+            project_id,
             user: PresenceInfo {
                 user_id: user_id.to_string(),
                 user_name: user_name.to_string(),
-                joined_at: Utc::now(),
+                joined_at: now,
                 cursor: None,
             },
         });
 
-        room.broadcast.subscribe()
+        JoinOutcome { receiver, snapshot }
     }
 
-    /// Leave a project room. Releases any held locks.
-    pub async fn leave(&self, project_id: &str, user_id: &str) {
-        let mut rooms = self.rooms.write().await;
-        if let Some(room) = rooms.get_mut(project_id) {
-            room.members.remove(user_id);
+    /// Leave a room. Releases every lock held by `user_id` and
+    /// broadcasts `UserLeft` plus per-lock `LockReleased`.
+    pub async fn leave(&self, project_id: Uuid, user_id: &str) {
+        let room_arc = match self.rooms.read().await.get(&project_id) {
+            Some(arc) => Arc::clone(arc),
+            None => return,
+        };
+        let mut room = room_arc.lock().await;
+        room.members.remove(user_id);
 
-            // Release all locks held by this user
-            let released: Vec<String> = room
-                .locks
-                .iter()
-                .filter(|(_, lock)| lock.held_by == user_id)
-                .map(|(id, _)| id.clone())
-                .collect();
-
-            for entity_id in &released {
-                room.locks.remove(entity_id);
-                let _ = room.broadcast.send(CollabMessage::LockReleased {
-                    project_id: project_id.to_string(),
-                    entity_id: entity_id.clone(),
-                });
-            }
-
-            let _ = room.broadcast.send(CollabMessage::UserLeft {
-                project_id: project_id.to_string(),
-                user_id: user_id.to_string(),
+        let released: Vec<String> = room
+            .locks
+            .iter()
+            .filter(|(_, lock)| lock.held_by == user_id)
+            .map(|(id, _)| id.clone())
+            .collect();
+        for entity_id in &released {
+            room.locks.remove(entity_id);
+            let _ = room.broadcast.send(ServerMessage::LockReleased {
+                project_id,
+                entity_id: entity_id.clone(),
             });
+        }
+        let _ = room.broadcast.send(ServerMessage::UserLeft {
+            project_id,
+            user_id: user_id.to_string(),
+        });
 
-            // Clean up empty rooms
-            if room.members.is_empty() {
-                rooms.remove(project_id);
+        let empty = room.members.is_empty();
+        drop(room);
+        // Drop our outstanding Arc before the strong-count check
+        // below so it sees only the registry's reference.
+        drop(room_arc);
+
+        if empty {
+            let mut rooms = self.rooms.write().await;
+            // Re-check under the write lock: another task may have
+            // re-joined the room between our `drop(room)` and here,
+            // and `Arc::strong_count` lets us detect that without
+            // double-locking the inner mutex.
+            if let Some(arc) = rooms.get(&project_id)
+                && Arc::strong_count(arc) == 1
+            {
+                rooms.remove(&project_id);
             }
         }
     }
 
-    /// Update cursor position for a user in a room.
-    pub async fn update_cursor(
+    /// Move a cursor. Throttled per `cursor_throttle`. Calls
+    /// inside the throttle window or for unknown users / rooms
+    /// are silently dropped — cursor data is lossy by design.
+    pub async fn move_cursor(
         &self,
-        project_id: &str,
+        project_id: Uuid,
         user_id: &str,
         user_name: &str,
         x: f64,
         y: f64,
         selected_element: Option<String>,
     ) {
-        let rooms = self.rooms.read().await;
-        if let Some(room) = rooms.get(project_id) {
-            let _ = room.broadcast.send(CollabMessage::RemoteCursor {
-                project_id: project_id.to_string(),
-                user_id: user_id.to_string(),
-                user_name: user_name.to_string(),
-                x,
-                y,
-                selected_element,
-            });
-        }
-        // Update stored cursor position
-        drop(rooms);
-        let mut rooms = self.rooms.write().await;
-        if let Some(room) = rooms.get_mut(project_id)
-            && let Some(member) = room.members.get_mut(user_id)
+        let room_arc = match self.rooms.read().await.get(&project_id) {
+            Some(arc) => Arc::clone(arc),
+            None => return,
+        };
+        let mut room = room_arc.lock().await;
+        let now = Instant::now();
+
+        let Some(member) = room.members.get_mut(user_id) else {
+            return;
+        };
+        if let Some(prev) = member.last_cursor_at
+            && now.duration_since(prev) < self.limits.cursor_throttle
         {
-            member.cursor = Some(CursorPosition {
-                x,
-                y,
-                selected_element: None,
-            });
+            return;
         }
+        member.last_cursor_at = Some(now);
+        member.cursor = Some(CursorPosition {
+            x,
+            y,
+            selected_element: selected_element.clone(),
+        });
+
+        let _ = room.broadcast.send(ServerMessage::RemoteCursor {
+            project_id,
+            user_id: user_id.to_string(),
+            user_name: user_name.to_string(),
+            x,
+            y,
+            selected_element,
+        });
     }
 
-    /// Try to acquire an exclusive lock on an entity.
-    pub async fn try_lock(
+    /// Try to acquire an exclusive lock. Stale locks (past
+    /// `expires_at`) are reaped before contention is decided.
+    /// Returns the resulting message:
+    ///
+    /// * `LockGranted` — broadcast to every room member; clients
+    ///   filter their own request via `entity_id`.
+    /// * `LockDenied` — **not** broadcast; the WS handler unicasts
+    ///   it to the requester so other members don't see denials
+    ///   that aren't relevant to them.
+    pub async fn acquire_lock(
         &self,
-        project_id: &str,
+        project_id: Uuid,
         user_id: &str,
         entity_id: &str,
-    ) -> Result<(), String> {
-        let mut rooms = self.rooms.write().await;
-        let room = rooms.get_mut(project_id).ok_or("Room not found")?;
+    ) -> ServerMessage {
+        let room_arc = self.room(project_id).await;
+        let mut room = room_arc.lock().await;
 
-        if let Some(existing) = room.locks.get(entity_id) {
-            if existing.held_by != user_id {
-                let _ = room.broadcast.send(CollabMessage::LockDenied {
-                    project_id: project_id.to_string(),
+        let now = Utc::now();
+        let ttl = chrono::Duration::from_std(self.limits.lock_ttl).unwrap_or(chrono::Duration::seconds(300));
+        let expires_at = now + ttl;
+
+        // Evaluate existing entry first; pull the bits we need so
+        // the &mut borrow below doesn't conflict.
+        let existing = room
+            .locks
+            .get(entity_id)
+            .map(|l| (l.held_by.clone(), l.expires_at));
+
+        if let Some((held_by, exp)) = existing {
+            if held_by == user_id {
+                // Idempotent — refresh TTL.
+                if let Some(lock) = room.locks.get_mut(entity_id) {
+                    lock.expires_at = expires_at;
+                }
+                let msg = ServerMessage::LockGranted {
+                    project_id,
                     entity_id: entity_id.to_string(),
-                    held_by: existing.held_by.clone(),
-                });
-                return Err(format!("Lock held by {}", existing.held_by));
+                    expires_at,
+                };
+                let _ = room.broadcast.send(msg.clone());
+                return msg;
             }
-            // Already held by this user — idempotent
-            return Ok(());
+            if exp > now {
+                // Still held — deny without broadcast.
+                return ServerMessage::LockDenied {
+                    project_id,
+                    entity_id: entity_id.to_string(),
+                    held_by,
+                };
+            }
+            // TTL expired — fall through and replace.
         }
 
         room.locks.insert(
             entity_id.to_string(),
-            EntityLock {
+            EntityLockEntry {
                 held_by: user_id.to_string(),
-                acquired_at: Utc::now(),
+                expires_at,
             },
         );
-
-        let _ = room.broadcast.send(CollabMessage::LockGranted {
-            project_id: project_id.to_string(),
+        let msg = ServerMessage::LockGranted {
+            project_id,
             entity_id: entity_id.to_string(),
-        });
-
-        Ok(())
+            expires_at,
+        };
+        let _ = room.broadcast.send(msg.clone());
+        msg
     }
 
-    /// Release a lock on an entity.
-    pub async fn release_lock(
-        &self,
-        project_id: &str,
-        user_id: &str,
-        entity_id: &str,
-    ) -> Result<(), String> {
-        let mut rooms = self.rooms.write().await;
-        let room = rooms.get_mut(project_id).ok_or("Room not found")?;
-
-        if let Some(lock) = room.locks.get(entity_id)
-            && lock.held_by != user_id
-        {
-            return Err("Lock held by another user".to_string());
+    /// Release a lock owned by `user_id`. No-op when the entity
+    /// isn't locked or someone else holds it.
+    pub async fn release_lock(&self, project_id: Uuid, user_id: &str, entity_id: &str) {
+        let room_arc = match self.rooms.read().await.get(&project_id) {
+            Some(arc) => Arc::clone(arc),
+            None => return,
+        };
+        let mut room = room_arc.lock().await;
+        let owns = matches!(room.locks.get(entity_id), Some(lock) if lock.held_by == user_id);
+        if !owns {
+            return;
         }
-
         room.locks.remove(entity_id);
-        let _ = room.broadcast.send(CollabMessage::LockReleased {
-            project_id: project_id.to_string(),
+        let _ = room.broadcast.send(ServerMessage::LockReleased {
+            project_id,
             entity_id: entity_id.to_string(),
         });
-
-        Ok(())
     }
 
-    /// Get current presence for a room.
-    pub async fn get_presence(&self, project_id: &str) -> Vec<PresenceInfo> {
-        let rooms = self.rooms.read().await;
-        rooms
-            .get(project_id)
-            .map(|r| r.presence_list())
-            .unwrap_or_default()
-    }
-
-    /// Count active rooms (for monitoring).
+    /// Active room count, for monitoring.
     pub async fn active_room_count(&self) -> usize {
         self.rooms.read().await.len()
     }
 }
 
-// `Default` is intentionally not implemented: the hub always needs an
-// explicit broadcast-buffer size (driven by OxConfig.collaboration).
+// `Default` is intentionally not implemented: the hub always needs
+// explicit limits driven by `OxConfig.collaboration`.
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_limits() -> HubLimits {
+        HubLimits {
+            broadcast_buffer: 32,
+            lock_ttl: Duration::from_secs(300),
+            max_sessions_per_user: 3,
+            cursor_throttle: Duration::from_millis(50),
+        }
+    }
+
+    #[tokio::test]
+    async fn move_cursor_preserves_selected_element() {
+        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let project = Uuid::new_v4();
+        let _outcome = hub.join(project, "u1", "Alice").await;
+        // Drain the UserJoined frame so move_cursor's broadcast is the next one.
+        let outcome = hub.join(project, "u2", "Bob").await;
+        let mut rx = outcome.receiver;
+        let _ = rx.recv().await; // UserJoined for whichever order
+
+        hub.move_cursor(project, "u1", "Alice", 10.0, 20.0, Some("node-42".into()))
+            .await;
+
+        // Read frames until we see the RemoteCursor for u1.
+        let mut found = None;
+        for _ in 0..4 {
+            if let Ok(msg) = rx.try_recv() {
+                if let ServerMessage::RemoteCursor {
+                    user_id,
+                    selected_element,
+                    ..
+                } = msg
+                {
+                    if user_id == "u1" {
+                        found = selected_element;
+                        break;
+                    }
+                }
+            } else {
+                tokio::task::yield_now().await;
+            }
+        }
+        assert_eq!(found.as_deref(), Some("node-42"));
+    }
+
+    #[tokio::test]
+    async fn cursor_throttle_drops_floods() {
+        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let project = Uuid::new_v4();
+        let _ = hub.join(project, "u1", "Alice").await;
+
+        // 10 events back-to-back; only the first survives.
+        for i in 0..10 {
+            hub.move_cursor(project, "u1", "Alice", i as f64, 0.0, None)
+                .await;
+        }
+        // Exactly one cursor was stored (last_cursor_at gates the rest).
+        let rooms = hub.rooms.read().await;
+        let arc = rooms.get(&project).unwrap().clone();
+        drop(rooms);
+        let room = arc.lock().await;
+        let m = room.members.get("u1").unwrap();
+        assert_eq!(m.cursor.as_ref().unwrap().x, 0.0);
+    }
+
+    #[tokio::test]
+    async fn acquire_lock_idempotent_for_same_user() {
+        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let project = Uuid::new_v4();
+        let _ = hub.join(project, "u1", "Alice").await;
+
+        let g1 = hub.acquire_lock(project, "u1", "ent-1").await;
+        let g2 = hub.acquire_lock(project, "u1", "ent-1").await;
+        assert!(matches!(g1, ServerMessage::LockGranted { .. }));
+        assert!(matches!(g2, ServerMessage::LockGranted { .. }));
+    }
+
+    #[tokio::test]
+    async fn acquire_lock_denied_for_other_user() {
+        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let project = Uuid::new_v4();
+        let _ = hub.join(project, "u1", "Alice").await;
+        let _ = hub.join(project, "u2", "Bob").await;
+
+        let _ = hub.acquire_lock(project, "u1", "ent-1").await;
+        let denied = hub.acquire_lock(project, "u2", "ent-1").await;
+        match denied {
+            ServerMessage::LockDenied { held_by, .. } => assert_eq!(held_by, "u1"),
+            other => panic!("expected LockDenied, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn acquire_lock_reaps_expired_holder() {
+        let limits = HubLimits {
+            lock_ttl: Duration::from_millis(20),
+            ..test_limits()
+        };
+        let hub = Arc::new(CollaborationHub::new(limits));
+        let project = Uuid::new_v4();
+        let _ = hub.join(project, "u1", "Alice").await;
+        let _ = hub.join(project, "u2", "Bob").await;
+
+        let _ = hub.acquire_lock(project, "u1", "ent-1").await;
+        tokio::time::sleep(Duration::from_millis(40)).await;
+
+        let granted = hub.acquire_lock(project, "u2", "ent-1").await;
+        assert!(matches!(granted, ServerMessage::LockGranted { .. }));
+    }
+
+    #[tokio::test]
+    async fn leave_releases_locks_and_reaps_empty_room() {
+        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let project = Uuid::new_v4();
+        let _ = hub.join(project, "u1", "Alice").await;
+        let _ = hub.acquire_lock(project, "u1", "ent-1").await;
+
+        hub.leave(project, "u1").await;
+        assert_eq!(hub.active_room_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn open_session_caps_concurrent_per_user() {
+        let limits = HubLimits {
+            max_sessions_per_user: 2,
+            ..test_limits()
+        };
+        let hub = Arc::new(CollaborationHub::new(limits));
+
+        let h1 = hub.open_session("u1").await;
+        let h2 = hub.open_session("u1").await;
+        let h3 = hub.open_session("u1").await;
+        assert!(h1.is_some());
+        assert!(h2.is_some());
+        assert!(h3.is_none());
+
+        drop(h1);
+        // The Drop impl spawns the close — let it run.
+        tokio::task::yield_now().await;
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        let h4 = hub.open_session("u1").await;
+        assert!(h4.is_some());
+    }
+
+    #[tokio::test]
+    async fn join_emits_presence_snapshot() {
+        let hub = Arc::new(CollaborationHub::new(test_limits()));
+        let project = Uuid::new_v4();
+
+        let _ = hub.join(project, "u1", "Alice").await;
+        let outcome = hub.join(project, "u2", "Bob").await;
+
+        // u2's snapshot includes both members.
+        let names: Vec<String> = outcome
+            .snapshot
+            .iter()
+            .map(|p| p.user_id.clone())
+            .collect();
+        assert!(names.contains(&"u1".to_string()));
+        assert!(names.contains(&"u2".to_string()));
+    }
+}
