@@ -13,7 +13,7 @@ schemars = { workspace = true }
 utoipa = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
-sha2 = "0.10.9"
+sha2 = { workspace = true }
 
 [lints]
 workspace = true

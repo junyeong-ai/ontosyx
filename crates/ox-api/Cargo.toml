@@ -52,12 +52,12 @@ schemars = { workspace = true }
 cron = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
-futures = "0.3"
-futures-core = "0.3"
-tokio-stream = "0.1"
-async-stream = "0.3.6"
+futures = { workspace = true }
+futures-core = { workspace = true }
+tokio-stream = { workspace = true }
+async-stream = { workspace = true }
 url = "2.5.8"
-sha2 = "0.10.9"
+sha2 = { workspace = true }
 reqwest = { workspace = true }
 # Optional GCP Secret Manager resolver — enabled with feature `gcp-sm`.
 # ADC dispatch reuses ox-source's `gcp_auth` module (the same seam BigQuery uses).

@@ -79,6 +79,12 @@ csv = "1"
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 futures = "0.3"
+# Granular splits of `futures` — hoisted so every consumer (ox-api,
+# ox-brain, …) shares one major and the SSE streaming + chat agents
+# don't fork on `futures-core` traits.
+futures-core = "0.3"
+tokio-stream = "0.1"
+async-stream = "0.3"
 
 # Web framework
 axum = { version = "0.8", features = ["ws", "macros"] }
