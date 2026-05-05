@@ -34,7 +34,10 @@ why the earlier shape existed.
 | 0019 | `useOptimisticMutation` canonical FE mutation hook  | Accepted |
 | 0020 | `BulkActionBar` multi-select cohort primitive       | Accepted |
 | 0021 | Master-detail over modal for vocabulary CRUD        | Accepted |
+| 0022 | `PluginRegistry<T>` for FE extensibility surfaces   | Accepted |
 | 0023 | `HeuristicProposal` queue + no-auto-decisions       | Accepted |
+| 0024 | `advisory_lock` boot + cron singleton coordination  | Accepted |
+| 0025 | Migration immutability + SHA-pinned baseline        | Accepted |
 
 Companion architecture documents live in `../architecture/`:
 
