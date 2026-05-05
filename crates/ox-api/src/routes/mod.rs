@@ -484,6 +484,10 @@ pub fn router(state: AppState) -> Router {
         .route("/quality/execute-all", post(quality::execute_all_rules))
         // Ambiguity admin — closed-loop resolver surface
         .route("/ambiguities", get(ambiguity::list_ambiguities))
+        .route(
+            "/ambiguities/bulk-revoke",
+            post(ambiguity::bulk_revoke_ambiguities),
+        )
         .route("/ambiguities/{id}", get(ambiguity::get_ambiguity))
         .route(
             "/ambiguities/{id}/resolve",

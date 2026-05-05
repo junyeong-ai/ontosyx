@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  bulkRevokeAmbiguities,
   getAmbiguity,
   listAmbiguities,
   resolveAmbiguity,
@@ -16,6 +17,7 @@ import {
   type AmbiguityResolution,
   type AmbiguitySummary,
 } from "@/lib/api/ambiguity";
+import { useOptimisticMutation } from "./use-optimistic-mutation";
 
 // ---------------------------------------------------------------------------
 // Keys
@@ -84,4 +86,40 @@ export function useRevokeAmbiguity(
       onSuccess?.(...args);
     },
   });
+}
+
+/**
+ * Bulk-revoke every selected resolution in one round-trip. Optimism
+ * mirrors the single-id path: clear `active_resolution` on each
+ * matching summary so the row drops out of the "resolved" tab into
+ * "pending" instantly. The BE caps `ids.len()` at 100 (the typed
+ * `bulk_limit_exceeded` gate); callers split larger cohorts.
+ */
+export function useBulkRevokeAmbiguities() {
+  type Vars = { ids: string[] };
+  return useOptimisticMutation<Vars, { revoked: number }>({
+    mutationFn: ({ ids }) => bulkRevokeAmbiguities(ids),
+    queryKeys: [ambiguitiesKeys.list()],
+    optimisticUpdate: (prev, { ids }) => {
+      if (!isAmbiguityList(prev)) return prev;
+      const idSet = new Set(ids);
+      return {
+        ...prev,
+        items: prev.items.map((s) =>
+          idSet.has(s.context.id) && s.active_resolution
+            ? { ...s, active_resolution: null }
+            : s,
+        ),
+      };
+    },
+  });
+}
+
+function isAmbiguityList(value: unknown): value is { items: AmbiguitySummary[] } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "items" in value &&
+    Array.isArray((value as { items: unknown }).items)
+  );
 }

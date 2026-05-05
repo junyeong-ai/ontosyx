@@ -1,14 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
 
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
+import { BulkActionBar } from "@/components/ui/bulk-action-bar";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   useAmbiguities,
+  useBulkRevokeAmbiguities,
   useResolveAmbiguity,
   useRevokeAmbiguity,
 } from "@/hooks/api/use-ambiguities";
@@ -33,6 +36,11 @@ export function AmbiguityFacet() {
   const tCommon = useTranslations("common");
   const [tab, setTab] = useState<TabKey>("pending");
   const [editing, setEditing] = useState<AmbiguitySummary | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // biome-ignore lint/correctness/useExhaustiveDependencies: setter only — tab drives reset
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [tab]);
 
   const ambiguitiesQuery = useAmbiguities();
   const { data, isLoading, isError, refetch } = ambiguitiesQuery;
@@ -47,6 +55,7 @@ export function AmbiguityFacet() {
     onSuccess: () => toast.success(t("toast.revoked")),
     onError: (err) => toast.error(err instanceof Error ? err.message : t("toast.revokeFailed")),
   });
+  const bulkRevoke = useBulkRevokeAmbiguities();
 
   const grouped = useMemo(() => {
     const items = data?.items ?? [];
@@ -62,6 +71,44 @@ export function AmbiguityFacet() {
   }, [data]);
 
   const activeList = grouped[tab];
+
+  // Multi-select is offered on the "resolved" tab only — the bulk
+  // operation (revoke) is meaningful exclusively on rows whose
+  // active_resolution exists. Pending / stale rows have nothing
+  // to revoke.
+  const allowBulk = tab === "resolved";
+  const visibleSelectableIds = useMemo(
+    () =>
+      allowBulk
+        ? activeList
+            .filter((r) => r.active_resolution)
+            .map((r) => r.context.id)
+        : [],
+    [allowBulk, activeList],
+  );
+  const allSelected =
+    visibleSelectableIds.length > 0 &&
+    visibleSelectableIds.every((id) => selectedIds.has(id));
+  const someSelected =
+    !allSelected && visibleSelectableIds.some((id) => selectedIds.has(id));
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(visibleSelectableIds));
+    }
+  };
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -111,6 +158,17 @@ export function AmbiguityFacet() {
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="border-b border-divider text-start text-2xs uppercase tracking-wider text-foreground-muted">
+              {allowBulk && (
+                <th className="w-8 py-2 pe-2 font-medium">
+                  <Checkbox
+                    checked={allSelected}
+                    indeterminate={someSelected}
+                    onChange={toggleAll}
+                    aria-label={t("bulk.selectAllAria")}
+                    disabled={visibleSelectableIds.length === 0}
+                  />
+                </th>
+              )}
               <th className="py-2 pe-4 font-medium">{t("columns.source")}</th>
               <th className="py-2 pe-4 font-medium">{t("columns.column")}</th>
               <th className="py-2 pe-4 font-medium">{t("columns.kind")}</th>
@@ -127,6 +185,19 @@ export function AmbiguityFacet() {
                 key={row.context.id}
                 className="border-b border-divider-soft hover:bg-surface-raised"
               >
+                {allowBulk && (
+                  <td className="w-8 py-2 pe-2">
+                    {row.active_resolution && (
+                      <Checkbox
+                        checked={selectedIds.has(row.context.id)}
+                        onChange={() => toggleOne(row.context.id)}
+                        aria-label={t("bulk.selectRowAria", {
+                          column: row.context.column.column,
+                        })}
+                      />
+                    )}
+                  </td>
+                )}
                 <td className="py-2 pe-4 font-mono">{row.context.source_id}</td>
                 <td className="py-2 pe-4">
                   <span className="text-foreground-muted">
@@ -183,6 +254,38 @@ export function AmbiguityFacet() {
           }}
         />
       )}
+
+      <BulkActionBar
+        count={selectedIds.size}
+        countLabel={t("bulk.selectedCount", { count: selectedIds.size })}
+        clearLabel={t("bulk.clear")}
+        ariaLabel={t("bulk.barLabel")}
+        actions={[
+          {
+            key: "revoke",
+            label: t("bulk.revoke"),
+            variant: "danger",
+            onClick: () => {
+              const ids = Array.from(selectedIds);
+              bulkRevoke.mutate(
+                { ids },
+                {
+                  onSuccess: ({ revoked }) => {
+                    toast.success(t("bulk.revokedToast", { count: revoked }));
+                    setSelectedIds(new Set());
+                  },
+                  onError: (err) =>
+                    toast.error(
+                      err instanceof Error ? err.message : t("toast.revokeFailed"),
+                    ),
+                },
+              );
+            },
+          },
+        ]}
+        onClear={() => setSelectedIds(new Set())}
+        pending={bulkRevoke.isPending}
+      />
     </div>
   );
 }

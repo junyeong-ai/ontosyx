@@ -219,3 +219,62 @@ pub(crate) async fn revoke_ambiguity(
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(RevokeAmbiguityResponse { revoked }))
 }
+
+// ---------------------------------------------------------------------------
+// POST /api/ambiguities/bulk-revoke  — revoke many active resolutions
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct BulkRevokeAmbiguitiesRequest {
+    /// Context ids to revoke. Capped at 100 per call by the
+    /// `bulk_limit_exceeded` typed gate; clients split into
+    /// multiple calls when the cohort is larger.
+    pub ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BulkRevokeAmbiguitiesResponse {
+    /// Count of contexts that actually transitioned. Contexts
+    /// without an active resolution are silently skipped (matches
+    /// single-id semantics), so `revoked` may be less than
+    /// `ids.len()` when the cohort overlaps already-revoked or
+    /// unresolved contexts.
+    pub revoked: u64,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/ambiguities/bulk-revoke",
+    request_body = Object,
+    responses(
+        (status = 200, description = "Bulk revoke recorded", body = Object),
+        (status = 400, description = "Empty or oversized ids list", body = crate::openapi::ErrorResponse),
+        (status = 403, description = "Designer required", body = crate::openapi::ErrorResponse),
+    ),
+    security(("api_key" = [])),
+    tag = "Ambiguity",
+)]
+pub(crate) async fn bulk_revoke_ambiguities(
+    State(state): State<AppState>,
+    principal: Principal,
+    Json(req): Json<BulkRevokeAmbiguitiesRequest>,
+) -> Result<Json<ApiResponse<BulkRevokeAmbiguitiesResponse>>, AppError> {
+    principal.require_designer()?;
+    if req.ids.is_empty() {
+        return Err(AppError::required_field_empty("ids"));
+    }
+    if req.ids.len() > 100 {
+        return Err(AppError::bulk_limit_exceeded(100));
+    }
+    let ctx_ids: Vec<AmbiguityId> = req
+        .ids
+        .iter()
+        .map(|u| AmbiguityId::new(u.to_string()))
+        .collect();
+    let revoked = state
+        .store
+        .bulk_revoke_active_ambiguity_resolutions(&ctx_ids)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(BulkRevokeAmbiguitiesResponse { revoked }))
+}

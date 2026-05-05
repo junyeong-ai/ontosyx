@@ -10,6 +10,7 @@ vi.mock("@/lib/api/ambiguity", () => ({
   listAmbiguities: vi.fn(),
   resolveAmbiguity: vi.fn(),
   revokeAmbiguity: vi.fn(),
+  bulkRevokeAmbiguities: vi.fn(),
   getAmbiguity: vi.fn(),
 }));
 
@@ -19,6 +20,7 @@ vi.mock("@/components/ui/toast", () => ({
 
 import { AmbiguityFacet } from "@/app/settings/quality/_facets/ambiguity-facet";
 import {
+  bulkRevokeAmbiguities,
   listAmbiguities,
   resolveAmbiguity,
   revokeAmbiguity,
@@ -155,6 +157,52 @@ describe("AmbiguityFacet", () => {
     );
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("Resolution revoked"),
+    );
+  });
+
+  it("bulk-revokes selected resolved ambiguities", async () => {
+    const RESOLVED_2 = {
+      ...RESOLVED,
+      context: { ...RESOLVED.context, id: "ctx-resolved-2" },
+      active_resolution: {
+        ...RESOLVED.active_resolution,
+        id: "r-3",
+        context_id: "ctx-resolved-2",
+      },
+    };
+    (listAmbiguities as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: [RESOLVED, RESOLVED_2],
+    });
+    (bulkRevokeAmbiguities as ReturnType<typeof vi.fn>).mockResolvedValue({
+      revoked: 2,
+    });
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /Resolved/ }));
+    // Wait for the resolved tab to render rows + bulk header checkbox.
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Select all resolved ambiguities"),
+      ).toBeInTheDocument(),
+    );
+    // Tick the select-all header checkbox.
+    fireEvent.click(
+      screen.getByLabelText("Select all resolved ambiguities"),
+    );
+    // BulkActionBar slides in — its Revoke button (region role).
+    const bar = await screen.findByRole("region", { name: /Bulk actions/ });
+    fireEvent.click(
+      Array.from(bar.querySelectorAll("button")).find(
+        (b) => b.textContent === "Revoke",
+      ) as HTMLButtonElement,
+    );
+    await waitFor(() =>
+      expect(bulkRevokeAmbiguities).toHaveBeenCalledWith([
+        "ctx-resolved",
+        "ctx-resolved-2",
+      ]),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("2 resolutions revoked"),
     );
   });
 

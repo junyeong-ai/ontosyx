@@ -3095,6 +3095,15 @@
           "revoked": "결정이 취소되었습니다",
           "revokeFailed": "취소에 실패했습니다"
         },
+        "bulk": {
+          "selectAllAria": "해결된 모호성 전체 선택",
+          "selectRowAria": "{column} 선택",
+          "selectedCount": "{count}건 선택됨",
+          "clear": "선택 해제",
+          "barLabel": "일괄 작업",
+          "revoke": "일괄 취소",
+          "revokedToast": "{count}건의 결정이 취소되었습니다"
+        },
         "modal": {
           "title": "{relation}.{column} 해결",
           "modeLabel": "해결 방식",

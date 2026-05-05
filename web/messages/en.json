@@ -3095,6 +3095,15 @@
           "revoked": "Resolution revoked",
           "revokeFailed": "Failed to revoke"
         },
+        "bulk": {
+          "selectAllAria": "Select all resolved ambiguities",
+          "selectRowAria": "Select {column}",
+          "selectedCount": "{count, plural, one {# selected} other {# selected}}",
+          "clear": "Clear",
+          "barLabel": "Bulk actions",
+          "revoke": "Revoke",
+          "revokedToast": "{count, plural, one {# resolution revoked} other {# resolutions revoked}}"
+        },
         "modal": {
           "title": "Resolve {relation}.{column}",
           "modeLabel": "Resolution type",

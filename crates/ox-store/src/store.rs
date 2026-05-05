@@ -1918,6 +1918,17 @@ pub trait AmbiguityStore: Send + Sync {
         &self,
         context_id: &ox_ontology::ambiguity::AmbiguityId,
     ) -> OxResult<bool>;
+
+    /// Bulk-revoke active resolutions for many contexts in one
+    /// transaction. Same per-row semantics as
+    /// `revoke_active_ambiguity_resolution` (contexts with no active
+    /// row are silently skipped). Returns the count that
+    /// transitioned — may be less than `ids.len()` when the cohort
+    /// overlaps already-revoked or unresolved contexts.
+    async fn bulk_revoke_active_ambiguity_resolutions(
+        &self,
+        context_ids: &[ox_ontology::ambiguity::AmbiguityId],
+    ) -> OxResult<u64>;
 }
 
 /// Source-to-IR mapping artifacts — declarative, content-addressed

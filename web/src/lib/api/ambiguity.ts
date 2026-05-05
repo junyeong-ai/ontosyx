@@ -67,3 +67,12 @@ export async function revokeAmbiguity(id: string): Promise<{ revoked: boolean }>
     method: "POST",
   });
 }
+
+export async function bulkRevokeAmbiguities(
+  ids: readonly string[],
+): Promise<{ revoked: number }> {
+  return request(`/ambiguities/bulk-revoke`, {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
+}

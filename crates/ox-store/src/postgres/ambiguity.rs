@@ -423,4 +423,32 @@ impl AmbiguityStore for PostgresStore {
         .map_err(to_ox_error)?;
         Ok(result.rows_affected() > 0)
     }
+
+    async fn bulk_revoke_active_ambiguity_resolutions(
+        &self,
+        context_ids: &[ox_ontology::ambiguity::AmbiguityId],
+    ) -> OxResult<u64> {
+        super::require_workspace_context()?;
+        if context_ids.is_empty() {
+            return Ok(0);
+        }
+        let uuids: Vec<Uuid> = context_ids
+            .iter()
+            .map(|id| {
+                id.as_str().parse::<Uuid>().map_err(|e| OxError::Runtime {
+                    message: format!("context id must be uuid: {e}"),
+                })
+            })
+            .collect::<OxResult<Vec<_>>>()?;
+        let result = sqlx::query(
+            "UPDATE ambiguity_resolutions \
+             SET revoked_at = now() \
+             WHERE context_id = ANY($1) AND revoked_at IS NULL",
+        )
+        .bind(&uuids)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(result.rows_affected())
+    }
 }
