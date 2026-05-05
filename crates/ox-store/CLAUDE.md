@@ -110,6 +110,47 @@ is a catalog scan that fails when a new migration introduces a
 `workspace_id` column without the four clauses. Runs against a
 live PostgreSQL behind `OX_TEST_DATABASE_URL` (CI's `rls` job).
 
+## Workspace × Ontology is 1:1 — singleton invariant
+
+`ontologies(workspace_id)` carries `UNIQUE` (migration `0006`).
+A workspace owns exactly one canonical ontology — the workspace
+IS the ontology context. Reach the singleton via the dedicated
+accessor:
+
+```rust
+let ontology = state.store.get_workspace_ontology().await?;
+```
+
+Don't add new code paths that look up by ontology id when the id
+is workspace-determined. The legacy lookups (`get_ontology(id)`,
+`list_ontologies`, `find_ontology_by_lineage`,
+`find_ontology_by_name`) survive transitionally — Phase 3 of the
+ontology workbench restructure folds them away alongside the URL
+path migration that drops `/{id}/` segments.
+
+## Project drafts pin a `parent_version_id`
+
+`design_projects.parent_version_id` (migration `0005`) records
+which canonical version a project's in-flight `ontology` JSONB
+was branched from. `complete_project` compares this against the
+canonical's current head and refuses commits whose parent has
+been superseded — the lost-update guard against concurrent admin
+direct edits via `/api/ontologies/{id}/edits`.
+
+Capture happens at `create_project`: read
+`get_workspace_ontology()` + `get_current_version()` and stamp the
+result onto the new project. Greenfield workspaces (no canonical
+yet) record `None`; `complete_project` then takes the
+"first-version of new lineage" branch instead of the
+fast-forward / refuse arms.
+
+The typed error on stale parent is
+`ApiErrorCode::ProjectStaleParent` (409) with `params.parent_version`
++ `params.current_version` so the FE renders a precise rebase
+prompt.
+
+## Pre-scope tables carry the OPPOSITE invariant
+
 Pre-scope tables (`workspaces`, `workspace_members`, `users`) carry
 the OPPOSITE invariant — RLS is forbidden on them because the auth
 middleware reads them before `WORKSPACE_ID.scope` wraps the request.

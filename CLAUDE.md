@@ -77,6 +77,8 @@ Use `./scripts/dev.sh start` to launch everything (Docker + backend + frontend).
 - ClientPool: keyed by provider identity (not model). Same provider shares one client.
 - DB model configs (`model_configs` + `model_routing_rules`) are the source of truth for model selection at runtime.
 - Workspace isolation: PostgreSQL RLS via task-local `WORKSPACE_ID`. Every workspace-scoped query respects this.
+- **Workspace × Ontology cardinality is 1:1** — `UNIQUE (workspace_id)` on `ontologies`. The workspace IS the ontology context. Reach the singleton via `OntologyVersionStore::get_workspace_ontology()`; multi-ontology-per-workspace is not a supported topology and the FE assumes singleton throughout.
+- **Project drafts track `parent_version_id`** so `complete_project` detects intervening canonical commits (typed `ApiErrorCode::ProjectStaleParent` 409). Don't write a project commit path that bypasses this guard — it's the lost-update lock against concurrent admin direct edits.
 
 ## Testing
 
