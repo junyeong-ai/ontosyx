@@ -23,6 +23,12 @@ why the earlier shape existed.
 | 0008 | W3C PROV-O aligned provenance                       | Accepted |
 | 0009 | Partial-failure policy for federated execution      | Accepted |
 | 0010 | Canonical IRI scheme for ontology entities          | Accepted |
+| 0011 | `SourceMappingArtifact` as the declarative bridge   | Accepted |
+| 0012 | RLS enforcement contract                            | Accepted |
+| 0013 | SHACL `sh:message` as diagnostic source of truth    | Accepted |
+| 0014 | `ConceptDef` as canonical identity above NodeType   | Accepted |
+| 0015 | `SegmentDef` as first-class IR collection           | Accepted |
+| 0023 | `HeuristicProposal` queue + no-auto-decisions       | Accepted |
 
 Companion architecture documents live in `../architecture/`:
 
