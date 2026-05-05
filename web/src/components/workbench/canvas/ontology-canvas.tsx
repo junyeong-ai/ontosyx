@@ -21,6 +21,7 @@ import { CanvasCommandSource } from "./canvas-command-source";
 import { NeighborhoodToolbar } from "./neighborhood-toolbar";
 import { exportCanvasImage } from "./canvas-helpers";
 import { useCanvasLayout } from "./use-canvas-layout";
+import type { ElkLayoutPreset } from "./elk-layout";
 import { CanvasSkeleton } from "./canvas-skeleton";
 import { CanvasEmptyState, CanvasZeroNodesState } from "./canvas-empty-state";
 import { arr } from "@/lib/ir-collections";
@@ -62,6 +63,7 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [layout, setLayout] = useState<ElkLayoutPreset>("layered");
 
   const { flowElements, topologySignature } = useCanvasViewport(gaps);
 
@@ -73,6 +75,7 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
     topologySignature,
     setNodes,
     setEdges,
+    layout,
   );
 
   const { handleSave, deleteSelected, selectAllNodes, handleExport, deselectAll } = useCanvasCommands({
@@ -227,6 +230,8 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
         setIsExportOpen={setIsExportOpen}
         onExportSchema={handleExport}
         onApplyPositions={applyPositions}
+        layout={layout}
+        onLayoutChange={setLayout}
       />
       <NeighborhoodToolbar />
       <DiffOverlayBar />

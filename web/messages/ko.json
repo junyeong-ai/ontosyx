@@ -3910,6 +3910,15 @@
           "exported": "{format} 으로 내보냈습니다",
           "failed": "내보내기에 실패했습니다"
         },
+        "layout": {
+          "label": "레이아웃",
+          "ariaLabel": "레이아웃 알고리즘 선택",
+          "layered": "계층",
+          "mrtree": "트리",
+          "radial": "방사형",
+          "force": "포스",
+          "stress": "스트레스"
+        },
         "extendSourceAria": "다른 데이터 소스로 소스 확장",
         "extendSourceLabel": "소스 확장",
         "paneExplorer": "탐색기",

@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { Node } from "@xyflow/react";
 
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { exportCanvasImage } from "./canvas-helpers";
 import { PerspectiveSwitcher } from "./perspective-switcher";
+import { ELK_LAYOUT_PRESETS, type ElkLayoutPreset } from "./elk-layout";
+import { cn } from "@/lib/cn";
 import type { ExportFormat } from "@/lib/export-utils";
 
 interface CanvasToolbarProps {
@@ -17,6 +19,16 @@ interface CanvasToolbarProps {
   setIsExportOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
   onExportSchema: (format: ExportFormat) => Promise<void>;
   onApplyPositions: (positions: Record<string, { x: number; y: number }>) => void;
+  /**
+   * Active ELK layout preset. The toolbar renders a picker so the
+   * user can switch between hierarchical / tree / radial / force /
+   * stress without leaving the canvas. Optional — surfaces that
+   * pin a single layout (read-only embeds) omit both props and the
+   * picker disappears.
+   */
+  layout?: ElkLayoutPreset;
+  /** Fires when the user picks a different layout preset. */
+  onLayoutChange?: (preset: ElkLayoutPreset) => void;
 }
 
 /**
@@ -30,6 +42,8 @@ export function CanvasToolbar({
   setIsExportOpen,
   onExportSchema,
   onApplyPositions,
+  layout,
+  onLayoutChange,
 }: CanvasToolbarProps) {
   const t = useTranslations("workbench.canvas.toolbar");
   const tImage = useTranslations("workbench.canvas.toolbar.image");
@@ -51,6 +65,13 @@ export function CanvasToolbar({
         onApplyPositions={onApplyPositions}
         onOpen={() => setIsExportOpen(false)}
       />
+      {layout && onLayoutChange && (
+        <LayoutPicker
+          layout={layout}
+          onLayoutChange={onLayoutChange}
+          onOpen={() => setIsExportOpen(false)}
+        />
+      )}
       <div ref={exportRef} className="relative">
         <button type="button"
           onClick={() => setIsExportOpen((v) => !v)}
@@ -114,6 +135,83 @@ export function CanvasToolbar({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LayoutPicker — ELK preset switcher
+// ---------------------------------------------------------------------------
+
+interface LayoutPickerProps {
+  layout: ElkLayoutPreset;
+  onLayoutChange: (preset: ElkLayoutPreset) => void;
+  /**
+   * Optional close-other-popovers callback. Wired so opening this
+   * picker closes the export menu sitting next to it (and vice
+   * versa) — only one toolbar dropdown should sit open at a time.
+   */
+  onOpen?: () => void;
+}
+
+function LayoutPicker({ layout, onLayoutChange, onOpen }: LayoutPickerProps) {
+  const t = useTranslations("workbench.canvas.toolbar.layout");
+  const ref = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  useClickOutside(ref, () => setIsOpen(false), isOpen);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          if (!isOpen) onOpen?.();
+          setIsOpen((v) => !v);
+        }}
+        className="flex items-center gap-1 rounded-md border border-divider bg-surface-base px-2 py-1 text-2xs font-medium text-foreground shadow-1 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-raised"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-label={t("ariaLabel")}
+      >
+        <span className="text-foreground-muted">{t("label")}</span>
+        <span className="font-semibold">{t(layout)}</span>
+      </button>
+      {isOpen && (
+        <ul
+          role="listbox"
+          aria-label={t("ariaLabel")}
+          className="absolute end-0 top-full mt-1 min-w-[160px] rounded-lg border border-divider bg-surface-base py-1 shadow-3"
+        >
+          {ELK_LAYOUT_PRESETS.map((preset) => {
+            const active = preset.id === layout;
+            return (
+              <li key={preset.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => {
+                    onLayoutChange(preset.id);
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center justify-between px-3 py-1.5 text-xs hover:bg-surface-inset",
+                    active
+                      ? "font-semibold text-brand-foreground"
+                      : "text-foreground",
+                  )}
+                >
+                  <span>{t(preset.labelKey)}</span>
+                  {active && (
+                    <span aria-hidden className="text-brand-foreground">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

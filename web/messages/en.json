@@ -3910,6 +3910,15 @@
           "exported": "Exported as {format}",
           "failed": "Export failed"
         },
+        "layout": {
+          "label": "Layout",
+          "ariaLabel": "Pick layout algorithm",
+          "layered": "Hierarchical",
+          "mrtree": "Tree",
+          "radial": "Radial",
+          "force": "Force",
+          "stress": "Stress"
+        },
         "extendSourceAria": "Extend the source set with another data source",
         "extendSourceLabel": "Extend source",
         "paneExplorer": "Explorer",

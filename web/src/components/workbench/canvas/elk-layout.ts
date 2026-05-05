@@ -19,10 +19,16 @@ import { ELK_OPTIONS, buildElkOptions } from "./elk-options";
 //                          via `options.uiConfig` (server-supplied).
 //   - "stress": explore surface — force-like placement, no ports (ports
 //               would fight the spring model). Static options for now.
+//   - "mrtree": top-down tree layout (root-to-leaves). Best for taxonomy
+//               or pure hierarchies where every node has a single parent.
+//   - "radial": radial-tree placement around a focused root. Good for
+//               showcasing concentric structure (centre-of-graph + hops).
+//   - "force":  spring-electric force-directed. The general-graph default
+//               when the structure isn't hierarchical or tree-shaped.
 //
-// Both presets share one worker. That avoids a second module-worker
-// instance (and its 1 MB ELK bundle) and lets us scale new presets by
-// adding an entry here rather than duplicating the whole pipeline.
+// All presets share one worker. That avoids spawning the 1 MB ELK
+// bundle per algorithm and lets us scale new presets by registering
+// here rather than duplicating the pipeline.
 // ---------------------------------------------------------------------------
 
 let cachedWorkerTimeoutMs = 30_000;
@@ -32,7 +38,29 @@ export interface LayoutResult {
   edges: Edge[];
 }
 
-export type ElkLayoutPreset = "layered" | "stress";
+export type ElkLayoutPreset =
+  | "layered"
+  | "stress"
+  | "mrtree"
+  | "radial"
+  | "force";
+
+/**
+ * Every supported preset paired with its translation key. Picker UI
+ * iterates this constant so adding a sixth algorithm is one entry,
+ * one i18n key, and one branch in `resolvePreset`. Order is the
+ * order users see in the toolbar dropdown.
+ */
+export const ELK_LAYOUT_PRESETS: ReadonlyArray<{
+  id: ElkLayoutPreset;
+  labelKey: string;
+}> = [
+  { id: "layered", labelKey: "layered" },
+  { id: "mrtree", labelKey: "mrtree" },
+  { id: "radial", labelKey: "radial" },
+  { id: "force", labelKey: "force" },
+  { id: "stress", labelKey: "stress" },
+];
 
 export interface ComputeElkOptions {
   /** Algorithm preset. Defaults to "layered". */
@@ -47,15 +75,47 @@ export interface ComputeElkOptions {
 
 // -- Preset resolution -------------------------------------------------------
 
-/** Static stress options — the force-like placement used by the explore
- * canvas. `stress` minimises edge-length distortion, which looks good
- * for general (non-hierarchical) graphs without pulling in d3-force.
+/** Stress majorization — explore canvas default. Minimises edge-length
+ * distortion and looks good for general (non-hierarchical) graphs
+ * without pulling in d3-force. No ports — they fight the spring
+ * model.
  */
 const STRESS_OPTIONS: Readonly<Record<string, string>> = Object.freeze({
   "elk.algorithm": "stress",
   "elk.spacing.nodeNode": "80",
   "elk.stress.epsilon": "0.0001",
   "elk.stress.iterationLimit": "400",
+});
+
+/** Mr-Tree — strict top-down tree placement. Cleanest for ontologies
+ * whose backbone is a single inheritance / containment tree.
+ */
+const MRTREE_OPTIONS: Readonly<Record<string, string>> = Object.freeze({
+  "elk.algorithm": "mrtree",
+  "elk.direction": "DOWN",
+  "elk.spacing.nodeNode": "60",
+  "elk.mrtree.spacing.levelLevel": "80",
+});
+
+/** Radial — concentric layout around a focused root. Good for graphs
+ * with a clear centre + hop-distance interpretation (a single
+ * NodeType the user is exploring outward from).
+ */
+const RADIAL_OPTIONS: Readonly<Record<string, string>> = Object.freeze({
+  "elk.algorithm": "radial",
+  "elk.spacing.nodeNode": "80",
+  "elk.radial.radius": "240",
+  "elk.radial.optimizationCriteria": "ANNULUS_WEDGE_BY_NODES",
+});
+
+/** Force — spring-electric force-directed. The general-graph default
+ * when neither hierarchy nor tree shape applies.
+ */
+const FORCE_OPTIONS: Readonly<Record<string, string>> = Object.freeze({
+  "elk.algorithm": "force",
+  "elk.spacing.nodeNode": "100",
+  "elk.force.iterations": "300",
+  "elk.force.repulsivePower": "1",
 });
 
 interface ResolvedPreset {
@@ -68,6 +128,12 @@ function resolvePreset(options: ComputeElkOptions | undefined): ResolvedPreset {
   switch (preset) {
     case "stress":
       return { layoutOptions: { ...STRESS_OPTIONS }, withPorts: false };
+    case "mrtree":
+      return { layoutOptions: { ...MRTREE_OPTIONS }, withPorts: false };
+    case "radial":
+      return { layoutOptions: { ...RADIAL_OPTIONS }, withPorts: false };
+    case "force":
+      return { layoutOptions: { ...FORCE_OPTIONS }, withPorts: false };
     default:
       return {
         layoutOptions: options?.uiConfig ? buildElkOptions(options.uiConfig) : { ...ELK_OPTIONS },
