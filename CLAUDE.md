@@ -103,3 +103,29 @@ The Rust test pyramid:
 ## Prompt Templates
 
 TOML files in `prompts/` seed the `prompt_templates` DB table on first boot. After seeding, DB is authoritative. Edit via admin API (`/api/admin/prompts`), not by editing TOML.
+
+## Architecture Decision Records
+
+`docs/adr/` carries the canonical record for every long-lived
+architectural decision. Read the index at `docs/adr/README.md`
+before changing anything that smells load-bearing — the ADR is
+where the *why* lives. Recent ADRs that touch surfaces in this
+crate:
+
+- **0014** `ConceptDef` as canonical identity above NodeType.
+- **0015** `SegmentDef` as a first-class IR collection.
+- **0016** Workspace × Ontology = 1:1 (singleton invariant).
+- **0017** Typed error wire shape (`{ code, class, params }`).
+- **0018** `EvaluationStore` three-table RAGAS metric loop.
+- **0019** `useOptimisticMutation` canonical FE mutation hook.
+- **0020** `BulkActionBar` multi-select cohort primitive.
+- **0021** Master-detail over modal for vocabulary CRUD.
+- **0022** `PluginRegistry<T>` for FE extensibility surfaces.
+- **0023** `HeuristicProposal` queue + no-auto-decisions.
+- **0024** `advisory_lock` boot + cron singleton coordination.
+- **0025** Migration immutability + SHA-pinned baseline.
+
+Adding a new architectural decision = new MADR-lite file in
+`docs/adr/NNNN-kebab-title.md` + one line in
+`docs/adr/README.md`. Edit follows the convention in
+`docs/adr/README.md`'s "Writing an ADR" section.
