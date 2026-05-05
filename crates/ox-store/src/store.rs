@@ -1568,11 +1568,11 @@ pub trait ApiKeyStore: Send + Sync {
         role: &str,
     ) -> OxResult<(ApiKey, String)>;
 
-    /// Insert an API key whose hash is already computed by the caller.
-    /// Used by first-boot bootstrap (operator supplies the plaintext via
-    /// `OX_AUTH__BOOTSTRAP_KEY`) — the operator must already know the
-    /// plaintext so the server cannot return a generated one.
-    async fn insert_api_key(
+    /// Create an API key whose hash is already computed by the caller.
+    /// First-boot bootstrap path: the operator supplies the plaintext
+    /// via `OX_AUTH__BOOTSTRAP_KEY`, so the server persists only the
+    /// hash and never sees the plaintext after install.
+    async fn create_api_key_with_hash(
         &self,
         label: &str,
         workspace_id: Option<Uuid>,

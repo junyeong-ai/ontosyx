@@ -328,7 +328,7 @@ async fn main() -> anyhow::Result<()> {
                     Ok(keys) if keys.is_empty() => {
                         let hash = ox_store::secret_token::secret_hash_sha256(plaintext.as_bytes());
                         if let Err(e) = store
-                            .insert_api_key(
+                            .create_api_key_with_hash(
                                 "bootstrap",
                                 None,
                                 "system:bootstrap",

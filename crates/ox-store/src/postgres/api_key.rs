@@ -18,12 +18,12 @@ impl crate::store::ApiKeyStore for PostgresStore {
         let plaintext = crate::secret_token::generate_hex(32);
         let key_hash = crate::secret_token::secret_hash_sha256(plaintext.as_bytes());
         let row = self
-            .insert_api_key(label, workspace_id, created_by, &key_hash, role)
+            .create_api_key_with_hash(label, workspace_id, created_by, &key_hash, role)
             .await?;
         Ok((row, plaintext))
     }
 
-    async fn insert_api_key(
+    async fn create_api_key_with_hash(
         &self,
         label: &str,
         workspace_id: Option<Uuid>,
