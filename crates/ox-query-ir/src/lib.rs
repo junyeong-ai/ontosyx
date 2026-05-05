@@ -11,6 +11,7 @@
 
 pub mod bindings;
 pub mod eval;
+pub mod hybrid_retrieval;
 pub mod insight;
 pub mod ontology_conformance;
 pub mod pattern;
