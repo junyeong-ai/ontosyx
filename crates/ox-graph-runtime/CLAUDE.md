@@ -47,6 +47,63 @@ disambiguating the same bare identifier twice.
 
 `enrichment.rs` post-processes query results: resolves node labels, adds display names, formats temporal values. Applied after execution, before returning to the agent.
 
+## OntologyValidator covers every read/write surface
+
+`OntologyValidator` is the platform's defence against
+LLM-hallucinated identifiers. It walks every surface where a
+typo would silently land — Cypher's schema-less driver writes
+unknown properties on SET / leaves WHERE on a typo as zero rows
+— and rejects the query pre-execute with a structured diagnostic.
+
+Coverage:
+
+- **Patterns** — node label / inline property
+  (`(p:Person {emial: 'x'})`), relationship type / inline property
+  (`[r:WORKS_AT {sicne: 2020}]`).
+- **Writes** — SET / REMOVE on node *and* relationship variables
+  (`SET u.emial = 'x'`, `SET r.sicne = 2020`). MERGE's
+  `ON CREATE SET` / `ON MATCH SET` slip out as free-standing
+  Set clauses (the parser doesn't fold ON into MERGE), so the
+  same SET walk catches them — pinned by regression tests.
+- **Reads** — WHERE / RETURN / WITH / ORDER BY token-level
+  `<id>.<id>` triples. Conservative on purpose: locally-bound
+  variables (list comprehension `[x IN coll | x.y]`, EXISTS
+  subquery, WITH-introduced) silently skip — false-positive
+  avoidance over false-negative coverage.
+- **Noise suppression** — when every label / type on an element
+  is unknown the property walk is skipped; the unknown_label /
+  unknown_type diagnostic already names the real fix-site, and
+  a follow-up "property X not defined on Userr" only crowds the
+  LLM-retry prompt.
+
+Variable resolution is shared. `CypherStatement::variable_labels()`
+(node) + `variable_relationship_types()` (edge) walk the
+pattern-bearing clauses once per parse, and both the SHACL
+validator and the ontology validator consume the same maps —
+adding a new check that needs to know "what type is `r` bound
+to?" never re-implements the walk.
+
+## Diagnostic shape — `subject_kind` + `subject_name`
+
+Every property-typo diagnostic emits two stable params:
+
+- `subject_kind` ∈ {`"node"`, `"relationship"`} — the surface
+  the typo lives on. The FE i18n catalog dispatches on this
+  via ICU `select` so `subject_name` reads as either `라벨
+  ‘Foo’` or `관계 타입 ‘BAR’` in Korean without the BE having
+  to interpolate either fragment.
+- `subject_name` — the offending label list (`"Person"` /
+  `"Person/Customer"`) or type list (`"WORKS_AT"` /
+  `"KNOWS|WORKS_AT"`).
+
+`unknown_read_property` carries an extra `clause` param
+(`"WHERE"` / `"RETURN"` / `"WITH"` / `"ORDER BY"`) so the
+catalog can name the surface. Don't introduce a fresh
+`unknown_..._on_node` / `unknown_..._on_relationship` pair when
+the existing code already exists — the ICU select keeps both
+arms in one entry, and the `feedback_set_remove_ontology_check`
+memory documents the contract.
+
 ## Adding a New Graph Backend
 
 1. Implement `GraphRuntime` trait (schema DDL, query execution, load, sandbox, health).
