@@ -2915,7 +2915,18 @@
       "description": "RAGAS 스타일 메트릭 루프 — 실행/케이스/루브릭 축별로 모델 품질을 측정합니다.",
       "adminOnly": "관리자 권한이 필요합니다",
       "emptyTitle": "평가 실행이 없습니다",
-      "emptyDescription": "POST /api/evaluation/runs 로 실행을 생성해 모델 품질 측정을 시작하세요.",
+      "emptyDescription": "첫 실행을 생성해 모델 품질 측정을 시작하세요.",
+      "create": {
+        "title": "새 평가 실행",
+        "nameLabel": "이름",
+        "namePlaceholder": "rag-baseline-v1",
+        "descriptionLabel": "설명",
+        "descriptionPlaceholder": "v1 데이터셋으로 RAG 검색 비교",
+        "submit": "생성",
+        "submitting": "생성 중…",
+        "successToast": "실행 `{name}` 생성 완료",
+        "errorToast": "생성 실패: {error}"
+      },
       "table": {
         "name": "실행",
         "status": "상태",

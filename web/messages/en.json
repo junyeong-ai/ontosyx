@@ -2915,7 +2915,18 @@
       "description": "RAGAS-style metric loop — measure model quality across runs, cases, and rubric axes.",
       "adminOnly": "Admin role required",
       "emptyTitle": "No evaluation runs yet",
-      "emptyDescription": "Create a run via POST /api/evaluation/runs to start measuring model quality.",
+      "emptyDescription": "Create your first run to start measuring model quality.",
+      "create": {
+        "title": "New evaluation run",
+        "nameLabel": "Name",
+        "namePlaceholder": "rag-baseline-v1",
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "Compare RAG retrieval against the v1 dataset",
+        "submit": "Create",
+        "submitting": "Creating…",
+        "successToast": "Run `{name}` created",
+        "errorToast": "Create failed: {error}"
+      },
       "table": {
         "name": "Run",
         "status": "Status",

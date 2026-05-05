@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  createEvaluationRun,
+  deleteEvaluationRun,
   executeEvaluationCase,
   getEvaluationRun,
   listEvaluationCases,
@@ -11,6 +13,7 @@ import {
   type ListEvaluationRunsParams,
 } from "@/lib/api/evaluation";
 import type {
+  CreateEvaluationRunRequest,
   EvaluationCase,
   EvaluationMetric,
   EvaluationRun,
@@ -77,6 +80,30 @@ export function useEvaluationCases(runId: string | null | undefined) {
     },
     enabled: !!runId,
     staleTime: 30_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Mutations
+// ---------------------------------------------------------------------------
+
+export function useCreateEvaluationRun() {
+  const qc = useQueryClient();
+  return useMutation<EvaluationRun, Error, CreateEvaluationRunRequest>({
+    mutationFn: (req) => createEvaluationRun(req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: evaluationKeys.runs() });
+    },
+  });
+}
+
+export function useDeleteEvaluationRun() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (id) => deleteEvaluationRun(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: evaluationKeys.runs() });
+    },
   });
 }
 

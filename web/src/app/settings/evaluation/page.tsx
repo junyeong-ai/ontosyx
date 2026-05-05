@@ -2,15 +2,22 @@
 
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { useState } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
-import { useEvaluationRuns } from "@/hooks/api/use-evaluation";
+import {
+  useCreateEvaluationRun,
+  useEvaluationRuns,
+} from "@/hooks/api/use-evaluation";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
+import { SettingsInput } from "@/components/ui/form-input";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import type { EvaluationRunStatus } from "@/types/evaluation";
 
@@ -78,6 +85,33 @@ export default function EvaluationPage() {
   const tCommon = useTranslations("common");
   const { isAdmin } = useAuth();
   const query = useEvaluationRuns();
+  const create = useCreateEvaluationRun();
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const canCreate = name.trim().length > 0 && !create.isPending;
+  const onCreate = () => {
+    const trimmedName = name.trim();
+    create.mutate(
+      {
+        name: trimmedName,
+        description: description.trim(),
+      },
+      {
+        onSuccess: () => {
+          toast.success(t("create.successToast", { name: trimmedName }));
+          setName("");
+          setDescription("");
+        },
+        onError: (err) => {
+          toast.error(
+            t("create.errorToast", {
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+        },
+      },
+    );
+  };
 
   if (!isAdmin) {
     return (
@@ -97,6 +131,33 @@ export default function EvaluationPage() {
 
   return (
     <SettingsPageShell title={t("title")} subtitle={t("description")}>
+      <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">
+        <Heading level={2} size={5}>
+          {t("create.title")}
+        </Heading>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_2fr_auto] md:items-end">
+          <SettingsInput
+            label={t("create.nameLabel")}
+            placeholder={t("create.namePlaceholder")}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <SettingsInput
+            label={t("create.descriptionLabel")}
+            placeholder={t("create.descriptionPlaceholder")}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <Button
+            type="button"
+            onClick={onCreate}
+            disabled={!canCreate}
+            loading={create.isPending}
+          >
+            {create.isPending ? t("create.submitting") : t("create.submit")}
+          </Button>
+        </div>
+      </section>
       <PageStateView
         state={pageState}
         skeleton={<SkeletonList count={4} />}
