@@ -8,6 +8,7 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 import {
+  bulkReviewKnowledge,
   createKnowledge,
   deleteKnowledge,
   knowledgeStats,
@@ -147,6 +148,36 @@ export function useUpdateKnowledgeStatus(filters?: KnowledgeListFilters) {
       return {
         ...prev,
         items: prev.items.map((e) => (e.id === id ? { ...e, status } : e)),
+      };
+    },
+  });
+}
+
+/**
+ * Bulk-review a batch of entries (steward workflow — "approve
+ * everything in this filter view" / "deprecate every stale row").
+ * The optimistic transform flips status on every selected id at
+ * once; rollback restores the per-key snapshot atomically.
+ *
+ * The BE `POST /api/knowledge/bulk-review` accepts up to 100 ids
+ * per call (the gate fires the typed `bulk_limit_exceeded` code),
+ * so the FE caps the batch before issuing the request — splitting
+ * into multiple calls is the caller's responsibility.
+ */
+export function useBulkReviewKnowledge(filters?: KnowledgeListFilters) {
+  type Vars = { ids: string[]; status: KnowledgeStatus; reviewNotes?: string };
+  return useOptimisticMutation<Vars, { reviewed: number }>({
+    mutationFn: ({ ids, status, reviewNotes }) =>
+      bulkReviewKnowledge(ids, status, reviewNotes),
+    queryKeys: [knowledgeKeys.list(filters), knowledgeKeys.stats()],
+    optimisticUpdate: (prev, { ids, status }) => {
+      if (!isKnowledgePage(prev)) return prev;
+      const idSet = new Set(ids);
+      return {
+        ...prev,
+        items: prev.items.map((e) =>
+          idSet.has(e.id) ? { ...e, status } : e,
+        ),
       };
     },
   });

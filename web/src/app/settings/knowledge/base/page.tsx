@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/components/ui/toast";
 import { ArrowDown01Icon, Book01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -16,12 +15,11 @@ import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import type { KnowledgeEntry, KnowledgeStatus } from "@/types/api";
-import { bulkReviewKnowledge } from "@/lib/api/knowledge";
 import { useAuth } from "@/hooks/use-auth";
 import { useFormatters } from "@/hooks/use-formatters";
 import { cn } from "@/lib/cn";
 import {
-  knowledgeKeys,
+  useBulkReviewKnowledge,
   useDeleteKnowledge,
   useKnowledgeInfinite,
   useUpdateKnowledgeStatus,
@@ -59,7 +57,6 @@ export default function KnowledgePage() {
   const [kindFilter, setKindFilter] = useState("");
   const { isAdmin } = useAuth();
   const confirm = useConfirm();
-  const qc = useQueryClient();
 
   const filters = {
     status: statusFilter || undefined,
@@ -81,6 +78,7 @@ export default function KnowledgePage() {
 
   const updateStatus = useUpdateKnowledgeStatus(filters);
   const deleteEntry = useDeleteKnowledge(filters);
+  const bulkReview = useBulkReviewKnowledge(filters);
 
   const statusLabel = (s: string) => (isKnownStatus(s) ? t(`status.${s}`) : s);
 
@@ -126,17 +124,18 @@ export default function KnowledgePage() {
     <Button
       variant="primary"
       size="sm"
-      onClick={async () => {
+      onClick={() => {
         const ids = entries
           .filter((e) => e.status === "stale")
           .map((e) => e.id);
-        try {
-          await bulkReviewKnowledge(ids, "deprecated");
-          toast.success(t("toast.bulkDeprecated", { count: ids.length }));
-          qc.invalidateQueries({ queryKey: knowledgeKeys.lists() });
-        } catch {
-          toast.error(t("toast.bulkFailed"));
-        }
+        bulkReview.mutate(
+          { ids, status: "deprecated" as KnowledgeStatus },
+          {
+            onSuccess: ({ reviewed }) =>
+              toast.success(t("toast.bulkDeprecated", { count: reviewed })),
+            onError: () => toast.error(t("toast.bulkFailed")),
+          },
+        );
       }}
     >
       {t("reviewStale", { count: staleCount })}
