@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { WidgetRenderer, viableTypes } from "./widget-renderer";
 import { Tooltip } from "@/components/ui/tooltip";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { BarChart, Hash, Layers, LineChart, PieChart, Share2, Table } from "lucide-react";
 interface WidgetWithToolbarProps {
@@ -15,7 +15,7 @@ interface WidgetWithToolbarProps {
   data: QueryResult;
 }
 
-const WIDGET_OPTIONS: readonly { type: string; icon: IconSvgElement; labelKey: string }[] = [
+const WIDGET_OPTIONS: readonly { type: string; icon: LucideIcon; labelKey: string }[] = [
   { type: "table", icon: Table, labelKey: "table" },
   { type: "graph", icon: Share2, labelKey: "graph" },
   { type: "bar_chart", icon: BarChart, labelKey: "barChart" },

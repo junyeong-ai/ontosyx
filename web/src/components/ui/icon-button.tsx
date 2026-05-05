@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Tooltip } from "./tooltip";
 import { Button } from "./button";
 import { cn } from "@/lib/cn";
@@ -18,7 +18,7 @@ interface IconButtonProps {
   label: string;
   onClick: () => void;
   /** Either pass a Hugeicons icon, or arbitrary children for inline SVGs. */
-  icon?: IconSvgElement;
+  icon?: LucideIcon;
   children?: ReactNode;
   /**
    * `neutral` (default) — muted on rest, surface-inset on hover.

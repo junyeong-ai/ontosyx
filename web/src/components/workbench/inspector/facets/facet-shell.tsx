@@ -18,7 +18,7 @@
 // switch is complete.
 
 import type { ReactNode } from "react";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { ErrorState } from "@/components/ui/error-state";
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { SkeletonText } from "@/components/ui/skeleton";
@@ -34,7 +34,7 @@ export type FacetState =
     }
   | {
       kind: "empty";
-      icon?: IconSvgElement;
+      icon?: LucideIcon;
       title: string;
       description?: string;
     }

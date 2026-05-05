@@ -1,6 +1,6 @@
 import { AlertCircle, Search } from "lucide-react";
 import { BarChart3, Clock, Lock, Sparkles } from "lucide-react";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "./button";
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
@@ -46,7 +46,7 @@ interface EmptyStateProps {
    * supply a custom icon only when the surface has a domain-strong
    * icon (e.g. graph-shaped no-data on the Lineage tab).
    */
-  icon?: IconSvgElement;
+  icon?: LucideIcon;
   title: string;
   description?: string;
   hint?: string;
@@ -65,7 +65,7 @@ interface EmptyStateProps {
   className?: string;
 }
 
-const KIND_DEFAULT_ICON: Record<EmptyStateKind, IconSvgElement> = {
+const KIND_DEFAULT_ICON: Record<EmptyStateKind, LucideIcon> = {
   "no-data": BarChart3,
   "no-results": Search,
   "no-permission": Lock,

@@ -1,4 +1,4 @@
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Building, Cpu, Database, FlaskConical, ShieldCheck } from "lucide-react";
 export interface NavItem {
   labelKey: string;
@@ -9,7 +9,7 @@ export interface NavItem {
 
 export interface NavGroup {
   titleKey: string;
-  icon: IconSvgElement;
+  icon: LucideIcon;
   /**
    * When set, the group label itself is a navigation link (Linear-style
    * single-page group). The `items` array stays for future growth, and

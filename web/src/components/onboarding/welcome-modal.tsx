@@ -4,7 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { Dialog } from "@base-ui/react/dialog";
 import { AnimatePresence, motion } from "motion/react";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { BarChart3, Database } from "lucide-react";
 import { Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ function storageKey(workspaceId: string): string {
 
 interface OnboardingStep {
   key: string;
-  icon: IconSvgElement;
+  icon: LucideIcon;
 }
 
 const STEPS: readonly OnboardingStep[] = [

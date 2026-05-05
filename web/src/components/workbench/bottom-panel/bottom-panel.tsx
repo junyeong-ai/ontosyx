@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { motion, AnimatePresence } from "motion/react";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { ArrowDown, ArrowUp, MessageCircle, Wand2 } from "lucide-react";
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { ListChecks, Maximize2, Minimize2 } from "lucide-react";
@@ -33,7 +33,7 @@ function QualityTab() {
   );
 }
 
-const TAB_DEFS: { id: DesignBottomTab; icon: IconSvgElement }[] = [
+const TAB_DEFS: { id: DesignBottomTab; icon: LucideIcon }[] = [
   { id: "chat", icon: MessageCircle },
   { id: "workflow", icon: Wand2 },
   { id: "quality", icon: ListChecks },

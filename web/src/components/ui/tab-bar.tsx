@@ -3,14 +3,14 @@
 import { useId } from "react";
 import { Tabs } from "@base-ui/react/tabs";
 import { motion } from "motion/react";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 interface TabBarTab {
   id: string;
   label: string;
-  icon?: IconSvgElement;
+  icon?: LucideIcon;
   badge?: number;
 }
 

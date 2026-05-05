@@ -5,11 +5,11 @@ import { TabBar } from "@/components/ui/tab-bar";
 import { FadeIn } from "@/components/motion/fade-in";
 import { cn } from "@/lib/cn";
 import { isInteractive, type PageState } from "@/components/layout/page-state";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 export interface WorkbenchTab<TId extends string = string> {
   id: TId;
   label: string;
-  icon?: IconSvgElement;
+  icon?: LucideIcon;
   badge?: number;
 }
 

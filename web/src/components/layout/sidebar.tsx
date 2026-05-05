@@ -16,7 +16,7 @@ import {
   type WorkbenchMode,
 } from "@/lib/workbench-modes";
 import { shortcutForRoute } from "@/lib/navigation-shortcuts";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Settings2 } from "lucide-react";
 import { FolderOpen, Layers, Network } from "lucide-react";
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
@@ -83,7 +83,7 @@ function PanelToggle({
 }: {
   active: boolean;
   label: string;
-  icon: IconSvgElement;
+  icon: LucideIcon;
   onClick: () => void;
   expanded: boolean;
 }) {

@@ -1,13 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import type { PageState } from "./page-state";
 
 interface EmptyContent {
-  icon?: IconSvgElement;
+  icon?: LucideIcon;
   title: string;
   description?: string;
   hint?: string;
@@ -16,7 +16,7 @@ interface EmptyContent {
 }
 
 interface FilteredEmptyContent {
-  icon?: IconSvgElement;
+  icon?: LucideIcon;
   title: string;
   description?: string;
   /** Reset-filters CTA label. The shell wires `onClick` from the page state. */

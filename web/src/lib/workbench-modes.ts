@@ -19,7 +19,7 @@
 // chrome footer and follows its own sub-navigation tree.
 
 import { Book, GitBranch, GitFork, LayoutDashboard, LineChart, Link, List, MessageCircle, Search, Wand2 } from "lucide-react";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   shortcutForRoute,
   type NavigationRoute,
@@ -34,7 +34,7 @@ export interface WorkbenchMode {
   /** Sidebar label key (resolved through the `chrome.sidebar` namespace). */
   labelKey: string;
   /** Sidebar icon glyph. */
-  icon: IconSvgElement;
+  icon: LucideIcon;
   /** Top-level URL — drives the sidebar Link target and
    *  `useWorkspaceMode` URL match. */
   href: string;
@@ -68,7 +68,7 @@ export interface WorkbenchMode {
 function defaultMode(
   id: NavigationRoute & WorkspaceMode,
   labelKey: string,
-  icon: IconSvgElement,
+  icon: LucideIcon,
   options: { hasPanelToggles?: boolean; requiresCanonical?: boolean } = {},
 ): WorkbenchMode {
   const shortcut = shortcutForRoute(id);

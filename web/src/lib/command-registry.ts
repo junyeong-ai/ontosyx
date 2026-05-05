@@ -16,7 +16,7 @@
 // in any environment.
 
 import type { useRouter } from "next/navigation";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { AppStore } from "@/lib/store";
 import { PluginRegistry, type PluginItem } from "@/lib/plugins/registry";
 
@@ -48,7 +48,7 @@ export interface Command {
    */
   shortcut?: { mac: string; other: string };
   /** Optional leading icon. */
-  icon?: IconSvgElement;
+  icon?: LucideIcon;
   /**
    * Optional subtitle / hint shown below the label. Use sparingly —
    * dense palettes are easier to scan.

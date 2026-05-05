@@ -36,7 +36,7 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 import { Switch as BaseSwitch } from "@base-ui/react/switch";
-import type { LucideIcon as IconSvgElement } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Eye, EyeOff } from "lucide-react";
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { cn } from "@/lib/cn";
@@ -121,7 +121,7 @@ interface SearchInputProps extends InputHTMLAttributes<HTMLInputElement> {
    * match `density`; the control sets the cap-height so the caller
    * doesn't need to thread `h-3 w-3` / `h-3.5 w-3.5` per surface.
    */
-  leadingIcon: IconSvgElement;
+  leadingIcon: LucideIcon;
   density?: FormDensity;
   error?: boolean;
   /**
