@@ -17,7 +17,7 @@ interface IconButtonProps {
    */
   label: string;
   onClick: () => void;
-  /** Either pass a Hugeicons icon, or arbitrary children for inline SVGs. */
+  /** Either pass a Lucide icon component, or arbitrary children for inline SVGs. */
   icon?: LucideIcon;
   children?: ReactNode;
   /**

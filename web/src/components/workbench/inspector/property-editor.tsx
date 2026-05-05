@@ -250,7 +250,8 @@ export function PropertyRow({
           onSave={(description) =>
             onUpdate({ description: { default: description } })
           }
-          className="mt-0.5 break-words text-foreground-muted"
+          className="mt-0.5 text-foreground-muted"
+          multiline
         />
         {prop.source_column && (
           <p className="text-foreground-muted">{t("sourceColumn", { column: prop.source_column })}</p>

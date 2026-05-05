@@ -5,9 +5,16 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { Check, Pencil, X } from "lucide-react";
+
 // ---------------------------------------------------------------------------
-// Inline editable field
+// Inline editable field — click-to-edit text with FormInput / FormTextarea
 // ---------------------------------------------------------------------------
+//
+// `multiline` switches the read-mode wrap behaviour and the edit-mode
+// control. The default `allowEmpty = multiline` reflects the
+// real-world split: a label / name (single-line) is rejected when
+// blank; a description (multiline) can legitimately be cleared.
+// Callers may override `allowEmpty` for unusual contracts.
 
 export function InlineEdit({
   value,
@@ -16,42 +23,42 @@ export function InlineEdit({
   className,
   inputClassName,
   multiline = false,
+  allowEmpty,
 }: {
   value: string;
   placeholder?: string;
   onSave: (v: string) => void;
   className?: string;
   inputClassName?: string;
-  /**
-   * Long-form text. Read-mode wraps instead of truncating; edit-mode
-   * renders a `<textarea>` and binds Cmd/Ctrl+Enter to commit (plain
-   * Enter inserts a newline). Single-line mode keeps Enter = commit.
-   */
   multiline?: boolean;
+  allowEmpty?: boolean;
 }) {
   const t = useTranslations("inspector.aria");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const acceptEmpty = allowEmpty ?? multiline;
 
-  // Multiline edit-mode entry — focus the textarea and place the
-  // caret at end-of-text. We can't use the bare `autoFocus` prop
-  // because biome's a11y rule (noAutofocus) flags it; the rule
-  // exists to stop autofocus on initial page load, but a button-
-  // gated edit transition is the legitimate exception this hook
-  // covers.
   useEffect(() => {
-    if (!editing || !textareaRef.current) return;
-    const ta = textareaRef.current;
-    ta.focus();
-    ta.setSelectionRange(ta.value.length, ta.value.length);
-  }, [editing]);
+    if (!editing) return;
+    const el = (multiline ? textareaRef : inputRef).current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [editing, multiline]);
 
   const commit = () => {
     const trimmed = draft.trim();
-    if (trimmed !== value) {
-      onSave(trimmed);
+    if (trimmed === value) {
+      setEditing(false);
+      return;
     }
+    if (!trimmed && !acceptEmpty) {
+      cancel();
+      return;
+    }
+    onSave(trimmed);
     setEditing(false);
   };
 
@@ -83,7 +90,7 @@ export function InlineEdit({
           />
         ) : (
           <FormInput
-            autoFocus
+            ref={inputRef}
             density="compact"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -99,7 +106,7 @@ export function InlineEdit({
           onClick={commit}
           aria-label={t("commitInline")}
           className={cn(
-            "text-brand-foreground hover:text-brand-foreground-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 rounded",
+            "rounded text-brand-foreground hover:text-brand-foreground-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40",
             multiline && "mt-1",
           )}
         >
@@ -109,7 +116,7 @@ export function InlineEdit({
           onClick={cancel}
           aria-label={t("cancelInline")}
           className={cn(
-            "text-foreground-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 rounded",
+            "rounded text-foreground-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40",
             multiline && "mt-1",
           )}
         >
