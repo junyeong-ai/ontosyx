@@ -49,7 +49,7 @@ export async function listRevisions(
   projectId: string,
 ): Promise<RevisionSummary[]> {
   return request(
-    `/projects/${encodeURIComponent(projectId)}/revisions`,
+    `/ontology-drafts/${encodeURIComponent(projectId)}/revisions`,
   );
 }
 
@@ -58,7 +58,7 @@ export async function restoreRevision(
   revision: number,
 ): Promise<RestoreProjectRevisionResponse> {
   return request(
-    `/projects/${encodeURIComponent(projectId)}/revisions/${revision}/restore`,
+    `/ontology-drafts/${encodeURIComponent(projectId)}/revisions/${revision}/restore`,
     { method: "POST" },
   );
 }
@@ -73,6 +73,6 @@ export async function getRevisionDiff(
   rev2: number,
 ): Promise<OntologyDiff> {
   return request(
-    `/projects/${encodeURIComponent(projectId)}/revisions/${rev1}/diff/${rev2}`,
+    `/ontology-drafts/${encodeURIComponent(projectId)}/revisions/${rev1}/diff/${rev2}`,
   );
 }

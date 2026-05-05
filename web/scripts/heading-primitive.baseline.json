@@ -372,7 +372,7 @@
     "className": "text-xs font-semibold uppercase tracking-wider text-foreground-muted"
   },
   {
-    "file": "src/components/workbench/bottom-panel/recent-projects.tsx",
+    "file": "src/components/workbench/bottom-panel/recent-ontology-drafts.tsx",
     "line": 70,
     "level": "3",
     "className": "text-xs font-semibold uppercase tracking-wider text-foreground-muted"

@@ -10,14 +10,14 @@ import {
   PencilEdit01Icon,
 } from "@hugeicons/core-free-icons";
 
-import { useProjects } from "@/hooks/api/use-projects";
+import { useOntologyDrafts } from "@/hooks/api/use-ontology-drafts";
 import { useAppStore } from "@/lib/store";
-import { getProject } from "@/lib/api";
+import { getOntologyDraft } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
 import type {
-  DesignProjectSummary,
-  DesignProjectStatus,
+  OntologyDraftSummary,
+  OntologyDraftStatus,
 } from "@/types/api";
 
 /**
@@ -30,7 +30,7 @@ import type {
  * empty state of the workspace stays focused on "create your first
  * project."
  *
- * Click → fetches the full `DesignProject` and pushes it into the
+ * Click → fetches the full `OntologyDraft` and pushes it into the
  * Zustand store (active project + ontology), which causes
  * `DesignPanel` to swap its view from the create form to the
  * project workflow without a page navigation.
@@ -39,7 +39,7 @@ const MAX_DISPLAY = 5;
 
 export function RecentProjects() {
   const t = useTranslations("workbench.bottomPanel.recentProjects");
-  const { data, isLoading } = useProjects({ limit: MAX_DISPLAY });
+  const { data, isLoading } = useOntologyDrafts({ limit: MAX_DISPLAY });
   const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
 
   const items = data?.items ?? [];
@@ -55,7 +55,7 @@ export function RecentProjects() {
   }
 
   const onResume = async (id: string) => {
-    const project = await getProject(id);
+    const project = await getOntologyDraft(id);
     applyProjectSnapshot(project);
   };
 
@@ -116,13 +116,13 @@ export function RecentProjects() {
   );
 }
 
-const STATUS_VISUAL: Record<DesignProjectStatus, { icon: typeof ChartUpIcon; tone: "warning" | "success" | "info" }> = {
+const STATUS_VISUAL: Record<OntologyDraftStatus, { icon: typeof ChartUpIcon; tone: "warning" | "success" | "info" }> = {
   analyzed:  { icon: ChartUpIcon,            tone: "warning" },
   designed:  { icon: PencilEdit01Icon,       tone: "success" },
   completed: { icon: CheckmarkCircle02Icon,  tone: "info" },
 };
 
-function ProjectStatusIcon({ status }: { status: DesignProjectStatus }) {
+function ProjectStatusIcon({ status }: { status: OntologyDraftStatus }) {
   const t = useTranslations("workbench.bottomPanel.recentProjects.status");
   const { icon, tone } = STATUS_VISUAL[status];
   const toneClass =
@@ -161,8 +161,8 @@ function relativeTime(
   return t("relativeDays", { count: days });
 }
 
-/** A `<DesignProjectSummary>` with at least the fields RecentProjects reads. */
+/** A `<OntologyDraftSummary>` with at least the fields RecentProjects reads. */
 export type RecentProjectSummary = Pick<
-  DesignProjectSummary,
+  OntologyDraftSummary,
   "id" | "status" | "title" | "source_config" | "updated_at"
 >;

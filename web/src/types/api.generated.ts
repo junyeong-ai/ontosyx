@@ -1265,7 +1265,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects": {
+    "/api/ontology-drafts": {
         parameters: {
             query?: never;
             header?: never;
@@ -1281,7 +1281,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/source-preview": {
+    "/api/ontology-drafts/source-preview": {
         parameters: {
             query?: never;
             header?: never;
@@ -1297,7 +1297,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}": {
+    "/api/ontology-drafts/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1313,7 +1313,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/apply-reconcile": {
+    "/api/ontology-drafts/{id}/apply-reconcile": {
         parameters: {
             query?: never;
             header?: never;
@@ -1329,7 +1329,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/complete": {
+    "/api/ontology-drafts/{id}/complete": {
         parameters: {
             query?: never;
             header?: never;
@@ -1345,7 +1345,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/decisions": {
+    "/api/ontology-drafts/{id}/decisions": {
         parameters: {
             query?: never;
             header?: never;
@@ -1361,7 +1361,7 @@ export interface paths {
         patch: operations["update_decisions"];
         trace?: never;
     };
-    "/api/projects/{id}/design": {
+    "/api/ontology-drafts/{id}/design": {
         parameters: {
             query?: never;
             header?: never;
@@ -1370,14 +1370,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["design_project"];
+        post: operations["ontology_draft"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/design/stream": {
+    "/api/ontology-drafts/{id}/design/stream": {
         parameters: {
             query?: never;
             header?: never;
@@ -1386,14 +1386,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["design_project_stream"];
+        post: operations["design_ontology_draft_stream"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/edit": {
+    "/api/ontology-drafts/{id}/edit": {
         parameters: {
             query?: never;
             header?: never;
@@ -1409,7 +1409,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/extend": {
+    "/api/ontology-drafts/{id}/extend": {
         parameters: {
             query?: never;
             header?: never;
@@ -1425,7 +1425,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/ontology": {
+    "/api/ontology-drafts/{id}/ontology": {
         parameters: {
             query?: never;
             header?: never;
@@ -1441,7 +1441,7 @@ export interface paths {
         patch: operations["apply_ontology_commands"];
         trace?: never;
     };
-    "/api/projects/{id}/reanalyze": {
+    "/api/ontology-drafts/{id}/reanalyze": {
         parameters: {
             query?: never;
             header?: never;
@@ -1457,7 +1457,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/reanalyze-modeled": {
+    "/api/ontology-drafts/{id}/reanalyze-modeled": {
         parameters: {
             query?: never;
             header?: never;
@@ -1473,7 +1473,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/refine": {
+    "/api/ontology-drafts/{id}/refine": {
         parameters: {
             query?: never;
             header?: never;
@@ -1489,7 +1489,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/refine/stream": {
+    "/api/ontology-drafts/{id}/refine/stream": {
         parameters: {
             query?: never;
             header?: never;
@@ -1505,7 +1505,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/revisions": {
+    "/api/ontology-drafts/{id}/revisions": {
         parameters: {
             query?: never;
             header?: never;
@@ -1521,7 +1521,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/revisions/{rev}": {
+    "/api/ontology-drafts/{id}/revisions/{rev}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1537,7 +1537,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/revisions/{rev}/restore": {
+    "/api/ontology-drafts/{id}/revisions/{rev}/restore": {
         parameters: {
             query?: never;
             header?: never;
@@ -1553,7 +1553,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/scope/defer": {
+    "/api/ontology-drafts/{id}/scope/defer": {
         parameters: {
             query?: never;
             header?: never;
@@ -1574,7 +1574,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{id}/scope/include": {
+    "/api/ontology-drafts/{id}/scope/include": {
         parameters: {
             query?: never;
             header?: never;
@@ -3877,7 +3877,7 @@ export interface components {
             status: components["schemas"]["GateStatus"];
         };
         /** @description Design project — ontology design lifecycle. */
-        DesignProject: {
+        OntologyDraft: {
             analysis_report?: unknown;
             /** Format: date-time */
             analyzed_at?: string | null;
@@ -3908,17 +3908,17 @@ export interface components {
             updated_at: string;
             user_id: string;
         };
-        DesignProjectRequest: {
+        DesignOntologyDraftRequest: {
             /** @description Domain hints for the LLM. */
             context?: string;
             /** Format: int32 */
             revision: number;
         };
-        DesignProjectResponse: {
+        DesignOntologyDraftResponse: {
             project: Record<string, never>;
         };
         /** @description Design project summary (lightweight, for list endpoints). */
-        DesignProjectSummary: {
+        OntologyDraftSummary: {
             /** Format: date-time */
             analyzed_at?: string | null;
             /** Format: date-time */
@@ -5714,7 +5714,7 @@ export interface components {
         };
         /**
          * @description Wire shape for any endpoint that returns a project. Carries the
-         *     underlying [`DesignProject`] flattened (so existing fields stay
+         *     underlying [`OntologyDraft`] flattened (so existing fields stay
          *     at the top level) plus the server-evaluated [`Vec<DesignGate>`]
          *     the FE renders alongside the disabled-design-button checklist.
          *
@@ -5722,7 +5722,7 @@ export interface components {
          *     gate-evaluation rules and guarantees the rendering matches what
          *     the design endpoint will accept.
          */
-        ProjectView: components["schemas"]["DesignProject"] & {
+        ProjectView: components["schemas"]["OntologyDraft"] & {
             /**
              * @description Status of the persisted `analysis_report` blob against the
              *     current wire shape. The FE renders a soft banner when
@@ -11584,7 +11584,7 @@ export interface operations {
             };
         };
     };
-    design_project: {
+    ontology_draft: {
         parameters: {
             query?: never;
             header?: never;
@@ -11596,7 +11596,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DesignProjectRequest"];
+                "application/json": components["schemas"]["DesignOntologyDraftRequest"];
             };
         };
         responses: {
@@ -11606,7 +11606,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DesignProjectResponse"];
+                    "application/json": components["schemas"]["DesignOntologyDraftResponse"];
                 };
             };
             /** @description Invalid input or large schema gate */
@@ -11644,7 +11644,7 @@ export interface operations {
             };
         };
     };
-    design_project_stream: {
+    design_ontology_draft_stream: {
         parameters: {
             query?: never;
             header?: never;
@@ -11656,7 +11656,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DesignProjectRequest"];
+                "application/json": components["schemas"]["DesignOntologyDraftRequest"];
             };
         };
         responses: {

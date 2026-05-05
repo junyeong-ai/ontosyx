@@ -5,7 +5,7 @@ type GapTranslator = (key: string, values?: Record<string, string | number>) => 
 
 /**
  * Convert a quality gap into a natural-language edit request
- * suitable for the `editProject` API endpoint.
+ * suitable for the `editOntologyDraft` API endpoint.
  *
  * Most categories produce a hand-tuned English instruction directly from
  * the structured fields (`gap.location` + `gap.category`), so the prompt

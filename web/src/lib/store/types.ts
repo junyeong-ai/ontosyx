@@ -2,7 +2,7 @@ import type {
   OntologyIR,
   OntologyCommand,
   OntologyDiff,
-  DesignProject,
+  OntologyDraft,
   ElementVerification,
   ResolvedQueryBindings,
   ReconcileReport,
@@ -171,7 +171,7 @@ export interface OntologySlice {
   undo: () => void;
   redo: () => void;
   clearCommandStack: () => void;
-  applyProjectSnapshot: (project: DesignProject | null) => void;
+  applyProjectSnapshot: (project: OntologyDraft | null) => void;
   loadStandaloneOntology: (ontology: OntologyIR) => void;
   nodeGroups: Record<string, NodeGroup>;
   restoreNodeGroups: (groups: Record<string, NodeGroup>) => void;
@@ -205,8 +205,8 @@ export interface ChatSlice {
 }
 
 export interface ProjectSlice {
-  activeProject: DesignProject | null;
-  setActiveProject: (project: DesignProject | null) => void;
+  activeProject: OntologyDraft | null;
+  setActiveProject: (project: OntologyDraft | null) => void;
   lastReconcileReport: ReconcileReport | null;
   setLastReconcileReport: (report: ReconcileReport | null) => void;
   pendingReconcile: PendingReconcile | null;

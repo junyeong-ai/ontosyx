@@ -21,8 +21,8 @@ import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import type { OntologyIR } from "@/types/api";
-import { getProject, createProject } from "@/lib/api";
-import { useProjects } from "@/hooks/api/use-projects";
+import { getOntologyDraft, createOntologyDraft } from "@/lib/api";
+import { useOntologyDrafts } from "@/hooks/api/use-ontology-drafts";
 import { useCreateDashboard, useDashboards } from "@/hooks/api/use-dashboards";
 import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 
@@ -74,7 +74,7 @@ function DesignSelector() {
 
   // Why: only fetch projects while the popover is open — `enabled` gates the
   // query so closed selectors don't consume bandwidth.
-  const { data, isFetching, isError } = useProjects(undefined, { enabled: open });
+  const { data, isFetching, isError } = useOntologyDrafts(undefined, { enabled: open });
   const projects = data?.items ?? [];
 
   useEffect(() => {
@@ -85,7 +85,7 @@ function DesignSelector() {
     if (!(await guardPendingEdits(t("guardSwitchProject")))) return;
     setOpen(false);
     try {
-      const project = await getProject(id);
+      const project = await getOntologyDraft(id);
       applyProjectSnapshot(project);
     } catch (err) {
       console.error("Failed to load project:", err);
@@ -151,7 +151,7 @@ function DesignSelector() {
                       if (!(await guardPendingEdits(t("guardForkProject")))) return;
                       setOpen(false);
                       try {
-                        const forked = await createProject({
+                        const forked = await createOntologyDraft({
                           origin_type: "base_ontology",
                           base_ontology_id: p.ontology_id!,
                           title: `${p.title || t("untitledProject")} (fork)`,

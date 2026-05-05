@@ -11,14 +11,14 @@ import { Button } from "@/components/ui/button";
 import { toAnalyzeSelection } from "@/components/workbench/source-import-panel";
 import { useAppStore } from "@/lib/store";
 import {
-  extendProject,
+  extendOntologyDraft,
   reanalyzeModeledProject,
-  reanalyzeProject,
+  reanalyzeOntologyDraft,
 } from "@/lib/api";
 import { isGitUrl } from "@/lib/git-url";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import { useFormWithSchema } from "@/hooks/use-form-with-schema";
-import type { DesignProject } from "@/types/api";
+import type { OntologyDraft } from "@/types/api";
 
 import { ReanalyzeForm, ExtendSourceForm } from "./workflow-forms";
 import { ReconcileReportPanel } from "./reconcile-report-panel";
@@ -35,14 +35,14 @@ import type { useWorkflowFormState } from "./use-workflow-form-state";
 type FormState = ReturnType<typeof useWorkflowFormState>;
 
 export interface EnhanceActionsProps {
-  project: DesignProject;
+  project: OntologyDraft;
   loading: boolean;
   setLoading: (v: boolean) => void;
   /**
    * Atomic project + ontology cache update — see
    * `OntologySlice.applyProjectSnapshot`.
    */
-  applyProjectSnapshot: (project: DesignProject | null) => void;
+  applyProjectSnapshot: (project: OntologyDraft | null) => void;
   onApiError: (err: unknown, label: string) => Promise<boolean>;
   onRedesign: () => Promise<void>;
   analysisRef: React.RefObject<HTMLDetailsElement | null>;
@@ -91,7 +91,7 @@ export function EnhanceActions({
       if (!(await guardPendingEdits(t("guardActions.extend")))) return;
       setLoading(true);
       try {
-        const resp = await extendProject(project.id, {
+        const resp = await extendOntologyDraft(project.id, {
           revision: project.revision,
           source: toDesignSource(validated),
           // Design-mode "Import Tables" always lowers `subset` to
@@ -148,7 +148,7 @@ export function EnhanceActions({
               revision: project.revision,
               repo_source,
             })
-          : await reanalyzeProject(project.id, {
+          : await reanalyzeOntologyDraft(project.id, {
               source,
               revision: project.revision,
               repo_source,

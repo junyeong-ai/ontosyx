@@ -12,7 +12,7 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { cn } from "@/lib/cn";
-import type { AnalysisWarning, WarningClass, WarningLevel } from "@/types/projects";
+import type { AnalysisWarning, WarningClass, WarningLevel } from "@/types/ontology-drafts";
 
 /**
  * Sentry / Datadog-style grouped warning view. Coalesces every

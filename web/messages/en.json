@@ -3882,8 +3882,8 @@
         "openWorkflow": "Open Workflow Panel",
         "startTitle": "Start Designing",
         "startHint": "Create a project from a data source or import an existing ontology to begin designing your knowledge graph.",
-        "createProject": "Create Project",
-        "createProjectHint": "Database, CSV, JSON, or code repo",
+        "createOntologyDraft": "Create Project",
+        "createOntologyDraftHint": "Database, CSV, JSON, or code repo",
         "or": "or",
         "importOntology": "Import Ontology",
         "importOntologyHint": "JSON, OWL, or Turtle file"
@@ -4147,7 +4147,7 @@
           "completed": "Completed"
         }
       },
-      "createProject": {
+      "createOntologyDraft": {
         "progress": {
           "heading": "{count, plural, =0 {Creating project...} other {Creating — analysing {count} table(s) ({elapsed}s)}}",
           "hintGeneric": "Schema analysis and column sampling are running on the backend. This usually completes within a few seconds.",

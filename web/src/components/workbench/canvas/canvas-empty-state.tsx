@@ -71,8 +71,8 @@ export function CanvasEmptyState() {
           className="flex flex-col items-center gap-2 rounded-xl border border-divider bg-surface-base p-5 text-center transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] hover:border-brand-border hover:shadow-2"
         >
           <HugeiconsIcon icon={DatabaseIcon} className="h-5 w-5 text-brand-foreground" size="100%" />
-          <span className="text-xs font-medium text-foreground">{t("createProject")}</span>
-          <span className="text-2xs text-foreground-muted">{t("createProjectHint")}</span>
+          <span className="text-xs font-medium text-foreground">{t("createOntologyDraft")}</span>
+          <span className="text-2xs text-foreground-muted">{t("createOntologyDraftHint")}</span>
         </button>
         <span className="text-xs text-foreground-muted">{t("or")}</span>
         <button type="button"

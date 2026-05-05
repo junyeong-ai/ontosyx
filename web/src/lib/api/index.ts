@@ -8,7 +8,7 @@ export { isPendingReconcile, normalizeQueryResult } from "./normalization";
 
 export * from "./chat";
 export * from "./queries";
-export * from "./projects";
+export * from "./ontology-drafts";
 export * from "./dashboards";
 export * from "./ontology";
 export * from "./admin";

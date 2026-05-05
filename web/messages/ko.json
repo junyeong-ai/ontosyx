@@ -3882,8 +3882,8 @@
         "openWorkflow": "워크플로 패널 열기",
         "startTitle": "설계 시작",
         "startHint": "데이터 소스에서 프로젝트를 만들거나, 기존 온톨로지를 가져와 지식 그래프 설계를 시작하세요.",
-        "createProject": "프로젝트 만들기",
-        "createProjectHint": "데이터베이스, CSV, JSON, 코드 저장소",
+        "createOntologyDraft": "프로젝트 만들기",
+        "createOntologyDraftHint": "데이터베이스, CSV, JSON, 코드 저장소",
         "or": "또는",
         "importOntology": "온톨로지 가져오기",
         "importOntologyHint": "JSON, OWL, Turtle 파일"
@@ -4147,7 +4147,7 @@
           "completed": "완료됨"
         }
       },
-      "createProject": {
+      "createOntologyDraft": {
         "progress": {
           "heading": "{count, plural, =0 {프로젝트 생성 중...} other {프로젝트 생성 중 — {count}개 테이블 분석 ({elapsed}s)}}",
           "hintGeneric": "스키마 분석과 컬럼 샘플링이 백엔드에서 진행 중입니다. 보통 몇 초 안에 완료됩니다.",

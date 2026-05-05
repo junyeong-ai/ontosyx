@@ -4,14 +4,14 @@ import { request } from "@/lib/api/client";
 import type {
   ProjectSource,
   PreviewSourceResponse,
-} from "@/types/projects";
+} from "@/types/ontology-drafts";
 
-const PREVIEW_PATH = "/projects/source-preview";
+const PREVIEW_PATH = "/ontology-drafts/source-preview";
 
 /**
  * Fetch the cheap table listing for an arbitrary `ProjectSource`.
  *
- * Calls `POST /api/projects/source-preview` (designer-role).
+ * Calls `POST /api/ontology-drafts/source-preview` (designer-role).
  * Returns `null` data while `source` is `null` (lets callers gate
  * the request on user input). Cache key includes the full source
  * payload so two sources that differ only in `schema` produce

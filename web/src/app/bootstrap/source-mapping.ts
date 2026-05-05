@@ -1,4 +1,4 @@
-import type { ProjectSource } from "@/types/projects";
+import type { ProjectSource } from "@/types/ontology-drafts";
 
 /**
  * Translate the bootstrap wizard's two-field source description

@@ -2,11 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ApiError, getProject } from "@/lib/api";
+import { ApiError, getOntologyDraft } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { toast } from "@/components/ui/toast";
 import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
-import type { DesignProject} from "@/types/api";import { AnalysisReviewSection } from "./analysis-review-section";
+import type { OntologyDraft} from "@/types/api";import { AnalysisReviewSection } from "./analysis-review-section";
 import { useAppStore } from "@/lib/store";
 import { WorkflowActions } from "./workflow-actions";
 import { PhaseStepper } from "./phase-stepper";
@@ -23,14 +23,14 @@ export function ProjectWorkflow({
   project,
   applyProjectSnapshot,
 }: {
-  project: DesignProject;
+  project: OntologyDraft;
   /**
    * Atomic project + ontology cache update — see
    * `OntologySlice.applyProjectSnapshot`. Workflow actions land
    * their server response through this single entry point so
    * `activeProject` and the ontology cache cannot drift.
    */
-  applyProjectSnapshot: (project: DesignProject | null) => void;
+  applyProjectSnapshot: (project: OntologyDraft | null) => void;
 }) {
   const t = useTranslations("workbench.bottomPanel.workflow");
   const tActions = useTranslations("workbench.bottomPanel.workflowActions");
@@ -47,7 +47,7 @@ export function ProjectWorkflow({
         description: tActions("conflictDescription"),
       });
       try {
-        const fresh = await getProject(project.id);
+        const fresh = await getOntologyDraft(project.id);
         applyProjectSnapshot(fresh);
       } catch {
         /* ignore reload failure */
@@ -67,7 +67,7 @@ export function ProjectWorkflow({
         }),
       });
       try {
-        const fresh = await getProject(project.id);
+        const fresh = await getOntologyDraft(project.id);
         applyProjectSnapshot(fresh);
       } catch {
         /* ignore reload failure */

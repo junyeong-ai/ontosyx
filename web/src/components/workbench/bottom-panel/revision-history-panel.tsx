@@ -15,7 +15,7 @@ import {
   migrateSchema,
 } from "@/lib/api";
 import type {
-  DesignProject,
+  OntologyDraft,
   ProjectMigrateResponse,
   OntologyDiff,
   RevisionSummary,
@@ -28,7 +28,7 @@ import { useFormatters } from "@/hooks/use-formatters";
 // ---------------------------------------------------------------------------
 
 export interface RevisionHistoryPanelProps {
-  project: DesignProject;
+  project: OntologyDraft;
   loading: boolean;
   setLoading: (v: boolean) => void;
   /**
@@ -37,7 +37,7 @@ export interface RevisionHistoryPanelProps {
    * actions land their result through this single entry point so
    * `activeProject` and the ontology cache cannot drift.
    */
-  applyProjectSnapshot: (project: DesignProject | null) => void;
+  applyProjectSnapshot: (project: OntologyDraft | null) => void;
   onApiError: (err: unknown, label: string) => Promise<boolean>;
 }
 

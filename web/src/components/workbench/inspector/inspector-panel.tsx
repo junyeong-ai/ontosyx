@@ -188,8 +188,8 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   const handleKeepLocal = useCallback(async () => {
     if (!activeProject) return;
     try {
-      const { getProject } = await import("@/lib/api/projects");
-      const fresh = await getProject(activeProject.id);
+      const { getOntologyDraft } = await import("@/lib/api/ontology-drafts");
+      const fresh = await getOntologyDraft(activeProject.id);
       // `applyProjectSnapshot` replays the local commandStack atop
       // the new server snapshot — see ontology-slice for the
       // invariant.
@@ -206,8 +206,8 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   const handleAcceptRemote = useCallback(async () => {
     if (!activeProject) return;
     try {
-      const { getProject } = await import("@/lib/api/projects");
-      const fresh = await getProject(activeProject.id);
+      const { getOntologyDraft } = await import("@/lib/api/ontology-drafts");
+      const fresh = await getOntologyDraft(activeProject.id);
       useAppStore.getState().clearCommandStack();
       applyProjectSnapshot(fresh);
       setConflict(null);

@@ -23,15 +23,15 @@ import {
 import { cn } from "@/lib/cn";
 import {
   ApiError,
-  completeProject,
-  deleteProject,
+  completeOntologyDraft,
+  deleteOntologyDraft,
   deploySchema,
-  designProjectStream,
+  designOntologyDraftStream,
   updateDecisions,
 } from "@/lib/api";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import { arr } from "@/lib/ir-collections";
-import type { DesignOptions, DesignProject } from "@/types/api";
+import type { DesignOptions, OntologyDraft } from "@/types/api";
 
 import {
   WorkflowStatusBadge,
@@ -46,7 +46,7 @@ import { EnhanceActions } from "./enhance-actions";
 import { GraphAuditSection } from "./graph-audit-section";
 
 export interface WorkflowActionsProps extends DesignDecisions {
-  project: DesignProject;
+  project: OntologyDraft;
   loading: boolean;
   setLoading: (v: boolean) => void;
   /**
@@ -55,7 +55,7 @@ export interface WorkflowActionsProps extends DesignDecisions {
    * complete / extend / refine action lands its server response
    * through this single entry point.
    */
-  applyProjectSnapshot: (project: DesignProject | null) => void;
+  applyProjectSnapshot: (project: OntologyDraft | null) => void;
   onApiError: (err: unknown, label: string) => Promise<boolean>;
   /** Ref to the analysis review <details> element in the right panel */
   analysisRef: React.RefObject<HTMLDetailsElement | null>;
@@ -169,7 +169,7 @@ export function WorkflowActions({
       let streamErrorType = "";
       let streamErrorMsg = "";
 
-      await designProjectStream(saved.id, {
+      await designOntologyDraftStream(saved.id, {
         revision: saved.revision,
         context: form.design.designContext.trim() || undefined,
       }, {
@@ -220,7 +220,7 @@ export function WorkflowActions({
     }
     setLoading(true);
     try {
-      const completed = await completeProject(project.id, {
+      const completed = await completeOntologyDraft(project.id, {
         revision: project.revision,
         name: form.complete.completeName.trim(),
         acknowledge_quality_risks: acknowledgeRisks || undefined,
@@ -281,7 +281,7 @@ export function WorkflowActions({
     if (!ok) return;
     setLoading(true);
     try {
-      await deleteProject(project.id);
+      await deleteOntologyDraft(project.id);
       applyProjectSnapshot(null);
       toast.success(t("projectDeleted"));
     } catch (err) {

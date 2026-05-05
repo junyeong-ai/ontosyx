@@ -13,7 +13,7 @@ import { getGapEntityId, navigateToGap } from "@/lib/quality-utils";
 // Gap action classification
 // ---------------------------------------------------------------------------
 
-/** Categories where AI can generate a meaningful fix via editProject. */
+/** Categories where AI can generate a meaningful fix via editOntologyDraft. */
 const AI_FIXABLE_CATEGORIES = new Set<QualityGapCategory>([
   "missing_description",
   "missing_foreign_key_edge",

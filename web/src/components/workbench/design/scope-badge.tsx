@@ -17,8 +17,8 @@ import { useAppStore } from "@/lib/store";
 import {
   useDeferScopeTables,
   useIncludeScopeTables,
-} from "@/hooks/api/use-projects";
-import type { DeferredTable } from "@/types/projects";
+} from "@/hooks/api/use-ontology-drafts";
+import type { DeferredTable } from "@/types/ontology-drafts";
 
 export function ScopeBadge() {
   const t = useTranslations("workbench.design.scope");

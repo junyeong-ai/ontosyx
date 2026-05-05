@@ -13,9 +13,9 @@ import {
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 
-import { useProjects } from "@/hooks/api/use-projects";
+import { useOntologyDrafts } from "@/hooks/api/use-ontology-drafts";
 import { useAppStore } from "@/lib/store";
-import { getProject } from "@/lib/api";
+import { getOntologyDraft } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { SkeletonCard } from "@/components/ui/skeleton";
@@ -24,8 +24,8 @@ import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell"
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
 import type {
-  DesignProjectStatus,
-  DesignProjectSummary,
+  OntologyDraftStatus,
+  OntologyDraftSummary,
 } from "@/types/api";
 
 /**
@@ -40,7 +40,7 @@ import type {
  * - **Status filter**: `analyzed` / `designed` / `completed` chips
  *   that toggle a multi-select. Default is "all", reading the
  *   filter chips as muted; an active selection saturates them.
- * - **Card click**: hydrates the full `DesignProject` and pushes
+ * - **Card click**: hydrates the full `OntologyDraft` and pushes
  *   it through `applyProjectSnapshot` (the canonical project-mode
  *   entry point), then routes to `/design`. The transition keeps
  *   the active-project / ontology-cache invariant intact — same
@@ -54,12 +54,12 @@ export function ProjectHub() {
   const t = useTranslations("workbench.projects.hub");
   const tCommon = useTranslations("common");
   const router = useRouter();
-  const projectsQuery = useProjects({ limit: 100 });
+  const projectsQuery = useOntologyDrafts({ limit: 100 });
   const { data, isLoading, isError, refetch } = projectsQuery;
   const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<Set<DesignProjectStatus>>(
+  const [statusFilter, setStatusFilter] = useState<Set<OntologyDraftStatus>>(
     new Set(),
   );
 
@@ -67,7 +67,7 @@ export function ProjectHub() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((p) => {
-      if (statusFilter.size > 0 && !statusFilter.has(p.status as DesignProjectStatus)) {
+      if (statusFilter.size > 0 && !statusFilter.has(p.status as OntologyDraftStatus)) {
         return false;
       }
       if (q.length === 0) return true;
@@ -77,7 +77,7 @@ export function ProjectHub() {
   }, [items, search, statusFilter]);
 
   const onOpen = async (id: string) => {
-    const project = await getProject(id);
+    const project = await getOntologyDraft(id);
     applyProjectSnapshot(project);
     router.push("/design");
   };
@@ -89,7 +89,7 @@ export function ProjectHub() {
     router.push("/design");
   };
 
-  const toggleStatus = (status: DesignProjectStatus) => {
+  const toggleStatus = (status: OntologyDraftStatus) => {
     setStatusFilter((prev) => {
       const next = new Set(prev);
       if (next.has(status)) {
@@ -220,7 +220,7 @@ function ProjectCard({
   project,
   onOpen,
 }: {
-  project: DesignProjectSummary;
+  project: OntologyDraftSummary;
   onOpen: () => void;
 }) {
   const t = useTranslations("workbench.projects.hub");
@@ -232,7 +232,7 @@ function ProjectCard({
       className="flex flex-col items-stretch text-start"
     >
       <div className="flex items-center gap-2">
-        <StatusIcon status={project.status as DesignProjectStatus} />
+        <StatusIcon status={project.status as OntologyDraftStatus} />
         <span className="truncate text-sm font-semibold text-foreground-strong">
           {project.title ?? t("untitled")}
         </span>
@@ -244,13 +244,13 @@ function ProjectCard({
         })}
       </p>
       <span className="mt-2 inline-flex w-fit items-center rounded-full bg-surface-inset px-2 py-0.5 text-2xs font-medium uppercase tracking-wide text-foreground-muted">
-        {t(`status.${project.status as DesignProjectStatus}`)}
+        {t(`status.${project.status as OntologyDraftStatus}`)}
       </span>
     </Card>
   );
 }
 
-function StatusIcon({ status }: { status: DesignProjectStatus }) {
+function StatusIcon({ status }: { status: OntologyDraftStatus }) {
   const visual = {
     analyzed: { icon: ChartUpIcon, color: "text-warning-foreground" },
     designed: { icon: PencilEdit01Icon, color: "text-brand-foreground" },

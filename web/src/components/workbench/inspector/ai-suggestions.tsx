@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
-import { editProject } from "@/lib/api";
+import { editOntologyDraft } from "@/lib/api";
 import { defaultText } from "@/lib/locale/localize";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -179,7 +179,7 @@ export function useAiEdit() {
       if (!activeProject) return;
       setLoading(true);
       try {
-        const resp = await editProject(activeProject.id, {
+        const resp = await editOntologyDraft(activeProject.id, {
           revision: activeProject.revision,
           user_request: userRequest,
           dry_run: true,

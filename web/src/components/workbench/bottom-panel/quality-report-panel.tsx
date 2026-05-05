@@ -22,7 +22,7 @@ import {
   localizeQualityGapIssue,
   localizeQualityGapSuggestion,
 } from "@/lib/quality-gap-text";
-import { updateDecisions, getProject } from "@/lib/api";
+import { updateDecisions, getOntologyDraft } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import { QualityGapCard, AI_FIXABLE_CATEGORIES } from "./quality-gap-card";
 
@@ -239,7 +239,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
         });
         // Try to reload project in case of conflict
         try {
-          const fresh = await getProject(activeProject.id);
+          const fresh = await getOntologyDraft(activeProject.id);
           setActiveProject(fresh);
         } catch {
           /* ignore reload failure */

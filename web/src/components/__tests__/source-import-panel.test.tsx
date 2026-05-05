@@ -11,7 +11,7 @@ import {
   type SourceImportValue,
 } from "@/components/workbench/source-import-panel";
 import * as clientModule from "@/lib/api/client";
-import type { ProjectSource } from "@/types/projects";
+import type { ProjectSource } from "@/types/ontology-drafts";
 
 vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },

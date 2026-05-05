@@ -12,8 +12,8 @@ import type {
 } from "./ontology";
 
 import type {
-  DesignProject,
-} from "./projects";
+  OntologyDraft,
+} from "./ontology-drafts";
 
 // --- Ontology quality report (returned by design for DB sources) ---
 
@@ -86,7 +86,7 @@ export interface OntologySnapshot {
 }
 
 export interface RestoreProjectRevisionResponse {
-  project: DesignProject;
+  project: OntologyDraft;
 }
 
 // --- Ontology Diff ---
@@ -278,7 +278,7 @@ export interface ReconcileProjectRequest {
 }
 
 export interface RefineProjectResponse {
-  project: DesignProject;
+  project: OntologyDraft;
   profile_summary: string;
   reconcile_report: ReconcileReport;
 }
@@ -305,8 +305,8 @@ export interface PhaseEvent {
   detail?: string;
 }
 
-export interface DesignProjectResponse {
-  project: DesignProject;
+export interface DesignOntologyDraftResponse {
+  project: OntologyDraft;
 }
 
 // ---------------------------------------------------------------------------

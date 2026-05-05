@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
  * sits at index `-1` — every step is rendered as pending and the
  * connector tracks stay grey until step 0 ("analyze") becomes
  * active. After a project exists, the indicator follows
- * `DesignProject.status` via the integer in `currentStepIndex`.
+ * `OntologyDraft.status` via the integer in `currentStepIndex`.
  *
  * Stepper labels live in `workbench.bottomPanel.workflow.{step*}`
  * so they pick up the same translations the project-workflow panel

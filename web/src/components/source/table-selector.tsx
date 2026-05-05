@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 import { FormInput } from "@/components/ui/form-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFormatters, type Formatters } from "@/hooks/use-formatters";
-import type { PreviewTableSummary } from "@/types/projects";
+import type { PreviewTableSummary } from "@/types/ontology-drafts";
 
 /**
  * Pickable list of source tables. Renders a search box, a select-all

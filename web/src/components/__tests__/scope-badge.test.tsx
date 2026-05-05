@@ -6,15 +6,15 @@ import type { ReactElement } from "react";
 
 import messages from "../../../messages/en.json";
 import { ScopeBadge } from "@/components/workbench/design/scope-badge";
-import * as projectsApi from "@/lib/api/projects";
+import * as projectsApi from "@/lib/api/ontology-drafts";
 import { useAppStore } from "@/lib/store";
-import type { DesignProject } from "@/types/api";
+import type { OntologyDraft } from "@/types/api";
 
 vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-function fixtureProject(): DesignProject {
+function fixtureProject(): OntologyDraft {
   return {
     id: "proj-1",
     revision: 7,
@@ -31,7 +31,7 @@ function fixtureProject(): DesignProject {
       fingerprints: {},
       last_introspected_at: "2026-05-01T00:00:00Z",
     },
-  } as unknown as DesignProject;
+  } as unknown as OntologyDraft;
 }
 
 function renderBadge() {

@@ -1,7 +1,7 @@
 "use client";
 
 // Final step — shows a summary card and, on Finish, creates a
-// DesignProject seeded from the wizard's captured intent. The
+// OntologyDraft seeded from the wizard's captured intent. The
 // request shape depends on sourceKind: for connection-string based
 // sources (postgresql / mysql / bigquery) we pass the user-supplied
 // connection; for file-based kinds (csv / json) we skip the
@@ -22,7 +22,7 @@ import {
   getWorkspaceOntology,
   type OntologyEditOp,
 } from "@/lib/api/ontology";
-import { createProject } from "@/lib/api/projects";
+import { createOntologyDraft } from "@/lib/api/ontology-drafts";
 import type {
   AnalyzeSelection,
   CreateProjectRequest,
@@ -172,7 +172,7 @@ export default function ValidateStep() {
       }
       return;
     }
-    const project = await createProject(req);
+    const project = await createOntologyDraft(req);
     toast.success(
       t("toast.created", { name: state.pilotName || t("summary.unnamed") }),
     );

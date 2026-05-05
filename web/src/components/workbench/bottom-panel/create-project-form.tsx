@@ -10,7 +10,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { toast } from "@/components/ui/toast";
 
-import { createProject } from "@/lib/api";
+import { createOntologyDraft } from "@/lib/api";
 import { isGitUrl } from "@/lib/git-url";
 import { Button } from "@/components/ui/button";
 import { FormInput, FormTextarea, SecretInput } from "@/components/ui/form-input";
@@ -21,7 +21,7 @@ import { TableSelector } from "@/components/source/table-selector";
 import { useSourcePreview } from "@/hooks/use-source-preview";
 import type {
   AnalyzeSelection,
-  DesignProject,
+  OntologyDraft,
   DesignSource,
 } from "@/types/api";
 import type { GenerateSourceType } from "./design-panel-shared";
@@ -59,9 +59,9 @@ export function CreateProjectForm({
   onCreated,
 }: {
   guardBeforeCreate: (actionName: string) => Promise<boolean>;
-  onCreated: (p: DesignProject) => void;
+  onCreated: (p: OntologyDraft) => void;
 }) {
-  const t = useTranslations("workbench.bottomPanel.createProject");
+  const t = useTranslations("workbench.bottomPanel.createOntologyDraft");
   const tCommon = useTranslations("common");
 
   // Source-type + connection inputs
@@ -312,7 +312,7 @@ export function CreateProjectForm({
 
     setLoading(true);
     try {
-      const project = await createProject({
+      const project = await createOntologyDraft({
         title: title.trim() || undefined,
         origin_type: "source",
         source,
@@ -888,7 +888,7 @@ function CreateProgressBanner({
   sourceType: string | null;
   tableCount: number;
 }) {
-  const t = useTranslations("workbench.bottomPanel.createProject.progress");
+  const t = useTranslations("workbench.bottomPanel.createOntologyDraft.progress");
   const [elapsed, setElapsed] = useState(0);
   const startedAt = useRef<number | null>(null);
   useEffect(() => {

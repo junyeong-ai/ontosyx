@@ -1,5 +1,5 @@
 export * from "./ontology";
-export * from "./projects";
+export * from "./ontology-drafts";
 export * from "./quality";
 export * from "./dashboard";
 export * from "./admin";

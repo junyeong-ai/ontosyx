@@ -50,7 +50,7 @@ export type DesignSource =
 
 // --- Design Projects (project-based ontology lifecycle) ---
 
-export type DesignProjectStatus = "analyzed" | "designed" | "completed";
+export type OntologyDraftStatus = "analyzed" | "designed" | "completed";
 
 export type SourceTypeKind = "text" | "csv" | "json" | "postgresql" | "mysql" | "mongodb" | "snowflake" | "bigquery" | "duckdb" | "ontology" | "code_repository";
 
@@ -68,9 +68,9 @@ export interface SourceHistoryEntry {
   fingerprint?: string;
 }
 
-export interface DesignProject {
+export interface OntologyDraft {
   id: string;
-  status: DesignProjectStatus;
+  status: OntologyDraftStatus;
   revision: number;
   title: string | null;
   source_config: SourceConfig;
@@ -127,9 +127,9 @@ export interface DesignProject {
 
 export type AnalysisReportStatus = "missing" | "current" | "stale";
 
-export interface DesignProjectSummary {
+export interface OntologyDraftSummary {
   id: string;
-  status: DesignProjectStatus;
+  status: OntologyDraftStatus;
   revision: number;
   title: string | null;
   source_config: SourceConfig;
@@ -208,7 +208,7 @@ export interface UpdateProjectDecisionsRequest {
   revision: number;
 }
 
-export interface DesignProjectRequest {
+export interface DesignOntologyDraftRequest {
   revision: number;
   context?: string;
 }
@@ -232,7 +232,7 @@ export interface EditProjectRequest {
 }
 
 export interface EditProjectResponse {
-  project: DesignProject | null;
+  project: OntologyDraft | null;
   commands: OntologyCommand[];
   explanation: string;
 }
@@ -244,7 +244,7 @@ export interface ExtendProjectRequest {
 }
 
 export interface ExtendProjectResponse {
-  project: DesignProject;
+  project: OntologyDraft;
   reconcile_report: ReconcileReport;
 }
 

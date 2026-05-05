@@ -6,7 +6,7 @@ import { CanonicalStatusBanner } from "./canonical-status-banner";
 import { CreateProjectForm } from "./create-project-form";
 import { PhaseStepper } from "./phase-stepper";
 import { ProjectWorkflow } from "./project-workflow";
-import { RecentProjects } from "./recent-projects";
+import { RecentProjects } from "./recent-ontology-drafts";
 
 // ---------------------------------------------------------------------------
 // Design Panel — project-based ontology design lifecycle (orchestrator)

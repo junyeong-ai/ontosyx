@@ -7,7 +7,7 @@ import { z } from "zod";
 import { OntologyIRSchema } from "./ontology";
 import { OntologyQualityReportSchema } from "./quality";
 
-export const DesignProjectStatusSchema = z.enum([
+export const OntologyDraftStatusSchema = z.enum([
   "analyzed",
   "designed",
   "completed",
@@ -336,9 +336,9 @@ export const AnalysisScopeSchema = z.object({
   last_introspected_at: z.string().optional(),
 });
 
-export const DesignProjectSchema = z.object({
+export const OntologyDraftSchema = z.object({
   id: z.string(),
-  status: DesignProjectStatusSchema,
+  status: OntologyDraftStatusSchema,
   revision: z.number(),
   title: z.string().nullable(),
   source_config: SourceConfigSchema,
@@ -368,9 +368,9 @@ export const DesignProjectSchema = z.object({
     .default("missing"),
 });
 
-export const DesignProjectSummarySchema = z.object({
+export const OntologyDraftSummarySchema = z.object({
   id: z.string(),
-  status: DesignProjectStatusSchema,
+  status: OntologyDraftStatusSchema,
   revision: z.number(),
   title: z.string().nullable(),
   source_config: SourceConfigSchema,

@@ -10,7 +10,7 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { cn } from "@/lib/cn";
-import type { DesignGate, GateId } from "@/types/projects";
+import type { DesignGate, GateId } from "@/types/ontology-drafts";
 
 /**
  * Sticky checklist of every server-evaluated gate the operator has

@@ -6,8 +6,8 @@ import { useAppStore } from "@/lib/store";
 import {
   ApiError,
   isPendingReconcile,
-  refineProject,
-  editProject,
+  refineOntologyDraft,
+  editOntologyDraft,
 } from "@/lib/api";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -169,7 +169,7 @@ export function CommandBar() {
 
     setPhase({ type: "loading", message: t("loadingAnalyzing") });
     try {
-      const resp = await editProject(activeProject.id, {
+      const resp = await editOntologyDraft(activeProject.id, {
         revision: activeProject.revision,
         user_request: input.trim(),
         dry_run: true,
@@ -232,7 +232,7 @@ export function CommandBar() {
 
     setPhase({ type: "loading", message: t("loadingRefining") });
     try {
-      const resp = await refineProject(activeProject.id, {
+      const resp = await refineOntologyDraft(activeProject.id, {
         revision: activeProject.revision,
         additional_context: input.trim(),
       });
