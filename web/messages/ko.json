@@ -2759,6 +2759,14 @@
         "structuredData": "구조화된 데이터",
         "createdBy": "{user} 작성",
         "reviewed": "{date} 검토됨",
+        "selectAll": "모두 선택",
+        "selectAllHint": "{count}개 항목 선택",
+        "selectEntry": "'{title}' 항목 선택",
+        "bulkSelectedCount": "{count}개 선택됨",
+        "bulkBarLabel": "다중 선택 작업",
+        "bulkClear": "선택 해제",
+        "bulkApprove": "선택 승인",
+        "bulkDeprecate": "선택 폐기",
         "kind": {
           "correction": "보정",
           "hint": "힌트"
@@ -2776,7 +2784,11 @@
           "deleted": "삭제됨",
           "deleteFailed": "삭제에 실패했습니다",
           "bulkDeprecated": "{count}개 폐기됨",
-          "bulkFailed": "실패"
+          "bulkFailed": "실패",
+          "bulk": {
+            "approved": "{count}개 승인됨",
+            "deprecated": "{count}개 폐기됨"
+          }
         }
       }
     },

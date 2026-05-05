@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
 import { ArrowDown01Icon, Book01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { SettingsSelect } from "@/components/ui/form-input";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -55,6 +56,12 @@ export default function KnowledgePage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
+  // Selected ids for the bulk-action bar. Set semantics give
+  // toggle / has / size in O(1) without an array filter pass per
+  // row render. Cleared whenever the filter changes (the user is
+  // looking at a different result set so a stale selection would
+  // be confusing).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { isAdmin } = useAuth();
   const confirm = useConfirm();
 
@@ -79,6 +86,59 @@ export default function KnowledgePage() {
   const updateStatus = useUpdateKnowledgeStatus(filters);
   const deleteEntry = useDeleteKnowledge(filters);
   const bulkReview = useBulkReviewKnowledge(filters);
+
+  // Reset selection on filter change — the rows underneath have
+  // changed, a leftover selection would silently keep ids from a
+  // previous view.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [statusFilter, kindFilter]);
+
+  // Subset of the visible entries that are also selected. Drives
+  // the "select-all" tri-state — checked when every visible row
+  // is selected, indeterminate when some are.
+  const selectedVisible = useMemo(
+    () => entries.filter((e) => selectedIds.has(e.id)),
+    [entries, selectedIds],
+  );
+  const allVisibleSelected =
+    entries.length > 0 && selectedVisible.length === entries.length;
+  const someVisibleSelected =
+    selectedVisible.length > 0 && !allVisibleSelected;
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      clearSelection();
+    } else {
+      setSelectedIds(new Set(entries.map((e) => e.id)));
+    }
+  };
+
+  const handleBulkStatus = (status: KnowledgeStatus) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    bulkReview.mutate(
+      { ids, status },
+      {
+        onSuccess: ({ reviewed }) => {
+          clearSelection();
+          toast.success(
+            t(`toast.bulk.${status}` as const, { count: reviewed }),
+          );
+        },
+        onError: () => toast.error(t("toast.bulkFailed")),
+      },
+    );
+  };
 
   const statusLabel = (s: string) => (isKnownStatus(s) ? t(`status.${s}`) : s);
 
@@ -201,19 +261,38 @@ export default function KnowledgePage() {
               retryLabel: tCommon("retry"),
             }}
           >
-            <div className="space-y-2">
-              {entries.map((entry) => (
-                <EntryCard
-                  key={entry.id}
-                  entry={entry}
-                  isExpanded={expandedId === entry.id}
-                  onToggle={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
-                  onApprove={() => handleStatus(entry.id, "approved")}
-                  onDeprecate={() => handleStatus(entry.id, "deprecated")}
-                  onDelete={() => handleDelete(entry.id)}
+            <>
+              <div className="flex items-center gap-2 pb-2 ps-4 text-xs text-foreground-muted">
+                <Checkbox
+                  checked={allVisibleSelected}
+                  ref={(el) => {
+                    // tri-state visual: indeterminate when some
+                    // (but not all) visible rows are selected.
+                    if (el) el.indeterminate = someVisibleSelected;
+                  }}
+                  onChange={toggleSelectAll}
+                  aria-label={t("selectAll")}
                 />
-              ))}
-            </div>
+                <span>{t("selectAllHint", { count: entries.length })}</span>
+              </div>
+              <div className="space-y-2">
+                {entries.map((entry) => (
+                  <EntryCard
+                    key={entry.id}
+                    entry={entry}
+                    isExpanded={expandedId === entry.id}
+                    selected={selectedIds.has(entry.id)}
+                    onToggleSelect={() => toggleSelected(entry.id)}
+                    onToggle={() =>
+                      setExpandedId(expandedId === entry.id ? null : entry.id)
+                    }
+                    onApprove={() => handleStatus(entry.id, "approved")}
+                    onDeprecate={() => handleStatus(entry.id, "deprecated")}
+                    onDelete={() => handleDelete(entry.id)}
+                  />
+                ))}
+              </div>
+            </>
           </PageStateView>
 
           {hasNextPage && !isLoading && entries.length > 0 && (
@@ -231,13 +310,90 @@ export default function KnowledgePage() {
             </div>
           )}
         </div>
+
+        <BulkActionBar
+          count={selectedIds.size}
+          onApprove={() => handleBulkStatus("approved")}
+          onDeprecate={() => handleBulkStatus("deprecated")}
+          onClear={clearSelection}
+          pending={bulkReview.isPending}
+        />
     </SettingsPageShell>
+  );
+}
+
+function BulkActionBar({
+  count,
+  onApprove,
+  onDeprecate,
+  onClear,
+  pending,
+}: {
+  count: number;
+  onApprove: () => void;
+  onDeprecate: () => void;
+  onClear: () => void;
+  pending: boolean;
+}) {
+  const t = useTranslations("settings.knowledge.base");
+  const visible = count > 0;
+  return (
+    <div
+      // Sticky bottom — slides into view on the first selection
+      // and out on clear. `pointer-events-none` while hidden so a
+      // mid-fade click can't trigger an action.
+      className={cn(
+        "pointer-events-none fixed inset-x-0 bottom-6 z-30 mx-auto flex max-w-2xl",
+        "items-center justify-between gap-3 rounded-xl border border-divider",
+        "bg-surface-overlay px-4 py-3 shadow-2",
+        "transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
+        visible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
+      )}
+      role="region"
+      aria-label={t("bulkBarLabel")}
+      aria-hidden={!visible}
+    >
+      <span className="text-sm font-medium text-foreground-strong">
+        {t("bulkSelectedCount", { count })}
+      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onClear}
+          disabled={pending}
+          className="pointer-events-auto"
+        >
+          {t("bulkClear")}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onDeprecate}
+          disabled={pending}
+          className="pointer-events-auto"
+        >
+          {t("bulkDeprecate")}
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={onApprove}
+          disabled={pending}
+          className="pointer-events-auto"
+        >
+          {t("bulkApprove")}
+        </Button>
+      </div>
+    </div>
   );
 }
 
 function EntryCard({
   entry,
   isExpanded,
+  selected,
+  onToggleSelect,
   onToggle,
   onApprove,
   onDeprecate,
@@ -245,6 +401,8 @@ function EntryCard({
 }: {
   entry: KnowledgeEntry;
   isExpanded: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
   onToggle: () => void;
   onApprove: () => void;
   onDeprecate: () => void;
@@ -265,13 +423,30 @@ function EntryCard({
   return (
     <div
       className={cn(
-        "rounded-xl border transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
-        isExpanded
-          ? "border-brand-border bg-surface-base shadow-1"
-          : "border-divider bg-surface-base hover:border-divider",
+        "flex items-stretch rounded-xl border transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
+        selected
+          ? "border-brand-border bg-brand-surface/40"
+          : isExpanded
+            ? "border-brand-border bg-surface-base shadow-1"
+            : "border-divider bg-surface-base hover:border-divider",
       )}
     >
-      <button type="button" onClick={onToggle} className="flex w-full items-center gap-3 px-4 py-3 text-start">
+      <div
+        className="flex shrink-0 items-center pe-1 ps-4"
+        // The checkbox sits OUTSIDE the toggle button so a click on
+        // it never triggers the row's expand/collapse. Keyboard
+        // focus reaches both — checkbox first (DOM order) then the
+        // toggle button — so a screen-reader user can `Tab` →
+        // Space to select without accidentally expanding the row.
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Checkbox
+          checked={selected}
+          onChange={onToggleSelect}
+          aria-label={t("selectEntry", { title: entry.title })}
+        />
+      </div>
+      <button type="button" onClick={onToggle} className="flex flex-1 items-center gap-3 px-3 py-3 text-start">
         <span className={cn("shrink-0 rounded-md px-2 py-0.5 text-2xs font-semibold ring-1 ring-inset", kindCls)}>
           {kindLabel}
         </span>

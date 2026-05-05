@@ -2759,6 +2759,14 @@
         "structuredData": "Structured data",
         "createdBy": "Created by {user}",
         "reviewed": "Reviewed {date}",
+        "selectAll": "Select all",
+        "selectAllHint": "Select all {count} entries",
+        "selectEntry": "Select entry '{title}'",
+        "bulkSelectedCount": "{count} selected",
+        "bulkBarLabel": "Bulk action bar",
+        "bulkClear": "Clear",
+        "bulkApprove": "Approve selected",
+        "bulkDeprecate": "Deprecate selected",
         "kind": {
           "correction": "Correction",
           "hint": "Hint"
@@ -2776,7 +2784,11 @@
           "deleted": "Deleted",
           "deleteFailed": "Delete failed",
           "bulkDeprecated": "{count} deprecated",
-          "bulkFailed": "Failed"
+          "bulkFailed": "Failed",
+          "bulk": {
+            "approved": "{count} approved",
+            "deprecated": "{count} deprecated"
+          }
         }
       }
     },
