@@ -218,7 +218,7 @@ pub(crate) async fn create_ontology_draft(
                         if let Err(error) = audit_store
                             .record_audit(
                                 audit_user_id,
-                                "project.create",
+                                "ontology_draft.create",
                                 "ontology_draft",
                                 Some(&audit_project_id),
                                 serde_json::json!({"source_type": "code_repository"}),
@@ -331,7 +331,7 @@ pub(crate) async fn create_ontology_draft(
             if let Err(error) = audit_store
                 .record_audit(
                     audit_user_id,
-                    "project.create",
+                    "ontology_draft.create",
                     "ontology_draft",
                     Some(&audit_project_id),
                     serde_json::json!({"source_type": audit_source_type}),
@@ -444,7 +444,7 @@ pub(crate) async fn delete_ontology_draft(
                 if let Err(error) = audit_store
                     .record_audit(
                         audit_user_id,
-                        "project.delete",
+                        "ontology_draft.delete",
                         "ontology_draft",
                         Some(&audit_project_id),
                         serde_json::json!({}),
