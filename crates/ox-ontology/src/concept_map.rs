@@ -169,6 +169,49 @@ impl ConceptMapDef {
             })
             .collect()
     }
+
+    /// Build the reverse-direction map (`target → source`) by
+    /// inverting every entry. Returns `None` when at least one
+    /// entry is anything other than [`Equivalence::Equivalent`] —
+    /// `NarrowerThanTarget` would have to flip to `BroaderThanTarget`
+    /// (and vice-versa) to be sound, which is only true when the
+    /// relation is symmetric, and `Related` / `Disjoint` cannot be
+    /// flipped at all without semantic loss. Callers that need a
+    /// partial reverse should iterate the entries themselves and
+    /// apply an explicit policy.
+    ///
+    /// The returned [`ConceptMapDef`] reuses the original `id`,
+    /// swaps `source_system_id` ↔ `target_system_id`, and copies
+    /// `name` / `version` / `display_name` / `description` verbatim.
+    /// Per-entry `comment` is preserved.
+    pub fn try_inverse(&self) -> Option<ConceptMapDef> {
+        if !self
+            .mappings
+            .iter()
+            .all(|m| matches!(m.equivalence, Equivalence::Equivalent))
+        {
+            return None;
+        }
+        Some(ConceptMapDef {
+            id: self.id.clone(),
+            name: self.name.clone(),
+            display_name: self.display_name.clone(),
+            description: self.description.clone(),
+            version: self.version.clone(),
+            source_system_id: self.target_system_id.clone(),
+            target_system_id: self.source_system_id.clone(),
+            mappings: self
+                .mappings
+                .iter()
+                .map(|m| ConceptMapping {
+                    source_code: m.target_code.clone(),
+                    target_code: m.source_code.clone(),
+                    equivalence: m.equivalence,
+                    comment: m.comment.clone(),
+                })
+                .collect(),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -248,6 +291,53 @@ mod tests {
         let out = cm.translate("X");
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].equivalence, Equivalence::Disjoint);
+    }
+
+    #[test]
+    fn try_inverse_swaps_systems_and_codes_when_all_equivalent() {
+        let cm = map_def(vec![
+            mapping("A", "ACTIVE", Equivalence::Equivalent),
+            mapping("I", "INACTIVE", Equivalence::Equivalent),
+        ]);
+        let inv = cm.try_inverse().expect("all-equivalent map inverts");
+        assert_eq!(inv.source_system_id, cm.target_system_id);
+        assert_eq!(inv.target_system_id, cm.source_system_id);
+        assert_eq!(inv.mappings.len(), 2);
+        let active = inv
+            .mappings
+            .iter()
+            .find(|m| m.source_code == "ACTIVE")
+            .expect("ACTIVE side present");
+        assert_eq!(active.target_code, "A");
+        assert_eq!(active.equivalence, Equivalence::Equivalent);
+    }
+
+    #[test]
+    fn try_inverse_refuses_non_equivalent_entries() {
+        // A single Narrower entry poisons the whole inversion —
+        // callers must filter or apply policy explicitly.
+        let cm = map_def(vec![
+            mapping("A", "ACTIVE", Equivalence::Equivalent),
+            mapping("S", "PENDING", Equivalence::NarrowerThanTarget),
+        ]);
+        assert!(cm.try_inverse().is_none());
+
+        let cm = map_def(vec![mapping("X", "LEGACY_X", Equivalence::Disjoint)]);
+        assert!(cm.try_inverse().is_none());
+
+        let cm = map_def(vec![mapping("X", "Y", Equivalence::Related)]);
+        assert!(cm.try_inverse().is_none());
+    }
+
+    #[test]
+    fn try_inverse_round_trips_back_to_original() {
+        let cm = map_def(vec![
+            mapping("A", "ACTIVE", Equivalence::Equivalent),
+            mapping("I", "INACTIVE", Equivalence::Equivalent),
+        ]);
+        let inv = cm.try_inverse().expect("all-equivalent");
+        let back = inv.try_inverse().expect("inverse of inverse");
+        assert_eq!(back, cm);
     }
 
     #[test]
