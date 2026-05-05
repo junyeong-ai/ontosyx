@@ -2,17 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  SETTINGS_NAV_GROUPS,
-  findNavMatch,
-  type NavItem,
-} from "@/lib/constants/settings-nav";
+import { SETTINGS_NAV_GROUPS, type NavItem } from "@/lib/constants/settings-nav";
 
 export function SettingsSidebar() {
   const t = useTranslations("settings.chrome");
@@ -32,36 +28,6 @@ export function SettingsSidebar() {
       (group) => group.items.length > 0 || !!group.href,
     );
   }, [authEnabled, isAdmin]);
-
-  // The group whose URL is currently active starts expanded so the user
-  // sees the rest of its siblings without an extra click. Other groups
-  // stay collapsed by default — this caps visible row count and keeps
-  // the sidebar inside a 720px-laptop viewport without scrolling.
-  const activeGroup = findNavMatch(pathname)?.group.titleKey ?? null;
-  const [expanded, setExpanded] = useState<Set<string>>(
-    () => new Set(activeGroup ? [activeGroup] : []),
-  );
-
-  // When the user navigates between groups, auto-open the new group's
-  // parent so the active item is visible without the user manually
-  // expanding it. Already-open groups stay open — collapsing on
-  // navigation would feel jumpy.
-  useEffect(() => {
-    if (!activeGroup) return;
-    setExpanded((prev) => {
-      if (prev.has(activeGroup)) return prev;
-      return new Set(prev).add(activeGroup);
-    });
-  }, [activeGroup]);
-
-  const toggleGroup = (key: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
 
   return (
     <aside
@@ -88,11 +54,9 @@ export function SettingsSidebar() {
         className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2 pb-4 pt-2"
       >
         {visibleGroups.map((group) => {
-          // Single-page groups (Linear-style): the group label itself
-          // is the navigation link, no collapsible children. Lets a
-          // group with one consolidated page (e.g. Quality hub) read
-          // as a flat top-level entry instead of a redundant
-          // group→item nesting.
+          // Single-page group (Linear style): the group label IS the
+          // navigation link, no children. Renders flat as a top-level
+          // entry — no group→item nesting needed.
           if (group.href && group.items.length === 0) {
             const isActive =
               pathname === group.href || pathname.startsWith(`${group.href}/`);
@@ -102,7 +66,7 @@ export function SettingsSidebar() {
                 href={group.href}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "relative mt-2 flex items-center gap-2 rounded-md px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+                  "relative mt-2 flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground focus-visible:ring-offset-1",
                   isActive
                     ? "bg-brand-surface text-brand-foreground before:absolute before:start-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-brand-solid"
@@ -122,16 +86,22 @@ export function SettingsSidebar() {
             );
           }
 
-          const isOpen = expanded.has(group.titleKey);
-          const groupId = `settings-group-${group.titleKey}`;
+          // Multi-item group: the group label is a non-interactive
+          // section heading; children are always visible. Industry
+          // pattern (Stripe / Linear / Notion) — collapsing 5–7
+          // groups adds cognitive overhead without saving real
+          // sidebar real estate.
+          const headingId = `settings-group-${group.titleKey}`;
           return (
-            <div key={group.titleKey} className="flex flex-col gap-0.5">
-              <button
-                type="button"
-                onClick={() => toggleGroup(group.titleKey)}
-                aria-expanded={isOpen}
-                aria-controls={groupId}
-                className="mt-2 flex items-center gap-2 rounded-md px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:text-foreground-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40"
+            <div
+              key={group.titleKey}
+              role="group"
+              aria-labelledby={headingId}
+              className="flex flex-col gap-0.5"
+            >
+              <h3
+                id={headingId}
+                className="mt-3 flex items-center gap-2 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted"
               >
                 <HugeiconsIcon
                   icon={group.icon}
@@ -142,23 +112,13 @@ export function SettingsSidebar() {
                 <span className="flex-1 text-start">
                   {tSidebar(group.titleKey)}
                 </span>
-                <HugeiconsIcon
-                  icon={ArrowDown01Icon}
-                  className={cn(
-                    "h-3 w-3 shrink-0 transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
-                    !isOpen && "-rotate-90",
-                  )}
-                  size="100%"
-                  aria-hidden="true"
-                />
-              </button>
-              {isOpen && (
-                <div id={groupId} className="flex flex-col gap-0.5">
-                  {group.items.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
+              </h3>
+              <ul className="flex flex-col gap-0.5">
+                {group.items.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <li key={item.href}>
                       <Link
-                        key={item.href}
                         href={item.href}
                         aria-current={isActive ? "page" : undefined}
                         className={cn(
@@ -171,10 +131,10 @@ export function SettingsSidebar() {
                       >
                         {tSidebar(item.labelKey)}
                       </Link>
-                    );
-                  })}
-                </div>
-              )}
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           );
         })}
