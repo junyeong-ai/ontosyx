@@ -587,6 +587,7 @@
   "inspector": {
     "tabs": {
       "definition": "Definition",
+      "mappings": "Mappings",
       "sample": "Sample",
       "lineage": "Lineage",
       "dependents": "Dependents",
@@ -594,8 +595,7 @@
       "quality": "Quality",
       "changelog": "Change log",
       "definitionSubsection": {
-        "glossary": "Definition · Anchors",
-        "mappings": "Mappings"
+        "glossary": "Definition · Anchors"
       }
     },
     "binding": {

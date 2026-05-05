@@ -180,6 +180,7 @@ describe("visibleInspectorFacets", () => {
     const visible = visibleInspectorFacets(nodeCtx(NODE_WITH_LINEAGE));
     expect(visible.map((f) => f.id)).toEqual([
       "definition",
+      "mappings",
       "sample",
       "lineage",
       "rules",

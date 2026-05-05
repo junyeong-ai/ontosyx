@@ -46,7 +46,7 @@ import { Section } from "../shared";
 export type InspectorEntityKind = "node" | "edge";
 
 /**
- * The five built-in facet ids. Plugins can register additional ids
+ * The seven built-in facet ids. Plugins can register additional ids
  * — `InspectorFacetId` is a `string` at the type level so the
  * registry stays open. Convenience union below documents what's
  * shipped by default; consumers that need exhaustiveness over the
@@ -55,6 +55,7 @@ export type InspectorEntityKind = "node" | "edge";
  */
 export type DefaultInspectorFacetId =
   | "definition"
+  | "mappings"
   | "sample"
   | "lineage"
   | "rules"
@@ -127,18 +128,11 @@ function DefinitionPane({ ctx }: { ctx: InspectorFacetContext }) {
         </div>
       </Section>
       {ctx.node && (
-        <>
-          <Section title={`Constraints (${arr(ctx.node.constraints).length})`}>
-            <div className="px-3 py-2">
-              <ConstraintsFacet node={ctx.node} />
-            </div>
-          </Section>
-          <Section title={t("definitionSubsection.mappings")}>
-            <div className="px-3 py-2">
-              <MappingsFacet node={ctx.node} ontology={ctx.ontology} />
-            </div>
-          </Section>
-        </>
+        <Section title={`Constraints (${arr(ctx.node.constraints).length})`}>
+          <div className="px-3 py-2">
+            <ConstraintsFacet node={ctx.node} />
+          </div>
+        </Section>
       )}
       <p className="mt-3 px-3 pb-2 text-2xs text-foreground-muted">
         {tEntity.rich("editTip", {
@@ -171,6 +165,25 @@ const DEFAULT_FACETS: readonly InspectorFacet[] = [
     labelKey: "definition",
     accept: () => true,
     render: (ctx) => <DefinitionPane ctx={ctx} />,
+  },
+  {
+    id: "mappings",
+    labelKey: "mappings",
+    // Object mappings are a node-only concept — edges bind through
+    // their endpoint nodes, so the facet hides on edge entities.
+    accept: (ctx) => ctx.kind === "node",
+    badge: (ctx) =>
+      ctx.node
+        ? arr(ctx.ontology.object_mappings).filter(
+            (m) => m.node_type_id === ctx.entity.id,
+          ).length || undefined
+        : undefined,
+    render: (ctx) =>
+      ctx.node ? (
+        <div className="px-3 py-3">
+          <MappingsFacet node={ctx.node} ontology={ctx.ontology} />
+        </div>
+      ) : null,
   },
   {
     id: "sample",

@@ -587,6 +587,7 @@
   "inspector": {
     "tabs": {
       "definition": "정의",
+      "mappings": "매핑",
       "sample": "샘플",
       "lineage": "계보",
       "dependents": "참조",
@@ -594,8 +595,7 @@
       "quality": "품질",
       "changelog": "변경 이력",
       "definitionSubsection": {
-        "glossary": "정의 · 용어 연결",
-        "mappings": "매핑"
+        "glossary": "정의 · 용어 연결"
       }
     },
     "binding": {
