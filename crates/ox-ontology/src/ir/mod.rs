@@ -163,18 +163,18 @@ struct OntologyLookup {
     /// re-introspection stays idempotent.
     table_inventory_idx: HashMap<(crate::mapping::SourceId, String), usize>,
     /// Reverse index — glossary term → every NodeType that flags it
-    /// as `concept_term_id`. Empty Vec when no NodeType realises the
+    /// as `concept_id`. Empty Vec when no NodeType realises the
     /// term (legal — the term stays as a vocabulary entry until an
     /// implementer is wired, or the term carries no `realisation` and
     /// is plain glossary content). Built from the forward
-    /// `NodeTypeDef.concept_term_id` field, so adding / removing the
+    /// `NodeTypeDef.concept_id` field, so adding / removing the
     /// pointer on a node automatically rebuilds the reverse view on
     /// the next `rebuild_indices()`.
-    glossary_term_realised_by_node_types:
-        HashMap<crate::glossary::GlossaryTermId, Vec<usize>>,
+    concept_realised_by_node_types:
+        HashMap<crate::concept::ConceptId, Vec<usize>>,
     /// Reverse index for edges; same shape as the node version.
-    glossary_term_realised_by_edge_types:
-        HashMap<crate::glossary::GlossaryTermId, Vec<usize>>,
+    concept_realised_by_edge_types:
+        HashMap<crate::concept::ConceptId, Vec<usize>>,
 }
 
 /// Current on-wire schema version for `OntologyIR` JSONB.
@@ -767,23 +767,23 @@ impl OntologyIR {
 
         // Reverse index: glossary term → every implementing
         // NodeType / EdgeType. Built from the forward
-        // `concept_term_id` pointer on each type. A term with no
+        // `concept_id` pointer on each type. A term with no
         // implementer carries an empty Vec (or simply doesn't appear
         // in the map — both shapes are distinguishable through
         // `lookup.glossary_term_id_idx.contains_key`).
         for (i, node) in self.node_types.iter().enumerate() {
-            if let Some(term_id) = &node.concept_term_id {
+            if let Some(term_id) = &node.concept_id {
                 lookup
-                    .glossary_term_realised_by_node_types
+                    .concept_realised_by_node_types
                     .entry(term_id.clone())
                     .or_default()
                     .push(i);
             }
         }
         for (i, edge) in self.edge_types.iter().enumerate() {
-            if let Some(term_id) = &edge.concept_term_id {
+            if let Some(term_id) = &edge.concept_id {
                 lookup
-                    .glossary_term_realised_by_edge_types
+                    .concept_realised_by_edge_types
                     .entry(term_id.clone())
                     .or_default()
                     .push(i);
@@ -1108,15 +1108,16 @@ impl OntologyIR {
 
     /// Every glossary term whose `realisation` field declares an
     /// executable concept spec (Segment / Function / CrossEntity).
-    /// Terms without a realisation are pure vocabulary entries and
-    /// stay out of this view; consumers that want the full glossary
-    /// walk [`OntologyIR::glossary`] directly.
-    pub fn concept_terms(
+    /// Concepts without a realisation are pure identity entries —
+    /// the catalogue knows them but no executable membership rule
+    /// has landed yet. Consumers that want the full concept catalogue
+    /// walk [`OntologyIR::concepts`] directly.
+    pub fn concepts_with_realisation(
         &self,
-    ) -> impl Iterator<Item = &crate::glossary::GlossaryTermDef> {
-        self.glossary
+    ) -> impl Iterator<Item = &crate::concept::ConceptDef> {
+        self.concepts
             .iter()
-            .filter(|term| term.realisation.is_some())
+            .filter(|c| c.realisation.is_some())
     }
 
     /// Every source-table inventory row the IR carries.
@@ -1140,29 +1141,29 @@ impl OntologyIR {
     }
 
     /// O(1) lookup: every NodeType that flags itself as realising
-    /// the named glossary term. Reads the reverse index built in
-    /// [`rebuild_indices`]. Empty slice when the term has no
-    /// implementing nodes (legitimate transient state — a term can
-    /// declare a `realisation` before its first implementer lands).
-    pub fn node_types_realising_glossary_term(
+    /// the named concept. Reads the reverse index built in
+    /// [`rebuild_indices`]. Empty slice when the concept has no
+    /// implementing nodes (legitimate transient state — a concept can
+    /// be declared before its first implementer lands).
+    pub fn node_types_realising_concept(
         &self,
-        term_id: &crate::glossary::GlossaryTermId,
+        concept_id: &crate::concept::ConceptId,
     ) -> Vec<&NodeTypeDef> {
         self.lookup
-            .glossary_term_realised_by_node_types
-            .get(term_id)
+            .concept_realised_by_node_types
+            .get(concept_id)
             .map(|indices| indices.iter().map(|&i| &self.node_types[i]).collect())
             .unwrap_or_default()
     }
 
-    /// Edge counterpart of [`node_types_realising_glossary_term`].
-    pub fn edge_types_realising_glossary_term(
+    /// Edge counterpart of [`node_types_realising_concept`].
+    pub fn edge_types_realising_concept(
         &self,
-        term_id: &crate::glossary::GlossaryTermId,
+        concept_id: &crate::concept::ConceptId,
     ) -> Vec<&EdgeTypeDef> {
         self.lookup
-            .glossary_term_realised_by_edge_types
-            .get(term_id)
+            .concept_realised_by_edge_types
+            .get(concept_id)
             .map(|indices| indices.iter().map(|&i| &self.edge_types[i]).collect())
             .unwrap_or_default()
     }

@@ -343,7 +343,7 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: crate::glossary::TermLifecycle::default(),
-        realisation: None,
+        concept_id: None,
         })
         .unwrap();
         let gaps = detect_locale_gaps(&ir, &[LanguageTag::parse("en").unwrap()]);

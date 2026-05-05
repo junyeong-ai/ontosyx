@@ -232,7 +232,7 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: ox_ontology::glossary::TermLifecycle::default(),
-        realisation: None,
+        concept_id: None,
         }
     }
 

@@ -621,7 +621,7 @@ fn superstructure_add_methods_populate_the_public_accessors() {
         valid_from: None,
         valid_to: None,
         lifecycle: crate::glossary::TermLifecycle::default(),
-    realisation: None,
+    concept_id: None,
     }).unwrap();
 
     assert_eq!(onto.interfaces().len(), 1);
@@ -939,7 +939,7 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
         valid_from: None,
         valid_to: None,
         lifecycle: crate::glossary::TermLifecycle::default(),
-    realisation: None,
+    concept_id: None,
     }).unwrap();
 
     let errs = onto.validate();
@@ -1663,7 +1663,7 @@ fn add_glossary_term_rejects_self_replacement() {
             replaced_by: Some(id.clone()),
             deprecated_at: Utc::now(),
         },
-        realisation: None,
+        concept_id: None,
     };
     let err = onto.add_glossary_term(term).unwrap_err();
     assert!(matches!(
@@ -1697,7 +1697,7 @@ fn add_glossary_term_rejects_replacement_pointing_to_missing_term() {
             replaced_by: Some(GlossaryTermId::new("gt-phantom")),
             deprecated_at: Utc::now(),
         },
-        realisation: None,
+        concept_id: None,
     };
     let err = onto.add_glossary_term(term).unwrap_err();
     assert!(matches!(
@@ -1728,7 +1728,7 @@ fn add_glossary_term_accepts_replacement_pointing_to_existing_term() {
             valid_from: None,
             valid_to: None,
             lifecycle: TermLifecycle::Active,
-            realisation: None,
+            concept_id: None,
         }
     }
 
@@ -1875,7 +1875,7 @@ fn phrase_resolver_finds_term_via_default_label() {
         valid_from: None,
         valid_to: None,
         lifecycle: TermLifecycle::Active,
-            realisation: None,
+            concept_id: None,
     })
     .unwrap();
 
@@ -1908,7 +1908,7 @@ fn phrase_resolver_finds_term_via_korean_alias() {
         valid_from: None,
         valid_to: None,
         lifecycle: TermLifecycle::Active,
-            realisation: None,
+            concept_id: None,
     })
     .unwrap();
 
@@ -1942,7 +1942,7 @@ fn phrase_resolver_follows_deprecated_replacement_chain() {
             valid_from: None,
             valid_to: None,
             lifecycle,
-            realisation: None,
+            concept_id: None,
         }
     }
 
@@ -1983,7 +1983,7 @@ fn phrase_resolver_prefers_active_term_over_deprecated_with_same_alias() {
             valid_from: None,
             valid_to: None,
             lifecycle,
-            realisation: None,
+            concept_id: None,
         }
     }
 
@@ -2028,7 +2028,7 @@ fn phrase_resolver_prefers_canonical_term_over_alias() {
             valid_from: None,
             valid_to: None,
             lifecycle: TermLifecycle::Active,
-            realisation: None,
+            concept_id: None,
         }
     }
 
@@ -2068,7 +2068,7 @@ fn validate_flags_glossary_broader_cycle() {
             valid_from: None,
             valid_to: None,
             lifecycle: TermLifecycle::default(),
-            realisation: None,
+            concept_id: None,
         }
     }
 
@@ -2115,7 +2115,7 @@ fn validate_flags_glossary_replaced_by_cycle() {
                 replaced_by: Some(GlossaryTermId::new(replaced_by)),
                 deprecated_at: Utc::now(),
             },
-            realisation: None,
+            concept_id: None,
         }
     }
 
@@ -2334,7 +2334,7 @@ fn add_concept_rejects_self_replacement() {
         valid_from: None,
         valid_to: None,
         lifecycle: TermLifecycle::default(),
-        realisation: None,
+        concept_id: None,
     })
     .unwrap();
     let id = ConceptId::new("c-customer");
@@ -2384,7 +2384,7 @@ fn add_concept_round_trips_with_alias_terms() {
             valid_from: None,
             valid_to: None,
             lifecycle: TermLifecycle::default(),
-            realisation: None,
+            concept_id: None,
         }
     }
 

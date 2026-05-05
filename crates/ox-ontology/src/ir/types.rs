@@ -174,19 +174,18 @@ pub struct NodeTypeDef {
     pub glossary_anchors: Vec<crate::glossary::GlossaryTermId>,
 
     /// Workspace-canonical concept this NodeType implements,
-    /// expressed as the [`crate::glossary::GlossaryTermId`] of a
-    /// term whose `realisation` field names the executable spec.
-    /// Multiple NodeTypes may share a `concept_term_id` (CRM and ERP
+    /// expressed as the stable [`crate::concept::ConceptId`].
+    /// Multiple NodeTypes may share a `concept_id` (CRM and ERP
     /// each contributing their own Customer NodeType, both realising
     /// the workspace's Customer concept); the federation planner
     /// walks the reverse
-    /// [`super::OntologyIR::glossary_term_realised_by_node_types`]
+    /// [`super::OntologyIR::concept_realised_by_node_types`]
     /// index to enumerate implementers when a query names the
     /// concept rather than a specific NodeType. `None` is the
     /// structural-only case where the node carries no concept-level
     /// identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub concept_term_id: Option<crate::glossary::GlossaryTermId>,
+    pub concept_id: Option<crate::concept::ConceptId>,
 }
 
 /// Type-safe reference to the owner of a property — node or edge.
@@ -308,7 +307,7 @@ impl Default for NodeTypeDef {
             metrics: Vec::new(),
             rules: Vec::new(),
             glossary_anchors: Vec::new(),
-            concept_term_id: None,
+            concept_id: None,
         }
     }
 }
@@ -382,13 +381,13 @@ pub struct EdgeTypeDef {
     pub glossary_anchors: Vec<crate::glossary::GlossaryTermId>,
 
     /// Workspace-canonical concept this EdgeType realises. Mirrors
-    /// [`NodeTypeDef::concept_term_id`]; multiple EdgeTypes from
-    /// different sources can share a `concept_term_id` to declare
+    /// [`NodeTypeDef::concept_id`]; multiple EdgeTypes from
+    /// different sources can share a `concept_id` to declare
     /// "these are the same business relationship". The reverse index
-    /// [`super::OntologyIR::glossary_term_realised_by_edge_types`]
-    /// resolves a term to its implementing edges in O(1).
+    /// [`super::OntologyIR::concept_realised_by_edge_types`]
+    /// resolves a concept to its implementing edges in O(1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub concept_term_id: Option<crate::glossary::GlossaryTermId>,
+    pub concept_id: Option<crate::concept::ConceptId>,
 }
 
 /// UML / OMG-aligned edge classification.
@@ -451,7 +450,7 @@ impl Default for EdgeTypeDef {
             replaced_by_id: None,
             kind: EdgeKind::Association,
             glossary_anchors: Vec::new(),
-            concept_term_id: None,
+            concept_id: None,
         }
     }
 }

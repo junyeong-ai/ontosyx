@@ -3,7 +3,7 @@
 //!
 //! `GlossaryTermDef` was historically doing two jobs at once:
 //! describing a concept's *identity* (the workspace-canonical thing
-//! `NodeTypeDef.concept_term_id` pinned, the same regardless of the
+//! `NodeTypeDef.concept_id` pinned, the same regardless of the
 //! locale we render its label in) and describing a *lexicalization*
 //! (the Korean prefLabel "고객", the English prefLabel "Customer",
 //! their alias spellings). SKOS / ISO 1087-1 / FIBO all keep these
@@ -27,7 +27,7 @@
 //!
 //! This module ships the identity primitive without rewiring every
 //! consumer at once. `OntologyIR.concepts` is a sibling collection;
-//! `NodeTypeDef.concept_term_id` keeps pointing at the canonical
+//! `NodeTypeDef.concept_id` keeps pointing at the canonical
 //! `GlossaryTermDef` for now and will lift to `concept_id` in a
 //! follow-up that includes the data migration. The two surfaces
 //! coexist behind the IR validator's referential check so a

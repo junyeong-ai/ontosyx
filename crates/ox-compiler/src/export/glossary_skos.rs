@@ -298,7 +298,7 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: TermLifecycle::Active,
-            realisation: None,
+            concept_id: None,
         }
     }
 

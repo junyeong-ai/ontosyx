@@ -120,17 +120,16 @@ pub struct GlossaryTermDef {
     #[serde(default)]
     pub lifecycle: TermLifecycle,
 
-    /// Optional executable spec for "what does it mean for a row to
-    /// belong to this term's concept?" — segment membership,
-    /// function-derived value, cross-entity predicate. Terms with a
-    /// realisation are workspace-canonical business concepts that
-    /// `NodeTypeDef.concept_term_id` / `EdgeTypeDef.concept_term_id`
-    /// pin as their primary anchor (1:1 from each implementing type
-    /// to its term); terms without a realisation are pure
-    /// vocabulary entries — labels, definitions, glossary anchors —
-    /// that the implementing types still describe structurally.
+    /// Concept this term lexicalizes — `Some(concept_id)` declares
+    /// the term as a `prefLabel` / `altLabel` of a registered
+    /// [`crate::concept::ConceptDef`]. The concept owns the
+    /// executable realisation (segment / function / cross-entity
+    /// predicate); terms with no `concept_id` are pure lexicon
+    /// entries (definitions, alias spellings) that the catalogue
+    /// hasn't yet promoted into the concept layer. The IR
+    /// validator rejects an anchor that doesn't resolve.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub realisation: Option<TermRealisation>,
+    pub concept_id: Option<crate::concept::ConceptId>,
 }
 
 /// Executable realisation of a glossary term that names a business
@@ -168,23 +167,26 @@ pub enum TermRealisation {
 }
 
 impl GlossaryTermDef {
-    /// Pull the SegmentId out when the realisation is segment-shaped.
-    /// Lets validators short-circuit the segment-existence check
-    /// without a full match.
+    /// Backwards-compat shim while call sites finish migrating from
+    /// term-anchored realisations to concept-anchored ones. Always
+    /// returns `None` now that the realisation lives on
+    /// [`crate::concept::ConceptDef`]; remove every consumer that
+    /// reaches for it and this helper goes too.
+    #[deprecated(
+        since = "1.0.0",
+        note = "realisation moved to ConceptDef; route through OntologyIR::concepts()"
+    )]
     pub fn segment_id(&self) -> Option<&SegmentId> {
-        match &self.realisation {
-            Some(TermRealisation::Segment { segment_id }) => Some(segment_id),
-            _ => None,
-        }
+        None
     }
 
-    /// Pull the FunctionId out when the realisation is function-
-    /// shaped.
+    /// Backwards-compat shim — see [`GlossaryTermDef::segment_id`].
+    #[deprecated(
+        since = "1.0.0",
+        note = "realisation moved to ConceptDef; route through OntologyIR::concepts()"
+    )]
     pub fn function_id(&self) -> Option<&FunctionId> {
-        match &self.realisation {
-            Some(TermRealisation::Function { function_id }) => Some(function_id),
-            _ => None,
-        }
+        None
     }
 }
 
@@ -466,7 +468,7 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: TermLifecycle::default(),
-        realisation: None,
+        concept_id: None,
         }
     }
 

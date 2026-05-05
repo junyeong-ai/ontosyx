@@ -137,7 +137,7 @@ pub(crate) async fn suggest_glossary_bindings(
         valid_from: None,
         valid_to: None,
         lifecycle: ox_ontology::glossary::TermLifecycle::default(),
-        realisation: None,
+        concept_id: None,
     };
 
     let candidates = suggest_property_bindings_by_term(&ir, &term, policy);
