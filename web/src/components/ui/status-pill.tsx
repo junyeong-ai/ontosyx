@@ -48,7 +48,7 @@ export function StatusPill<K extends string>({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full text-2xs font-medium transition-colors",
+          "inline-flex items-center gap-1.5 rounded-full text-2xs font-medium transition-colors duration-[var(--duration-quick)]",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring-default",
           disabled && "pointer-events-none opacity-60",
         )}
@@ -77,7 +77,7 @@ export function StatusPill<K extends string>({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-start gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors",
+                  "flex w-full items-start gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors duration-[var(--duration-quick)]",
                   option.key === value
                     ? "bg-brand-surface"
                     : "hover:bg-surface-hover",

@@ -91,6 +91,7 @@ export default function KnowledgePage() {
   // Reset selection on filter change — the rows underneath have
   // changed, a leftover selection would silently keep ids from a
   // previous view.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: setter only — deps intentionally drive reset
   useEffect(() => {
     setSelectedIds(new Set());
   }, [statusFilter, kindFilter]);

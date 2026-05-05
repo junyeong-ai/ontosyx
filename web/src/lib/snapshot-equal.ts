@@ -38,7 +38,7 @@ export function snapshotEqual(a: unknown, b: unknown): boolean {
   const bk = Object.keys(bo);
   if (ak.length !== bk.length) return false;
   for (const k of ak) {
-    if (!Object.prototype.hasOwnProperty.call(bo, k)) return false;
+    if (!Object.hasOwn(bo, k)) return false;
     if (!snapshotEqual(ao[k], bo[k])) return false;
   }
   return true;

@@ -355,7 +355,7 @@ function ListPane<T>({
                   type="button"
                   onClick={() => onSelect(id)}
                   className={cn(
-                    "flex w-full flex-col items-start px-3 py-2 text-left text-xs transition-colors",
+                    "flex w-full flex-col items-start px-3 py-2 text-left text-xs transition-colors duration-[var(--duration-quick)]",
                     isSelected
                       ? "bg-brand-surface text-brand-foreground"
                       : "text-foreground hover:bg-surface-hover",

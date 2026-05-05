@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -51,6 +50,7 @@ export function StaleFacet() {
   // Tab change resets selection — pending and decided are
   // distinct cohorts, a leftover selection would silently target
   // ids from the other tab.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: setter only — tab drives reset
   useEffect(() => {
     setSelectedIds(new Set());
   }, [tab]);

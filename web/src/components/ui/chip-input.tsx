@@ -138,7 +138,7 @@ export function ChipInput<T = string>(props: ChipInputProps<T>) {
         }
       }}
       className={cn(
-        "flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-divider bg-surface-base px-2 py-1.5 text-sm transition-colors",
+        "flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-divider bg-surface-base px-2 py-1.5 text-sm transition-colors duration-[var(--duration-quick)]",
         "focus-within:border-brand-border focus-within:ring-2 focus-within:ring-ring-default",
         disabled && "pointer-events-none opacity-60",
       )}

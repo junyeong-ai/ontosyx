@@ -20,7 +20,6 @@ import { FormInput, FormTextarea, SettingsSelect } from "@/components/ui/form-in
 import { useConfirm } from "@/components/providers/confirm-provider";
 import type {
   SavedReport,
-  OntologyListItem,
   ReportCreateRequest,
   ReportUpdateRequest,
   ReportParameter,

@@ -80,7 +80,7 @@ export function EntityWorkbench<T>({
       {banner}
       <div
         className={cn(
-          "grid min-h-0 flex-1 divide-x divide-divider transition-[grid-template-columns] duration-200",
+          "grid min-h-0 flex-1 divide-x divide-divider transition-[grid-template-columns] duration-[var(--duration-base)]",
         )}
         style={{ gridTemplateColumns: cols }}
       >

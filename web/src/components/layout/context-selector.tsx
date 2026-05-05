@@ -198,7 +198,7 @@ function AnalyzeSelector() {
   });
 
   useEffect(() => {
-    if (!detail || !detail.ontology_ir) return;
+    if (!detail?.ontology_ir) return;
     const store = useAppStore.getState();
     store.loadStandaloneOntology(detail.ontology_ir as OntologyIR);
     store.setOntologyId(detail.id);
@@ -263,7 +263,7 @@ function ExploreSelector() {
   });
 
   useEffect(() => {
-    if (!detail || !detail.ontology_ir) return;
+    if (!detail?.ontology_ir) return;
     const store = useAppStore.getState();
     store.loadStandaloneOntology(detail.ontology_ir as OntologyIR);
     store.setOntologyId(detail.id);
