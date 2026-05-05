@@ -24,6 +24,10 @@ rand = "0.8"
 [dev-dependencies]
 ox-compiler = { workspace = true }
 ox-ontology = { workspace = true, features = ["test-fixtures"] }
+# `advisory_lock_integration` spawns parallel callers and joins
+# them via `futures::future::join_all`; only the integration
+# tests need it, not production code.
+futures = { workspace = true }
 
 [lints]
 workspace = true
