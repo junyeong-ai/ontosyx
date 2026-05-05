@@ -30,7 +30,7 @@ import {
   type OntologyEditReceipt,
 } from "@/lib/api/edit-ops";
 
-import { ontologiesKeys } from "./use-ontologies";
+import { workspaceOntologyKeys } from "./use-workspace-ontology";
 
 // ---------------------------------------------------------------------------
 // Term → property candidates
@@ -93,7 +93,7 @@ export function useApplyBindingEdits(
     mutationFn: (body) => submitOntologyEdits(ontologyId, body),
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
-        queryKey: ontologiesKeys.detail(ontologyId),
+        queryKey: workspaceOntologyKeys.all,
       });
       onSuccess?.(...args);
     },

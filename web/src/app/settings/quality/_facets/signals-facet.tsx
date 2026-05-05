@@ -26,10 +26,7 @@ import {
   useShaclFailures,
   useStaleTypes,
 } from "@/hooks/api/use-quality";
-import {
-  useOntologies,
-  useOntologyDetail,
-} from "@/hooks/api/use-ontologies";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import type { OntologyEditOp } from "@/lib/api/edit-ops";
 
@@ -415,9 +412,8 @@ function StaleTypesTable({
   const tCommon = useTranslations("common");
   const data = useMemo(() => rows, [rows]);
 
-  const ontologies = useOntologies({ limit: 1 });
-  const ontology = ontologies.data?.items?.[0];
-  const detail = useOntologyDetail(ontology?.id);
+  const detail = useWorkspaceOntology();
+  const ontology = detail.data ?? null;
   const apply = useApplyOntologyEdits(ontology?.id);
   const confirm = useConfirm();
   const expectedVersion =

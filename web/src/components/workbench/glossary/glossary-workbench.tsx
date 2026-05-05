@@ -14,10 +14,7 @@ import { useConfirm } from "@/components/providers/confirm-provider";
 import { GlossaryForm } from "@/components/vocabulary/glossary-form";
 import { ResolutionModal } from "@/components/ambiguity/resolution-modal";
 import { GlossaryBindingPanel } from "@/components/glossary/glossary-binding-panel";
-import {
-  useOntologies,
-  useOntologyDetail,
-} from "@/hooks/api/use-ontologies";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import {
   useAmbiguity,
@@ -110,9 +107,8 @@ export function GlossaryWorkbench() {
   // every pane below; we never mirror it into the global Zustand
   // cache because each consumer that needs an ontology fetches its
   // own (avoids two-source drift between fetch and cache).
-  const ontologiesQuery = useOntologies({ limit: 1 });
-  const ontologyMeta = ontologiesQuery.data?.items?.[0];
-  const ontologyDetailQuery = useOntologyDetail(ontologyMeta?.id);
+  const ontologyDetailQuery = useWorkspaceOntology();
+  const ontologyMeta = ontologyDetailQuery.data ?? null;
   const apply = useApplyOntologyEdits(ontologyMeta?.id);
 
   const ontology = ontologyDetailQuery.data?.ontology_ir as
@@ -233,7 +229,7 @@ export function GlossaryWorkbench() {
   // Render branches
   // ------------------------------------------------------------------
 
-  if (ontologiesQuery.isLoading || ontologyDetailQuery.isLoading) {
+  if (ontologyDetailQuery.isLoading) {
     return (
       <WorkbenchPageShell title={t("heading")} subtitle={t("subtitle")}>
         <div className="px-6 py-6">
@@ -243,17 +239,14 @@ export function GlossaryWorkbench() {
     );
   }
 
-  if (ontologiesQuery.isError || ontologyDetailQuery.isError) {
+  if (ontologyDetailQuery.isError) {
     return (
       <WorkbenchPageShell title={t("heading")} subtitle={t("subtitle")}>
         <div className="flex h-full items-center justify-center px-6 py-12">
           <ErrorState
             title={tCommon("loadError.title")}
             description={tCommon("loadError.description")}
-            onRetry={() => {
-              ontologiesQuery.refetch();
-              ontologyDetailQuery.refetch();
-            }}
+            onRetry={() => ontologyDetailQuery.refetch()}
             retryLabel={tCommon("retry")}
           />
         </div>

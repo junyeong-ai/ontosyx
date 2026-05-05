@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
-import { useOntologyDetail } from "@/hooks/api/use-ontologies";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import type {
   ColumnLineage,
   EdgeTypeDef,
@@ -68,15 +68,16 @@ export function ResponseBasis({
   const resolveDiagnostic = useDiagnosticResolver();
   const localeChain = useLocaleChain();
 
-  // Hook hygiene — call useOntologyDetail unconditionally and gate
-  // via the `enabled` flag the hook already exposes. Passing `null`
-  // parks the query in idle without firing a request.
-  const { data: ontologyDetail } = useOntologyDetail(
-    provenance?.ontology_id ?? null,
-  );
+  // Workspace × ontology is 1:1 — type ids resolve against the
+  // workspace's canonical regardless of the provenance's recorded
+  // ontology_id (if it points anywhere else, that's a stale row
+  // from before the singleton invariant landed).
+  const { data: ontologyDetail } = useWorkspaceOntology({
+    enabled: provenance?.ontology_id != null,
+  });
 
   const resolvedTypes = useMemo(
-    () => resolveTypeIds(provenance?.type_ids, ontologyDetail, localeChain),
+    () => resolveTypeIds(provenance?.type_ids, ontologyDetail ?? undefined, localeChain),
     [provenance?.type_ids, ontologyDetail, localeChain],
   );
 

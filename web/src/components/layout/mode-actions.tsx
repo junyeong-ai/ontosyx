@@ -58,7 +58,7 @@ function DesignActions() {
     }
     setAuditing(true);
     try {
-      const report: GraphAuditReport = await auditGraph(ontologyId);
+      const report: GraphAuditReport = await auditGraph();
       const matched = report.matched_nodes.length + report.matched_edges.length;
       const orphaned = report.orphan_graph_nodes.length + report.orphan_graph_edges.length;
       const missing = report.missing_graph_nodes.length + report.missing_graph_edges.length;

@@ -13,7 +13,7 @@ import { ApiError, adoptGraph, auditGraph } from "@/lib/api";
 import type { GraphAuditReport } from "@/lib/api";
 import { arr } from "@/lib/ir-collections";
 
-export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
+export function GraphAuditSection() {
   const t = useTranslations("workbench.bottomPanel.workflowActions");
   const [report, setReport] = useState<GraphAuditReport | null>(null);
   const [loading, setLoading] = useState(false);
@@ -23,7 +23,7 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
   const handleAudit = async () => {
     setLoading(true);
     try {
-      const result = await auditGraph(ontologyId);
+      const result = await auditGraph();
       setReport(result);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("auditFailed"));
@@ -43,7 +43,7 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
           edgeCount: arr(adopted.edge_types).length,
         }),
       );
-      const result = await auditGraph(ontologyId);
+      const result = await auditGraph();
       setReport(result);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : t("adoptFailed"));

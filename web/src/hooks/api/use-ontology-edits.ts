@@ -7,7 +7,7 @@ import {
   type OntologyEditOp,
   type OntologyEditReceipt,
 } from "@/lib/api/edit-ops";
-import { ontologiesKeys } from "./use-ontologies";
+import { workspaceOntologyKeys } from "./use-workspace-ontology";
 
 /**
  * Apply a batch of `OntologyEditOp` ops against the named ontology
@@ -48,12 +48,10 @@ export function useApplyOntologyEdits(ontologyId: string | null | undefined) {
       });
     },
     onSuccess: () => {
-      if (ontologyId) {
-        qc.invalidateQueries({ queryKey: ontologiesKeys.detail(ontologyId) });
-      }
-      // Lists stay valid (the row's identity didn't change), but the
-      // version number on it did — invalidate to surface the new tag.
-      qc.invalidateQueries({ queryKey: ontologiesKeys.lists() });
+      // Workspace × ontology is 1:1; invalidating the singleton key
+      // refreshes both the identity row and the version tag in one
+      // pass.
+      qc.invalidateQueries({ queryKey: workspaceOntologyKeys.all });
     },
   });
 }

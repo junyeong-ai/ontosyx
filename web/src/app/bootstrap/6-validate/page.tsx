@@ -19,14 +19,14 @@ import {
 } from "@/lib/api/bootstrap";
 import {
   createOntology,
-  findOntologyByName,
+  getWorkspaceOntology,
   type OntologyEditOp,
 } from "@/lib/api/ontology";
 import { createProject } from "@/lib/api/projects";
 import type {
   AnalyzeSelection,
   CreateProjectRequest,
-  OntologyListItem,
+  OntologyDetail,
 } from "@/types/api";
 
 import { useBootstrap } from "../bootstrap-state";
@@ -95,7 +95,7 @@ export default function ValidateStep() {
   const router = useRouter();
   const { state, reset, markComplete, update } = useBootstrap();
   const [submitting, setSubmitting] = useState(false);
-  const [existing, setExisting] = useState<OntologyListItem | null>(null);
+  const [existing, setExisting] = useState<OntologyDetail | null>(null);
 
   const glossaryCount = useMemo(
     () => state.glossaryDraft.split("\n").filter((l) => l.trim().length > 0).length,
@@ -188,20 +188,15 @@ export default function ValidateStep() {
     markComplete("6-validate");
     setSubmitting(true);
     try {
-      // Pre-flight name-collision check. Narrows the window on the
-      // create POST's 409 path — the race-fallback still lives in
-      // seedGlossaryIfNeeded's catch, so a second user committing
-      // between the lookup and the POST is still surfaced as a toast.
-      const pilotName = state.pilotName.trim();
-      if (pilotName) {
-        const hit = await findOntologyByName(pilotName);
-        if (hit) {
-          // Park the pipeline; the dialog's choice handler
-          // resumes it via the corresponding branch.
-          setExisting(hit);
-          setSubmitting(false);
-          return;
-        }
+      // Pre-flight collision check. Workspace × ontology is 1:1; if
+      // the workspace already has a canonical ontology, surface the
+      // re-entry dialog rather than letting the create POST's 409
+      // race fall through to the catch below.
+      const hit = await getWorkspaceOntology();
+      if (hit) {
+        setExisting(hit);
+        setSubmitting(false);
+        return;
       }
       await runFinishPipeline();
     } catch (err) {

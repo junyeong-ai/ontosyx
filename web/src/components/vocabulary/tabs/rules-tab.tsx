@@ -22,10 +22,7 @@ import { toast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { EntityWorkbench } from "@/components/workbench/entity-workbench";
 import { RuleForm } from "@/components/vocabulary/rule-form";
-import {
-  useOntologies,
-  useOntologyDetail,
-} from "@/hooks/api/use-ontologies";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import type { OntologyEditOp, RuleDef } from "@/lib/api/edit-ops";
 import { localizePresent } from "@/lib/locale/localize";
@@ -45,9 +42,8 @@ export function RulesTab() {
   const tCommon = useTranslations("common");
   const router = useRouter();
   const searchParams = useSearchParams();
-  const ontologiesQuery = useOntologies({ limit: 1 });
-  const ontology = ontologiesQuery.data?.items?.[0];
-  const detail = useOntologyDetail(ontology?.id);
+  const detail = useWorkspaceOntology();
+  const ontology = detail.data ?? null;
   const apply = useApplyOntologyEdits(ontology?.id);
   const confirm = useConfirm();
 
@@ -145,19 +141,16 @@ export function RulesTab() {
     }
   };
 
-  if (ontologiesQuery.isLoading || detail.isLoading) {
+  if (detail.isLoading) {
     return <SkeletonList count={4} />;
   }
 
-  if (ontologiesQuery.isError || detail.isError) {
+  if (detail.isError) {
     return (
       <ErrorState
         title={tCommon("loadError.title")}
         description={tCommon("loadError.description")}
-        onRetry={() => {
-          ontologiesQuery.refetch();
-          detail.refetch();
-        }}
+        onRetry={() => detail.refetch()}
         retryLabel={tCommon("retry")}
       />
     );

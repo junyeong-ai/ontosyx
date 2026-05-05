@@ -11,30 +11,30 @@ export const createVerificationSlice: StateCreator<
   verifications: [],
   verificationsLoading: false,
 
-  loadVerifications: async (ontologyId) => {
+  loadVerifications: async () => {
     set({ verificationsLoading: true });
     try {
-      const data = await listVerifications(ontologyId);
+      const data = await listVerifications();
       set({ verifications: data, verificationsLoading: false });
     } catch {
       set({ verificationsLoading: false });
     }
   },
 
-  verifyElement: async (ontologyId, elementId, elementKind, notes) => {
-    await verifyElement(ontologyId, {
+  verifyElement: async (elementId, elementKind, notes) => {
+    await verifyElement({
       element_id: elementId,
       element_kind: elementKind,
       review_notes: notes,
     });
     // Refetch to get server-authoritative state (includes verified_by_name)
-    const data = await listVerifications(ontologyId);
+    const data = await listVerifications();
     set({ verifications: data });
   },
 
-  revokeVerification: async (ontologyId, elementId) => {
-    await revokeVerification(ontologyId, elementId);
-    const data = await listVerifications(ontologyId);
+  revokeVerification: async (elementId) => {
+    await revokeVerification(elementId);
+    const data = await listVerifications();
     set({ verifications: data });
   },
 

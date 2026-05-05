@@ -1,80 +1,60 @@
 import type {
-  CursorPage,
   ElementVerification,
   InsightHint,
   OntologyDetail,
   OntologyIR,
-  OntologyListItem,
 } from "@/types/api";
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
 import type { BindingEditOp } from "@/lib/api/binding-suggestions";
 import { request, requestText } from "./client";
 import {
-  CursorPageSchema,
   OntologyDetailSchema,
   OntologyIRSchema,
-  OntologyListItemSchema,
 } from "@/lib/validation";
 
 // ---------------------------------------------------------------------------
-// Ontologies (Λ storage model)
+// Workspace ontology — singleton (workspace × ontology = 1:1).
 //
-// The list endpoint returns identity rows + current-version summaries.
-// The IR itself lives behind the detail endpoint — a single list page
-// could otherwise pull 50 full hydrated ontologies.
+// `GET /api/ontology` returns the workspace's canonical ontology
+// identity row + current-version summary + fully hydrated
+// `OntologyIR`. There is no list (the workspace owns exactly one)
+// and no `{id}` lookup.
 // ---------------------------------------------------------------------------
-
-export async function listOntologies(params?: {
-  cursor?: string;
-  limit?: number;
-  /**
-   * Exact workspace-scoped name match. When set, the server ignores
-   * `cursor`/`limit` and returns a 0- or 1-element `items` array with
-   * no `next_cursor`. Whitespace-only values are treated as unset.
-   */
-  nameEq?: string;
-}): Promise<CursorPage<OntologyListItem>> {
-  const qs = new URLSearchParams();
-  if (params?.cursor) qs.set("cursor", params.cursor);
-  if (params?.limit) qs.set("limit", String(params.limit));
-  if (params?.nameEq?.trim())
-    qs.set("name_eq", params.nameEq);
-  const query = qs.toString();
-  const data = await request(`/ontologies${query ? `?${query}` : ""}`);
-  const result = CursorPageSchema(OntologyListItemSchema).safeParse(data);
-  if (!result.success) {
-    console.warn("Ontology list validation failed:", result.error.issues);
-    return data as ReturnType<
-      typeof CursorPageSchema<typeof OntologyListItemSchema>
-    >["_output"];
-  }
-  return result.data;
-}
 
 /**
- * Workspace-scoped single-name lookup — returns the ontology whose
- * name matches exactly, or `null` when nothing matches. Used by the
- * Bootstrap wizard's Step 6 to detect re-entry before the
- * ontology-create POST returns 409.
- *
- * A blank/whitespace `name` short-circuits to `null` without a
- * request, matching the backend's normalisation.
+ * Fetch the workspace's canonical ontology — identity, current
+ * version summary, and the fully hydrated IR. Returns `null` when
+ * the workspace has no canonical yet (greenfield state).
  */
-export async function findOntologyByName(
-  name: string,
-): Promise<OntologyListItem | null> {
-  if (!name.trim()) return null;
-  const page = await listOntologies({ nameEq: name });
-  return page.items[0] ?? null;
+export async function getWorkspaceOntology(): Promise<OntologyDetail | null> {
+  try {
+    const data = await request("/ontology");
+    const result = OntologyDetailSchema.safeParse(data);
+    if (!result.success) {
+      console.warn("Ontology detail validation failed:", result.error.issues);
+      return data as OntologyDetail;
+    }
+    return result.data as OntologyDetail;
+  } catch (e: unknown) {
+    if (
+      e &&
+      typeof e === "object" &&
+      "status" in e &&
+      (e as { status?: number }).status === 404
+    ) {
+      return null;
+    }
+    throw e;
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Ontology creation (unified `POST /api/ontologies`)
+// Ontology creation (`POST /api/ontology`)
 //
-// One endpoint covers every creation shape. `initial_operations` is a
-// batch of `OntologyEditOp`s applied atomically as v1 — the same op
-// vocabulary used by `POST /api/ontologies/{id}/edits`, so bootstrap
-// flows don't grow a parallel governance surface.
+// One endpoint creates the workspace's canonical ontology.
+// `initial_operations` is a batch of `OntologyEditOp`s applied
+// atomically as v1 — same op vocabulary used by `POST /api/ontology/edits`.
+// 409 when the workspace already has a canonical.
 // ---------------------------------------------------------------------------
 
 /**
@@ -93,14 +73,13 @@ export async function findOntologyByName(
  *
  * `GlossaryTermDef` re-exports the canonical OpenAPI-generated
  * shape from `edit-ops.ts` so bootstrap and admin paths share one
- * wire contract — the Rust `OntologyEditOp::CreateGlossaryTerm`
- * deserialises the same `LocalizedText`-keyed payload either way.
+ * wire contract.
  */
 export type OntologyEditOp =
   | BindingEditOp
   | { op: "create_glossary_term"; def: GlossaryTermDef };
 
-/** Request body for `POST /api/ontologies`. */
+/** Request body for `POST /api/ontology`. */
 export interface CreateOntologyRequest {
   name: string;
   description?: string;
@@ -109,7 +88,7 @@ export interface CreateOntologyRequest {
   message?: string;
 }
 
-/** Response body returned by `POST /api/ontologies`. */
+/** Response body returned by `POST /api/ontology`. */
 export interface CreateOntologyResponse {
   ontology_id: string;
   version_id: string;
@@ -119,32 +98,18 @@ export interface CreateOntologyResponse {
 }
 
 /**
- * Create a fresh ontology. Validates + routes the initial batch
- * through the same pipeline as `/edits`, so a designer-level caller
- * can submit routine CreateGlossaryTerm ops without queueing.
+ * Create the workspace's canonical ontology. Validates + routes
+ * the initial batch through the same pipeline as `/edits`, so a
+ * designer-level caller can submit routine CreateGlossaryTerm ops
+ * without queueing.
  */
 export async function createOntology(
   body: CreateOntologyRequest,
 ): Promise<CreateOntologyResponse> {
-  return request<CreateOntologyResponse>("/ontologies", {
+  return request<CreateOntologyResponse>("/ontology", {
     method: "POST",
     body: JSON.stringify(body),
   });
-}
-
-/**
- * Fetch a single ontology's identity row + current-version summary +
- * fully hydrated `OntologyIR`. `ontology_ir` is `undefined` iff the
- * identity has no committed version yet (rare transitional state).
- */
-export async function getOntologyDetail(id: string): Promise<OntologyDetail> {
-  const data = await request(`/ontologies/${encodeURIComponent(id)}`);
-  const result = OntologyDetailSchema.safeParse(data);
-  if (!result.success) {
-    console.warn("Ontology detail validation failed:", result.error.issues);
-    return data as OntologyDetail;
-  }
-  return result.data as OntologyDetail;
 }
 
 // ---------------------------------------------------------------------------
@@ -154,7 +119,7 @@ export async function getOntologyDetail(id: string): Promise<OntologyDetail> {
 export async function normalizeOntology(
   input: Record<string, unknown>,
 ): Promise<{ ontology: OntologyIR; warnings: { kind: string; message: string }[] }> {
-  const data = await request("/ontologies/normalize", {
+  const data = await request("/ontology/normalize", {
     method: "POST",
     body: JSON.stringify(input),
   }) as { ontology: unknown; warnings?: unknown[] };
@@ -169,63 +134,63 @@ export async function normalizeOntology(
 export async function exportOntology(
   ontology: OntologyIR,
 ): Promise<Record<string, unknown>> {
-  return request("/ontologies/export", {
+  return request("/ontology/export", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportCypher(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontologies/export/cypher", {
+  return requestText("/ontology/export/cypher", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportMermaid(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontologies/export/mermaid", {
+  return requestText("/ontology/export/mermaid", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportGraphql(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontologies/export/graphql", {
+  return requestText("/ontology/export/graphql", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportOwl(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontologies/export/owl", {
+  return requestText("/ontology/export/owl", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportShacl(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontologies/export/shacl", {
+  return requestText("/ontology/export/shacl", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportTypescript(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontologies/export/typescript", {
+  return requestText("/ontology/export/typescript", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportPython(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontologies/export/python", {
+  return requestText("/ontology/export/python", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function importOwl(content: string): Promise<OntologyIR> {
-  return request("/ontologies/import/owl", {
+  return request("/ontology/import/owl", {
     method: "POST",
     body: JSON.stringify({ content }),
   });
@@ -238,40 +203,33 @@ export async function importOwl(content: string): Promise<OntologyIR> {
 export async function suggestInsights(
   ontology: OntologyIR,
 ): Promise<InsightHint[]> {
-  return request("/ontologies/suggestions", {
+  return request("/ontology/suggestions", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 // ---------------------------------------------------------------------------
-// Element Verification
+// Element Verification — singleton, no ontology id in path
 // ---------------------------------------------------------------------------
 
-export async function listVerifications(
-  ontologyId: string,
-): Promise<ElementVerification[]> {
-  return request(`/ontologies/${encodeURIComponent(ontologyId)}/verifications`);
+export async function listVerifications(): Promise<ElementVerification[]> {
+  return request("/ontology/verifications");
 }
 
 export async function verifyElement(
-  ontologyId: string,
   req: { element_id: string; element_kind: "node" | "edge" | "property"; review_notes?: string },
 ): Promise<{ id: string }> {
-  return request(`/ontologies/${encodeURIComponent(ontologyId)}/verifications`, {
+  return request("/ontology/verifications", {
     method: "POST",
     body: JSON.stringify(req),
   });
 }
 
-export async function revokeVerification(
-  ontologyId: string,
-  elementId: string,
-): Promise<void> {
-  await request(
-    `/ontologies/${encodeURIComponent(ontologyId)}/verifications/${encodeURIComponent(elementId)}`,
-    { method: "DELETE" },
-  );
+export async function revokeVerification(elementId: string): Promise<void> {
+  await request(`/ontology/verifications/${encodeURIComponent(elementId)}`, {
+    method: "DELETE",
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -289,28 +247,23 @@ export interface GraphAuditReport {
   sync_percentage: number;
 }
 
-export async function auditGraph(
-  ontologyId: string,
-): Promise<GraphAuditReport> {
-  return request(`/ontologies/${encodeURIComponent(ontologyId)}/audit`, {
-    method: "POST",
-  });
+export async function auditGraph(): Promise<GraphAuditReport> {
+  return request("/ontology/audit", { method: "POST" });
 }
 
 export async function adoptGraph(
   name?: string,
   save?: boolean,
 ): Promise<import("@/types/ontology").OntologyIR> {
-  return request("/ontologies/adopt-graph", {
+  return request("/ontology/adopt-graph", {
     method: "POST",
     body: JSON.stringify({ name, save }),
   });
 }
 
-export async function reindexSchema(
-  ontologyId: string,
-): Promise<{ ontology_lineage_id: string; nodes_indexed: number }> {
-  return request(`/ontologies/${encodeURIComponent(ontologyId)}/reindex`, {
-    method: "POST",
-  });
+export async function reindexSchema(): Promise<{
+  ontology_id: string;
+  nodes_indexed: number;
+}> {
+  return request("/ontology/reindex", { method: "POST" });
 }

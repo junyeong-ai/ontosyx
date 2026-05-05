@@ -22,7 +22,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { SettingsSelect } from "@/components/ui/form-input";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
-import { useOntologies } from "@/hooks/api/use-ontologies";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { useFormatters } from "@/hooks/use-formatters";
 import { useAuditTrail } from "@/hooks/api/use-audit-trail";
 import {
@@ -38,16 +38,15 @@ import {
 export function ProvenanceAuditFacet() {
   const t = useTranslations("settings.governance.audit.provenance");
   const tCommon = useTranslations("common");
-  const ontologies = useOntologies({ limit: 200 });
-  const items = ontologies.data?.items ?? [];
+  const ontology = useWorkspaceOntology();
+  const hasOntology = ontology.data != null;
 
-  const [ontologyFilter, setOntologyFilter] = useState<string>("all");
   const [activityFilter, setActivityFilter] = useState<string>("all");
   const [agentFilter, setAgentFilter] = useState<string>("all");
 
   const filter = useMemo<AuditFilter>(
     () => ({
-      ontology_id: ontologyFilter === "all" ? undefined : ontologyFilter,
+      ontology_id: ontology.data?.id ?? undefined,
       activity_kind:
         activityFilter === "all"
           ? undefined
@@ -57,7 +56,7 @@ export function ProvenanceAuditFacet() {
           ? undefined
           : (agentFilter as AgentRef["kind"]),
     }),
-    [ontologyFilter, activityFilter, agentFilter],
+    [ontology.data, activityFilter, agentFilter],
   );
 
   const trail = useAuditTrail(filter);
@@ -66,9 +65,7 @@ export function ProvenanceAuditFacet() {
     [trail.data],
   );
 
-  const showOntologyBadge = ontologyFilter === "all" && items.length > 1;
-
-  const pageState: PageState = ontologies.isLoading
+  const pageState: PageState = ontology.isLoading
     ? { kind: "loading" }
     : { kind: "data" };
 
@@ -76,30 +73,15 @@ export function ProvenanceAuditFacet() {
     <PageStateView state={pageState} skeleton={<SkeletonList count={6} />}>
       <div className="flex flex-col gap-4">
 
-      {items.length === 0 && (
+      {!hasOntology && (
         <p className="rounded border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground">
           {t("noOntology")}
         </p>
       )}
 
-      {items.length > 0 && (
+      {hasOntology && (
         <>
           <div className="flex items-center gap-3 flex-wrap">
-            <SettingsSelect
-              label={t("filter.ontology")}
-              value={ontologyFilter}
-              onChange={(e) => setOntologyFilter(e.target.value)}
-              className="w-56"
-            >
-              <option value="all">
-                {t("ontologyAll")} ({items.length})
-              </option>
-              {items.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </SettingsSelect>
             <SettingsSelect
               label={t("filter.activity")}
               value={activityFilter}
@@ -131,12 +113,6 @@ export function ProvenanceAuditFacet() {
             </span>
           </div>
 
-          {showOntologyBadge && (
-            <p className="text-2xs text-foreground-muted">
-              {t("aggregatedHint", { count: items.length })}
-            </p>
-          )}
-
           {trail.isLoading ? (
             <SkeletonList count={6} />
           ) : trail.isError ? (
@@ -167,10 +143,7 @@ export function ProvenanceAuditFacet() {
                     key={`${r.ontology_id}:${r.provenance.id}`}
                     className="rounded border border-divider bg-surface-base p-3"
                   >
-                    <ProvenanceRow
-                      record={r}
-                      showOntology={showOntologyBadge}
-                    />
+                    <ProvenanceRow record={r} showOntology={false} />
                   </li>
                 ))}
               </ul>

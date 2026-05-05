@@ -98,7 +98,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
 
   const ontologyId = ontology?.id ?? null;
   useEffect(() => {
-    if (ontologyId) loadVerifications(ontologyId);
+    if (ontologyId) loadVerifications();
   }, [ontologyId, loadVerifications]);
 
   // Hold a collaboration lock on the currently inspected entity
@@ -240,7 +240,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
           ontology={ontology}
           gaps={nodeGaps}
           verifications={verifications}
-          onVerify={() => ontologyId && verifyEl(ontologyId, node.id, "node")}
+          onVerify={() => ontologyId && verifyEl(node.id, "node")}
         />
       );
     }
@@ -257,7 +257,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
           ontology={ontology}
           gaps={edgeGaps}
           verifications={verifications}
-          onVerify={() => ontologyId && verifyEl(ontologyId, edge.id, "edge")}
+          onVerify={() => ontologyId && verifyEl(edge.id, "edge")}
         />
       );
     }

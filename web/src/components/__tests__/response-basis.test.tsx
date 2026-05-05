@@ -9,13 +9,13 @@ import type {
   QueryProvenance,
 } from "@/types/api";
 
-// `useOntologyDetail` hits a TanStack Query + network fetch in real life.
+// `useWorkspaceOntology` hits a TanStack Query + network fetch in real life.
 // Mock it so each test declares the hook's return value explicitly —
 // keeps the tests focused on the resolution logic without a
 // QueryClientProvider or MSW setup.
-const useOntologyDetailMock = vi.fn();
-vi.mock("@/hooks/api/use-ontologies", () => ({
-  useOntologyDetail: (...args: unknown[]) => useOntologyDetailMock(...args),
+const useWorkspaceOntologyMock = vi.fn();
+vi.mock("@/hooks/api/use-workspace-ontology", () => ({
+  useWorkspaceOntology: (...args: unknown[]) => useWorkspaceOntologyMock(...args),
 }));
 
 // `useLocaleChain` is also a TanStack-backed hook (workspace fetch).
@@ -77,9 +77,9 @@ function ontologyDetailFixture(): OntologyDetail {
 
 describe("ResponseBasis", () => {
   beforeEach(() => {
-    useOntologyDetailMock.mockReset();
+    useWorkspaceOntologyMock.mockReset();
     // Default: no ontology loaded.
-    useOntologyDetailMock.mockReturnValue({ data: undefined });
+    useWorkspaceOntologyMock.mockReturnValue({ data: undefined });
   });
 
   it("renders nothing when provenance is absent", () => {
@@ -122,7 +122,7 @@ describe("ResponseBasis", () => {
   });
 
   it("renders resolved labels with tooltip when ontology is available", () => {
-    useOntologyDetailMock.mockReturnValue({ data: ontologyDetailFixture() });
+    useWorkspaceOntologyMock.mockReturnValue({ data: ontologyDetailFixture() });
     const prov: QueryProvenance = {
       ontology_id: "ont-1",
       type_ids: ["nt_customer", "et_purchased"],
@@ -146,7 +146,7 @@ describe("ResponseBasis", () => {
   });
 
   it("falls back to the raw id when a type_id does not match any type", () => {
-    useOntologyDetailMock.mockReturnValue({ data: ontologyDetailFixture() });
+    useWorkspaceOntologyMock.mockReturnValue({ data: ontologyDetailFixture() });
     const prov: QueryProvenance = {
       ontology_id: "ont-1",
       type_ids: ["nt_customer", "nt_missing"],
@@ -168,7 +168,7 @@ describe("ResponseBasis", () => {
   });
 
   it("omits the types row when type_ids is empty even if ontology is loaded", () => {
-    useOntologyDetailMock.mockReturnValue({ data: ontologyDetailFixture() });
+    useWorkspaceOntologyMock.mockReturnValue({ data: ontologyDetailFixture() });
     const prov: QueryProvenance = {
       ontology_id: "ont-1",
       ontology_version: "1",

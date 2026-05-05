@@ -21,10 +21,10 @@ import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import type { OntologyIR } from "@/types/api";
-import { getProject, createProject, getOntologyDetail } from "@/lib/api";
+import { getProject, createProject } from "@/lib/api";
 import { useProjects } from "@/hooks/api/use-projects";
 import { useCreateDashboard, useDashboards } from "@/hooks/api/use-dashboards";
-import { useOntologies } from "@/hooks/api/use-ontologies";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 
 // ---------------------------------------------------------------------------
 // Shared trigger styling — all selectors use this exact visual wrapper
@@ -190,40 +190,25 @@ function AnalyzeSelector() {
   const workspaceReady = useAppStore((s) => s.workspaceReady);
   const router = useRouter();
 
-  // Auto-load latest saved ontology when entering Analyze mode (after workspace init)
-  const { data, isFetching, isError } = useOntologies(
-    { limit: 1 },
-    { enabled: workspaceReady },
-  );
+  // Auto-load workspace canonical ontology when entering Analyze
+  // mode (after workspace init). The detail query already returns
+  // the hydrated IR — no second fetch needed.
+  const { data: detail, isFetching, isError } = useWorkspaceOntology({
+    enabled: workspaceReady,
+  });
 
-  // Two-step load: list gives us the newest identity + current version
-  // summary, then a detail fetch hydrates the IR. The detail fetch is
-  // unconditional once a list item is in hand, so it can be inlined
-  // inside the effect without its own `useQuery` — we don't need cache
-  // reuse here (Analyze opens once per mode switch).
   useEffect(() => {
-    if (!data || data.items.length === 0) return;
-    const item = data.items[0];
-    let cancelled = false;
-    (async () => {
-      try {
-        const detail = await getOntologyDetail(item.id);
-        if (cancelled || !detail.ontology_ir) return;
-        const store = useAppStore.getState();
-        store.loadStandaloneOntology(detail.ontology_ir as OntologyIR);
-        store.setOntologyId(detail.id);
-      } catch (err) {
-        console.error("Failed to hydrate ontology:", err);
-        if (!cancelled) toast.error(t("toast.loadOntologyFailed"));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [data, t]);
+    if (!detail || !detail.ontology_ir) return;
+    const store = useAppStore.getState();
+    store.loadStandaloneOntology(detail.ontology_ir as OntologyIR);
+    store.setOntologyId(detail.id);
+  }, [detail]);
 
   const loading = isFetching;
   const error = isError;
+  if (error) {
+    toast.error(t("toast.loadOntologyFailed"));
+  }
 
   if (loading) {
     return (
@@ -273,30 +258,16 @@ function ExploreSelector() {
   const ontology = useAppStore((s) => s.ontology);
   const workspaceReady = useAppStore((s) => s.workspaceReady);
 
-  const { data, isFetching, isError } = useOntologies(
-    { limit: 1 },
-    { enabled: workspaceReady },
-  );
+  const { data: detail, isFetching, isError } = useWorkspaceOntology({
+    enabled: workspaceReady,
+  });
 
   useEffect(() => {
-    if (!data || data.items.length === 0) return;
-    const item = data.items[0];
-    let cancelled = false;
-    (async () => {
-      try {
-        const detail = await getOntologyDetail(item.id);
-        if (cancelled || !detail.ontology_ir) return;
-        const store = useAppStore.getState();
-        store.loadStandaloneOntology(detail.ontology_ir as OntologyIR);
-        store.setOntologyId(detail.id);
-      } catch (err) {
-        console.error("Failed to hydrate ontology:", err);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [data]);
+    if (!detail || !detail.ontology_ir) return;
+    const store = useAppStore.getState();
+    store.loadStandaloneOntology(detail.ontology_ir as OntologyIR);
+    store.setOntologyId(detail.id);
+  }, [detail]);
 
   const loading = isFetching;
   const error = isError;

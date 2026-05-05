@@ -20,7 +20,7 @@ vi.mock("@/lib/api", () => ({
   updateReport: vi.fn(),
   deleteReport: vi.fn(),
   executeReport: vi.fn(),
-  listOntologies: vi.fn(),
+  getWorkspaceOntology: vi.fn(),
 }));
 
 const confirmMock = vi.fn();
@@ -36,10 +36,10 @@ vi.mock("@/components/ui/toast", () => ({
 
 import ReportsPage from "@/app/settings/workspace/reports/page";
 import * as api from "@/lib/api";
-import type { OntologyListItem, SavedReport } from "@/types/api";
+import type { OntologyDetail, SavedReport } from "@/types/api";
 import { toast } from "@/components/ui/toast";
 
-const SAMPLE_ONTOLOGY: OntologyListItem = {
+const SAMPLE_ONTOLOGY: OntologyDetail = {
   id: "ont-1",
   lineage_id: "lin-1",
   name: "orders",
@@ -82,7 +82,7 @@ function renderPage(): void {
 describe("ReportsPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    vi.mocked(api.listOntologies).mockReset();
+    vi.mocked(api.getWorkspaceOntology).mockReset();
     vi.mocked(api.listReports).mockReset();
     vi.mocked(api.deleteReport).mockReset();
     (toast.success as ReturnType<typeof vi.fn>).mockReset();
@@ -91,10 +91,7 @@ describe("ReportsPage", () => {
   });
 
   it("lists ontologies then fetches reports for the first ontology's lineage_id", async () => {
-    vi.mocked(api.listOntologies).mockResolvedValueOnce({
-      items: [SAMPLE_ONTOLOGY],
-      next_cursor: undefined,
-    });
+    vi.mocked(api.getWorkspaceOntology).mockResolvedValueOnce(SAMPLE_ONTOLOGY);
     vi.mocked(api.listReports).mockResolvedValueOnce({
       items: [sampleReport()],
       next_cursor: undefined,
@@ -116,7 +113,7 @@ describe("ReportsPage", () => {
     // place of the page body — the toast pattern is reserved for
     // secondary actions (delete / update). Page-level errors stay
     // visible in the chrome so users can recover at their own pace.
-    vi.mocked(api.listOntologies).mockRejectedValueOnce(new Error("nope"));
+    vi.mocked(api.getWorkspaceOntology).mockRejectedValueOnce(new Error("nope"));
     renderPage();
     await waitFor(() =>
       expect(screen.getByText("Could not load data")).toBeInTheDocument(),
@@ -128,10 +125,7 @@ describe("ReportsPage", () => {
   });
 
   it("renders ErrorState in the reports section when listReports rejects after ontology loads", async () => {
-    vi.mocked(api.listOntologies).mockResolvedValueOnce({
-      items: [SAMPLE_ONTOLOGY],
-      next_cursor: undefined,
-    });
+    vi.mocked(api.getWorkspaceOntology).mockResolvedValueOnce(SAMPLE_ONTOLOGY);
     vi.mocked(api.listReports).mockRejectedValueOnce(new Error("boom"));
     renderPage();
     // The ontology select renders fine — only the reports list area
@@ -143,10 +137,7 @@ describe("ReportsPage", () => {
   });
 
   it("renders the empty copy when zero reports return for the selected ontology", async () => {
-    vi.mocked(api.listOntologies).mockResolvedValueOnce({
-      items: [SAMPLE_ONTOLOGY],
-      next_cursor: undefined,
-    });
+    vi.mocked(api.getWorkspaceOntology).mockResolvedValueOnce(SAMPLE_ONTOLOGY);
     vi.mocked(api.listReports).mockResolvedValueOnce({
       items: [],
       next_cursor: undefined,

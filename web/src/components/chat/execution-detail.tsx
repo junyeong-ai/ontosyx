@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAppStore, type ChatMessage } from "@/lib/store";
 import type { OntologyIR, QueryExecution } from "@/types/api";
-import { getOntologyDetail } from "@/lib/api";
+import { getWorkspaceOntology } from "@/lib/api";
 import { WidgetToolbar } from "@/components/dashboard/widgets/widget-toolbar";
 import { ResponseBasis } from "@/components/dashboard/widgets/response-basis";
 import { Button } from "@/components/ui/button";
@@ -33,8 +33,8 @@ async function resolveExecutionOntology(
   if (execution.ontology_snapshot) return execution.ontology_snapshot;
   if (!execution.ontology_id) return null;
   try {
-    const detail = await getOntologyDetail(execution.ontology_id);
-    return detail.ontology_ir ?? null;
+    const detail = await getWorkspaceOntology();
+    return detail?.ontology_ir ?? null;
   } catch (err) {
     console.error("Failed to hydrate execution ontology:", err);
     return null;

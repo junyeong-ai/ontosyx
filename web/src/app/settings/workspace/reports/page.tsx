@@ -32,7 +32,7 @@ import {
   updateReport,
   deleteReport,
   executeReport,
-  listOntologies,
+  getWorkspaceOntology,
 } from "@/lib/api";
 import { WIDGET_TYPES } from "@/components/dashboard/widgets/widget-types";
 import { useQueryState } from "@/hooks/use-query-state";
@@ -77,15 +77,15 @@ export default function ReportsPage() {
 
   const ontologiesQuery = useQuery({
     queryKey: reportsKeys.ontologies(),
-    queryFn: () => listOntologies({ limit: 100 }),
+    queryFn: () => getWorkspaceOntology(),
   });
-  const ontologies: OntologyListItem[] = ontologiesQuery.data?.items ?? [];
+  const ontology = ontologiesQuery.data ?? null;
+  const ontologies = ontology ? [ontology] : [];
 
-  // Reports index by `ontology_lineage_id` (the cross-version handle),
-  // so the URL state stores the lineage string rather than the identity
-  // uuid. Clicking through a shared URL with a lineage id resolves stably
-  // even after the ontology bumps a new version.
-  const firstLineageId = ontologies[0]?.lineage_id;
+  // Reports index by `ontology_lineage_id` (the cross-version handle).
+  // With workspace × ontology = 1:1 there's only one lineage to filter
+  // by — pin it as soon as we have it.
+  const firstLineageId = ontology?.lineage_id;
   useEffect(() => {
     if (firstLineageId && !ontologyFilter) {
       setOntologyFilter(firstLineageId);

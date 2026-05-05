@@ -28,10 +28,7 @@ import { toast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { StructuredEntityEditor } from "@/components/forms/structured-entity-editor";
 import { EntityWorkbench } from "@/components/workbench/entity-workbench";
-import {
-  useOntologies,
-  useOntologyDetail,
-} from "@/hooks/api/use-ontologies";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import type { OntologyEditOp } from "@/lib/api/edit-ops";
 import type { EntitySchema } from "@/lib/forms/field-schema";
@@ -115,9 +112,8 @@ export function MasterDetailEntityPage<T extends { id?: string }>({
   const t = useTranslations("settings.vocabulary.workbench");
   const confirm = useConfirm();
 
-  const ontologiesQuery = useOntologies({ limit: 1 });
-  const ontology = ontologiesQuery.data?.items?.[0];
-  const detail = useOntologyDetail(ontology?.id);
+  const detail = useWorkspaceOntology();
+  const ontology = detail.data ?? null;
   const apply = useApplyOntologyEdits(ontology?.id);
 
   const items: T[] = detail.data?.ontology_ir
@@ -190,19 +186,16 @@ export function MasterDetailEntityPage<T extends { id?: string }>({
     }
   };
 
-  if (ontologiesQuery.isLoading || detail.isLoading) {
+  if (detail.isLoading) {
     return <SkeletonList count={5} />;
   }
 
-  if (ontologiesQuery.isError || detail.isError) {
+  if (detail.isError) {
     return (
       <ErrorState
         title={labels.loadErrorTitle}
         description={labels.loadErrorDescription}
-        onRetry={() => {
-          ontologiesQuery.refetch();
-          detail.refetch();
-        }}
+        onRetry={() => detail.refetch()}
         retryLabel={labels.retryLabel}
       />
     );

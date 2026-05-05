@@ -476,9 +476,7 @@ export function WorkflowActions({
         />
       )}
 
-      {isCompleted && project.ontology_id && (
-        <GraphAuditSection ontologyId={project.ontology_id} />
-      )}
+      {isCompleted && <GraphAuditSection />}
     </>
   );
 }

@@ -34,10 +34,7 @@ import { IntegrityIssuesBanner } from "@/components/ontology/integrity-issues-ba
 import { StructuredEntityEditor } from "@/components/forms/structured-entity-editor";
 import { linkMappingSchema } from "@/components/forms/schemas/link-mapping.schema";
 import { objectMappingSchema } from "@/components/forms/schemas/object-mapping.schema";
-import {
-  useOntologies,
-  useOntologyDetail,
-} from "@/hooks/api/use-ontologies";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import {
   diagnosticHasParam,
@@ -64,9 +61,8 @@ export default function MappingsAdminPage() {
   const tCommon = useTranslations("common");
   const router = useRouter();
   const searchParams = useSearchParams();
-  const ontologiesQuery = useOntologies({ limit: 1 });
-  const ontology = ontologiesQuery.data?.items?.[0];
-  const detail = useOntologyDetail(ontology?.id);
+  const detail = useWorkspaceOntology();
+  const ontology = detail.data ?? null;
   const apply = useApplyOntologyEdits(ontology?.id);
   const confirm = useConfirm();
 
@@ -202,13 +198,12 @@ export default function MappingsAdminPage() {
     }
   };
 
-  const loading = ontologiesQuery.isLoading || detail.isLoading;
-  const failed = ontologiesQuery.isError || detail.isError;
+  const loading = detail.isLoading;
+  const failed = detail.isError;
   const pageState: PageState = failed
     ? {
         kind: "error",
         onRetry: () => {
-          ontologiesQuery.refetch();
           detail.refetch();
         },
       }

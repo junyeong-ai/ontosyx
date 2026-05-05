@@ -358,9 +358,9 @@ export interface DashboardSlice {
 export interface VerificationSlice {
   verifications: ElementVerification[];
   verificationsLoading: boolean;
-  loadVerifications: (ontologyId: string) => Promise<void>;
-  verifyElement: (ontologyId: string, elementId: string, elementKind: "node" | "edge" | "property", notes?: string) => Promise<void>;
-  revokeVerification: (ontologyId: string, elementId: string) => Promise<void>;
+  loadVerifications: () => Promise<void>;
+  verifyElement: (elementId: string, elementKind: "node" | "edge" | "property", notes?: string) => Promise<void>;
+  revokeVerification: (elementId: string) => Promise<void>;
   clearVerifications: () => void;
 }
 
