@@ -72,8 +72,7 @@ use ox_ontology::rule::{
 use ox_ontology::value_set::ValueSetId;
 
 use crate::cypher::ast::{
-    ClauseKind, CypherAst, CypherPatternElement, CypherStatement, NodePattern, RemoveItem,
-    SetItem,
+    ClauseKind, CypherAst, CypherPatternElement, NodePattern, RemoveItem, SetItem,
 };
 use crate::cypher::validate::{
     CypherValidator, ValidateContext, ValidatePhase, ValidationIssue,
@@ -192,7 +191,7 @@ impl CypherValidator for ShaclValidator {
             // variable carries so SET / REMOVE clauses later in the
             // same statement can resolve `n` back to its NodeType
             // without re-walking the AST per item.
-            let variable_labels = collect_variable_labels(statement);
+            let variable_labels = statement.variable_labels();
 
             for clause in &statement.clauses {
                 match clause.kind {
@@ -798,40 +797,6 @@ impl ShaclValidator {
             _ => {}
         }
     }
-}
-
-/// Walk every pattern-bearing clause in `statement` and collect the
-/// labels each variable picks up. A variable can carry multiple
-/// labels across MATCH and CREATE / MERGE — `MATCH (n:Person)
-/// MERGE (n:Customer)` lands `n` with `[Person, Customer]` here so
-/// downstream SET / REMOVE checks fire against every applicable
-/// PropertyShape. The first label declaration wins for ordering;
-/// duplicates are coalesced to keep the per-clause loop stable.
-fn collect_variable_labels(statement: &CypherStatement) -> HashMap<String, Vec<String>> {
-    let mut out: HashMap<String, Vec<String>> = HashMap::new();
-    for clause in &statement.clauses {
-        if !matches!(
-            clause.kind,
-            ClauseKind::Match | ClauseKind::OptionalMatch | ClauseKind::Create | ClauseKind::Merge
-        ) {
-            continue;
-        }
-        for pattern in &clause.patterns {
-            for element in &pattern.elements {
-                if let CypherPatternElement::Node(node) = element
-                    && let Some(var) = &node.variable
-                {
-                    let entry = out.entry(var.clone()).or_default();
-                    for label in &node.labels {
-                        if !entry.contains(label) {
-                            entry.push(label.clone());
-                        }
-                    }
-                }
-            }
-        }
-    }
-    out
 }
 
 /// Pull the `property_id` from a `ConstraintTarget`; `Inherit` /

@@ -536,6 +536,13 @@ impl CypherValidator for OntologyValidator {
         // first site it can highlight.
         let mut seen_unknown_labels: HashSet<String> = HashSet::new();
         let mut seen_unknown_rels: HashSet<String> = HashSet::new();
+        // SET / REMOVE diagnostics dedup on (variable, property) — the
+        // same offending key on the same variable can appear in multiple
+        // clauses (`SET u.emial = 'x'` then `SET u.emial = 'y'`); one
+        // issue per pair keeps the report scoped to the typo, not its
+        // multiplicity.
+        let mut seen_unknown_set_props: HashSet<(String, String)> = HashSet::new();
+        let mut seen_unknown_remove_props: HashSet<(String, String)> = HashSet::new();
 
         for element in ast.pattern_elements() {
             match element {
@@ -611,6 +618,95 @@ impl CypherValidator for OntologyValidator {
                             );
                         }
                     }
+                }
+            }
+        }
+
+        // SET / REMOVE: walk every assignment / removal and verify the
+        // property exists on at least one of the variable's bound
+        // labels. An LLM emitting `SET u.emial = 'x'` (typo) currently
+        // slips past the schema — Cypher is schema-less, so the
+        // driver silently writes a new property and the graph quietly
+        // drifts. The variable→labels resolution is shared with the
+        // SHACL validator (`CypherStatement::variable_labels`); when
+        // the variable is unbound (e.g. introduced by WITH or UNWIND)
+        // we cannot decide ontologically, so we skip rather than
+        // false-flag.
+        for statement in &ast.statements {
+            let variable_labels = statement.variable_labels();
+            for clause in &statement.clauses {
+                match clause.kind {
+                    ClauseKind::Set => {
+                        for item in &clause.set_items {
+                            if is_system_property(&item.property) {
+                                continue;
+                            }
+                            let Some(labels) = variable_labels.get(&item.variable) else {
+                                continue;
+                            };
+                            let known = labels.iter().any(|label| {
+                                self.ontology.node_by_label(label).is_some_and(|n| {
+                                    n.properties.iter().any(|p| p.name == item.property)
+                                })
+                            });
+                            if !known
+                                && seen_unknown_set_props
+                                    .insert((item.variable.clone(), item.property.clone()))
+                            {
+                                let label_list = labels.join("/");
+                                issues.push(
+                                    ValidationIssue::error(
+                                        "ontology",
+                                        diag("runtime.cypher.ontology.unknown_set_property")
+                                            .with("property", item.property.clone())
+                                            .with("variable", item.variable.clone())
+                                            .with("labels", label_list.clone())
+                                            .message(format!(
+                                                "SET assigns to property `{}` not defined on label `{label_list}` in the active ontology",
+                                                item.property,
+                                            )),
+                                    )
+                                    .with_span(item.span),
+                                );
+                            }
+                        }
+                    }
+                    ClauseKind::Remove => {
+                        for item in &clause.remove_items {
+                            if is_system_property(&item.property) {
+                                continue;
+                            }
+                            let Some(labels) = variable_labels.get(&item.variable) else {
+                                continue;
+                            };
+                            let known = labels.iter().any(|label| {
+                                self.ontology.node_by_label(label).is_some_and(|n| {
+                                    n.properties.iter().any(|p| p.name == item.property)
+                                })
+                            });
+                            if !known
+                                && seen_unknown_remove_props
+                                    .insert((item.variable.clone(), item.property.clone()))
+                            {
+                                let label_list = labels.join("/");
+                                issues.push(
+                                    ValidationIssue::error(
+                                        "ontology",
+                                        diag("runtime.cypher.ontology.unknown_remove_property")
+                                            .with("property", item.property.clone())
+                                            .with("variable", item.variable.clone())
+                                            .with("labels", label_list.clone())
+                                            .message(format!(
+                                                "REMOVE targets property `{}` not defined on label `{label_list}` in the active ontology",
+                                                item.property,
+                                            )),
+                                    )
+                                    .with_span(item.span),
+                                );
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -1494,6 +1590,96 @@ mod tests {
             CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "RETURN 1");
         assert!(!r.has_errors());
+    }
+
+    #[test]
+    fn ontology_flags_unknown_set_property() {
+        // LLM emits `SET p.emial = 'x'` (typo) — the schema-less
+        // graph would silently write a brand-new property without the
+        // validator catching it. The variable→labels map binds `p` to
+        // Person via the upstream MATCH, so the validator can resolve.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (p:Person) SET p.emial = 'x@example.com' RETURN p",
+        );
+        assert!(r.has_errors(), "expected typo to be flagged");
+        assert!(
+            r.errors().any(|e| e.message.message.contains("emial")
+                && e.message.message.contains("SET")),
+            "diagnostic must name the SET clause and the typo: {:?}",
+            r.issues
+        );
+    }
+
+    #[test]
+    fn ontology_accepts_known_set_property() {
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(&p, "MATCH (p:Person) SET p.name = 'Alice' RETURN p");
+        assert!(!r.has_errors(), "known property must pass: {:?}", r.issues);
+    }
+
+    #[test]
+    fn ontology_flags_unknown_remove_property() {
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(&p, "MATCH (p:Person) REMOVE p.emial RETURN p");
+        assert!(r.has_errors());
+        assert!(
+            r.errors().any(|e| e.message.message.contains("emial")
+                && e.message.message.contains("REMOVE")),
+            "diagnostic must name the REMOVE clause: {:?}",
+            r.issues
+        );
+    }
+
+    #[test]
+    fn ontology_skips_unbound_set_variable() {
+        // `WITH 1 AS x SET x.foo = 'y'` — the variable `x` is not
+        // bound to a labelled node, so the validator cannot resolve
+        // ontologically. Skip rather than false-flag — pattern-side
+        // unknown labels are caught by the existing pattern walk.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(&p, "WITH 1 AS x SET x.foo = 'y' RETURN x");
+        assert!(
+            !r.errors().any(|e| e.message.message.contains("SET")),
+            "unbound SET variable must not raise an ontology error: {:?}",
+            r.issues
+        );
+    }
+
+    #[test]
+    fn ontology_skips_system_properties_in_set_clause() {
+        // `_workspace_id` is rewriter-managed; even SET targeting it
+        // (e.g. the isolation rewriter's own injection during
+        // round-trip tests) must not be flagged as unknown.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (p:Person) SET p._workspace_id = $ws RETURN p",
+        );
+        assert!(!r.has_errors(), "system property must pass: {:?}", r.issues);
+    }
+
+    #[test]
+    fn ontology_dedupes_repeated_set_property_typos() {
+        // `SET p.emial = 'x', p.emial = 'y'` — same typo on the same
+        // variable in two assignments. One diagnostic, not two.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (p:Person) SET p.emial = 'x', p.emial = 'y' RETURN p",
+        );
+        let count = r
+            .errors()
+            .filter(|e| e.message.message.contains("emial"))
+            .count();
+        assert_eq!(count, 1, "expected single dedup'd diagnostic: {:?}", r.issues);
     }
 
     #[test]

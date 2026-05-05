@@ -273,3 +273,46 @@ impl CypherAst {
             .any(|c| c.kind.is_write())
     }
 }
+
+impl CypherStatement {
+    /// Walk every pattern-bearing clause and collect the labels each
+    /// variable picks up. A variable can carry multiple labels across
+    /// MATCH / CREATE / MERGE — `MATCH (n:Person) MERGE (n:Customer)`
+    /// lands `n` with `[Person, Customer]` so downstream SET / REMOVE
+    /// checks fire against every applicable label. The first
+    /// declaration wins for ordering; duplicates are coalesced.
+    ///
+    /// Used by the ontology validator (unknown SET / REMOVE properties)
+    /// and the SHACL validator (PropertyShape resolution); shared so a
+    /// single walk feeds both.
+    pub fn variable_labels(&self) -> std::collections::HashMap<String, Vec<String>> {
+        let mut out: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for clause in &self.clauses {
+            if !matches!(
+                clause.kind,
+                ClauseKind::Match
+                    | ClauseKind::OptionalMatch
+                    | ClauseKind::Create
+                    | ClauseKind::Merge
+            ) {
+                continue;
+            }
+            for pattern in &clause.patterns {
+                for element in &pattern.elements {
+                    if let CypherPatternElement::Node(node) = element
+                        && let Some(var) = &node.variable
+                    {
+                        let entry = out.entry(var.clone()).or_default();
+                        for label in &node.labels {
+                            if !entry.contains(label) {
+                                entry.push(label.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+}
