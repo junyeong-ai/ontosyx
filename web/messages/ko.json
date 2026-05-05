@@ -1221,7 +1221,9 @@
           "unique_key_unknown_property": "유일 키 규칙 `{rule_name}` 이 `{label}` 에 존재하지 않는 속성 `{property}` 을 참조합니다",
           "unique_lang_on_non_localized": "규칙 `{rule_name}` 이 `{property}` 에 uniqueLang 을 요구하지만 속성이 `is_localized` 로 선언되어 있지 않습니다",
           "unknown_value_set_skipped": "규칙 `{rule_name}` 이 존재하지 않는 값 집합 `{value_set_id}` 을 참조하여 속성 `{property}` 검증을 건너뛰었습니다",
-          "unknown_notation_pattern_skipped": "규칙 `{rule_name}` 이 존재하지 않는 표기 패턴 `{notation_pattern_id}` 을 참조하여 속성 `{property}` 검증을 건너뛰었습니다"
+          "unknown_notation_pattern_skipped": "규칙 `{rule_name}` 이 존재하지 않는 표기 패턴 `{notation_pattern_id}` 을 참조하여 속성 `{property}` 검증을 건너뛰었습니다",
+          "or_no_branch_satisfied": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 을 위반합니다 — Or 규칙의 {branch_count} 개 분기 중 어느 것도 값을 허용하지 않았습니다",
+          "or_empty_branches": "속성 `{property}` 쓰기가 규칙 `{rule_name}` 에 의해 거부되었습니다 — Or 규칙에 분기가 없습니다 (작성 오류)"
         }
       }
     }

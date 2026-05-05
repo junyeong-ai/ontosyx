@@ -1221,7 +1221,9 @@
           "unique_key_unknown_property": "Unique-key rule `{rule_name}` references unknown property `{property}` on `{label}`",
           "unique_lang_on_non_localized": "Rule `{rule_name}` enforces uniqueLang on `{property}`, but the property is not declared `is_localized`",
           "unknown_value_set_skipped": "Rule `{rule_name}` references unknown value set `{value_set_id}` and was skipped for property `{property}`",
-          "unknown_notation_pattern_skipped": "Rule `{rule_name}` references unknown notation pattern `{notation_pattern_id}` and was skipped for property `{property}`"
+          "unknown_notation_pattern_skipped": "Rule `{rule_name}` references unknown notation pattern `{notation_pattern_id}` and was skipped for property `{property}`",
+          "or_no_branch_satisfied": "Property `{property}` = {value} violates rule `{rule_name}` — none of the {branch_count} Or branches accepted the value",
+          "or_empty_branches": "Property `{property}` write rejected by rule `{rule_name}` — Or constraint has no branches (authoring mistake)"
         }
       }
     }

@@ -55,6 +55,26 @@ pub struct ProvenanceDef {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub derived_from: Vec<EntityRef>,
 
+    /// Earlier activities whose output informed this one. PROV-O:
+    /// `prov:wasInformedBy`. Carries the *activity → activity* edge
+    /// PROV-O distinguishes from `derived_from` (entity → entity).
+    /// LLM pipelines walk it to trace "this Cypher call was informed
+    /// by these schema-RAG calls" without resolving every intermediate
+    /// entity; audit surfaces render it as the activity DAG above the
+    /// per-entity derivation graph.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub was_informed_by: Vec<ProvenanceId>,
+
+    /// Recipe / template the activity executed. PROV-O: `prov:Plan`.
+    /// Records *which prompt template at which version produced the
+    /// fact*, plus the deterministic render hash so a downstream
+    /// auditor can reconstruct the exact prompt that ran. Pairs with
+    /// `ProvenanceActivityKind::DraftProposal` to give "what we
+    /// asked the model" (plan) alongside "which model we asked"
+    /// (activity).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<ProvenancePlan>,
+
     /// Ontology time the subject was valid under (bitemporal axis).
     /// `None` means "current".
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -63,6 +83,25 @@ pub struct ProvenanceDef {
     /// Data time the subject was valid under (bitemporal axis).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_valid_at: Option<DateTime<Utc>>,
+}
+
+/// PROV-O `prov:Plan` reference. Captures the recipe an activity
+/// executed: prompt template + version + the deterministic hash of
+/// the rendered prompt body. The hash is the replay key — two
+/// activities sharing the same `prompt_render_hash` consumed the
+/// same fully-resolved prompt and any divergence in their output is
+/// attributable to the model alone.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+pub struct ProvenancePlan {
+    /// Template id (the `prompts/<name>.toml` filename, sans
+    /// extension). Stable across versions.
+    pub template_id: String,
+    /// Semver of the template that ran.
+    pub template_version: String,
+    /// SHA-256 of the rendered prompt body — the deterministic
+    /// replay key. Identical hash + identical model = identical
+    /// generation under deterministic decoding.
+    pub prompt_render_hash: String,
 }
 
 /// What the record points at — intentionally a closed set of
@@ -180,6 +219,8 @@ mod tests {
             at_time: Utc::now(),
             used: vec![],
             derived_from: vec![],
+            was_informed_by: vec![],
+            plan: None,
             ontology_valid_at: None,
             data_valid_at: None,
         };
@@ -208,6 +249,8 @@ mod tests {
                 label: "schema-snapshot-2026-04-20".into(),
             }],
             derived_from: vec![],
+            was_informed_by: vec![],
+            plan: None,
             ontology_valid_at: Some(Utc::now()),
             data_valid_at: None,
         };

@@ -323,7 +323,8 @@ fn constraint_kind_static(c: &ShaclConstraint) -> &'static str {
         | ShaclConstraint::UniqueLang { .. }
         | ShaclConstraint::Closed { .. }
         | ShaclConstraint::Disjoint { .. }
-        | ShaclConstraint::UniqueKey { .. } => "Other",
+        | ShaclConstraint::UniqueKey { .. }
+        | ShaclConstraint::Or { .. } => "Other",
     }
 }
 

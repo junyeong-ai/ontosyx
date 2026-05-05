@@ -759,7 +759,8 @@ fn constraint_target(c: &ShaclConstraint) -> Option<&ConstraintTarget> {
         | ShaclConstraint::Equals { target, .. } => Some(target),
         ShaclConstraint::Closed { .. }
         | ShaclConstraint::Disjoint { .. }
-        | ShaclConstraint::UniqueKey { .. } => None,
+        | ShaclConstraint::UniqueKey { .. }
+        | ShaclConstraint::Or { .. } => None,
     }
 }
 

@@ -431,6 +431,17 @@ pub enum ShaclConstraint {
         target: ConstraintTarget,
         other_property: PropertyId,
     },
+    /// `sh:or` — the value must satisfy at least one of the
+    /// listed constraints. Models alternation that the other
+    /// SHACL primitives cannot express directly: "the address
+    /// satisfies the postal-format pattern OR the international
+    /// alpha-3 country pattern", "the discount field is in the
+    /// percentage value-set OR matches the absolute-amount
+    /// pattern". Empty `branches` is treated as a vacuously
+    /// failing constraint at validation time so an authoring
+    /// mistake surfaces instead of silently accepting every
+    /// value.
+    Or { branches: Vec<ShaclConstraint> },
 }
 
 impl ShaclConstraint {
@@ -458,7 +469,7 @@ impl ShaclConstraint {
             | Self::Closed { target, .. }
             | Self::LessThan { target, .. }
             | Self::Equals { target, .. } => Some(target),
-            Self::Disjoint { .. } | Self::UniqueKey { .. } => None,
+            Self::Disjoint { .. } | Self::UniqueKey { .. } | Self::Or { .. } => None,
         }
     }
 
@@ -493,7 +504,8 @@ impl ShaclConstraint {
             | Self::Disjoint { .. }
             | Self::UniqueKey { .. }
             | Self::LessThan { .. }
-            | Self::Equals { .. } => None,
+            | Self::Equals { .. }
+            | Self::Or { .. } => None,
         }
     }
 
@@ -523,6 +535,7 @@ impl ShaclConstraint {
             Self::UniqueKey { .. } => "unique_key",
             Self::LessThan { .. } => "less_than",
             Self::Equals { .. } => "equals",
+            Self::Or { .. } => "or",
         }
     }
 
@@ -548,6 +561,10 @@ impl ShaclConstraint {
             | Self::Equals { other_property, .. } => {
                 vec![ConstraintRef::PropertyId(other_property)]
             }
+            Self::Or { branches } => branches
+                .iter()
+                .flat_map(|c| c.referenced_ids())
+                .collect(),
             Self::MinCount { .. }
             | Self::MaxCount { .. }
             | Self::Datatype { .. }

@@ -797,6 +797,64 @@ impl ShaclValidator {
                     Some(node.span),
                 ));
             }
+            ShaclConstraint::Or { branches } => {
+                // The value satisfies the constraint when at least
+                // one branch accepts. Recurse into each branch with
+                // a private issue buffer; if any branch produces no
+                // issues against this property write, the OR
+                // succeeds and the recorded issues are dropped.
+                // Empty `branches` is a vacuously failing
+                // constraint per the rule's documentation — surface
+                // a typed diagnostic so the operator notices the
+                // empty authoring rather than silently accepting
+                // every value.
+                if branches.is_empty() {
+                    let rn = rule_label(rule);
+                    issues.push(build_issue(
+                        rule,
+                        diag("runtime.cypher.shacl.or_empty_branches")
+                            .with("property", key)
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .message(format!(
+                                "property `{key}` write rejected by rule `{rn}` — Or constraint has no branches"
+                            )),
+                        Some(node.span),
+                    ));
+                    return;
+                }
+                let mut branch_issues: Vec<Vec<ValidationIssue>> =
+                    Vec::with_capacity(branches.len());
+                for branch in branches {
+                    let mut buf = Vec::new();
+                    self.check_property_constraint(rule, prop, node, branch, &mut buf);
+                    if buf.is_empty() {
+                        return;
+                    }
+                    branch_issues.push(buf);
+                }
+                // No branch satisfied — surface a single OR-level
+                // diagnostic instead of the unhelpful per-branch
+                // pile so the FE renders one message naming the
+                // outer rule. Detail buffers carry per-branch
+                // diagnostics for operators who want to drill in.
+                let rn = rule_label(rule);
+                let branch_count = branches.len();
+                issues.push(build_issue(
+                    rule,
+                    diag("runtime.cypher.shacl.or_no_branch_satisfied")
+                        .with("property", key)
+                        .with("rule_id", rule.id.as_str())
+                        .with("rule_name", &rule.name)
+                        .with("branch_count", branch_count as u64)
+                        .with("value", value.unwrap_or("<missing>"))
+                        .message(format!(
+                            "property `{key}` write rejected by rule `{rn}` — \
+                             no Or branch ({branch_count}) accepted the value"
+                        )),
+                    Some(node.span),
+                ));
+            }
         }
     }
 
