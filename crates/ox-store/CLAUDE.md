@@ -188,9 +188,38 @@ shape is snake_case; a forward deploy that tags a new variant
 fails fast at parse time as `OxError::Conflict` rather than
 silently downgrading to a default.
 
-Capture hooks (Stage 2.B) and the FE dashboard (Stage 3) extend
-this contract without touching the schema — the storage layer
-is the stable substrate they share.
+Capture hooks and the FE dashboard extend this contract without
+touching the schema — the storage layer is the stable substrate
+they share. The full self-service loop landed across:
+
+1. `EvaluationContext` task-local + `EvaluationCapture` trait
+   in `evaluation.rs`. Brain's `call_structured_traced` reads
+   both and records `latency_ms.<operation>` whenever the
+   call is inside an evaluation scope.
+2. The case-execute endpoint
+   (`POST /api/evaluation/runs/{run_id}/cases/{case_key}/execute`)
+   binds the scope, calls the brain operation by typed `kind`
+   envelope (`ExecuteEvaluationCaseRequest::TranslateQuery |
+   Explain`), and lands the output / latency / error on the
+   case row.
+3. The judge endpoint
+   (`POST /api/evaluation/cases/{case_id}/judge`) runs the
+   `evaluation_judge` LLM prompt and persists each of the four
+   RAGAS axes (`faithfulness`, `answer_relevance`,
+   `context_precision`, `context_recall`) as an
+   `evaluation_metrics` row. Re-judging UPSERTs in place
+   without disturbing the latency metrics.
+4. The FE dashboard at `/settings/evaluation` exposes
+   create-run, case-execute (kind selector), judge (one click),
+   cancel + delete actions — admin-gated end-to-end.
+
+Adding a new operation kind extends the same axis: a new
+`ExecuteEvaluationCaseRequest` variant + a brain trait + a
+dispatch arm + an FE option. No schema migration, no new
+endpoint per kind. Adding a new judge axis is one
+`EvaluationJudgement` field + a prompt revision; the
+canonical-name list in `EvaluationJudgement::axes()` is the
+single source of truth the endpoint iterates.
 
 ## Advisory locks for boot-time + cron singletons
 

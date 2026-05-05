@@ -56,6 +56,30 @@ the new metric needs the LLM call's output (faithfulness,
 relevance) — those route through a separate judge invocation
 that builds its own capture call.
 
+## EvaluationJudge — RAGAS four-axis scoring
+
+`EvaluationJudge::judge_evaluation_case(question, expected,
+actual)` returns an `EvaluationJudgement` carrying four
+independent axes (`faithfulness`, `answer_relevance`,
+`context_precision`, `context_recall`), each with a `score`
+in `[0.0, 1.0]` and a one-or-two-sentence `reasoning`. The
+judge prompt (`prompts/evaluation_judge.toml`) defines each
+axis precisely (what `1.0` / `0.0` mean) and forces structured
+JSON output.
+
+`EvaluationJudgement::axes()` is the canonical iterator that
+the case-judge endpoint walks to record one
+`evaluation_metrics` row per axis — RAGAS canonical order
+stays stable, the FE column ordering rides on it. Adding a
+new axis is `EvaluationJudgement` field + canonical entry +
+one prompt-template revision.
+
+The judge runs through the same `call_structured_traced`
+pathway every other LLM op uses, so judging an evaluation
+case from inside an `EvaluationContext` scope automatically
+records `latency_ms.evaluation_judge` — observability
+recursion is intentional and documented.
+
 ## Query Translation Pipeline
 
 `translate_query()` follows a 3-tier fallback: StructuredMatchQuery (structured output, the LLM-oriented shape of `QueryOp::Match`) → QueryIR (JSON mode) → retry with error context. Each tier emits `ctx.progress()` events for real-time visibility.
