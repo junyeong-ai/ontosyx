@@ -250,6 +250,16 @@ pub struct OntologyIR {
     pub(crate) metrics: Vec<crate::metric::MetricDef>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) enrichments: Vec<crate::enrichment::EnrichmentDef>,
+    /// Workspace-canonical business concepts — the identity layer
+    /// above the glossary's lexical instances. SKOS / ISO 1087-1 /
+    /// FIBO all distinguish a concept (the conceptual entity) from
+    /// its lexicalizations (`prefLabel` / `altLabel`); this collection
+    /// is the typed home for that distinction. NodeType / EdgeType
+    /// implementers point at one concept; the concept owns its
+    /// canonical-term anchor and any alias terms registered against
+    /// it. See `crate::concept` for the full rationale.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) concepts: Vec<crate::concept::ConceptDef>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) glossary: Vec<crate::glossary::GlossaryTermDef>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -524,6 +534,7 @@ impl OntologyIR {
             functions: Vec::new(),
             metrics: Vec::new(),
             enrichments: Vec::new(),
+            concepts: Vec::new(),
             glossary: Vec::new(),
             data_quality: Vec::new(),
             provenance: Vec::new(),
@@ -1024,6 +1035,23 @@ impl OntologyIR {
         &self.enrichments
     }
 
+    /// Workspace-canonical business concepts. The identity layer
+    /// above the glossary's lexical instances — see
+    /// `crate::concept::ConceptDef` for the rationale.
+    pub fn concepts(&self) -> &[crate::concept::ConceptDef] {
+        &self.concepts
+    }
+
+    /// Locate a concept by its stable id. Returns `None` for unknown
+    /// ids; the IR's referential validator catches dangling
+    /// references at insert and `validate()` time.
+    pub fn concept_by_id(
+        &self,
+        id: &crate::concept::ConceptId,
+    ) -> Option<&crate::concept::ConceptDef> {
+        self.concepts.iter().find(|c| &c.id == id)
+    }
+
     pub fn glossary(&self) -> &[crate::glossary::GlossaryTermDef] {
         &self.glossary
     }
@@ -1231,6 +1259,74 @@ impl OntologyIR {
             });
         }
         self.enrichments.push(def);
+        self.rebuild_indices()
+    }
+
+    /// Register a workspace-canonical concept. The concept's
+    /// `canonical_term_id` and every entry in `alias_term_ids` must
+    /// resolve to a `GlossaryTermDef.id` already present in the IR;
+    /// `broader` and `replaced_by` (when set) must resolve to other
+    /// concepts. The order constraint matters: glossary terms land
+    /// first, then the concepts that pin them.
+    pub fn add_concept(
+        &mut self,
+        def: crate::concept::ConceptDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if self.concepts.iter().any(|c| c.id == def.id) {
+            return Err(OntologyInvariantError::DuplicateCollectionId {
+                kind: "concept",
+                id: def.id.to_string(),
+            });
+        }
+        if !self.glossary.iter().any(|t| t.id == def.canonical_term_id) {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "concept.canonical_term_id",
+                id: def.id.to_string(),
+                target: def.canonical_term_id.to_string(),
+            });
+        }
+        for alias in &def.alias_term_ids {
+            if !self.glossary.iter().any(|t| &t.id == alias) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.alias_term_id",
+                    id: def.id.to_string(),
+                    target: alias.to_string(),
+                });
+            }
+        }
+        if let Some(parent) = &def.broader {
+            if parent == &def.id {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.broader",
+                    id: def.id.to_string(),
+                    target: parent.to_string(),
+                });
+            }
+            if !self.concepts.iter().any(|c| &c.id == parent) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.broader",
+                    id: def.id.to_string(),
+                    target: parent.to_string(),
+                });
+            }
+        }
+        if let Some(target) = &def.replaced_by {
+            if target == &def.id {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.replaced_by",
+                    id: def.id.to_string(),
+                    target: target.to_string(),
+                });
+            }
+            if !self.concepts.iter().any(|c| &c.id == target) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.replaced_by",
+                    id: def.id.to_string(),
+                    target: target.to_string(),
+                });
+            }
+        }
+        self.concepts.push(def);
         self.rebuild_indices()
     }
 

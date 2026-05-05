@@ -18,6 +18,7 @@ pub mod binding;
 pub mod cluster_checkpoint;
 pub mod code_system;
 pub mod command;
+pub mod concept;
 pub mod concept_map;
 pub mod data_quality;
 pub mod dependency;

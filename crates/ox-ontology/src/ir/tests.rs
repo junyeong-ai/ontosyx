@@ -2281,3 +2281,134 @@ fn validate_flags_property_with_two_glossary_bindings() {
         "validator must flag duplicate Glossary bindings: {errors:?}"
     );
 }
+
+#[test]
+fn add_concept_rejects_canonical_term_id_pointing_to_missing_term() {
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use crate::glossary::{GlossaryTermId, TermLifecycle};
+
+    let mut onto = sample_user_ontology();
+    let concept = ConceptDef {
+        id: ConceptId::new("c-customer"),
+        canonical_term_id: GlossaryTermId::new("gt-phantom"),
+        alias_term_ids: Vec::new(),
+        broader: None,
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        realisation: None,
+        lifecycle: TermLifecycle::default(),
+        replaced_by: None,
+        valid_from: None,
+        valid_to: None,
+        governance: ConceptGovernance::default(),
+    };
+    let err = onto.add_concept(concept).unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "concept.canonical_term_id",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn add_concept_rejects_self_replacement() {
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use crate::glossary::{
+        GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle,
+    };
+
+    let mut onto = sample_user_ontology();
+    onto.add_glossary_term(GlossaryTermDef {
+        id: GlossaryTermId::new("gt-customer"),
+        term: LocalizedText::new("Customer"),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        aliases: Vec::new(),
+        related_terms: Vec::new(),
+        governance: TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: TermLifecycle::default(),
+        realisation: None,
+    })
+    .unwrap();
+    let id = ConceptId::new("c-customer");
+    let concept = ConceptDef {
+        id: id.clone(),
+        canonical_term_id: GlossaryTermId::new("gt-customer"),
+        alias_term_ids: Vec::new(),
+        broader: None,
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        realisation: None,
+        lifecycle: TermLifecycle::default(),
+        replaced_by: Some(id.clone()),
+        valid_from: None,
+        valid_to: None,
+        governance: ConceptGovernance::default(),
+    };
+    let err = onto.add_concept(concept).unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "concept.replaced_by",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn add_concept_round_trips_with_alias_terms() {
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use crate::glossary::{
+        GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle,
+    };
+
+    fn empty_term(id: &str, label: &str) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(label),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::default(),
+            realisation: None,
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    onto.add_glossary_term(empty_term("gt-customer-en", "Customer"))
+        .unwrap();
+    onto.add_glossary_term(empty_term("gt-customer-ko", "고객"))
+        .unwrap();
+    onto.add_concept(ConceptDef {
+        id: ConceptId::new("c-customer"),
+        canonical_term_id: GlossaryTermId::new("gt-customer-en"),
+        alias_term_ids: vec![GlossaryTermId::new("gt-customer-ko")],
+        broader: None,
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        realisation: None,
+        lifecycle: TermLifecycle::default(),
+        replaced_by: None,
+        valid_from: None,
+        valid_to: None,
+        governance: ConceptGovernance::default(),
+    })
+    .unwrap();
+    assert_eq!(onto.concepts().len(), 1);
+    assert_eq!(onto.concept_by_id(&ConceptId::new("c-customer")).unwrap().id.as_str(), "c-customer");
+}
