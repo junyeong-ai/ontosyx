@@ -1185,7 +1185,11 @@
         "ontology": {
           "unknown_node_label": "Unknown node label `{label}` — not defined in the active ontology",
           "unknown_property": "Property `{property}` is not defined on label `{labels}` in the active ontology",
-          "unknown_relationship_type": "Unknown relationship type `{relationship_type}` — not defined in the active ontology"
+          "unknown_relationship_type": "Unknown relationship type `{relationship_type}` — not defined in the active ontology",
+          "unknown_relationship_property": "Property `{property}` is not defined on relationship type `{subject_name}` in the active ontology",
+          "unknown_set_property": "{subject_kind, select, node {SET assigns to property `{property}` not defined on label `{subject_name}` in the active ontology} relationship {SET assigns to property `{property}` not defined on relationship type `{subject_name}` in the active ontology} other {SET assigns to property `{property}` not defined on `{subject_name}` in the active ontology}}",
+          "unknown_remove_property": "{subject_kind, select, node {REMOVE targets property `{property}` not defined on label `{subject_name}` in the active ontology} relationship {REMOVE targets property `{property}` not defined on relationship type `{subject_name}` in the active ontology} other {REMOVE targets property `{property}` not defined on `{subject_name}` in the active ontology}}",
+          "unknown_read_property": "{subject_kind, select, node {{clause} references property `{property}` not defined on label `{subject_name}` in the active ontology} relationship {{clause} references property `{property}` not defined on relationship type `{subject_name}` in the active ontology} other {{clause} references property `{property}` not defined on `{subject_name}` in the active ontology}}"
         },
         "semantic_guard": {
           "tautological_where": "Destructive operation is gated only by a tautological WHERE predicate (e.g. `WHERE true`, `WHERE 1 = 1`) — add a real constraint before DELETE / DETACH DELETE / REMOVE"

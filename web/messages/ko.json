@@ -1185,7 +1185,11 @@
         "ontology": {
           "unknown_node_label": "알 수 없는 노드 라벨 `{label}` — 활성 온톨로지에 정의되어 있지 않습니다",
           "unknown_property": "속성 `{property}` 은 라벨 `{labels}` 에 정의되어 있지 않습니다",
-          "unknown_relationship_type": "알 수 없는 관계 타입 `{relationship_type}` — 활성 온톨로지에 정의되어 있지 않습니다"
+          "unknown_relationship_type": "알 수 없는 관계 타입 `{relationship_type}` — 활성 온톨로지에 정의되어 있지 않습니다",
+          "unknown_relationship_property": "속성 `{property}` 은 관계 타입 `{subject_name}` 에 정의되어 있지 않습니다",
+          "unknown_set_property": "{subject_kind, select, node {SET 절이 라벨 `{subject_name}` 에 정의되지 않은 속성 `{property}` 에 할당합니다} relationship {SET 절이 관계 타입 `{subject_name}` 에 정의되지 않은 속성 `{property}` 에 할당합니다} other {SET 절이 `{subject_name}` 에 정의되지 않은 속성 `{property}` 에 할당합니다}}",
+          "unknown_remove_property": "{subject_kind, select, node {REMOVE 절이 라벨 `{subject_name}` 에 정의되지 않은 속성 `{property}` 을 제거합니다} relationship {REMOVE 절이 관계 타입 `{subject_name}` 에 정의되지 않은 속성 `{property}` 을 제거합니다} other {REMOVE 절이 `{subject_name}` 에 정의되지 않은 속성 `{property}` 을 제거합니다}}",
+          "unknown_read_property": "{subject_kind, select, node {{clause} 절이 라벨 `{subject_name}` 에 정의되지 않은 속성 `{property}` 을 참조합니다} relationship {{clause} 절이 관계 타입 `{subject_name}` 에 정의되지 않은 속성 `{property}` 을 참조합니다} other {{clause} 절이 `{subject_name}` 에 정의되지 않은 속성 `{property}` 을 참조합니다}}"
         },
         "semantic_guard": {
           "tautological_where": "파괴적 작업이 항상 참인 WHERE 술어 (`WHERE true`, `WHERE 1 = 1` 등) 만으로 제한되고 있습니다 — DELETE / DETACH DELETE / REMOVE 전에 실제 제약을 추가하세요"

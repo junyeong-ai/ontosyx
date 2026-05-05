@@ -671,7 +671,8 @@ impl CypherValidator for OntologyValidator {
                                     "ontology",
                                     diag("runtime.cypher.ontology.unknown_relationship_property")
                                         .with("property", key.clone())
-                                        .with("relationship_types", type_list.clone())
+                                        .with("subject_kind", "relationship")
+                                        .with("subject_name", type_list.clone())
                                         .message(format!(
                                             "property `{key}` not defined on relationship type `{type_list}` in the active ontology"
                                         )),
@@ -904,7 +905,8 @@ impl OntologyValidator {
                         .with("clause", clause_label.to_string())
                         .with("property", property.to_string())
                         .with("variable", variable.to_string())
-                        .with("labels", label_list.clone())
+                        .with("subject_kind", "node")
+                        .with("subject_name", label_list.clone())
                         .message(format!(
                             "{clause_label} references property `{property}` not defined on label `{label_list}` in the active ontology",
                         )),
@@ -937,7 +939,8 @@ impl OntologyValidator {
                         .with("clause", clause_label.to_string())
                         .with("property", property.to_string())
                         .with("variable", variable.to_string())
-                        .with("relationship_types", type_list.clone())
+                        .with("subject_kind", "relationship")
+                        .with("subject_name", type_list.clone())
                         .message(format!(
                             "{clause_label} references property `{property}` not defined on relationship type `{type_list}` in the active ontology",
                         )),
@@ -991,7 +994,8 @@ impl OntologyValidator {
                     diag(code)
                         .with("property", property.to_string())
                         .with("variable", variable.to_string())
-                        .with("labels", label_list.clone())
+                        .with("subject_kind", "node")
+                        .with("subject_name", label_list.clone())
                         .message(format!(
                             "{verb} property `{property}` not defined on label `{label_list}` in the active ontology",
                         )),
@@ -1031,7 +1035,8 @@ impl OntologyValidator {
                     diag(code)
                         .with("property", property.to_string())
                         .with("variable", variable.to_string())
-                        .with("relationship_types", type_list.clone())
+                        .with("subject_kind", "relationship")
+                        .with("subject_name", type_list.clone())
                         .message(format!(
                             "{verb} property `{property}` not defined on relationship type `{type_list}` in the active ontology",
                         )),
