@@ -347,6 +347,11 @@ pub struct DefaultBrain {
     /// Optional knowledge store for failure-driven learning.
     /// When available, `translate_query` injects learned corrections.
     knowledge_store: Option<Arc<dyn ox_store::KnowledgeStore>>,
+    /// Optional evaluation capture hook. When set + an
+    /// `EvaluationContext` is bound on the calling task, every
+    /// `call_structured_traced` records a `latency_ms.<operation>`
+    /// metric against the active case. `None` → no-op.
+    evaluation_capture: Option<Arc<dyn ox_store::EvaluationCapture>>,
 }
 
 impl DefaultBrain {
@@ -364,7 +369,20 @@ impl DefaultBrain {
             memory: None,
             ontology_lineage_id: None,
             knowledge_store: None,
+            evaluation_capture: None,
         }
+    }
+
+    /// Attach an evaluation capture hook. The wide
+    /// `Arc<dyn EvaluationCapture>` accepts the storage-backed
+    /// implementation (`PostgresStore`) as well as test stubs;
+    /// `NullEvaluationCapture::arc()` is the explicit no-op.
+    pub fn with_evaluation_capture(
+        mut self,
+        capture: Arc<dyn ox_store::EvaluationCapture>,
+    ) -> Self {
+        self.evaluation_capture = Some(capture);
+        self
     }
 
     /// Set memory store for schema RAG in query translation.
@@ -473,6 +491,7 @@ impl DefaultBrain {
             "{log_message}"
         );
 
+        let started = std::time::Instant::now();
         let parsed = structured_completion(
             client.as_ref(),
             &resolved.model_id,
@@ -482,6 +501,30 @@ impl DefaultBrain {
             effective_temperature,
         )
         .await?;
+        let elapsed_ms = started.elapsed().as_millis() as i64;
+
+        // Evaluation capture hook — records `latency_ms.<operation>`
+        // when the call path is inside an `EvaluationContext` scope
+        // *and* an `EvaluationCapture` was attached. Production
+        // traffic without an evaluation scope skips both branches
+        // for free (no allocations, no awaits).
+        if let (Some(ctx), Some(capture)) = (
+            ox_store::current_evaluation_context(),
+            self.evaluation_capture.as_ref(),
+        ) {
+            // Don't propagate capture-side failures — the LLM
+            // call already succeeded, the operator's primary path
+            // is the typed response. Log + drop matches the
+            // wider observability policy (capture is best-effort,
+            // not load-bearing).
+            if let Err(err) = capture.record_latency(&ctx, operation, elapsed_ms).await {
+                tracing::warn!(
+                    error = %err,
+                    operation,
+                    "evaluation capture record_latency failed"
+                );
+            }
+        }
 
         // Render hash captures system + user post-interpolation.
         // An admin who edits the DB-backing prompt without bumping

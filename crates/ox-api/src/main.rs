@@ -262,7 +262,15 @@ async fn main() -> anyhow::Result<()> {
 
     // Grab the pool reference before wrapping in Arc<dyn Store> for vector store sharing
     let shared_pg_pool = pg_store.pool().clone();
-    let store = Arc::new(pg_store) as Arc<dyn ox_store::Store>;
+    // Hold the concrete Arc once so we can hand it to traits that
+    // are not in the `Store` supertrait (e.g. `EvaluationCapture`)
+    // without trait-object upcast — `Store` doesn't compose
+    // `EvaluationCapture` because the capture surface targets
+    // observability hooks, not the persistence supertrait.
+    let pg_store_arc = Arc::new(pg_store);
+    let evaluation_capture =
+        Arc::clone(&pg_store_arc) as Arc<dyn ox_store::EvaluationCapture>;
+    let store = pg_store_arc as Arc<dyn ox_store::Store>;
 
     // Load prompt templates from DB (seeds from TOML on first run).
     // Uses SYSTEM_BYPASS to skip RLS during startup seeding.
@@ -517,16 +525,26 @@ async fn main() -> anyhow::Result<()> {
         Some(Arc::new(ox_memory::MemoryStore::new(embedder, vectors)))
     };
 
-    // Attach memory store (schema RAG) and knowledge store (failure-driven corrections) to brain
+    // Attach memory store (schema RAG) + knowledge store (failure-driven
+    // corrections) + evaluation capture (RAGAS metric loop) to brain.
+    // The capture handle was minted alongside `store` from the same
+    // concrete `PostgresStore` Arc — every LLM call inside an
+    // `EvaluationContext` scope flows latency metrics into
+    // `evaluation_metrics` automatically.
     let kb_store = Arc::clone(&store) as Arc<dyn ox_store::KnowledgeStore>;
     let brain: Arc<dyn ox_brain::Brain> = if let Some(ref mem) = memory {
         Arc::new(
             brain_base
                 .with_memory(Arc::clone(mem), None)
-                .with_knowledge(kb_store),
+                .with_knowledge(kb_store)
+                .with_evaluation_capture(evaluation_capture),
         )
     } else {
-        Arc::new(brain_base.with_knowledge(kb_store))
+        Arc::new(
+            brain_base
+                .with_knowledge(kb_store)
+                .with_evaluation_capture(evaluation_capture),
+        )
     };
 
     // Initialize OIDC providers (auto-discovers from issuer URLs)
