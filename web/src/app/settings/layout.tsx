@@ -3,11 +3,14 @@
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
+import { SettingsCommandSource } from "@/components/settings/settings-command-source";
 import { NARROW_SETTINGS_PAGES } from "@/lib/constants/settings";
 import { cn } from "@/lib/cn";
 import { useIsClient } from "@/hooks/use-is-client";
+import { useNavigationShortcuts } from "@/hooks/use-navigation-shortcuts";
 import { SessionExpiredOverlay } from "@/components/collab/session-expired-overlay";
 import { AuthGuard } from "@/components/auth/auth-guard";
+import { PageTransition } from "@/components/motion/page-transition";
 
 /**
  * Derive a page title from the settings pathname. Runs at render time —
@@ -32,6 +35,7 @@ export default function SettingsLayout({
 }) {
   const pathname = usePathname();
   const t = useTranslations("settings.chrome");
+  const tSkip = useTranslations("chrome.skipLinks");
   // Wide-by-default; only pure-form pages opt into narrow.
   const isNarrow = NARROW_SETTINGS_PAGES.has(pathname);
   const pageTitle = deriveTitle(pathname);
@@ -43,9 +47,20 @@ export default function SettingsLayout({
   // `page-has-heading-one` a11y rule and gives screen readers an anchor
   // during the hydration gap.
   const mounted = useIsClient();
+  useNavigationShortcuts();
 
   return (
     <AuthGuard>
+    {/* Settings-scoped skip link, placed before the sidebar so it lands
+        as the first focusable inside this layout — the root layout
+        owns only `#main`, surface-specific targets live with the layout
+        that mounts the corresponding landmark. */}
+    <a
+      href="#sidebar"
+      className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-skip-link focus:rounded-md focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground-onbrand focus:outline-none focus:ring-2 focus:ring-brand-foreground/40 focus:ring-offset-2"
+    >
+      {tSkip("toSidebar")}
+    </a>
     <div className="flex h-screen bg-surface-raised">
       <SettingsSidebar />
       <SessionExpiredOverlay />
@@ -68,10 +83,13 @@ export default function SettingsLayout({
           <h1 className="sr-only">
             {pageTitle ? t("pageTitle", { page: pageTitle }) : t("rootTitle")}
           </h1>
-          {mounted ? children : null}
+          {mounted ? (
+            <PageTransition motionKey={pathname}>{children}</PageTransition>
+          ) : null}
         </div>
       </main>
     </div>
+    <SettingsCommandSource />
     </AuthGuard>
   );
 }

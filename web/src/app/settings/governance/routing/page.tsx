@@ -3,12 +3,13 @@
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { Button } from "@/components/ui/button";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Spinner } from "@/components/ui/spinner";
+import { PageStateView } from "@/components/layout/page-state-view";
+import type { PageState } from "@/components/layout/page-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { SettingsSelect } from "@/components/ui/form-input";
 import {
@@ -30,14 +31,15 @@ const ROUTING_KINDS: ApprovalRouting["kind"][] = [
 const RISK_LEVELS: RiskLevel[] = ["low", "medium", "high"];
 
 const RISK_BADGE: Record<RiskLevel, string> = {
-  low: "bg-brand-surface-strong text-brand-foreground-strong-strong",
+  low: "bg-brand-surface-strong text-brand-foreground-strong",
   medium:
     "bg-warning-surface text-warning-foreground",
-  high: "bg-danger-surface text-danger-foreground dark:bg-danger-foreground/30 dark:text-danger-foreground",
+  high: "bg-danger-surface text-danger-foreground",
 };
 
 export default function GovernanceRoutingPage() {
   const t = useTranslations("settings.governance.routing");
+  const tCommon = useTranslations("common");
   const qc = useQueryClient();
   const confirm = useConfirm();
 
@@ -114,24 +116,30 @@ export default function GovernanceRoutingPage() {
     if (ok) remove.mutate(changeType);
   };
 
-  if (rulesQuery.isLoading) {
-    return (
-      <div className="flex items-center justify-center py-10">
-        <Spinner />
-      </div>
-    );
-  }
+  const pageState: PageState = rulesQuery.isError
+    ? { kind: "error", onRetry: () => rulesQuery.refetch() }
+    : rulesQuery.isLoading
+      ? { kind: "loading" }
+      : grouped.length === 0
+        ? { kind: "empty" }
+        : { kind: "data" };
 
   return (
     <SettingsPageShell title={t("pageTitle")} subtitle={t("pageSubtitle")}>
+      <PageStateView
+        state={pageState}
+        skeleton={<SkeletonList count={6} />}
+        error={{
+          title: tCommon("loadError.title"),
+          description: tCommon("loadError.description"),
+          retryLabel: tCommon("retry"),
+        }}
+        empty={{
+          title: t("empty.title"),
+          description: t("empty.description"),
+        }}
+      >
       <div className="flex flex-col gap-4">
-
-      {grouped.length === 0 ? (
-        <EmptyState
-          title={t("empty.title")}
-          description={t("empty.description")}
-        />
-      ) : (
         <ul className="flex flex-col gap-3">
           {grouped.map(([changeType, rows]) => {
             const effective = rows[0]; // workspace override if present, else default
@@ -158,9 +166,9 @@ export default function GovernanceRoutingPage() {
                         {effective.risk_level}
                       </span>
                     </div>
-                    <p className="mt-1 text-[11px] text-foreground-muted">
+                    <p className="mt-1 text-2xs text-foreground-muted">
                       {t("currentLabel")}:{" "}
-                      <span className="font-mono text-[11px]">
+                      <span className="font-mono text-2xs">
                         {effective.routing.kind}
                       </span>
                     </p>
@@ -220,8 +228,8 @@ export default function GovernanceRoutingPage() {
             );
           })}
         </ul>
-      )}
       </div>
+      </PageStateView>
     </SettingsPageShell>
   );
 }

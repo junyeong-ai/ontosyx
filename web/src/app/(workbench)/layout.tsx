@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
-import { GlobalCommandPalette } from "@/components/layout/global-command-palette";
+import { GlobalCommandSource } from "@/components/layout/global-command-source";
 import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts-dialog";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { QualityBanner } from "@/components/quality/quality-banner";
@@ -12,7 +14,9 @@ import { WelcomeModal } from "@/components/onboarding/welcome-modal";
 import { SessionExpiredOverlay } from "@/components/collab/session-expired-overlay";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useHydrated } from "@/lib/store/use-hydrated";
+import { useNavigationShortcuts } from "@/hooks/use-navigation-shortcuts";
 import { useAppStore } from "@/lib/store";
+import { useShortcut } from "@/lib/shortcuts";
 import {
   fetchWsToken,
   useCollab,
@@ -47,12 +51,25 @@ export default function WorkbenchLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const tSkip = useTranslations("chrome.skipLinks");
+  const pathname = usePathname();
   const hydrated = useHydrated();
   const workspaceReady = useAppStore((s) => s.workspaceReady);
   const workspaceId = useAppStore((s) => s.workspaceId);
   const initWorkspace = useAppStore((s) => s.initWorkspace);
-  const isCommandPaletteOpen = useAppStore((s) => s.isCommandPaletteOpen);
-  const setCommandPaletteOpen = useAppStore((s) => s.setCommandPaletteOpen);
+  // Inspector skip-link is workbench-scoped — root layout only
+  // owns the universal `toMain`/`toSidebar` pair, since the inspector
+  // landmark is design-only and depends on whether an ontology is
+  // loaded and the inspector panel toggle is open. Mirroring the
+  // exact mount conditions here keeps `aria-controls`-style integrity:
+  // the skip-link only appears when the target it points to actually
+  // exists in the DOM, so axe never fires `skip-link` violations.
+  const inspectorOpen = useAppStore((s) => s.isInspectorOpen);
+  const hasOntology = useAppStore((s) => !!s.ontology);
+  // `startsWith` so any future `/design/*` sub-route inherits the
+  // skip-link without a parallel allowlist.
+  const showInspectorSkipLink =
+    pathname.startsWith("/design") && inspectorOpen && hasOntology;
 
   // Collaboration WebSocket — single socket per workspace, shared
   // across every workbench mode. The hook tears the socket down
@@ -68,10 +85,7 @@ export default function WorkbenchLayout({
   // projects re-joins; clearing the active project leaves.
   const activeProjectForCollab = useAppStore(selectStateActiveProject);
   useCollabRoom(activeProjectForCollab?.id);
-  const closePalette = useCallback(
-    () => setCommandPaletteOpen(false),
-    [setCommandPaletteOpen],
-  );
+  useNavigationShortcuts();
 
   // Initialize workspace after Zustand hydration — same bootstrap the
   // old `page.tsx` performed.
@@ -81,69 +95,96 @@ export default function WorkbenchLayout({
     }
   }, [hydrated, workspaceReady, initWorkspace]);
 
-  // Cmd/Ctrl+Shift+P opens the global command palette. Bound at the
-  // workbench shell so every mode (design / analyze / explore /
-  // dashboard) shares the same shortcut. The dialog itself owns
-  // ESC handling internally.
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const meta = e.metaKey || e.ctrlKey;
-      if (meta && e.shiftKey && (e.key === "p" || e.key === "P")) {
-        e.preventDefault();
-        const store = useAppStore.getState();
-        store.setCommandPaletteOpen(!store.isCommandPaletteOpen);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
+  useShortcut({
+    id: "workbench.toggleSidebar",
+    keys: ["["],
+    group: "keyboardShortcuts.sections.global",
+    description: "keyboardShortcuts.shortcuts.toggleSidebar",
+    handler: (e) => {
+      e.preventDefault();
+      useAppStore.getState().toggleSidebarMode();
+    },
+  });
 
   return (
     <AuthGuard>
     <ErrorBoundary>
       <TooltipProvider>
+        {/* React tree shape stays identical across SSR / first client
+            render / post-hydration so React's reconciliation has no
+            structural mismatch and the skip-link target (`#main`) is
+            an interactive landmark the entire time — never `aria-hidden`,
+            never duplicated. Pre-hydration `aria-busy` lets assistive
+            tech announce "loading" without relocating the focus target. */}
+        {/* Workbench-scoped skip links, placed *before* the sidebar so
+            keyboard users hit them as the first focusables inside this
+            layout — without this position the skips would land mid-tree
+            after the chrome and stop being "skips". The root layout
+            owns only `#main`; surface-specific targets live with the
+            layout that actually renders the landmark, so axe never
+            sees a skip link pointing at a missing element. */}
+        <a
+          href="#sidebar"
+          className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-skip-link focus:rounded-md focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground-onbrand focus:outline-none focus:ring-2 focus:ring-brand-foreground/40 focus:ring-offset-2"
+        >
+          {tSkip("toSidebar")}
+        </a>
+        {showInspectorSkipLink && (
+          <a
+            href="#inspector"
+            className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-skip-link focus:rounded-md focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground-onbrand focus:outline-none focus:ring-2 focus:ring-brand-foreground/40 focus:ring-offset-2"
+          >
+            {tSkip("toInspector")}
+          </a>
+        )}
         <div className="flex h-dvh overflow-hidden" aria-busy={!hydrated}>
-            {hydrated ? (
-              <>
-                <Sidebar />
-                <div className="flex flex-1 flex-col overflow-hidden">
-                  <Header />
-                  {workspaceReady && <QualityBanner />}
-                  <main id="main" className="flex-1 overflow-hidden">
-                    <div className="h-full overflow-hidden">{children}</div>
-                  </main>
-                </div>
-              </>
-            ) : (
-              <>
-                <div
-                  className="w-12 shrink-0 border-r border-divider"
-                  aria-hidden
-                />
-                <div className="flex flex-1 flex-col overflow-hidden">
-                  <div
-                    className="h-10 shrink-0 border-b border-divider"
-                    aria-hidden
-                  />
-                  <main
-                    id="main"
-                    className="flex-1 overflow-hidden"
-                    aria-hidden
-                  />
-                </div>
-              </>
-            )}
+          {hydrated ? <Sidebar /> : <SidebarRailSkeleton />}
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {hydrated ? <Header /> : <HeaderSkeleton />}
+            {hydrated && workspaceReady && <QualityBanner />}
+            {/* `tabIndex={0}` makes the skip-link target focusable —
+                otherwise `<main>` is bypassed when keyboard users
+                activate `#main`, and axe flags the skip link as
+                pointing nowhere. The `focus-visible:` ring keeps the
+                indicator scoped to keyboard activation. */}
+            <main
+              id="main"
+              tabIndex={0}
+              className="flex-1 overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/50 focus-visible:ring-inset"
+            >
+              {hydrated && (
+                <div className="h-full overflow-hidden">{children}</div>
+              )}
+            </main>
           </div>
-          <KeyboardShortcutsDialog />
-          <GlobalCommandPalette
-            open={isCommandPaletteOpen}
-            onClose={closePalette}
-          />
-          <CollaborationErrorToaster />
-          <WelcomeModal />
-          <SessionExpiredOverlay />
+        </div>
+        <KeyboardShortcutsDialog />
+        <GlobalCommandSource />
+        <CollaborationErrorToaster />
+        <WelcomeModal />
+        <SessionExpiredOverlay />
       </TooltipProvider>
     </ErrorBoundary>
     </AuthGuard>
+  );
+}
+
+// Rail skeleton matches the live `<Sidebar>`'s rail width so the
+// post-hydration shape doesn't shift. No interactive children — the
+// real Sidebar replaces this once the store hydrates.
+function SidebarRailSkeleton() {
+  return (
+    <div
+      className="w-rail shrink-0 border-e border-divider bg-surface-raised"
+      aria-hidden="true"
+    />
+  );
+}
+
+// Header skeleton mirrors the live header's height so the canvas /
+// page body don't reflow at hydration time.
+function HeaderSkeleton() {
+  return (
+    <div className="h-10 shrink-0 border-b border-divider" aria-hidden />
   );
 }

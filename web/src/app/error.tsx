@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AlertCircleIcon, Home01Icon, RefreshIcon } from "@hugeicons/core-free-icons";
+import { Button, buttonStyles } from "@/components/ui/button";
 
 interface RootErrorProps {
   error: Error & { digest?: string };
@@ -35,7 +36,7 @@ export default function RootError({ error, reset }: RootErrorProps) {
   return (
     <html lang="ko">
       <body className="flex min-h-dvh items-center justify-center bg-surface-raised">
-        <div className="mx-4 w-full max-w-md rounded-xl border border-divider bg-surface-base p-6 shadow-sm">
+        <main id="main" className="mx-4 w-full max-w-md rounded-xl border border-divider bg-surface-base p-6 shadow-1">
           <div className="flex items-start gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger-surface/30">
               <HugeiconsIcon
@@ -48,40 +49,32 @@ export default function RootError({ error, reset }: RootErrorProps) {
               <h1 className="text-base font-semibold text-foreground-strong">
                 {t("title")}
               </h1>
-              <p className="mt-1 text-sm text-foreground dark:text-muted-foreground">
+              <p className="mt-1 text-sm text-foreground">
                 {t("description")}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs text-foreground-muted">
                 {t("subtitle")}
               </p>
 
               {error.digest && (
-                <p className="mt-3 rounded bg-surface-raised px-2 py-1 font-mono text-2xs text-foreground-muted dark:text-muted-foreground">
+                <p className="mt-3 rounded bg-surface-raised px-2 py-1 font-mono text-2xs text-foreground-muted">
                   {t("refPrefix")} {error.digest}
                 </p>
               )}
 
               <div className="mt-5 flex flex-wrap gap-2">
-                <button
+                <Button
                   onClick={reset}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-brand-solid px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-solid"
+                  variant="primary"
+                  size="sm"
+                  leadingIcon={
+                    <HugeiconsIcon icon={RefreshIcon} className="h-3.5 w-3.5" size="100%" />
+                  }
                 >
-                  <HugeiconsIcon
-                    icon={RefreshIcon}
-                    className="h-3.5 w-3.5"
-                    size="100%"
-                  />
                   {t("tryAgain")}
-                </button>
-                <Link
-                  href="/"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-raised-muted"
-                >
-                  <HugeiconsIcon
-                    icon={Home01Icon}
-                    className="h-3.5 w-3.5"
-                    size="100%"
-                  />
+                </Button>
+                <Link href="/" className={buttonStyles({ variant: "outline", size: "sm" })}>
+                  <HugeiconsIcon icon={Home01Icon} className="h-3.5 w-3.5" size="100%" />
                   {t("home")}
                 </Link>
                 <a
@@ -90,14 +83,14 @@ export default function RootError({ error, reset }: RootErrorProps) {
                   )}&body=${encodeURIComponent(
                     `Error message: ${error.message}\nDigest: ${error.digest ?? "n/a"}\nURL: ${typeof window !== "undefined" ? window.location.href : ""}\n`,
                   )}`}
-                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-foreground-muted transition-colors hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-strong"
+                  className={buttonStyles({ variant: "ghost", size: "sm" })}
                 >
                   {t("reportError")}
                 </a>
               </div>
             </div>
           </div>
-        </div>
+        </main>
       </body>
     </html>
   );

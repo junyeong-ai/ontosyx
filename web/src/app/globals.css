@@ -55,22 +55,43 @@
   --concept-surface:    #f5f3ff;   /* violet-50  */
   --concept-border:     #ddd6ff;   /* violet-200 */
 
-  /* --- Surface ---------------------------------------------------------- */
-  --surface-base:    #ffffff;
-  --surface-raised:  #fafafa;
-  --surface-inset:   #f4f4f5;
-  --surface-overlay: rgba(0, 0, 0, 0.5);
+  /* --- Surface ----------------------------------------------------------
+   * `raised`        — secondary surface (panels, cards) sitting above base.
+   * `raised-muted`  — hover state for raised; one tier dimmer than raised
+   *                   without dropping all the way to inset. Distinct from
+   *                   inset both visually and semantically.
+   * `inset`         — recessed surface (chips, code blocks, kbd). */
+  --surface-base:         #ffffff;
+  --surface-raised:       #fafafa;
+  --surface-raised-muted: #f0f0f1;
+  --surface-inset:        #f4f4f5;
+  --surface-overlay:      rgba(0, 0, 0, 0.5);
+  --surface-scrim-soft:   rgba(0, 0, 0, 0.2);
+  --surface-scrim-strong: rgba(0, 0, 0, 0.4);
 
   /* --- Divider ---------------------------------------------------------- */
-  --divider:      #e4e4e7;
-  --divider-soft: rgba(0, 0, 0, 0.04);
+  --divider:        #e4e4e7;
+  --divider-strong: #d4d4d8;
+  --divider-soft:   rgba(0, 0, 0, 0.04);
 
-  /* --- Foreground ------------------------------------------------------- */
-  --foreground:         #18181b;
-  --foreground-muted:   #52525b;
-  --foreground-subtle:  #71717b;
-  --foreground-strong:  #09090b;
-  --foreground-onbrand: #ffffff;
+  /* --- Foreground -------------------------------------------------------
+   * Emphasis ladder (clears WCAG AA against every surface token, both
+   * modes — the contrast-audit script asserts every {fg,bg} pair):
+   *   foreground-subtle  ≥ 4.5:1   placeholder text, decorative metadata
+   *   foreground-muted   ≥ 6.5:1   secondary copy, captions
+   *   foreground         ≥ 14:1    body text default
+   *   foreground-strong  ≥ 16:1    headings, emphasised numerals
+   * Pair with surface tokens; never against saturated colour bgs.
+   *
+   * `foreground-onbrand` flips per mode (white in light, dark in dark)
+   * for `bg-brand-solid` + `bg-warning-foreground`. `foreground-on-accent`
+   * stays white in both modes — used by `bg-danger-solid` only. */
+  --foreground:           #18181b;
+  --foreground-muted:     #52525b;
+  --foreground-subtle:    #65656c;
+  --foreground-strong:    #09090b;
+  --foreground-onbrand:   #ffffff;
+  --foreground-on-accent: #ffffff;
 
   /* --- Collaboration presence palette ----------------------------------- *
    * Eight identity hues for collaborators — every avatar, remote cursor,
@@ -121,19 +142,24 @@
     --concept-surface:    color-mix(in oklab, #2f0d68 40%, transparent);
     --concept-border:     #5d0ec0;   /* violet-800 */
 
-    --surface-base:    #09090b;
-    --surface-raised:  #18181b;
-    --surface-inset:   #27272a;
-    --surface-overlay: rgba(0, 0, 0, 0.7);
+    --surface-base:         #09090b;
+    --surface-raised:       #18181b;
+    --surface-raised-muted: #1f1f22;
+    --surface-inset:        #27272a;
+    --surface-overlay:      rgba(0, 0, 0, 0.7);
+    --surface-scrim-soft:   rgba(0, 0, 0, 0.4);
+    --surface-scrim-strong: rgba(0, 0, 0, 0.6);
 
-    --divider:      #3f3f46;
-    --divider-soft: rgba(255, 255, 255, 0.06);
+    --divider:        #3f3f46;
+    --divider-strong: #52525b;
+    --divider-soft:   rgba(255, 255, 255, 0.06);
 
-    --foreground:         #ededed;
-    --foreground-muted:   #a1a1aa;
-    --foreground-subtle:  #71717b;
-    --foreground-strong:  #fafafa;
-    --foreground-onbrand: #09090b;
+    --foreground:           #ededed;
+    --foreground-muted:     #a1a1aa;
+    --foreground-subtle:    #9b9ba2;
+    --foreground-strong:    #fafafa;
+    --foreground-onbrand:   #09090b;
+    --foreground-on-accent: #ffffff;
 
     /* Collaboration presence — same hues as light mode. The white
      * label / cursor-arrow text already passes AA against every
@@ -161,7 +187,13 @@
     --duration-slower:  0ms;
   }
   .animate-blink,
-  .animate-bounce { animation: none !important; }
+  .animate-bounce,
+  .animate-spin,
+  .animate-pulse { animation: none !important; }
+  .react-flow__edge-path,
+  .react-flow__node {
+    transition: none !important;
+  }
 }
 
 /* ===========================================================================
@@ -169,20 +201,68 @@
    =========================================================================== */
 
 @theme inline {
-  /* --- Type scale ------------------------------------------------------- */
-  --text-2xs: 11px;
-  --text-xs:  13px;
-  --text-sm:  14px;
-  --text-base: 15px;
-  --text-lg:  17px;
-  --text-xl:  20px;
-  --text-2xl: 24px;
-  --text-3xl: 30px;
-  --text-4xl: 36px;
+  /* --- Type scale -------------------------------------------------------
+   * Tight scale (15px base, not the 16px default) calibrated for dense
+   * data UI. Values are in `rem` so a user-level browser font-size
+   * adjustment (a11y zoom) scales every type-bound surface in lockstep
+   * with chrome that sizes against root. */
+  --text-2xs: 0.6875rem;  /* 11px */
+  --text-xs:  0.8125rem;  /* 13px */
+  --text-sm:  0.875rem;   /* 14px */
+  --text-base: 0.9375rem; /* 15px */
+  --text-lg:  1.0625rem;  /* 17px */
+  --text-xl:  1.25rem;    /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px */
+  --text-4xl: 2.25rem;    /* 36px */
 
   --leading-snug:    1.4;
   --leading-normal:  1.6;
   --leading-relaxed: 1.75;
+
+  /* --- Heading scale ----------------------------------------------------
+   * Three triplets (size / weight / leading) consumed by the `<Heading>`
+   * primitive to lock a single visual hierarchy. The H-level (h1-h6) and
+   * the visual size are decoupled from each other through the primitive's
+   * `level` (semantic) + `size` (visual) props — a card title can render
+   * as an `h3` for outline order but at `heading-4` size, without the
+   * typographic regression skip-level naked headings cause.
+   *
+   * Long-term, the four tiers (display, primary, secondary, tertiary)
+   * cap the visible vocabulary so a freshly added page can never invent
+   * a new size. h5/h6 reuse `tertiary` rather than getting their own
+   * tier; deeper nesting is a structural smell, not a typographic one. */
+  --heading-display-size:  var(--text-4xl);
+  --heading-display-weight: 700;
+  --heading-display-leading: 1.15;
+
+  --heading-1-size:    var(--text-3xl);
+  --heading-1-weight:  700;
+  --heading-1-leading: 1.2;
+
+  --heading-2-size:    var(--text-2xl);
+  --heading-2-weight:  600;
+  --heading-2-leading: 1.25;
+
+  --heading-3-size:    var(--text-xl);
+  --heading-3-weight:  600;
+  --heading-3-leading: 1.3;
+
+  --heading-4-size:    var(--text-lg);
+  --heading-4-weight:  600;
+  --heading-4-leading: 1.4;
+
+  --heading-5-size:    var(--text-base);
+  --heading-5-weight:  600;
+  --heading-5-leading: 1.5;
+
+  /* `heading-6` — section subheader tier. Smaller than `heading-5`
+     so tightly-packed settings sections + dashboard tiles can carry
+     a real heading without dominating the surface. Used by every
+     `<h2>` that previously inlined `text-sm font-semibold`. */
+  --heading-6-size:    var(--text-sm);
+  --heading-6-weight:  600;
+  --heading-6-leading: 1.5;
 
   /* --- Radius ----------------------------------------------------------- */
   --radius-sm:   4px;
@@ -192,6 +272,98 @@
   --radius-2xl:  16px;
   --radius-full: 9999px;
   --radius:      6px;
+
+  /* --- Border width -----------------------------------------------------
+   * `thin` is the default 1px hairline for dividers / card outlines.
+   * `thick` is the 2px ring used by focus indicators and selection
+   * outlines — wider so it remains legible against busy backgrounds.
+   * Anything else (3px, 4px) is a smell — promote a structural change
+   * (elevation, surface) instead of widening a stroke. */
+  --border-thin:  1px;
+  --border-thick: 2px;
+
+  /* --- Spacing scale ---------------------------------------------------
+   * Eight-step semantic scale. Components opt into a step rather than
+   * a raw px so density variants (compact / default / comfortable)
+   * adjust the whole product at once. The step values follow a 4 px
+   * base with t-shirt jumps; nothing below 4 px is allowed because
+   * sub-pixel padding stops being a hierarchy and starts being
+   * accidental drift. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+
+  /* --- Type weights ----------------------------------------------------
+   * Four canonical weights. `regular` is body text; `medium` is the
+   * weight of secondary headings + emphasised inline copy; `semibold`
+   * is the weight of section / page headings; `bold` is reserved for
+   * marketing surfaces and should be rare in product copy. */
+  --font-weight-regular:  400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+  --font-weight-bold:     700;
+
+  /* --- Focus ring colour tokens ----------------------------------------
+   * Every focus indicator across the product reads from one of these
+   * four channels. Components never hard-code a brand colour for a
+   * focus ring — they pick a semantic role and the token resolves
+   * (light / dark + contrast tuning) consistently. */
+  --ring-default: color-mix(in oklab, var(--brand-foreground) 40%, transparent);
+  --ring-strong:  color-mix(in oklab, var(--brand-foreground) 60%, transparent);
+  --ring-danger:  color-mix(in oklab, var(--danger-foreground) 50%, transparent);
+  --ring-warning: color-mix(in oklab, var(--warning-foreground) 50%, transparent);
+  --ring-info:    color-mix(in oklab, var(--info-foreground) 50%, transparent);
+
+  /* --- Opacity scale ---------------------------------------------------
+   * Four semantic opacity stops for state communication. `disabled`
+   * matches form-input disabled states across the design system;
+   * `muted` and `subtle` are progressive de-emphasis tiers used on
+   * placeholder text, dividers, and supplementary chrome. */
+  --opacity-disabled: 0.45;
+  --opacity-muted:    0.7;
+  --opacity-subtle:   0.85;
+
+  /* --- Icon size --------------------------------------------------------
+   * Three-tier inline icon sizes paired with the type scale. `inline`
+   * matches the cap-height of body text for icons inside running copy;
+   * `sm` / `md` / `lg` are the standalone affordance sizes used by
+   * IconButton, list-row indicators, and section headers. */
+  --icon-inline: 1em;
+  --icon-sm:     14px;
+  --icon-md:     16px;
+  --icon-lg:     20px;
+
+  /* --- Z-index hierarchy ------------------------------------------------
+   * Semantic stacking order. Surfaces never set raw `z-50` — they pick
+   * the layer that matches their *role*, so re-ordering the visible
+   * stack happens by changing the token, not every consumer.
+   *
+   *   canvas    in-canvas overlays (graph legends, hover panels)
+   *   chrome    persistent shell (top bar, sidebar)
+   *   presence  collaboration cursors / lock rings (over canvas)
+   *   banner    sticky non-modal banners (narrow-viewport, dev badges)
+   *   overlay   modal backdrop scrim
+   *   modal     dialog / drawer / command-palette content
+   *   popover   dropdowns, select menus, popovers (above modals so a
+   *             select inside a modal is visible)
+   *   toast     user feedback (above popovers — info you must see)
+   *   tooltip   transient hover affordance (above toasts — disposable)
+   *   skip-link keyboard-only a11y; must always win to be reachable */
+  --z-canvas:    10;
+  --z-chrome:    20;
+  --z-presence:  30;
+  --z-banner:    40;
+  --z-overlay:   50;
+  --z-modal:     60;
+  --z-popover:   70;
+  --z-toast:     80;
+  --z-tooltip:   90;
+  --z-skip-link: 100;
 
   /* --- Width tokens (chrome surfaces) ----------------------------------- */
   --width-rail:           48px;
@@ -208,13 +380,23 @@
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  --duration-instant: 100ms;
+  /* `instant` is reserved for state changes that must read as
+   * non-animated (radio toggle, checkbox, focus snap) — paired with
+   * `transition-colors`/`transition-transform` it tints the change
+   * without the eye registering motion. `quick` is the smallest
+   * value the eye reads as an actual transition. */
+  --duration-instant: 0ms;
   --duration-quick:   150ms;
   --duration-base:    200ms;
   --duration-slow:    350ms;
   --duration-slower:  500ms;
 
-  /* --- Elevation -------------------------------------------------------- */
+  /* --- Elevation --------------------------------------------------------
+   *   shadow-1  cards, subtle raised surfaces, button hover
+   *   shadow-2  hover states for raised surfaces
+   *   shadow-3  popovers, tooltips, dropdowns
+   *   shadow-4  modals, command palette, full dialogs
+   * Each tier is roughly 2× the spread of the previous. */
   --shadow-1: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-2: 0 4px 8px -2px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
   --shadow-3: 0 12px 24px -4px rgba(0, 0, 0, 0.10), 0 4px 8px -2px rgba(0, 0, 0, 0.05);
@@ -255,28 +437,87 @@
   --color-concept-border:     var(--concept-border);
 
   /* --- Color: surface --------------------------------------------------- */
-  --color-surface-base:    var(--surface-base);
-  --color-surface-raised:  var(--surface-raised);
-  --color-surface-inset:   var(--surface-inset);
-  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-base:         var(--surface-base);
+  --color-surface-raised:       var(--surface-raised);
+  --color-surface-raised-muted: var(--surface-raised-muted);
+  --color-surface-inset:        var(--surface-inset);
+  --color-surface-overlay:      var(--surface-overlay);
+  --color-surface-scrim-soft:   var(--surface-scrim-soft);
+  --color-surface-scrim-strong: var(--surface-scrim-strong);
 
   /* --- Color: divider --------------------------------------------------- */
-  --color-divider:      var(--divider);
-  --color-divider-soft: var(--divider-soft);
+  --color-divider:        var(--divider);
+  --color-divider-strong: var(--divider-strong);
+  --color-divider-soft:   var(--divider-soft);
 
   /* --- Color: foreground ------------------------------------------------ */
-  --color-foreground:         var(--foreground);
-  --color-foreground-muted:   var(--foreground-muted);
-  --color-foreground-subtle:  var(--foreground-subtle);
-  --color-foreground-strong:  var(--foreground-strong);
-  --color-foreground-onbrand: var(--foreground-onbrand);
-  --color-muted-foreground:   var(--foreground-muted);
+  --color-foreground:           var(--foreground);
+  --color-foreground-muted:     var(--foreground-muted);
+  --color-foreground-subtle:    var(--foreground-subtle);
+  --color-foreground-strong:    var(--foreground-strong);
+  --color-foreground-onbrand:   var(--foreground-onbrand);
+  --color-foreground-on-accent: var(--foreground-on-accent);
+
+  /* --- Color: ring ------------------------------------------------------ */
+  --color-ring-default: var(--ring-default);
+  --color-ring-strong:  var(--ring-strong);
+  --color-ring-danger:  var(--ring-danger);
+  --color-ring-warning: var(--ring-warning);
+  --color-ring-info:    var(--ring-info);
 
   /* --- Font stack — CJK first ------------------------------------------- */
   --font-sans: "Pretendard Variable", Pretendard, var(--font-noto-sans-kr),
     var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
     "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), "D2Coding", ui-monospace, Menlo, monospace;
+}
+
+/* ===========================================================================
+   Heading utilities — visual tiers consumed by the `<Heading>` primitive.
+   ---------------------------------------------------------------------------
+   The size class is decoupled from the rendered tag (h1…h6) so the
+   document outline can stay correct without forcing every section title
+   to look the same. Display tightens letter-spacing for very large copy
+   the way every modern type system does (San Francisco / Inter both
+   tighten above ~24px); the smaller tiers ride at zero.
+   =========================================================================== */
+
+.heading-display {
+  font-size: var(--heading-display-size);
+  font-weight: var(--heading-display-weight);
+  line-height: var(--heading-display-leading);
+  letter-spacing: -0.02em;
+}
+.heading-1 {
+  font-size: var(--heading-1-size);
+  font-weight: var(--heading-1-weight);
+  line-height: var(--heading-1-leading);
+  letter-spacing: -0.01em;
+}
+.heading-2 {
+  font-size: var(--heading-2-size);
+  font-weight: var(--heading-2-weight);
+  line-height: var(--heading-2-leading);
+}
+.heading-3 {
+  font-size: var(--heading-3-size);
+  font-weight: var(--heading-3-weight);
+  line-height: var(--heading-3-leading);
+}
+.heading-4 {
+  font-size: var(--heading-4-size);
+  font-weight: var(--heading-4-weight);
+  line-height: var(--heading-4-leading);
+}
+.heading-5 {
+  font-size: var(--heading-5-size);
+  font-weight: var(--heading-5-weight);
+  line-height: var(--heading-5-leading);
+}
+.heading-6 {
+  font-size: var(--heading-6-size);
+  font-weight: var(--heading-6-weight);
+  line-height: var(--heading-6-leading);
 }
 
 /* ===========================================================================
@@ -297,15 +538,40 @@ body {
   color: var(--foreground);
 }
 
-/* Korean wraps cleanly only when broken on word/phrase boundaries; the
-   default UA `break-word` cuts mid-syllable and produces ragged lines.
-   `:lang(ko)` scopes the override so other locales keep the universal
-   default. Pair with `line-height: var(--leading-relaxed)` on Korean
-   prose surfaces — Hangul glyphs sit taller than Latin and need more
-   leading to breathe. */
+/* ---------------------------------------------------------------------------
+   Korean typography
+   ---------------------------------------------------------------------------
+   Hangul has different rendering needs than Latin:
+   - Word/phrase-boundary wrapping (`keep-all`) — UA `break-word` cuts
+     mid-syllable and produces ragged lines.
+   - Slightly looser leading — Hangul glyphs sit taller and denser than
+     Latin, so the default 1.5 looks cramped on bodies of text.
+   - Optical kerning + `palt` opentype feature so digits and punctuation
+     in Hangul lines (",", ".", "·") sit at proper visual weight.
+   - `font-variant-numeric: tabular-nums` for tables, kept as a utility
+     applied per-table rather than globally so prose digits stay
+     proportional. */
 :lang(ko) {
   word-break: keep-all;
   overflow-wrap: anywhere;
+  font-feature-settings:
+    "palt" on,    /* proportional alternate width for CJK punctuation */
+    "kern" on;
+  letter-spacing: -0.005em; /* Hangul reads tighter; tiny negative tracking */
+}
+
+:lang(ko) p,
+:lang(ko) li,
+:lang(ko) dd,
+:lang(ko) blockquote {
+  line-height: var(--leading-relaxed, 1.65);
+}
+
+/* Mixed-script lines (Korean + Latin) benefit from a small space
+   inserted between scripts — modern browsers ship `text-spacing-trim`
+   for the same effect on supported builds. */
+:lang(ko) {
+  text-spacing: trim-start;
 }
 
 @media (max-width: 768px) {
@@ -355,6 +621,39 @@ body {
 /* ===========================================================================
    Streaming cursor blink + scrollbar polish
    =========================================================================== */
+
+/* Content fade-in stagger — applied via the `.stagger-fade-in > *`
+   utility class. Each direct child fades up by 6px with a 40ms cascade
+   so a freshly mounted list eases in instead of popping. The cascade
+   caps at 12 children to bound the visible delay; later items appear
+   immediately. Honors prefers-reduced-motion. */
+@keyframes content-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.stagger-fade-in > * {
+  opacity: 0;
+  animation: content-fade-in 240ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.stagger-fade-in > *:nth-child(1)  { animation-delay:  0ms; }
+.stagger-fade-in > *:nth-child(2)  { animation-delay: 40ms; }
+.stagger-fade-in > *:nth-child(3)  { animation-delay: 80ms; }
+.stagger-fade-in > *:nth-child(4)  { animation-delay: 120ms; }
+.stagger-fade-in > *:nth-child(5)  { animation-delay: 160ms; }
+.stagger-fade-in > *:nth-child(6)  { animation-delay: 200ms; }
+.stagger-fade-in > *:nth-child(7)  { animation-delay: 240ms; }
+.stagger-fade-in > *:nth-child(8)  { animation-delay: 280ms; }
+.stagger-fade-in > *:nth-child(9)  { animation-delay: 320ms; }
+.stagger-fade-in > *:nth-child(10) { animation-delay: 360ms; }
+.stagger-fade-in > *:nth-child(11) { animation-delay: 400ms; }
+.stagger-fade-in > *:nth-child(12) { animation-delay: 440ms; }
+@media (prefers-reduced-motion: reduce) {
+  .stagger-fade-in > * {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
 
 @keyframes blink {
   0%, 100% { opacity: 1; }

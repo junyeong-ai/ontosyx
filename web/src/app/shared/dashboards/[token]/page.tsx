@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { use } from "react";
 import { useTranslations } from "next-intl";
 import { Spinner } from "@/components/ui/spinner";
+import { Heading } from "@/components/ui/heading";
 import Expired from "./expired";
 
 interface SharedDashboardPayload {
@@ -83,14 +84,14 @@ export default function SharedDashboardPage({
 
   if (state.kind === "loading") {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-surface-raised">
+      <main id="main" className="flex min-h-dvh items-center justify-center bg-surface-raised">
         <div className="flex flex-col items-center gap-2">
           <Spinner size="md" className="text-brand-foreground" />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-foreground-muted">
             {t("loadingMessage")}
           </p>
         </div>
-      </div>
+      </main>
     );
   }
 
@@ -121,25 +122,25 @@ export default function SharedDashboardPage({
   // The workbench sets `body { overflow: hidden }` globally — allow
   // scroll here so long dashboards aren't clipped.
   return (
-    <div className="h-dvh overflow-auto bg-surface-raised">
+    <main id="main" className="h-dvh overflow-auto bg-surface-raised">
       <div className="mx-auto max-w-6xl px-6 py-8">
         <header className="border-b border-divider pb-4">
           <h1 className="text-xl font-semibold text-foreground-strong">
             {state.payload.dashboard.name}
           </h1>
           {state.payload.dashboard.description && (
-            <p className="mt-1 text-sm text-foreground dark:text-muted-foreground">
+            <p className="mt-1 text-sm text-foreground">
               {state.payload.dashboard.description}
             </p>
           )}
-          <p className="mt-2 text-2xs text-muted-foreground">
+          <p className="mt-2 text-2xs text-foreground-muted">
             {t("header")}
           </p>
         </header>
 
         <div className="mt-6 space-y-3">
           {state.payload.widgets.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("noWidgets")}</p>
+            <p className="text-sm text-foreground-muted">{t("noWidgets")}</p>
           ) : (
             state.payload.widgets.map((w) => (
               <div
@@ -150,7 +151,7 @@ export default function SharedDashboardPage({
                   <h2 className="truncate text-sm font-medium text-foreground-strong">
                     {w.title}
                   </h2>
-                  <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs text-foreground-muted dark:text-muted-foreground">
+                  <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs text-foreground-muted">
                     {w.widget_type}
                   </span>
                 </div>
@@ -159,7 +160,7 @@ export default function SharedDashboardPage({
           )}
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -173,14 +174,14 @@ function SharedTerminalState({
   body: string;
 }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-surface-raised px-4">
-      <div className="w-full max-w-md rounded-xl border border-divider bg-surface-base p-6 text-center shadow-sm">
-        <h1 className="text-lg font-semibold text-foreground-strong">
+    <main id="main" className="flex min-h-dvh items-center justify-center bg-surface-raised px-4">
+      <div className="w-full max-w-md rounded-xl border border-divider bg-surface-base p-6 text-center shadow-1">
+        <Heading level={1} size={4}>
           {title}
-        </h1>
-        <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
-        <p className="mt-4 text-sm text-foreground dark:text-muted-foreground">{body}</p>
+        </Heading>
+        <p className="mt-1 text-xs text-foreground-muted">{subtitle}</p>
+        <p className="mt-4 text-sm text-foreground">{body}</p>
       </div>
-    </div>
+    </main>
   );
 }

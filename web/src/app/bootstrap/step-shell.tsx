@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useCallback } from "react";
 
+import { Heading } from "@/components/ui/heading";
+
 import { useBootstrap } from "./bootstrap-state";
 
 export interface StepShellProps {
@@ -54,10 +56,10 @@ export function StepShell(props: StepShellProps) {
   return (
     <section>
       <header className="mb-6">
-        <h2 className="text-lg font-semibold text-foreground-strong">
+        <Heading level={2} size={4}>
           {title}
-        </h2>
-        <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+        </Heading>
+        <p className="mt-1 text-xs text-foreground-muted">{subtitle}</p>
       </header>
 
       <div className="space-y-4">{children}</div>
@@ -66,7 +68,7 @@ export function StepShell(props: StepShellProps) {
         <button
           type="button"
           onClick={() => (backPath ? router.push(backPath) : router.back())}
-          className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-surface-inset"
+          className="rounded px-3 py-1.5 text-xs text-foreground-muted hover:bg-surface-inset"
         >
           {t("back")}
         </button>
@@ -75,7 +77,7 @@ export function StepShell(props: StepShellProps) {
             <button
               type="button"
               onClick={handleSkip}
-              className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-surface-inset"
+              className="rounded px-3 py-1.5 text-xs text-foreground-muted hover:bg-surface-inset"
             >
               {t("skip")}
             </button>
@@ -84,7 +86,7 @@ export function StepShell(props: StepShellProps) {
             type="button"
             onClick={handleNext}
             disabled={!canAdvance && !!nextPath}
-            className="rounded bg-concept-foreground px-3 py-1.5 text-xs font-medium text-white hover:bg-concept-foreground disabled:opacity-50"
+            className="rounded bg-concept-foreground px-3 py-1.5 text-xs font-medium text-foreground-onbrand hover:bg-concept-foreground disabled:opacity-50"
           >
             {nextPath ? t("next") : t("finish")}
           </button>

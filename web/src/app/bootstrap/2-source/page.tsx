@@ -1,6 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { FormInput } from "@/components/ui/form-input";
+import { RadioCard } from "@/components/ui/radio";
 import { useBootstrap } from "../bootstrap-state";
 import { StepShell } from "../step-shell";
 
@@ -21,27 +23,15 @@ export default function SourceStep() {
     >
       <fieldset className="grid grid-cols-1 gap-2 md:grid-cols-3" aria-label={t("kindLabel")}>
         {KINDS.map((k) => (
-          <label
+          <RadioCard
             key={k}
-            className={`cursor-pointer rounded border px-3 py-3 text-xs ${
-              state.sourceKind === k
-                ? "border-concept-foreground bg-concept-surface text-concept-foreground"
-                : "border-divider bg-surface-base text-muted-foreground hover:bg-surface-raised"
-            }`}
-          >
-            <input
-              type="radio"
-              name="sourceKind"
-              value={k}
-              checked={state.sourceKind === k}
-              onChange={() => update({ sourceKind: k })}
-              className="sr-only"
-            />
-            <p className="font-medium">{t(`kinds.${k}.label`)}</p>
-            <p className="mt-0.5 text-2xs text-muted-foreground">
-              {t(`kinds.${k}.hint`)}
-            </p>
-          </label>
+            name="sourceKind"
+            value={k}
+            checked={state.sourceKind === k}
+            onChange={() => update({ sourceKind: k })}
+            title={t(`kinds.${k}.label`)}
+            hint={t(`kinds.${k}.hint`)}
+          />
         ))}
       </fieldset>
 
@@ -52,14 +42,14 @@ export default function SourceStep() {
         >
           {t("connectionLabel")}
         </label>
-        <input
+        <FormInput
           id="connection"
           value={state.sourceConnection}
           onChange={(e) => update({ sourceConnection: e.target.value })}
           placeholder={t("connectionPlaceholder")}
-          className="w-full rounded border border-divider bg-surface-base px-3 py-2 font-mono text-xs"
+          className="font-mono"
         />
-        <p className="mt-1 text-[11px] text-muted-foreground">
+        <p className="mt-1 text-2xs text-foreground-muted">
           {t("connectionHint")}
         </p>
       </div>

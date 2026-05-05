@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { useBootstrap } from "../bootstrap-state";
 import { StepShell } from "../step-shell";
 
@@ -23,12 +24,11 @@ export default function PilotStep() {
         >
           {t("nameLabel")}
         </label>
-        <input
+        <FormInput
           id="pilot-name"
           value={state.pilotName}
           onChange={(e) => update({ pilotName: e.target.value })}
           placeholder={t("namePlaceholder")}
-          className="w-full rounded border border-divider bg-surface-base px-3 py-2 text-sm"
         />
       </div>
 
@@ -39,15 +39,14 @@ export default function PilotStep() {
         >
           {t("scopeLabel")}
         </label>
-        <textarea
+        <FormTextarea
           id="pilot-scope"
           rows={4}
           value={state.pilotScope}
           onChange={(e) => update({ pilotScope: e.target.value })}
           placeholder={t("scopePlaceholder")}
-          className="w-full rounded border border-divider bg-surface-base px-3 py-2 text-sm"
         />
-        <p className="mt-1 text-[11px] text-muted-foreground">{t("scopeHint")}</p>
+        <p className="mt-1 text-2xs text-foreground-muted">{t("scopeHint")}</p>
       </div>
     </StepShell>
   );

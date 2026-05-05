@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { FormTextarea } from "@/components/ui/form-input";
 import { useBootstrap } from "../bootstrap-state";
 import { StepShell } from "../step-shell";
 
@@ -24,15 +25,15 @@ export default function RulesStep() {
         >
           {t("draftLabel")}
         </label>
-        <textarea
+        <FormTextarea
           id="rules-draft"
           rows={8}
           value={state.rulesDraft}
           onChange={(e) => update({ rulesDraft: e.target.value })}
           placeholder={t("draftPlaceholder")}
-          className="w-full rounded border border-divider bg-surface-base px-3 py-2 font-mono text-xs"
+          className="font-mono"
         />
-        <p className="mt-1 text-[11px] text-muted-foreground">{t("draftHint")}</p>
+        <p className="mt-1 text-2xs text-foreground-muted">{t("draftHint")}</p>
       </div>
     </StepShell>
   );

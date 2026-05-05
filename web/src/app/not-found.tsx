@@ -1,22 +1,38 @@
+"use client";
+
 /**
  * Root 404 page for the App Router.
  *
  * Rendered when Next.js cannot match a route, or when a component calls
- * `notFound()`. All copy is locale-aware via next-intl.
+ * `notFound()`. The page is a client component because:
+ *
+ *   1. Its content is fully static — no server-side data fetch — so
+ *      shipping it as a server component would gain nothing.
+ *   2. Async server components participate in Next.js' dev-mode
+ *      performance instrumentation; the marker name leaks through to
+ *      the console as "Performance.measure 'NotFound'" with a
+ *      negative timestamp when the route is hit mid-navigation. The
+ *      client-renderer path doesn't emit that mark.
+ *
+ * `useTranslations` is the client-side counterpart to the server
+ * `getTranslations` — same locale chain, same message bundle.
  */
 
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Home01Icon, HelpCircleIcon, Search01Icon } from "@hugeicons/core-free-icons";
+import { buttonStyles } from "@/components/ui/button";
+import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
 
-export default async function NotFound() {
-  const t = await getTranslations("notFound");
+export default function NotFound() {
+  const t = useTranslations("notFound");
 
   return (
     <main
       id="main"
-      className="flex min-h-dvh items-center justify-center bg-surface-raised px-4"
+      tabIndex={0}
+      className="flex min-h-dvh items-center justify-center bg-surface-raised px-4 outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/50 focus-visible:ring-inset"
     >
       <div className="w-full max-w-md text-center">
         <p className="text-xs font-semibold uppercase tracking-widest text-brand-foreground">
@@ -25,16 +41,16 @@ export default async function NotFound() {
         <h1 className="mt-2 text-2xl font-semibold text-foreground-strong">
           {t("title")}
         </h1>
-        <p className="mt-2 text-sm text-foreground dark:text-muted-foreground">
+        <p className="mt-2 text-sm text-foreground">
           {t("description")}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">{t("hint")}</p>
+        <p className="mt-1 text-xs text-foreground-muted">{t("hint")}</p>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
           <Link
             href="/"
             aria-label={t("homeAria")}
-            className="inline-flex items-center gap-1.5 rounded-md bg-brand-solid px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-solid"
+            className={buttonStyles({ variant: "primary", size: "md" })}
           >
             <HugeiconsIcon icon={Home01Icon} className="h-3.5 w-3.5" size="100%" />
             {t("home")}
@@ -42,20 +58,18 @@ export default async function NotFound() {
           <Link
             href="/?onboarding=1"
             aria-label={t("getStartedAria")}
-            className="inline-flex items-center gap-1.5 rounded-md border border-divider bg-surface-base px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-surface-raised-muted"
+            className={buttonStyles({ variant: "outline", size: "md" })}
           >
             <HugeiconsIcon icon={HelpCircleIcon} className="h-3.5 w-3.5" size="100%" />
             {t("getStarted")}
           </Link>
         </div>
 
-        <p className="mt-8 flex items-center justify-center gap-1.5 text-2xs text-muted-foreground">
+        <p className="mt-8 flex items-center justify-center gap-1.5 text-2xs text-foreground-muted">
           <HugeiconsIcon icon={Search01Icon} className="h-3 w-3" size="100%" />
           <span>
             {t("searchTipPrefix")}
-            <kbd className="mx-1 rounded border border-divider bg-surface-base px-1 py-0.5 font-mono text-2xs">
-              ⌘K
-            </kbd>
+            <KeyboardShortcut keys="mod+k" variant="outline" className="mx-1" />
             {t("searchTipSuffix")}
           </span>
         </p>

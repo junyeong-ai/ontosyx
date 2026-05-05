@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Noto_Sans_KR } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
-import { getLocale, getMessages } from "next-intl/server";
-import { Toaster } from "sonner";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
+import { Toaster } from "@/components/ui/toast";
 import { ConfirmProvider } from "@/components/providers/confirm-provider";
 import { PromptProvider } from "@/components/providers/prompt-provider";
 import { I18nBridgeProvider } from "@/lib/i18n-bridge";
+import { directionForLocale } from "@/lib/locale/dir";
 import { NarrowViewportBanner } from "@/components/ui/narrow-viewport-banner";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { A11yProvider } from "@/components/providers/a11y-provider";
+import { ExtensionsBoot } from "@/extensions/extensions-boot";
+import { ShortcutDispatcher } from "@/lib/shortcuts";
+import { CommandPaletteHost } from "@/components/layout/command-palette-host";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -47,10 +51,18 @@ export default async function RootLayout({
   // every descendant — RSC or client — reads from the same snapshot.
   const locale = await getLocale();
   const messages = await getMessages();
+  const tSkip = await getTranslations("chrome.skipLinks");
+  // `dir` is derived from the active locale so every CSS rule that
+  // uses logical properties (`start` / `end`) flips automatically
+  // when an RTL bundle lands, no per-component changes required.
+  // Today's `en` + `ko` both resolve to `ltr`; future locales pick
+  // up RTL through `directionForLocale`.
+  const dir = directionForLocale(locale);
 
   return (
     <html
       lang={locale}
+      dir={dir}
       className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable}`}
     >
       <head>
@@ -67,17 +79,32 @@ export default async function RootLayout({
         />
       </head>
       <body className="antialiased">
+        {/* Skip links sit inside a `<nav>` landmark so they are
+            contained by a region — bare body-level interactives trip
+            axe's `region` rule. The chord (Tab on first focus)
+            walks every landmark in document order, so a keyboard
+            user can jump to whichever surface they care about
+            without tabbing through the chrome. */}
+        {/* Universal skip link — every page renders `<main id="main">`,
+            so this target always resolves. Surface-specific
+            destinations (`#sidebar`, `#inspector`) are added by the
+            owning layout so axe doesn't flag a missing target on routes
+            where they don't exist (e.g. login / not-found / loading
+            have no sidebar at all). */}
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground-onbrand focus:outline-none focus:ring-2 focus:ring-brand-foreground/40 focus:ring-offset-2"
+          className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-skip-link focus:rounded-md focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground-onbrand focus:outline-none focus:ring-2 focus:ring-brand-foreground/40 focus:ring-offset-2"
         >
-          본문으로 건너뛰기
+          {tSkip("toMain")}
         </a>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <QueryProvider>
             <I18nBridgeProvider>
               <ConfirmProvider>
                 <PromptProvider>
+                  <ExtensionsBoot />
+                  <ShortcutDispatcher />
+                  <CommandPaletteHost />
                   {children}
                   <NarrowViewportBanner />
                 </PromptProvider>
@@ -87,12 +114,7 @@ export default async function RootLayout({
           {/* Dev-only axe-core runtime — tree-shaken in production. */}
           {process.env.NODE_ENV === "development" && <A11yProvider />}
           <div id="modal-root" />
-          <Toaster
-            position="bottom-right"
-            toastOptions={{
-              className: "text-sm",
-            }}
-          />
+          <Toaster />
         </NextIntlClientProvider>
       </body>
     </html>

@@ -11,7 +11,7 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import {
   parseGlossaryDraft,
@@ -274,7 +274,7 @@ export default function ValidateStep() {
             value={t("summary.count", { n: ruleCount })}
           />
         </dl>
-        <p className="mt-4 text-[11px] text-concept-foreground">
+        <p className="mt-4 text-2xs text-concept-foreground">
           {t("summary.nextStepHint")}
         </p>
       </div>
@@ -283,7 +283,7 @@ export default function ValidateStep() {
         <button
           type="button"
           onClick={handleRestart}
-          className="rounded px-3 py-1.5 text-muted-foreground hover:bg-surface-inset"
+          className="rounded px-3 py-1.5 text-foreground-muted hover:bg-surface-inset"
         >
           {t("restart")}
         </button>

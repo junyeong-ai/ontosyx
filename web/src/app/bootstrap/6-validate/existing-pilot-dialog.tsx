@@ -12,8 +12,9 @@
 // conflict handling.
 
 import { useTranslations } from "next-intl";
-import { AlertDialog } from "@base-ui/react/alert-dialog";
 
+import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
 import type { OntologyListItem } from "@/types/api";
 
 export type ExistingPilotChoice = "continue" | "rename" | "cancel";
@@ -37,50 +38,45 @@ export function ExistingPilotDialog({
   const name = existing?.name ?? "";
 
   return (
-    <AlertDialog.Root
+    <Modal
       open={open}
-      onOpenChange={(isOpen) => !isOpen && onChoose("cancel")}
+      onOpenChange={(next) => {
+        if (!next) onChoose("cancel");
+      }}
+      title={t("title", { name })}
+      description={t("description", { name, suggestion: renameSuggestion })}
+      size="md"
     >
-      <AlertDialog.Portal>
-        <AlertDialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 transition-opacity" />
-        <AlertDialog.Popup
-          className="fixed left-1/2 top-1 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-divider bg-surface-base p-6 shadow-xl data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all"
-          data-testid="existing-pilot-dialog"
+      <div
+        className="flex flex-col gap-2"
+        data-testid="existing-pilot-dialog"
+      >
+        <Button
+          variant="primary"
+          size="md"
+          onClick={() => onChoose("continue")}
+          data-testid="existing-pilot-continue"
         >
-          <AlertDialog.Title className="text-base font-semibold text-foreground-strong">
-            {t("title", { name })}
-          </AlertDialog.Title>
-          <AlertDialog.Description className="mt-2 text-sm leading-relaxed text-foreground dark:text-muted-foreground">
-            {t("description", { name, suggestion: renameSuggestion })}
-          </AlertDialog.Description>
-
-          <div className="mt-6 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => onChoose("continue")}
-              className="rounded-lg bg-brand-solid px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-solid"
-              data-testid="existing-pilot-continue"
-            >
-              {t("continue")}
-            </button>
-            <button
-              type="button"
-              onClick={() => onChoose("rename")}
-              className="rounded-lg border border-divider bg-surface-base px-4 py-2 text-sm font-medium text-foreground-strong transition-colors hover:bg-surface-raised-strong"
-              data-testid="existing-pilot-rename"
-            >
-              {t("rename", { suggestion: renameSuggestion })}
-            </button>
-            <AlertDialog.Close
-              className="rounded-lg px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-inset dark:text-muted-foreground"
-              data-testid="existing-pilot-cancel"
-            >
-              {t("cancel")}
-            </AlertDialog.Close>
-          </div>
-        </AlertDialog.Popup>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
+          {t("continue")}
+        </Button>
+        <Button
+          variant="outline"
+          size="md"
+          onClick={() => onChoose("rename")}
+          data-testid="existing-pilot-rename"
+        >
+          {t("rename", { suggestion: renameSuggestion })}
+        </Button>
+        <Button
+          variant="ghost"
+          size="md"
+          onClick={() => onChoose("cancel")}
+          data-testid="existing-pilot-cancel"
+        >
+          {t("cancel")}
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
