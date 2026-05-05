@@ -72,6 +72,12 @@ branchforge = { version = "0.9", default-features = false }
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Codifies the `Option<T> + skip_if_none` wire-shape conventions
+# documented in the root `CLAUDE.md` "DTO naming" section. Pulls in
+# the `#[serde_with::skip_serializing_none]` derive helper +
+# `chrono::DateTime<Utc>` aware type wrappers without forcing every
+# call-site to carry serde attribute soup.
+serde_with = { version = "3", features = ["chrono_0_4"] }
 schemars = { version = "1.2", features = ["chrono04", "uuid1"] }
 csv = "1"
 
