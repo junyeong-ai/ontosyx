@@ -3363,7 +3363,17 @@
       "rebaseSuccessToast": "Draft rebased onto current canonical",
       "rebaseErrorToast": "Rebase failed: {error}",
       "rebaseStaleHint": "Rebase to pin against the current canonical head",
-      "rebaseCurrentHint": "Already pinned to the current canonical head"
+      "rebaseCurrentHint": "Already pinned to the current canonical head",
+      "diffModal": {
+        "title": "Diff vs canonical — {title}",
+        "description": "Entity-level changes between this draft and the workspace canonical head. Empty when the draft matches the canonical exactly.",
+        "addedNodes": "Added nodes",
+        "removedNodes": "Removed nodes",
+        "modifiedNodes": "Modified nodes",
+        "addedEdges": "Added edges",
+        "removedEdges": "Removed edges",
+        "modifiedEdges": "Modified edges"
+      }
     },
     "contextMenu": {
       "ai": {

@@ -21,19 +21,53 @@ export interface OntologyVersionsResponse {
   versions: OntologyVersionEntry[];
 }
 
-/** Subset of `OntologyDiff` the branching surface renders. The
- *  full IR-level diff lives on the canonical schema; the branching
- *  page only needs the high-level counts plus the entity lists for
- *  display. The wire shape stays loose (`unknown` for entity rows)
- *  because the diff component doesn't deserialize past the
- *  identifying fields. */
+/** Added / removed node — full `NodeTypeDef` on the wire; the
+ *  branching surface only renders `id` + `label`. Other
+ *  consumers (graph delta visualisation) read the full shape
+ *  via the same response. */
+export interface DiffAddedNode {
+  id: string;
+  label: string;
+  /** Other `NodeTypeDef` fields ride along on the wire but are
+   *  not destructured here. */
+  [extra: string]: unknown;
+}
+
+export interface DiffAddedEdge {
+  id: string;
+  label: string;
+  [extra: string]: unknown;
+}
+
+/** Modified node — id + label plus the BE's per-field change
+ *  list. The change list is opaque to the FE today; the count
+ *  is what the operator sees on the category row. Drilldown
+ *  into individual changes lands as a follow-up surface. */
+export interface DiffModifiedNode {
+  node_id: string;
+  label: string;
+  changes: unknown[];
+}
+
+export interface DiffModifiedEdge {
+  edge_id: string;
+  label: string;
+  changes: unknown[];
+}
+
+/** Subset of the BE `OntologyDiff` shape the branching surface
+ *  renders. Drives both the inline summary badge on each draft
+ *  row and the entity-level drilldown modal. The full IR-level
+ *  diff (per-property changes inside a `NodeDiff`) lives on the
+ *  canonical schema; first iteration here keeps the entity rows
+ *  to id + label so the modal stays scannable. */
 export interface OntologyDiffSummary {
-  added_nodes: unknown[];
-  removed_nodes: unknown[];
-  modified_nodes: unknown[];
-  added_edges: unknown[];
-  removed_edges: unknown[];
-  modified_edges: unknown[];
+  added_nodes: DiffAddedNode[];
+  removed_nodes: DiffAddedNode[];
+  modified_nodes: DiffModifiedNode[];
+  added_edges: DiffAddedEdge[];
+  removed_edges: DiffAddedEdge[];
+  modified_edges: DiffModifiedEdge[];
   summary: {
     total_changes: number;
     added_count: number;

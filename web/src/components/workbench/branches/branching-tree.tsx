@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 
@@ -19,6 +19,8 @@ import type { PageState } from "@/components/layout/page-state";
 import { cn } from "@/lib/cn";
 import type { OntologyVersionEntry } from "@/types/ontology-branches";
 import type { OntologyDraftSummary } from "@/types/ontology-drafts";
+
+import { DiffModal } from "./diff-modal";
 
 /**
  * Workspace × ontology = 1:1, so the branching tree is one
@@ -84,9 +86,11 @@ function DraftDiffSummary({ draftId }: { draftId: string }) {
 function DraftActions({
   draft,
   isPinnedToHead,
+  onShowDiff,
 }: {
   draft: OntologyDraftSummary;
   isPinnedToHead: boolean;
+  onShowDiff: (d: OntologyDraftSummary) => void;
 }) {
   const t = useTranslations("workbench.branches");
   const rebase = useRebaseDraft();
@@ -102,25 +106,39 @@ function DraftActions({
     });
   };
   return (
-    <Button
-      type="button"
-      size="sm"
-      variant="outline"
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onRebase();
-      }}
-      disabled={isPinnedToHead || rebase.isPending}
-      loading={rebase.isPending}
-      title={
-        isPinnedToHead
-          ? t("rebaseCurrentHint")
-          : t("rebaseStaleHint")
-      }
-    >
-      {rebase.isPending ? t("rebaseSubmitting") : t("rebaseLabel")}
-    </Button>
+    <>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onShowDiff(draft);
+        }}
+      >
+        {t("diffLabel")}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onRebase();
+        }}
+        disabled={isPinnedToHead || rebase.isPending}
+        loading={rebase.isPending}
+        title={
+          isPinnedToHead
+            ? t("rebaseCurrentHint")
+            : t("rebaseStaleHint")
+        }
+      >
+        {rebase.isPending ? t("rebaseSubmitting") : t("rebaseLabel")}
+      </Button>
+    </>
   );
 }
 
@@ -129,11 +147,13 @@ function VersionNode({
   drafts,
   draftLabel,
   currentHeadId,
+  onShowDiff,
 }: {
   version: OntologyVersionEntry | null;
   drafts: OntologyDraftSummary[];
   draftLabel: string;
   currentHeadId: string | null;
+  onShowDiff: (d: OntologyDraftSummary) => void;
 }) {
   const t = useTranslations("workbench.branches");
 
@@ -212,7 +232,11 @@ function VersionNode({
                   </Link>
                   <div className="flex shrink-0 items-baseline gap-2">
                     <DraftDiffSummary draftId={d.id} />
-                    <DraftActions draft={d} isPinnedToHead={pinnedToHead} />
+                    <DraftActions
+                      draft={d}
+                      isPinnedToHead={pinnedToHead}
+                      onShowDiff={onShowDiff}
+                    />
                     <span className="text-2xs text-foreground-muted tabular-nums">
                       {formatTimestamp(d.updated_at)}
                     </span>
@@ -238,6 +262,8 @@ export function BranchingTree() {
   const draftBuckets = useMemo(() => groupDraftsByParent(drafts), [drafts]);
   const greenfieldDrafts = draftBuckets.get(null) ?? [];
   const currentHeadId = versions.find((v) => v.is_current)?.id ?? null;
+  const [diffDraft, setDiffDraft] = useState<OntologyDraftSummary | null>(null);
+  const onShowDiff = (d: OntologyDraftSummary) => setDiffDraft(d);
 
   const pageState: PageState =
     versionsQuery.isLoading || draftsQuery.isLoading
@@ -276,6 +302,7 @@ export function BranchingTree() {
               drafts={greenfieldDrafts}
               draftLabel={t("draftsLabel")}
               currentHeadId={currentHeadId}
+              onShowDiff={onShowDiff}
             />
           ) : null}
           {versions.map((v) => (
@@ -285,6 +312,7 @@ export function BranchingTree() {
               drafts={draftBuckets.get(v.id) ?? []}
               draftLabel={t("draftsLabel")}
               currentHeadId={currentHeadId}
+              onShowDiff={onShowDiff}
             />
           ))}
           {versions.length > 0 && greenfieldDrafts.length > 0 ? (
@@ -293,10 +321,23 @@ export function BranchingTree() {
               drafts={greenfieldDrafts}
               draftLabel={t("draftsLabel")}
               currentHeadId={currentHeadId}
+              onShowDiff={onShowDiff}
             />
           ) : null}
         </ul>
       </div>
+      <DiffModal
+        draftId={diffDraft?.id ?? null}
+        draftTitle={
+          diffDraft?.title?.trim()
+            ? diffDraft.title
+            : (diffDraft?.id ?? "")
+        }
+        open={!!diffDraft}
+        onOpenChange={(open) => {
+          if (!open) setDiffDraft(null);
+        }}
+      />
     </PageStateView>
   );
 }

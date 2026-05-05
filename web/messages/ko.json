@@ -3363,7 +3363,17 @@
       "rebaseSuccessToast": "초안이 현재 대표 버전으로 리베이스되었습니다",
       "rebaseErrorToast": "리베이스 실패: {error}",
       "rebaseStaleHint": "현재 대표 헤드에 맞게 리베이스",
-      "rebaseCurrentHint": "이미 현재 대표 헤드에 고정됨"
+      "rebaseCurrentHint": "이미 현재 대표 헤드에 고정됨",
+      "diffModal": {
+        "title": "대표와의 차이 — {title}",
+        "description": "이 초안과 워크스페이스 대표 헤드 사이의 엔티티 단위 변경. 초안이 대표와 정확히 일치하면 비어 있습니다.",
+        "addedNodes": "추가된 노드",
+        "removedNodes": "제거된 노드",
+        "modifiedNodes": "변경된 노드",
+        "addedEdges": "추가된 엣지",
+        "removedEdges": "제거된 엣지",
+        "modifiedEdges": "변경된 엣지"
+      }
     },
     "contextMenu": {
       "ai": {
