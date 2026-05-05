@@ -40,6 +40,7 @@ fn glossary_term(id: &str, label: &str) -> GlossaryTermDef {
         valid_to: None,
         lifecycle: TermLifecycle::default(),
     concept_id: None,
+            upper_kind: None,
     }
 }
 

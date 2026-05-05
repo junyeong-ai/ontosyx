@@ -186,6 +186,66 @@ pub struct NodeTypeDef {
     /// identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub concept_id: Option<crate::concept::ConceptId>,
+
+    /// Upper-ontology category this NodeType belongs to. Mirrors the
+    /// BFO / Foundry "Object / Event / Concept / Process / Agent"
+    /// tri-split that lets the LLM disambiguate query intent ("which
+    /// _events_ involve this customer?" vs "which _objects_ does
+    /// this customer own?") without parsing labels lexically. Surfaces
+    /// downstream as:
+    ///
+    /// - **Brain** — schema-RAG renders the upper kind in the
+    ///   compact node summary so translation prompts can filter on
+    ///   "this question is about events".
+    /// - **Action surface** — `ActionExecutor` matches kinds against
+    ///   the action's allowed targets so a "schedule" action only
+    ///   binds to `Event`s.
+    /// - **UI** — the node-type chip carries an upper-kind icon
+    ///   (object / event / agent / …) so operators read the
+    ///   topology at a glance.
+    ///
+    /// `None` is the unkinded structural-only case (most legacy
+    /// ontologies ship without an explicit upper kind); the
+    /// federation planner treats `None` as `Object` for filtering
+    /// fall-back, but the LLM prompt path renders it explicitly as
+    /// "unkinded" so the operator notices the gap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upper_kind: Option<UpperKind>,
+}
+
+/// Upper-ontology categories. Picks a tri-split that maps cleanly
+/// to BFO (Continuant / Occurrent / Concept) and to Foundry's
+/// "Object / Link / Action" with the minimal extension that lets
+/// the LLM disambiguate ontology intent without parsing labels:
+///
+/// - **`Object`** — a continuant / endurant. Customer, Product,
+///   Account, Asset. The default category for "things that exist
+///   over time".
+/// - **`Event`** — an occurrent / happening. Order, Login, Payment,
+///   Shipment. Carries an implicit temporal axis the planner uses
+///   when matching time-window queries.
+/// - **`Concept`** — an abstract category / vocabulary entity.
+///   Glossary terms, code-system codes, taxonomies. Distinct from
+///   instance-bearing types so federation doesn't ask the source
+///   adapter to materialise a "Customer Segment Concept" row.
+/// - **`Process`** — a long-running activity / workflow. Order
+///   Fulfilment, Onboarding Flow. Carries lifecycle state and
+///   sub-event aggregation; differs from `Event` in duration +
+///   composability.
+/// - **`Agent`** — a participating actor. User, Service, Bot,
+///   Organisation. The PROV-O `prov:Agent` axis at the type
+///   level — Action surfaces gate on agent identity.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash,
+    Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum UpperKind {
+    Object,
+    Event,
+    Concept,
+    Process,
+    Agent,
 }
 
 /// Type-safe reference to the owner of a property — node or edge.
@@ -308,6 +368,7 @@ impl Default for NodeTypeDef {
             rules: Vec::new(),
             glossary_anchors: Vec::new(),
             concept_id: None,
+            upper_kind: None,
         }
     }
 }
