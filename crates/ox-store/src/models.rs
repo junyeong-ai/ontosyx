@@ -324,7 +324,7 @@ pub struct IdempotencyRecord {
 // Design projects — ontology design lifecycle persistence
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct OntologyDraft {
     pub id: Uuid,
     /// "analyzed", "designed", "completed"
@@ -395,7 +395,7 @@ pub struct OntologyDraft {
 /// Both `parent_version_id` (fork point) and `committed_version_id`
 /// (commit target) ride on the projection because the branching
 /// dashboard renders both endpoints inline without per-row hydration.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct OntologyDraftSummary {
     pub id: Uuid,
     pub status: String,

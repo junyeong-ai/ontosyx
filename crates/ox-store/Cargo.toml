@@ -8,6 +8,7 @@ publish.workspace = true
 
 [dependencies]
 ox-core = { workspace = true }
+utoipa = { workspace = true }
 ox-ontology = { workspace = true }
 ox-query-ir = { workspace = true }
 serde = { workspace = true }

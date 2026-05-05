@@ -18,7 +18,7 @@ use ox_store::OntologyDraft;
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct OntologyDraftView {
     #[serde(flatten)]
-    #[schema(value_type = crate::openapi::OntologyDraft)]
+    #[schema(value_type = ox_store::OntologyDraft)]
     pub project: OntologyDraft,
     pub design_gates: Vec<DesignGate>,
     /// Status of the persisted `analysis_report` blob against the

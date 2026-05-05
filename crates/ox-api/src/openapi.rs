@@ -481,8 +481,8 @@ impl Modify for SecurityAddon {
             PromptTemplateRow,
             // Store models
             CursorParams,
-            OntologyDraft,
-            OntologyDraftSummary,
+            ox_store::OntologyDraft,
+            ox_store::OntologyDraftSummary,
             ontology::OntologyDetail,
             ontology::CurrentVersionSummary,
             ontology::WorkspaceOntologyResponse,
@@ -617,50 +617,7 @@ pub struct CursorParams {
 }
 
 /// Design project — ontology design lifecycle.
-#[derive(ToSchema)]
-#[schema(as = OntologyDraft)]
-#[allow(dead_code)]
-pub struct OntologyDraft {
-    pub id: uuid::Uuid,
-    pub status: String,
-    pub revision: i32,
-    pub user_id: String,
-    pub title: Option<String>,
-    pub source_config: serde_json::Value,
-    /// Canonical source identity (`{source_type}:{fingerprint}`)
-    /// derived from `source_config` at project creation / reanalysis.
-    pub source_id: String,
-    pub source_data: Option<String>,
-    pub source_schema: Option<serde_json::Value>,
-    pub source_profile: Option<serde_json::Value>,
-    pub analysis_report: Option<serde_json::Value>,
-    pub design_options: serde_json::Value,
-    pub ontology: Option<serde_json::Value>,
-    pub quality_report: Option<serde_json::Value>,
-    pub ontology_id: Option<uuid::Uuid>,
-    pub source_history: serde_json::Value,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-    pub analyzed_at: Option<chrono::DateTime<chrono::Utc>>,
-}
-
 /// Design project summary (lightweight, for list endpoints).
-#[derive(ToSchema)]
-#[schema(as = OntologyDraftSummary)]
-#[allow(dead_code)]
-pub struct OntologyDraftSummary {
-    pub id: uuid::Uuid,
-    pub status: String,
-    pub revision: i32,
-    pub user_id: String,
-    pub title: Option<String>,
-    pub source_config: serde_json::Value,
-    pub ontology_id: Option<uuid::Uuid>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-    pub analyzed_at: Option<chrono::DateTime<chrono::Utc>>,
-}
-
 /// Saved dashboard — workspace-scoped, owner-private until shared.
 #[derive(ToSchema)]
 #[schema(as = Dashboard)]

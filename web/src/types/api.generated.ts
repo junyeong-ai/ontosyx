@@ -3824,7 +3824,11 @@ export interface components {
             /** Format: double */
             y: number;
         };
-        /** @description Saved dashboard — workspace-scoped, owner-private until shared. */
+        /**
+         * @description Design project — ontology design lifecycle.
+         *     Design project summary (lightweight, for list endpoints).
+         *     Saved dashboard — workspace-scoped, owner-private until shared.
+         */
         Dashboard: {
             /** Format: date-time */
             created_at: string;
@@ -5402,32 +5406,83 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
-        /** @description Design project — ontology design lifecycle. */
         OntologyDraft: {
+            /** @description SourceAnalysisReport snapshot from analysis */
             analysis_report?: unknown;
+            /**
+             * @description Draft-lifecycle [`ox_source::AnalysisScope`] — included
+             *     tables, deferred tables (with reason + revisit), policy-
+             *     excluded tables, per-table fingerprints, and the timestamp of
+             *     the last introspection. Accumulates across every analyze /
+             *     extend / reanalyze pass so the operator's "which tables are
+             *     modeled / deferred / drifted" view survives the full project
+             *     lifecycle.
+             */
+            analysis_scope: unknown;
             /** Format: date-time */
             analyzed_at?: string | null;
+            /**
+             * Format: uuid
+             * @description FK to `ontology_version_snapshots.id` — the snapshot this
+             *     draft was committed into via `complete_ontology_draft`.
+             *     `None` while the draft is in `analyzed` / `designed` status;
+             *     set on transition to `completed`. Operators follow the link
+             *     from a completed draft straight to "the version this
+             *     produced" without resolving via lineage.
+             */
+            committed_version_id?: string | null;
             /** Format: date-time */
             created_at: string;
+            /** @description User decisions (DesignOptions) */
             design_options: unknown;
             /** Format: uuid */
             id: string;
+            /**
+             * @description Generated OntologyIR. Canonical `object_mappings` (node→table,
+             *     property→column bindings) live inside this value; there is
+             *     no separate persisted blob.
+             */
             ontology?: unknown;
-            /** Format: uuid */
-            ontology_id?: string | null;
+            /**
+             * Format: uuid
+             * @description FK to `ontology_version_snapshots.id` — the canonical version
+             *     the project's in-flight `ontology` JSONB was branched from.
+             *     `complete_ontology_draft` compares this against the canonical
+             *     head and refuses the commit if they diverge, forcing the
+             *     operator to rebase before retry. `None` for greenfield
+             *     projects whose first commit creates the canonical's first
+             *     version. Workspace × ontology is 1:1, so the canonical's
+             *     identity is always the workspace's; the parent here pins the
+             *     *version* axis.
+             */
+            parent_version_id?: string | null;
+            /** @description OntologyQualityReport */
             quality_report?: unknown;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Monotonically increasing on every mutation; used for optimistic concurrency.
+             */
             revision: number;
+            /** @description SourceConfig JSON (source_type, schema_name — no secrets) */
             source_config: unknown;
+            /** @description Raw source data (text/csv/json input; null for postgresql) */
             source_data?: string | null;
+            /** @description History of data sources added to this draft */
             source_history: unknown;
             /**
-             * @description Canonical source identity (`{source_type}:{fingerprint}`)
-             *     derived from `source_config` at project creation / reanalysis.
+             * @description Canonical source identity derived via
+             *     `SourceId::from_source_config` at project creation. Stable
+             *     across restarts; federation plan-cache keys, query
+             *     provenance, and ambiguity lookups all refer to this id so
+             *     the same request under the same source shape replays
+             *     deterministically.
              */
             source_id: string;
+            /** @description SourceProfile snapshot from analysis */
             source_profile?: unknown;
+            /** @description SourceSchema snapshot from analysis */
             source_schema?: unknown;
+            /** @description "analyzed", "designed", "completed" */
             status: string;
             title?: string | null;
             /** Format: date-time */
@@ -5449,16 +5504,33 @@ export interface components {
             /** @enum {string} */
             origin_type: "base_ontology";
         };
-        /** @description Design project summary (lightweight, for list endpoints). */
+        /**
+         * @description Lightweight projection for list endpoints (excludes large JSONB blobs).
+         *
+         *     Both `parent_version_id` (fork point) and `committed_version_id`
+         *     (commit target) ride on the projection because the branching
+         *     dashboard renders both endpoints inline without per-row hydration.
+         */
         OntologyDraftSummary: {
             /** Format: date-time */
             analyzed_at?: string | null;
+            /**
+             * Format: uuid
+             * @description Canonical version this draft committed into. `None` until
+             *     the draft is completed.
+             */
+            committed_version_id?: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
-            ontology_id?: string | null;
+            /**
+             * Format: uuid
+             * @description Canonical version this draft was branched from. `None` for
+             *     greenfield drafts whose first commit creates the workspace's
+             *     first canonical version.
+             */
+            parent_version_id?: string | null;
             /** Format: int32 */
             revision: number;
             source_config: unknown;
