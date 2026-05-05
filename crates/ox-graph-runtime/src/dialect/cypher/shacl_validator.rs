@@ -644,9 +644,62 @@ impl ShaclValidator {
                     Some(node.span),
                 ));
             }
+            ShaclConstraint::HasValue { target, value: expected } => {
+                if !target_matches_property(target, prop) {
+                    return;
+                }
+                let Some(raw) = value else {
+                    return;
+                };
+                // Three comparison shapes:
+                // 1. string literal `'foo'` → unquote, compare to rule's
+                //    `expected` text directly (rule authors don't carry
+                //    literal quotes through the IR).
+                // 2. numeric / bool literal `42` / `true` → raw text
+                //    matches `expected` verbatim (rule author is
+                //    expected to write `"42"` / `"true"` in the rule
+                //    body — same wire shape as `InValueSet.codes`).
+                // 3. param / function / identifier — opaque, silent
+                //    skip; driver runtime takes the call.
+                let observed: Option<String> = if let Some(literal) =
+                    parse_string_literal(raw)
+                {
+                    Some(literal)
+                } else if classify_literal_type(raw)
+                    .is_some_and(|t| matches!(t, PropertyType::Int | PropertyType::Float | PropertyType::Bool))
+                {
+                    Some(raw.to_string())
+                } else {
+                    None
+                };
+                let Some(observed) = observed else {
+                    return;
+                };
+                if observed == *expected {
+                    return;
+                }
+                let rn = rule_label(rule);
+                issues.push(build_issue(
+                    rule,
+                    diag("runtime.cypher.shacl.has_value_violation")
+                        .with("property", key)
+                        .with("rule_id", rule.id.as_str())
+                        .with("rule_name", &rule.name)
+                        .with("expected", expected.clone())
+                        .with("value", raw)
+                        .message(format!(
+                            "property `{key}` = {raw} violates rule `{rn}` — must be `{expected}`"
+                        )),
+                    Some(node.span),
+                ));
+            }
             // Constraint kinds the MVP recognises but doesn't enforce at
             // the Cypher AST layer yet (see module docs for rationale).
-            ShaclConstraint::MaxCount { .. } | ShaclConstraint::HasValue { .. } => {}
+            // `MaxCount` is intentionally absent — counting an instance
+            // property's multiplicity needs the graph state, not the
+            // AST; the validator only sees one write at a time and
+            // would race with concurrent writers.
+            ShaclConstraint::MaxCount { .. } => {}
         }
     }
 
@@ -2722,6 +2775,136 @@ mod tests {
                 .iter()
                 .all(|i| i.message.code != "runtime.cypher.shacl.min_length_violation"),
             "non-string literal must not raise min_length: {issues:?}"
+        );
+    }
+
+    // ---- HasValue enforcement -----------------------------------------
+
+    fn has_value_rule(target_property_id: &str, expected: &str) -> RuleDef {
+        RuleDef {
+            id: RuleId::new(format!("r-hasvalue-{target_property_id}")),
+            name: format!("{target_property_id}_hasvalue").into(),
+            description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
+            kind: RuleKind::PropertyShape {
+                target_node_type_id: NodeTypeId::new("nt-user"),
+                target_property_id: PropertyId::new(target_property_id),
+            },
+            severity: Severity::Violation,
+            enforcement: EnforcementKind::Write,
+            activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
+            constraints: vec![ShaclConstraint::HasValue {
+                target: ConstraintTarget::Inherit,
+                value: expected.to_string(),
+            }],
+            valid_from: None,
+            valid_to: None,
+            sh_message: None,
+        }
+    }
+
+    #[test]
+    fn has_value_blocks_mismatched_string_literal() {
+        let prop = status_prop();
+        let rule = has_value_rule("prop-status", "active");
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.status = 'inactive' RETURN u");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.has_value_violation"
+                && i.message.params.get("expected")
+                    == Some(&serde_json::Value::from("active"))),
+            "expected has_value violation: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn has_value_passes_matching_string_literal() {
+        let prop = status_prop();
+        let rule = has_value_rule("prop-status", "active");
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.status = 'active' RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "matching string literal must pass: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn has_value_blocks_mismatched_numeric_literal() {
+        let prop = PropertyDef {
+            id: PropertyId::new("prop-version"),
+            name: PropertyKey::new("version").unwrap(),
+            property_type: PropertyType::Int,
+            ..Default::default()
+        };
+        let rule = has_value_rule("prop-version", "1");
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.version = 2 RETURN u");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.has_value_violation"),
+            "expected has_value violation on numeric: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn has_value_passes_matching_numeric_literal() {
+        let prop = PropertyDef {
+            id: PropertyId::new("prop-version"),
+            name: PropertyKey::new("version").unwrap(),
+            property_type: PropertyType::Int,
+            ..Default::default()
+        };
+        let rule = has_value_rule("prop-version", "1");
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.version = 1 RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "matching numeric literal must pass: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn has_value_passes_matching_bool_literal() {
+        let prop = PropertyDef {
+            id: PropertyId::new("prop-flag"),
+            name: PropertyKey::new("flag").unwrap(),
+            property_type: PropertyType::Bool,
+            ..Default::default()
+        };
+        let rule = has_value_rule("prop-flag", "true");
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.flag = true RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "matching bool literal must pass: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn has_value_skips_parameter_assignment() {
+        let prop = status_prop();
+        let rule = has_value_rule("prop-status", "active");
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.status = $st RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "$param must not raise has_value: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn has_value_blocks_inline_create_value() {
+        let prop = status_prop();
+        let rule = has_value_rule("prop-status", "active");
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "CREATE (u:User {status: 'archived'})");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.has_value_violation"),
+            "expected has_value violation on inline CREATE: {issues:?}"
         );
     }
 

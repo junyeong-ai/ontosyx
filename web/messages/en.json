@@ -1206,6 +1206,7 @@
           "max_inclusive_violation": "Property `{property}` = {value} violates rule `{rule_name}` — value must be ≤ {max}",
           "min_length_violation": "Property `{property}` = {value} violates rule `{rule_name}` — string length must be ≥ {min} (got {observed})",
           "max_length_violation": "Property `{property}` = {value} violates rule `{rule_name}` — string length must be ≤ {max} (got {observed})",
+          "has_value_violation": "Property `{property}` = {value} violates rule `{rule_name}` — must be `{expected}`",
           "value_not_in_set": "Property `{property}` = {value} violates rule `{rule_name}` — not allowed by value set `{value_set_name}`",
           "notation_pattern_mismatch": "Property `{property}` = {value} does not match notation pattern `{notation_pattern_name}` required by rule `{rule_name}` ({error})",
           "closed_shape_extra_property": "Property `{property}` is not permitted on `{label}` (closed shape rule `{rule_name}`)",

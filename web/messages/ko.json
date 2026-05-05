@@ -1205,6 +1205,7 @@
           "max_inclusive_violation": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 을 위반합니다 — 값은 {max} 이하여야 합니다",
           "min_length_violation": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 을 위반합니다 — 문자열 길이는 {min} 자 이상이어야 합니다 (현재 {observed} 자)",
           "max_length_violation": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 을 위반합니다 — 문자열 길이는 {max} 자 이하여야 합니다 (현재 {observed} 자)",
+          "has_value_violation": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 을 위반합니다 — `{expected}` 이어야 합니다",
           "min_count_missing": "속성 `{property}` 은 규칙 `{rule_name}` (minCount={min}) 에 의해 필수이지만 쓰기에 누락되었습니다",
           "value_not_in_set": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 을 위반합니다 — 값 집합 `{value_set_name}` 에서 허용하지 않는 값입니다",
           "notation_pattern_mismatch": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 이 요구하는 표기 패턴 `{notation_pattern_name}` 과 일치하지 않습니다 ({error})",
