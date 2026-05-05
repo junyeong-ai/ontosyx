@@ -9,6 +9,7 @@
 )]
 
 mod bolt;
+pub mod action_executor;
 pub mod dialect;
 pub mod enrichment;
 pub mod isolation;
