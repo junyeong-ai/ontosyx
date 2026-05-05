@@ -2505,10 +2505,10 @@
           "created": "Created"
         },
         "locale": {
-          "heading": "Locale",
+          "heading": "Content locale",
           "save": "Save locale",
           "saving": "Saving...",
-          "description": "Primary locale is the workspace's default authoring language. Two fallback chains drive translation resolution per surface: the admin chain for the operator UI, and the LLM chain for agent prompts and tool-result contexts. All three must be BCP 47 tags (e.g., <k>ko</k>, <k>en-us</k>, <k>zh-hant</k>).",
+          "description": "These are <em>data</em> locale settings, not the UI language. Primary locale is the workspace's default authoring language. Two fallback chains drive translation resolution per surface: the admin chain for translated <em>content</em> the operator sees, and the LLM chain for agent prompts and tool-result contexts. All three must be BCP 47 tags (e.g., <k>ko</k>, <k>en-us</k>, <k>zh-hant</k>). To change the UI language, use the user menu in the top-right.",
           "primary": "Primary locale",
           "primaryInvalid": "Invalid BCP 47 tag. Use lowercase letters / digits separated by hyphens (2–3 letter primary, optional 2–8 char subtags).",
           "adminFallback": "Admin fallback chain (comma-separated)",

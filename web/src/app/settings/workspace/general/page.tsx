@@ -251,6 +251,9 @@ export default function WorkspaceSettingsPage() {
         <p className="mt-1 text-xs text-foreground-muted">
           {t.rich("locale.description", {
             k: (chunks) => <code>{chunks}</code>,
+            em: (chunks) => (
+              <em className="font-medium text-foreground">{chunks}</em>
+            ),
           })}
         </p>
         <div className="mt-3 space-y-3">
