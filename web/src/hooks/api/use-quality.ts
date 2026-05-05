@@ -19,6 +19,7 @@ import {
   type TypeCandidate,
 } from "@/lib/api/quality";
 import type { StaleConceptProposal } from "@/types/api";
+import { useOptimisticMutation } from "@/hooks/api/use-optimistic-mutation";
 
 export const qualityKeys = {
   all: ["quality-signals"] as const,
@@ -113,18 +114,47 @@ export function useDecideStaleProposal(
   >,
 ) {
   const queryClient = useQueryClient();
-  const { onSuccess, ...rest } = options ?? {};
-  return useMutation<StaleConceptProposal, Error, DecideStaleVariables>({
-    ...rest,
+  // Pending list optimistically drops the decided row immediately;
+  // include-decided list (separate cache key) and any other
+  // proposal-list view are invalidated post-settle so the server's
+  // moved-to-decided state replaces the optimistic delta.
+  return useOptimisticMutation<
+    DecideStaleVariables,
+    StaleConceptProposal
+  >({
     mutationFn: ({ id, decision, reason }) =>
       decideStaleProposal(id, decision, reason),
-    onSuccess: (...args) => {
-      // Invalidate both proposal lists (pending + include-decided)
-      // since a decision moves the row between them.
+    queryKeys: [qualityKeys.staleProposals(false)],
+    optimisticUpdate: (prev, { id }) => {
+      if (!isProposalList(prev)) return prev;
+      return prev.filter((p) => p.id !== id);
+    },
+    onSuccess: (data, variables) => {
+      // Catch the include-decided list (and any future variants)
+      // post-settle by invalidating the broader prefix.
       queryClient.invalidateQueries({
         queryKey: [...qualityKeys.all, "stale-proposals"],
       });
-      onSuccess?.(...args);
+      // Caller-supplied onSuccess receives `(data, variables)` —
+      // the underlying TanStack callback's `context` / `meta` slots
+      // aren't propagated because the optimistic-mutation wrapper
+      // owns the cache-snapshot context.
+      (options?.onSuccess as
+        | ((d: StaleConceptProposal, v: DecideStaleVariables) => void)
+        | undefined)?.(data, variables);
+    },
+    onError: (error, variables) => {
+      (options?.onError as
+        | ((e: Error, v: DecideStaleVariables) => void)
+        | undefined)?.(error, variables);
+    },
+    mutationOptions: {
+      mutationKey: options?.mutationKey,
+      retry: options?.retry,
     },
   });
+}
+
+function isProposalList(value: unknown): value is StaleConceptProposal[] {
+  return Array.isArray(value);
 }

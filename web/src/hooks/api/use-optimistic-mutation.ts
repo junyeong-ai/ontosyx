@@ -48,8 +48,14 @@ export interface OptimisticMutationOptions<TVariables, TData> {
    * key in `queryKeys`. The same transform fires for every key —
    * if your mutation needs a per-key transform, list multiple
    * `useOptimisticMutation` calls instead, one per shape.
+   *
+   * `prev` is `unknown` because TanStack Query caches each key's
+   * value as an opaque blob; the caller narrows via a runtime
+   * type guard (the cache value may have come from a stale schema)
+   * and returns the next value, or returns `prev` unchanged when
+   * the value isn't in the expected shape.
    */
-  optimisticUpdate: <T>(prev: T | undefined, variables: TVariables) => T | undefined;
+  optimisticUpdate: (prev: unknown, variables: TVariables) => unknown;
   /** Callback after the cache has been invalidated and the server result is in flight. */
   onSuccess?: (data: TData, variables: TVariables) => void;
   /** Callback after the optimistic delta has been rolled back. */

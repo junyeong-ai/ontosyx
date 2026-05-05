@@ -14,6 +14,7 @@ import {
   listKnowledge,
   updateKnowledgeStatus,
 } from "@/lib/api/knowledge";
+import { useOptimisticMutation } from "@/hooks/api/use-optimistic-mutation";
 import type {
   CursorPage,
   KnowledgeCreateRequest,
@@ -113,76 +114,56 @@ export function useCreateKnowledge() {
  * Delete a knowledge entry with optimistic update.
  *
  * Why optimistic: deletes are common in the review workflow; waiting for
- * the round-trip before removing the row feels laggy. On failure we roll
- * back the snapshot from `onMutate`.
+ * the round-trip before removing the row feels laggy. On failure the
+ * shared `useOptimisticMutation` rollback runs against the cancelled
+ * snapshot.
  */
 export function useDeleteKnowledge(filters?: KnowledgeListFilters) {
-  const qc = useQueryClient();
-  const listKey = knowledgeKeys.list(filters);
-
-  return useMutation({
-    mutationFn: (id: string) => deleteKnowledge(id),
-    onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: listKey });
-      const previous = qc.getQueryData<CursorPage<KnowledgeEntry>>(listKey);
-      if (previous) {
-        qc.setQueryData<CursorPage<KnowledgeEntry>>(listKey, {
-          ...previous,
-          items: previous.items.filter((e) => e.id !== id),
-        });
-      }
-      return { previous };
-    },
-    onError: (_err, _id, context) => {
-      if (context?.previous) {
-        qc.setQueryData(listKey, context.previous);
-      }
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: knowledgeKeys.lists() });
-      qc.invalidateQueries({ queryKey: knowledgeKeys.stats() });
+  return useOptimisticMutation<string, void>({
+    mutationFn: (id) => deleteKnowledge(id),
+    queryKeys: [knowledgeKeys.list(filters), knowledgeKeys.stats()],
+    optimisticUpdate: (prev, id) => {
+      if (!isKnowledgePage(prev)) return prev;
+      // Knowledge stats cache holds a different shape — the type
+      // guard rejects it, so the stats key flows through untouched
+      // and `onSettled` invalidates both.
+      return { ...prev, items: prev.items.filter((e) => e.id !== id) };
     },
   });
 }
 
 /**
- * Update knowledge status with optimistic update.
+ * Update knowledge status with optimistic update — flips the status
+ * field in the visible row immediately, rolls back on server error.
  */
 export function useUpdateKnowledgeStatus(filters?: KnowledgeListFilters) {
-  const qc = useQueryClient();
-  const listKey = knowledgeKeys.list(filters);
-
-  return useMutation({
-    mutationFn: ({
-      id,
-      status,
-      reviewNotes,
-    }: {
-      id: string;
-      status: KnowledgeStatus;
-      reviewNotes?: string;
-    }) => updateKnowledgeStatus(id, status, reviewNotes),
-    onMutate: async ({ id, status }) => {
-      await qc.cancelQueries({ queryKey: listKey });
-      const previous = qc.getQueryData<CursorPage<KnowledgeEntry>>(listKey);
-      if (previous) {
-        qc.setQueryData<CursorPage<KnowledgeEntry>>(listKey, {
-          ...previous,
-          items: previous.items.map((e) =>
-            e.id === id ? { ...e, status } : e,
-          ),
-        });
-      }
-      return { previous };
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        qc.setQueryData(listKey, context.previous);
-      }
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: knowledgeKeys.lists() });
-      qc.invalidateQueries({ queryKey: knowledgeKeys.stats() });
+  type Vars = { id: string; status: KnowledgeStatus; reviewNotes?: string };
+  return useOptimisticMutation<Vars, void>({
+    mutationFn: ({ id, status, reviewNotes }) =>
+      updateKnowledgeStatus(id, status, reviewNotes),
+    queryKeys: [knowledgeKeys.list(filters), knowledgeKeys.stats()],
+    optimisticUpdate: (prev, { id, status }) => {
+      if (!isKnowledgePage(prev)) return prev;
+      return {
+        ...prev,
+        items: prev.items.map((e) => (e.id === id ? { ...e, status } : e)),
+      };
     },
   });
+}
+
+/**
+ * Runtime type guard the optimistic-mutation transforms use to
+ * narrow `unknown` to the knowledge list-page shape. The `useOptimisticMutation`
+ * hook passes the same callback to multiple keys (list + stats) so
+ * a guard that rejects non-list shapes lets the stats key flow
+ * through unchanged without a separate transform.
+ */
+function isKnowledgePage(value: unknown): value is CursorPage<KnowledgeEntry> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "items" in value &&
+    Array.isArray((value as { items: unknown }).items)
+  );
 }
