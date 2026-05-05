@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
+import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -315,9 +316,19 @@ export function StaleFacet() {
       )}
 
       {tab === "pending" && (
-        <BulkDismissBar
+        <BulkActionBar
           count={selectedIds.size}
-          onDismiss={handleBulkDismiss}
+          countLabel={t("bulkSelectedCount", { count: selectedIds.size })}
+          clearLabel={t("bulkClear")}
+          ariaLabel={t("bulkBarLabel")}
+          actions={[
+            {
+              key: "dismiss",
+              label: t("bulkDismiss"),
+              variant: "primary",
+              onClick: handleBulkDismiss,
+            },
+          ]}
           onClear={clearSelection}
           pending={bulkDismiss.isPending}
         />
@@ -346,59 +357,6 @@ export function StaleFacet() {
           }}
         />
       )}
-    </div>
-  );
-}
-
-function BulkDismissBar({
-  count,
-  onDismiss,
-  onClear,
-  pending,
-}: {
-  count: number;
-  onDismiss: () => void;
-  onClear: () => void;
-  pending: boolean;
-}) {
-  const t = useTranslations("settings.quality.stale");
-  const visible = count > 0;
-  return (
-    <div
-      className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-6 z-30 mx-auto flex max-w-2xl",
-        "items-center justify-between gap-3 rounded-xl border border-divider",
-        "bg-surface-overlay px-4 py-3 shadow-2",
-        "transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
-        visible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
-      )}
-      role="region"
-      aria-label={t("bulkBarLabel")}
-      aria-hidden={!visible}
-    >
-      <span className="text-sm font-medium text-foreground-strong">
-        {t("bulkSelectedCount", { count })}
-      </span>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onClear}
-          disabled={pending}
-          className="pointer-events-auto"
-        >
-          {t("bulkClear")}
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onDismiss}
-          disabled={pending}
-          className="pointer-events-auto"
-        >
-          {t("bulkDismiss")}
-        </Button>
-      </div>
     </div>
   );
 }

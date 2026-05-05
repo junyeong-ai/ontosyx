@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
+import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormTextarea } from "@/components/ui/form-input";
@@ -345,75 +346,26 @@ export default function ApprovalsSettingsPage() {
 
       <BulkActionBar
         count={selectedIds.size}
-        onApprove={() => handleBulkReview(true)}
-        onReject={() => handleBulkReview(false)}
+        countLabel={t("bulkSelectedCount", { count: selectedIds.size })}
+        clearLabel={t("bulkClear")}
+        ariaLabel={t("bulkBarLabel")}
+        actions={[
+          {
+            key: "reject",
+            label: t("bulkReject"),
+            variant: "danger",
+            onClick: () => handleBulkReview(false),
+          },
+          {
+            key: "approve",
+            label: t("bulkApprove"),
+            variant: "primary",
+            onClick: () => handleBulkReview(true),
+          },
+        ]}
         onClear={clearSelection}
         pending={bulkReview.isPending}
       />
     </SettingsPageShell>
-  );
-}
-
-function BulkActionBar({
-  count,
-  onApprove,
-  onReject,
-  onClear,
-  pending,
-}: {
-  count: number;
-  onApprove: () => void;
-  onReject: () => void;
-  onClear: () => void;
-  pending: boolean;
-}) {
-  const t = useTranslations("settings.governance.approvals");
-  const visible = count > 0;
-  return (
-    <div
-      className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-6 z-30 mx-auto flex max-w-2xl",
-        "items-center justify-between gap-3 rounded-xl border border-divider",
-        "bg-surface-overlay px-4 py-3 shadow-2",
-        "transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
-        visible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
-      )}
-      role="region"
-      aria-label={t("bulkBarLabel")}
-      aria-hidden={!visible}
-    >
-      <span className="text-sm font-medium text-foreground-strong">
-        {t("bulkSelectedCount", { count })}
-      </span>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onClear}
-          disabled={pending}
-          className="pointer-events-auto"
-        >
-          {t("bulkClear")}
-        </Button>
-        <Button
-          variant="danger"
-          size="sm"
-          onClick={onReject}
-          disabled={pending}
-          className="pointer-events-auto"
-        >
-          {t("bulkReject")}
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onApprove}
-          disabled={pending}
-          className="pointer-events-auto"
-        >
-          {t("bulkApprove")}
-        </Button>
-      </div>
-    </div>
   );
 }

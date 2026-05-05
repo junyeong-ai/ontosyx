@@ -6,6 +6,7 @@ import { toast } from "@/components/ui/toast";
 import { ArrowDown01Icon, Book01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SettingsSelect } from "@/components/ui/form-input";
 import { Button } from "@/components/ui/button";
@@ -313,79 +314,27 @@ export default function KnowledgePage() {
 
         <BulkActionBar
           count={selectedIds.size}
-          onApprove={() => handleBulkStatus("approved")}
-          onDeprecate={() => handleBulkStatus("deprecated")}
+          countLabel={t("bulkSelectedCount", { count: selectedIds.size })}
+          clearLabel={t("bulkClear")}
+          ariaLabel={t("bulkBarLabel")}
+          actions={[
+            {
+              key: "deprecate",
+              label: t("bulkDeprecate"),
+              variant: "outline",
+              onClick: () => handleBulkStatus("deprecated"),
+            },
+            {
+              key: "approve",
+              label: t("bulkApprove"),
+              variant: "primary",
+              onClick: () => handleBulkStatus("approved"),
+            },
+          ]}
           onClear={clearSelection}
           pending={bulkReview.isPending}
         />
     </SettingsPageShell>
-  );
-}
-
-function BulkActionBar({
-  count,
-  onApprove,
-  onDeprecate,
-  onClear,
-  pending,
-}: {
-  count: number;
-  onApprove: () => void;
-  onDeprecate: () => void;
-  onClear: () => void;
-  pending: boolean;
-}) {
-  const t = useTranslations("settings.knowledge.base");
-  const visible = count > 0;
-  return (
-    <div
-      // Sticky bottom — slides into view on the first selection
-      // and out on clear. `pointer-events-none` while hidden so a
-      // mid-fade click can't trigger an action.
-      className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-6 z-30 mx-auto flex max-w-2xl",
-        "items-center justify-between gap-3 rounded-xl border border-divider",
-        "bg-surface-overlay px-4 py-3 shadow-2",
-        "transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
-        visible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
-      )}
-      role="region"
-      aria-label={t("bulkBarLabel")}
-      aria-hidden={!visible}
-    >
-      <span className="text-sm font-medium text-foreground-strong">
-        {t("bulkSelectedCount", { count })}
-      </span>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onClear}
-          disabled={pending}
-          className="pointer-events-auto"
-        >
-          {t("bulkClear")}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onDeprecate}
-          disabled={pending}
-          className="pointer-events-auto"
-        >
-          {t("bulkDeprecate")}
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onApprove}
-          disabled={pending}
-          className="pointer-events-auto"
-        >
-          {t("bulkApprove")}
-        </Button>
-      </div>
-    </div>
   );
 }
 

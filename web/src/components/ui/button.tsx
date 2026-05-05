@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 import { Spinner } from "./spinner";
 import { Tooltip } from "./tooltip";
 
-type ButtonVariant = "default" | "primary" | "ghost" | "outline" | "danger";
+export type ButtonVariant = "default" | "primary" | "ghost" | "outline" | "danger";
 type ButtonSize = "xs" | "sm" | "md" | "lg" | "icon" | "icon-sm";
 
 const variantClass: Record<ButtonVariant, string> = {
