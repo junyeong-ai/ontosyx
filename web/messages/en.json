@@ -2939,7 +2939,19 @@
         "latency": "Latency",
         "latencyMs": "{ms} ms",
         "noLatency": "—",
-        "errorLabel": "Error"
+        "errorLabel": "Error",
+        "execute": {
+          "title": "Run a translate_query case",
+          "description": "Translates the question into QueryIR against the workspace's canonical ontology. Latency is captured automatically; the QueryIR lands on the case's `actual` field.",
+          "caseKeyLabel": "Case key",
+          "caseKeyPlaceholder": "q01",
+          "questionLabel": "Question",
+          "questionPlaceholder": "List the most popular products this quarter",
+          "submit": "Run",
+          "submitting": "Running…",
+          "successToast": "Case `{caseKey}` executed",
+          "errorToast": "Execute failed: {error}"
+        }
       }
     },
     "quality": {

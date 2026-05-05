@@ -6,6 +6,7 @@ import type {
   EvaluationMetric,
   EvaluationRun,
   EvaluationRunListPage,
+  ExecuteEvaluationCaseRequest,
   RecordEvaluationMetricRequest,
   UpsertEvaluationCaseRequest,
 } from "@/types/evaluation";
@@ -76,6 +77,18 @@ export async function listEvaluationCases(
   return request<EvaluationCase[]>(
     `${RUNS}/${encodeURIComponent(runId)}/cases`,
   );
+}
+
+export async function executeEvaluationCase(
+  runId: string,
+  caseKey: string,
+  req: ExecuteEvaluationCaseRequest,
+): Promise<EvaluationCase> {
+  const res = await request<{ case: EvaluationCase }>(
+    `${RUNS}/${encodeURIComponent(runId)}/cases/${encodeURIComponent(caseKey)}/execute`,
+    { method: "POST", body: JSON.stringify(req) },
+  );
+  return res.case;
 }
 
 export async function recordEvaluationMetric(

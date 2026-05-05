@@ -337,6 +337,10 @@ pub fn router(state: AppState) -> Router {
             get(evaluation::list_evaluation_cases),
         )
         .route(
+            "/evaluation/runs/{run_id}/cases/{case_key}/execute",
+            post(evaluation::execute_evaluation_case),
+        )
+        .route(
             "/evaluation/cases/{case_id}/metrics",
             put(evaluation::record_evaluation_metric),
         )

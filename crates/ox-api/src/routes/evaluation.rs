@@ -14,6 +14,8 @@
 //! against multiple judges without orphaning earlier rows — the
 //! latest score on `(case_id, name)` wins.
 
+use std::sync::Arc;
+
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -21,7 +23,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use ox_store::evaluation::{
-    EvaluationCase, EvaluationMetric, EvaluationRun, EvaluationRunStatus,
+    scope_evaluation_context, EvaluationCase, EvaluationContext, EvaluationMetric,
+    EvaluationRun, EvaluationRunStatus,
 };
 use ox_store::{CursorPage, CursorParams};
 
@@ -408,6 +411,202 @@ pub(crate) async fn record_evaluation_metric(
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(EvaluationMetricResponse { metric: saved }))
+}
+
+// ---------------------------------------------------------------------------
+// Handler — case execute
+//
+// The endpoint that closes the RAGAS loop. Operator hands a case
+// (input + golden expected) and the BE runs the active brain
+// operation under an `EvaluationContext` scope, capturing
+// `latency_ms.<operation>` automatically and persisting the
+// `actual` output / error onto the case row.
+//
+// Today only `translate_query` is wired. Adding a new kind is
+// "extend the request enum + dispatch arm + brain call" — the
+// scope wrapper, latency capture, error handling, and case
+// upsert stay shared.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ExecuteEvaluationCaseRequest {
+    /// Translate a natural-language question into `QueryIR` against
+    /// the workspace's canonical ontology. Requires the workspace
+    /// to have a committed canonical version.
+    TranslateQuery {
+        question: String,
+        /// Golden / reference `QueryIR` for downstream judge
+        /// comparison. Stored on `evaluation_cases.expected` so
+        /// the dataset survives re-runs.
+        #[serde(default)]
+        #[schema(value_type = Option<Object>)]
+        expected_query_ir: Option<serde_json::Value>,
+    },
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct ExecuteEvaluationCaseResponse {
+    #[schema(value_type = Object)]
+    pub case: EvaluationCase,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/evaluation/runs/{run_id}/cases/{case_key}/execute",
+    params(
+        ("run_id" = Uuid, Path, description = "Run id"),
+        ("case_key" = String, Path, description = "Stable per-run case identifier"),
+    ),
+    request_body = ExecuteEvaluationCaseRequest,
+    responses(
+        (status = 200, description = "Case executed and persisted", body = ExecuteEvaluationCaseResponse),
+        (status = 400, description = "Workspace has no canonical ontology yet",
+            body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+#[tracing::instrument(skip(state, principal, req))]
+pub(crate) async fn execute_evaluation_case(
+    State(state): State<AppState>,
+    principal: Principal,
+    ws: WorkspaceContext,
+    Path((run_id, case_key)): Path<(Uuid, String)>,
+    Json(req): Json<ExecuteEvaluationCaseRequest>,
+) -> Result<Json<ApiResponse<ExecuteEvaluationCaseResponse>>, AppError> {
+    principal.require_admin()?;
+
+    // Resolve the workspace ontology + IR up front so an error
+    // here surfaces before the case row is touched. The case
+    // input is persisted regardless — the operator should see
+    // their input on the case page even if the brain call later
+    // fails (the resulting `error` field on the case row carries
+    // the failure reason for triage).
+    let ir = match &req {
+        ExecuteEvaluationCaseRequest::TranslateQuery { .. } => {
+            let identity = state
+                .store
+                .get_workspace_ontology()
+                .await
+                .map_err(AppError::from)?
+                .ok_or_else(|| {
+                    AppError::query_ir_invalid(
+                        "workspace has no canonical ontology yet — commit a draft \
+                         before executing translate_query cases"
+                            .to_string(),
+                    )
+                })?;
+            let version = state
+                .store
+                .get_current_version(identity.id)
+                .await
+                .map_err(AppError::from)?
+                .ok_or_else(|| {
+                    AppError::query_ir_invalid(
+                        "workspace ontology has no committed version".to_string(),
+                    )
+                })?;
+            state
+                .store
+                .get_ontology_ir(version.id)
+                .await
+                .map_err(AppError::from)?
+                .ok_or_else(|| {
+                    AppError::query_ir_invalid(
+                        "workspace ontology snapshot is unavailable".to_string(),
+                    )
+                })?
+        }
+    };
+
+    let input_value = serde_json::to_value(&req).map_err(|e| {
+        AppError::query_ir_invalid(format!("failed to serialize case input: {e}"))
+    })?;
+    let expected_value = match &req {
+        ExecuteEvaluationCaseRequest::TranslateQuery {
+            expected_query_ir, ..
+        } => expected_query_ir.clone(),
+    };
+
+    // Stage 1 — UPSERT the case (input + expected). `actual` /
+    // `latency_ms` / `error` are populated in stage 3 after the
+    // brain call resolves.
+    let initial = EvaluationCase {
+        id: Uuid::now_v7(),
+        run_id,
+        workspace_id: ws.workspace_id,
+        case_key: case_key.clone(),
+        input: input_value.clone(),
+        expected: expected_value.clone(),
+        actual: None,
+        error: None,
+        latency_ms: None,
+        created_at: chrono::Utc::now(),
+    };
+    let case = state
+        .store
+        .upsert_evaluation_case(&initial)
+        .await
+        .map_err(AppError::from)?;
+
+    // Stage 2 — execute under the evaluation scope. Brain's
+    // `call_structured_traced` reads the task-local + capture
+    // hook and emits `latency_ms.translate_query` for free.
+    let ctx = EvaluationContext {
+        run_id,
+        case_key: case_key.clone(),
+        case_id: case.id,
+    };
+    let brain = Arc::clone(&state.brain);
+    let started = std::time::Instant::now();
+    let outcome: Result<serde_json::Value, String> = scope_evaluation_context(ctx, async move {
+        match req {
+            ExecuteEvaluationCaseRequest::TranslateQuery { question, .. } => {
+                let query_ir = brain
+                    .translate_query(
+                        &question,
+                        &ir,
+                        &branchforge::ExecutionContext::empty(),
+                    )
+                    .await
+                    .map_err(|e| e.to_string())?;
+                serde_json::to_value(&query_ir).map_err(|e| {
+                    format!("failed to serialize translate_query output: {e}")
+                })
+            }
+        }
+    })
+    .await;
+    let elapsed_ms = started.elapsed().as_millis() as i64;
+
+    // Stage 3 — UPSERT the case again with actual / error / latency.
+    // The same natural key (`run_id`, `case_key`) replaces stage 1's
+    // row in place; metrics already attached to `case.id` (latency
+    // capture) survive because the case_id is preserved.
+    let (actual, error_msg) = match outcome {
+        Ok(value) => (Some(value), None),
+        Err(msg) => (None, Some(msg)),
+    };
+    let updated = EvaluationCase {
+        id: case.id,
+        run_id,
+        workspace_id: ws.workspace_id,
+        case_key: case_key.clone(),
+        input: input_value,
+        expected: expected_value,
+        actual,
+        error: error_msg,
+        latency_ms: Some(elapsed_ms),
+        created_at: case.created_at,
+    };
+    let case = state
+        .store
+        .upsert_evaluation_case(&updated)
+        .await
+        .map_err(AppError::from)?;
+
+    Ok(ApiResponse::of(ExecuteEvaluationCaseResponse { case }))
 }
 
 #[utoipa::path(

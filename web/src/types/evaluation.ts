@@ -76,6 +76,19 @@ export interface RecordEvaluationMetricRequest {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Discriminated request envelope for `POST /api/evaluation/runs/{run_id}/cases/{case_key}/execute`.
+ * Adding a new operation lands as a fresh variant with the
+ * matching backend dispatch arm — the wrapping endpoint /
+ * scope / latency-capture flow stays shared.
+ */
+export type ExecuteEvaluationCaseRequest = {
+  kind: "translate_query";
+  question: string;
+  /** Optional golden `QueryIR` for downstream judge comparison. */
+  expected_query_ir?: unknown;
+};
+
 export interface CompleteEvaluationRunRequest {
   /** Terminal state — must be `succeeded` / `failed` /
    *  `cancelled`. The server rejects `running` with a typed 422. */

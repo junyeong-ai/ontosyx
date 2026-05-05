@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  executeEvaluationCase,
   getEvaluationRun,
   listEvaluationCases,
   listEvaluationMetrics,
@@ -14,6 +15,7 @@ import type {
   EvaluationMetric,
   EvaluationRun,
   EvaluationRunListPage,
+  ExecuteEvaluationCaseRequest,
 } from "@/types/evaluation";
 
 // ---------------------------------------------------------------------------
@@ -75,6 +77,21 @@ export function useEvaluationCases(runId: string | null | undefined) {
     },
     enabled: !!runId,
     staleTime: 30_000,
+  });
+}
+
+export function useExecuteEvaluationCase(runId: string) {
+  const qc = useQueryClient();
+  return useMutation<
+    EvaluationCase,
+    Error,
+    { caseKey: string; request: ExecuteEvaluationCaseRequest }
+  >({
+    mutationFn: ({ caseKey, request }) =>
+      executeEvaluationCase(runId, caseKey, request),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: evaluationKeys.cases(runId) });
+    },
   });
 }
 

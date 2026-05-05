@@ -2939,7 +2939,19 @@
         "latency": "지연",
         "latencyMs": "{ms} ms",
         "noLatency": "—",
-        "errorLabel": "오류"
+        "errorLabel": "오류",
+        "execute": {
+          "title": "translate_query 케이스 실행",
+          "description": "질문을 워크스페이스의 대표 온톨로지로 QueryIR 변환합니다. 지연은 자동으로 측정되고 QueryIR 은 케이스의 `actual` 필드에 저장됩니다.",
+          "caseKeyLabel": "케이스 키",
+          "caseKeyPlaceholder": "q01",
+          "questionLabel": "질문",
+          "questionPlaceholder": "이번 분기 가장 많이 판매된 제품을 알려주세요",
+          "submit": "실행",
+          "submitting": "실행 중…",
+          "successToast": "케이스 `{caseKey}` 실행 완료",
+          "errorToast": "실행 실패: {error}"
+        }
       }
     },
     "quality": {
