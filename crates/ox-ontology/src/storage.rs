@@ -48,12 +48,8 @@
 //!   "Option::is_none")]` / `Vec::is_empty` so defaults don't
 //!   leak into the hash input.
 //! - New fields on an existing entity type default to the
-//!   "absent" serialisation — an entity that was valid under
-//!   schema_version N hashes identically under N+1 as long as
-//!   no field was added without a default.
-//! - Bumping `ONTOLOGY_IR_SCHEMA_VERSION` is the signal that
-//!   hashes are allowed to drift; downstream deployments drop
-//!   and re-materialise.
+//!   "absent" serialisation — adding such a field keeps every
+//!   pre-existing entity's hash unchanged.
 
 use std::collections::BTreeMap;
 

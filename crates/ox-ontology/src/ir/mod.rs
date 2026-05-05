@@ -1,5 +1,4 @@
 mod cycles;
-pub mod migration;
 mod types;
 mod validation;
 
@@ -178,41 +177,13 @@ struct OntologyLookup {
         HashMap<crate::glossary::GlossaryTermId, Vec<usize>>,
 }
 
-/// Current on-wire schema version for `OntologyIR` JSONB. Bumped whenever
-/// a backwards-incompatible shape change lands. Deserialisation rejects
-/// a payload whose `schema_version` exceeds this number so we fail fast
-/// instead of silently dropping new fields.
-///
-/// **Version history**
-/// - `1` — original shape (node_types, edge_types, indexes).
-/// - `2` — first-class collections added: `InterfaceDef`, `RuleDef`,
-///   `ActionDef`, `FunctionDef`, `MetricDef`, `EnrichmentDef`,
-///   `GlossaryTermDef`, `DataQualityDef`, and `ProvenanceDef`. Every
-///   new collection defaults to empty, so a v1 payload deserialises
-///   correctly into a v2 value without a migration pass — we still
-///   bump the version so the server refuses to downgrade (a v2
-///   ontology round-tripping through a v1 build would silently lose
-///   these collections).
-/// - `3` — adds the terminology registry collection
-///   `code_systems: Vec<CodeSystemDef>` (with nested `CodedValue`
-///   entries). Same defaults-to-empty guarantee — a v2 payload
-///   round-trips through v3 unchanged.
-/// - `4` — Phase Φ3 wiring: adds the
-///   `column_profiles: Vec<ColumnProfileDef>` collection so the
-///   data-distribution snapshot the introspection kernel produced
-///   survives commit / hydrate cycles. Defaults-to-empty, so a v3
-///   payload round-trips through v4 unchanged.
-/// - `5` — Vocabulary unification: the standalone `concepts:
-///   Vec<ConceptDef>` collection is folded into the glossary as
-///   `GlossaryTermDef.realisation: Option<TermRealisation>`, and
-///   `NodeTypeDef.concept_id` / `EdgeTypeDef.concept_id` are
-///   replaced by `concept_term_id: Option<GlossaryTermId>` pointing
-///   directly at the term that names the concept. The 1:1 anchor
-///   that the old shape declared as an invariant is now structural:
-///   the term *is* the concept. v4 payloads need an explicit
-///   migration pass — concept rows must be rewritten as glossary
-///   terms with `realisation` set.
-pub const ONTOLOGY_IR_SCHEMA_VERSION: u32 = 5;
+/// Current on-wire schema version for `OntologyIR` JSONB.
+/// Deserialisation rejects a payload whose `schema_version` exceeds
+/// this number so the server fails fast on a future-shape blob
+/// rather than silently dropping unknown fields. Sibling IRs
+/// (`QueryIR`, `PatternIR`) carry the same forward-compat guard at
+/// the same version.
+pub const ONTOLOGY_IR_SCHEMA_VERSION: u32 = 1;
 
 fn default_ontology_ir_schema_version() -> u32 {
     ONTOLOGY_IR_SCHEMA_VERSION
@@ -360,27 +331,16 @@ pub struct OntologyIR {
     lookup: OntologyLookup,
 }
 
-/// Custom Deserialize that runs the JSONB migration pipeline,
-/// auto-builds lookup indices after loading, and rejects payloads
-/// from a future struct shape.
+/// Custom Deserialize that rebuilds invariant-checked indices and
+/// rejects payloads tagged with a future schema version.
 ///
-/// The deserialiser materialises the incoming payload as a
-/// `serde_json::Value`, hands it to [`migration::migrate_to_current`]
-/// to walk the version chain, and only then decodes into the typed
-/// `Wire` shape. This means a JSONB row written by a v3 server
-/// loads cleanly on a v5 server: the v4→v5 migration (concept fold-in)
-/// runs first, the resulting v5 shape decodes into `Wire`, and the
-/// post-image is structurally identical to a freshly-written row.
+/// `try_new` enforces id / label uniqueness, and `rebuild_indices`
+/// populates the lookup tables every accessor depends on — neither
+/// would run under a derive(Deserialize), so the impl decodes
+/// through a flat `Wire` struct and routes the result through the
+/// same construction path the in-process builders use.
 impl<'de> Deserialize<'de> for OntologyIR {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        // Materialise as Value first so the migration pipeline can
-        // walk the JSON shape. This adds one round-trip allocation
-        // — small price for forward-compatible reads of every
-        // historical schema version.
-        let raw = serde_json::Value::deserialize(deserializer)?;
-        let migrated = migration::migrate_to_current(raw)
-            .map_err(|e| serde::de::Error::custom(e.to_string()))?;
-
         #[derive(Deserialize)]
         struct Wire {
             #[serde(default = "default_ontology_ir_schema_version")]
@@ -431,13 +391,7 @@ impl<'de> Deserialize<'de> for OntologyIR {
             column_profiles: Vec<crate::column_profile::ColumnProfileDef>,
         }
 
-        let w: Wire = serde_json::from_value(migrated)
-            .map_err(serde::de::Error::custom)?;
-        // The migration pipeline already rejected any future
-        // version; the post-image carries a current-or-older tag.
-        // The redundant guard below stays as defence in depth — a
-        // bug in the chain that produced a payload tagged "future"
-        // surfaces here rather than corrupting downstream code.
+        let w = Wire::deserialize(deserializer)?;
         if w.schema_version > ONTOLOGY_IR_SCHEMA_VERSION {
             return Err(serde::de::Error::custom(format!(
                 "OntologyIR schema_version {} is newer than this build supports (max {}). \

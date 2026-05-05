@@ -559,41 +559,21 @@ fn ontology_ir_rejects_future_schema_version() {
 }
 
 #[test]
-fn ontology_ir_accepts_missing_schema_version_as_current() {
-    // Legacy JSONB rows that predate this field must still load —
-    // serde(default = ...) hands back ONTOLOGY_IR_SCHEMA_VERSION.
+fn ontology_ir_omits_schema_version_falls_back_to_current() {
+    // Payloads that omit `schema_version` decode at the current
+    // version — `serde(default = ...)` hands back
+    // `ONTOLOGY_IR_SCHEMA_VERSION` and every superstructure
+    // collection defaults to empty.
     let blob = serde_json::json!({
         "id": "ont",
-        "name": "Legacy",
+        "name": "Sample",
         "version": { "number": 1 },
         "node_types": [],
         "edge_types": [],
         "indexes": [],
     });
-    let onto: OntologyIR = serde_json::from_value(blob).expect("legacy payload must parse");
+    let onto: OntologyIR = serde_json::from_value(blob).expect("payload must parse");
     assert_eq!(onto.schema_version, ONTOLOGY_IR_SCHEMA_VERSION);
-}
-
-// ---------------------------------------------------------------------------
-// Semantic superstructure wiring
-// ---------------------------------------------------------------------------
-
-#[test]
-fn v1_payload_deserialises_with_empty_superstructure_collections() {
-    // Backwards compatibility: a pre-5-B JSONB snapshot lacks every
-    // new collection. Every new field carries `#[serde(default)]` so
-    // the payload must still parse and every collection must come
-    // back empty rather than failing to round-trip.
-    let blob = serde_json::json!({
-        "schema_version": 1,
-        "id": "ont",
-        "name": "Legacy",
-        "version": { "number": 1 },
-        "node_types": [],
-        "edge_types": [],
-        "indexes": [],
-    });
-    let onto: OntologyIR = serde_json::from_value(blob).expect("v1 payload must parse");
     assert!(onto.interfaces().is_empty());
     assert!(onto.rules().is_empty());
     assert!(onto.actions().is_empty());

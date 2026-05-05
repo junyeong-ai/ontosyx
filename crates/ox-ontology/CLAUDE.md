@@ -137,32 +137,17 @@ change the strength distribution don't change the answer.
 through `canonical_binding()` so consumers cannot accidentally
 reach the lower-priority entry.
 
-## IR JSONB schema evolution
+## On-wire shape gate
 
-`OntologyIR` is persisted as JSONB. Every row carries
-`schema_version`; `OntologyIR::deserialize` runs every read through
-the migration pipeline at `src/ir/migration.rs::migrate_to_current`
-so older rows transparently load on newer builds.
-
-When bumping `ONTOLOGY_IR_SCHEMA_VERSION` from N to N+1, classify
-the change:
-
-- **Additive only** (new `Vec<...> #[serde(default)]` collection,
-  fields stay the same): no migration needed. `serde(default)`
-  populates absent fields; the pipeline just walks the version
-  tag forward.
-- **Structural** (rename, fold-in, restructure): write
-  `ir/migration/v{N}_to_v{N+1}.rs` implementing `IrMigration` and
-  register it in `migration.rs::migrations()`. The chain test
-  `migration_chain_is_continuous` fails the build if a step
-  is missing or skips versions; `each_migration_advances_by_one`
-  pins the +1 advancement.
-
-Every structural migration ships two fixture tests at minimum: a
-pre-image v{N} JSON blob round-trips through `migrate_to_current`
-to the expected v{N+1} shape, and a dangling-reference / edge case
-test pins the cleanup behaviour. See `v4_to_v5.rs` (concept
-fold-in) for the canonical template.
+`OntologyIR` carries `ONTOLOGY_IR_SCHEMA_VERSION` (currently `1`)
+as a forward-compat marker — a JSONB row tagged with a version
+the running build doesn't recognise is rejected at deserialise
+time so the server fails fast on a future-shape blob. Sibling IRs
+(`QueryIR`, `PatternIR`) follow the same pattern. Additive fields
+ride on `#[serde(default)]` and don't require a bump; an
+incompatible struct-shape change is not a free action — it
+invalidates every persisted row and forces a coordinated
+re-materialise across deployments.
 
 ## Don't
 
