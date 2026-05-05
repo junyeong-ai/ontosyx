@@ -287,7 +287,7 @@ pub(crate) async fn effective_policies(
 
     let policies = state
         .store
-        .get_effective_policies(principal.role.as_str(), ws.workspace_role.as_str(), user_id)
+        .list_effective_policies(principal.role.as_str(), ws.workspace_role.as_str(), user_id)
         .await
         .map_err(AppError::from)?;
 

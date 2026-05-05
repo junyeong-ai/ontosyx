@@ -59,13 +59,21 @@ impl CronTask for QualityBaselineScan {
         SCAN_INTERVAL
     }
 
+    fn singleton_key(&self) -> Option<i64> {
+        Some(*ox_store::advisory_lock::ADVISORY_LOCK_CRON_QUALITY_BASELINE)
+    }
+
     async fn run_once(&self) -> ox_core::error::OxResult<()> {
         run_scan(self.store.as_ref()).await
     }
 }
 
-pub fn spawn_quality_baseline_scan(store: Arc<dyn Store>, cancel: CancellationToken) {
-    spawn_cron(Arc::new(QualityBaselineScan { store }), cancel);
+pub fn spawn_quality_baseline_scan(
+    store: Arc<dyn Store>,
+    pool: ox_store::PgPool,
+    cancel: CancellationToken,
+) {
+    spawn_cron(Arc::new(QualityBaselineScan { store }), Some(pool), cancel);
 }
 
 async fn run_scan(store: &dyn Store) -> ox_core::error::OxResult<()> {

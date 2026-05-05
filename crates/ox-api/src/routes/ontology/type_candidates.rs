@@ -99,10 +99,11 @@ pub(crate) async fn list_type_candidates(
     Query(params): Query<TypeCandidatesParams>,
 ) -> Result<Json<ApiResponse<Vec<TypeCandidate>>>, AppError> {
     let kind = TypeKind::parse(&params.kind).ok_or_else(|| {
-        AppError::bad_request(format!(
-            "kind must be one of \"node\" / \"edge\" (or the NodeType/EdgeType aliases); got \"{}\"",
-            params.kind
-        ))
+        AppError::invalid_enum_value(
+            "kind",
+            params.kind.clone(),
+            &["node", "edge", "NodeType", "EdgeType"],
+        )
     })?;
 
     // Pull the full workspace. `list_ontologies` is cursor-paginated;

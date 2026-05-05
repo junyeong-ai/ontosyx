@@ -73,10 +73,11 @@ pub(crate) async fn test_source_connection(
     let registry = &state.adapter_registry;
 
     if !registry.supports(&req.source_type) {
-        return Err(AppError::bad_request(format!(
-            "Unsupported source type: {}",
-            req.source_type
-        )));
+        return Err(AppError::invalid_enum_value(
+            "source_type",
+            req.source_type.clone(),
+            &registry.registered_types(),
+        ));
     }
 
     let input = SourceInput {
@@ -93,10 +94,11 @@ pub(crate) async fn test_source_connection(
     // Create the introspector (tests basic connectivity)
     let introspector = match registry.create(&req.source_type, input).await {
         None => {
-            return Err(AppError::bad_request(format!(
-                "Unsupported source type: {}",
-                req.source_type
-            )));
+            return Err(AppError::invalid_enum_value(
+                "source_type",
+                req.source_type.clone(),
+                &registry.registered_types(),
+            ));
         }
         Some(Err(e)) => {
             let msg = e.to_string();

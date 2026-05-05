@@ -43,8 +43,10 @@ pub(crate) async fn verify_element(
     Json(req): Json<VerifyElementRequest>,
 ) -> Result<Json<ApiResponse<VerifyElementResponse>>, AppError> {
     if !matches!(req.element_kind.as_str(), "node" | "edge" | "property") {
-        return Err(AppError::bad_request(
-            "element_kind must be 'node', 'edge', or 'property'",
+        return Err(AppError::invalid_enum_value(
+            "element_kind",
+            req.element_kind.clone(),
+            &["node", "edge", "property"],
         ));
     }
 
@@ -93,7 +95,7 @@ pub(crate) async fn list_verifications(
 ) -> Result<Json<ApiResponse<Vec<ElementVerification>>>, AppError> {
     let verifications = state
         .store
-        .get_verifications(&ontology_lineage_id)
+        .list_verifications(&ontology_lineage_id)
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(verifications))

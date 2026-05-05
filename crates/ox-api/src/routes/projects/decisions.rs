@@ -51,7 +51,7 @@ pub(crate) async fn update_decisions(
     }
 
     let options_json = serde_json::to_value(&req.design_options)
-        .map_err(|e| AppError::bad_request(format!("Invalid design_options: {e}")))?;
+        .map_err(|e| AppError::internal(format!("serialize design_options: {e}")))?;
 
     state
         .store

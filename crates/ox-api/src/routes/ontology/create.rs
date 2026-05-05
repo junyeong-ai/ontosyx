@@ -107,25 +107,23 @@ pub(crate) async fn create_ontology(
 
     let name = req.name.trim();
     if name.is_empty() {
-        return Err(AppError::bad_request("name must not be empty"));
+        return Err(AppError::required_field_empty("name"));
     }
     if name.chars().count() > MAX_NAME_LEN {
-        return Err(AppError::bad_request(format!(
-            "name exceeds {MAX_NAME_LEN}-character limit",
-        )));
+        return Err(AppError::text_length_out_of_range("name", 1, MAX_NAME_LEN));
     }
     if name.chars().any(char::is_control) {
-        return Err(AppError::bad_request(
-            "name must not contain control characters",
+        return Err(AppError::identifier_format_invalid(
+            "name",
+            name.to_string(),
+            "printable_text",
         ));
     }
     // Reject the degenerate shape. `/edits` enforces the same invariant
     // (see `edits.rs`); keeping both endpoints symmetric means callers
     // never have to guess which one accepts an empty batch.
     if req.initial_operations.is_empty() {
-        return Err(AppError::bad_request(
-            "initial_operations must not be empty — supply at least one op or use /edits after a separate shell commit",
-        ));
+        return Err(AppError::required_field_empty("initial_operations"));
     }
 
     // ---- 1. Routing ---------------------------------------------
@@ -163,8 +161,9 @@ pub(crate) async fn create_ontology(
     // The per-op error surfaces the op index so the FE can
     // highlight which row failed in a multi-op wizard.
     for (idx, op) in req.initial_operations.iter().enumerate() {
-        op.apply_to(&mut ir)
-            .map_err(|e| AppError::unprocessable(format!("initial_operations[{idx}]: {e}")))?;
+        op.apply_to(&mut ir).map_err(|e| {
+            AppError::edit_operation_rejected(format!("initial_operations[{idx}]: {e}"))
+        })?;
     }
 
     // ---- 3. Whole-IR validation ---------------------------------
@@ -175,10 +174,7 @@ pub(crate) async fn create_ontology(
     // effect fires.
     let validation = ir.validate();
     if !validation.is_empty() {
-        return Err(AppError::unprocessable(ox_core::join_messages(
-            &validation,
-            "; ",
-        )));
+        return Err(AppError::ontology_invariant_violation(validation));
     }
 
     // ---- 4. Commit ---------------------------------------------

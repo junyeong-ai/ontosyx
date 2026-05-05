@@ -81,7 +81,7 @@ async fn load_owned_session(
         .ok_or_else(|| AppError::not_found("Agent session"))?;
 
     if session.user_id != principal.id {
-        return Err(AppError::forbidden("Not your session"));
+        return Err(AppError::resource_not_owned("session"));
     }
 
     Ok(session)
@@ -378,7 +378,7 @@ pub(crate) async fn respond_tool_review(
         .ok_or_else(|| AppError::not_found("Agent session"))?;
 
     if session.user_id != principal.id {
-        return Err(AppError::forbidden("Not your session"));
+        return Err(AppError::resource_not_owned("session"));
     }
 
     // Persist the approval decision

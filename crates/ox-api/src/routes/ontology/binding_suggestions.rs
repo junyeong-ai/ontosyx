@@ -216,9 +216,11 @@ pub(crate) async fn suggest_glossary_terms_for_property(
             label: String::new(),
         },
         other => {
-            return Err(AppError::bad_request(format!(
-                "owner_kind must be 'node' or 'edge', got {other:?}"
-            )));
+            return Err(AppError::invalid_enum_value(
+                "owner_kind",
+                other.to_string(),
+                &["node", "edge"],
+            ));
         }
     };
 
@@ -249,12 +251,7 @@ async fn load_current_ir(
         .get_current_version(identity.id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(|| {
-            AppError::unprocessable(format!(
-                "Ontology `{}` has no committed version",
-                identity.lineage_id
-            ))
-        })?;
+        .ok_or_else(|| AppError::ontology_not_committed(identity.lineage_id.clone()))?;
     state
         .store
         .get_ontology_ir(version.id)

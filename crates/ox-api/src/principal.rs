@@ -150,7 +150,7 @@ impl Principal {
         if self.role.is_admin() {
             Ok(())
         } else {
-            Err(AppError::forbidden("This action requires admin privileges"))
+            Err(AppError::role_required("admin"))
         }
     }
 
@@ -159,9 +159,7 @@ impl Principal {
         if self.role.can_design() {
             Ok(())
         } else {
-            Err(AppError::forbidden(
-                "This action requires designer or admin privileges",
-            ))
+            Err(AppError::role_required("designer"))
         }
     }
 
@@ -174,7 +172,7 @@ impl Principal {
         if self.role.can_design() && self.id == project_user_id {
             return Ok(());
         }
-        Err(AppError::forbidden("You can only delete your own projects"))
+        Err(AppError::resource_not_owned("project"))
     }
 
     /// Verify the current principal owns a resource, or is admin.
@@ -186,9 +184,7 @@ impl Principal {
         if self.role.is_admin() || self.id == resource_owner_id {
             Ok(())
         } else {
-            Err(AppError::forbidden(format!(
-                "You do not have permission to modify this {resource_name}"
-            )))
+            Err(AppError::resource_not_owned(resource_name.to_string()))
         }
     }
 }

@@ -30,7 +30,7 @@
 //! ## Error policy
 //!
 //! Authentication / network / Secret Manager-side failures surface
-//! as `AppError::bad_request` with the failing reference and a
+//! as `AppError::credential_resolve_failed` with structured params (scheme/kind/detail) and a
 //! short, descriptive cause. We **do not retry** — yup-oauth2 itself
 //! retries the underlying token endpoint, and the surrounding
 //! credential dispatch should treat a hard failure as a hard
@@ -96,12 +96,10 @@ impl GcpSecretManagerResolver {
     /// gcloud's project resolution).
     pub async fn from_adc() -> Result<Self, AppError> {
         let credential = auth::detect_adc(None).await.map_err(|e| {
-            AppError::bad_request(format!("GCP Secret Manager: ADC dispatch failed: {e}"))
+            AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("ADC dispatch failed: {e}"))
         })?;
         let auth = auth::build_authenticator(credential).await.map_err(|e| {
-            AppError::bad_request(format!(
-                "GCP Secret Manager: authenticator construction failed: {e}"
-            ))
+            AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("authenticator construction failed: {e}"))
         })?;
         let cache = read_cache_ttl_from_env()?.map(|ttl| CacheState {
             ttl,
@@ -113,9 +111,7 @@ impl GcpSecretManagerResolver {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(15))
             .build()
-            .map_err(|e| AppError::bad_request(format!(
-                "failed to build HTTP client for GCP Secret Manager: {e}"
-            )))?;
+            .map_err(|e| AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("HTTP client build failed: {e}")))?;
         Ok(Self {
             auth,
             http,
@@ -146,13 +142,9 @@ impl SecretResolver for GcpSecretManagerResolver {
             .auth
             .token(&[SCOPE])
             .await
-            .map_err(|e| AppError::bad_request(format!(
-                "secret_ref 'gcp-sm:{resource}' — failed to mint ADC token: {e}"
-            )))?;
+            .map_err(|e| AppError::credential_resolve_failed("gcp_secret", "unauthorized", format!("gcp-sm:{resource}: token mint failed: {e}")))?;
         let bearer = token.token().ok_or_else(|| {
-            AppError::bad_request(format!(
-                "secret_ref 'gcp-sm:{resource}' — ADC returned an empty access token"
-            ))
+            AppError::credential_resolve_failed("gcp_secret", "unauthorized", format!("gcp-sm:{resource}: empty ADC token"))
         })?;
 
         let url = format!("{SECRET_MANAGER_ENDPOINT}/{resource}:access");
@@ -162,9 +154,7 @@ impl SecretResolver for GcpSecretManagerResolver {
             .bearer_auth(bearer)
             .send()
             .await
-            .map_err(|e| AppError::bad_request(format!(
-                "secret_ref 'gcp-sm:{resource}' — Secret Manager request failed: {e}"
-            )))?;
+            .map_err(|e| AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("gcp-sm:{resource}: request failed: {e}")))?;
 
         let status = resp.status();
         if !status.is_success() {
@@ -182,21 +172,15 @@ impl SecretResolver for GcpSecretManagerResolver {
         }
 
         let body: AccessResponse = resp.json().await.map_err(|e| {
-            AppError::bad_request(format!(
-                "secret_ref 'gcp-sm:{resource}' — malformed Secret Manager response: {e}"
-            ))
+            AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("gcp-sm:{resource}: malformed response: {e}"))
         })?;
         let raw = base64::engine::general_purpose::STANDARD
             .decode(body.payload.data.as_bytes())
             .map_err(|e| {
-                AppError::bad_request(format!(
-                    "secret_ref 'gcp-sm:{resource}' — base64 decode failed: {e}"
-                ))
+                AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("gcp-sm:{resource}: base64 decode failed: {e}"))
             })?;
         let text = String::from_utf8(raw).map_err(|e| {
-            AppError::bad_request(format!(
-                "secret_ref 'gcp-sm:{resource}' — payload is not valid UTF-8: {e}"
-            ))
+            AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("gcp-sm:{resource}: payload not valid UTF-8: {e}"))
         })?;
         let value: Arc<str> = Arc::from(text);
 
@@ -230,9 +214,8 @@ fn parse_cache_ttl(raw: &str) -> Result<Option<Duration>, AppError> {
         return Ok(None);
     }
     let secs: u64 = raw.parse().map_err(|_| {
-        AppError::bad_request(format!(
-            "{CACHE_TTL_ENV}='{raw}' is not a valid u64 — set to a number of seconds, \
-             or unset to disable caching"
+        AppError::internal(format!(
+            "{CACHE_TTL_ENV}='{raw}' is not a valid u64 — admin must set seconds or unset"
         ))
     })?;
     if secs == 0 {
@@ -243,26 +226,27 @@ fn parse_cache_ttl(raw: &str) -> Result<Option<Duration>, AppError> {
 
 fn secret_manager_status_error(resource: &str, code: u16, body: &str) -> AppError {
     let trimmed = body.trim();
-    match code {
-        401 => AppError::bad_request(format!(
-            "secret_ref 'gcp-sm:{resource}' — authentication rejected (401). \
-             Verify ADC is valid (`gcloud auth application-default print-access-token` \
-             on a developer machine, or workload-identity binding on GKE)."
-        )),
-        403 => AppError::bad_request(format!(
-            "secret_ref 'gcp-sm:{resource}' — permission denied (403). \
-             The ADC principal must have role roles/secretmanager.secretAccessor \
-             on the secret or its enclosing project."
-        )),
-        404 => AppError::bad_request(format!(
-            "secret_ref 'gcp-sm:{resource}' — secret or version not found (404). \
-             Check the project / secret-id / version triple."
-        )),
-        _ => AppError::bad_request(format!(
-            "secret_ref 'gcp-sm:{resource}' — Secret Manager returned HTTP {code}. \
-             Body: {trimmed}"
-        )),
-    }
+    let (kind, detail) = match code {
+        401 => (
+            "unauthorized",
+            format!("gcp-sm:{resource} 401 — verify ADC validity"),
+        ),
+        403 => (
+            "unauthorized",
+            format!(
+                "gcp-sm:{resource} 403 — ADC principal needs roles/secretmanager.secretAccessor"
+            ),
+        ),
+        404 => (
+            "not_found",
+            format!("gcp-sm:{resource} 404 — secret or version not found"),
+        ),
+        _ => (
+            "provider_error",
+            format!("gcp-sm:{resource} HTTP {code}: {trimmed}"),
+        ),
+    };
+    AppError::credential_resolve_failed("gcp_secret", kind, detail)
 }
 
 // ---------------------------------------------------------------------------
@@ -277,13 +261,17 @@ fn parse_gcp_sm_reference(
     default_project: Option<&str>,
 ) -> Result<String, AppError> {
     let body = reference.strip_prefix("gcp-sm:").ok_or_else(|| {
-        AppError::bad_request(format!(
-            "secret_ref '{reference}' — gcp-sm scheme expected"
-        ))
+        AppError::credential_resolve_failed(
+            "gcp_secret",
+            "invalid_reference",
+            format!("'{reference}' missing gcp-sm: scheme"),
+        )
     })?;
     if body.is_empty() {
-        return Err(AppError::bad_request(
-            "secret_ref 'gcp-sm:' missing the secret reference after the colon",
+        return Err(AppError::credential_resolve_failed(
+            "gcp_secret",
+            "invalid_reference",
+            "missing secret reference after `gcp-sm:`".to_string(),
         ));
     }
     // A `/` anywhere in the body is a strong signal the operator
@@ -302,10 +290,13 @@ fn parse_gcp_sm_reference(
             || parts[3].is_empty()
             || parts[5].is_empty()
         {
-            return Err(AppError::bad_request(format!(
-                "secret_ref 'gcp-sm:{body}' — invalid resource path. \
-                 Expected projects/PROJECT/secrets/SECRET/versions/VERSION"
-            )));
+            return Err(AppError::credential_resolve_failed(
+                "gcp_secret",
+                "invalid_reference",
+                format!(
+                    "gcp-sm:{body} — expected projects/PROJECT/secrets/SECRET/versions/VERSION"
+                ),
+            ));
         }
         return Ok(body.to_string());
     }
@@ -313,18 +304,23 @@ fn parse_gcp_sm_reference(
     // default project. The error message names the env var the
     // operator can set, instead of silently rejecting.
     let project = default_project.ok_or_else(|| {
-        AppError::bad_request(format!(
-            "secret_ref 'gcp-sm:{body}' — short form requires GOOGLE_CLOUD_PROJECT \
-             (or GCLOUD_PROJECT) to be set. Use the long form \
-             projects/.../secrets/{body}/versions/latest if no default project \
-             is available."
-        ))
+        AppError::credential_resolve_failed(
+            "gcp_secret",
+            "invalid_reference",
+            format!(
+                "gcp-sm:{body} short form requires GOOGLE_CLOUD_PROJECT \
+                 (or GCLOUD_PROJECT) to be set"
+            ),
+        )
     })?;
     if !is_valid_secret_id(body) {
-        return Err(AppError::bad_request(format!(
-            "secret_ref 'gcp-sm:{body}' — invalid secret id. \
-             Allowed: alphanumerics, `_` and `-`, length 1..=255."
-        )));
+        return Err(AppError::credential_resolve_failed(
+            "gcp_secret",
+            "invalid_reference",
+            format!(
+                "gcp-sm:{body} — invalid secret id (allowed: alphanumerics, `_`, `-`; length 1..=255)"
+            ),
+        ));
     }
     Ok(format!("projects/{project}/secrets/{body}/versions/latest"))
 }

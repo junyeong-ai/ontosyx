@@ -65,9 +65,5 @@ pub fn validate_ontology_input(ontology: &OntologyIR) -> Result<(), AppError> {
         return Ok(());
     }
 
-    Err(AppError::unprocessable_with_details(
-        "invalid_ontology",
-        "Ontology validation failed",
-        serde_json::json!({ "errors": errors }),
-    ))
+    Err(AppError::invalid_ontology(errors))
 }

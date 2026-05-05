@@ -58,9 +58,7 @@ pub(crate) async fn plan_load(
     validate_ontology_input(&req.ontology)?;
 
     if req.source_description.trim().is_empty() {
-        return Err(AppError::bad_request(
-            "source_description must not be empty",
-        ));
+        return Err(AppError::required_field_empty("source_description"));
     }
 
     info!("Planning data load");
@@ -149,7 +147,7 @@ pub(crate) async fn execute_load(
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
     if req.data.is_empty() {
-        return Err(AppError::bad_request("data must not be empty"));
+        return Err(AppError::required_field_empty("data"));
     }
 
     // Validate all records are JSON objects before doing any LLM work
@@ -160,9 +158,7 @@ pub(crate) async fn execute_load(
         Some(plan) => plan,
         None => {
             if req.source_description.trim().is_empty() {
-                return Err(AppError::bad_request(
-                    "source_description must not be empty when plan is omitted",
-                ));
+                return Err(AppError::required_field_empty("source_description"));
             }
 
             info!("Generating load plan for execution");

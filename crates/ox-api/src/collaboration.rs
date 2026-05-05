@@ -46,6 +46,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use ox_ontology::command::OntologyCommand;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock, broadcast};
 use uuid::Uuid;
@@ -159,6 +160,30 @@ pub enum ServerMessage {
     UserLeft {
         project_id: Uuid,
         user_id: String,
+    },
+    /// Another member committed ontology commands to the project.
+    /// Broadcast after a successful `apply_ontology_commands` save so
+    /// every collaborator's command-stack baseline can advance,
+    /// surfacing the merge surface (`MergeBanner` →
+    /// `CommandStackDiffDialog`) with a fully-rendered remote-ops
+    /// inventory instead of the opaque "remote arrived" fallback.
+    ///
+    /// `base_revision` is the revision the commit was authored
+    /// against; `new_revision` is the revision after the commit
+    /// landed; `commands` is the exact ordered op list the author
+    /// applied (oldest first).
+    EntityUpdated {
+        project_id: Uuid,
+        author_user_id: String,
+        author_user_name: String,
+        base_revision: i32,
+        new_revision: i32,
+        /// `OntologyCommand` is internally tagged JSON; utoipa can't
+        /// derive a static schema for the runtime variant set, so the
+        /// wire shape surfaces as `Vec<Object>` in OpenAPI and the FE
+        /// reads it through the typed `OntologyCommand` union.
+        #[schema(value_type = Vec<Object>)]
+        commands: Vec<OntologyCommand>,
     },
     /// Structured error. The frontend renders the message via i18n
     /// keyed on `code`; `params` interpolate into the localised
@@ -436,6 +461,22 @@ pub trait CollaborationHub: Send + Sync {
 
     /// Snapshot of hub-wide gauges.
     async fn stats(&self) -> HubStats;
+
+    /// Broadcast an `EntityUpdated` frame after the author's
+    /// `apply_ontology_commands` save lands. Fire-and-forget; rooms
+    /// without subscribers silently drop. Called from the HTTP
+    /// handler so the realtime channel and the persistence layer
+    /// stay decoupled — the WS protocol is the only realtime
+    /// surface, the HTTP response remains the authoritative path.
+    async fn broadcast_entity_updated(
+        &self,
+        project_id: Uuid,
+        author_user_id: &str,
+        author_user_name: &str,
+        base_revision: i32,
+        new_revision: i32,
+        commands: Vec<OntologyCommand>,
+    );
 }
 
 /// Reserve a session slot and wrap it in a [`SessionHandle`] that
@@ -828,6 +869,34 @@ impl CollaborationHub for InProcessCollaborationHub {
             }
         }
         total
+    }
+
+    /// Broadcast `EntityUpdated` to every subscriber of `project_id`.
+    /// Drops silently when the room hasn't been opened yet (no
+    /// active subscribers) — collaboration broadcasts are
+    /// fire-and-forget by design; the HTTP response remains the
+    /// authoritative path for the author's own UI.
+    async fn broadcast_entity_updated(
+        &self,
+        project_id: Uuid,
+        author_user_id: &str,
+        author_user_name: &str,
+        base_revision: i32,
+        new_revision: i32,
+        commands: Vec<OntologyCommand>,
+    ) {
+        let Some(room_arc) = self.rooms.read().await.get(&project_id).cloned() else {
+            return;
+        };
+        let room = room_arc.lock().await;
+        let _ = room.broadcast.send(ServerMessage::EntityUpdated {
+            project_id,
+            author_user_id: author_user_id.to_string(),
+            author_user_name: author_user_name.to_string(),
+            base_revision,
+            new_revision,
+            commands,
+        });
     }
 }
 

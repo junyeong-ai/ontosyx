@@ -85,19 +85,20 @@ fn sse_phase(phase: &str, detail: Option<&str>) -> String {
     }
 }
 
-fn sse_error(error_type: &str, message: &str) -> String {
+fn sse_error(code: crate::error::ApiErrorCode, message: &str) -> String {
     serde_json::json!({
-        "error": { "type": error_type, "message": message }
+        "error": {
+            "code":   code,
+            "class":  code.class(),
+            "params": { "detail": message }
+        }
     })
     .to_string()
 }
 
 fn sse_result<T: Serialize>(data: &T) -> String {
     serde_json::to_string(data).unwrap_or_else(|e| {
-        serde_json::json!({
-            "error": { "type": "serialization_error", "message": e.to_string() }
-        })
-        .to_string()
+        sse_error(crate::error::ApiErrorCode::SerializationError, &e.to_string())
     })
 }
 
@@ -147,10 +148,10 @@ pub(crate) async fn design_project_stream(
     let project = load_mutable_project(&state, id).await?;
 
     let source_config: SourceConfig = serde_json::from_value(project.source_config.clone())
-        .map_err(|e| AppError::bad_request(format!("Corrupt source_config: {e}")))?;
+        .map_err(|e| AppError::internal(format!("deserialize source_config: {e}")))?;
 
     let effective_opts: DesignOptions = serde_json::from_value(project.design_options.clone())
-        .map_err(|e| AppError::bad_request(format!("Corrupt design_options: {e}")))?;
+        .map_err(|e| AppError::internal(format!("deserialize design_options: {e}")))?;
 
     let (batch_size, sys_config_snapshot) = {
         let sys_config = state.system_config.read().await;
@@ -230,13 +231,13 @@ pub(crate) async fn design_project_stream(
                     Ok(data) if !data.trim().is_empty() => data,
                     Ok(_) => {
                         yield Ok(Event::default().event("error").data(
-                            sse_error("validation_error", "Source data is empty")
+                            sse_error(crate::error::ApiErrorCode::ValidationError, "Source data is empty")
                         ));
                         return;
                     }
                     Err(e) => {
                         yield Ok(Event::default().event("error").data(
-                            sse_error("validation_error", &format!("{e:?}"))
+                            sse_error(crate::error::ApiErrorCode::ValidationError, &format!("{e:?}"))
                         ));
                         return;
                     }
@@ -265,7 +266,7 @@ pub(crate) async fn design_project_stream(
                         "Design LLM call timed out (stream)"
                     );
                     yield Ok(Event::default().event("error").data(
-                        sse_error("timeout", &format!(
+                        sse_error(crate::error::ApiErrorCode::Timeout, &format!(
                             "Ontology design timed out after {}s",
                             timeout.as_secs()
                         ))
@@ -295,7 +296,7 @@ pub(crate) async fn design_project_stream(
                 Ok(a) => a,
                 Err(e) => {
                     yield Ok(Event::default().event("error").data(
-                        sse_error("design_error", &format!(
+                        sse_error(crate::error::ApiErrorCode::DesignError, &format!(
                             "Failed to resolve design provenance: {e}"
                         ))
                     ));
@@ -315,7 +316,7 @@ pub(crate) async fn design_project_stream(
                 Ok(h) => h,
                 Err(e) => {
                     yield Ok(Event::default().event("error").data(
-                        sse_error("design_error", &format!(
+                        sse_error(crate::error::ApiErrorCode::DesignError, &format!(
                             "Failed to compute prompt template hash: {e}"
                         ))
                     ));
@@ -472,7 +473,7 @@ pub(crate) async fn design_project_stream(
                             Ok(data) => data,
                             Err(e) => {
                                 yield Ok(Event::default().event("error").data(
-                                    sse_error("design_error", &format!("Cluster {} input failed: {e:?}", cluster_id))
+                                    sse_error(crate::error::ApiErrorCode::DesignError, &format!("Cluster {} input failed: {e:?}", cluster_id))
                                 ));
                                 return;
                             }
@@ -498,11 +499,11 @@ pub(crate) async fn design_project_stream(
                                 batch_results.push(ir);
                             }
                             Ok(Err(e)) => {
-                                yield Ok(Event::default().event("error").data(sse_error("design_error", &e.to_string())));
+                                yield Ok(Event::default().event("error").data(sse_error(crate::error::ApiErrorCode::DesignError, &e.to_string())));
                                 return;
                             }
                             Err(_) => {
-                                yield Ok(Event::default().event("error").data(sse_error("timeout", &format!("Cluster {} timed out", cluster_id))));
+                                yield Ok(Event::default().event("error").data(sse_error(crate::error::ApiErrorCode::Timeout, &format!("Cluster {} timed out", cluster_id))));
                                 return;
                             }
                         }
@@ -574,7 +575,7 @@ pub(crate) async fn design_project_stream(
                             Ok(data) => data,
                             Err(e) => {
                                 yield Ok(Event::default().event("error").data(
-                                    sse_error("design_error", &format!("Cluster {} input failed: {e:?}", cluster_id))
+                                    sse_error(crate::error::ApiErrorCode::DesignError, &format!("Cluster {} input failed: {e:?}", cluster_id))
                                 ));
                                 return;
                             }
@@ -627,11 +628,11 @@ pub(crate) async fn design_project_stream(
                                     level_results.push((cluster_id, ir));
                                 }
                                 Ok(Err(e)) => {
-                                    yield Ok(Event::default().event("error").data(sse_error("design_error", &e.to_string())));
+                                    yield Ok(Event::default().event("error").data(sse_error(crate::error::ApiErrorCode::DesignError, &e.to_string())));
                                     return;
                                 }
                                 Err(_) => {
-                                    yield Ok(Event::default().event("error").data(sse_error("timeout", &format!("Cluster {} timed out", cluster_id))));
+                                    yield Ok(Event::default().event("error").data(sse_error(crate::error::ApiErrorCode::Timeout, &format!("Cluster {} timed out", cluster_id))));
                                     return;
                                 }
                             }
@@ -754,7 +755,7 @@ pub(crate) async fn design_project_stream(
             Ok(result) => result,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("design_error", &e.to_string())
+                    sse_error(crate::error::ApiErrorCode::DesignError, &e.to_string())
                 ));
                 return;
             }
@@ -816,7 +817,7 @@ pub(crate) async fn design_project_stream(
             Ok(qr) => qr,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("quality_error", &format!("{e:?}"))
+                    sse_error(crate::error::ApiErrorCode::QualityError, &format!("{e:?}"))
                 ));
                 return;
             }
@@ -830,7 +831,7 @@ pub(crate) async fn design_project_stream(
             Ok(v) => v,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("serialization_error", &format!("{e:?}"))
+                    sse_error(crate::error::ApiErrorCode::SerializationError, &format!("{e:?}"))
                 ));
                 return;
             }
@@ -839,7 +840,7 @@ pub(crate) async fn design_project_stream(
             Ok(v) => v,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("serialization_error", &format!("{e:?}"))
+                    sse_error(crate::error::ApiErrorCode::SerializationError, &format!("{e:?}"))
                 ));
                 return;
             }
@@ -851,7 +852,7 @@ pub(crate) async fn design_project_stream(
             .await
         {
             yield Ok(Event::default().event("error").data(
-                sse_error("persist_error", &e.to_string())
+                sse_error(crate::error::ApiErrorCode::PersistError, &e.to_string())
             ));
             return;
         }
@@ -876,7 +877,7 @@ pub(crate) async fn design_project_stream(
             Ok(p) => p,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("internal_error", &format!("{e:?}"))
+                    sse_error(crate::error::ApiErrorCode::InternalError, &format!("{e:?}"))
                 ));
                 return;
             }
@@ -1060,14 +1061,14 @@ pub(crate) async fn refine_project_stream(
                     }
                     Err(_) => {
                         yield Ok(Event::default().event("error").data(
-                            sse_error("bad_request", "No graph runtime, additional context, or valid source schema for refinement")
+                            sse_error(crate::error::ApiErrorCode::BadRequest, "No graph runtime, additional context, or valid source schema for refinement")
                         ));
                         return;
                     }
                 }
             } else {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("bad_request", "No graph runtime, additional context, or source schema for refinement")
+                    sse_error(crate::error::ApiErrorCode::BadRequest, "No graph runtime, additional context, or source schema for refinement")
                 ));
                 return;
             }
@@ -1099,7 +1100,7 @@ pub(crate) async fn refine_project_stream(
             Ok(Ok(result)) => result,
             Ok(Err(e)) => {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("refine_error", &e.to_string())
+                    sse_error(crate::error::ApiErrorCode::RefineError, &e.to_string())
                 ));
                 return;
             }
@@ -1112,7 +1113,7 @@ pub(crate) async fn refine_project_stream(
                     "Refinement LLM call timed out (stream)"
                 );
                 yield Ok(Event::default().event("error").data(
-                    sse_error("timeout", &format!(
+                    sse_error(crate::error::ApiErrorCode::Timeout, &format!(
                         "Refinement timed out after {}s",
                         timeout.as_secs()
                     ))
@@ -1132,7 +1133,7 @@ pub(crate) async fn refine_project_stream(
             Ok(r) => r,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("reconcile_error", &format!("{e}"))
+                    sse_error(crate::error::ApiErrorCode::ReconcileError, &format!("{e}"))
                 ));
                 return;
             }
@@ -1174,7 +1175,7 @@ pub(crate) async fn refine_project_stream(
             Ok(qr) => qr,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("quality_error", &format!("{e:?}"))
+                    sse_error(crate::error::ApiErrorCode::QualityError, &format!("{e:?}"))
                 ));
                 return;
             }
@@ -1188,7 +1189,7 @@ pub(crate) async fn refine_project_stream(
             Ok(v) => v,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("serialization_error", &format!("{e:?}"))
+                    sse_error(crate::error::ApiErrorCode::SerializationError, &format!("{e:?}"))
                 ));
                 return;
             }
@@ -1197,7 +1198,7 @@ pub(crate) async fn refine_project_stream(
             Ok(v) => v,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("serialization_error", &format!("{e:?}"))
+                    sse_error(crate::error::ApiErrorCode::SerializationError, &format!("{e:?}"))
                 ));
                 return;
             }
@@ -1214,7 +1215,7 @@ pub(crate) async fn refine_project_stream(
             .await
         {
             yield Ok(Event::default().event("error").data(
-                sse_error("persist_error", &e.to_string())
+                sse_error(crate::error::ApiErrorCode::PersistError, &e.to_string())
             ));
             return;
         }
@@ -1223,7 +1224,7 @@ pub(crate) async fn refine_project_stream(
             Ok(p) => p,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
-                    sse_error("internal_error", &format!("{e:?}"))
+                    sse_error(crate::error::ApiErrorCode::InternalError, &format!("{e:?}"))
                 ));
                 return;
             }

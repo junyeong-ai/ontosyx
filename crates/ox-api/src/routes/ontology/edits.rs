@@ -68,7 +68,7 @@ pub(crate) async fn apply_ontology_edits(
 ) -> Result<(StatusCode, Json<ApiResponse<EditOntologyResponse>>), AppError> {
     principal.require_designer()?;
     if req.operations.is_empty() {
-        return Err(AppError::bad_request("operations must not be empty"));
+        return Err(AppError::edit_operations_empty());
     }
 
     // ---- 1. Load current version --------------------------------
@@ -81,10 +81,10 @@ pub(crate) async fn apply_ontology_edits(
 
     let current_version_num: u32 = current.version.parse().unwrap_or(0);
     if current_version_num != req.expected_version {
-        return Err(AppError::conflict(format!(
-            "version conflict: expected {}, current is {}; refetch and retry",
-            req.expected_version, current_version_num
-        )));
+        return Err(AppError::ontology_version_conflict(
+            req.expected_version,
+            current_version_num,
+        ));
     }
     let parent_version_id = Some(current.id);
 
@@ -123,7 +123,8 @@ pub(crate) async fn apply_ontology_edits(
         }
 
         let validation = if failed_index.is_none() {
-            ir.validate()
+            let known_sources = load_known_source_ids(&state).await?;
+            ir.validate_with_sources(&known_sources)
         } else {
             Vec::new()
         };
@@ -165,20 +166,20 @@ pub(crate) async fn apply_ontology_edits(
         .ok_or_else(|| AppError::not_found("Ontology version"))?;
 
     for op in &req.operations {
-        op.apply_to(&mut ir).map_err(AppError::unprocessable)?;
+        op.apply_to(&mut ir)
+            .map_err(AppError::edit_operation_rejected)?;
     }
 
     // ---- 5. Whole-IR validation ---------------------------------
     //
     // Catches referential integrity violations across mappings + code
     // systems + glossary — the contract the admin edit layer must
-    // preserve.
-    let validation = ir.validate();
+    // preserve. The source-id check rejects mappings that point at
+    // unregistered data sources before they reach a query.
+    let known_sources = load_known_source_ids(&state).await?;
+    let validation = ir.validate_with_sources(&known_sources);
     if !validation.is_empty() {
-        return Err(AppError::unprocessable(ox_core::join_messages(
-            &validation,
-            "; ",
-        )));
+        return Err(AppError::ontology_invariant_violation(validation));
     }
 
     // ---- 6. Commit new version ---------------------------------
@@ -219,6 +220,23 @@ pub(crate) async fn apply_ontology_edits(
             committed_at: snapshot.created_at,
         })),
     ))
+}
+
+/// Snapshot the workspace's registered source ids so
+/// `OntologyIR::validate_with_sources` can refuse mappings that
+/// would otherwise dangle until query-execution time.
+async fn load_known_source_ids(
+    state: &AppState,
+) -> Result<std::collections::HashSet<ox_ontology::mapping::SourceId>, AppError> {
+    let sources = state
+        .store
+        .list_data_sources()
+        .await
+        .map_err(AppError::from)?;
+    Ok(sources
+        .into_iter()
+        .map(|src| ox_ontology::mapping::SourceId::from(src.source_id))
+        .collect())
 }
 
 

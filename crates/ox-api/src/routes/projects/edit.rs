@@ -46,7 +46,7 @@ pub(crate) async fn edit_project(
     principal.require_designer()?;
     // Validate input
     if req.user_request.trim().is_empty() {
-        return Err(AppError::bad_request("user_request must not be empty"));
+        return Err(AppError::required_field_empty("user_request"));
     }
 
     let project = load_mutable_project(&state, id).await?;
@@ -131,8 +131,8 @@ pub(crate) async fn edit_project(
         match cmd.execute(&validated_ontology) {
             Ok(result) => validated_ontology = result.new_ontology,
             Err(e) => {
-                return Err(AppError::unprocessable(format!(
-                    "Command {} failed validation: {e}",
+                return Err(AppError::edit_operation_rejected(format!(
+                    "commands[{}]: {e}",
                     i + 1
                 )));
             }

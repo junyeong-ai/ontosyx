@@ -110,7 +110,7 @@ pub(crate) async fn create_prompt_template(
     // Reject malformed semver up-front so the operator sees a 400 rather
     // than a 500 from the eventual DB CHECK constraint.
     let parsed_version = ox_core::PromptVersion::parse(&req.version)
-        .map_err(|e| AppError::bad_request(format!("Invalid version: {e}")))?;
+        .map_err(|_| AppError::prompt_version_invalid(req.version.clone()))?;
 
     let row = PromptTemplateRow {
         id: Uuid::new_v4(),

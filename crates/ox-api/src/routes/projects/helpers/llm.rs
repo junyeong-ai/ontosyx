@@ -58,17 +58,17 @@ pub(crate) fn build_llm_input(
             // Structured: format from stored schema + profile
             let schema: SourceSchema = ctx
                 .source_schema
-                .ok_or_else(|| AppError::bad_request("Project has no source schema"))
+                .ok_or_else(|| AppError::internal("Project has no source schema"))
                 .and_then(|v| {
                     serde_json::from_value(v.clone())
-                        .map_err(|e| AppError::internal(format!("Corrupt source_schema: {e}")))
+                        .map_err(|e| AppError::internal(format!("deserialize source_schema: {e}")))
                 })?;
             let profile: SourceProfile = ctx
                 .source_profile
-                .ok_or_else(|| AppError::bad_request("Project has no source profile"))
+                .ok_or_else(|| AppError::internal("Project has no source profile"))
                 .and_then(|v| {
                     serde_json::from_value(v.clone())
-                        .map_err(|e| AppError::internal(format!("Corrupt source_profile: {e}")))
+                        .map_err(|e| AppError::internal(format!("deserialize source_profile: {e}")))
                 })?;
 
             let warnings: Vec<AnalysisWarning> = ctx

@@ -52,8 +52,8 @@ pub(crate) async fn normalize_ontology(
     // keeps any emitted mappings identifiable as having come through
     // this path.
     let source_id = SourceId::new("adhoc:normalize-endpoint");
-    let result = normalize(input, &source_id)
-        .map_err(|errors| AppError::bad_request(ox_core::join_messages(&errors, "; ")))?;
+    let result =
+        normalize(input, &source_id).map_err(AppError::ontology_invariant_violation)?;
     Ok(ApiResponse::of(serde_json::json!({
         "ontology": result.ontology,
         "warnings": result.warnings,
@@ -240,13 +240,13 @@ pub(crate) async fn import_owl(
 ) -> Result<Json<ApiResponse<OntologyIR>>, AppError> {
     principal.require_designer()?;
     if req.content.trim().is_empty() {
-        return Err(AppError::bad_request("content must not be empty"));
+        return Err(AppError::required_field_empty("content"));
     }
     // OWL imports carry no data-source binding. Use a static id
     // so any future OWL-to-ObjectMapping extension has a stable
     // identifier to associate emitted mappings with.
     let source_id = SourceId::new("adhoc:owl-import");
     let ontology = import::parse_owl_turtle(&req.content, &source_id)
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+        .map_err(|e| AppError::owl_parse_failed(e.to_string()))?;
     Ok(ApiResponse::of(ontology))
 }

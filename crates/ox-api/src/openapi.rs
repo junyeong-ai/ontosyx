@@ -366,7 +366,7 @@ impl Modify for SecurityAddon {
             crate::response::PageMeta,
             // Health probe wire shape — shared by /api/health (wrapped)
             // and /api/healthz (flat).
-            health::HealthBody,
+            health::HealthResponse,
             health::HealthComponents,
             health::HealthLlm,
             // Chat

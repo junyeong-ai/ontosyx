@@ -78,3 +78,57 @@ Entity locks have a TTL (`collaboration.lock_ttl_secs`, default 300s). Stale loc
 Cursor events are throttled at the hub (`collaboration.cursor_throttle_ms`, default 50ms per user-room pair). Floods inside the window are silently dropped.
 
 Adding a new collaboration message: extend `ClientMessage` or `ServerMessage`, add the matching `Hub` method, wire the variant through `ws::serve_collab`'s match block. The OpenAPI spec picks up the schema change automatically — no separate registry edit.
+
+## Typed error model — `ApiErrorCode` + `params`
+
+Every error response (HTTP body + SSE `error` event) carries the
+typed wire shape:
+
+```json
+{ "error": { "code": "not_found", "class": "client_error", "params": { "entity": "Project" } } }
+```
+
+- `code` — `ApiErrorCode` enum (snake_case wire string, see
+  `error.rs::ApiErrorCode::as_str`).
+- `class` — `client_error` (4xx) or `server_error` (5xx).
+- `params` — interpolation values for the FE i18n catalog at
+  `errors.<code>`. **The backend never produces user-facing prose**
+  — that's the FE's locale concern.
+
+**Don't** use `AppError::bad_request(format!("..."))` for anything
+user-facing. The English string lands in `params.detail`, which the
+i18n template interpolates verbatim — Korean users see English.
+The right move is a domain-specific typed code:
+
+1. Add an `ApiErrorCode` variant (`OntologyVersionConflict`).
+2. Mirror it in `as_str()` and the
+   `every_variant_has_string_and_class` test array.
+3. Add a typed constructor that takes structured params
+   (`AppError::ontology_version_conflict(expected, current)`),
+   not free-form strings.
+4. Add `errors.<code>` templates to `web/messages/{ko,en}.json`.
+
+`pnpm error-code-parity-audit` (CI gate) parses `as_str` and
+asserts every wire string has a matching template in both
+bundles. No silent drift.
+
+5xx params stay empty by convention — driver text never reaches
+the wire body. Operators correlate via the `x-request-id`
+response header set by the request-id middleware. The
+`runtime_5xx_redacts_driver_text` test pins this.
+
+## Cron tasks — `CronTask::singleton_key()` for shared writes
+
+Background sweeps that mutate shared state (stale-concept,
+quality-baseline, soft-delete compaction, draft-checkpoint
+cleanup) override `CronTask::singleton_key()` to return
+`Some(ADVISORY_LOCK_CRON_<NAME>)`. The scheduler then wraps each
+tick in `pg_try_advisory_lock`; only the holding replica runs the
+sweep, others skip silently.
+
+In-process-state tasks (clarification evict, collaboration idle
+reap) keep `singleton_key()` as `None` (default) — every replica
+runs on its own memory.
+
+`spawn_cron(task, Some(pool), cancel)` is the production call;
+`spawn_cron(task, None, cancel)` is test-only.

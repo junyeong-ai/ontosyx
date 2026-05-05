@@ -68,7 +68,8 @@ impl CronTask for ClarificationEvict {
 /// before the process exits.
 pub fn spawn_clarification_evict(
     tracker: SharedClarificationTracker,
+    pool: ox_store::PgPool,
     cancel: CancellationToken,
 ) {
-    spawn_cron(Arc::new(ClarificationEvict { tracker }), cancel);
+    spawn_cron(Arc::new(ClarificationEvict { tracker }), Some(pool), cancel);
 }

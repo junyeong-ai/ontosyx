@@ -34,7 +34,7 @@ pub async fn load_acl_snapshot(
 ) -> Result<Arc<AclSnapshot>, AppError> {
     let user_id = principal.user_uuid().ok();
     let policies = store
-        .get_effective_policies(
+        .list_effective_policies(
             principal.role.as_str(),
             ws.workspace_role.as_str(),
             user_id,

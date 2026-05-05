@@ -195,15 +195,17 @@ pub(crate) async fn create_workspace(
 
     // Validate slug
     if req.slug.is_empty() || req.slug.len() > 100 {
-        return Err(AppError::bad_request("Slug must be 1-100 characters"));
+        return Err(AppError::text_length_out_of_range("slug", 1, 100));
     }
     if !req
         .slug
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
-        return Err(AppError::bad_request(
-            "Slug may only contain alphanumeric characters, hyphens, and underscores",
+        return Err(AppError::identifier_format_invalid(
+            "slug",
+            req.slug.clone(),
+            "slug",
         ));
     }
 
@@ -448,8 +450,9 @@ pub(crate) async fn update_workspace_locale(
 ) -> Result<Json<ApiResponse<WorkspaceResponse>>, AppError> {
     ws_ctx.require_admin()?;
 
-    let primary = ox_core::LanguageTag::parse(&req.primary_locale)
-        .map_err(|e| AppError::bad_request(format!("Invalid primary_locale: {e}")))?;
+    let primary = ox_core::LanguageTag::parse(&req.primary_locale).map_err(|_| {
+        AppError::locale_tag_invalid("primary_locale", req.primary_locale.clone())
+    })?;
 
     let admin_chain = parse_chain(&req.admin_locale_fallback, "admin_locale_fallback")?;
     let llm_chain = parse_chain(&req.llm_locale_fallback, "llm_locale_fallback")?;
@@ -477,14 +480,12 @@ pub(crate) async fn update_workspace_locale(
 /// failed admin / llm chain is unambiguous in the error.
 fn parse_chain(input: &[String], chain_name: &str) -> Result<serde_json::Value, AppError> {
     if input.is_empty() {
-        return Err(AppError::bad_request(format!(
-            "{chain_name} must contain at least one tag"
-        )));
+        return Err(AppError::locale_chain_empty(chain_name));
     }
     let mut canonical: Vec<String> = Vec::with_capacity(input.len());
     for (idx, tag) in input.iter().enumerate() {
-        let parsed = ox_core::LanguageTag::parse(tag).map_err(|e| {
-            AppError::bad_request(format!("Invalid {chain_name}[{idx}] `{tag}`: {e}"))
+        let parsed = ox_core::LanguageTag::parse(tag).map_err(|_| {
+            AppError::locale_tag_invalid(format!("{chain_name}[{idx}]"), tag.clone())
         })?;
         canonical.push(parsed.to_string());
     }
@@ -527,7 +528,7 @@ pub(crate) async fn delete_workspace(
         .ok_or_else(|| AppError::not_found("Workspace"))?;
 
     if workspace.slug == DEFAULT_WORKSPACE_SLUG {
-        return Err(AppError::bad_request("Cannot delete the default workspace"));
+        return Err(AppError::default_workspace_protected());
     }
 
     state
@@ -568,10 +569,11 @@ pub(crate) async fn add_member(
 
     // Validate role
     if !ASSIGNABLE_WORKSPACE_ROLES.contains(&req.role.as_str()) {
-        return Err(AppError::bad_request(format!(
-            "Invalid role '{}'. Assignable roles: {:?}",
-            req.role, ASSIGNABLE_WORKSPACE_ROLES
-        )));
+        return Err(AppError::invalid_enum_value(
+            "role",
+            req.role.clone(),
+            ASSIGNABLE_WORKSPACE_ROLES,
+        ));
     }
 
     let member = state
@@ -606,8 +608,8 @@ pub(crate) async fn remove_member(
     Path((id, uid)): Path<(Uuid, Uuid)>,
     principal: Principal,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let caller_id =
-        Uuid::parse_str(&principal.id).map_err(|_| AppError::unauthorized("Invalid user ID"))?;
+    let caller_id = Uuid::parse_str(&principal.id)
+        .map_err(|_| AppError::auth_token_claim_invalid("user_id"))?;
 
     // Allow self-removal, or require admin
     if uid != caller_id {
@@ -623,9 +625,7 @@ pub(crate) async fn remove_member(
         .ok_or_else(|| AppError::not_found("Workspace"))?;
 
     if workspace.owner_id == uid {
-        return Err(AppError::bad_request(
-            "Cannot remove the workspace owner. Transfer ownership first.",
-        ));
+        return Err(AppError::workspace_owner_protected("remove"));
     }
 
     let removed = state
@@ -668,10 +668,11 @@ pub(crate) async fn update_member_role(
     ws_ctx.require_admin()?;
 
     if !ASSIGNABLE_WORKSPACE_ROLES.contains(&req.role.as_str()) {
-        return Err(AppError::bad_request(format!(
-            "Invalid role '{}'. Assignable roles: {:?}",
-            req.role, ASSIGNABLE_WORKSPACE_ROLES
-        )));
+        return Err(AppError::invalid_enum_value(
+            "role",
+            req.role.clone(),
+            ASSIGNABLE_WORKSPACE_ROLES,
+        ));
     }
 
     // Cannot change owner role
@@ -683,9 +684,7 @@ pub(crate) async fn update_member_role(
         .ok_or_else(|| AppError::not_found("Workspace"))?;
 
     if workspace.owner_id == uid {
-        return Err(AppError::bad_request(
-            "Cannot change the workspace owner's role",
-        ));
+        return Err(AppError::workspace_owner_protected("change_role"));
     }
 
     state

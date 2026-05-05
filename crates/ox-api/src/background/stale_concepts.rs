@@ -54,17 +54,26 @@ impl CronTask for StaleConceptScan {
         SCAN_INTERVAL
     }
 
+    fn singleton_key(&self) -> Option<i64> {
+        Some(*ox_store::advisory_lock::ADVISORY_LOCK_CRON_STALE_CONCEPTS)
+    }
+
     async fn run_once(&self) -> ox_core::error::OxResult<()> {
         run_scan(self.store.as_ref(), self.stale_after_days).await
     }
 }
 
-pub fn spawn_stale_concept_scan(store: Arc<dyn Store>, cancel: CancellationToken) {
+pub fn spawn_stale_concept_scan(
+    store: Arc<dyn Store>,
+    pool: ox_store::PgPool,
+    cancel: CancellationToken,
+) {
     spawn_cron(
         Arc::new(StaleConceptScan {
             store,
             stale_after_days: DEFAULT_STALE_AFTER_DAYS,
         }),
+        Some(pool),
         cancel,
     );
 }

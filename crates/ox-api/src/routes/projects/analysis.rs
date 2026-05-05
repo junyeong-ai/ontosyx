@@ -96,9 +96,7 @@ pub(crate) async fn reanalyze_modeled_project(
     let scope: ox_source::AnalysisScope =
         serde_json::from_value(project.analysis_scope.clone()).unwrap_or_default();
     if scope.included.is_empty() {
-        return Err(AppError::bad_request(
-            "no modeled tables — promote at least one deferred table or use the regular reanalyze endpoint",
-        ));
+        return Err(AppError::reanalyze_no_modeled_tables());
     }
     let selection = AnalyzeSelection::Subset {
         tables: scope.included.clone(),
@@ -132,7 +130,7 @@ async fn run_reanalyze(
     let project = load_mutable_project(state, id).await?;
 
     let stored_config: SourceConfig = serde_json::from_value(project.source_config.clone())
-        .map_err(|e| AppError::bad_request(format!("Corrupt source_config: {e}")))?;
+        .map_err(|e| AppError::internal(format!("deserialize source_config: {e}")))?;
 
     // Validate source type matches
     let new_source_type = match &inputs.source {
@@ -149,10 +147,10 @@ async fn run_reanalyze(
     };
 
     if new_source_type != stored_config.source_type {
-        return Err(AppError::bad_request(format!(
-            "Source type mismatch: project is '{}' but reanalyze got '{}'",
-            stored_config.source_type, new_source_type
-        )));
+        return Err(AppError::source_type_mismatch(
+            stored_config.source_type.to_string(),
+            new_source_type.to_string(),
+        ));
     }
 
     // Re-analyze (CodeRepository has a separate path requiring LLM calls)

@@ -273,14 +273,14 @@ pub(crate) async fn analyze_code_repository(
         branch,
     } = &validated
     else {
-        return Err(AppError::bad_request(
-            "CodeRepository source requires a git URL",
+        return Err(AppError::internal(
+            "analyze_code_repository: validated source matched non-GitUrl variant",
         ));
     };
 
     let clone_result = clone_repo(validated_url, branch.as_deref())
         .await
-        .map_err(|e| AppError::bad_request(format!("Git clone failed: {e}")))?;
+        .map_err(|e| AppError::repo_analysis_failed("clone", e.to_string()))?;
 
     let introspector = clone_result.introspector;
     let _guard = clone_result.tmpdir; // Keep alive until analysis completes
@@ -291,7 +291,7 @@ pub(crate) async fn analyze_code_repository(
     // Generate file tree
     let (file_tree, tree_truncated) = introspector
         .generate_tree()
-        .map_err(|e| AppError::bad_request(format!("Cannot generate file tree: {e}")))?;
+        .map_err(|e| AppError::repo_analysis_failed("tree", e.to_string()))?;
 
     let timeout =
         std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
@@ -308,20 +308,16 @@ pub(crate) async fn analyze_code_repository(
         .map_err(|e| AppError::internal(format!("Repo navigation failed: {e}")))?;
 
     if selected_files.is_empty() {
-        return Err(AppError::bad_request(
-            "No relevant files found in repository for analysis",
-        ));
+        return Err(AppError::repo_analysis_failed("empty_selection", ""));
     }
 
     // Read selected files
     let file_contents = introspector
         .read_files(&selected_files)
-        .map_err(|e| AppError::bad_request(format!("Cannot read repo files: {e}")))?;
+        .map_err(|e| AppError::repo_analysis_failed("read", e.to_string()))?;
 
     if file_contents.is_empty() {
-        return Err(AppError::bad_request(
-            "Selected files could not be read from repository",
-        ));
+        return Err(AppError::repo_analysis_failed("empty_content", ""));
     }
 
     // Analyze files (LLM extracts enums/relationships)
@@ -346,9 +342,7 @@ pub(crate) async fn analyze_code_repository(
     let (schema, profile) = repo_insights_to_schema(&insights);
 
     if schema.tables.is_empty() {
-        return Err(AppError::bad_request(
-            "No ORM models or entities found in repository",
-        ));
+        return Err(AppError::repo_analysis_failed("empty_models", ""));
     }
 
     // Build analysis report from the derived schema. Repo-origin sources

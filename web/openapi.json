@@ -2095,7 +2095,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthBody"
+                  "$ref": "#/components/schemas/HealthResponse"
                 }
               }
             }
@@ -2115,7 +2115,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthBody"
+                  "$ref": "#/components/schemas/HealthResponse"
                 }
               }
             }
@@ -14604,7 +14604,45 @@
           }
         }
       },
-      "HealthBody": {
+      "HealthComponents": {
+        "type": "object",
+        "required": [
+          "postgres",
+          "graph",
+          "graph_backend",
+          "llm"
+        ],
+        "properties": {
+          "graph": {
+            "type": "string"
+          },
+          "graph_backend": {
+            "type": "string"
+          },
+          "llm": {
+            "$ref": "#/components/schemas/HealthLlm"
+          },
+          "postgres": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthLlm": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthResponse": {
         "type": "object",
         "description": "Wire shape of both `/api/health` (wrapped in `ApiResponse`) and\n`/api/healthz` (returned flat).",
         "required": [
@@ -14624,45 +14662,6 @@
             "type": "string"
           },
           "version": {
-            "type": "string"
-          }
-        }
-      },
-      "HealthComponents": {
-        "type": "object",
-        "required": [
-          "postgres",
-          "neo4j",
-          "graph_backend",
-          "llm"
-        ],
-        "properties": {
-          "graph_backend": {
-            "type": "string"
-          },
-          "llm": {
-            "$ref": "#/components/schemas/HealthLlm"
-          },
-          "neo4j": {
-            "type": "string",
-            "description": "Kept under the `neo4j` key for backward compatibility with\nexisting FE/monitors. The actual backend name lives in\n`graph_backend`."
-          },
-          "postgres": {
-            "type": "string"
-          }
-        }
-      },
-      "HealthLlm": {
-        "type": "object",
-        "required": [
-          "provider",
-          "model"
-        ],
-        "properties": {
-          "model": {
-            "type": "string"
-          },
-          "provider": {
             "type": "string"
           }
         }
@@ -15968,10 +15967,17 @@
             "$ref": "#/components/schemas/NodeTypeId",
             "description": "Node type this mapping fulfils. The planner expands a\n`MATCH (n:Label)` to every mapping whose `node_type_id`\nresolves to that label, respecting `precedence`."
           },
+          "partition_columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ColumnRef"
+            },
+            "description": "Partitioning columns the source enforces. When non-empty the\n`SemanticGuardValidator` rejects queries that lack a literal\npredicate on at least one of these columns — translates the\n`require_partition_filter=true` contract from BigQuery /\nSnowflake / Hive into a pre-flight check instead of a\nper-query round-trip rejection."
+          },
           "precedence": {
             "type": "integer",
             "format": "int32",
-            "description": "Higher precedence wins in multi-mapping dedup. A new mapping\nthat shadows an older one simply uses a higher number; the\noldest mapping can stay registered for audit purposes.",
+            "description": "Higher precedence wins in multi-mapping dedup. A new mapping\nthat shadows an older one simply uses a higher number; the\noldest mapping can stay registered for audit purposes. Ties\nresolve by `id` ascending so the resolved order is independent\nof insertion sequence.",
             "minimum": 0
           },
           "primary_key_columns": {
@@ -16445,7 +16451,7 @@
               "string",
               "null"
             ],
-            "description": "Opaque cursor for the next page. `None` when this is the last page."
+            "description": "Opaque cursor for the next page. `None` when this is the last page.\nSkipped on the wire when absent so the FE schema can stay\n`next_cursor?: string` without a `.nullable()` widening."
           }
         }
       },
@@ -20954,6 +20960,52 @@
               },
               "user_id": {
                 "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Another member committed ontology commands to the project.\nBroadcast after a successful `apply_ontology_commands` save so\nevery collaborator's command-stack baseline can advance,\nsurfacing the merge surface (`MergeBanner` →\n`CommandStackDiffDialog`) with a fully-rendered remote-ops\ninventory instead of the opaque \"remote arrived\" fallback.\n\n`base_revision` is the revision the commit was authored\nagainst; `new_revision` is the revision after the commit\nlanded; `commands` is the exact ordered op list the author\napplied (oldest first).",
+            "required": [
+              "project_id",
+              "author_user_id",
+              "author_user_name",
+              "base_revision",
+              "new_revision",
+              "commands",
+              "type"
+            ],
+            "properties": {
+              "author_user_id": {
+                "type": "string"
+              },
+              "author_user_name": {
+                "type": "string"
+              },
+              "base_revision": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "commands": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                },
+                "description": "`OntologyCommand` is internally tagged JSON; utoipa can't\nderive a static schema for the runtime variant set, so the\nwire shape surfaces as `Vec<Object>` in OpenAPI and the FE\nreads it through the typed `OntologyCommand` union."
+              },
+              "new_revision": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "entity_updated"
+                ]
               }
             }
           },

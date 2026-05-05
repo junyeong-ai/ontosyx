@@ -71,11 +71,12 @@ pub(crate) async fn build_adapter(
     registry: &AdapterRegistry,
 ) -> Result<PreparedAdapter, AppError> {
     match source {
-        ProjectSource::Text { .. } => Err(AppError::bad_request(
-            "Text source has no adapter — handle through the lifecycle path",
+        ProjectSource::Text { .. } => Err(AppError::internal(
+            "build_adapter called with Text source — Text routes through the project lifecycle path",
         )),
-        ProjectSource::CodeRepository { .. } => Err(AppError::bad_request(
-            "CodeRepository source must be handled by the project lifecycle handler",
+        ProjectSource::CodeRepository { .. } => Err(AppError::internal(
+            "build_adapter called with CodeRepository source — \
+             CodeRepository routes through the project lifecycle path",
         )),
 
         ProjectSource::Csv { data } => {
@@ -92,7 +93,7 @@ pub(crate) async fn build_adapter(
                     },
                 )
                 .await
-                .ok_or_else(|| AppError::bad_request("CSV source type is not registered"))?
+                .ok_or_else(|| AppError::feature_not_configured("source_csv"))?
                 .map_err(AppError::from)?;
             Ok(PreparedAdapter {
                 adapter,
@@ -119,7 +120,7 @@ pub(crate) async fn build_adapter(
                     },
                 )
                 .await
-                .ok_or_else(|| AppError::bad_request("JSON source type is not registered"))?
+                .ok_or_else(|| AppError::feature_not_configured("source_json"))?
                 .map_err(AppError::from)?;
             Ok(PreparedAdapter {
                 adapter,
@@ -148,7 +149,7 @@ pub(crate) async fn build_adapter(
                     },
                 )
                 .await
-                .ok_or_else(|| AppError::bad_request("PostgreSQL source type is not registered"))?
+                .ok_or_else(|| AppError::feature_not_configured("source_postgresql"))?
                 .map_err(AppError::from)?;
             Ok(PreparedAdapter {
                 adapter,
@@ -177,7 +178,7 @@ pub(crate) async fn build_adapter(
                     },
                 )
                 .await
-                .ok_or_else(|| AppError::bad_request("MySQL source type is not registered"))?
+                .ok_or_else(|| AppError::feature_not_configured("source_mysql"))?
                 .map_err(AppError::from)?;
             Ok(PreparedAdapter {
                 adapter,
@@ -206,7 +207,7 @@ pub(crate) async fn build_adapter(
                     },
                 )
                 .await
-                .ok_or_else(|| AppError::bad_request("MongoDB source type is not registered"))?
+                .ok_or_else(|| AppError::feature_not_configured("source_mongodb"))?
                 .map_err(AppError::from)?;
             Ok(PreparedAdapter {
                 adapter,
@@ -242,7 +243,7 @@ pub(crate) async fn build_adapter(
                     },
                 )
                 .await
-                .ok_or_else(|| AppError::bad_request("Snowflake source type is not registered"))?
+                .ok_or_else(|| AppError::feature_not_configured("source_snowflake"))?
                 .map_err(AppError::from)?;
             Ok(PreparedAdapter {
                 adapter,
@@ -295,7 +296,7 @@ pub(crate) async fn build_adapter(
                     },
                 )
                 .await
-                .ok_or_else(|| AppError::bad_request("BigQuery source type is not registered"))?
+                .ok_or_else(|| AppError::feature_not_configured("source_bigquery"))?
                 .map_err(AppError::from)?;
             Ok(PreparedAdapter {
                 adapter,
@@ -320,7 +321,7 @@ pub(crate) async fn build_adapter(
                     },
                 )
                 .await
-                .ok_or_else(|| AppError::bad_request("DuckDB source type is not registered"))?
+                .ok_or_else(|| AppError::feature_not_configured("source_duckdb"))?
                 .map_err(AppError::from)?;
             Ok(PreparedAdapter {
                 adapter,

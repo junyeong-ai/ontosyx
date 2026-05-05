@@ -461,7 +461,11 @@ pub(crate) async fn chat_stream(
                             tracing::error!(error = %e, "Agent event stream error");
                             yield Ok(Event::default().event("error").data(
                                 serde_json::json!({
-                                    "error": { "type": "agent_error", "message": format!("{e}") }
+                                    "error": {
+                                        "code": "agent_error",
+                                        "class": "server_error",
+                                        "params": { "detail": format!("{e}") }
+                                    }
                                 }).to_string()
                             ));
                             return;
@@ -474,7 +478,11 @@ pub(crate) async fn chat_stream(
                 tracing::error!(error = %e, "execute_stream() failed");
                 yield Ok(Event::default().event("error").data(
                     serde_json::json!({
-                        "error": { "type": "agent_error", "message": format!("{e}") }
+                        "error": {
+                            "code": "agent_error",
+                            "class": "server_error",
+                            "params": { "detail": format!("{e}") }
+                        }
                     }).to_string()
                 ));
             }

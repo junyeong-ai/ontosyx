@@ -108,9 +108,7 @@ pub(super) async fn verify_ops_apply(
             decide_edit_routing(&rule.routing, &ctx),
             EditRoutingDecision::Queue
         ) {
-            return Err(AppError::conflict(
-                "edit queued for approval — automation policy requires review",
-            ));
+            return Err(AppError::edit_queued_for_approval());
         }
     }
     Ok(())

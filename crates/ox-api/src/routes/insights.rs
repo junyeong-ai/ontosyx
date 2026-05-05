@@ -120,9 +120,7 @@ fn default_me() -> bool {
 fn validate_query_ir(value: &serde_json::Value) -> Result<(), AppError> {
     serde_json::from_value::<ox_query_ir::query::QueryIR>(value.clone())
         .map(|_| ())
-        .map_err(|e| {
-            AppError::unprocessable(format!("query_ir is not a valid QueryIR: {e}"))
-        })
+        .map_err(|e| AppError::query_ir_invalid(e.to_string()))
 }
 
 #[utoipa::path(

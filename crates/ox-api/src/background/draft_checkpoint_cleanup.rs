@@ -42,13 +42,21 @@ impl CronTask for DraftCheckpointCleanup {
         SWEEP_INTERVAL
     }
 
+    fn singleton_key(&self) -> Option<i64> {
+        Some(*ox_store::advisory_lock::ADVISORY_LOCK_CRON_DRAFT_CHECKPOINT)
+    }
+
     async fn run_once(&self) -> ox_core::error::OxResult<()> {
         run_sweep(self.store.as_ref()).await
     }
 }
 
-pub fn spawn_draft_checkpoint_cleanup(store: Arc<dyn Store>, cancel: CancellationToken) {
-    spawn_cron(Arc::new(DraftCheckpointCleanup { store }), cancel);
+pub fn spawn_draft_checkpoint_cleanup(
+    store: Arc<dyn Store>,
+    pool: ox_store::PgPool,
+    cancel: CancellationToken,
+) {
+    spawn_cron(Arc::new(DraftCheckpointCleanup { store }), Some(pool), cancel);
 }
 
 async fn run_sweep(store: &dyn Store) -> ox_core::error::OxResult<()> {

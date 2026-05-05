@@ -57,9 +57,7 @@ pub(crate) async fn include_scope_tables(
 ) -> Result<Json<ApiResponse<ScopeUpdateResponse>>, AppError> {
     principal.require_designer()?;
     if req.tables.is_empty() {
-        return Err(AppError::bad_request(
-            "scope/include requires at least one table",
-        ));
+        return Err(AppError::required_field_empty("tables"));
     }
 
     let project = load_mutable_project(&state, id).await?;
@@ -109,21 +107,17 @@ pub(crate) async fn defer_scope_tables(
 ) -> Result<Json<ApiResponse<ScopeUpdateResponse>>, AppError> {
     principal.require_designer()?;
     if req.tables.is_empty() {
-        return Err(AppError::bad_request(
-            "scope/defer requires at least one table",
-        ));
+        return Err(AppError::required_field_empty("tables"));
     }
     if req.reason.trim().is_empty() {
-        return Err(AppError::bad_request(
-            "scope/defer requires a non-empty reason",
-        ));
+        return Err(AppError::required_field_empty("reason"));
     }
 
     let project = load_mutable_project(&state, id).await?;
 
     if let Some(ontology_json) = project.ontology.as_ref() {
         let ontology: OntologyIR = serde_json::from_value(ontology_json.clone())
-            .map_err(|e| AppError::internal(format!("Corrupt ontology: {e}")))?;
+            .map_err(|e| AppError::internal(format!("deserialize ontology: {e}")))?;
         let modeled: BTreeSet<&str> = ontology
             .object_mappings()
             .iter()
@@ -135,14 +129,8 @@ pub(crate) async fn defer_scope_tables(
             .filter(|t| modeled.contains(t.as_str()))
             .collect();
         if !blocked.is_empty() {
-            return Err(AppError::conflict(format!(
-                "cannot defer modeled tables: {} — retract the bound NodeType first",
-                blocked
-                    .iter()
-                    .map(|s| s.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )));
+            let blocked_list: Vec<&str> = blocked.iter().map(|s| s.as_str()).collect();
+            return Err(AppError::scope_defer_modeled_tables(&blocked_list));
         }
     }
 

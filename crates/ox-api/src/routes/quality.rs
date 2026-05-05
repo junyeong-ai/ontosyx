@@ -481,23 +481,28 @@ fn build_quality_cypher(rule: &QualityRule) -> Result<String, AppError> {
     // Sanitize label: only allow alphanumeric + underscore (prevent injection)
     let label = &rule.target_label;
     if !label.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        return Err(AppError::bad_request(format!(
-            "Invalid target label: {label}"
-        )));
+        return Err(AppError::identifier_format_invalid(
+            "target_label",
+            label.clone(),
+            "cypher_label",
+        ));
     }
 
     let prop = rule.target_property.as_deref().unwrap_or("");
     if !prop.is_empty() && !prop.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        return Err(AppError::bad_request(format!(
-            "Invalid target property: {prop}"
-        )));
+        return Err(AppError::identifier_format_invalid(
+            "target_property",
+            prop.to_string(),
+            "cypher_property",
+        ));
     }
 
     match rule.rule_type.as_str() {
         "completeness" => {
             if prop.is_empty() {
-                return Err(AppError::bad_request(
-                    "Completeness rules require a target_property",
+                return Err(AppError::quality_rule_requires_field(
+                    "completeness",
+                    "target_property",
                 ));
             }
             Ok(format!(
@@ -509,8 +514,9 @@ fn build_quality_cypher(rule: &QualityRule) -> Result<String, AppError> {
         }
         "uniqueness" => {
             if prop.is_empty() {
-                return Err(AppError::bad_request(
-                    "Uniqueness rules require a target_property",
+                return Err(AppError::quality_rule_requires_field(
+                    "uniqueness",
+                    "target_property",
                 ));
             }
             Ok(format!(
@@ -542,8 +548,9 @@ fn build_quality_cypher(rule: &QualityRule) -> Result<String, AppError> {
         "consistency" => {
             // Consistency: check that a property is non-null when it exists
             if prop.is_empty() {
-                return Err(AppError::bad_request(
-                    "Consistency rules require a target_property",
+                return Err(AppError::quality_rule_requires_field(
+                    "consistency",
+                    "target_property",
                 ));
             }
             Ok(format!(
@@ -556,8 +563,9 @@ fn build_quality_cypher(rule: &QualityRule) -> Result<String, AppError> {
         "custom" => {
             let cypher = rule.cypher_check.as_deref().unwrap_or("").trim();
             if cypher.is_empty() {
-                return Err(AppError::bad_request(
-                    "Custom rules require a cypher_check query",
+                return Err(AppError::quality_rule_requires_field(
+                    "custom",
+                    "cypher_check",
                 ));
             }
             // Validate that the custom query is read-only
@@ -565,13 +573,15 @@ fn build_quality_cypher(rule: &QualityRule) -> Result<String, AppError> {
             const WRITE_KEYWORDS: &[&str] =
                 &["DELETE", "DETACH", "CREATE", "MERGE", "SET ", "REMOVE "];
             if WRITE_KEYWORDS.iter().any(|kw| upper.contains(kw)) {
-                return Err(AppError::bad_request(
-                    "Custom cypher_check must be read-only (no write operations)",
-                ));
+                return Err(AppError::cypher_must_be_read_only("cypher_check"));
             }
             Ok(cypher.to_string())
         }
-        other => Err(AppError::bad_request(format!("Unknown rule type: {other}"))),
+        other => Err(AppError::invalid_enum_value(
+            "rule_type",
+            other.to_string(),
+            &["completeness", "uniqueness", "freshness", "consistency", "custom"],
+        )),
     }
 }
 
@@ -629,10 +639,7 @@ async fn execute_single_rule(
 
     let params: HashMap<String, PropertyValue> = HashMap::new();
     let query_result = runtime.execute_query(&cypher, &params).await.map_err(|e| {
-        AppError::unprocessable(format!(
-            "Quality query failed for rule '{}': {e}",
-            rule.name
-        ))
+        AppError::quality_rule_query_failed(rule.name.clone(), e.to_string())
     })?;
 
     let (violations, total) = parse_violations(&query_result);
@@ -862,9 +869,11 @@ pub(crate) async fn decide_stale_proposal(
         "approved" => StaleProposalDecision::Approved,
         "dismissed" => StaleProposalDecision::Dismissed,
         other => {
-            return Err(AppError::bad_request(format!(
-                "decision must be \"approved\" or \"dismissed\"; got \"{other}\""
-            )));
+            return Err(AppError::invalid_enum_value(
+                "decision",
+                other.to_string(),
+                &["approved", "dismissed"],
+            ));
         }
     };
     let row = state

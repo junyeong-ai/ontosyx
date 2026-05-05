@@ -62,7 +62,8 @@ impl CronTask for CollabIdleReap {
 pub fn spawn_collab_idle_reap(
     hub: Arc<dyn CollaborationHub>,
     interval: Duration,
+    pool: ox_store::PgPool,
     cancel: CancellationToken,
 ) {
-    spawn_cron(Arc::new(CollabIdleReap { hub, interval }), cancel);
+    spawn_cron(Arc::new(CollabIdleReap { hub, interval }), Some(pool), cancel);
 }

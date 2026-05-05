@@ -260,12 +260,13 @@ pub(crate) async fn update_recipe_status(
 ) -> Result<StatusCode, AppError> {
     principal.require_admin()?;
 
-    let valid_statuses = ["draft", "approved", "deprecated"];
-    if !valid_statuses.contains(&req.status.as_str()) {
-        return Err(AppError::bad_request(format!(
-            "Invalid status: {}. Must be one of: draft, approved, deprecated",
-            req.status
-        )));
+    const VALID_STATUSES: &[&str] = &["draft", "approved", "deprecated"];
+    if !VALID_STATUSES.contains(&req.status.as_str()) {
+        return Err(AppError::invalid_enum_value(
+            "status",
+            req.status.clone(),
+            VALID_STATUSES,
+        ));
     }
 
     // Verify recipe exists

@@ -60,6 +60,10 @@ impl CronTask for SoftDeleteCompaction {
         false
     }
 
+    fn singleton_key(&self) -> Option<i64> {
+        Some(*ox_store::advisory_lock::ADVISORY_LOCK_CRON_SOFT_DELETE)
+    }
+
     async fn run_once(&self) -> OxResult<()> {
         let cutoff_ms = current_cutoff_ms(self.retention_days);
         let mut params = HashMap::new();
@@ -95,6 +99,7 @@ fn current_cutoff_ms(retention_days: i64) -> i64 {
 
 pub fn spawn_soft_delete_compaction(
     runtime: Arc<dyn GraphRuntime>,
+    pool: ox_store::PgPool,
     cancel: CancellationToken,
 ) {
     spawn_cron(
@@ -102,6 +107,7 @@ pub fn spawn_soft_delete_compaction(
             runtime,
             retention_days: DEFAULT_RETENTION_DAYS,
         }),
+        Some(pool),
         cancel,
     );
 }

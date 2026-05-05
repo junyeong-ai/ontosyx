@@ -116,7 +116,7 @@ pub(crate) async fn update_config(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_admin()?;
     if req.updates.is_empty() {
-        return Err(AppError::bad_request("No updates provided"));
+        return Err(AppError::required_field_empty("updates"));
     }
 
     let batch: Vec<(String, String, String)> = req

@@ -47,6 +47,20 @@ pub trait CronTask: Send + Sync + 'static {
         true
     }
 
+    /// Singleton coordination key. When `Some`, every tick first
+    /// tries to acquire `pg_try_advisory_lock(key)`; only the
+    /// holding replica runs `run_once`, the rest skip until the
+    /// next interval. Use for sweeps that race on shared writes
+    /// (stale-concept marker bumps, baseline rollups, soft-delete
+    /// compactions) — without singleton coordination every
+    /// horizontal replica runs the same job concurrently. Returning
+    /// `None` (default) lets every replica run on every tick — the
+    /// right shape for jobs that are either side-effect-free reads
+    /// or naturally idempotent under contention.
+    fn singleton_key(&self) -> Option<i64> {
+        None
+    }
+
     /// Run the job once. Errors are logged at WARN by the
     /// scheduler and do not stop the loop — a cron is best-effort
     /// and a single failed sweep shouldn't wedge the interval.
@@ -57,7 +71,18 @@ pub trait CronTask: Send + Sync + 'static {
 /// `WORKSPACE_ID` task-locals are set by `spawn_system`; individual
 /// tasks enter per-workspace scopes inside `run_once` when they
 /// need RLS-scoped writes.
-pub fn spawn_cron(task: Arc<dyn CronTask>, cancel: CancellationToken) {
+///
+/// When the task declares a `singleton_key` AND `pool` is `Some`,
+/// the tick first tries to acquire that PostgreSQL advisory lock;
+/// the holding replica runs `run_once` and the rest skip. The skip
+/// is silent — racing replicas are an expected, healthy state, not
+/// a warning surface. `pool: None` is the test-only path: no
+/// singleton coordination, every spawn always runs.
+pub fn spawn_cron(
+    task: Arc<dyn CronTask>,
+    pool: Option<ox_store::PgPool>,
+    cancel: CancellationToken,
+) {
     let task_for_spawn = Arc::clone(&task);
     crate::spawn_scoped::spawn_system(async move {
         let mut ticker = tokio::time::interval(task_for_spawn.interval());
@@ -74,7 +99,19 @@ pub fn spawn_cron(task: Arc<dyn CronTask>, cancel: CancellationToken) {
                     break;
                 }
                 _ = ticker.tick() => {
-                    if let Err(e) = task_for_spawn.run_once().await {
+                    let outcome = match (task_for_spawn.singleton_key(), &pool) {
+                        (Some(key), Some(p)) => {
+                            ox_store::advisory_lock::try_advisory_lock(
+                                p,
+                                key,
+                                || task_for_spawn.run_once(),
+                            )
+                            .await
+                            .map(|opt| opt.is_some())
+                        }
+                        _ => task_for_spawn.run_once().await.map(|_| true),
+                    };
+                    if let Err(e) = outcome {
                         warn!(
                             cron = task_for_spawn.name(),
                             error = %e,
@@ -190,7 +227,7 @@ mod tests {
             fail: false,
         });
         let cancel = CancellationToken::new();
-        spawn_cron(task, cancel.clone());
+        spawn_cron(task, None, cancel.clone());
         cancel.cancel();
         // Yield so the spawned task observes the cancel.
         tokio::task::yield_now().await;

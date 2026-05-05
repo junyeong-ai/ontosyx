@@ -35,18 +35,20 @@ static WEBHOOK_CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLoc
 pub(crate) fn validate_channel_type(ct: &str) -> Result<(), AppError> {
     match ct {
         "slack_webhook" | "generic_webhook" => Ok(()),
-        _ => Err(AppError::bad_request(format!(
-            "Unsupported channel type: {ct}. Supported: slack_webhook, generic_webhook"
-        ))),
+        _ => Err(AppError::invalid_enum_value(
+            "channel_type",
+            ct.to_string(),
+            &["slack_webhook", "generic_webhook"],
+        )),
     }
 }
 
 pub(crate) fn validate_webhook_url(url: &str) -> Result<(), AppError> {
-    let parsed = reqwest::Url::parse(url)
-        .map_err(|e| AppError::bad_request(format!("Invalid webhook URL: {e}")))?;
+    let parsed =
+        reqwest::Url::parse(url).map_err(|_| AppError::webhook_url_invalid("parse_failed"))?;
 
     if !matches!(parsed.scheme(), "http" | "https") {
-        return Err(AppError::bad_request("Webhook URL must use HTTP or HTTPS"));
+        return Err(AppError::webhook_url_invalid("bad_scheme"));
     }
 
     if let Some(host) = parsed.host_str() {
@@ -64,9 +66,7 @@ pub(crate) fn validate_webhook_url(url: &str) -> Result<(), AppError> {
             || host.starts_with("172.31.")
             || host.starts_with("169.254.");
         if blocked {
-            return Err(AppError::bad_request(
-                "Webhook URL must not target internal networks",
-            ));
+            return Err(AppError::webhook_url_invalid("internal_network"));
         }
     }
 

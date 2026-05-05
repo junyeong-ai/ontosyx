@@ -106,10 +106,7 @@ pub(crate) fn validate_decisions(
     if invalid.is_empty() {
         Ok(())
     } else {
-        Err(AppError::bad_request(format!(
-            "Invalid decisions referencing nonexistent schema elements: {}",
-            invalid.join("; ")
-        )))
+        Err(AppError::decision_invalid_schema_refs(invalid))
     }
 }
 
@@ -143,16 +140,11 @@ pub(crate) fn enforce_design_gates(
         .iter()
         .filter(|g| g.status == GateStatus::Unmet && g.blocks_design)
         .collect();
-    Err(AppError::unprocessable_with_details(
-        "design_gates_unmet",
-        "Resolve every blocking design gate before designing",
-        serde_json::json!({
-            "code": "design_gates_unmet",
-            "unmet": unmet_ids,
-            "gates": summary,
-            "report": report,
-        }),
-    ))
+    Err(AppError::design_gates_unmet(serde_json::json!({
+        "unmet": unmet_ids,
+        "gates": summary,
+        "report": report,
+    })))
 }
 
 /// Structural validation of `column_clarifications` — referenced

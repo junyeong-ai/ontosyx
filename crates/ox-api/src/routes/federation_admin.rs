@@ -226,7 +226,7 @@ impl RegisterAdapterKind {
     ///
     /// A malformed row (unknown kind, missing credential, missing
     /// required `schema_name` for mysql, etc.) surfaces as
-    /// `AppError::bad_request`; the hydration path treats that as
+    /// `AppError::internal`; the hydration path treats that as
     /// "skip this row with a warn".
     pub fn from_stored(kind: &str, config: &serde_json::Value) -> Result<Self, AppError> {
         fn decode<T: for<'de> Deserialize<'de>>(
@@ -234,7 +234,7 @@ impl RegisterAdapterKind {
             config: &serde_json::Value,
         ) -> Result<T, AppError> {
             serde_json::from_value(config.clone()).map_err(|e| {
-                AppError::bad_request(format!(
+                AppError::internal(format!(
                     "data_source kind '{kind}' has an invalid stored config: {e}"
                 ))
             })
@@ -277,9 +277,11 @@ impl RegisterAdapterKind {
                 let StoredCredOnlyBody { credential } = decode("bigquery", config)?;
                 Ok(Self::Bigquery { credential })
             }
-            other => Err(AppError::bad_request(format!(
-                "data_source kind '{other}' is not supported by this server"
-            ))),
+            other => Err(AppError::invalid_enum_value(
+                "kind",
+                other.to_string(),
+                &["csv", "json", "postgres", "mysql", "bigquery"],
+            )),
         }
     }
 
@@ -288,7 +290,7 @@ impl RegisterAdapterKind {
     /// Resolves the credential through the supplied [`SecretResolver`],
     /// then forwards to the per-adapter `connect` / `new`. A
     /// malformed payload, a bad connection URL, or a missing env var
-    /// all surface as `AppError::bad_request` so the register
+    /// all surface as a typed `ApiErrorCode` so the register
     /// handler can return a 400 without touching the store.
     pub async fn build_adapter(
         &self,
@@ -395,7 +397,7 @@ pub(crate) async fn register_adapter(
     principal.require_admin()?;
 
     if req.source_id.trim().is_empty() {
-        return Err(AppError::bad_request("source_id must not be empty"));
+        return Err(AppError::required_field_empty("source_id"));
     }
 
     let source_type = req.kind.kind_tag().to_string();
@@ -1074,12 +1076,10 @@ pub(crate) async fn analyze_adapter(
         req.selection,
         AnalyzeSelection::Extend { .. } | AnalyzeSelection::Reduce { .. }
     ) {
-        let snapshot = row.last_analysis_snapshot.clone().ok_or_else(|| {
-            AppError::bad_request(
-                "extend / reduce require an existing analysis snapshot — \
-                 run a base analyse first",
-            )
-        })?;
+        let snapshot = row
+            .last_analysis_snapshot
+            .clone()
+            .ok_or_else(AppError::analysis_baseline_required)?;
         let parsed: ox_source::AnalysisResult =
             serde_json::from_value(snapshot).map_err(|e| {
                 AppError::internal(format!(
@@ -1429,7 +1429,10 @@ mod tests {
         let err = RegisterAdapterKind::from_stored("duckdb", &json!({"credential": {"kind": "inline", "value": "x"}}))
             .unwrap_err();
         let msg = format!("{err:?}");
-        assert!(msg.contains("duckdb") && msg.contains("not supported"), "{msg}");
+        // Typed wire: ApiErrorCode::InvalidEnumValue with params
+        // {field: "kind", value: "duckdb", allowed: "csv, json, ..."}.
+        // The Debug impl prints the params map verbatim.
+        assert!(msg.contains("InvalidEnumValue") && msg.contains("duckdb"), "{msg}");
     }
 
     #[test]

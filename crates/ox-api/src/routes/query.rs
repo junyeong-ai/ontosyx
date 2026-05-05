@@ -62,10 +62,7 @@ async fn load_ontology_current(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {
-            AppError::unprocessable(format!(
-                "Ontology `{}` has no committed version",
-                identity.lineage_id
-            ))
+            AppError::ontology_not_committed(identity.lineage_id.clone())
         })?;
     let ir = state
         .store
@@ -95,10 +92,7 @@ async fn resolve_temporal(
     };
 
     let Some(ontology_id) = req.ontology_id else {
-        return Err(AppError::bad_request(
-            "Temporal queries (`as_of`) require `ontology_id` so the \
-             server can resolve the ontology lineage to walk back through.",
-        ));
+        return Err(AppError::temporal_query_requires_ontology());
     };
 
     let identity = state
@@ -115,11 +109,7 @@ async fn resolve_temporal(
         .get_current_version(identity.id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(|| {
-            AppError::unprocessable(format!(
-                "Ontology `{lineage_id}` has no committed version to compare against"
-            ))
-        })?;
+        .ok_or_else(|| AppError::ontology_not_committed(lineage_id.clone()))?;
     let current = state
         .store
         .get_ontology_ir(current_version.id)
@@ -134,10 +124,10 @@ async fn resolve_temporal(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {
-            AppError::bad_request(format!(
-                "No ontology version was live at {as_of} for lineage `{lineage_id}`. \
-                 The lineage's oldest version was committed after the requested timestamp."
-            ))
+            AppError::temporal_snapshot_missing(
+                as_of.to_string(),
+                lineage_id.clone(),
+            )
         })?;
     let snapshot = state
         .store
@@ -145,16 +135,15 @@ async fn resolve_temporal(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {
-            AppError::bad_request(format!(
-                "Ontology version live at {as_of} for lineage `{lineage_id}` \
-                 has been removed and can no longer be hydrated."
-            ))
+            AppError::temporal_snapshot_missing(
+                as_of.to_string(),
+                lineage_id.clone(),
+            )
         })?;
 
     let rewritten =
-        ox_compiler::rewrite_temporal_with_renames(req.query_ir, &snapshot, &current).map_err(
-            |e| AppError::unprocessable(format!("Temporal rewrite failed: {e}")),
-        )?;
+        ox_compiler::rewrite_temporal_with_renames(req.query_ir, &snapshot, &current)
+            .map_err(|e| AppError::query_compilation_failed(e.to_string()))?;
     req.query_ir = rewritten;
     Ok(req)
 }
@@ -214,7 +203,7 @@ pub(crate) async fn search_graph(
 ) -> Result<Json<ApiResponse<Vec<ox_ontology::graph_exploration::SearchResultNode>>>, AppError> {
     let search_term = req.query.trim().to_string();
     if search_term.is_empty() {
-        return Err(AppError::bad_request("query must not be empty"));
+        return Err(AppError::query_text_empty());
     }
 
     let limit = req.limit.min(100);
@@ -232,7 +221,7 @@ pub(crate) async fn search_graph(
     .map_err(|_| AppError::timeout(format!("Search timed out after {}s", timeout.as_secs())))?
     .map_err(|e| {
         error!("Graph search failed: {e}");
-        AppError::unprocessable(format!("Search execution failed: {e}"))
+        AppError::query_execution_failed(e.to_string())
     })?;
 
     Ok(ApiResponse::of(results))
@@ -292,7 +281,7 @@ pub(crate) async fn raw_query(
     Json(req): Json<ExecuteRawQueryRequest>,
 ) -> Result<Json<ApiResponse<ExecuteRawQueryResponse>>, AppError> {
     if req.query.trim().is_empty() {
-        return Err(AppError::bad_request("query must not be empty"));
+        return Err(AppError::query_text_empty());
     }
 
     // Block write operations unless user has designer role
@@ -356,7 +345,7 @@ pub(crate) async fn raw_query(
     .map_err(|e| {
         crate::metrics::record_query("error", start.elapsed());
         error!("Raw query execution failed: {e}");
-        AppError::unprocessable(format!("Query execution failed: {e}"))
+        AppError::query_execution_failed(e.to_string())
     })?;
     crate::metrics::record_query("ok", start.elapsed());
 
@@ -508,9 +497,11 @@ pub(crate) async fn update_feedback(
     if let Some(ref fb) = req.feedback
         && !VALID_FEEDBACK.contains(&fb.as_str())
     {
-        return Err(AppError::bad_request(format!(
-            "Invalid feedback '{fb}'. Valid values: positive, negative, or null to clear"
-        )));
+        return Err(AppError::invalid_enum_value(
+            "feedback",
+            fb.clone(),
+            VALID_FEEDBACK,
+        ));
     }
 
     let updated = state
@@ -636,7 +627,7 @@ pub(crate) async fn execute_from_ir(
         .compile_query(&req.query_ir, ontology.as_deref())
         .map_err(|e| {
             error!("QueryIR compilation failed: {e}");
-            AppError::unprocessable(format!("QueryIR compilation failed: {e}"))
+            AppError::query_compilation_failed(e.to_string())
         })?;
 
     // Pre-execute blocking gate on the compiled Cypher — even when
@@ -667,7 +658,7 @@ pub(crate) async fn execute_from_ir(
     .map_err(|e| {
         crate::metrics::record_query("error", start.elapsed());
         error!("QueryIR execution failed: {e}");
-        AppError::unprocessable(format!("Query execution failed: {e}"))
+        AppError::query_execution_failed(e.to_string())
     })?;
     crate::metrics::record_query("ok", start.elapsed());
 
@@ -794,12 +785,9 @@ pub(crate) async fn execute_from_ir_federation(
 ) -> Result<Json<ApiResponse<ExecuteFromIrResponse>>, AppError> {
     info!(user_id = %principal.id, "federation QueryIR execution submitted");
 
-    let ontology_id = req.ontology_id.ok_or_else(|| {
-        AppError::bad_request(
-            "Federation path requires `ontology_id` so the planner can \
-             resolve labels and mappings against a specific ontology version",
-        )
-    })?;
+    let ontology_id = req
+        .ontology_id
+        .ok_or_else(|| AppError::required_field_empty("ontology_id"))?;
 
     // Capture as_of before temporal rewrite consumes it (Π-3).
     let original_as_of = req.query_ir.as_of;
@@ -851,7 +839,7 @@ pub(crate) async fn execute_from_ir_federation(
     .map_err(|e| {
         crate::metrics::record_query("error", start.elapsed());
         error!("Federation planning failed: {e}");
-        AppError::unprocessable(format!("Federation planning failed: {e}"))
+        AppError::query_compilation_failed(e.to_string())
     })?;
 
     // Preserve the plan's EXPLAIN-style rendering as `compiled_query`
@@ -866,13 +854,13 @@ pub(crate) async fn execute_from_ir_federation(
     let batches = ctx.execute_plan(plan).await.map_err(|e| {
         crate::metrics::record_query("error", start.elapsed());
         error!("Federation execution failed: {e}");
-        AppError::unprocessable(format!("Federation execution failed: {e}"))
+        AppError::query_execution_failed(e.to_string())
     })?;
     crate::metrics::record_query("ok", start.elapsed());
 
     let elapsed_ms = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
     let mut results = crate::arrow_conversion::record_batches_to_query_result(&batches, elapsed_ms)
-        .map_err(AppError::unprocessable)?;
+        .map_err(|e| AppError::internal(format!("arrow conversion: {e}")))?;
 
     // ACL enforcement on the federation path — DataFusion executes
     // outside the Cypher pipeline, so the rewriter never sees the
@@ -1090,7 +1078,7 @@ pub struct SavedPatternResponse {
 impl SavedPatternResponse {
     fn try_from_row(row: SavedQueryPattern) -> Result<Self, AppError> {
         let pattern_ir: PatternIR = serde_json::from_value(row.pattern_ir)
-            .map_err(|e| AppError::unprocessable(format!("Stored pattern_ir is malformed: {e}")))?;
+            .map_err(|e| AppError::internal(format!("deserialize pattern_ir: {e}")))?;
         Ok(Self {
             id: row.id,
             name: row.name,
@@ -1121,7 +1109,7 @@ pub(crate) async fn create_saved_pattern(
     Json(req): Json<CreateSavedPatternRequest>,
 ) -> Result<Json<ApiResponse<SavedPatternResponse>>, AppError> {
     let pattern_ir_json = serde_json::to_value(&req.pattern_ir)
-        .map_err(|e| AppError::unprocessable(format!("Failed to serialize pattern_ir: {e}")))?;
+        .map_err(|e| AppError::internal(format!("serialize pattern_ir: {e}")))?;
     let now = chrono::Utc::now();
     let row = SavedQueryPattern {
         id: Uuid::new_v4(),
@@ -1230,7 +1218,7 @@ pub(crate) async fn update_saved_pattern(
     Json(req): Json<UpdateSavedPatternRequest>,
 ) -> Result<StatusCode, AppError> {
     let pattern_ir_json = serde_json::to_value(&req.pattern_ir)
-        .map_err(|e| AppError::unprocessable(format!("Failed to serialize pattern_ir: {e}")))?;
+        .map_err(|e| AppError::internal(format!("serialize pattern_ir: {e}")))?;
     let updated = state
         .store
         .update_pattern(id, &req.name, req.description.as_deref(), &pattern_ir_json)
@@ -1300,7 +1288,7 @@ pub(crate) async fn graph_overview(
         .map_err(|_| AppError::timeout("Overview timed out".to_string()))?
         .map_err(|e| {
             error!("Graph overview failed: {e}");
-            AppError::unprocessable(format!("Overview failed: {e}"))
+            AppError::query_execution_failed(e.to_string())
         })?;
 
     Ok(ApiResponse::of(overview))
@@ -1345,7 +1333,7 @@ pub(crate) async fn expand_node(
     Json(req): Json<ExpandGraphRequest>,
 ) -> Result<Json<ApiResponse<NodeExpansion>>, AppError> {
     if req.element_id.trim().is_empty() {
-        return Err(AppError::bad_request("element_id must not be empty"));
+        return Err(AppError::required_field_empty("element_id"));
     }
 
     let limit = req.limit.min(200);
@@ -1359,7 +1347,7 @@ pub(crate) async fn expand_node(
         .map_err(|_| AppError::timeout("Expand timed out".to_string()))?
         .map_err(|e| {
             error!("Expand failed: {e}");
-            AppError::unprocessable(format!("Expand failed: {e}"))
+            AppError::query_execution_failed(e.to_string())
         })?;
 
     Ok(ApiResponse::of(expansion))

@@ -74,10 +74,10 @@ pub(crate) async fn create_report(
     Json(req): Json<CreateReportRequest>,
 ) -> Result<Json<ApiResponse<SavedReport>>, AppError> {
     if req.title.trim().is_empty() {
-        return Err(AppError::bad_request("Report title must not be empty"));
+        return Err(AppError::required_field_empty("title"));
     }
     if req.query_template.trim().is_empty() {
-        return Err(AppError::bad_request("Query template must not be empty"));
+        return Err(AppError::required_field_empty("query_template"));
     }
 
     let now = Utc::now();
@@ -372,7 +372,7 @@ pub(crate) async fn execute_report(
         })?
         .map_err(|e| {
             error!("Report execution failed: {e}");
-            AppError::unprocessable(format!("Report execution failed: {e}"))
+            AppError::query_execution_failed(e.to_string())
         })?;
 
     Ok(ApiResponse::of(result))

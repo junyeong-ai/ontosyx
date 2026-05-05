@@ -101,9 +101,9 @@ impl Credential {
 #[async_trait]
 pub trait SecretResolver: Send + Sync {
     /// Resolve `reference` (e.g., `env:DATABASE_URL`) to its
-    /// concrete value, or return an `AppError::bad_request` with a
-    /// human-readable description of why the reference could not
-    /// be dereferenced.
+    /// concrete value, or return `AppError::credential_resolve_failed`
+    /// with `(scheme, kind, detail)` so the FE catalog can render
+    /// the right remediation copy without prose interpolation.
     async fn resolve(&self, reference: &str) -> Result<Arc<str>, AppError>;
 }
 
@@ -131,15 +131,18 @@ impl SecretResolver for EnvSecretResolver {
         // only reachable from tests / direct API users.
         let var_name = reference.strip_prefix("env:").unwrap_or(reference);
         if var_name.is_empty() {
-            return Err(AppError::bad_request(
-                "secret_ref 'env:' missing the variable name after the colon",
+            return Err(AppError::credential_resolve_failed(
+                "env",
+                "invalid_reference",
+                "missing variable name after `env:`".to_string(),
             ));
         }
         let value = std::env::var(var_name).map_err(|_| {
-            AppError::bad_request(format!(
-                "secret_ref 'env:{var_name}' — environment variable is not \
-                 set or is not valid UTF-8"
-            ))
+            AppError::credential_resolve_failed(
+                "env",
+                "not_found",
+                format!("env:{var_name}"),
+            )
         })?;
         // `Arc::from(String)` reuses the String's allocation, so
         // this is a zero-extra-copy conversion.
@@ -158,7 +161,7 @@ impl SecretResolver for EnvSecretResolver {
 /// registration API is intentionally simple.
 ///
 /// A reference whose scheme matches no registered resolver surfaces
-/// as `AppError::bad_request` with a message that lists every
+/// as `AppError::credential_resolve_failed` (scheme=`unknown`, kind=`invalid_reference`) with a detail that lists every
 /// currently-registered prefix — self-updating as resolvers are
 /// added / removed, in contrast to a hardcoded error message.
 #[derive(Default)]
@@ -204,11 +207,14 @@ impl SecretResolver for CompositeSecretResolver {
         }
         let supported: Vec<&str> =
             self.resolvers.iter().map(|(s, _)| s.as_str()).collect();
-        Err(AppError::bad_request(format!(
-            "unrecognised secret_ref scheme in '{reference}'; supported \
-             schemes: [{}]",
-            supported.join(", ")
-        )))
+        Err(AppError::credential_resolve_failed(
+            "unknown",
+            "invalid_reference",
+            format!(
+                "unrecognised scheme in '{reference}'; supported: [{}]",
+                supported.join(", ")
+            ),
+        ))
     }
 }
 
@@ -234,7 +240,7 @@ impl SecretResolver for CompositeSecretResolver {
 ///   admin who wants leading whitespace gone can edit the source
 ///   file.
 ///
-/// Errors surface via `AppError::bad_request` with the path named —
+/// Errors surface via `AppError::credential_resolve_failed` (scheme=`file`) with the path named —
 /// the operator needs to know which file the server was reading.
 /// The file's contents are never echoed in error messages (a missing
 /// file could still leak part of the expected path; that's
@@ -313,12 +319,11 @@ impl FileSecretResolver {
                 error = %e,
                 "file: secret-ref rejected — canonicalisation failed inside sandbox"
             );
-            AppError::bad_request(format!(
-                "secret_ref 'file:{}' — path could not be resolved inside the \
-                 sandbox ({e}); check that the file exists and the server can \
-                 read it",
-                path.display()
-            ))
+            AppError::credential_resolve_failed(
+                "file",
+                "not_found",
+                format!("file:{} ({e})", path.display()),
+            )
         })?;
         for root in &self.allowed_roots {
             let Ok(canonical_root) = root.canonicalize() else {
@@ -333,12 +338,11 @@ impl FileSecretResolver {
             canonical_path = %canonical_path.display(),
             "file: secret-ref rejected — path is outside every allowed sandbox root"
         );
-        Err(AppError::bad_request(format!(
-            "secret_ref 'file:{}' — path is not under any allowed root. \
-             This resolver has been configured with a sandbox; see server \
-             deployment docs for the permitted directories.",
-            path.display()
-        )))
+        Err(AppError::credential_resolve_failed(
+            "file",
+            "unauthorized",
+            format!("file:{} not under any allowed sandbox root", path.display()),
+        ))
     }
 }
 
@@ -347,15 +351,18 @@ impl SecretResolver for FileSecretResolver {
     async fn resolve(&self, reference: &str) -> Result<Arc<str>, AppError> {
         let path = reference.strip_prefix("file:").unwrap_or(reference);
         if path.is_empty() {
-            return Err(AppError::bad_request(
-                "secret_ref 'file:' missing the path after the colon",
+            return Err(AppError::credential_resolve_failed(
+                "file",
+                "invalid_reference",
+                "missing path after `file:`".to_string(),
             ));
         }
         if !path.starts_with('/') {
-            return Err(AppError::bad_request(format!(
-                "secret_ref 'file:{path}' must be an absolute path (start with `/`) — \
-                 relative paths are ambiguous across server working directories"
-            )));
+            return Err(AppError::credential_resolve_failed(
+                "file",
+                "invalid_reference",
+                format!("file:{path} must be an absolute path"),
+            ));
         }
         // Canonicalise once, read from the canonical path — closes the
         // TOCTOU window where a symlink could be swapped between the
@@ -366,15 +373,19 @@ impl SecretResolver for FileSecretResolver {
         // reactor's main thread — important for the resolve-secret
         // path that runs on every adapter build.
         let contents = tokio::fs::read_to_string(&allowed_path).await.map_err(|e| {
-            AppError::bad_request(format!(
-                "secret_ref 'file:{path}' — unable to read file: {e}"
-            ))
+            AppError::credential_resolve_failed(
+                "file",
+                "resolve_failed",
+                format!("file:{path} read error: {e}"),
+            )
         })?;
         let trimmed = contents.trim_end_matches(['\n', '\r', ' ', '\t']);
         if trimmed.is_empty() {
-            return Err(AppError::bad_request(format!(
-                "secret_ref 'file:{path}' — file is empty (or contains only whitespace)"
-            )));
+            return Err(AppError::credential_resolve_failed(
+                "file",
+                "resolve_failed",
+                format!("file:{path} is empty"),
+            ));
         }
         Ok(Arc::from(trimmed))
     }
@@ -528,7 +539,7 @@ mod tests {
         let resolver = EnvSecretResolver;
         let err = resolver.resolve("env:").await.unwrap_err();
         let msg = format!("{err:?}");
-        assert!(msg.contains("missing the variable name"));
+        assert!(msg.contains("missing variable name"), "{msg}");
     }
 
     #[tokio::test]
@@ -672,7 +683,7 @@ mod tests {
         let resolver = FileSecretResolver::new();
         let err = resolver.resolve("file:").await.unwrap_err();
         let msg = format!("{err:?}");
-        assert!(msg.contains("missing the path"));
+        assert!(msg.contains("missing path"), "{msg}");
     }
 
     #[tokio::test]
@@ -769,7 +780,7 @@ mod tests {
             .await
             .unwrap_err();
         let msg = format!("{err:?}");
-        assert!(msg.contains("not under any allowed root"), "{msg}");
+        assert!(msg.contains("not under any allowed"), "{msg}");
     }
 
     #[tokio::test]
@@ -794,8 +805,8 @@ mod tests {
             .unwrap_err();
         let msg = format!("{err:?}");
         assert!(
-            msg.contains("not under any allowed root")
-                || msg.contains("could not be resolved inside the sandbox"),
+            msg.contains("not under any allowed")
+                || msg.contains("not_found"),
             "dot-dot escape must reject at the sandbox layer: {msg}"
         );
     }
@@ -830,7 +841,7 @@ mod tests {
             .unwrap_err();
         let msg = format!("{err:?}");
         assert!(
-            msg.contains("could not be resolved inside the sandbox"),
+            msg.contains("not_found"),
             "sandbox + missing path must reject at the sandbox check: {msg}"
         );
     }
@@ -869,9 +880,9 @@ mod tests {
     async fn default_resolver_dispatches_both_env_and_file_schemes() {
         let resolver = default_secret_resolver(Vec::<std::path::PathBuf>::new());
         let err = resolver.resolve("file:").await.unwrap_err();
-        assert!(format!("{err:?}").contains("missing the path"));
+        assert!(format!("{err:?}").contains("missing path"));
         let err = resolver.resolve("env:").await.unwrap_err();
-        assert!(format!("{err:?}").contains("missing the variable name"));
+        assert!(format!("{err:?}").contains("missing variable name"));
     }
 
     #[tokio::test]
@@ -886,7 +897,7 @@ mod tests {
         .await
         .expect("build resolver");
         let err = resolver.resolve("file:").await.unwrap_err();
-        assert!(format!("{err:?}").contains("missing the path"));
+        assert!(format!("{err:?}").contains("missing path"));
         let err = resolver.resolve("gcp-sm:").await.unwrap_err();
         assert!(
             format!("{err:?}").contains("supported"),

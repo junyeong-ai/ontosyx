@@ -57,20 +57,20 @@ pub(crate) async fn create_knowledge(
 ) -> Result<Json<ApiResponse<KnowledgeEntry>>, AppError> {
     principal.require_designer()?;
     if !VALID_KINDS.contains(&req.kind.as_str()) {
-        return Err(AppError::bad_request(format!(
-            "Invalid kind '{}'. Must be one of: {}",
-            req.kind,
-            VALID_KINDS.join(", ")
-        )));
+        return Err(AppError::invalid_enum_value(
+            "kind",
+            req.kind.clone(),
+            VALID_KINDS,
+        ));
     }
     if req.title.trim().is_empty() || req.title.len() > 500 {
-        return Err(AppError::bad_request("Title must be 1-500 characters"));
+        return Err(AppError::text_length_out_of_range("title", 1, 500));
     }
     if req.content.trim().is_empty() {
-        return Err(AppError::bad_request("Content must not be empty"));
+        return Err(AppError::required_field_empty("content"));
     }
     if req.ontology_name.trim().is_empty() {
-        return Err(AppError::bad_request("Ontology name must not be empty"));
+        return Err(AppError::required_field_empty("ontology_name"));
     }
 
     // Server-side content_hash computation (never trust client)
@@ -285,11 +285,11 @@ pub(crate) async fn update_status(
 ) -> Result<StatusCode, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {
-        return Err(AppError::bad_request(format!(
-            "Invalid status '{}'. Must be one of: {}",
-            req.status,
-            VALID_STATUSES.join(", ")
-        )));
+        return Err(AppError::invalid_enum_value(
+            "status",
+            req.status.clone(),
+            VALID_STATUSES,
+        ));
     }
     state
         .store
@@ -404,14 +404,14 @@ pub(crate) async fn bulk_review(
 ) -> Result<Json<ApiResponse<KnowledgeBulkReviewResponse>>, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {
-        return Err(AppError::bad_request(format!(
-            "Invalid status '{}'. Must be one of: {}",
-            req.status,
-            VALID_STATUSES.join(", ")
-        )));
+        return Err(AppError::invalid_enum_value(
+            "status",
+            req.status.clone(),
+            VALID_STATUSES,
+        ));
     }
     if req.ids.len() > 100 {
-        return Err(AppError::bad_request("Maximum 100 entries per bulk review"));
+        return Err(AppError::bulk_limit_exceeded(100));
     }
     let reviewer_id = principal.user_uuid().ok();
     let mut count = 0u64;

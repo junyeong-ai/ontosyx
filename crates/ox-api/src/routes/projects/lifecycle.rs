@@ -82,10 +82,7 @@ pub(crate) async fn create_project(
                 .await
                 .map_err(AppError::from)?
                 .ok_or_else(|| {
-                    AppError::unprocessable(format!(
-                        "Ontology `{}` has no committed version",
-                        identity.lineage_id
-                    ))
+                    AppError::ontology_not_committed(identity.lineage_id.clone())
                 })?;
             let ir = state
                 .store
@@ -718,9 +715,7 @@ pub(crate) async fn deploy_schema(
     });
 
     if blocked_by_approval {
-        return Err(AppError::conflict(
-            "Schema deployment is pending approval. Wait for admin review.",
-        ));
+        return Err(AppError::deploy_pending_approval());
     }
 
     let project = state
@@ -832,7 +827,11 @@ pub(crate) async fn generate_load_plan(
     let source_schema_json = project
         .source_schema
         .as_ref()
-        .ok_or_else(|| AppError::bad_request("Project has no source schema"))?;
+        .ok_or_else(|| {
+            AppError::project_missing_source_schema(
+                "Run analyze + introspect first to populate the source schema.",
+            )
+        })?;
     let source_schema: ox_core::SourceSchema =
         serde_json::from_value(source_schema_json.clone())
             .map_err(|e| AppError::internal(format!("Failed to parse source schema: {e}")))?;
@@ -1005,7 +1004,7 @@ pub(crate) async fn execute_load_from_source(
     let fetcher =
         ox_source::postgres_fetcher::PostgresFetcher::connect(&req.connection_string, schema_name)
             .await
-            .map_err(|e| AppError::bad_request(format!("Failed to connect to source: {e}")))?;
+            .map_err(|e| AppError::source_connection_failed("postgresql", e.to_string()))?;
 
     // Compile load plan to Cypher statements
     let compiled_statements = state

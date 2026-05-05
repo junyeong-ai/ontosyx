@@ -88,10 +88,10 @@ pub(crate) async fn load_project_in_status(
     let project = load_mutable_project(state, id).await?;
 
     if project.status.parse::<DesignProjectStatus>().ok() != Some(required) {
-        return Err(AppError::bad_request(format!(
-            "Project must be in '{}' status",
-            required
-        )));
+        return Err(AppError::project_status_mismatch(
+            required.to_string(),
+            project.status.clone(),
+        ));
     }
 
     Ok(project)

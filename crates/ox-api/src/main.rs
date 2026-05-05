@@ -233,16 +233,59 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
     pg_store.migrate().await?;
+
+    {
+        let installed = ox_store::PostgresStore::with_system_bypass(|| async {
+            ox_store::ChangeRoutingStore::list_change_routing_rules(&pg_store).await
+        })
+        .await?;
+        let installed_types: std::collections::HashSet<_> =
+            installed.iter().map(|r| r.change_type).collect();
+        let missing: Vec<_> = ox_ontology::change_routing::ChangeType::all()
+            .iter()
+            .filter(|t| !installed_types.contains(t))
+            .copied()
+            .collect();
+        if !missing.is_empty() {
+            anyhow::bail!(
+                "change_routing_rules table is missing default rows for {} change_type(s): {}. \
+                 The migration that seeds these rules must run before the server starts.",
+                missing.len(),
+                missing
+                    .iter()
+                    .map(|t| format!("{t:?}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
+    }
+
     // Grab the pool reference before wrapping in Arc<dyn Store> for vector store sharing
     let shared_pg_pool = pg_store.pool().clone();
     let store = Arc::new(pg_store) as Arc<dyn ox_store::Store>;
 
     // Load prompt templates from DB (seeds from TOML on first run).
     // Uses SYSTEM_BYPASS to skip RLS during startup seeding.
+    //
+    // Wrap in a session-level advisory lock so concurrent boots of
+    // multiple ox-api instances serialise here — without the lock,
+    // both could pass the "row missing" check on
+    // `find_prompt_template_by_name_version` and race-insert
+    // duplicate active rows. The key is a stable i64 derived from
+    // the seed scope; unrelated locks (cron singletons, future
+    // seeders) pick distinct keys via the `ADVISORY_LOCK_*`
+    // constants in `crate::advisory_lock`.
     let toml_seed_dir = std::path::Path::new(&config.prompts.dir);
-    let prompts = ox_store::PostgresStore::with_system_bypass(|| {
-        PromptRegistry::load_from_db(store.as_ref(), Some(toml_seed_dir))
-    })
+    let prompts = ox_store::advisory_lock::with_advisory_lock(
+        &shared_pg_pool,
+        *ox_store::advisory_lock::ADVISORY_LOCK_PROMPT_SEED,
+        || async {
+            ox_store::PostgresStore::with_system_bypass(|| {
+                PromptRegistry::load_from_db(store.as_ref(), Some(toml_seed_dir))
+            })
+            .await
+        },
+    )
     .await?;
 
     // Brain is created here but memory is attached later (after embedding init)
@@ -375,6 +418,7 @@ async fn main() -> anyhow::Result<()> {
     // admin dashboard flips the decision.
     ox_api::background::spawn_stale_concept_scan(
         Arc::clone(&store),
+        shared_pg_pool.clone(),
         cancel_token.clone(),
     );
 
@@ -385,6 +429,7 @@ async fn main() -> anyhow::Result<()> {
     // activates.
     ox_api::background::spawn_quality_baseline_scan(
         Arc::clone(&store),
+        shared_pg_pool.clone(),
         cancel_token.clone(),
     );
 
@@ -395,6 +440,7 @@ async fn main() -> anyhow::Result<()> {
     // accumulates.
     ox_api::background::spawn_draft_checkpoint_cleanup(
         Arc::clone(&store),
+        shared_pg_pool.clone(),
         cancel_token.clone(),
     );
 
@@ -406,6 +452,7 @@ async fn main() -> anyhow::Result<()> {
     if let Some(rt) = runtime.as_ref() {
         ox_api::background::spawn_soft_delete_compaction(
             Arc::clone(rt),
+            shared_pg_pool.clone(),
             cancel_token.clone(),
         );
     }
@@ -561,6 +608,7 @@ async fn main() -> anyhow::Result<()> {
     // drains it on graceful shutdown.
     ox_api::background::spawn_clarification_evict(
         Arc::clone(&clarification_tracker),
+        shared_pg_pool.clone(),
         cancel_token.clone(),
     );
 
@@ -570,6 +618,7 @@ async fn main() -> anyhow::Result<()> {
     ox_api::background::spawn_collab_idle_reap(
         Arc::clone(&state.collaboration),
         std::time::Duration::from_secs(config.collaboration.reap_interval_secs),
+        shared_pg_pool.clone(),
         cancel_token.clone(),
     );
 

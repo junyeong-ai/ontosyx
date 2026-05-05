@@ -543,15 +543,11 @@ pub async fn workspace_context(
         let workspace_id = req
             .headers()
             .get("x-workspace-id")
-            .ok_or_else(|| {
-                AppError::bad_request(
-                    "X-Workspace-Id header required. Call GET /workspaces first to list available workspaces.",
-                )
-            })?
+            .ok_or_else(|| AppError::workspace_header_invalid("missing"))?
             .to_str()
-            .map_err(|_| AppError::bad_request("Invalid X-Workspace-Id header"))?
+            .map_err(|_| AppError::workspace_header_invalid("parse_failed"))?
             .parse::<Uuid>()
-            .map_err(|_| AppError::bad_request("X-Workspace-Id must be a valid UUID"))?;
+            .map_err(|_| AppError::workspace_header_invalid("not_uuid"))?;
 
         let ws_ctx = WorkspaceContext {
             workspace_id,
@@ -582,9 +578,9 @@ pub async fn workspace_context(
     let workspace_id = if let Some(header) = req.headers().get("x-workspace-id") {
         let id_str = header
             .to_str()
-            .map_err(|_| AppError::bad_request("Invalid X-Workspace-Id header"))?;
+            .map_err(|_| AppError::workspace_header_invalid("parse_failed"))?;
         Uuid::parse_str(id_str)
-            .map_err(|_| AppError::bad_request("X-Workspace-Id must be a valid UUID"))?
+            .map_err(|_| AppError::workspace_header_invalid("not_uuid"))?
     } else {
         // Fall back to default workspace
         let ws = state
@@ -595,9 +591,7 @@ pub async fn workspace_context(
         match ws {
             Some(w) => w.id,
             None => {
-                return Err(AppError::bad_request(
-                    "No workspace found. Create a workspace first.",
-                ));
+                return Err(AppError::workspace_header_invalid("not_a_member"));
             }
         }
     };

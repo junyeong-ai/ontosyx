@@ -210,7 +210,7 @@ pub(crate) async fn create_approval_comment(
 ) -> Result<(StatusCode, Json<ApiResponse<ApprovalComment>>), AppError> {
     let body = req.body.trim();
     if body.is_empty() {
-        return Err(AppError::bad_request("Comment body must not be empty"));
+        return Err(AppError::required_field_empty("comment_body"));
     }
 
     state

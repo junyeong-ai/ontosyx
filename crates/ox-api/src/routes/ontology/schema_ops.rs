@@ -37,12 +37,7 @@ async fn load_identity_current_ir(
         .get_current_version(identity.id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(|| {
-            AppError::unprocessable(format!(
-                "Ontology `{}` has no committed version",
-                identity.lineage_id
-            ))
-        })?;
+        .ok_or_else(|| AppError::ontology_not_committed(identity.lineage_id.clone()))?;
     let ir = state
         .store
         .get_ontology_ir(version.id)
@@ -80,7 +75,7 @@ pub(crate) async fn reindex_schema(
     let memory = state
         .memory
         .as_ref()
-        .ok_or_else(|| AppError::bad_request("Semantic memory not configured"))?;
+        .ok_or_else(|| AppError::feature_not_configured("semantic_memory"))?;
 
     ox_brain::schema_rag::index_ontology_schema(memory, &ontology, &identity.id.to_string()).await;
 

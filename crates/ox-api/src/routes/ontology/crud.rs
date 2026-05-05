@@ -322,7 +322,7 @@ pub(crate) async fn apply_ontology_commands(
 ) -> Result<(StatusCode, Json<ApiResponse<ApplyOntologyCommandsResponse>>), AppError> {
     principal.require_designer()?;
     if req.commands.is_empty() {
-        return Err(AppError::bad_request("commands must not be empty"));
+        return Err(AppError::required_field_empty("commands"));
     }
 
     let project = load_mutable_project(&state, id).await?;
@@ -352,7 +352,7 @@ pub(crate) async fn apply_ontology_commands(
     let mut changed_element_ids: Vec<String> = Vec::new();
     for cmd in &req.commands {
         changed_element_ids.extend(cmd.affected_element_ids());
-        let result = cmd.execute(&ontology).map_err(AppError::unprocessable)?;
+        let result = cmd.execute(&ontology).map_err(AppError::edit_operation_rejected)?;
         ontology = result.new_ontology;
     }
 
@@ -369,9 +369,7 @@ pub(crate) async fn apply_ontology_commands(
 
     let errors = ontology.validate();
     if !errors.is_empty() {
-        return Err(AppError::unprocessable(ox_core::join_messages(
-            &errors, "; ",
-        )));
+        return Err(AppError::ontology_invariant_violation(errors));
     }
 
     let opts = get_design_options(&project);
@@ -397,6 +395,25 @@ pub(crate) async fn apply_ontology_commands(
         .map_err(AppError::from)?;
 
     let updated = reload_project(&state, id).await?;
+
+    // Broadcast the commit to every collaborator subscribed to the
+    // project room so their `commandStack` baselines advance and any
+    // in-flight conflict resolution surfaces the symmetric remote-ops
+    // inventory in `<CommandStackDiffDialog>` instead of the opaque
+    // fallback. Fire-and-forget — empty rooms (author editing solo)
+    // drop the frame silently. The HTTP response remains the
+    // authoritative path for the author's own UI.
+    state
+        .collaboration
+        .broadcast_entity_updated(
+            id,
+            &principal.id,
+            &principal.email,
+            req.revision,
+            updated.revision,
+            req.commands.clone(),
+        )
+        .await;
 
     Ok((
         StatusCode::OK,

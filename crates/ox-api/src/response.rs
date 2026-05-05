@@ -74,6 +74,9 @@ pub struct ApiResponse<T: Serialize> {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct PageMeta {
     /// Opaque cursor for the next page. `None` when this is the last page.
+    /// Skipped on the wire when absent so the FE schema can stay
+    /// `next_cursor?: string` without a `.nullable()` widening.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<String>,
 }
 

@@ -58,10 +58,10 @@ pub(crate) async fn design_project(
 
     // Deserialize stored data
     let source_config: SourceConfig = serde_json::from_value(project.source_config.clone())
-        .map_err(|e| AppError::bad_request(format!("Corrupt source_config: {e}")))?;
+        .map_err(|e| AppError::internal(format!("deserialize source_config: {e}")))?;
 
     let effective_opts: DesignOptions = serde_json::from_value(project.design_options.clone())
-        .map_err(|e| AppError::bad_request(format!("Corrupt design_options: {e}")))?;
+        .map_err(|e| AppError::internal(format!("deserialize design_options: {e}")))?;
 
     // Read runtime-tunable config (scoped guard — released before async operations)
     let sample_data = {
@@ -322,15 +322,11 @@ pub(crate) async fn refine_project(
                 }
                 Err(e) => {
                     warn!("Failed to parse source schema for refinement fallback: {e}");
-                    return Err(AppError::bad_request(
-                        "No graph runtime, additional context, or valid source schema for refinement",
-                    ));
+                    return Err(AppError::refinement_missing_inputs());
                 }
             }
         } else {
-            return Err(AppError::bad_request(
-                "No graph runtime, additional context, or source schema for refinement",
-            ));
+            return Err(AppError::refinement_missing_inputs());
         }
     } else {
         None
@@ -414,12 +410,8 @@ pub(crate) async fn refine_project(
             "report": reconciled.report,
             "reconciled_ontology": reconciled.ontology,
         });
-        return Err(AppError::unprocessable_with_details(
-            "uncertain_reconcile",
-            format!(
-                "Refinement produced {} uncertain ID match(es) that require review",
-                reconciled.report.uncertain_matches.len()
-            ),
+        return Err(AppError::uncertain_reconcile(
+            reconciled.report.uncertain_matches.len(),
             details,
         ));
     }
@@ -537,10 +529,9 @@ pub(crate) async fn apply_reconcile(
             .iter()
             .any(|m| m.original_id == decision.original_id)
         {
-            return Err(AppError::bad_request(format!(
-                "Decision references unknown original_id '{}'",
-                decision.original_id
-            )));
+            return Err(AppError::refinement_decision_unknown_id(
+                decision.original_id.clone(),
+            ));
         }
     }
 
@@ -557,10 +548,7 @@ pub(crate) async fn apply_reconcile(
     // Validate
     let errors = finalized.validate();
     if !errors.is_empty() {
-        return Err(AppError::unprocessable(format!(
-            "Reconciled ontology is invalid: {}",
-            ox_core::join_messages(&errors, "; ")
-        )));
+        return Err(AppError::ontology_invariant_violation(errors));
     }
 
     // Quality assessment

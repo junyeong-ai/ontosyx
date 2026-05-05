@@ -57,15 +57,12 @@ pub(crate) async fn create_token(
         .auth_config
         .jwt_secret
         .as_ref()
-        .ok_or_else(|| AppError::service_unavailable("JWT authentication not configured"))?;
+        .ok_or_else(|| AppError::feature_not_configured("jwt"))?;
 
     // Look up the OIDC provider
     let provider = state.oidc_providers.get(&req.provider).ok_or_else(|| {
-        let available = state.oidc_providers.provider_names();
-        AppError::bad_request(format!(
-            "Unknown provider '{}'. Available: {:?}",
-            req.provider, available
-        ))
+        let allowed = state.oidc_providers.provider_names();
+        AppError::invalid_enum_value("provider", req.provider.clone(), &allowed)
     })?;
 
     // Verify the ID token via generic OIDC (RS256 + JWKS + claims validation)
@@ -73,7 +70,7 @@ pub(crate) async fn create_token(
 
     let email = oidc_user
         .email
-        .ok_or_else(|| AppError::unauthorized("Token missing email"))?;
+        .ok_or_else(|| AppError::auth_token_claim_invalid("email"))?;
     let now = Utc::now();
 
     // Upsert user in DB
@@ -126,23 +123,23 @@ pub(crate) async fn create_token(
                 }
             }
 
-            // Auto-join default workspace for new users
-            if user.created_at == now
-                && let Ok(Some(ws)) = state
+            if user.created_at == now {
+                let ws = state
                     .store
                     .get_workspace_by_slug(crate::workspace::DEFAULT_WORKSPACE_SLUG)
                     .await
-                && let Err(e) = state
+                    .map_err(AppError::from)?
+                    .ok_or_else(|| {
+                        AppError::internal(
+                            "default workspace is missing — bootstrap must seed it before \
+                             new users can sign in",
+                        )
+                    })?;
+                state
                     .store
                     .add_workspace_member(ws.id, user.id, "member")
                     .await
-            {
-                tracing::error!(
-                    user_id = %user.id,
-                    workspace_id = %ws.id,
-                    error = ?e,
-                    "Failed to auto-join default workspace"
-                );
+                    .map_err(AppError::from)?;
             }
 
             Ok::<User, AppError>(user)
@@ -230,7 +227,8 @@ pub(crate) async fn me(
     }
 
     let user_id =
-        Uuid::parse_str(&principal.id).map_err(|_| AppError::unauthorized("Invalid user ID"))?;
+        Uuid::parse_str(&principal.id)
+            .map_err(|_| AppError::auth_token_claim_invalid("user_id"))?;
 
     let user = state
         .store
@@ -286,16 +284,14 @@ pub(crate) async fn ws_token(
     Extension(claims): Extension<AuthClaims>,
 ) -> Result<Json<ApiResponse<WebSocketTokenResponse>>, AppError> {
     if claims.is_api_key() {
-        return Err(AppError::bad_request(
-            "API key principals authenticate the WebSocket directly via the X-API-Key flow.",
-        ));
+        return Err(AppError::auth_api_key_jwt_flow_denied("websocket_token"));
     }
 
     let secret = state
         .auth_config
         .jwt_secret
         .as_ref()
-        .ok_or_else(|| AppError::service_unavailable("JWT authentication not configured"))?;
+        .ok_or_else(|| AppError::feature_not_configured("jwt"))?;
 
     let now = Utc::now();
     let expires_at = now + chrono::Duration::seconds(WS_TOKEN_TTL_SECS);
@@ -356,18 +352,14 @@ pub(crate) async fn logout(
     Extension(claims): Extension<AuthClaims>,
 ) -> Result<Json<ApiResponse<LogoutResponse>>, AppError> {
     if claims.is_api_key() {
-        return Err(AppError::bad_request(
-            "API key principals cannot self-logout. Delete the key via \
-             the admin endpoint to revoke access.",
-        ));
+        return Err(AppError::auth_api_key_jwt_flow_denied("logout"));
     }
 
     // The original JWT's `exp` is the natural truncation point — once
     // it has passed, the token is unusable regardless of revocation
     // state and the row can be reaped by the cleanup cron.
-    let expires_at = jwt_exp_to_datetime(claims.exp).ok_or_else(|| {
-        AppError::unauthorized("Token has no usable expiry — cannot revoke")
-    })?;
+    let expires_at = jwt_exp_to_datetime(claims.exp)
+        .ok_or_else(|| AppError::auth_token_claim_invalid("expiry"))?;
     let user_id = claims.user_id().ok();
     let jti = claims.jti;
 

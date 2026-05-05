@@ -96,15 +96,15 @@ pub(crate) async fn update_user_role(
     principal.require_admin()?;
 
     if principal.id == id.to_string() {
-        return Err(AppError::bad_request("Cannot change your own role"));
+        return Err(AppError::self_mutation_denied("role"));
     }
 
     if !VALID_PLATFORM_ROLES.contains(&req.role.as_str()) {
-        return Err(AppError::bad_request(format!(
-            "Invalid role '{}'. Valid roles: {}",
-            req.role,
-            VALID_PLATFORM_ROLES.join(", "),
-        )));
+        return Err(AppError::invalid_enum_value(
+            "role",
+            req.role.clone(),
+            VALID_PLATFORM_ROLES,
+        ));
     }
 
     let old_role = state

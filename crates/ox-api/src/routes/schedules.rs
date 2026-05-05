@@ -55,13 +55,8 @@ pub(crate) async fn create_schedule(
         .ok_or_else(|| AppError::not_found("Analysis recipe"))?;
 
     // Validate cron expression and compute first run
-    let next_run =
-        schedule::next_run_from_cron(&req.cron_expression, Utc::now()).ok_or_else(|| {
-            AppError::bad_request(format!(
-                "Invalid cron expression: '{}'",
-                req.cron_expression
-            ))
-        })?;
+    let next_run = schedule::next_run_from_cron(&req.cron_expression, Utc::now())
+        .ok_or_else(|| AppError::cron_expression_invalid(req.cron_expression.clone()))?;
 
     let task = ScheduledTask {
         id: Uuid::new_v4(),

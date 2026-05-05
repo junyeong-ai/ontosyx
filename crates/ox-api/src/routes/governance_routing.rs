@@ -201,8 +201,12 @@ pub(crate) async fn delete_routing_rule(
 /// drift).
 fn parse_change_type(wire: &str) -> Result<ChangeType, AppError> {
     serde_json::from_value(serde_json::Value::String(wire.to_string())).map_err(|_| {
-        AppError::bad_request(format!(
-            "unknown change_type `{wire}` — see ChangeType variants for valid wire names"
-        ))
+        let allowed: Vec<String> = ChangeType::all()
+            .iter()
+            .filter_map(|c| serde_json::to_value(c).ok())
+            .filter_map(|v| v.as_str().map(str::to_string))
+            .collect();
+        let allowed_refs: Vec<&str> = allowed.iter().map(String::as_str).collect();
+        AppError::invalid_enum_value("change_type", wire.to_string(), &allowed_refs)
     })
 }

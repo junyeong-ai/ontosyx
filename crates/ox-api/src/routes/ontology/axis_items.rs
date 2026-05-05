@@ -88,7 +88,23 @@ pub(crate) async fn list_axis_items(
         .ok_or_else(|| AppError::not_found("Ontology version"))?;
 
     let items = collect_axis_items(&ir, &params.kind).ok_or_else(|| {
-        AppError::bad_request(format!("unknown axis kind: \"{}\"", params.kind))
+        AppError::invalid_enum_value(
+            "kind",
+            params.kind.clone(),
+            &[
+                "node_types",
+                "edge_types",
+                "indexes",
+                "glossary_terms",
+                "interfaces",
+                "code_systems",
+                "object_mappings",
+                "link_mappings",
+                "provenances",
+                "data_qualities",
+                "enrichments",
+            ],
+        )
     })?;
 
     Ok(ApiResponse::of(items))

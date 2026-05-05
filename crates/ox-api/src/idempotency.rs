@@ -83,10 +83,8 @@ pub async fn idempotency_layer(
     // explicitly so the caller knows their retry contract for
     // streamed requests is caller-side, not header-side.
     if is_streaming_path(req.uri().path()) {
-        return Err(AppError::bad_request(
-            "Idempotency-Key cannot be applied to streaming endpoints — \
-             SSE responses are produced incrementally and cannot replay. \
-             Drop the header and handle retries client-side.",
+        return Err(AppError::idempotency_streaming_unsupported(
+            req.uri().path().to_string(),
         ));
     }
 
@@ -103,12 +101,7 @@ pub async fn idempotency_layer(
         .extensions()
         .get::<WorkspaceContext>()
         .cloned()
-        .ok_or_else(|| {
-            AppError::bad_request(
-                "Idempotency-Key requires a workspace context — \
-                 send the X-Workspace-Id header alongside the key.",
-            )
-        })?;
+        .ok_or_else(|| AppError::workspace_header_invalid("missing"))?;
     // Synthetic API-key principals lack a UUID-shaped `sub` and
     // skip per-token revocation upstream. Idempotency cache rows
     // FK into `users.id`, so the API-key path also bypasses the
@@ -126,10 +119,7 @@ pub async fn idempotency_layer(
     let body_bytes = to_bytes(body, MAX_BUFFERED_REQUEST_BYTES)
         .await
         .map_err(|_| {
-            AppError::bad_request(format!(
-                "Request body exceeds the {MAX_BUFFERED_REQUEST_BYTES}-byte \
-                 idempotency cap"
-            ))
+            AppError::idempotency_request_body_too_large(MAX_BUFFERED_REQUEST_BYTES)
         })?;
     let request_hash = sha256(&body_bytes);
 
@@ -146,10 +136,7 @@ pub async fn idempotency_layer(
         .map_err(AppError::from)?
     {
         if existing.request_hash != request_hash {
-            return Err(AppError::conflict(
-                "Idempotency-Key was previously used with a different \
-                 request body. Mint a new key for the modified request.",
-            ));
+            return Err(AppError::idempotency_key_reused());
         }
         return Ok(replay(existing));
     }

@@ -1,4 +1,89 @@
 {
+  "errors": {
+    "bad_request": "Invalid request. {detail}",
+    "validation_error": "{field}: {detail}",
+    "parse_error": "Could not parse the request. {detail}",
+    "not_found": "{entity} was not found.",
+    "conflict": "Another user changed this item. Please refresh and try again.",
+    "unprocessable": "The request could not be processed. {detail}",
+    "unauthorized": "Authentication required.",
+    "forbidden": "You don't have permission for this action.",
+    "gone": "This resource is no longer available. {detail}",
+    "quality_gate": "Blocked by quality gate. {detail}",
+    "design_gates_unmet": "Resolve every design gate and try again.",
+    "invalid_ontology": "Ontology validation failed.",
+    "uncertain_reconcile": "Some matches need review. Resolve them on screen.",
+    "rate_limited": "Too many requests. Please wait and retry.",
+    "concurrency_cap": "Concurrent request limit reached. {detail}",
+    "ontology_error": "Ontology processing error. {detail}",
+    "compilation_error": "Query compilation failed. {detail}",
+    "serialization_error": "Data format error.",
+    "internal_error": "An internal error occurred. If it persists, contact support with the x-request-id header.",
+    "not_implemented": "This feature is not yet supported.",
+    "unsupported": "This operation is not supported by the configured backend.",
+    "service_unavailable": "Service is temporarily unavailable. Please try again shortly.",
+    "timeout": "The request timed out. Please try again.",
+    "missing_context": "Server configuration error. Contact support with the x-request-id header.",
+    "edit_operations_empty": "Select at least one change to apply.",
+    "ontology_version_conflict": "Another user changed the schema (expected v{expected}, current v{current}). Refresh and retry.",
+    "ontology_invariant_violation": "Ontology integrity check failed. Resolve the items below and retry.",
+    "edit_operation_rejected": "An edit operation was rejected. {detail}",
+    "ontology_not_committed": "Ontology '{lineage_id}' has no committed version yet. Save it first and retry.",
+    "deploy_pending_approval": "Schema deployment is awaiting admin approval. Retry after the review completes.",
+    "project_missing_source_schema": "The project has no source schema. {detail}",
+    "query_text_empty": "Type something to search.",
+    "temporal_query_requires_ontology": "Temporal queries (`as_of`) need an ontology id so the server can resolve the lineage to walk back through.",
+    "temporal_snapshot_missing": "No version was live at {as_of} for lineage '{lineage_id}'. The earliest committed version came after that timestamp, or the version was removed.",
+    "query_execution_failed": "Query execution failed. {detail}",
+    "query_compilation_failed": "Query compilation failed. {detail}",
+    "invalid_enum_value": "'{value}' is not a valid {field}. Must be one of: {allowed}.",
+    "text_length_out_of_range": "{field} must be at least {min} characters.",
+    "bulk_limit_exceeded": "Bulk operations accept at most {limit} items per call. Split the request and retry.",
+    "auth_token_claim_invalid": "Your sign-in token is missing or has an invalid {field}. Sign in again to continue.",
+    "auth_api_key_jwt_flow_denied": "API key principals can't perform this action ({operation}). Use the admin console instead.",
+    "locale_tag_invalid": "'{tag}' is not a valid BCP 47 locale tag for {field}. (e.g. ko-KR, en-US)",
+    "locale_chain_empty": "{field} must contain at least one locale tag.",
+    "workspace_owner_protected": "{action, select, remove {Cannot remove the workspace owner. Transfer ownership first.} change_role {Cannot change the workspace owner's role.} other {This action would affect the workspace owner.}}",
+    "default_workspace_protected": "The default workspace cannot be deleted.",
+    "identifier_format_invalid": "{format, select, slug {'{value}' is not a valid slug. Use only letters, digits, hyphens, and underscores.} cypher_label {'{value}' is not a valid graph label. Use only letters, digits, and underscores.} cypher_property {'{value}' is not a valid property name. Use only letters, digits, and underscores.} printable_text {{field} must not contain control characters.} other {'{value}' is not a valid {field}.}}",
+    "prompt_version_invalid": "'{value}' is not a valid prompt version. (e.g. 1.0.0)",
+    "self_mutation_denied": "{field, select, role {You can't change your own role.} membership {You can't change your own membership.} account {You can't change your own account directly.} other {This action can't be performed on yourself.}}",
+    "required_field_empty": "{field} is required.",
+    "quality_rule_requires_field": "Quality rules of type '{rule_type}' require a {field} value.",
+    "cypher_must_be_read_only": "{surface} accepts read-only Cypher. Remove DELETE / DETACH / CREATE / MERGE / SET / REMOVE.",
+    "quality_rule_query_failed": "Quality rule '{rule_name}' failed to execute. {detail}",
+    "owl_parse_failed": "OWL import failed at the parser. {detail}",
+    "feature_not_configured": "{feature, select, jwt {JWT authentication isn't configured.} semantic_memory {Semantic memory isn't configured.} federation {Federation isn't configured.} source_csv {The CSV source adapter isn't registered.} source_json {The JSON source adapter isn't registered.} source_postgresql {The PostgreSQL source adapter isn't registered.} source_mysql {The MySQL source adapter isn't registered.} source_mongodb {The MongoDB source adapter isn't registered.} source_snowflake {The Snowflake source adapter isn't registered.} source_bigquery {The BigQuery source adapter isn't registered.} source_duckdb {The DuckDB source adapter isn't registered.} other {The '{feature}' feature isn't configured.}} Contact your administrator.",
+    "scope_defer_modeled_tables": "These tables are still mapped to node types and can't be deferred: {tables}. Retract those node types first.",
+    "repo_analysis_failed": "{operation, select, clone {Git clone failed. {detail}} tree {Couldn't generate the file tree. {detail}} read {Couldn't read repository files. {detail}} empty_selection {No relevant files found in the repository for analysis.} empty_content {The selected files couldn't be read.} empty_models {No ORM models or entities found in the repository.} other {Repository analysis failed. {detail}}}",
+    "refinement_missing_inputs": "Refinement needs at least one of: a graph runtime, additional context, or a parseable source schema.",
+    "refinement_decision_unknown_id": "Decision references unknown id '{original_id}'. Refresh and try again.",
+    "uncertain_reconcile": "Refinement produced {count} uncertain ID match(es) that need review.",
+    "reanalyze_no_modeled_tables": "No modeled tables. Promote at least one deferred table or use the regular reanalyze endpoint.",
+    "source_type_mismatch": "This project was created with '{expected}' but reanalyze got '{got}'. Use the same source type.",
+    "decision_invalid_schema_refs": "Some decisions reference schema elements that no longer exist. Re-check the analysis report.",
+    "project_status_mismatch": "This action requires project status '{required}', but the project is currently '{actual}'. Refresh the page.",
+    "source_connection_failed": "Couldn't connect to the {source_type, select, postgresql {PostgreSQL} mysql {MySQL} mongodb {MongoDB} snowflake {Snowflake} bigquery {BigQuery} duckdb {DuckDB} other {{source_type}}} source. {detail}",
+    "edit_queued_for_approval": "Automation policy gates this change. Open the approvals queue to request review.",
+    "query_ir_invalid": "The query definition (query_ir) is malformed. {detail}",
+    "cron_expression_invalid": "Couldn't parse cron expression '{value}'. (e.g. `0 9 * * MON`)",
+    "resource_not_owned": "{resource, select, session {That session belongs to another user.} project {That project belongs to another user.} dashboard {That dashboard belongs to another user.} other {That {resource} belongs to another user.}} You can only modify items you own.",
+    "workspace_header_invalid": "{reason, select, missing {Specify a workspace. Call GET /workspaces to list available workspaces.} parse_failed {Couldn't read the X-Workspace-Id header.} not_uuid {X-Workspace-Id must be a valid UUID.} not_a_member {No workspace is accessible. Create one first.} other {The workspace header is invalid.}}",
+    "analysis_baseline_required": "Extend / reduce analysis requires an existing baseline. Run a base analyze first.",
+    "idempotency_streaming_unsupported": "Streaming endpoint ({path}) doesn't support Idempotency-Key. Drop the header and handle retries client-side.",
+    "idempotency_key_reused": "This Idempotency-Key was previously used with a different request body. Mint a new key and try again.",
+    "idempotency_request_body_too_large": "Request body exceeds the idempotency cache limit ({limit} bytes). Split the request.",
+    "role_required": "This action requires {role, select, admin {admin privileges} designer {designer or admin privileges} other {{role} privileges}}.",
+    "webhook_url_invalid": "{reason, select, parse_failed {The webhook URL is malformed.} bad_scheme {Webhook URL must use http or https.} internal_network {Webhook URL cannot target an internal network address.} other {The webhook URL is invalid.}}",
+    "credential_resolve_failed": "Couldn't resolve {scheme, select, env {environment-variable} file {file} gcp_secret {GCP Secret Manager} other {secret}} reference ({kind}). {detail}",
+    "agent_error": "Agent execution failed. {detail}",
+    "design_error": "Design phase failed. {detail}",
+    "quality_error": "Quality validation failed. {detail}",
+    "persist_error": "Persist phase failed. {detail}",
+    "reconcile_error": "Reconciliation failed. {detail}",
+    "refine_error": "Refinement failed. {detail}",
+    "unknown": "An unknown error occurred."
+  },
   "collaboration": {
     "errors": {
       "auth_required": {
@@ -78,24 +163,59 @@
     "footerNav": "↑↓ to navigate · ↵ to run · Esc to close",
     "footerCount": "{count, plural, one {# command} other {# commands}}",
     "groups": {
+      "global": "General",
       "navigate": "Navigate",
       "view": "View",
       "search": "Search",
-      "settings": "Settings"
+      "settings": "Settings",
+      "canvas": "Canvas"
     },
     "commands": {
-      "search-entities": { "label": "Search entities" },
-      "navigate-design": { "label": "Go to Design" },
-      "navigate-analyze": { "label": "Go to Analyze" },
-      "navigate-explore": { "label": "Go to Explore" },
-      "navigate-dashboard": { "label": "Go to Dashboard" },
-      "navigate-settings": { "label": "Go to Settings" },
-      "toggle-explorer": { "label": "Toggle Explorer panel" },
-      "toggle-inspector": { "label": "Toggle Inspector panel" },
-      "toggle-bottom-panel": { "label": "Toggle bottom panel" },
-      "cycle-bottom-panel-mode": { "label": "Cycle bottom-panel mode" },
-      "panel-mode-fullscreen": { "label": "Fullscreen the bottom panel" },
-      "panel-mode-default": { "label": "Restore default panel layout" }
+      "search-entities": {
+        "label": "Search entities"
+      },
+      "navigate-design": {
+        "label": "Go to Design"
+      },
+      "navigate-analyze": {
+        "label": "Go to Analyze"
+      },
+      "navigate-explore": {
+        "label": "Go to Explore"
+      },
+      "navigate-dashboard": {
+        "label": "Go to Dashboard"
+      },
+      "navigate-glossary": {
+        "label": "Go to Glossary"
+      },
+      "navigate-vocabulary": {
+        "label": "Go to Vocabulary"
+      },
+      "navigate-recipes": {
+        "label": "Go to Recipes"
+      },
+      "navigate-settings": {
+        "label": "Go to Settings"
+      },
+      "toggle-explorer": {
+        "label": "Toggle Explorer panel"
+      },
+      "toggle-inspector": {
+        "label": "Toggle Inspector panel"
+      },
+      "toggle-bottom-panel": {
+        "label": "Toggle bottom panel"
+      },
+      "cycle-bottom-panel-mode": {
+        "label": "Cycle bottom-panel mode"
+      },
+      "panel-mode-fullscreen": {
+        "label": "Fullscreen the bottom panel"
+      },
+      "panel-mode-default": {
+        "label": "Restore default panel layout"
+      }
     }
   },
   "binding": {
@@ -149,7 +269,8 @@
           "strategy": "Strategy",
           "vol": "Mapping (VOL)",
           "governance": "Governance"
-        }
+        },
+        "axisRefs": "{count} cross-reference(s)"
       },
       "axes": {
         "topology": {
@@ -373,11 +494,26 @@
       "subtitle": "Pick the data source the pilot reads from. The federation layer stays decoupled — you can register more sources later.",
       "kindLabel": "Source kind",
       "kinds": {
-        "postgresql": { "label": "PostgreSQL", "hint": "Relational database" },
-        "mysql": { "label": "MySQL", "hint": "Relational database" },
-        "bigquery": { "label": "BigQuery", "hint": "Cloud analytical warehouse" },
-        "csv": { "label": "CSV file", "hint": "Local or mounted file" },
-        "json": { "label": "JSON file", "hint": "Top-level records or nested" }
+        "postgresql": {
+          "label": "PostgreSQL",
+          "hint": "Relational database"
+        },
+        "mysql": {
+          "label": "MySQL",
+          "hint": "Relational database"
+        },
+        "bigquery": {
+          "label": "BigQuery",
+          "hint": "Cloud analytical warehouse"
+        },
+        "csv": {
+          "label": "CSV file",
+          "hint": "Local or mounted file"
+        },
+        "json": {
+          "label": "JSON file",
+          "hint": "Top-level records or nested"
+        }
       },
       "connectionLabel": "Connection string or path",
       "connectionPlaceholder": "postgres://user:pass@host:5432/db  OR  /mnt/data/orders.csv",
@@ -448,6 +584,7 @@
       "sample": "Sample",
       "lineage": "Lineage",
       "dependents": "Dependents",
+      "rules": "Rules",
       "quality": "Quality",
       "changelog": "Change log",
       "definitionSubsection": {
@@ -485,7 +622,8 @@
       "noSuggestions": "AI found no changes to suggest",
       "noImprovements": "No improvements suggested",
       "improvementFailed": "AI improvement failed",
-      "undoLimit": "Undo history limit reached"
+      "undoLimit": "Undo history limit reached",
+      "conflictUnknownActor": "Another user"
     },
     "noOntology": "No ontology",
     "nodeNotFound": "Node not found",
@@ -499,12 +637,160 @@
       "unsaveableHint": "No project — edits are local only. Open a project to enable saving.",
       "save": "Save to server",
       "saveTooltip": "Save to server (⌘S)"
+    },
+    "aiSuggestions": {
+      "acceptAll": "Accept all",
+      "appliedToast": "Suggestions applied",
+      "dismiss": "Dismiss"
+    },
+    "aria": {
+      "cancelInline": "Cancel",
+      "commitInline": "Save",
+      "deleteEdge": "Delete edge",
+      "deleteNode": "Delete node",
+      "deleteProperty": "Delete property",
+      "editInline": "Edit inline"
+    },
+    "classification": {
+      "tooltip": "Classification reflects the current schema state"
+    },
+    "dependents": {
+      "breakdownItem": "{count} {label}",
+      "count": "{count} dependent",
+      "kind": {
+        "action_rule": "Action rule",
+        "action_target": "Action target",
+        "concept_map_endpoint": "Concept map endpoint",
+        "data_quality_target": "Data quality target",
+        "edge_source": "Edge source",
+        "edge_target": "Edge target",
+        "enrichment_target": "Enrichment target",
+        "function_derivation": "Function derivation",
+        "interface_implementation": "Interface implementation",
+        "link_mapping_target": "Link mapping target",
+        "metric_scope": "Metric scope",
+        "object_mapping_target": "Object mapping target",
+        "property_binding_ref": "Property binding",
+        "property_mapping_target": "Property mapping target",
+        "property_of": "Property of",
+        "rule_activation": "Rule activation",
+        "rule_constraint": "Rule constraint",
+        "rule_vocabulary": "Rule vocabulary",
+        "unit_reference": "Unit reference",
+        "value_set_composition": "Value set composition"
+      },
+      "titleAttr": "Dependents"
+    },
+    "entity": {
+      "cardinalityLabel": "Cardinality",
+      "descriptionPlaceholder": "Add a description",
+      "edge": {
+        "deleteDescription": "The edge between source and target is removed.",
+        "deletedToast": "Edge deleted",
+        "deleteTitle": "Delete edge"
+      },
+      "editTip": "Click to edit",
+      "node": {
+        "deleteDescription": "This permanently removes the node and unlinks every edge attached to it.",
+        "deletedToast": "Node deleted",
+        "deleteTitle": "Delete node"
+      },
+      "verifiedBy": "Verified by {actor}",
+      "verify": "Verify"
+    },
+    "panelAria": "Inspector panel",
+    "property": {
+      "addForm": {
+        "addedToast": "Property added",
+        "namePlaceholder": "Property name",
+        "nullable": "Optional"
+      },
+      "changeTypeTooltip": "Change type",
+      "descriptionPlaceholder": "Describe this property",
+      "nullableTooltip": "Nullable — value is optional",
+      "requiredTooltip": "Required — value must be set",
+      "sourceColumn": "Source column"
+    },
+    "qualityGaps": {
+      "fixWithAi": "Fix with AI",
+      "severity": {
+        "high": "High",
+        "low": "Low",
+        "medium": "Medium"
+      },
+      "severityTooltip": "Severity is computed from rule weight",
+      "title": "Quality issues"
+    },
+    "rules": {
+      "none": "No rules reference this entity",
+      "openLink": "Open →",
+      "constraintCount": "{count, plural, =0 {no constraints} one {# constraint} other {# constraints}}",
+      "severity": {
+        "violation": "Violation",
+        "warning": "Warning",
+        "info": "Info"
+      },
+      "kind": {
+        "node_shape": "Node shape",
+        "property_shape": "Property shape",
+        "edge_shape": "Edge shape",
+        "cross_entity_shape": "Cross-entity",
+        "state_machine": "State machine"
+      },
+      "enforcement": {
+        "write": "Write",
+        "read": "Read",
+        "batch": "Batch"
+      }
     }
   },
   "narrowViewport": {
     "title": "Optimised for desktop",
     "description": "Ontosyx's canvas and multi-panel layout work best on screens ≥1024px. Some features may be limited on smaller viewports.",
     "dismissLabel": "Dismiss notice"
+  },
+  "forms": {
+    "requiredAria": "required",
+    "submission": {
+      "create": "Create",
+      "update": "Save changes",
+      "cancel": "Cancel",
+      "invalid": "Please review {count} field(s)."
+    },
+    "errors": {
+      "required": "This field is required.",
+      "idFormat": "ID must start with a letter; only alphanumerics, colon, underscore, hyphen allowed.",
+      "outOfRange": "Value out of range.",
+      "invalidDate": "Please enter a valid date."
+    },
+    "localizedText": {
+      "defaultPlaceholder": "Default text",
+      "localePlaceholder": "en",
+      "localeLabel": "Language tag",
+      "translationPlaceholder": "Translation for {locale}",
+      "translationLabel": "Translation for {locale}",
+      "remove": "Remove",
+      "removeAria": "Remove translation for {locale}",
+      "addTranslation": "+ Add translation"
+    },
+    "listBuilder": {
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "remove": "Remove"
+    },
+    "chipInput": {
+      "remove": "Remove {value}"
+    },
+    "saveBar": {
+      "save": "Save",
+      "discard": "Discard",
+      "saving": "Saving…",
+      "unsavedChanges": "Unsaved changes",
+      "savedJustNow": "Saved just now",
+      "savedMinutesAgo": "Saved {count} min ago",
+      "savedHoursAgo": "Saved {count} h ago",
+      "savedDaysAgo": "Saved {count} d ago"
+    }
   },
   "common": {
     "loading": "Loading…",
@@ -526,7 +812,23 @@
     "loadError": {
       "title": "Could not load data",
       "description": "Check your network or authentication and try again."
-    }
+    },
+    "accept": "Accept",
+    "alert": {
+      "dismiss": "Dismiss"
+    },
+    "copyButton": {
+      "ariaLabel": "Copy {what}",
+      "copied": "Copied",
+      "copy": "Copy"
+    },
+    "formField": {
+      "hideSecret": "Hide value",
+      "required": "Required",
+      "showSecret": "Show value"
+    },
+    "reject": "Reject",
+    "scrollableTableAria": "Scrollable table — use arrow keys to scroll"
   },
   "qualityGap": {
     "small_sample": {
@@ -627,7 +929,8 @@
   "auth": {
     "signIn": "Sign in",
     "signOut": "Sign out",
-    "signInPrompt": "Sign-in required"
+    "signInPrompt": "Sign-in required",
+    "myAccount": "My account"
   },
   "notFound": {
     "code": "404",
@@ -677,7 +980,8 @@
       "hideExplorer": "Hide Explorer",
       "showExplorer": "Show Explorer",
       "hideInspector": "Hide Inspector",
-      "showInspector": "Show Inspector"
+      "showInspector": "Show Inspector",
+      "appName": "Ontosyx"
     },
     "header": {
       "appTitle": "Ontosyx"
@@ -755,6 +1059,11 @@
       "toast": {
         "imported": "Ontology imported"
       }
+    },
+    "skipLinks": {
+      "toMain": "Skip to main content",
+      "toSidebar": "Skip to navigation",
+      "toInspector": "Skip to inspector"
     }
   },
   "diagnostics": {
@@ -926,7 +1235,8 @@
       "filterLabel": "Filter",
       "lineageLabel": "Column lineage",
       "warningsLabel": "Advisory warnings",
-      "empty": "No provenance recorded for this response."
+      "empty": "No provenance recorded for this response.",
+      "lineageSummary": "Sources used: {sources}"
     },
     "errorBoundary": {
       "title": "Widget rendering failed",
@@ -1112,109 +1422,239 @@
           "cancel": "Cancel"
         }
       },
+      "acl": {
+        "title": "Access Control",
+        "description": "Fine-grained ABAC policies for column-level masking and property-level deny on graph data.",
+        "createPolicy": "Create Policy",
+        "updatePolicy": "Update Policy",
+        "creating": "Creating...",
+        "updating": "Updating...",
+        "deleting": "...",
+        "newPolicyHeading": "New Policy",
+        "editPolicyHeading": "Edit Policy",
+        "allProperties": "all",
+        "required": "Required",
+        "deleteConfirmTitle": "Delete ACL policy '{name}'?",
+        "deleteConfirmDescription": "This action cannot be undone. The access control policy will be permanently removed.",
+        "column": {
+          "policy": "Policy",
+          "subject": "Subject",
+          "resource": "Resource",
+          "action": "Action",
+          "properties": "Properties",
+          "priority": "Priority",
+          "actions": "Actions"
+        },
+        "field": {
+          "name": "Name",
+          "subjectType": "Subject Type",
+          "subjectValue": "Subject Value",
+          "resourceType": "Resource Type",
+          "resourceValue": "Resource Value",
+          "resourceValueHint": "Resource Value <hint>(optional)</hint>",
+          "action": "Action",
+          "priority": "Priority",
+          "properties": "Properties",
+          "propertiesHint": "Properties <hint>(comma-separated, leave empty for all)</hint>",
+          "maskPattern": "Mask Pattern"
+        },
+        "placeholder": {
+          "name": "e.g. Mask PII for viewers",
+          "subjectValue": "e.g. viewer, admin",
+          "resourceValue": "e.g. Customer",
+          "properties": "e.g. email, phone",
+          "maskPattern": "e.g. ***"
+        },
+        "subjectType": {
+          "role": "role",
+          "workspace_role": "workspace role",
+          "user": "user"
+        },
+        "resourceType": {
+          "node_label": "node label",
+          "edge_label": "edge label",
+          "all": "all"
+        },
+        "actionLabel": {
+          "mask": "mask",
+          "deny": "deny",
+          "allow": "allow"
+        },
+        "actionBadge": {
+          "mask": "MASK",
+          "deny": "DENY",
+          "allow": "ALLOW"
+        },
+        "empty": "No ACL policies configured",
+        "toast": {
+          "loadFailed": "Failed to load ACL policies",
+          "created": "Policy created",
+          "updated": "Policy updated",
+          "deleted": "Policy deleted",
+          "createFailed": "Failed to create policy",
+          "updateFailed": "Failed to update policy",
+          "deleteFailed": "Failed to delete policy"
+        }
+      },
+      "approvals": {
+        "title": "Approval Queue",
+        "subtitle": "Review and approve schema deployments and other gated operations.",
+        "description": "Review and approve schema deployments and other gated operations.",
+        "approve": "Approve",
+        "reject": "Reject",
+        "pendingHeading": "Pending ({count})",
+        "historyHeading": "History",
+        "emptyHistory": "No approval history",
+        "expires": "Expires",
+        "column": {
+          "action": "Action",
+          "resource": "Resource",
+          "status": "Status",
+          "date": "Date"
+        },
+        "status": {
+          "pending": "Pending",
+          "approved": "Approved",
+          "rejected": "Rejected",
+          "expired": "Expired"
+        },
+        "toast": {
+          "loadFailed": "Failed to load approvals",
+          "reviewFailed": "Failed to review approval",
+          "approved": "Approved",
+          "rejected": "Rejected"
+        },
+        "expandPreview": "Show changes",
+        "collapsePreview": "Hide changes",
+        "reviewerNote": {
+          "label": "Reviewer note (optional)",
+          "placeholder": "Why approve or reject? Visible in the audit trail."
+        },
+        "thread": {
+          "heading": "Discussion",
+          "empty": "No comments yet.",
+          "addPlaceholder": "Add a comment to the thread.",
+          "addButton": "Post comment",
+          "posting": "Posting...",
+          "loadFailed": "Failed to load comments",
+          "postFailed": "Failed to post comment",
+          "posted": "Comment posted",
+          "unknownAuthor": "Unknown user"
+        },
+        "preview": {
+          "summary": "{count} operation(s)",
+          "expectedVersion": "@v{v}",
+          "messageLabel": "Note",
+          "truncated": "+{remaining} more (truncated)",
+          "kinds": {
+            "create": "{count} create",
+            "update": "{count} update",
+            "delete": "{count} delete",
+            "deprecate": "{count} deprecate",
+            "bind": "{count} bind"
+          }
+        }
+      },
       "audit": {
-        "pageTitle": "PROV-O Audit",
-        "pageSubtitle": "Per-fact origin records the platform emits during source scans, rule evaluation, action execution, LLM drafts, etc. Read-only — operators see WHY a fact in the graph exists, who ran the activity, and when.",
-        "noOntology": "No committed ontology — open Design mode first to start producing PROV-O records.",
-        "filter": { "activity": "Activity kind", "agent": "Agent kind", "ontology": "Ontology" },
-        "ontologyAll": "All ontologies",
-        "aggregatedHint": "Aggregated across {count} ontologies",
-        "counts": "{count} record(s) loaded",
-        "loadMore": "Load more",
-        "loadingMore": "Loading...",
-        "usedLabel": "used",
-        "empty": {
-          "noRecords": "No PROV-O records yet",
-          "noRecordsHint": "Records are emitted as the platform runs source scans, rule validations, action executions, LLM drafts, etc.",
-          "noMatch": "No matching records",
-          "noMatchHint": "Loosen the filters to see more entries."
+        "user": {
+          "title": "Audit Log",
+          "description": "Track user actions, resource changes, and system events.",
+          "empty": "No audit entries for the selected period",
+          "tableAria": "Audit entries — scroll horizontally",
+          "column": {
+            "action": "Action",
+            "resourceType": "Resource Type",
+            "resourceId": "Resource ID",
+            "user": "User",
+            "date": "Date"
+          },
+          "systemUser": "system",
+          "toast": {
+            "loadFailed": "Failed to load audit log"
+          }
         },
-        "activityKinds": {
-          "all": "All activities",
-          "source_scan": "Source scan",
-          "function_eval": "Function eval",
-          "rule_validate": "Rule validate",
-          "action_execute": "Action execute",
-          "ontology_edit": "Ontology edit",
-          "draft_proposal": "LLM draft",
-          "cache_refresh": "Cache refresh",
-          "enrichment": "Enrichment",
-          "import": "Import",
-          "export": "Export"
+        "provenance": {
+          "pageTitle": "PROV-O Audit",
+          "pageSubtitle": "Per-fact origin records the platform emits during source scans, rule evaluation, action execution, LLM drafts, etc. Read-only — operators see WHY a fact in the graph exists, who ran the activity, and when.",
+          "noOntology": "No committed ontology — open Design mode first to start producing PROV-O records.",
+          "filter": {
+            "activity": "Activity kind",
+            "agent": "Agent kind",
+            "ontology": "Ontology"
+          },
+          "ontologyAll": "All ontologies",
+          "aggregatedHint": "Aggregated across {count} ontologies",
+          "counts": "{count} record(s) loaded",
+          "loadMore": "Load more",
+          "loadingMore": "Loading...",
+          "usedLabel": "used",
+          "empty": {
+            "noRecords": "No PROV-O records yet",
+            "noRecordsHint": "Records are emitted as the platform runs source scans, rule validations, action executions, LLM drafts, etc.",
+            "noMatch": "No matching records",
+            "noMatchHint": "Loosen the filters to see more entries."
+          },
+          "activityKinds": {
+            "all": "All activities",
+            "source_scan": "Source scan",
+            "function_eval": "Function eval",
+            "rule_validate": "Rule validate",
+            "action_execute": "Action execute",
+            "ontology_edit": "Ontology edit",
+            "draft_proposal": "LLM draft",
+            "cache_refresh": "Cache refresh",
+            "enrichment": "Enrichment",
+            "import": "Import",
+            "export": "Export"
+          },
+          "agentKinds": {
+            "all": "All agents",
+            "user": "User",
+            "service": "Service",
+            "llm_model": "LLM model",
+            "system": "System"
+          },
+          "error": {
+            "title": "Failed to load audit trail",
+            "description": "The audit trail could not be retrieved. Check your connection and try again."
+          }
         },
-        "agentKinds": {
-          "all": "All agents",
-          "user": "User",
-          "service": "Service",
-          "llm_model": "LLM model",
-          "system": "System"
+        "pageTitle": "Audit",
+        "pageSubtitle": "User actions and PROV-O fact provenance — the full origin trail across the platform.",
+        "tab": {
+          "user": "User Actions",
+          "provenance": "PROV-O"
         }
       }
     },
     "vocabulary": {
-      "mappings": {
-        "pageTitle": "Mappings",
-        "pageSubtitle": "Physical-to-logical mapping layer — ObjectMapping binds a node type to one source relation; LinkMapping binds an edge type to a foreign-key, bridge, computed, or federated topology.",
-        "noOntology": "No committed ontology available — create one in Design mode before editing mappings.",
-        "createButton": "Add mapping",
-        "editButton": "Edit",
-        "deleteButton": "Delete",
-        "objectMapping": "Object mapping",
-        "linkMapping": "Link mapping",
-        "jsonLabel": "Mapping (JSON)",
-        "submitCreate": "Create mapping",
-        "submitUpdate": "Save changes",
-        "cancel": "Cancel",
-        "tab": {
-          "object": "Object mappings",
-          "link": "Link mappings"
-        },
-        "messages": {
-          "objectCreated": "Create object mapping '{id}'",
-          "objectUpdated": "Update object mapping '{id}'",
-          "objectDeleted": "Delete object mapping '{id}'",
-          "linkCreated": "Create link mapping '{id}'",
-          "linkUpdated": "Update link mapping '{id}'",
-          "linkDeleted": "Delete link mapping '{id}'"
-        },
-        "toast": {
-          "created": "Mapping created",
-          "createFailed": "Create failed: {error}",
-          "updated": "Mapping updated",
-          "updateFailed": "Update failed: {error}",
-          "deleted": "Mapping deleted",
-          "deleteFailed": "Delete failed: {error}"
-        },
-        "confirm": {
-          "deleteTitle": "Delete mapping?",
-          "deleteDescription": "Removing '{id}' breaks the binding between this entity type and its source. Queries that reach the affected slice will return empty until a new mapping replaces it."
-        },
-        "createDialog": {
-          "objectTitle": "New object mapping",
-          "objectDescription": "Bind a node type to one source relation. Carries the primary-key columns the planner uses for DISTINCT-on dedup across multi-mappings.",
-          "linkTitle": "New link mapping",
-          "linkDescription": "Bind an edge type to a physical topology — foreign key, bridge, computed predicate, or federated cross-source value match. Cardinality is correctness-critical for NL2SQL DISTINCT injection."
-        },
-        "empty": {
-          "object": {
-            "title": "No object mappings",
-            "description": "Bind your first node type to a source relation so queries can reach physical data."
-          },
-          "link": {
-            "title": "No link mappings",
-            "description": "Bind your first edge type to a foreign key, bridge, computed predicate, or federated topology."
-          }
-        },
-        "error": {
-          "empty": "Mapping JSON cannot be empty.",
-          "invalidJson": "Invalid JSON: {message}"
+      "usage": {
+        "expand": "Usages",
+        "collapse": "Hide",
+        "toggle": "Show usages",
+        "none": "Nothing references this entry.",
+        "badges": {
+          "node": "Node",
+          "edge": "Edge",
+          "value_set": "Value set",
+          "concept_map": "Concept map"
+        }
+      },
+      "workbench": {
+        "searchPlaceholder": "Search by id…",
+        "usageHeader": "Used by",
+        "toggleUsage": "Toggle usage panel",
+        "nothingSelected": {
+          "title": "Select an item",
+          "description": "Click an item in the list to edit it here."
         }
       },
       "codeSystems": {
         "pageTitle": "Code systems",
         "pageSubtitle": "Registered terminology systems (national codes, units, internal taxonomies). Properties bind to ValueSets sliced from these systems.",
         "noOntology": "No committed ontology available — create one in Design mode before editing code systems.",
-        "createButton": "Add code system",
+        "listHeading": "{count, plural, =0 {No code systems} one {# code system} other {# code systems}}",
+        "createButton": "Add",
         "editButton": "Edit",
         "deleteButton": "Delete",
         "jsonLabel": "Code system (JSON)",
@@ -1247,18 +1687,50 @@
         "form": {
           "submitCreate": "Create code system",
           "submitUpdate": "Save changes",
-          "cancel": "Cancel"
+          "cancel": "Cancel",
+          "id": "ID",
+          "name": "Name",
+          "displayName": "Display name",
+          "description": "Description",
+          "version": "Version",
+          "kind": "Kind",
+          "kindOptions": {
+            "internal": "Internal (workspace-defined)",
+            "international": "International standard",
+            "standard": "Official standard",
+            "custom": "Custom"
+          },
+          "hierarchical": "Hierarchical",
+          "hierarchicalDescription": "Enable when codes have parent-child taxonomy relationships.",
+          "codes": "Codes",
+          "codesAdd": "Add code",
+          "codesEmptyTitle": "No codes registered",
+          "codesEmptyDescription": "Add the first code to this code system.",
+          "sections": {
+            "identity": "Identity",
+            "metadata": "Metadata",
+            "codes": "Codes"
+          },
+          "code": {
+            "id": "Code ID",
+            "code": "Code value",
+            "display": "Display",
+            "definition": "Definition",
+            "deprecatedAt": "Deprecated at"
+          }
         },
         "error": {
           "empty": "Code system JSON cannot be empty.",
           "invalidJson": "Invalid JSON: {message}"
-        }
+        },
+        "rowSummary": "{name} · v{version}"
       },
       "notationPatterns": {
         "pageTitle": "Notation patterns",
         "pageSubtitle": "Structured identifier formats (campaign codes, SKU patterns, sample IDs). Property bindings reference a pattern so SHACL `MatchesPattern` can validate inline values.",
         "noOntology": "No committed ontology available — create one in Design mode before editing notation patterns.",
-        "createButton": "Add pattern",
+        "listHeading": "{count, plural, =0 {No patterns} one {# pattern} other {# patterns}}",
+        "createButton": "Add",
         "editButton": "Edit",
         "deleteButton": "Delete",
         "jsonLabel": "Notation pattern (JSON)",
@@ -1291,7 +1763,17 @@
         "form": {
           "submitCreate": "Create pattern",
           "submitUpdate": "Save changes",
-          "cancel": "Cancel"
+          "cancel": "Cancel",
+          "id": "ID",
+          "name": "Name",
+          "displayName": "Display name",
+          "description": "Description",
+          "template": "Template",
+          "separator": "Separator",
+          "sections": {
+            "identity": "Identity",
+            "template": "Template"
+          }
         },
         "error": {
           "empty": "Notation pattern JSON cannot be empty.",
@@ -1302,7 +1784,8 @@
         "pageTitle": "Value sets",
         "pageSubtitle": "Bounded subsets of one or more code systems. Properties bind to a value set so write-time validation can enforce membership.",
         "noOntology": "No committed ontology available — create one in Design mode before editing value sets.",
-        "createButton": "Add value set",
+        "listHeading": "{count, plural, =0 {No value sets} one {# value set} other {# value sets}}",
+        "createButton": "Add",
         "editButton": "Edit",
         "deleteButton": "Delete",
         "jsonLabel": "Value set (JSON)",
@@ -1335,21 +1818,38 @@
         "form": {
           "submitCreate": "Create value set",
           "submitUpdate": "Save changes",
-          "cancel": "Cancel"
+          "cancel": "Cancel",
+          "id": "ID",
+          "name": "Name",
+          "displayName": "Display name",
+          "description": "Description",
+          "version": "Version",
+          "composition": "Composition rules",
+          "compositionAdd": "Add composition rule",
+          "compositionEmptyTitle": "No composition rules",
+          "compositionEmptyDescription": "Add include/exclude rules from existing code systems.",
+          "sections": {
+            "identity": "Identity",
+            "metadata": "Metadata",
+            "composition": "Composition"
+          }
         },
         "error": {
           "empty": "Value set JSON cannot be empty.",
           "invalidJson": "Invalid JSON: {message}"
-        }
+        },
+        "rowSummary": "{name} · v{version}"
       },
       "conceptMaps": {
         "pageTitle": "Concept maps",
         "pageSubtitle": "Translations between two code systems. The compiler rewrites literal codes through these maps before query execution (Φ3-E).",
         "noOntology": "No committed ontology available — create one in Design mode before editing concept maps.",
-        "createButton": "Add concept map",
+        "listHeading": "{count, plural, =0 {No concept maps} one {# concept map} other {# concept maps}}",
+        "createButton": "Add",
         "editButton": "Edit",
         "deleteButton": "Delete",
         "jsonLabel": "Concept map (JSON)",
+        "mappingCount": "{count, plural, one {# mapping} other {# mappings}}",
         "mappingSummary": "{source} → {target} · {count} mapping(s)",
         "empty": {
           "title": "No concept maps registered",
@@ -1379,18 +1879,32 @@
         "form": {
           "submitCreate": "Create concept map",
           "submitUpdate": "Save changes",
-          "cancel": "Cancel"
+          "cancel": "Cancel",
+          "id": "ID",
+          "name": "Name",
+          "displayName": "Display name",
+          "description": "Description",
+          "version": "Version",
+          "sourceSystemId": "Source code system",
+          "targetSystemId": "Target code system",
+          "sections": {
+            "identity": "Identity",
+            "metadata": "Metadata",
+            "systems": "Code systems"
+          }
         },
         "error": {
           "empty": "Concept map JSON cannot be empty.",
           "invalidJson": "Invalid JSON: {message}"
-        }
+        },
+        "rowSummary": "{name} · v{version}"
       },
       "rules": {
         "pageTitle": "Rules",
         "pageSubtitle": "SHACL-style validation shapes. The runtime enforces them at write / read / batch time depending on the rule's `enforcement` setting.",
         "noOntology": "No committed ontology available — create one in Design mode before editing rules.",
-        "createButton": "Add rule",
+        "listHeading": "{count, plural, =0 {No rules} one {# rule} other {# rules}}",
+        "createButton": "Add",
         "editButton": "Edit",
         "viewButton": "View",
         "deleteButton": "Delete",
@@ -1438,7 +1952,10 @@
           "submitCreate": "Create rule",
           "submitUpdate": "Save changes",
           "cancel": "Cancel",
-          "derivedNotice": "This rule is derived from a property binding — edit the source binding to change it."
+          "derivedNotice": "This rule is derived from a property binding — edit the source binding to change it.",
+          "draftDiscard": "Discard draft",
+          "draftFound": "Restore the draft you were working on?",
+          "draftRestore": "Restore draft"
         },
         "severity": {
           "violation": "Violation",
@@ -1542,10 +2059,10 @@
           "displayNamePlaceholder": "Customer",
           "description": "Description",
           "descriptionPlaceholder": "End user of the platform with a billing relationship.",
-          "aliases": "Aliases (one per line)",
-          "aliasesPlaceholder": "client\naccount_holder",
-          "examples": "Examples (one per line)",
-          "examplesPlaceholder": "Monthly paying customer\nFree-trial account",
+          "aliases": "Aliases",
+          "aliasesPlaceholder": "Type alias and press Enter",
+          "examples": "Examples",
+          "examplesPlaceholder": "Type example and press Enter",
           "category": "Category",
           "categoryPlaceholder": "business_concept",
           "cancel": "Cancel",
@@ -1576,10 +2093,10 @@
             "originColumn": "Column",
             "originCatalog": "Catalogue",
             "originExternalId": "External id",
-            "scopeNotes": "Scope notes (one per line)",
-            "scopeNotesPlaceholder": "Only in retail context\nExcludes returns",
-            "editorialNotes": "Editorial notes (one per line)",
-            "editorialNotesPlaceholder": "Verify against legal vocabulary"
+            "scopeNotes": "Scope notes",
+            "scopeNotesPlaceholder": "Type note and press Enter",
+            "editorialNotes": "Editorial notes",
+            "editorialNotesPlaceholder": "Type note and press Enter"
           },
           "relations": {
             "title": "Related terms (SKOS)",
@@ -1600,7 +2117,10 @@
               "exact_match": "Exact match",
               "close_match": "Close match"
             }
-          }
+          },
+          "draftDiscard": "Discard draft",
+          "draftFound": "Restore the draft you were working on?",
+          "draftRestore": "Restore draft"
         },
         "messages": {
           "created": "Add glossary term '{term}'",
@@ -1632,7 +2152,10 @@
         "rescore": "Re-score"
       },
       "fields": {
-        "term": { "label": "Term", "placeholder": "VIP tier" },
+        "term": {
+          "label": "Term",
+          "placeholder": "VIP tier"
+        },
         "termId": {
           "label": "Term id",
           "placeholder": "g-vip-tier",
@@ -1681,910 +2204,39 @@
         "selectPrompt": "Select an item to view details."
       },
       "sidebar": {
-        "organization": "Organization",
-        "workspace": "Workspace",
-        "team": "Team",
         "profile": "Profile",
-        "system": "System",
-        "systemCategory": "System",
-        "providers": "Providers",
-        "models": "Models",
-        "usage": "Usage",
         "notifications": "Notifications",
-        "data": "Data",
+        "sessions": "Sessions",
+        "workspace": "Workspace",
+        "general": "General",
+        "members": "Members",
+        "usage": "Usage",
         "reports": "Reports",
         "schedules": "Schedules",
         "knowledge": "Knowledge",
-        "governance": "Governance",
-        "qualityRules": "Quality Rules",
-        "qualitySignals": "Quality Signals",
-        "staleConcepts": "Stale Concepts",
-        "ambiguity": "Ambiguity",
-        "accessControl": "Access Control",
-        "dataLineage": "Data Lineage",
-        "auditLog": "Audit Log",
-        "provenanceAudit": "PROV-O Audit",
-        "routingMatrix": "Change Routing Matrix",
-        "approvals": "Approvals",
-        "development": "Development",
+        "knowledgeBase": "Knowledge Base",
+        "federation": "Federation",
+        "lineage": "Lineage",
+        "mappings": "Mappings",
+        "runtime": "Runtime",
+        "config": "Config",
+        "providers": "Providers",
+        "models": "Models",
         "prompts": "Prompts",
-        "sessions": "Sessions",
-        "federation": "Federation Adapters"
-      }
-    },
-    "roles": {
-      "admin": "Admin",
-      "designer": "Designer",
-      "viewer": "Viewer"
-    },
-    "profile": {
-      "title": "Profile",
-      "accountDetails": "Account Details",
-      "field": {
-        "name": "Name",
-        "email": "Email",
-        "signInProvider": "Sign-in Provider",
-        "role": "Role"
+        "quality": "Quality",
+        "governance": "Governance",
+        "accessControl": "Access Control",
+        "routingMatrix": "Change Routing",
+        "approvals": "Approvals",
+        "audit": "Audit"
       },
-      "signInProviderValue": "Google",
-      "session": {
-        "title": "Session",
-        "description": "Sign out of your current session on this device.",
-        "signOut": "Sign Out"
-      },
-      "notSignedIn": "Not signed in.",
-      "devMode": {
-        "userName": "Developer",
-        "userEmail": "dev@localhost",
-        "notice": "Development mode — no authentication configured. Configure Google OAuth to enable user accounts."
-      }
+      "breadcrumbAriaLabel": "Breadcrumb"
     },
     "datePicker": {
       "last7Days": "Last 7 days",
       "last30Days": "Last 30 days",
       "last90Days": "Last 90 days",
       "daysLabel": "Days"
-    },
-    "audit": {
-      "title": "Audit Log",
-      "description": "Track user actions, resource changes, and system events.",
-      "empty": "No audit entries for the selected period",
-      "tableAria": "Audit entries — scroll horizontally",
-      "column": {
-        "action": "Action",
-        "resourceType": "Resource Type",
-        "resourceId": "Resource ID",
-        "user": "User",
-        "date": "Date"
-      },
-      "systemUser": "system",
-      "toast": {
-        "loadFailed": "Failed to load audit log"
-      }
-    },
-    "usage": {
-      "title": "Usage & Metering",
-      "description": "LLM token usage, compute costs, and request volumes.",
-      "empty": "No usage data for the selected period",
-      "summary": {
-        "totalTokens": "Total Tokens",
-        "requests": "Requests",
-        "estimatedCost": "Estimated Cost"
-      },
-      "column": {
-        "resourceType": "Resource Type",
-        "inputTokens": "Input Tokens",
-        "outputTokens": "Output Tokens",
-        "requests": "Requests",
-        "cost": "Cost"
-      },
-      "toast": {
-        "loadFailed": "Failed to load usage data"
-      }
-    },
-    "providers": {
-      "title": "Providers",
-      "description": "Provider configuration is managed via {configFile} and environment variables.",
-      "serviceStatus": "Service Status",
-      "llm": {
-        "title": "LLM Provider",
-        "description": "Language model used for ontology design, query translation, and explanations",
-        "provider": "Provider",
-        "model": "Model"
-      },
-      "postgres": {
-        "title": "PostgreSQL",
-        "description": "Application state database (projects, ontologies, query history)"
-      },
-      "graph": {
-        "title": "Graph Database",
-        "description": "Graph database for ontology queries and data exploration"
-      },
-      "status": {
-        "ok": "Healthy",
-        "degraded": "Degraded",
-        "unavailable": "Unavailable",
-        "connected": "Connected"
-      },
-      "toast": {
-        "loadFailed": "Failed to load"
-      }
-    },
-    "schedules": {
-      "title": "Scheduled Tasks",
-      "description": "Manage recurring analysis tasks. Tasks execute recipes on a cron schedule.",
-      "empty": "No scheduled tasks. Tasks are created when you schedule a recipe from the Recipes page.",
-      "deleteConfirm": {
-        "title": "Delete scheduled task '{name}'?",
-        "description": "This action cannot be undone. The scheduled task will be permanently removed."
-      },
-      "enableAria": "Enable task",
-      "disableAria": "Disable task",
-      "column": {
-        "description": "Description",
-        "cron": "Cron",
-        "status": "Status",
-        "lastRun": "Last Run",
-        "nextRun": "Next Run",
-        "enabled": "Enabled"
-      },
-      "toast": {
-        "loadFailed": "Failed to load scheduled tasks",
-        "enabled": "Task enabled",
-        "disabled": "Task paused",
-        "updateFailed": "Failed to update task",
-        "deleteFailed": "Failed to delete task",
-        "deleted": "Task deleted"
-      }
-    },
-    "approvals": {
-      "title": "Approval Queue",
-      "subtitle": "Review and approve schema deployments and other gated operations.",
-      "description": "Review and approve schema deployments and other gated operations.",
-      "approve": "Approve",
-      "reject": "Reject",
-      "pendingHeading": "Pending ({count})",
-      "historyHeading": "History",
-      "emptyHistory": "No approval history",
-      "expires": "Expires",
-      "column": {
-        "action": "Action",
-        "resource": "Resource",
-        "status": "Status",
-        "date": "Date"
-      },
-      "status": {
-        "pending": "Pending",
-        "approved": "Approved",
-        "rejected": "Rejected",
-        "expired": "Expired"
-      },
-      "toast": {
-        "loadFailed": "Failed to load approvals",
-        "reviewFailed": "Failed to review approval",
-        "approved": "Approved",
-        "rejected": "Rejected"
-      },
-      "expandPreview": "Show changes",
-      "collapsePreview": "Hide changes",
-      "reviewerNote": {
-        "label": "Reviewer note (optional)",
-        "placeholder": "Why approve or reject? Visible in the audit trail."
-      },
-      "thread": {
-        "heading": "Discussion",
-        "empty": "No comments yet.",
-        "addPlaceholder": "Add a comment to the thread.",
-        "addButton": "Post comment",
-        "posting": "Posting...",
-        "loadFailed": "Failed to load comments",
-        "postFailed": "Failed to post comment",
-        "posted": "Comment posted",
-        "unknownAuthor": "Unknown user"
-      },
-      "preview": {
-        "summary": "{count} operation(s)",
-        "expectedVersion": "@v{v}",
-        "messageLabel": "Note",
-        "truncated": "+{remaining} more (truncated)",
-        "kinds": {
-          "create": "{count} create",
-          "update": "{count} update",
-          "delete": "{count} delete",
-          "deprecate": "{count} deprecate",
-          "bind": "{count} bind"
-        }
-      }
-    },
-    "acl": {
-      "title": "Access Control",
-      "description": "Fine-grained ABAC policies for column-level masking and property-level deny on graph data.",
-      "createPolicy": "Create Policy",
-      "updatePolicy": "Update Policy",
-      "creating": "Creating...",
-      "updating": "Updating...",
-      "deleting": "...",
-      "newPolicyHeading": "New Policy",
-      "editPolicyHeading": "Edit Policy",
-      "allProperties": "all",
-      "required": "Required",
-      "deleteConfirmTitle": "Delete ACL policy '{name}'?",
-      "deleteConfirmDescription": "This action cannot be undone. The access control policy will be permanently removed.",
-      "column": {
-        "policy": "Policy",
-        "subject": "Subject",
-        "resource": "Resource",
-        "action": "Action",
-        "properties": "Properties",
-        "priority": "Priority",
-        "actions": "Actions"
-      },
-      "field": {
-        "name": "Name",
-        "subjectType": "Subject Type",
-        "subjectValue": "Subject Value",
-        "resourceType": "Resource Type",
-        "resourceValue": "Resource Value",
-        "resourceValueHint": "Resource Value <hint>(optional)</hint>",
-        "action": "Action",
-        "priority": "Priority",
-        "properties": "Properties",
-        "propertiesHint": "Properties <hint>(comma-separated, leave empty for all)</hint>",
-        "maskPattern": "Mask Pattern"
-      },
-      "placeholder": {
-        "name": "e.g. Mask PII for viewers",
-        "subjectValue": "e.g. viewer, admin",
-        "resourceValue": "e.g. Customer",
-        "properties": "e.g. email, phone",
-        "maskPattern": "e.g. ***"
-      },
-      "subjectType": {
-        "role": "role",
-        "workspace_role": "workspace role",
-        "user": "user"
-      },
-      "resourceType": {
-        "node_label": "node label",
-        "edge_label": "edge label",
-        "all": "all"
-      },
-      "actionLabel": {
-        "mask": "mask",
-        "deny": "deny",
-        "allow": "allow"
-      },
-      "actionBadge": {
-        "mask": "MASK",
-        "deny": "DENY",
-        "allow": "ALLOW"
-      },
-      "empty": "No ACL policies configured",
-      "toast": {
-        "loadFailed": "Failed to load ACL policies",
-        "created": "Policy created",
-        "updated": "Policy updated",
-        "deleted": "Policy deleted",
-        "createFailed": "Failed to create policy",
-        "updateFailed": "Failed to update policy",
-        "deleteFailed": "Failed to delete policy"
-      }
-    },
-    "team": {
-      "title": "Team",
-      "description": "Manage team members and their roles.",
-      "authRequired": "Authentication is not enabled",
-      "authRequiredDescription": "Team management is only available in workspaces with authentication enabled. Contact your system administrator.",
-      "rolesHeading": "Roles",
-      "membersHeading": "Members",
-      "changeRoleAria": "Change role for {name}",
-      "roleSelectLabel": "Role",
-      "you": "you",
-      "roleDescriptions": {
-        "admin": "Full access to all features including system configuration and user management",
-        "designer": "Create and edit ontology designs, run queries, and manage projects",
-        "viewer": "View ontologies, run chat queries, and browse query history"
-      },
-      "column": {
-        "user": "User",
-        "email": "Email",
-        "role": "Role"
-      },
-      "addingMembers": {
-        "heading": "Adding Members",
-        "description": "Users are automatically added on first login via SSO. Share the platform URL with your team members and ask them to sign in with their Google account."
-      },
-      "toast": {
-        "loadFailed": "Failed to load users",
-        "updateRoleFailed": "Failed to update role"
-      }
-    },
-    "knowledge": {
-      "title": "Knowledge Base",
-      "description": "Learned corrections from query failures and admin-created hints.",
-      "adminOnly": "Admin access required.",
-      "deleteConfirmTitle": "Delete knowledge entry '{title}'?",
-      "deleteConfirmDescription": "This action cannot be undone. The knowledge entry will be permanently removed.",
-      "reviewStale": "Review {count} stale",
-      "statusFilterLabel": "Status Filter",
-      "kindFilterLabel": "Kind Filter",
-      "allStatus": "All status",
-      "allKinds": "All kinds",
-      "entries": "{count} entries",
-      "empty": "No knowledge entries yet.",
-      "emptyHint": "Entries are auto-created when the agent recovers from query failures, or manually as hints.",
-      "loadMore": "Load more (showing {count})",
-      "loading": "Loading...",
-      "ontologyMeta": "{name} v{version}+",
-      "confidence": "Confidence",
-      "usedTimes": "Used {count} times",
-      "approve": "Approve",
-      "deprecate": "Deprecate",
-      "structuredData": "Structured data",
-      "createdBy": "Created by {user}",
-      "reviewed": "Reviewed {date}",
-      "kind": {
-        "correction": "Correction",
-        "hint": "Hint"
-      },
-      "status": {
-        "approved": "Approved",
-        "draft": "Draft",
-        "stale": "Stale",
-        "deprecated": "Deprecated"
-      },
-      "toast": {
-        "loadFailed": "Failed to load knowledge entries",
-        "statusChanged": "Status changed to {status}",
-        "statusChangeFailed": "Failed to update status",
-        "deleted": "Deleted",
-        "deleteFailed": "Delete failed",
-        "bulkDeprecated": "{count} deprecated",
-        "bulkFailed": "Failed"
-      }
-    },
-    "system": {
-      "title": "System Settings",
-      "description": "Runtime-tunable configuration stored in the database.",
-      "modified": "modified",
-      "unsavedChanges": "{count, plural, one {# unsaved change} other {# unsaved changes}}",
-      "discard": "Discard",
-      "save": "Save Changes",
-      "saving": "Saving...",
-      "category": {
-        "llm": {
-          "label": "LLM Parameters",
-          "description": "Language model token limits and temperature settings"
-        },
-        "thresholds": {
-          "label": "Schema Thresholds",
-          "description": "Size thresholds for adaptive processing"
-        },
-        "profiling": {
-          "label": "Profiling",
-          "description": "Graph and schema profiling parameters"
-        },
-        "timeouts": {
-          "label": "Timeouts",
-          "description": "Operation timeout durations (seconds)"
-        },
-        "ui": {
-          "label": "UI / Layout",
-          "description": "ELK graph layout and frontend parameters"
-        },
-        "lifecycle": {
-          "label": "Lifecycle",
-          "description": "WIP project archival and cleanup settings"
-        }
-      },
-      "toast": {
-        "loadFailed": "Failed to load configuration",
-        "unknownError": "Unknown error",
-        "invalidValue": "Invalid value for {key}",
-        "mustBeNonNegativeInt": "Must be a non-negative integer",
-        "mustBeNumber": "Must be a valid number",
-        "updated": "Updated {count} {count, plural, one {setting} other {settings}}",
-        "saveFailed": "Failed to save configuration"
-      }
-    },
-    "models": {
-      "title": "Model Configurations",
-      "description": "Configure LLM providers, models, cost limits, and test connectivity.",
-      "addAction": "Add Model",
-      "kpis": {
-        "enabled": "Enabled",
-        "disabled": "Disabled",
-        "rules": "Routing Rules"
-      },
-      "table": {
-        "regionLabel": "Model configs",
-        "name": "Name",
-        "provider": "Provider",
-        "model": "Model",
-        "priority": "Priority",
-        "enabled": "Enabled",
-        "actions": "Actions",
-        "on": "On",
-        "off": "Off",
-        "test": "Test",
-        "edit": "Edit",
-        "delete": "Delete",
-        "testing": "…",
-        "deleting": "…",
-        "empty": "No model configurations"
-      },
-      "rules": {
-        "heading": "Routing Rules",
-        "subtitle": "Map operations to specific model configurations by priority.",
-        "addAction": "Add Rule",
-        "regionLabel": "Routing rules",
-        "operation": "Operation",
-        "modelConfig": "Model Config",
-        "priority": "Priority",
-        "enabled": "Enabled",
-        "actions": "Actions",
-        "edit": "Edit",
-        "delete": "Delete",
-        "deleting": "…",
-        "empty": "No routing rules configured"
-      },
-      "toast": {
-        "loadFailed": "Failed to load model configurations",
-        "configCreated": "Model config created",
-        "configUpdated": "Model config updated",
-        "configDeleted": "Model config deleted",
-        "configCreateFailed": "Failed to create config",
-        "configUpdateFailed": "Failed to update config",
-        "configDeleteFailed": "Failed to delete config",
-        "toggleFailed": "Failed to toggle model",
-        "testSuccess": "Model responded in {ms}ms",
-        "testFailed": "Test failed: {error}",
-        "testError": "Failed to test model",
-        "ruleCreated": "Routing rule created",
-        "ruleUpdated": "Routing rule updated",
-        "ruleDeleted": "Routing rule deleted",
-        "ruleCreateFailed": "Failed to create rule",
-        "ruleUpdateFailed": "Failed to update rule",
-        "ruleDeleteFailed": "Failed to delete rule"
-      },
-      "confirm": {
-        "deleteConfigTitle": "Delete model config '{name}'?",
-        "deleteConfigDescription": "This action cannot be undone. Any routing rules referencing this config will also be affected.",
-        "deleteRuleTitle": "Delete routing rule for '{operation}'?",
-        "deleteRuleDescription": "This action cannot be undone. The routing rule will be permanently removed."
-      },
-      "form": {
-        "config": {
-          "createTitle": "New Model Config",
-          "editTitle": "Edit Model Config",
-          "createSubmit": "Create Config",
-          "updateSubmit": "Update Config",
-          "creating": "Creating…",
-          "updating": "Updating…",
-          "name": "Name",
-          "namePlaceholder": "e.g. Claude 4 Sonnet",
-          "provider": "Provider",
-          "modelId": "Model ID",
-          "modelIdPlaceholder": "e.g. claude-sonnet-4-20250514",
-          "maxTokens": "Max Tokens",
-          "temperature": "Temperature",
-          "optional": "(optional)",
-          "temperaturePlaceholder": "default",
-          "timeoutSecs": "Timeout (secs)",
-          "priority": "Priority",
-          "apiKeyEnv": "API Key Env Var",
-          "apiKeyEnvPlaceholder": "e.g. ANTHROPIC_API_KEY",
-          "baseUrl": "Base URL",
-          "baseUrlPlaceholder": "e.g. https://api.example.com",
-          "region": "Region",
-          "regionPlaceholder": "e.g. us-east-1",
-          "costPerInput": "Cost / 1M Input",
-          "costPerInputPlaceholder": "e.g. 3.00",
-          "costPerOutput": "Cost / 1M Output",
-          "costPerOutputPlaceholder": "e.g. 15.00",
-          "dailyBudget": "Daily Budget",
-          "dailyBudgetPlaceholder": "e.g. 50.00",
-          "usd": "(USD)",
-          "enabled": "Enabled"
-        },
-        "rule": {
-          "createTitle": "New Routing Rule",
-          "editTitle": "Edit Routing Rule",
-          "createSubmit": "Create Rule",
-          "updateSubmit": "Update Rule",
-          "creating": "Creating…",
-          "updating": "Updating…",
-          "operation": "Operation",
-          "modelConfig": "Model Config",
-          "priority": "Priority",
-          "enabled": "Enabled"
-        }
-      },
-      "validation": {
-        "required": "Required",
-        "minOne": "Must be at least 1",
-        "temperatureRange": "Must be 0-2"
-      }
-    },
-    "prompts": {
-      "title": "Prompt Templates",
-      "description": "Manage versioned prompt templates. Changes take effect on next agent session.",
-      "adminOnly": "Admin access required to manage prompts.",
-      "searchPlaceholder": "Search prompts...",
-      "searchLabel": "Search prompts",
-      "statusFilterLabel": "Status Filter",
-      "allStatus": "All status",
-      "active": "Active",
-      "inactive": "Inactive",
-      "countLabel": "{count, plural, one {# prompt} other {# prompts}}",
-      "empty": "No prompt templates found.",
-      "emptyHint": "Try adjusting your search or filter.",
-      "versions": "{count, plural, one {# version} other {# versions}}",
-      "versionSuffixActive": " (active)",
-      "selectedVersion": "Selected version",
-      "authorMeta": "by {user}",
-      "activeSwitch": "Active",
-      "newVersion": "New Version",
-      "saving": "Saving...",
-      "deleteConfirmTitle": "Delete version v{version}?",
-      "deleteConfirmDescription": "This will permanently delete version v{version} of \"{name}\". This action cannot be undone.",
-      "deleteConfirmLabel": "Delete",
-      "toast": {
-        "loadFailed": "Failed to load prompts",
-        "updated": "Prompt updated",
-        "saveFailed": "Save failed",
-        "deleted": "Version v{version} deleted",
-        "deleteFailed": "Delete failed",
-        "versionCreated": "Version v{version} created",
-        "versionCreateFailed": "Failed to create version"
-      }
-    },
-    "federation": {
-      "title": "Federation Adapters",
-      "description": "Manage CSV/JSON and PostgreSQL/MySQL/BigQuery adapters for VOL queries. Registrations persist to the `data_sources` table.",
-      "adminOnly": "Federation adapter management requires admin privileges.",
-      "empty": "No adapters registered yet.",
-      "list": {
-        "sourceId": "Source ID",
-        "kind": "Kind",
-        "actions": "Actions"
-      },
-      "health": {
-        "title": "Health",
-        "hydrated": "Resolver hydrated",
-        "resolverCount": "In-memory adapters",
-        "storeCount": "Persisted adapters",
-        "inSync": "In sync",
-        "outOfSync": "Refresh recommended",
-        "orphans": "In-memory orphans without a store row: {count}",
-        "missing": "Store rows absent from memory: {count}",
-        "refresh": "Rebuild resolver"
-      },
-      "register": {
-        "title": "Register adapter",
-        "sourceId": "Source ID",
-        "sourceIdPlaceholder": "e.g. csv-orders",
-        "kind": "Kind",
-        "csv": "CSV (inline)",
-        "json": "JSON (inline)",
-        "postgres": "PostgreSQL",
-        "mysql": "MySQL",
-        "bigquery": "BigQuery",
-        "data": "Data",
-        "dataPlaceholder": "Inline CSV/JSON payload",
-        "connectionString": "Connection string",
-        "connectionStringPlaceholder": "postgres://user:pass@host/db or bigquery://project/dataset",
-        "schemaName": "Schema",
-        "schemaNamePlaceholder": "public",
-        "useSecretRef": "Use env-var secret reference",
-        "secretRefHint": "Specify as env:VAR_NAME",
-        "submit": "Register",
-        "submitting": "Registering…",
-        "preview": "Preview schema",
-        "previewing": "Previewing…"
-      },
-      "preview": {
-        "title": "Schema preview · {sourceType}",
-        "summary": "{tables} tables, {columns} columns",
-        "empty": "Adapter connected but reported no tables.",
-        "dismiss": "Dismiss",
-        "columnName": "Column",
-        "columnType": "Type",
-        "columnNullable": "Nullable"
-      },
-      "deleteConfirmTitle": "Delete adapter {sourceId}?",
-      "deleteConfirmDescription": "Removed from both the persistent row and the in-memory cache.",
-      "deleteConfirmLabel": "Delete",
-      "toast": {
-        "loadFailed": "Failed to load adapter list",
-        "registered": "Adapter {sourceId} registered",
-        "registerFailed": "Registration failed",
-        "deleted": "Adapter {sourceId} deleted",
-        "deleteFailed": "Delete failed",
-        "refreshed": "Resolver rebuilt ({count} adapters)",
-        "refreshFailed": "Refresh failed",
-        "healthLoadFailed": "Failed to load health status",
-        "previewFailed": "Preview failed — check credentials and connectivity"
-      }
-    },
-    "sessions": {
-      "title": "Agent Sessions",
-      "description": "Audit trail of agent executions with event replay.",
-      "stats": {
-        "total": "Total Sessions",
-        "completed": "Completed",
-        "last7Days": "Last 7 Days",
-        "modelsUsed": "Models Used"
-      },
-      "searchPlaceholder": "Search by message...",
-      "modelFilterLabel": "Model Filter",
-      "allModels": "All models",
-      "empty": "No sessions recorded yet.",
-      "emptyFiltered": "No matching sessions.",
-      "completed": "completed",
-      "incomplete": "incomplete",
-      "loadMore": "Load more (showing {count})",
-      "loading": "Loading...",
-      "deleteConfirmTitle": "Delete session",
-      "deleteConfirmDescription": "This will permanently delete the session and all its events. This cannot be undone.",
-      "deleteConfirmLabel": "Delete",
-      "detailHeading": "Session Detail",
-      "viewConversation": "Conversation",
-      "viewEvents": "Events",
-      "hashLine": "prompt_hash: {prompt}... · tool_hash: {tool}...",
-      "noMessages": "No messages.",
-      "roleUser": "User",
-      "roleAssistant": "Assistant",
-      "toast": {
-        "loadFailed": "Failed to load sessions",
-        "loadMoreFailed": "Failed to load more sessions",
-        "eventsLoadFailed": "Failed to load events",
-        "messagesLoadFailed": "Failed to load messages",
-        "deleted": "Session deleted",
-        "deleteFailed": "Failed to delete session"
-      }
-    },
-    "lineage": {
-      "title": "Data Lineage",
-      "description": "Trace how source data flows into your knowledge graph.",
-      "summary": {
-        "labels": "Graph Labels",
-        "sources": "Source Tables",
-        "records": "Total Records"
-      },
-      "columnMappings": "Column Mappings",
-      "columnMappingsHint": "Source columns mapped to graph properties during data loading. Click a mapping to expand column-level details.",
-      "columnsCount": "{count, plural, one {# column} other {# columns}}",
-      "identity": "Identity (match)",
-      "properties": "Properties (set)",
-      "noMappings": "No column mappings recorded",
-      "key": "KEY",
-      "loadHistory": "Load History",
-      "column": {
-        "label": "Label",
-        "source": "Source",
-        "records": "Records",
-        "started": "Started",
-        "status": "Status"
-      },
-      "noHistory": "No load history available",
-      "status": {
-        "completed": "Completed",
-        "running": "Running",
-        "failed": "Failed",
-        "partial": "Partial"
-      },
-      "toast": {
-        "loadFailed": "Failed to load lineage data"
-      }
-    },
-    "notifications": {
-      "title": "Notifications",
-      "description": "Configure webhook channels to receive notifications when quality rules are evaluated.",
-      "addChannel": "Add Channel",
-      "channelsHeading": "Channels",
-      "recentHeading": "Recent Notifications",
-      "emptyChannels": "No notification channels configured",
-      "emptyLogs": "No notifications sent yet.",
-      "column": {
-        "name": "Name",
-        "type": "Type",
-        "events": "Events",
-        "enabled": "Enabled",
-        "actions": "Actions",
-        "time": "Time",
-        "event": "Event",
-        "subject": "Subject",
-        "status": "Status",
-        "error": "Error"
-      },
-      "action": {
-        "test": "Test",
-        "testing": "...",
-        "deleting": "...",
-        "edit": "Edit",
-        "delete": "Delete"
-      },
-      "channelType": {
-        "slack_webhook": "Slack Webhook",
-        "generic_webhook": "Generic Webhook",
-        "slack_webhookShort": "Slack",
-        "generic_webhookShort": "Webhook"
-      },
-      "event": {
-        "quality_rule_failed": "Quality Rule Failed",
-        "quality_rule_passed": "Quality Rule Passed"
-      },
-      "status": {
-        "sent": "Sent",
-        "failed": "Failed"
-      },
-      "form": {
-        "newTitle": "New Channel",
-        "editTitle": "Edit Channel",
-        "name": "Name",
-        "namePlaceholder": "e.g. Slack #alerts",
-        "channelType": "Channel Type",
-        "webhookUrl": "Webhook URL",
-        "urlPlaceholderSlack": "https://hooks.slack.com/services/...",
-        "urlPlaceholderGeneric": "https://example.com/webhook",
-        "events": "Events",
-        "create": "Create Channel",
-        "creating": "Creating...",
-        "update": "Update Channel",
-        "updating": "Updating...",
-        "cancel": "Cancel"
-      },
-      "validation": {
-        "required": "Required",
-        "invalidUrl": "Invalid URL",
-        "selectEvent": "Select at least one event"
-      },
-      "toast": {
-        "created": "Channel created",
-        "updated": "Channel updated",
-        "deleted": "Channel deleted",
-        "enabled": "Channel enabled",
-        "disabled": "Channel disabled",
-        "toggleError": "Failed to toggle channel",
-        "testSuccess": "Test notification sent successfully",
-        "testFailed": "Test failed: {error}",
-        "testError": "Failed to send test notification",
-        "createFailed": "Failed to create channel",
-        "updateFailed": "Failed to update channel",
-        "deleteFailed": "Failed to delete channel",
-        "unknownError": "Unknown error",
-        "loadFailed": "Failed to load notification settings"
-      },
-      "deleteConfirm": {
-        "title": "Delete notification channel '{name}'?",
-        "description": "This action cannot be undone. The channel and its delivery log will be permanently removed."
-      },
-      "emptyErrorCell": "-"
-    },
-    "workspace": {
-      "title": "Workspace Settings",
-      "description": "Manage workspace details and team members.",
-      "saving": "Saving...",
-      "noWorkspace": "No workspace selected. Switch to a workspace first.",
-      "general": {
-        "heading": "General",
-        "name": "Name",
-        "slug": "Slug",
-        "created": "Created"
-      },
-      "locale": {
-        "heading": "Locale",
-        "save": "Save locale",
-        "saving": "Saving...",
-        "description": "Primary locale is the workspace's default authoring language. Two fallback chains drive translation resolution per surface: the admin chain for the operator UI, and the LLM chain for agent prompts and tool-result contexts. All three must be BCP 47 tags (e.g., <k>ko</k>, <k>en-us</k>, <k>zh-hant</k>).",
-        "primary": "Primary locale",
-        "primaryInvalid": "Invalid BCP 47 tag. Use lowercase letters / digits separated by hyphens (2–3 letter primary, optional 2–8 char subtags).",
-        "adminFallback": "Admin fallback chain (comma-separated)",
-        "adminFallbackHint": "Walked when admin UI surfaces resolve translations. Default: ko,en.",
-        "llmFallback": "LLM fallback chain (comma-separated)",
-        "llmFallbackHint": "Walked when agent prompts and tool-result contexts resolve translations. Default: en,ko.",
-        "fallbackInvalid": "Every entry must be a valid BCP 47 tag and the list must be non-empty.",
-        "toast": {
-          "updated": "Locale updated",
-          "updateFailed": "Failed to update locale"
-        }
-      },
-      "toast": {
-        "loadFailed": "Failed to load workspace",
-        "updateFailed": "Failed to update workspace",
-        "updated": "Workspace updated"
-      }
-    },
-    "reports": {
-      "title": "Saved Reports",
-      "description": "Parameterized query templates that can be executed on demand.",
-      "ontologyLabel": "Ontology",
-      "ontologyFilterLabel": "Ontology Filter",
-      "ontologyOption": "{name} (v{version})",
-      "newReport": "New Report",
-      "emptyForOntology": "No reports for this ontology.",
-      "selectPrompt": "Select a report to view details.",
-      "visibility": {
-        "public": "public",
-        "private": "private"
-      },
-      "widgetAuto": "auto",
-      "paramsCount": "{count, plural, one {# param} other {# params}}",
-      "widgetTypeAuto": "Auto",
-      "toast": {
-        "created": "Report created",
-        "updated": "Report updated",
-        "deleted": "Report deleted",
-        "executeError": "Execution failed",
-        "deleteFailed": "Delete failed",
-        "updateFailed": "Update failed",
-        "createFailed": "Failed to create report",
-        "loadFailed": "Failed to load reports",
-        "loadOntologiesFailed": "Failed to load ontologies"
-      },
-      "deleteConfirm": {
-        "title": "Delete report '{name}'?",
-        "description": "This action cannot be undone. The saved report will be permanently removed."
-      },
-      "detail": {
-        "meta": "{created} · updated {updated}",
-        "description": "Description",
-        "queryTemplate": "Query Template",
-        "widgetType": "Widget Type",
-        "parameters": "Parameters",
-        "noParameters": "No parameters.",
-        "executeReport": "Execute Report",
-        "executing": "Executing...",
-        "results": "Results ({count} rows)",
-        "showingRows": "Showing 50 of {count} rows",
-        "edit": "Edit",
-        "delete": "Delete",
-        "cancel": "Cancel"
-      },
-      "edit": {
-        "title": "Title",
-        "description": "Description",
-        "queryTemplate": "Query Template",
-        "widgetType": "Widget Type",
-        "widgetTypeSelectLabel": "Edit Widget Type",
-        "public": "Public",
-        "save": "Save Changes"
-      },
-      "create": {
-        "newTitle": "New Report",
-        "title": "Title",
-        "titlePlaceholder": "Report title",
-        "description": "Description",
-        "descriptionPlaceholder": "What this report shows...",
-        "queryTemplate": "Query Template",
-        "queryTemplatePlaceholder": "MATCH (n:Product) WHERE n.category = $category RETURN n.name, n.price LIMIT $limit",
-        "parameters": "Parameters (JSON)",
-        "parametersPlaceholder": "[{\"name\":\"category\",\"type\":\"string\",\"default\":\"all\",\"label\":\"Category\"}]",
-        "parametersHint": "Array of {shape}",
-        "parametersShape": "{\"name\", \"type\": string|number|boolean, \"default\", \"label\"}",
-        "widgetType": "Widget Type",
-        "widgetTypeSelectLabel": "Widget Type",
-        "public": "Public",
-        "create": "Create Report",
-        "creating": "Creating...",
-        "cancel": "Cancel"
-      },
-      "widgetType": {
-        "table": "Table",
-        "bar_chart": "Bar Chart",
-        "line_chart": "Line Chart",
-        "pie_chart": "Pie Chart",
-        "combo_chart": "Combo Chart",
-        "stat_card": "Stat Card",
-        "graph": "Graph",
-        "heatmap": "Heatmap",
-        "timeline": "Timeline",
-        "treemap": "Treemap",
-        "funnel": "Funnel",
-        "scatter": "Scatter Plot",
-        "histogram": "Histogram"
-      }
     },
     "recipes": {
       "title": "Analysis Recipes",
@@ -2685,305 +2337,1003 @@
         "toast": {
           "loadFailed": "Failed to load analysis recipes."
         }
+      },
+      "empty": {
+        "cta": "New recipe",
+        "description": "Save a Cypher snippet as a reusable recipe to share it with the team.",
+        "title": "No recipes yet"
+      },
+      "filteredEmpty": {
+        "clearFilters": "Clear filters",
+        "description": "Try a different search term or clear the filters.",
+        "title": "No matching recipes"
+      }
+    },
+    "workspace": {
+      "members": {
+        "title": "Team",
+        "description": "Manage team members and their roles.",
+        "authRequired": "Authentication is not enabled",
+        "authRequiredDescription": "Team management is only available in workspaces with authentication enabled. Contact your system administrator.",
+        "rolesHeading": "Roles",
+        "membersHeading": "Members",
+        "changeRoleAria": "Change role for {name}",
+        "roleSelectLabel": "Role",
+        "you": "you",
+        "roleDescriptions": {
+          "admin": "Full access to all features including system configuration and user management",
+          "designer": "Create and edit ontology designs, run queries, and manage projects",
+          "viewer": "View ontologies, run chat queries, and browse query history"
+        },
+        "column": {
+          "user": "User",
+          "email": "Email",
+          "role": "Role"
+        },
+        "addingMembers": {
+          "heading": "Adding Members",
+          "description": "Users are automatically added on first login via SSO. Share the platform URL with your team members and ask them to sign in with their Google account."
+        },
+        "toast": {
+          "loadFailed": "Failed to load users",
+          "updateRoleFailed": "Failed to update role"
+        }
+      },
+      "roles": {
+        "admin": "Admin",
+        "designer": "Designer",
+        "viewer": "Viewer"
+      },
+      "usage": {
+        "title": "Usage & Metering",
+        "description": "LLM token usage, compute costs, and request volumes.",
+        "empty": "No usage data for the selected period",
+        "summary": {
+          "totalTokens": "Total Tokens",
+          "requests": "Requests",
+          "estimatedCost": "Estimated Cost"
+        },
+        "column": {
+          "resourceType": "Resource Type",
+          "inputTokens": "Input Tokens",
+          "outputTokens": "Output Tokens",
+          "requests": "Requests",
+          "cost": "Cost"
+        },
+        "toast": {
+          "loadFailed": "Failed to load usage data"
+        }
+      },
+      "reports": {
+        "title": "Saved Reports",
+        "description": "Parameterized query templates that can be executed on demand.",
+        "ontologyLabel": "Ontology",
+        "ontologyFilterLabel": "Ontology Filter",
+        "ontologyOption": "{name} (v{version})",
+        "newReport": "New Report",
+        "emptyForOntology": "No reports for this ontology.",
+        "selectPrompt": "Select a report to view details.",
+        "visibility": {
+          "public": "public",
+          "private": "private"
+        },
+        "widgetAuto": "auto",
+        "paramsCount": "{count, plural, one {# param} other {# params}}",
+        "widgetTypeAuto": "Auto",
+        "toast": {
+          "created": "Report created",
+          "updated": "Report updated",
+          "deleted": "Report deleted",
+          "executeError": "Execution failed",
+          "deleteFailed": "Delete failed",
+          "updateFailed": "Update failed",
+          "createFailed": "Failed to create report",
+          "loadFailed": "Failed to load reports",
+          "loadOntologiesFailed": "Failed to load ontologies"
+        },
+        "deleteConfirm": {
+          "title": "Delete report '{name}'?",
+          "description": "This action cannot be undone. The saved report will be permanently removed."
+        },
+        "detail": {
+          "meta": "{created} · updated {updated}",
+          "description": "Description",
+          "queryTemplate": "Query Template",
+          "widgetType": "Widget Type",
+          "parameters": "Parameters",
+          "noParameters": "No parameters.",
+          "executeReport": "Execute Report",
+          "executing": "Executing...",
+          "results": "Results ({count} rows)",
+          "showingRows": "Showing 50 of {count} rows",
+          "edit": "Edit",
+          "delete": "Delete",
+          "cancel": "Cancel"
+        },
+        "edit": {
+          "title": "Title",
+          "description": "Description",
+          "queryTemplate": "Query Template",
+          "widgetType": "Widget Type",
+          "widgetTypeSelectLabel": "Edit Widget Type",
+          "public": "Public",
+          "save": "Save Changes"
+        },
+        "create": {
+          "newTitle": "New Report",
+          "title": "Title",
+          "titlePlaceholder": "Report title",
+          "description": "Description",
+          "descriptionPlaceholder": "What this report shows...",
+          "queryTemplate": "Query Template",
+          "queryTemplatePlaceholder": "MATCH (n:Product) WHERE n.category = $category RETURN n.name, n.price LIMIT $limit",
+          "parameters": "Parameters (JSON)",
+          "parametersPlaceholder": "[{\"name\":\"category\",\"type\":\"string\",\"default\":\"all\",\"label\":\"Category\"}]",
+          "parametersHint": "Array of {shape}",
+          "parametersShape": "{\"name\", \"type\": string|number|boolean, \"default\", \"label\"}",
+          "widgetType": "Widget Type",
+          "widgetTypeSelectLabel": "Widget Type",
+          "public": "Public",
+          "create": "Create Report",
+          "creating": "Creating...",
+          "cancel": "Cancel"
+        },
+        "widgetType": {
+          "table": "Table",
+          "bar_chart": "Bar Chart",
+          "line_chart": "Line Chart",
+          "pie_chart": "Pie Chart",
+          "combo_chart": "Combo Chart",
+          "stat_card": "Stat Card",
+          "graph": "Graph",
+          "heatmap": "Heatmap",
+          "timeline": "Timeline",
+          "treemap": "Treemap",
+          "funnel": "Funnel",
+          "scatter": "Scatter Plot",
+          "histogram": "Histogram"
+        }
+      },
+      "schedules": {
+        "title": "Scheduled Tasks",
+        "description": "Manage recurring analysis tasks. Tasks execute recipes on a cron schedule.",
+        "empty": "No scheduled tasks. Tasks are created when you schedule a recipe from the Recipes page.",
+        "deleteConfirm": {
+          "title": "Delete scheduled task '{name}'?",
+          "description": "This action cannot be undone. The scheduled task will be permanently removed."
+        },
+        "enableAria": "Enable task",
+        "disableAria": "Disable task",
+        "column": {
+          "description": "Description",
+          "cron": "Cron",
+          "status": "Status",
+          "lastRun": "Last Run",
+          "nextRun": "Next Run",
+          "enabled": "Enabled"
+        },
+        "toast": {
+          "loadFailed": "Failed to load scheduled tasks",
+          "enabled": "Task enabled",
+          "disabled": "Task paused",
+          "updateFailed": "Failed to update task",
+          "deleteFailed": "Failed to delete task",
+          "deleted": "Task deleted"
+        }
+      },
+      "general": {
+        "title": "Workspace Settings",
+        "description": "Manage workspace details and team members.",
+        "saving": "Saving...",
+        "noWorkspace": "No workspace selected. Switch to a workspace first.",
+        "general": {
+          "heading": "General",
+          "name": "Name",
+          "slug": "Slug",
+          "created": "Created"
+        },
+        "locale": {
+          "heading": "Locale",
+          "save": "Save locale",
+          "saving": "Saving...",
+          "description": "Primary locale is the workspace's default authoring language. Two fallback chains drive translation resolution per surface: the admin chain for the operator UI, and the LLM chain for agent prompts and tool-result contexts. All three must be BCP 47 tags (e.g., <k>ko</k>, <k>en-us</k>, <k>zh-hant</k>).",
+          "primary": "Primary locale",
+          "primaryInvalid": "Invalid BCP 47 tag. Use lowercase letters / digits separated by hyphens (2–3 letter primary, optional 2–8 char subtags).",
+          "adminFallback": "Admin fallback chain (comma-separated)",
+          "adminFallbackHint": "Walked when admin UI surfaces resolve translations. Default: ko,en.",
+          "llmFallback": "LLM fallback chain (comma-separated)",
+          "llmFallbackHint": "Walked when agent prompts and tool-result contexts resolve translations. Default: en,ko.",
+          "fallbackInvalid": "Every entry must be a valid BCP 47 tag and the list must be non-empty.",
+          "toast": {
+            "updated": "Locale updated",
+            "updateFailed": "Failed to update locale"
+          }
+        },
+        "toast": {
+          "loadFailed": "Failed to load workspace",
+          "updateFailed": "Failed to update workspace",
+          "updated": "Workspace updated"
+        }
+      },
+      "danger": {
+        "confirmAction": "Delete workspace",
+        "confirmDescription": "{name} and all its data will be permanently removed.",
+        "confirmTitle": "Delete this workspace?",
+        "confirmTypeLabel": "Type the workspace slug to confirm",
+        "deleteAction": "Delete workspace",
+        "deleted": "Workspace deleted",
+        "deleteFailed": "Failed to delete workspace",
+        "deleteHint": "Removes every project, ontology, and audit record. Cannot be undone.",
+        "deleteTitle": "Delete this workspace",
+        "description": "Operations here are permanent and affect every member of this workspace.",
+        "heading": "Danger zone"
+      }
+    },
+    "knowledge": {
+      "federation": {
+        "title": "Federation Adapters",
+        "description": "Manage CSV/JSON and PostgreSQL/MySQL/BigQuery adapters for VOL queries. Registrations persist to the `data_sources` table.",
+        "adminOnly": "Federation adapter management requires admin privileges.",
+        "empty": "No adapters registered yet.",
+        "list": {
+          "sourceId": "Source ID",
+          "kind": "Kind",
+          "actions": "Actions"
+        },
+        "health": {
+          "title": "Health",
+          "hydrated": "Resolver hydrated",
+          "resolverCount": "In-memory adapters",
+          "storeCount": "Persisted adapters",
+          "inSync": "In sync",
+          "outOfSync": "Refresh recommended",
+          "orphans": "In-memory orphans without a store row: {count}",
+          "missing": "Store rows absent from memory: {count}",
+          "refresh": "Rebuild resolver"
+        },
+        "register": {
+          "title": "Register adapter",
+          "sourceId": "Source ID",
+          "sourceIdPlaceholder": "e.g. csv-orders",
+          "kind": "Kind",
+          "csv": "CSV (inline)",
+          "json": "JSON (inline)",
+          "postgres": "PostgreSQL",
+          "mysql": "MySQL",
+          "bigquery": "BigQuery",
+          "data": "Data",
+          "dataPlaceholder": "Inline CSV/JSON payload",
+          "connectionString": "Connection string",
+          "connectionStringPlaceholder": "postgres://user:pass@host/db or bigquery://project/dataset",
+          "schemaName": "Schema",
+          "schemaNamePlaceholder": "public",
+          "useSecretRef": "Use env-var secret reference",
+          "secretRefHint": "Specify as env:VAR_NAME",
+          "submit": "Register",
+          "submitting": "Registering…",
+          "preview": "Preview schema",
+          "previewing": "Previewing…"
+        },
+        "preview": {
+          "title": "Schema preview · {sourceType}",
+          "summary": "{tables} tables, {columns} columns",
+          "empty": "Adapter connected but reported no tables.",
+          "dismiss": "Dismiss",
+          "columnName": "Column",
+          "columnType": "Type",
+          "columnNullable": "Nullable"
+        },
+        "deleteConfirmTitle": "Delete adapter {sourceId}?",
+        "deleteConfirmDescription": "Removed from both the persistent row and the in-memory cache.",
+        "deleteConfirmLabel": "Delete",
+        "toast": {
+          "loadFailed": "Failed to load adapter list",
+          "registered": "Adapter {sourceId} registered",
+          "registerFailed": "Registration failed",
+          "deleted": "Adapter {sourceId} deleted",
+          "deleteFailed": "Delete failed",
+          "refreshed": "Resolver rebuilt ({count} adapters)",
+          "refreshFailed": "Refresh failed",
+          "healthLoadFailed": "Failed to load health status",
+          "previewFailed": "Preview failed — check credentials and connectivity"
+        }
+      },
+      "lineage": {
+        "title": "Data Lineage",
+        "description": "Trace how source data flows into your knowledge graph.",
+        "summary": {
+          "labels": "Graph Labels",
+          "sources": "Source Tables",
+          "records": "Total Records"
+        },
+        "columnMappings": "Column Mappings",
+        "columnMappingsHint": "Source columns mapped to graph properties during data loading. Click a mapping to expand column-level details.",
+        "columnsCount": "{count, plural, one {# column} other {# columns}}",
+        "identity": "Identity (match)",
+        "properties": "Properties (set)",
+        "noMappings": "No column mappings recorded",
+        "key": "KEY",
+        "loadHistory": "Load History",
+        "column": {
+          "label": "Label",
+          "source": "Source",
+          "records": "Records",
+          "started": "Started",
+          "status": "Status"
+        },
+        "noHistory": "No load history available",
+        "status": {
+          "completed": "Completed",
+          "running": "Running",
+          "failed": "Failed",
+          "partial": "Partial"
+        },
+        "toast": {
+          "loadFailed": "Failed to load lineage data"
+        }
+      },
+      "mappings": {
+        "pageTitle": "Mappings",
+        "pageSubtitle": "Physical-to-logical mapping layer — ObjectMapping binds a node type to one source relation; LinkMapping binds an edge type to a foreign-key, bridge, computed, or federated topology.",
+        "noOntology": "No committed ontology available — create one in Design mode before editing mappings.",
+        "createButton": "Add mapping",
+        "addLabel": "Add",
+        "listHeading": {
+          "object": "{count, plural, =0 {No object mappings} one {# object mapping} other {# object mappings}}",
+          "link": "{count, plural, =0 {No link mappings} one {# link mapping} other {# link mappings}}"
+        },
+        "editButton": "Edit",
+        "deleteButton": "Delete",
+        "objectMapping": "Object mapping",
+        "linkMapping": "Link mapping",
+        "jsonLabel": "Mapping (JSON)",
+        "submitCreate": "Create mapping",
+        "submitUpdate": "Save changes",
+        "cancel": "Cancel",
+        "tab": {
+          "object": "Object mappings",
+          "link": "Link mappings"
+        },
+        "messages": {
+          "objectCreated": "Create object mapping '{id}'",
+          "objectUpdated": "Update object mapping '{id}'",
+          "objectDeleted": "Delete object mapping '{id}'",
+          "linkCreated": "Create link mapping '{id}'",
+          "linkUpdated": "Update link mapping '{id}'",
+          "linkDeleted": "Delete link mapping '{id}'"
+        },
+        "toast": {
+          "created": "Mapping created",
+          "createFailed": "Create failed: {error}",
+          "updated": "Mapping updated",
+          "updateFailed": "Update failed: {error}",
+          "deleted": "Mapping deleted",
+          "deleteFailed": "Delete failed: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "Delete mapping?",
+          "deleteDescription": "Removing '{id}' breaks the binding between this entity type and its source. Queries that reach the affected slice will return empty until a new mapping replaces it."
+        },
+        "createDialog": {
+          "objectTitle": "New object mapping",
+          "objectDescription": "Bind a node type to one source relation. Carries the primary-key columns the planner uses for DISTINCT-on dedup across multi-mappings.",
+          "linkTitle": "New link mapping",
+          "linkDescription": "Bind an edge type to a physical topology — foreign key, bridge, computed predicate, or federated cross-source value match. Cardinality is correctness-critical for NL2SQL DISTINCT injection."
+        },
+        "empty": {
+          "object": {
+            "title": "No object mappings",
+            "description": "Bind your first node type to a source relation so queries can reach physical data."
+          },
+          "link": {
+            "title": "No link mappings",
+            "description": "Bind your first edge type to a foreign key, bridge, computed predicate, or federated topology."
+          }
+        },
+        "error": {
+          "empty": "Mapping JSON cannot be empty.",
+          "invalidJson": "Invalid JSON: {message}"
+        }
+      },
+      "base": {
+        "title": "Knowledge Base",
+        "description": "Learned corrections from query failures and admin-created hints.",
+        "adminOnly": "Admin access required.",
+        "deleteConfirmTitle": "Delete knowledge entry '{title}'?",
+        "deleteConfirmDescription": "This action cannot be undone. The knowledge entry will be permanently removed.",
+        "reviewStale": "Review {count} stale",
+        "statusFilterLabel": "Status Filter",
+        "kindFilterLabel": "Kind Filter",
+        "allStatus": "All status",
+        "allKinds": "All kinds",
+        "entries": "{count} entries",
+        "empty": "No knowledge entries yet.",
+        "emptyHint": "Entries are auto-created when the agent recovers from query failures, or manually as hints.",
+        "loadMore": "Load more (showing {count})",
+        "loading": "Loading...",
+        "ontologyMeta": "{name} v{version}+",
+        "confidence": "Confidence",
+        "usedTimes": "Used {count} times",
+        "approve": "Approve",
+        "deprecate": "Deprecate",
+        "structuredData": "Structured data",
+        "createdBy": "Created by {user}",
+        "reviewed": "Reviewed {date}",
+        "kind": {
+          "correction": "Correction",
+          "hint": "Hint"
+        },
+        "status": {
+          "approved": "Approved",
+          "draft": "Draft",
+          "stale": "Stale",
+          "deprecated": "Deprecated"
+        },
+        "toast": {
+          "loadFailed": "Failed to load knowledge entries",
+          "statusChanged": "Status changed to {status}",
+          "statusChangeFailed": "Failed to update status",
+          "deleted": "Deleted",
+          "deleteFailed": "Delete failed",
+          "bulkDeprecated": "{count} deprecated",
+          "bulkFailed": "Failed"
+        }
+      }
+    },
+    "runtime": {
+      "config": {
+        "title": "Runtime config",
+        "description": "Tunable runtime settings persisted to the database.",
+        "modified": "modified",
+        "unsavedChanges": "{count, plural, one {# unsaved change} other {# unsaved changes}}",
+        "discard": "Discard",
+        "save": "Save Changes",
+        "saving": "Saving...",
+        "category": {
+          "llm": {
+            "label": "LLM Parameters",
+            "description": "Language model token limits and temperature settings"
+          },
+          "thresholds": {
+            "label": "Schema Thresholds",
+            "description": "Size thresholds for adaptive processing"
+          },
+          "profiling": {
+            "label": "Profiling",
+            "description": "Graph and schema profiling parameters"
+          },
+          "timeouts": {
+            "label": "Timeouts",
+            "description": "Operation timeout durations (seconds)"
+          },
+          "ui": {
+            "label": "UI / Layout",
+            "description": "ELK graph layout and frontend parameters"
+          },
+          "lifecycle": {
+            "label": "Lifecycle",
+            "description": "WIP project archival and cleanup settings"
+          }
+        },
+        "toast": {
+          "loadFailed": "Failed to load configuration",
+          "unknownError": "Unknown error",
+          "invalidValue": "Invalid value for {key}",
+          "mustBeNonNegativeInt": "Must be a non-negative integer",
+          "mustBeNumber": "Must be a valid number",
+          "updated": "Updated {count} {count, plural, one {setting} other {settings}}",
+          "saveFailed": "Failed to save configuration"
+        },
+        "empty": {
+          "title": "No runtime settings yet",
+          "description": "The backend has not registered any tunable settings for this workspace."
+        }
+      },
+      "providers": {
+        "title": "Providers",
+        "description": "Provider configuration is managed via {configFile} and environment variables.",
+        "serviceStatus": "Service Status",
+        "llm": {
+          "title": "LLM Provider",
+          "description": "Language model used for ontology design, query translation, and explanations",
+          "provider": "Provider",
+          "model": "Model"
+        },
+        "postgres": {
+          "title": "PostgreSQL",
+          "description": "Application state database (projects, ontologies, query history)"
+        },
+        "graph": {
+          "title": "Graph Database",
+          "description": "Graph database for ontology queries and data exploration"
+        },
+        "status": {
+          "ok": "Healthy",
+          "degraded": "Degraded",
+          "unavailable": "Unavailable",
+          "connected": "Connected"
+        },
+        "toast": {
+          "loadFailed": "Failed to load"
+        }
+      },
+      "models": {
+        "title": "Model Configurations",
+        "description": "Configure LLM providers, models, cost limits, and test connectivity.",
+        "addAction": "Add Model",
+        "kpis": {
+          "enabled": "Enabled",
+          "disabled": "Disabled",
+          "rules": "Routing Rules"
+        },
+        "table": {
+          "regionLabel": "Model configs",
+          "name": "Name",
+          "provider": "Provider",
+          "model": "Model",
+          "priority": "Priority",
+          "enabled": "Enabled",
+          "actions": "Actions",
+          "on": "On",
+          "off": "Off",
+          "test": "Test",
+          "edit": "Edit",
+          "delete": "Delete",
+          "testing": "…",
+          "deleting": "…",
+          "empty": "No model configurations"
+        },
+        "rules": {
+          "heading": "Routing Rules",
+          "subtitle": "Map operations to specific model configurations by priority.",
+          "addAction": "Add Rule",
+          "regionLabel": "Routing rules",
+          "operation": "Operation",
+          "modelConfig": "Model Config",
+          "priority": "Priority",
+          "enabled": "Enabled",
+          "actions": "Actions",
+          "edit": "Edit",
+          "delete": "Delete",
+          "deleting": "…",
+          "empty": "No routing rules configured"
+        },
+        "toast": {
+          "loadFailed": "Failed to load model configurations",
+          "configCreated": "Model config created",
+          "configUpdated": "Model config updated",
+          "configDeleted": "Model config deleted",
+          "configCreateFailed": "Failed to create config",
+          "configUpdateFailed": "Failed to update config",
+          "configDeleteFailed": "Failed to delete config",
+          "toggleFailed": "Failed to toggle model",
+          "testSuccess": "Model responded in {ms}ms",
+          "testFailed": "Test failed: {error}",
+          "testError": "Failed to test model",
+          "ruleCreated": "Routing rule created",
+          "ruleUpdated": "Routing rule updated",
+          "ruleDeleted": "Routing rule deleted",
+          "ruleCreateFailed": "Failed to create rule",
+          "ruleUpdateFailed": "Failed to update rule",
+          "ruleDeleteFailed": "Failed to delete rule"
+        },
+        "confirm": {
+          "deleteConfigTitle": "Delete model config '{name}'?",
+          "deleteConfigDescription": "This action cannot be undone. Any routing rules referencing this config will also be affected.",
+          "deleteRuleTitle": "Delete routing rule for '{operation}'?",
+          "deleteRuleDescription": "This action cannot be undone. The routing rule will be permanently removed."
+        },
+        "form": {
+          "config": {
+            "createTitle": "New Model Config",
+            "editTitle": "Edit Model Config",
+            "createSubmit": "Create Config",
+            "updateSubmit": "Update Config",
+            "creating": "Creating…",
+            "updating": "Updating…",
+            "name": "Name",
+            "namePlaceholder": "e.g. Claude 4 Sonnet",
+            "provider": "Provider",
+            "modelId": "Model ID",
+            "modelIdPlaceholder": "e.g. claude-sonnet-4-20250514",
+            "maxTokens": "Max Tokens",
+            "temperature": "Temperature",
+            "optional": "(optional)",
+            "temperaturePlaceholder": "default",
+            "timeoutSecs": "Timeout (secs)",
+            "priority": "Priority",
+            "apiKeyEnv": "API Key Env Var",
+            "apiKeyEnvPlaceholder": "e.g. ANTHROPIC_API_KEY",
+            "baseUrl": "Base URL",
+            "baseUrlPlaceholder": "e.g. https://api.example.com",
+            "region": "Region",
+            "regionPlaceholder": "e.g. us-east-1",
+            "costPerInput": "Cost / 1M Input",
+            "costPerInputPlaceholder": "e.g. 3.00",
+            "costPerOutput": "Cost / 1M Output",
+            "costPerOutputPlaceholder": "e.g. 15.00",
+            "dailyBudget": "Daily Budget",
+            "dailyBudgetPlaceholder": "e.g. 50.00",
+            "usd": "(USD)",
+            "enabled": "Enabled"
+          },
+          "rule": {
+            "createTitle": "New Routing Rule",
+            "editTitle": "Edit Routing Rule",
+            "createSubmit": "Create Rule",
+            "updateSubmit": "Update Rule",
+            "creating": "Creating…",
+            "updating": "Updating…",
+            "operation": "Operation",
+            "modelConfig": "Model Config",
+            "priority": "Priority",
+            "enabled": "Enabled"
+          }
+        },
+        "validation": {
+          "required": "Required",
+          "minOne": "Must be at least 1",
+          "temperatureRange": "Must be 0-2"
+        }
+      },
+      "prompts": {
+        "title": "Prompt Templates",
+        "description": "Manage versioned prompt templates. Changes take effect on next agent session.",
+        "adminOnly": "Admin access required to manage prompts.",
+        "searchPlaceholder": "Search prompts...",
+        "searchLabel": "Search prompts",
+        "statusFilterLabel": "Status Filter",
+        "allStatus": "All status",
+        "active": "Active",
+        "inactive": "Inactive",
+        "countLabel": "{count, plural, one {# prompt} other {# prompts}}",
+        "empty": "No prompt templates found.",
+        "emptyHint": "Try adjusting your search or filter.",
+        "versions": "{count, plural, one {# version} other {# versions}}",
+        "versionSuffixActive": " (active)",
+        "selectedVersion": "Selected version",
+        "authorMeta": "by {user}",
+        "activeSwitch": "Active",
+        "newVersion": "New Version",
+        "saving": "Saving...",
+        "deleteConfirmTitle": "Delete version v{version}?",
+        "deleteConfirmDescription": "This will permanently delete version v{version} of \"{name}\". This action cannot be undone.",
+        "deleteConfirmLabel": "Delete",
+        "toast": {
+          "loadFailed": "Failed to load prompts",
+          "updated": "Prompt updated",
+          "saveFailed": "Save failed",
+          "deleted": "Version v{version} deleted",
+          "deleteFailed": "Delete failed",
+          "versionCreated": "Version v{version} created",
+          "versionCreateFailed": "Failed to create version"
+        }
       }
     },
     "quality": {
-      "title": "Quality Rules",
-      "description": "Declarative data quality rules evaluated automatically against graph data.",
-      "executeAll": "Execute All",
-      "executingAll": "Executing...",
-      "createRule": "Create Rule",
-      "summary": {
-        "passing": "Passing",
-        "failing": "Failing",
-        "pending": "Not Yet Evaluated"
-      },
-      "column": {
-        "rule": "Rule",
-        "type": "Type",
-        "target": "Target",
-        "threshold": "Threshold",
-        "severity": "Severity",
-        "status": "Status",
-        "value": "Value",
-        "actions": "Actions"
-      },
-      "status": {
-        "pass": "Pass",
-        "fail": "Fail",
-        "none": "-"
-      },
-      "action": {
-        "run": "Run",
-        "running": "...",
-        "deleting": "...",
-        "edit": "Edit",
-        "delete": "Delete"
-      },
-      "empty": "No quality rules configured",
-      "ruleType": {
-        "completeness": "completeness",
-        "uniqueness": "uniqueness",
-        "freshness": "freshness",
-        "consistency": "consistency",
-        "custom": "custom"
-      },
-      "severityLevel": {
-        "critical": "critical",
-        "warning": "warning",
-        "info": "info"
-      },
-      "form": {
-        "newTitle": "New Rule",
-        "editTitle": "Edit Rule",
-        "name": "Name",
-        "namePlaceholder": "e.g. Brand completeness",
-        "ruleType": "Rule Type",
-        "severity": "Severity",
-        "targetLabel": "Target Label",
-        "targetLabelPlaceholder": "e.g. Brand, Product",
-        "targetProperty": "Target Property",
-        "targetPropertyHint": "(optional)",
-        "targetPropertyPlaceholder": "e.g. email",
-        "threshold": "Threshold (%)",
-        "cypherCheck": "Cypher Check",
-        "cypherCheckPlaceholder": "MATCH (n:Label) WHERE ... RETURN count(n) as value",
-        "create": "Create Rule",
-        "creating": "Creating...",
-        "update": "Update Rule",
-        "updating": "Updating...",
-        "cancel": "Cancel"
-      },
-      "validation": {
-        "required": "Required",
-        "thresholdRange": "Must be 0-100"
-      },
-      "toast": {
-        "created": "Rule created",
-        "updated": "Rule updated",
-        "deleted": "Rule deleted",
-        "executed": "Executed {total} rules: {passed} passed, {failed} failed",
-        "executeError": "Failed to execute rule",
-        "executeAllError": "Failed to execute rules",
-        "rulePassed": "Rule passed ({value}%)",
-        "ruleFailed": "Rule failed ({value}%)",
-        "createFailed": "Failed to create rule",
-        "updateFailed": "Failed to update rule",
-        "deleteFailed": "Failed to delete rule",
-        "loadFailed": "Failed to load quality dashboard"
-      },
-      "deleteConfirm": {
-        "title": "Delete quality rule '{name}'?",
-        "description": "This action cannot be undone. The rule and its evaluation history will be permanently removed."
-      }
-    },
-    "staleConcepts": {
-      "title": "Stale Concepts",
-      "subtitle": "Types the daily cron flagged as unused for 180+ days. Approving a row records intent to deprecate — the actual ontology edit still goes through the normal edit-log path.",
-      "tabsLabel": "Status filter",
-      "loading": "Loading…",
-      "tabs": {
-        "pending": "Pending",
-        "decided": "History"
-      },
-      "empty": {
-        "pending": "No stale-concept proposals pending. The cron writes fresh rows daily.",
-        "decided": "No decisions recorded yet."
-      },
-      "columns": {
-        "type": "Type id",
-        "kind": "Kind",
-        "daysSince": "Days idle",
-        "proposedAt": "Proposed",
-        "decision": "Decision",
-        "reason": "Reason",
-        "actions": "Actions"
-      },
-      "actions": {
-        "review": "Review"
-      },
-      "decisionLabel": {
-        "approved": "Approved",
-        "dismissed": "Dismissed",
-        "pending": "Pending"
-      },
-      "toast": {
-        "approved": "Proposal approved — deprecation intent recorded",
-        "dismissed": "Proposal dismissed",
-        "failed": "Failed to record decision",
-        "deprecated": "Type deprecated in {ontology}",
-        "emitFailed": "Approved — failed to apply the deprecation edit",
-        "lookupFailed": "Approved — could not look up owning ontologies",
-        "noCandidate": "Approved — no ontology in this workspace carries this type",
-        "alreadyDeprecated": "Approved — type is already deprecated in every matching ontology"
-      },
-      "modal": {
-        "title": "Review stale-concept proposal",
-        "daysSince": "Idle for {days} days",
-        "reasonLabel": "Reason (optional)",
-        "reasonPlaceholder": "Context the next reviewer should know — e.g. \"replaced by Customer v2\", \"dedup candidate\"",
-        "cancel": "Cancel",
-        "dismiss": "Dismiss",
-        "approve": "Approve",
-        "saving": "Saving…"
-      },
-      "picker": {
-        "title": "Pick the ontology to deprecate in",
-        "countHit": "{count} ontologies carry this type",
-        "pick": "Deprecate",
-        "skip": "Skip — keep approval only"
-      }
-    },
-    "ambiguity": {
-      "title": "Ambiguity Resolution",
-      "subtitle": "Columns whose values cannot be interpreted from schema alone become 'ambiguity contexts'. Resolve each one by mapping the values to a CodeSystem, a Glossary term, or an inline value map.",
-      "tabsLabel": "Status filter",
-      "loading": "Loading…",
-      "tabs": {
-        "pending": "Needs attention",
-        "stale": "Stale (re-check)",
-        "resolved": "Resolved"
-      },
-      "empty": {
-        "pending": "Nothing to resolve — every ambiguous column has an up-to-date resolution.",
-        "stale": "No stale resolutions — every active resolution matches its context hash.",
-        "resolved": "No resolved ambiguities yet."
-      },
-      "columns": {
-        "source": "Source",
-        "column": "Column",
-        "kind": "Kind",
-        "mapping": "Mapping",
-        "detected": "Detected",
-        "actions": "Actions"
-      },
-      "kind": {
-        "numeric_code": "Numeric code",
-        "opaque_short_code": "Short code",
-        "overloaded_name": "Overloaded name"
-      },
-      "mappingBadge": {
-        "valueMap": "Value map ({count})"
-      },
-      "actions": {
-        "resolve": "Resolve",
-        "edit": "Edit",
-        "revoke": "Revoke"
-      },
-      "toast": {
-        "resolved": "Resolution saved",
-        "resolveFailed": "Failed to save resolution",
-        "revoked": "Resolution revoked",
-        "revokeFailed": "Failed to revoke"
-      },
-      "modal": {
-        "title": "Resolve {relation}.{column}",
-        "modeLabel": "Resolution type",
-        "mode": {
-          "value_map": "Value map",
-          "code_system_ref": "Code system",
-          "glossary_ref": "Glossary term"
+      "signals": {
+        "title": "Ontology Quality — Signals",
+        "subtitle": "Six windows into how well the ontology serves live queries. Each tile is signal-backed: if an operator edits the glossary or a code system, these numbers move.",
+        "window": {
+          "label": "Time window",
+          "last7d": "Last 7 days",
+          "last30d": "Last 30 days",
+          "last90d": "Last 90 days"
         },
-        "valueHeader": "Raw value",
-        "displayHeader": "Display",
-        "definitionHeader": "Definition (optional)",
-        "valueInput": "Raw value row {index}",
-        "displayInput": "Display label row {index}",
-        "definitionInput": "Definition row {index}",
-        "removeRow": "Remove row {index}",
-        "addRow": "Add value",
-        "codeSystemIdLabel": "Code system id",
-        "codeSystemHint": "Must reference an existing CodeSystemDef in the ontology.",
-        "termIdLabel": "Glossary term id",
-        "termHint": "Must reference an existing GlossaryTermDef in the ontology.",
-        "repoHintLabel": "Repo hint — detected in source",
-        "cancel": "Cancel",
-        "save": "Save resolution",
-        "saving": "Saving…",
-        "errors": {
-          "valueMapEmpty": "Add at least one value → display pair",
-          "codeSystemRequired": "Code system id is required",
-          "termRequired": "Glossary term id is required"
-        }
-      }
-    },
-    "qualitySignals": {
-      "title": "Ontology Quality — Signals",
-      "subtitle": "Six windows into how well the ontology serves live queries. Each tile is signal-backed: if an operator edits the glossary or a code system, these numbers move.",
-      "window": {
-        "label": "Time window",
-        "last7d": "Last 7 days",
-        "last30d": "Last 30 days",
-        "last90d": "Last 90 days"
-      },
-      "tiles": {
-        "title": "Six windows",
-        "sampleSize": "n = {n}",
-        "anchor_match_rate": {
-          "label": "Anchor match rate",
-          "description": "Fraction of queries where the top anchor score ≥ 0.5 — the ontology index surfaced a relevant entry point."
+        "tiles": {
+          "title": "Six windows",
+          "sampleSize": "n = {n}",
+          "anchor_match_rate": {
+            "label": "Anchor match rate",
+            "description": "Fraction of queries where the top anchor score ≥ 0.5 — the ontology index surfaced a relevant entry point."
+          },
+          "glossary_hit_rate": {
+            "label": "Glossary hit rate",
+            "description": "Fraction of queries that consulted a glossary term during NL→Cypher translation."
+          },
+          "clarification_success_rate": {
+            "label": "Clarification success rate",
+            "description": "When a query used an ambiguity clarification, how often did the follow-up pass SHACL?"
+          },
+          "query_reproducibility": {
+            "label": "Query reproducibility",
+            "description": "Share of queries whose canonical plan appears more than once in this window — the same question yields the same plan."
+          },
+          "shacl_pass_rate": {
+            "label": "SHACL pass rate",
+            "description": "Fraction of compiled queries the strict SHACL validator accepted."
+          },
+          "stale_concept_ratio": {
+            "label": "Stale concept ratio",
+            "description": "Fraction of tracked ontology types whose last reference is older than 180 days. Candidates for deprecation (advisory)."
+          }
         },
-        "glossary_hit_rate": {
-          "label": "Glossary hit rate",
-          "description": "Fraction of queries that consulted a glossary term during NL→Cypher translation."
+        "shacl": {
+          "title": "SHACL failure distribution",
+          "empty": "No SHACL failures recorded in this window.",
+          "kind": {
+            "cardinality_violation": "Cardinality violation",
+            "measure_group_by": "Measure in GROUP BY",
+            "unknown_coded_value": "Unknown coded value",
+            "mandatory_property_missing": "Mandatory property missing",
+            "temporal_grain_mismatch": "Temporal grain mismatch",
+            "other": "Other"
+          }
         },
-        "clarification_success_rate": {
-          "label": "Clarification success rate",
-          "description": "When a query used an ambiguity clarification, how often did the follow-up pass SHACL?"
+        "stale": {
+          "title": "Stale concept candidates",
+          "subtitle": "Ontology types unused for more than {days} days — advisory list, not auto-deprecated.",
+          "thresholdLabel": "Staleness cutoff",
+          "days90": "90 days",
+          "days180": "180 days",
+          "days365": "365 days",
+          "empty": "No stale types over the selected cutoff.",
+          "never": "never",
+          "col": {
+            "kind": "Kind",
+            "typeId": "Type ID",
+            "lastUsed": "Last used",
+            "daysSince": "Days since",
+            "action": "Action"
+          },
+          "deprecate": {
+            "button": "Propose deprecation",
+            "noOntology": "No committed ontology — open Design mode first.",
+            "confirmTitle": "Propose deprecation?",
+            "confirmDescription": "Drafts a `deprecate_*` OntologyEditOp for `{type}` (unused {days} days) and submits it through the edit pipeline. The change_routing matrix decides whether it lands directly or queues for approval.",
+            "confirmLabel": "Propose",
+            "cancel": "Cancel",
+            "unsupportedKind": "Cannot propose deprecation for unknown type kind: {kind}",
+            "message": "Deprecate stale type {type}",
+            "queued": "Deprecation proposal submitted — check the approval queue.",
+            "failed": "Proposal failed: {error}"
+          }
         },
-        "query_reproducibility": {
-          "label": "Query reproducibility",
-          "description": "Share of queries whose canonical plan appears more than once in this window — the same question yields the same plan."
+        "metric": {
+          "wideConfidenceBand": "Sample is small — interpret with caution"
         },
-        "shacl_pass_rate": {
-          "label": "SHACL pass rate",
-          "description": "Fraction of compiled queries the strict SHACL validator accepted."
-        },
-        "stale_concept_ratio": {
-          "label": "Stale concept ratio",
-          "description": "Fraction of tracked ontology types whose last reference is older than 180 days. Candidates for deprecation (advisory)."
-        }
-      },
-      "shacl": {
-        "title": "SHACL failure distribution",
-        "empty": "No SHACL failures recorded in this window.",
-        "kind": {
-          "cardinality_violation": "Cardinality violation",
-          "measure_group_by": "Measure in GROUP BY",
-          "unknown_coded_value": "Unknown coded value",
-          "mandatory_property_missing": "Mandatory property missing",
-          "temporal_grain_mismatch": "Temporal grain mismatch",
-          "other": "Other"
+        "trend": {
+          "flat": "Flat"
         }
       },
       "stale": {
-        "title": "Stale concept candidates",
-        "subtitle": "Ontology types unused for more than {days} days — advisory list, not auto-deprecated.",
-        "thresholdLabel": "Staleness cutoff",
-        "days90": "90 days",
-        "days180": "180 days",
-        "days365": "365 days",
-        "empty": "No stale types over the selected cutoff.",
-        "never": "never",
-        "col": {
-          "kind": "Kind",
-          "typeId": "Type ID",
-          "lastUsed": "Last used",
-          "daysSince": "Days since",
-          "action": "Action"
+        "title": "Stale Concepts",
+        "subtitle": "Types the daily cron flagged as unused for 180+ days. Approving a row records intent to deprecate — the actual ontology edit still goes through the normal edit-log path.",
+        "tabsLabel": "Status filter",
+        "loading": "Loading…",
+        "tabs": {
+          "pending": "Pending",
+          "decided": "History"
         },
-        "deprecate": {
-          "button": "Propose deprecation",
-          "noOntology": "No committed ontology — open Design mode first.",
-          "confirmTitle": "Propose deprecation?",
-          "confirmDescription": "Drafts a `deprecate_*` OntologyEditOp for `{type}` (unused {days} days) and submits it through the edit pipeline. The change_routing matrix decides whether it lands directly or queues for approval.",
-          "confirmLabel": "Propose",
+        "empty": {
+          "pending": "No stale-concept proposals pending. The cron writes fresh rows daily.",
+          "decided": "No decisions recorded yet."
+        },
+        "columns": {
+          "type": "Type id",
+          "kind": "Kind",
+          "daysSince": "Days idle",
+          "proposedAt": "Proposed",
+          "decision": "Decision",
+          "reason": "Reason",
+          "actions": "Actions"
+        },
+        "actions": {
+          "review": "Review"
+        },
+        "decisionLabel": {
+          "approved": "Approved",
+          "dismissed": "Dismissed",
+          "pending": "Pending"
+        },
+        "toast": {
+          "approved": "Proposal approved — deprecation intent recorded",
+          "dismissed": "Proposal dismissed",
+          "failed": "Failed to record decision",
+          "deprecated": "Type deprecated in {ontology}",
+          "emitFailed": "Approved — failed to apply the deprecation edit",
+          "lookupFailed": "Approved — could not look up owning ontologies",
+          "noCandidate": "Approved — no ontology in this workspace carries this type",
+          "alreadyDeprecated": "Approved — type is already deprecated in every matching ontology"
+        },
+        "modal": {
+          "title": "Review stale-concept proposal",
+          "daysSince": "Idle for {days} days",
+          "reasonLabel": "Reason (optional)",
+          "reasonPlaceholder": "Context the next reviewer should know — e.g. \"replaced by Customer v2\", \"dedup candidate\"",
           "cancel": "Cancel",
-          "unsupportedKind": "Cannot propose deprecation for unknown type kind: {kind}",
-          "message": "Deprecate stale type {type}",
-          "queued": "Deprecation proposal submitted — check the approval queue.",
-          "failed": "Proposal failed: {error}"
+          "dismiss": "Dismiss",
+          "approve": "Approve",
+          "saving": "Saving…"
+        },
+        "picker": {
+          "title": "Pick the ontology to deprecate in",
+          "countHit": "{count} ontologies carry this type",
+          "pick": "Deprecate",
+          "skip": "Skip — keep approval only"
         }
+      },
+      "ambiguity": {
+        "title": "Ambiguity Resolution",
+        "subtitle": "Columns whose values cannot be interpreted from schema alone become 'ambiguity contexts'. Resolve each one by mapping the values to a CodeSystem, a Glossary term, or an inline value map.",
+        "tabsLabel": "Status filter",
+        "loading": "Loading…",
+        "tabs": {
+          "pending": "Needs attention",
+          "stale": "Stale (re-check)",
+          "resolved": "Resolved"
+        },
+        "empty": {
+          "pending": "Nothing to resolve — every ambiguous column has an up-to-date resolution.",
+          "stale": "No stale resolutions — every active resolution matches its context hash.",
+          "resolved": "No resolved ambiguities yet."
+        },
+        "columns": {
+          "source": "Source",
+          "column": "Column",
+          "kind": "Kind",
+          "mapping": "Mapping",
+          "detected": "Detected",
+          "actions": "Actions"
+        },
+        "kind": {
+          "numeric_code": "Numeric code",
+          "opaque_short_code": "Short code",
+          "overloaded_name": "Overloaded name"
+        },
+        "mappingBadge": {
+          "valueMap": "Value map ({count})"
+        },
+        "actions": {
+          "resolve": "Resolve",
+          "edit": "Edit",
+          "revoke": "Revoke"
+        },
+        "toast": {
+          "resolved": "Resolution saved",
+          "resolveFailed": "Failed to save resolution",
+          "revoked": "Resolution revoked",
+          "revokeFailed": "Failed to revoke"
+        },
+        "modal": {
+          "title": "Resolve {relation}.{column}",
+          "modeLabel": "Resolution type",
+          "mode": {
+            "value_map": "Value map",
+            "code_system_ref": "Code system",
+            "glossary_ref": "Glossary term"
+          },
+          "valueHeader": "Raw value",
+          "displayHeader": "Display",
+          "definitionHeader": "Definition (optional)",
+          "valueInput": "Raw value row {index}",
+          "displayInput": "Display label row {index}",
+          "definitionInput": "Definition row {index}",
+          "removeRow": "Remove row {index}",
+          "addRow": "Add value",
+          "codeSystemIdLabel": "Code system id",
+          "codeSystemHint": "Must reference an existing CodeSystemDef in the ontology.",
+          "termIdLabel": "Glossary term id",
+          "termHint": "Must reference an existing GlossaryTermDef in the ontology.",
+          "repoHintLabel": "Repo hint — detected in source",
+          "cancel": "Cancel",
+          "save": "Save resolution",
+          "saving": "Saving…",
+          "errors": {
+            "valueMapEmpty": "Add at least one value → display pair",
+            "codeSystemRequired": "Code system id is required",
+            "termRequired": "Glossary term id is required"
+          }
+        }
+      },
+      "rules": {
+        "title": "Quality Rules",
+        "description": "Declarative data quality rules evaluated automatically against graph data.",
+        "executeAll": "Execute All",
+        "executingAll": "Executing...",
+        "createRule": "Create Rule",
+        "summary": {
+          "passing": "Passing",
+          "failing": "Failing",
+          "pending": "Not Yet Evaluated"
+        },
+        "column": {
+          "rule": "Rule",
+          "type": "Type",
+          "target": "Target",
+          "threshold": "Threshold",
+          "severity": "Severity",
+          "status": "Status",
+          "value": "Value",
+          "actions": "Actions"
+        },
+        "status": {
+          "pass": "Pass",
+          "fail": "Fail",
+          "none": "-"
+        },
+        "action": {
+          "run": "Run",
+          "running": "...",
+          "deleting": "...",
+          "edit": "Edit",
+          "delete": "Delete"
+        },
+        "empty": "No quality rules configured",
+        "ruleType": {
+          "completeness": "completeness",
+          "uniqueness": "uniqueness",
+          "freshness": "freshness",
+          "consistency": "consistency",
+          "custom": "custom"
+        },
+        "severityLevel": {
+          "critical": "critical",
+          "warning": "warning",
+          "info": "info"
+        },
+        "form": {
+          "newTitle": "New Rule",
+          "editTitle": "Edit Rule",
+          "name": "Name",
+          "namePlaceholder": "e.g. Brand completeness",
+          "ruleType": "Rule Type",
+          "severity": "Severity",
+          "targetLabel": "Target Label",
+          "targetLabelPlaceholder": "e.g. Brand, Product",
+          "targetProperty": "Target Property",
+          "targetPropertyHint": "(optional)",
+          "targetPropertyPlaceholder": "e.g. email",
+          "threshold": "Threshold (%)",
+          "cypherCheck": "Cypher Check",
+          "cypherCheckPlaceholder": "MATCH (n:Label) WHERE ... RETURN count(n) as value",
+          "create": "Create Rule",
+          "creating": "Creating...",
+          "update": "Update Rule",
+          "updating": "Updating...",
+          "cancel": "Cancel"
+        },
+        "validation": {
+          "required": "Required",
+          "thresholdRange": "Must be 0-100"
+        },
+        "toast": {
+          "created": "Rule created",
+          "updated": "Rule updated",
+          "deleted": "Rule deleted",
+          "executed": "Executed {total} rules: {passed} passed, {failed} failed",
+          "executeError": "Failed to execute rule",
+          "executeAllError": "Failed to execute rules",
+          "rulePassed": "Rule passed ({value}%)",
+          "ruleFailed": "Rule failed ({value}%)",
+          "createFailed": "Failed to create rule",
+          "updateFailed": "Failed to update rule",
+          "deleteFailed": "Failed to delete rule",
+          "loadFailed": "Failed to load quality dashboard"
+        },
+        "deleteConfirm": {
+          "title": "Delete quality rule '{name}'?",
+          "description": "This action cannot be undone. The rule and its evaluation history will be permanently removed."
+        }
+      },
+      "pageTitle": "Quality",
+      "pageSubtitle": "Validation rules, observability signals, stale concepts, and ambiguity resolution.",
+      "tab": {
+        "rules": "Rules",
+        "signals": "Signals",
+        "stale": "Stale",
+        "ambiguity": "Ambiguity"
+      }
+    },
+    "commandPalette": {
+      "title": "Settings search",
+      "placeholder": "Jump to a setting…",
+      "listAriaLabel": "Settings search results",
+      "emptyState": "No matches",
+      "hint": {
+        "navigate": "↑↓ navigate",
+        "select": "enter select",
+        "close": "esc close"
       }
     }
   },
@@ -2994,7 +3344,44 @@
         "applied": "{count} improvements applied",
         "undoHint": "Press Ctrl+Z to undo",
         "unknownError": "Unknown error"
-      }
+      },
+      "addProperty": "Add property",
+      "cardinality": {
+        "label": "Cardinality",
+        "manyToMany": "* — *",
+        "manyToOne": "* — 1",
+        "oneToMany": "1 — *",
+        "oneToOne": "1 — 1",
+        "toast": "Cardinality updated"
+      },
+      "edge": {
+        "deleteConfirm": {
+          "description": "The connection between these nodes will be removed.",
+          "title": "Delete edge?"
+        },
+        "deletedToast": "Edge deleted",
+        "deleteLabel": "Delete edge",
+        "renamePrompt": {
+          "description": "Enter a new label for this edge.",
+          "title": "Rename edge"
+        }
+      },
+      "focusNeighborhood": "Focus neighborhood",
+      "improveWithAi": "Improve with AI",
+      "inspect": "Inspect",
+      "node": {
+        "deleteConfirm": {
+          "description": "This removes the node and unlinks attached edges. Cannot be undone.",
+          "title": "Delete node?"
+        },
+        "deletedToast": "Node deleted",
+        "deleteLabel": "Delete node",
+        "renamePrompt": {
+          "description": "Enter a new name for this node.",
+          "title": "Rename node"
+        }
+      },
+      "rename": "Rename"
     },
     "glossary": {
       "heading": "Glossary",
@@ -3099,6 +3486,11 @@
           "heading": "No projects match this filter",
           "subheading": "Clear the filters to see every project, or start a new one.",
           "cta": "Start a project"
+        },
+        "filteredEmpty": {
+          "clearFilters": "Clear filters",
+          "heading": "No projects match",
+          "subheading": "Try a different search term or clear the filters."
         }
       }
     },
@@ -3215,6 +3607,9 @@
             "title": "Change log",
             "subtitle": "Audit trail — who changed what, when"
           }
+        },
+        "header": {
+          "nodeBadge": "Node"
         }
       }
     },
@@ -3288,6 +3683,37 @@
           "readOnlyHint": "Read-only overview of edge patterns in the current graph."
         },
         "saveSegment": "Save {count} type(s) as segment"
+      },
+      "backToOverview": "Back to overview",
+      "canvas": {
+        "layingOut": "Laying out…",
+        "loadingSchema": "Loading schema…",
+        "noNeighbors": "No neighboring nodes",
+        "schemaHint": "Schema · click a node to expand"
+      },
+      "empty": {
+        "description": "Load a project to discover relationships across the graph.",
+        "switchToDesign": "Switch to Design",
+        "title": "No data to explore"
+      },
+      "neighborCount": "{count} neighbor(s)",
+      "nodeFallback": "Untitled node",
+      "overview": {
+        "loading": "Loading overview…",
+        "nodeLabels": "Node labels",
+        "relationshipPatterns": "Relationship patterns"
+      },
+      "propertiesHeading": "Properties",
+      "relationshipsHeading": "Relationships",
+      "search": {
+        "noResults": "No matches",
+        "placeholder": "Search nodes…"
+      },
+      "segmentToast": "Segment loaded",
+      "selectEntityHint": "Select an entity to explore",
+      "stats": {
+        "nodes": "{count} node(s)",
+        "relationships": "{count} relationship(s)"
       }
     },
     "analyze": {
@@ -3301,6 +3727,19 @@
         "history": "History",
         "insights": "Insights",
         "knowledge": "Knowledge"
+      },
+      "knowledgePanel": {
+        "empty": {
+          "description": "Knowledge entries appear after the agent reasons over a question.",
+          "title": "No knowledge yet"
+        },
+        "footer": "Knowledge auto-saved during analysis",
+        "loadHint": "Load a project to see related knowledge"
+      },
+      "sessionBar": {
+        "label": "Session",
+        "newSession": "New session",
+        "pastCount": "{count} past session(s)"
       }
     },
     "insights": {
@@ -3346,7 +3785,18 @@
         "layerEnhanced": "User-enhanced node",
         "layerAdded": "Newly added node",
         "layerHighGap": "Many gaps (review)"
-      }
+      },
+      "legend": {
+        "asserted": "Asserted",
+        "inferred": "Inferred",
+        "problematic": "Problematic",
+        "suggested": "Suggested"
+      },
+      "noOntology": "No ontology loaded",
+      "panelAria": "Explorer panel",
+      "searchPlaceholder": "Search the explorer…",
+      "sourceFindings": "Source findings",
+      "viewInQualityReport": "View in quality report"
     },
     "chat": {
       "input": {
@@ -3364,7 +3814,8 @@
           "supervised": "Supervised",
           "autoTitle": "Auto mode: tools execute automatically",
           "supervisedTitle": "Supervised: tools require approval"
-        }
+        },
+        "stopAria": "Stop generation"
       },
       "panel": {
         "logAria": "Chat messages",
@@ -3557,14 +4008,36 @@
           "nothingToExport": "Nothing to export",
           "exported": "Exported as {format}",
           "failed": "Export failed"
-        }
+        },
+        "extendSourceAria": "Extend the source set with another data source",
+        "extendSourceLabel": "Extend source",
+        "paneExplorer": "Explorer",
+        "paneInspector": "Inspector",
+        "searchAria": "Search entities",
+        "searchPlaceholder": "Search…",
+        "showExplorer": "Show explorer",
+        "showInspector": "Show inspector"
       },
-      "commandPalette": {
-        "placeholder": "Type a command...",
-        "empty": "No matching commands",
-        "hintNavigate": "↑↓ Navigate",
-        "hintExecute": "↵ Execute",
-        "hintClose": "Esc Close"
+      "commands": {
+        "undo": "Undo",
+        "redo": "Redo",
+        "save": "Save changes",
+        "autoLayout": "Auto layout",
+        "fitView": "Fit view",
+        "exportPng": "Export as PNG",
+        "exportSvg": "Export as SVG",
+        "addNode": "Add node",
+        "addNodePrompt": {
+          "title": "Add node",
+          "description": "Enter a label for the new node.",
+          "placeholder": "Node label",
+          "confirm": "Add"
+        },
+        "deleteSelected": "Delete selected",
+        "selectAll": "Select all nodes",
+        "deselectAll": "Deselect all",
+        "zoomIn": "Zoom in",
+        "zoomOut": "Zoom out"
       },
       "commandBar": {
         "askOntosyx": "Ask Ontosyx",
@@ -3964,7 +4437,8 @@
         "viewFullReport": "View full report →",
         "analysisReview": "Analysis Review",
         "unresolved": "{count} unresolved",
-        "allResolved": "all resolved"
+        "allResolved": "all resolved",
+        "phaseAria": "Project phase"
       },
       "workflowActions": {
         "untitledProject": "Untitled Project",
@@ -4069,7 +4543,8 @@
           "unknownError": "Unknown error",
           "designGatesUnmetTitle": "Design gates unmet",
           "designGatesUnmetDescription": "{count, plural, one {# design gate} other {# design gates}} need attention before designing."
-        }
+        },
+        "deleteProjectTypeLabel": "Type the project name to confirm"
       },
       "workflowForms": {
         "reanalyze": "Reanalyze",
@@ -4381,8 +4856,25 @@
         "pin": {
           "untitled": "Untitled",
           "pinned": "Pinned to dashboard",
-          "failed": "Failed to pin"
-        }
+          "failed": "Failed to pin",
+          "buttonLabel": "Pin to dashboard",
+          "buttonTooltip": "Save this view as a dashboard widget",
+          "confirm": "Pin",
+          "noDashboards": "Create a dashboard first",
+          "widgetTitlePlaceholder": "Widget title"
+        },
+        "analysis": {
+          "charsTruncated": "{count} chars truncated",
+          "exitCode": "Exit code {code}"
+        },
+        "empty": {
+          "description": "The query ran successfully but returned no rows.",
+          "title": "No rows"
+        },
+        "memories": {
+          "matchPercent": "{pct}% match"
+        },
+        "memoriesEmpty": "No memory matches"
       },
       "config": {
         "tabFilter": "Filters",
@@ -4513,7 +5005,9 @@
         "toast": {
           "widgetAdded": "Widget \"{title}\" added",
           "addFailed": "Failed to add widget"
-        }
+        },
+        "addedToDashboard": "Added to dashboard",
+        "addToDashboard": "Add to dashboard"
       },
       "addWidget": {
         "trigger": "Add Widget",
@@ -4564,6 +5058,225 @@
           "updated": "Widget updated",
           "updateFailed": "Failed to update: {error}"
         }
+      }
+    },
+    "searchDialog": {
+      "closeAria": "Close search",
+      "constraintExtra": "+{count} more constraint(s)",
+      "dataMatches": "Data matches",
+      "dialogAria": "Search dialog",
+      "edgeBadge": "Edge",
+      "emptyHint": "Type to search the schema and live data.",
+      "footer": {
+        "close": "esc close",
+        "hint": "Tip: type ? for shortcuts",
+        "navigate": "↑↓ navigate",
+        "searchData": "Search data"
+      },
+      "noDataResults": "No data matches found",
+      "nodeBadge": "Node",
+      "noSchemaMatches": "No schema matches",
+      "placeholder": "Search entities, properties…",
+      "pressEnterForData": "Press enter to search data",
+      "propCount": "{count} property(ies)",
+      "schemaMatches": "Schema matches"
+    },
+    "unsavedChanges": {
+      "description": "Leaving this page will discard your edits.",
+      "leave": "Leave",
+      "stay": "Stay",
+      "title": "Unsaved changes"
+    }
+  },
+  "apiErrors": {
+    "signIn": "Sign in to continue"
+  },
+  "collab": {
+    "commandStackDiff": {
+      "acceptRemote": "Take theirs",
+      "close": "Close",
+      "description": "{author} saved v{remoteRevision} while you were editing v{baseRevision}. Compare both sides before choosing.",
+      "keepLocal": "Keep mine",
+      "localEmpty": "No local changes pending.",
+      "localHeading": "Your changes ({count})",
+      "remoteHeading": "{author}'s changes",
+      "remoteOpaque": "The server hasn't shared the operation list yet — only the new revision is visible.",
+      "title": "Resolve conflicting edits"
+    },
+    "mergeBanner": {
+      "acceptRemote": "Take theirs",
+      "compare": "Compare",
+      "description": "Resolve to continue: keep your edits and rebase, or accept theirs.",
+      "keepLocal": "Keep mine",
+      "title": "{author} saved a conflicting change"
+    }
+  },
+  "keyboardShortcuts": {
+    "closeAria": "Close shortcuts dialog",
+    "title": "Keyboard shortcuts",
+    "toggleHint": "Press ? to toggle",
+    "sections": {
+      "settings": "Settings"
+    },
+    "shortcuts": {
+      "settingsCommandPalette": "Open settings search"
+    }
+  },
+  "account": {
+    "profile": {
+      "title": "Profile",
+      "accountDetails": "Account Details",
+      "field": {
+        "name": "Name",
+        "email": "Email",
+        "signInProvider": "Sign-in Provider",
+        "role": "Role"
+      },
+      "signInProviderValue": "Google",
+      "session": {
+        "title": "Session",
+        "description": "Sign out of your current session on this device.",
+        "signOut": "Sign Out"
+      },
+      "notSignedIn": "Not signed in.",
+      "devMode": {
+        "userName": "Developer",
+        "userEmail": "dev@localhost",
+        "notice": "Development mode — no authentication configured. Configure Google OAuth to enable user accounts."
+      }
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Configure webhook channels to receive notifications when quality rules are evaluated.",
+      "addChannel": "Add Channel",
+      "channelsHeading": "Channels",
+      "recentHeading": "Recent Notifications",
+      "emptyChannels": "No notification channels configured",
+      "emptyLogs": "No notifications sent yet.",
+      "column": {
+        "name": "Name",
+        "type": "Type",
+        "events": "Events",
+        "enabled": "Enabled",
+        "actions": "Actions",
+        "time": "Time",
+        "event": "Event",
+        "subject": "Subject",
+        "status": "Status",
+        "error": "Error"
+      },
+      "action": {
+        "test": "Test",
+        "testing": "...",
+        "deleting": "...",
+        "edit": "Edit",
+        "delete": "Delete"
+      },
+      "channelType": {
+        "slack_webhook": "Slack Webhook",
+        "generic_webhook": "Generic Webhook",
+        "slack_webhookShort": "Slack",
+        "generic_webhookShort": "Webhook"
+      },
+      "event": {
+        "quality_rule_failed": "Quality Rule Failed",
+        "quality_rule_passed": "Quality Rule Passed"
+      },
+      "status": {
+        "sent": "Sent",
+        "failed": "Failed"
+      },
+      "form": {
+        "newTitle": "New Channel",
+        "editTitle": "Edit Channel",
+        "name": "Name",
+        "namePlaceholder": "e.g. Slack #alerts",
+        "channelType": "Channel Type",
+        "webhookUrl": "Webhook URL",
+        "urlPlaceholderSlack": "https://hooks.slack.com/services/...",
+        "urlPlaceholderGeneric": "https://example.com/webhook",
+        "events": "Events",
+        "create": "Create Channel",
+        "creating": "Creating...",
+        "update": "Update Channel",
+        "updating": "Updating...",
+        "cancel": "Cancel"
+      },
+      "validation": {
+        "required": "Required",
+        "invalidUrl": "Invalid URL",
+        "selectEvent": "Select at least one event"
+      },
+      "toast": {
+        "created": "Channel created",
+        "updated": "Channel updated",
+        "deleted": "Channel deleted",
+        "enabled": "Channel enabled",
+        "disabled": "Channel disabled",
+        "toggleError": "Failed to toggle channel",
+        "testSuccess": "Test notification sent successfully",
+        "testFailed": "Test failed: {error}",
+        "testError": "Failed to send test notification",
+        "createFailed": "Failed to create channel",
+        "updateFailed": "Failed to update channel",
+        "deleteFailed": "Failed to delete channel",
+        "unknownError": "Unknown error",
+        "loadFailed": "Failed to load notification settings"
+      },
+      "deleteConfirm": {
+        "title": "Delete notification channel '{name}'?",
+        "description": "This action cannot be undone. The channel and its delivery log will be permanently removed."
+      },
+      "emptyErrorCell": "-"
+    },
+    "sessions": {
+      "title": "Agent Sessions",
+      "description": "Audit trail of agent executions with event replay.",
+      "stats": {
+        "total": "Total Sessions",
+        "completed": "Completed",
+        "last7Days": "Last 7 Days",
+        "modelsUsed": "Models Used"
+      },
+      "searchPlaceholder": "Search by message...",
+      "modelFilterLabel": "Model Filter",
+      "allModels": "All models",
+      "empty": "No sessions recorded yet.",
+      "emptyFiltered": "No matching sessions.",
+      "completed": "completed",
+      "incomplete": "incomplete",
+      "loadMore": "Load more (showing {count})",
+      "loading": "Loading...",
+      "deleteConfirmTitle": "Delete session",
+      "deleteConfirmDescription": "This will permanently delete the session and all its events. This cannot be undone.",
+      "deleteConfirmLabel": "Delete",
+      "detailHeading": "Session Detail",
+      "viewConversation": "Conversation",
+      "viewEvents": "Events",
+      "hashLine": "prompt_hash: {prompt}... · tool_hash: {tool}...",
+      "noMessages": "No messages.",
+      "roleUser": "User",
+      "roleAssistant": "Assistant",
+      "toast": {
+        "loadFailed": "Failed to load sessions",
+        "loadMoreFailed": "Failed to load more sessions",
+        "eventsLoadFailed": "Failed to load events",
+        "messagesLoadFailed": "Failed to load messages",
+        "deleted": "Session deleted",
+        "deleteFailed": "Failed to delete session"
+      }
+    },
+    "chrome": {
+      "rootTitle": "My account",
+      "pageTitle": "My account — {page}",
+      "sidebarAriaLabel": "Account sidebar",
+      "navAriaLabel": "Account menu",
+      "backToWorkbench": "Back to Workbench",
+      "sidebar": {
+        "section": "Account",
+        "profile": "Profile",
+        "notifications": "Notifications",
+        "sessions": "Sessions"
       }
     }
   }

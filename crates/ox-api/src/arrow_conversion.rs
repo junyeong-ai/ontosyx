@@ -26,7 +26,7 @@
 //! otherwise supported.
 //!
 //! The error type is a plain `String` because every caller wraps
-//! it in an `AppError::unprocessable(...)` at the handler boundary;
+//! it in an `AppError::internal(...)` at the handler boundary (5xx — these are converter-internal failures, not user-input errors);
 //! wrapping in `OxError` here would force an extra conversion with
 //! no added diagnostic value.
 
