@@ -12,15 +12,13 @@
 //! may carry the same logical id in multiple lineages. The UI picks
 //! one (or asks the user) and calls `/ontologies/{id}/edits` itself.
 //!
-//! Lineage-scoped because `list_ontologies` is RLS-scoped to the
-//! caller's workspace.
+//! Workspace-scoped because the canonical ontology lookup is
+//! RLS-scoped to the caller's workspace.
 
 use axum::Json;
 use axum::extract::{Query, State};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use ox_store::CursorParams;
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -74,24 +72,20 @@ pub struct TypeCandidate {
     pub deprecated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-/// Enumerate every ontology in the workspace whose current version
-/// contains a node/edge type with the given logical id.
-///
-/// Iterative scan — O(n) ontologies × O(m) types per version. For
-/// the expected workspace scale (dozens of ontologies, each with
-/// low-hundreds of types) this is well under 100ms. If scan cost
-/// becomes a concern, swap to a direct query on
-/// `ontology_version_entities` keyed on `(kind, logical_id)`.
+/// Check whether the workspace's canonical ontology contains a
+/// node/edge type with the given logical id. Returns 0 or 1
+/// candidate (workspace × ontology is 1:1, so the historical
+/// "candidates" plural is now structurally bounded).
 #[utoipa::path(
     get,
-    path = "/api/ontologies/type-candidates",
+    path = "/api/ontology/type-candidates",
     params(TypeCandidatesParams),
     responses(
-        (status = 200, description = "Ontologies that own the logical id", body = Vec<TypeCandidate>),
+        (status = 200, description = "Workspace ontology entries matching the logical id", body = Vec<TypeCandidate>),
         (status = 400, description = "Invalid kind"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn list_type_candidates(
     State(state): State<AppState>,
@@ -106,74 +100,68 @@ pub(crate) async fn list_type_candidates(
         )
     })?;
 
-    // Pull the full workspace. `list_ontologies` is cursor-paginated;
-    // the expected scale (≪ 100 ontologies per workspace) fits in
-    // one page, and the scan below is cheap enough that paginating
-    // client-side would only add latency.
-    let pagination = CursorParams {
-        limit: 100,
-        cursor: None,
-    };
-    let page = state
+    let mut out = Vec::new();
+    let Some(row) = state
         .store
-        .list_ontologies(&pagination)
+        .get_workspace_ontology()
+        .await
+        .map_err(AppError::from)?
+    else {
+        return Ok(ApiResponse::of(out));
+    };
+    let current = state
+        .store
+        .get_current_version(row.id)
         .await
         .map_err(AppError::from)?;
+    let Some(version) = current else {
+        return Ok(ApiResponse::of(out));
+    };
+    let ir = match state.store.get_ontology_ir(version.id).await {
+        Ok(Some(ir)) => ir,
+        Ok(None) => {
+            tracing::warn!(
+                ontology_id = %row.id,
+                version_id = %version.id,
+                "type_candidates: ontology snapshot vanished",
+            );
+            return Ok(ApiResponse::of(out));
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                ontology_id = %row.id,
+                version_id = %version.id,
+                "type_candidates: ontology hydration failed",
+            );
+            return Ok(ApiResponse::of(out));
+        }
+    };
 
-    let mut out = Vec::new();
-    for row in page.items {
-        let current = state
-            .store
-            .get_current_version(row.id)
-            .await
-            .map_err(AppError::from)?;
-        let Some(version) = current else { continue };
-        let ir = match state.store.get_ontology_ir(version.id).await {
-            Ok(Some(ir)) => ir,
-            Ok(None) => {
-                tracing::warn!(
-                    ontology_id = %row.id,
-                    version_id = %version.id,
-                    "type_candidates: ontology snapshot vanished; skipping",
-                );
-                continue;
-            }
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    ontology_id = %row.id,
-                    version_id = %version.id,
-                    "type_candidates: ontology hydration failed; skipping",
-                );
-                continue;
-            }
-        };
-
-        match kind {
-            TypeKind::Node => {
-                for node in ir.node_types() {
-                    if node.id.as_str() == params.logical_id {
-                        out.push(TypeCandidate {
-                            ontology_id: row.id,
-                            ontology_name: row.name.clone(),
-                            current_version: version.version.clone(),
-                            label: node.label.as_str().to_string(),
-                            deprecated_at: node.deprecated_at,
-                        });
-                    }
+    match kind {
+        TypeKind::Node => {
+            for node in ir.node_types() {
+                if node.id.as_str() == params.logical_id {
+                    out.push(TypeCandidate {
+                        ontology_id: row.id,
+                        ontology_name: row.name.clone(),
+                        current_version: version.version.clone(),
+                        label: node.label.as_str().to_string(),
+                        deprecated_at: node.deprecated_at,
+                    });
                 }
             }
-            TypeKind::Edge => {
-                for edge in ir.edge_types() {
-                    if edge.id.as_str() == params.logical_id {
-                        out.push(TypeCandidate {
-                            ontology_id: row.id,
-                            ontology_name: row.name.clone(),
-                            current_version: version.version.clone(),
-                            label: edge.label.as_str().to_string(),
-                            deprecated_at: edge.deprecated_at,
-                        });
-                    }
+        }
+        TypeKind::Edge => {
+            for edge in ir.edge_types() {
+                if edge.id.as_str() == params.logical_id {
+                    out.push(TypeCandidate {
+                        ontology_id: row.id,
+                        ontology_name: row.name.clone(),
+                        current_version: version.version.clone(),
+                        label: edge.label.as_str().to_string(),
+                        deprecated_at: edge.deprecated_at,
+                    });
                 }
             }
         }

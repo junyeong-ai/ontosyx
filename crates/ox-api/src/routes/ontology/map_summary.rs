@@ -1,10 +1,10 @@
-//! `GET /api/ontologies/{id}/map-summary` — aggregated counts per
+//! `GET /api/ontology/map-summary` — aggregated counts per
 //! six-axis section + a `danglers` list. Feeds the Complete Map
 //! dashboard without forcing the FE to re-walk a full OntologyIR
 //! payload client-side.
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::State;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -60,23 +60,21 @@ pub struct DanglerEntry {
 
 #[utoipa::path(
     get,
-    path = "/api/ontologies/{id}/map-summary",
-    params(("id" = Uuid, Path, description = "Ontology identity id")),
+    path = "/api/ontology/map-summary",
     responses(
         (status = 200, description = "Six-axis summary + dangling references", body = Object),
-        (status = 404, description = "Ontology not found or has no committed version"),
+        (status = 404, description = "Workspace has no ontology, or ontology has no committed version"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn map_summary(
     State(state): State<AppState>,
     _principal: Principal,
-    Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<MapSummaryResponse>>, AppError> {
     let identity = state
         .store
-        .get_ontology(id)
+        .get_workspace_ontology()
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Ontology"))?;
@@ -211,7 +209,7 @@ pub(crate) async fn map_summary(
         .collect();
 
     Ok(ApiResponse::of(MapSummaryResponse {
-        ontology_id: id,
+        ontology_id: identity.id,
         version: Some(version.version),
         topology,
         vocabulary,

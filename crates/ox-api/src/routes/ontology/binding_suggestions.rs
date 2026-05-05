@@ -105,22 +105,20 @@ pub struct PropertyCandidate {
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/{id}/glossary/suggest-bindings",
-    params(("id" = Uuid, Path, description = "Ontology identity ID")),
+    path = "/api/ontology/glossary/suggest-bindings",
     request_body = SuggestBindingsRequest,
     responses(
         (status = 200, description = "Candidate property bindings", body = SuggestBindingsResponse),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn suggest_glossary_bindings(
     axum::extract::State(state): axum::extract::State<AppState>,
     _principal: Principal,
-    Path(id): Path<Uuid>,
     Json(req): Json<SuggestBindingsRequest>,
 ) -> Result<Json<ApiResponse<SuggestBindingsResponse>>, AppError> {
-    let ir = load_current_ir(&state, id).await?;
+    let (ontology_id, ir) = load_current_ir(&state).await?;
     let policy = req
         .policy
         .map(BindingPolicy::materialise)
@@ -144,7 +142,7 @@ pub(crate) async fn suggest_glossary_bindings(
 
     let candidates = suggest_property_bindings_by_term(&ir, &term, policy);
     Ok(ApiResponse::of(SuggestBindingsResponse {
-        ontology_id: id,
+        ontology_id,
         candidates: candidates.into_iter().map(shape_candidate).collect(),
     }))
 }
@@ -180,9 +178,8 @@ pub struct TermCandidate {
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/{id}/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms",
+    path = "/api/ontology/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms",
     params(
-        ("id" = Uuid, Path, description = "Ontology identity ID"),
         ("owner_kind" = String, Path, description = "node | edge"),
         ("owner_type_id" = String, Path, description = "NodeTypeId or EdgeTypeId"),
         ("property_id" = String, Path, description = "PropertyId"),
@@ -192,15 +189,15 @@ pub struct TermCandidate {
         (status = 200, description = "Candidate glossary terms", body = SuggestTermsResponse),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn suggest_glossary_terms_for_property(
     axum::extract::State(state): axum::extract::State<AppState>,
     _principal: Principal,
-    Path((id, owner_kind, owner_type_id, property_id)): Path<(Uuid, String, String, String)>,
+    Path((owner_kind, owner_type_id, property_id)): Path<(String, String, String)>,
     Json(req): Json<SuggestTermsRequest>,
 ) -> Result<Json<ApiResponse<SuggestTermsResponse>>, AppError> {
-    let ir = load_current_ir(&state, id).await?;
+    let (ontology_id, ir) = load_current_ir(&state).await?;
     let policy = req
         .policy
         .map(BindingPolicy::materialise)
@@ -227,7 +224,7 @@ pub(crate) async fn suggest_glossary_terms_for_property(
     let property_id_owned = property_id.into();
     let candidates = suggest_terms_by_property(&ir, &owner, &property_id_owned, policy);
     Ok(ApiResponse::of(SuggestTermsResponse {
-        ontology_id: id,
+        ontology_id,
         candidates: candidates.into_iter().map(shape_term_candidate).collect(),
     }))
 }
@@ -238,11 +235,10 @@ pub(crate) async fn suggest_glossary_terms_for_property(
 
 async fn load_current_ir(
     state: &AppState,
-    ontology_id: Uuid,
-) -> Result<ox_ontology::ir::OntologyIR, AppError> {
+) -> Result<(Uuid, ox_ontology::ir::OntologyIR), AppError> {
     let identity = state
         .store
-        .get_ontology(ontology_id)
+        .get_workspace_ontology()
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Ontology"))?;
@@ -252,12 +248,13 @@ async fn load_current_ir(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::ontology_not_committed(identity.lineage_id.clone()))?;
-    state
+    let ir = state
         .store
         .get_ontology_ir(version.id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(|| AppError::not_found("Ontology version"))
+        .ok_or_else(|| AppError::not_found("Ontology version"))?;
+    Ok((identity.id, ir))
 }
 
 fn shape_candidate(c: PropertyBindingCandidate) -> PropertyCandidate {

@@ -1,5 +1,5 @@
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::State;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -24,11 +24,10 @@ use crate::state::AppState;
 
 async fn load_identity_current_ir(
     state: &AppState,
-    ontology_id: Uuid,
 ) -> Result<(OntologyRow, OntologyVersionSnapshot, OntologyIR), AppError> {
     let identity = state
         .store
-        .get_ontology(ontology_id)
+        .get_workspace_ontology()
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Ontology"))?;
@@ -50,26 +49,24 @@ async fn load_identity_current_ir(
 use crate::routes::projects::helpers::next_ontology_version_tag;
 
 // ---------------------------------------------------------------------------
-// POST /api/ontologies/{id}/reindex — re-index schema embeddings
+// POST /api/ontology/reindex — re-index schema embeddings
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/{id}/reindex",
-    params(("id" = Uuid, Path, description = "Ontology identity ID")),
+    path = "/api/ontology/reindex",
     responses(
         (status = 200, description = "Re-indexing triggered", body = inline(ReindexResponse)),
-        (status = 404, description = "Ontology not found"),
+        (status = 404, description = "Workspace has no ontology"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn reindex_schema(
     State(state): State<AppState>,
     _principal: Principal,
-    Path(ontology_id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<ReindexResponse>>, AppError> {
-    let (identity, _, ontology) = load_identity_current_ir(&state, ontology_id).await?;
+    let (identity, _, ontology) = load_identity_current_ir(&state).await?;
 
     let node_count = ontology.node_types().len();
     let memory = state
@@ -92,27 +89,25 @@ pub struct ReindexResponse {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ontologies/{id}/audit — compare ontology against live graph
+// POST /api/ontology/audit — compare ontology against live graph
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/{id}/audit",
-    params(("id" = Uuid, Path, description = "Ontology identity ID")),
+    path = "/api/ontology/audit",
     responses(
         (status = 200, description = "Audit report comparing ontology vs graph", body = Object),
-        (status = 404, description = "Ontology not found"),
+        (status = 404, description = "Workspace has no ontology"),
         (status = 503, description = "Graph database not connected"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn graph_audit_report(
     State(state): State<AppState>,
     _principal: Principal,
-    Path(ontology_id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<ox_ontology::audit::GraphAuditReport>>, AppError> {
-    let (_, _, ontology) = load_identity_current_ir(&state, ontology_id).await?;
+    let (_, _, ontology) = load_identity_current_ir(&state).await?;
 
     let runtime = state
         .runtime
@@ -130,19 +125,19 @@ pub(crate) async fn graph_audit_report(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ontologies/adopt-graph — create ontology from live graph labels
+// POST /api/ontology/adopt-graph — create ontology from live graph labels
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/adopt-graph",
+    path = "/api/ontology/adopt-graph",
     request_body(content = AdoptGraphRequest, description = "Name for the adopted ontology"),
     responses(
         (status = 200, description = "Ontology created from graph schema", body = Object),
         (status = 503, description = "Graph database not connected"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn adopt_graph(
     State(state): State<AppState>,
@@ -241,7 +236,7 @@ pub struct AdoptGraphRequest {
         (status = 200, description = "List of insight suggestions", body = Vec<Object>),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn suggest_insights(
     State(state): State<AppState>,
@@ -257,7 +252,7 @@ pub(crate) async fn suggest_insights(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ontologies/:id/enrich — enrich descriptions with data samples
+// POST /api/ontology/enrich — enrich descriptions with data samples
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Serialize, utoipa::ToSchema)]
@@ -289,7 +284,7 @@ pub struct EnrichRequest {
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/{id}/enrich",
+    path = "/api/ontology/enrich",
     request_body = EnrichRequest,
     responses(
         (status = 200, description = "Enrichment result", body = EnrichResponse),
@@ -299,12 +294,11 @@ pub struct EnrichRequest {
 pub(crate) async fn enrich_ontology(
     State(state): State<AppState>,
     principal: Principal,
-    Path(id): Path<Uuid>,
     Json(req): Json<EnrichRequest>,
 ) -> Result<Json<ApiResponse<EnrichResponse>>, AppError> {
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
-    let (identity, current_version, ontology) = load_identity_current_ir(&state, id).await?;
+    let (identity, current_version, ontology) = load_identity_current_ir(&state).await?;
 
     let config =
         ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types().len());

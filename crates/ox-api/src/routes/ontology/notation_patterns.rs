@@ -9,7 +9,6 @@
 //! bindings via the existing `/edits` surface.
 
 use axum::Json;
-use axum::extract::Path;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -92,26 +91,31 @@ pub struct NotationSkipBody {
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/{id}/notation-patterns/propose",
-    params(("id" = Uuid, Path, description = "Ontology identity ID")),
+    path = "/api/ontology/notation-patterns/propose",
     request_body = ProposeNotationPatternsRequest,
     responses(
         (status = 200, description = "Inference report", body = ProposeNotationPatternsResponse),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn propose_ontology_notation_patterns(
+    axum::extract::State(state): axum::extract::State<crate::state::AppState>,
     _principal: Principal,
-    Path(id): Path<Uuid>,
     Json(req): Json<ProposeNotationPatternsRequest>,
 ) -> Result<Json<ApiResponse<ProposeNotationPatternsResponse>>, AppError> {
+    let identity = state
+        .store
+        .get_workspace_ontology()
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology"))?;
     let policy = req
         .policy
         .map(NotationPolicyBody::materialise)
         .unwrap_or_default();
     let report = propose_notation_patterns(&req.schema, &req.profile, policy);
-    Ok(ApiResponse::of(shape_response(id, report)))
+    Ok(ApiResponse::of(shape_response(identity.id, report)))
 }
 
 fn shape_response(

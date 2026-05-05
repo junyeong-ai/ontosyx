@@ -87,16 +87,16 @@ pub struct CreateOntologyResponse {
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies",
+    path = "/api/ontology",
     request_body = CreateOntologyRequest,
     responses(
         (status = 201, description = "Ontology created — returns identity + first version"),
         (status = 400, description = "Missing name or other client-side input error"),
-        (status = 409, description = "Initial operation would queue for approval — split and use /edits"),
+        (status = 409, description = "Workspace already has an ontology, or initial operation would queue for approval"),
         (status = 422, description = "Initial operation or post-batch validation rejected the IR"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn create_ontology(
     State(state): State<AppState>,

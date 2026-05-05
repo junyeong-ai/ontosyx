@@ -149,70 +149,62 @@ pub fn router(state: AppState) -> Router {
             "/projects/{id}/revisions/{rev}/migrate",
             post(projects::migrate_schema),
         )
-        // Ontology management — `POST /ontologies` is the canonical
-        // creation path (empty shell or shell + initial_operations);
-        // `GET` lists + supports `?name_eq` single-lookup.
+        // Ontology management — workspace × ontology is 1:1, so the
+        // singular path with no `{id}` segment is the canonical
+        // surface. `GET /ontology` returns the workspace's canonical
+        // ontology (404 when none yet); `POST /ontology` creates it
+        // (409 when one already exists).
         .route(
-            "/ontologies",
-            get(ontology::list_ontologies).post(ontology::create_ontology),
+            "/ontology",
+            get(ontology::get_workspace_ontology_detail).post(ontology::create_ontology),
         )
         .route(
-            "/ontologies/type-candidates",
+            "/ontology/type-candidates",
             get(ontology::list_type_candidates),
         )
-        .route("/ontologies/{id}", get(ontology::get_ontology_detail))
-        .route("/ontologies/{id}/edits", post(ontology::apply_ontology_edits))
-        .route("/ontologies/{id}/map-summary", get(ontology::map_summary))
+        .route("/ontology/edits", post(ontology::apply_ontology_edits))
+        .route("/ontology/map-summary", get(ontology::map_summary))
+        .route("/ontology/axis-items", get(ontology::list_axis_items))
+        .route("/ontology/cross-refs", get(ontology::list_cross_refs))
         .route(
-            "/ontologies/{id}/axis-items",
-            get(ontology::list_axis_items),
-        )
-        .route(
-            "/ontologies/{id}/cross-refs",
-            get(ontology::list_cross_refs),
-        )
-        .route(
-            "/ontologies/{id}/dependencies",
+            "/ontology/dependencies",
             get(ontology::get_ontology_dependencies),
         )
+        .route("/ontology/validate", get(ontology::get_ontology_validate))
+        .route("/ontology/enrich", post(ontology::enrich_ontology))
         .route(
-            "/ontologies/{id}/validate",
-            get(ontology::get_ontology_validate),
-        )
-        .route("/ontologies/{id}/enrich", post(ontology::enrich_ontology))
-        .route(
-            "/ontologies/{id}/value-sets/propose",
+            "/ontology/value-sets/propose",
             post(ontology::propose_ontology_value_sets),
         )
         .route(
-            "/ontologies/{id}/notation-patterns/propose",
+            "/ontology/notation-patterns/propose",
             post(ontology::propose_ontology_notation_patterns),
         )
         .route(
-            "/ontologies/{id}/glossary/suggest-bindings",
+            "/ontology/glossary/suggest-bindings",
             post(ontology::suggest_glossary_bindings),
         )
         .route(
-            "/ontologies/{id}/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms",
+            "/ontology/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms",
             post(ontology::suggest_glossary_terms_for_property),
         )
         // Ontology import/export (stateless transforms)
-        .route("/ontologies/normalize", post(ontology::normalize_ontology))
-        .route("/ontologies/export", post(ontology::export_ontology))
-        .route("/ontologies/export/cypher", post(ontology::export_cypher))
-        .route("/ontologies/export/mermaid", post(ontology::export_mermaid))
-        .route("/ontologies/export/graphql", post(ontology::export_graphql))
-        .route("/ontologies/export/owl", post(ontology::export_owl))
-        .route("/ontologies/export/shacl", post(ontology::export_shacl))
+        .route("/ontology/normalize", post(ontology::normalize_ontology))
+        .route("/ontology/export", post(ontology::export_ontology))
+        .route("/ontology/export/cypher", post(ontology::export_cypher))
+        .route("/ontology/export/mermaid", post(ontology::export_mermaid))
+        .route("/ontology/export/graphql", post(ontology::export_graphql))
+        .route("/ontology/export/owl", post(ontology::export_owl))
+        .route("/ontology/export/shacl", post(ontology::export_shacl))
         .route(
-            "/ontologies/export/typescript",
+            "/ontology/export/typescript",
             post(ontology::export_typescript),
         )
-        .route("/ontologies/export/python", post(ontology::export_python))
+        .route("/ontology/export/python", post(ontology::export_python))
         // Ontology import
-        .route("/ontologies/import/owl", post(ontology::import_owl))
+        .route("/ontology/import/owl", post(ontology::import_owl))
         // Ontology insight suggestions
-        .route("/ontologies/suggestions", post(ontology::suggest_insights))
+        .route("/ontology/suggestions", post(ontology::suggest_insights))
         // Data loading
         .route("/load", post(load::plan_load))
         .route("/load/execute", post(load::execute_load))
@@ -413,17 +405,17 @@ pub fn router(state: AppState) -> Router {
         )
         // Ontology verifications
         .route(
-            "/ontologies/{id}/verifications",
+            "/ontology/verifications",
             post(ontology::verify_element).get(ontology::list_verifications),
         )
         .route(
-            "/ontologies/{id}/verifications/{element_id}",
+            "/ontology/verifications/{element_id}",
             delete(ontology::delete_verification),
         )
         // Ontology schema re-indexing + audit
-        .route("/ontologies/{id}/reindex", post(ontology::reindex_schema))
-        .route("/ontologies/{id}/audit", post(ontology::graph_audit_report))
-        .route("/ontologies/adopt-graph", post(ontology::adopt_graph))
+        .route("/ontology/reindex", post(ontology::reindex_schema))
+        .route("/ontology/audit", post(ontology::graph_audit_report))
+        .route("/ontology/adopt-graph", post(ontology::adopt_graph))
         // Agent sessions (audit)
         .route("/sessions", get(sessions::list_sessions))
         .route(

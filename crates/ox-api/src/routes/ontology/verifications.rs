@@ -23,23 +23,34 @@ pub struct VerifyElementResponse {
     pub id: Uuid,
 }
 
-/// POST /api/ontologies/{id}/verifications — mark an element as verified
+/// Resolve the workspace ontology's lineage id — the stable handle
+/// the verification table indexes on. Errors with 404 when the
+/// workspace has no ontology.
+async fn workspace_lineage_id(state: &AppState) -> Result<String, AppError> {
+    state
+        .store
+        .get_workspace_ontology()
+        .await
+        .map_err(AppError::from)?
+        .map(|o| o.lineage_id)
+        .ok_or_else(|| AppError::not_found("Ontology"))
+}
+
+/// POST /api/ontology/verifications — mark an element as verified
 #[utoipa::path(
     post,
-    path = "/api/ontologies/{id}/verifications",
-    params(("id" = String, Path, description = "Ontology lineage ID")),
+    path = "/api/ontology/verifications",
     request_body = VerifyElementRequest,
     responses(
         (status = 200, description = "Verification recorded", body = VerifyElementResponse),
         (status = 400, description = "Invalid element_kind"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn verify_element(
     State(state): State<AppState>,
     principal: Principal,
-    Path(ontology_lineage_id): Path<String>,
     Json(req): Json<VerifyElementRequest>,
 ) -> Result<Json<ApiResponse<VerifyElementResponse>>, AppError> {
     if !matches!(req.element_kind.as_str(), "node" | "edge" | "property") {
@@ -49,6 +60,8 @@ pub(crate) async fn verify_element(
             &["node", "edge", "property"],
         ));
     }
+
+    let ontology_lineage_id = workspace_lineage_id(&state).await?;
 
     let user = state
         .store
@@ -79,20 +92,19 @@ pub(crate) async fn verify_element(
     Ok(ApiResponse::of(VerifyElementResponse { id }))
 }
 
-/// GET /api/ontologies/{id}/verifications — list active verifications
+/// GET /api/ontology/verifications — list active verifications
 #[utoipa::path(
     get,
-    path = "/api/ontologies/{id}/verifications",
-    params(("id" = String, Path, description = "Ontology lineage ID")),
+    path = "/api/ontology/verifications",
     responses((status = 200, description = "Active verifications", body = Vec<Object>)),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn list_verifications(
     State(state): State<AppState>,
     _principal: Principal,
-    Path(ontology_lineage_id): Path<String>,
 ) -> Result<Json<ApiResponse<Vec<ElementVerification>>>, AppError> {
+    let ontology_lineage_id = workspace_lineage_id(&state).await?;
     let verifications = state
         .store
         .list_verifications(&ontology_lineage_id)
@@ -101,23 +113,23 @@ pub(crate) async fn list_verifications(
     Ok(ApiResponse::of(verifications))
 }
 
-/// DELETE /api/ontologies/{id}/verifications/{element_id} — revoke verification
+/// DELETE /api/ontology/verifications/{element_id} — revoke verification
 #[utoipa::path(
     delete,
-    path = "/api/ontologies/{id}/verifications/{element_id}",
+    path = "/api/ontology/verifications/{element_id}",
     params(
-        ("id" = String, Path, description = "Ontology lineage ID"),
         ("element_id" = String, Path, description = "Element ID"),
     ),
     responses((status = 204, description = "Verification revoked")),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn delete_verification(
     State(state): State<AppState>,
     principal: Principal,
-    Path((ontology_lineage_id, element_id)): Path<(String, String)>,
+    Path(element_id): Path<String>,
 ) -> Result<StatusCode, AppError> {
+    let ontology_lineage_id = workspace_lineage_id(&state).await?;
     let user = state
         .store
         .get_user_by_provider("ontosyx", &principal.id)

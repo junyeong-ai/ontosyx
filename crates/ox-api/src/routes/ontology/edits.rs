@@ -15,10 +15,9 @@
 //!    and return the receipt.
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use serde::Serialize;
-use uuid::Uuid;
 
 use ox_ontology::{OntologyEditPreCheck, OntologyEditReceipt, EditOntologyRequest};
 
@@ -45,31 +44,36 @@ pub enum EditOntologyResponse {
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/{id}/edits",
-    params(
-        ("id" = Uuid, Path, description = "Ontology identity (not version) id"),
-    ),
+    path = "/api/ontology/edits",
     request_body = Object,
     responses(
         (status = 201, description = "Edit applied — returns new version receipt"),
         (status = 202, description = "Edit queued for approval — returns original version"),
-        (status = 404, description = "Ontology not found or has no committed version yet"),
+        (status = 404, description = "Workspace has no ontology, or ontology has no committed version yet"),
         (status = 409, description = "Version conflict — refetch and retry"),
         (status = 422, description = "Edit produced an invalid IR (SHACL / referential integrity)"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn apply_ontology_edits(
     State(state): State<AppState>,
     principal: Principal,
-    Path(ontology_id): Path<Uuid>,
     Json(req): Json<EditOntologyRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<EditOntologyResponse>>), AppError> {
     principal.require_designer()?;
     if req.operations.is_empty() {
         return Err(AppError::edit_operations_empty());
     }
+
+    // ---- 0. Resolve workspace's canonical ontology --------------
+    let identity = state
+        .store
+        .get_workspace_ontology()
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology"))?;
+    let ontology_id = identity.id;
 
     // ---- 1. Load current version --------------------------------
     let current = state

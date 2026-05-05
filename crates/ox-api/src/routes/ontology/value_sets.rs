@@ -9,7 +9,6 @@
 //! via the existing `/edits` surface.
 
 use axum::Json;
-use axum::extract::Path;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -110,26 +109,31 @@ pub struct SkipBody {
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/{id}/value-sets/propose",
-    params(("id" = Uuid, Path, description = "Ontology identity ID")),
+    path = "/api/ontology/value-sets/propose",
     request_body = ProposeValueSetsRequest,
     responses(
         (status = 200, description = "Inference report", body = ProposeValueSetsResponse),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn propose_ontology_value_sets(
+    axum::extract::State(state): axum::extract::State<crate::state::AppState>,
     _principal: Principal,
-    Path(id): Path<Uuid>,
     Json(req): Json<ProposeValueSetsRequest>,
 ) -> Result<Json<ApiResponse<ProposeValueSetsResponse>>, AppError> {
+    let identity = state
+        .store
+        .get_workspace_ontology()
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology"))?;
     let policy = req
         .policy
         .map(ProposePolicyBody::materialise)
         .unwrap_or_default();
     let report = propose_value_sets(&req.schema, &req.profile, policy);
-    Ok(ApiResponse::of(shape_response(id, report)))
+    Ok(ApiResponse::of(shape_response(identity.id, report)))
 }
 
 fn shape_response(ontology_id: Uuid, report: ValueSetInferenceReport) -> ProposeValueSetsResponse {

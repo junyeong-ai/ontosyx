@@ -1,10 +1,11 @@
-//! `GET /api/ontologies/{id}/dependencies` — return the schema-level
-//! [`SchemaDependencyGraph`] of the current-version IR.
+//! `GET /api/ontology/dependencies` — return the schema-level
+//! [`SchemaDependencyGraph`] of the workspace ontology's
+//! current-version IR.
 //!
 //! Distinct from `cross-refs` (the Complete Map's six-axis flow):
 //! the dependency graph is the inverted reference index used by the
 //! editor's Inspector ("which entities depend on this property?")
-//! and the standalone `/dependencies/{ref}` impact-analysis view.
+//! and the standalone impact-analysis view.
 //!
 //! The endpoint serialises the entire graph in a single response
 //! because (a) it's small (entity-count × ~5 references on
@@ -14,8 +15,7 @@
 //! pagination becomes meaningful.
 
 use axum::Json;
-use axum::extract::{Path, State};
-use uuid::Uuid;
+use axum::extract::State;
 
 use ox_ontology::SchemaDependencyGraph;
 
@@ -26,23 +26,21 @@ use crate::state::AppState;
 
 #[utoipa::path(
     get,
-    path = "/api/ontologies/{id}/dependencies",
-    params(("id" = Uuid, Path, description = "Ontology identity id")),
+    path = "/api/ontology/dependencies",
     responses(
         (status = 200, description = "Schema dependency graph", body = Object),
-        (status = 404, description = "Ontology not found or has no committed version"),
+        (status = 404, description = "Workspace has no ontology, or ontology has no committed version"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn get_ontology_dependencies(
     State(state): State<AppState>,
     _principal: Principal,
-    Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<SchemaDependencyGraph>>, AppError> {
     let identity = state
         .store
-        .get_ontology(id)
+        .get_workspace_ontology()
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Ontology"))?;

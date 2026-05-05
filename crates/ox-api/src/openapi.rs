@@ -158,10 +158,9 @@ impl Modify for SecurityAddon {
         project_revisions::list_revisions,
         project_revisions::get_revision,
         project_revisions::restore_revision,
-        // Ontologies
-        ontology::list_ontologies,
+        // Ontology
         ontology::create_ontology,
-        ontology::get_ontology_detail,
+        ontology::get_workspace_ontology_detail,
         ontology::normalize_ontology,
         ontology::export_ontology,
         ontology::apply_ontology_commands,
@@ -484,7 +483,6 @@ impl Modify for SecurityAddon {
             CursorParams,
             DesignProject,
             DesignProjectSummary,
-            ontology::OntologyListItem,
             ontology::OntologyDetail,
             ontology::CurrentVersionSummary,
             workspaces::WorkspaceMeResponse,

@@ -1,9 +1,9 @@
-//! `GET /api/ontologies/{id}/axis-items?kind=<kind>` — drill-down
+//! `GET /api/ontology/axis-items?kind=<kind>` — drill-down
 //! companion to `/map-summary`. Given one of the axis kinds the
 //! summary surfaces (e.g. `node_types`, `glossary_terms`,
 //! `value_sets`), returns the list of matching entries in the
-//! ontology's current version so the Complete Map page can render
-//! an inline drill-down.
+//! workspace ontology's current version so the Complete Map page
+//! can render an inline drill-down.
 //!
 //! Intentionally narrow: returns an `{id, label, description}`
 //! triple per row. The label resolver picks the most specific
@@ -13,9 +13,8 @@
 //! kind is out of scope here.
 
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Query, State};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -49,28 +48,26 @@ pub struct AxisItem {
 
 #[utoipa::path(
     get,
-    path = "/api/ontologies/{id}/axis-items",
+    path = "/api/ontology/axis-items",
     params(
-        ("id" = Uuid, Path, description = "Ontology identity id"),
         ("kind" = String, Query, description = "Axis kind string from /map-summary"),
     ),
     responses(
         (status = 200, description = "Axis items list", body = Object),
         (status = 400, description = "Unknown kind string"),
-        (status = 404, description = "Ontology not found or has no committed version"),
+        (status = 404, description = "Workspace has no ontology, or ontology has no committed version"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn list_axis_items(
     State(state): State<AppState>,
     _principal: Principal,
-    Path(id): Path<Uuid>,
     Query(params): Query<AxisItemsParams>,
 ) -> Result<Json<ApiResponse<Vec<AxisItem>>>, AppError> {
     let identity = state
         .store
-        .get_ontology(id)
+        .get_workspace_ontology()
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Ontology"))?;

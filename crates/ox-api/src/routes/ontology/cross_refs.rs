@@ -14,9 +14,8 @@
 //! / Metric target scope) can be added as the visualisation grows.
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::State;
 use serde::Serialize;
-use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -64,23 +63,21 @@ pub struct CrossRefEdge {
 
 #[utoipa::path(
     get,
-    path = "/api/ontologies/{id}/cross-refs",
-    params(("id" = Uuid, Path, description = "Ontology identity id")),
+    path = "/api/ontology/cross-refs",
     responses(
         (status = 200, description = "Cross-axis reference edges", body = Object),
-        (status = 404, description = "Ontology not found or has no committed version"),
+        (status = 404, description = "Workspace has no ontology, or ontology has no committed version"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn list_cross_refs(
     State(state): State<AppState>,
     _principal: Principal,
-    Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<Vec<CrossRefEdge>>>, AppError> {
     let identity = state
         .store
-        .get_ontology(id)
+        .get_workspace_ontology()
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Ontology"))?;
