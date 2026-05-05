@@ -1596,7 +1596,7 @@
         "provenance": {
           "pageTitle": "PROV-O 감사",
           "pageSubtitle": "플랫폼이 소스 스캔, 규칙 평가, 액션 실행, LLM 초안 등을 수행하면서 발행한 fact 단위 origin 레코드. 읽기 전용 — 그래프의 fact 가 왜, 누구에 의해, 언제 생겼는지 확인할 수 있습니다.",
-          "noOntology": "커밋된 온톨로지가 없습니다 — Design 모드에서 PROV-O 레코드를 시작하려면 먼저 ontology 를 만드세요.",
+          "noOntology": "대표 온톨로지가 없습니다 — Design 모드에서 PROV-O 레코드를 시작하려면 먼저 ontology 를 만드세요.",
           "filter": {
             "activity": "활동 종류",
             "agent": "에이전트 종류",
@@ -1672,7 +1672,7 @@
       "codeSystems": {
         "pageTitle": "코드 시스템",
         "pageSubtitle": "등록된 용어 체계(국가 코드, 단위, 내부 분류). 속성은 이 시스템에서 잘라낸 ValueSet 에 바인딩됩니다.",
-        "noOntology": "커밋된 온톨로지가 없습니다 — 코드 시스템 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+        "noOntology": "대표 온톨로지가 없습니다 — 코드 시스템 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {코드 시스템 없음} other {코드 시스템 #개}}",
         "createButton": "추가",
         "deleteButton": "삭제",
@@ -1738,7 +1738,7 @@
       "notationPatterns": {
         "pageTitle": "표기 패턴",
         "pageSubtitle": "구조화된 식별자 형식(캠페인 코드, SKU 패턴, 샘플 ID). 속성 바인딩이 패턴을 참조하면 SHACL `MatchesPattern` 이 인라인 값을 검증합니다.",
-        "noOntology": "커밋된 온톨로지가 없습니다 — 표기 패턴 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+        "noOntology": "대표 온톨로지가 없습니다 — 표기 패턴 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {패턴 없음} other {패턴 #개}}",
         "createButton": "추가",
         "deleteButton": "삭제",
@@ -1783,7 +1783,7 @@
       "valueSets": {
         "pageTitle": "값 집합",
         "pageSubtitle": "하나 이상의 코드 시스템을 슬라이스한 제한 집합. 속성이 값 집합에 바인딩되면 쓰기 시점에 멤버십 검증이 적용됩니다.",
-        "noOntology": "커밋된 온톨로지가 없습니다 — 값 집합 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+        "noOntology": "대표 온톨로지가 없습니다 — 값 집합 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {값 집합 없음} other {값 집합 #개}}",
         "createButton": "추가",
         "deleteButton": "삭제",
@@ -1833,7 +1833,7 @@
       "conceptMaps": {
         "pageTitle": "개념 매핑",
         "pageSubtitle": "두 코드 시스템 간 번역. 컴파일러는 쿼리 실행 전 리터럴 코드를 이 매핑을 통해 재작성합니다 (Φ3-E).",
-        "noOntology": "커밋된 온톨로지가 없습니다 — 개념 매핑 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+        "noOntology": "대표 온톨로지가 없습니다 — 개념 매핑 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {개념 매핑 없음} other {개념 매핑 #개}}",
         "createButton": "추가",
         "deleteButton": "삭제",
@@ -1882,7 +1882,7 @@
       "rules": {
         "pageTitle": "규칙",
         "pageSubtitle": "SHACL 스타일 검증 형태. 런타임이 `enforcement` 설정에 따라 쓰기/읽기/배치 시점에 강제합니다.",
-        "noOntology": "커밋된 온톨로지가 없습니다 — 규칙 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+        "noOntology": "대표 온톨로지가 없습니다 — 규칙 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {규칙 없음} other {규칙 #개}}",
         "createButton": "추가",
         "editButton": "편집",
@@ -2014,7 +2014,7 @@
       "glossary": {
         "pageTitle": "용어사전",
         "pageSubtitle": "LLM 과 바인딩 추천기가 참조하는 도메인 어휘. 모든 변경은 OntologyEditOp 으로 ontology 편집 파이프라인을 따라 커밋됩니다.",
-        "noOntology": "커밋된 온톨로지가 없습니다 — 용어사전 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+        "noOntology": "대표 온톨로지가 없습니다 — 용어사전 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "createButton": "용어 추가",
         "editButton": "편집",
         "deleteButton": "삭제",
@@ -2126,7 +2126,7 @@
     "glossaryBinding": {
       "pageTitle": "용어 일괄 바인딩",
       "pageSubtitle": "용어와 별칭을 입력하면 현재 온톨로지의 모든 속성을 점수화합니다. 승인된 매칭은 하나의 /edits 배치로 커밋됩니다.",
-      "noOntology": "커밋된 온톨로지가 없습니다. 일괄 바인딩 전에 디자인 모드에서 하나를 만들어야 합니다.",
+      "noOntology": "대표 온톨로지가 없습니다. 일괄 바인딩 전에 디자인 모드에서 하나를 만들어야 합니다.",
       "embedded": {
         "targetLabel": "점수 기준 용어",
         "rescore": "재점수화"
@@ -2971,7 +2971,7 @@
           },
           "deprecate": {
             "button": "폐기 제안",
-            "noOntology": "커밋된 온톨로지가 없습니다 — Design 모드에서 먼저 생성하세요.",
+            "noOntology": "대표 온톨로지가 없습니다 — Design 모드에서 먼저 생성하세요.",
             "confirmTitle": "폐기를 제안하시겠습니까?",
             "confirmDescription": "`{type}` ({days}일 동안 미사용)의 `deprecate_*` OntologyEditOp 를 작성해 편집 파이프라인으로 제출합니다. change_routing 매트릭스가 직접 적용 또는 승인 대기열로의 라우팅을 결정합니다.",
             "confirmLabel": "제안",
@@ -3294,10 +3294,10 @@
     },
     "glossary": {
       "heading": "용어집",
-      "subtitle": "워크스페이스의 표준 어휘 — 노드 · 엣지 · 속성이 anchor 로 참조하는 캐논 용어를 관리합니다.",
+      "subtitle": "워크스페이스의 표준 어휘 — 노드 · 엣지 · 속성이 anchor 로 참조하는 대표 용어를 관리합니다.",
       "noOntology": {
-        "title": "커밋된 온톨로지 없음",
-        "description": "먼저 Design 모드에서 온톨로지를 만드세요 — Glossary 워크벤치는 가장 최근 커밋된 온톨로지 스냅샷의 어휘를 읽습니다."
+        "title": "대표 온톨로지 없음",
+        "description": "먼저 Design 모드에서 온톨로지를 만드세요 — Glossary 워크벤치는 가장 최근 등록된 대표 온톨로지 스냅샷의 어휘를 읽습니다."
       },
       "ambiguityBanner": {
         "title": "의미 불명 컬럼 발견",
@@ -4090,6 +4090,10 @@
         "noQualityReport": "품질 보고서가 없습니다",
         "designFirst": "먼저 프로젝트를 설계하세요."
       },
+      "canonicalStatus": {
+        "withVersion": "현재 대표: v{version} — 이 초안이 완료되면 다음 대표 버전이 됩니다.",
+        "greenfield": "아직 대표이 없습니다 — 이 초안을 완료하면 워크스페이스의 첫 대표 버전이 생성됩니다."
+      },
       "tableSelector": {
         "searchPlaceholder": "이름으로 검색...",
         "selectedCount": "선택 {selected} / 전체 {total}",
@@ -4134,13 +4138,13 @@
         "confidenceHigh": "높음"
       },
       "recentProjects": {
-        "ariaLabel": "최근 프로젝트",
-        "heading": "최근 프로젝트",
-        "loading": "최근 프로젝트 불러오는 중…",
-        "untitled": "이름 없는 프로젝트",
-        "count": "{count}개 프로젝트",
+        "ariaLabel": "최근 초안",
+        "heading": "최근 초안",
+        "loading": "최근 초안 불러오는 중…",
+        "untitled": "이름 없는 초안",
+        "count": "{count}개 초안",
         "meta": "{source} · {updated}",
-        "viewAll": "모든 프로젝트 보기",
+        "viewAll": "모든 초안 보기",
         "relativeJustNow": "방금",
         "relativeMinutes": "{count}분 전",
         "relativeHours": "{count}시간 전",
@@ -4157,8 +4161,8 @@
           "hintGeneric": "스키마 분석과 컬럼 샘플링이 백엔드에서 진행 중입니다. 보통 몇 초 안에 완료됩니다.",
           "hintUsageBilled": "BigQuery / Snowflake 분석은 INFORMATION_SCHEMA 조회 + 컬럼 샘플 쿼리를 실행합니다. 데이터셋 크기에 따라 5~30초 정도 소요될 수 있습니다."
         },
-        "heading": "새 설계 프로젝트",
-        "intro": "프로젝트를 만들어 데이터 소스를 분석하고 온톨로지를 설계합니다. <asterisk>*</asterisk> 표시는 필수 입력 항목입니다.",
+        "heading": "새 설계 초안",
+        "intro": "초안은 워크스페이스의 대표 온톨로지로부터 분기된 작업 단위입니다 — 소스 분석 → 설계 반복 → 완료 시 다음 대표 버전으로 머지됩니다. <asterisk>*</asterisk> 표시는 필수 입력 항목입니다.",
         "titleLabel": "제목",
         "titleHint": "선택 입력 — 비워두면 자동 생성됩니다",
         "titlePlaceholder": "예: 제품 카탈로그 온톨로지",
@@ -5192,6 +5196,7 @@
   "lineage": {
     "title": "데이터 리니지",
     "description": "소스 데이터가 지식 그래프로 어떻게 흐르는지 추적합니다.",
+    "noOntology": "대표 온톨로지가 없습니다 — 리니지 검토 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
     "summary": {
       "labels": "그래프 라벨",
       "sources": "소스 테이블",
@@ -5226,7 +5231,7 @@
   "mappings": {
     "pageTitle": "매핑",
     "pageSubtitle": "물리-논리 매핑 레이어 — ObjectMapping 은 노드 타입을 하나의 source relation 에 바인딩하고, LinkMapping 은 엣지 타입을 foreign-key / bridge / computed / federated 토폴로지에 바인딩합니다.",
-    "noOntology": "커밋된 온톨로지가 없습니다 — 매핑 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+    "noOntology": "대표 온톨로지가 없습니다 — 매핑 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
     "addLabel": "추가",
     "listHeading": {
       "object": "{count, plural, =0 {오브젝트 매핑 없음} other {오브젝트 매핑 #개}}",

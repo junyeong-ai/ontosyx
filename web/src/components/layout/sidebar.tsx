@@ -1,10 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { useWorkspaceMode } from "@/hooks/use-workspace-mode";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
@@ -129,6 +131,22 @@ export function Sidebar() {
   const sidebarMode = useAppStore((s) => s.sidebarMode);
   const expanded = sidebarMode === "expanded";
 
+  // Hide modes that require a committed canonical ontology when the
+  // workspace is greenfield. Surfaces like /mappings + /lineage only
+  // render an empty-state pointing at Design mode without a canonical,
+  // so the sidebar entry is noise. Visibility re-flips automatically
+  // once `complete_project` writes the first canonical version — no
+  // page reload needed (TanStack invalidation re-renders the rail).
+  const ontologyQuery = useWorkspaceOntology();
+  const hasCanonical = !!ontologyQuery.data;
+  const visibleModes = useMemo(
+    () =>
+      listWorkbenchModes().filter(
+        (m) => !m.requiresCanonical || hasCanonical,
+      ),
+    [hasCanonical],
+  );
+
   return (
     <nav
       id="sidebar"
@@ -166,7 +184,7 @@ export function Sidebar() {
           add more. The sidebar, help dialog, and navigation-shortcut
           handler all read through the same registry. */}
       <nav className="flex flex-col pt-1" aria-label={t("modesAria")}>
-        {listWorkbenchModes().map((m) => (
+        {visibleModes.map((m) => (
           <ModeLink
             key={m.id}
             mode={m}

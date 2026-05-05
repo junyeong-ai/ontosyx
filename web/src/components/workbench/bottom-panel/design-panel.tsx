@@ -2,6 +2,7 @@
 
 import { useAppStore } from "@/lib/store";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
+import { CanonicalStatusBanner } from "./canonical-status-banner";
 import { CreateProjectForm } from "./create-project-form";
 import { PhaseStepper } from "./phase-stepper";
 import { ProjectWorkflow } from "./project-workflow";
@@ -28,6 +29,7 @@ export function DesignPanel() {
     return (
       <div className="h-full overflow-auto px-4 py-6">
         <div className="mx-auto w-full max-w-3xl space-y-6">
+          <CanonicalStatusBanner />
           <PhaseStepper currentStepIndex={-1} />
           <CreateProjectForm
             guardBeforeCreate={guardPendingEdits}

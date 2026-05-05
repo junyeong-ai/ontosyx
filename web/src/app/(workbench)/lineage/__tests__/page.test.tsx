@@ -14,6 +14,30 @@ vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+// Lineage gates on the workspace's canonical ontology — without one
+// the page renders the empty-state instead of the data view. Stub the
+// hook to a populated canonical so the data-path tests run as before.
+vi.mock("@/hooks/api/use-workspace-ontology", () => ({
+  useWorkspaceOntology: () => ({
+    data: {
+      id: "ont-1",
+      lineage_id: "lin-1",
+      name: "test",
+      description: { default: "" },
+      current_version: {
+        version_id: "v1",
+        version: "1",
+        committed_by: "u",
+        commit_message: "init",
+        created_at: "2026-04-22T00:00:00Z",
+      },
+    },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
+
 import LineageSettingsPage from "@/app/(workbench)/lineage/page";
 import { request } from "@/lib/api/client";
 import { toast } from "@/components/ui/toast";

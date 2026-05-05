@@ -1,13 +1,13 @@
 [
   {
     "file": "src/app/(workbench)/lineage/page.tsx",
-    "line": 378,
+    "line": 397,
     "level": "2",
     "className": "text-sm font-semibold text-foreground mb-3"
   },
   {
     "file": "src/app/(workbench)/lineage/page.tsx",
-    "line": 405,
+    "line": 424,
     "level": "2",
     "className": "text-sm font-semibold text-foreground mb-3"
   },
@@ -487,8 +487,8 @@
   },
   {
     "file": "src/components/workbench/workbench-page-shell.tsx",
-    "line": 81,
+    "line": 112,
     "level": "1",
-    "className": "shrink-0 text-lg font-semibold tracking-tight text-foreground-strong"
+    "className": "shrink-0 text-base font-semibold tracking-tight text-foreground-strong"
   }
 ]

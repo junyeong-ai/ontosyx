@@ -21,6 +21,7 @@ import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import { useFormatters } from "@/hooks/use-formatters";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { cn } from "@/lib/cn";
 
 interface LineageSummary {
@@ -285,6 +286,14 @@ export default function LineageSettingsPage() {
   const fmt = useFormatters();
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
+  // Lineage is meaningful only after a canonical ontology exists —
+  // graph labels and source loads both reference its NodeTypes /
+  // ObjectMappings. Without one we render the same empty-state shape
+  // as /mappings + the vocabulary tabs so the gate copy reads
+  // consistently across surfaces.
+  const ontologyQuery = useWorkspaceOntology();
+  const hasCanonical = !!ontologyQuery.data;
+
   const summaryQuery = useQuery({
     queryKey: lineageKeys.summary(),
     queryFn: async () => {
@@ -295,6 +304,7 @@ export default function LineageSettingsPage() {
         throw err;
       }
     },
+    enabled: hasCanonical,
   });
 
   const summary = summaryQuery.data ?? [];
@@ -310,12 +320,15 @@ export default function LineageSettingsPage() {
       );
       return results.flat();
     },
-    enabled: summaryQuery.isSuccess,
+    enabled: hasCanonical && summaryQuery.isSuccess,
   });
 
   const entries = entriesQuery.data ?? [];
-  const isLoading = summaryQuery.isLoading || entriesQuery.isLoading;
-  const isError = summaryQuery.isError || entriesQuery.isError;
+  const isLoading =
+    ontologyQuery.isLoading ||
+    (hasCanonical && (summaryQuery.isLoading || entriesQuery.isLoading));
+  const isError =
+    ontologyQuery.isError || summaryQuery.isError || entriesQuery.isError;
 
   const totalRecords = summary.reduce((acc, l) => acc + l.total_records, 0);
   const totalSources = summary.reduce((acc, l) => acc + l.source_count, 0);
@@ -335,11 +348,14 @@ export default function LineageSettingsPage() {
       ? {
           kind: "error",
           onRetry: () => {
+            void ontologyQuery.refetch();
             void summaryQuery.refetch();
             void entriesQuery.refetch();
           },
         }
-      : { kind: "data" };
+      : !hasCanonical
+        ? { kind: "empty" }
+        : { kind: "data" };
 
   return (
     <WorkbenchPageShell title={t("title")} subtitle={t("description")}>
@@ -351,8 +367,11 @@ export default function LineageSettingsPage() {
             description: tCommon("loadError.description"),
             retryLabel: tCommon("retry"),
           }}
+          empty={{
+            title: t("noOntology"),
+          }}
         >
-            <div className="mt-6 grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="rounded-lg border border-divider p-4">
                 <div className="text-2xl font-bold text-foreground-strong">
                   {totalLabels}

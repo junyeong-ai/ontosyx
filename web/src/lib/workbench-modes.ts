@@ -59,6 +59,17 @@ export interface WorkbenchMode {
    * flip this flag and inherit the toggles for free.
    */
   hasPanelToggles?: boolean;
+  /**
+   * Mode is meaningful only AFTER a canonical ontology has been
+   * committed to the workspace (post-completion artifacts: physical-
+   * to-graph mappings, source-load lineage). On a greenfield
+   * workspace the surface only renders an empty-state pointing at
+   * Design mode, so the sidebar hides the entry entirely until the
+   * canonical exists. The shortcut + URL stay valid (deep-links and
+   * help dialog still work) — visibility is the only thing the gate
+   * controls.
+   */
+  requiresCanonical?: boolean;
 }
 
 // Build a default mode by deriving `href` + `shortcut` from the
@@ -69,7 +80,7 @@ function defaultMode(
   id: NavigationRoute & WorkspaceMode,
   labelKey: string,
   icon: IconSvgElement,
-  options: { hasPanelToggles?: boolean } = {},
+  options: { hasPanelToggles?: boolean; requiresCanonical?: boolean } = {},
 ): WorkbenchMode {
   const shortcut = shortcutForRoute(id);
   return {
@@ -79,6 +90,7 @@ function defaultMode(
     href: shortcut.href,
     shortcut,
     hasPanelToggles: options.hasPanelToggles,
+    requiresCanonical: options.requiresCanonical,
   };
 }
 
@@ -95,8 +107,8 @@ const DEFAULT_MODES: readonly WorkbenchMode[] = [
   defaultMode("dashboard", "modeDashboard", DashboardSpeed01Icon),
   defaultMode("glossary", "modeGlossary", Book02Icon),
   defaultMode("vocabulary", "modeVocabulary", CatalogueIcon),
-  defaultMode("mappings", "modeMappings", Link01Icon),
-  defaultMode("lineage", "modeLineage", GitBranchIcon),
+  defaultMode("mappings", "modeMappings", Link01Icon, { requiresCanonical: true }),
+  defaultMode("lineage", "modeLineage", GitBranchIcon, { requiresCanonical: true }),
   defaultMode("recipes", "modeRecipes", ChartAnalysisIcon),
 ];
 

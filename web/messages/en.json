@@ -4090,6 +4090,10 @@
         "noQualityReport": "No quality report available",
         "designFirst": "Design a project first."
       },
+      "canonicalStatus": {
+        "withVersion": "Current canonical: v{version} — your next completed draft becomes the next canonical version.",
+        "greenfield": "No canonical yet — completing this draft creates the workspace's first canonical version."
+      },
       "tableSelector": {
         "searchPlaceholder": "Search by name...",
         "selectedCount": "{selected} of {total} selected",
@@ -4134,13 +4138,13 @@
         "confidenceHigh": "HIGH"
       },
       "recentProjects": {
-        "ariaLabel": "Recent projects",
-        "heading": "Recent projects",
-        "loading": "Loading recent projects…",
-        "untitled": "Untitled project",
-        "count": "{count, plural, one {# project} other {# projects}}",
+        "ariaLabel": "Recent drafts",
+        "heading": "Recent drafts",
+        "loading": "Loading recent drafts…",
+        "untitled": "Untitled draft",
+        "count": "{count, plural, one {# draft} other {# drafts}}",
         "meta": "{source} · {updated}",
-        "viewAll": "View all projects",
+        "viewAll": "View all drafts",
         "relativeJustNow": "just now",
         "relativeMinutes": "{count, plural, one {# minute ago} other {# minutes ago}}",
         "relativeHours": "{count, plural, one {# hour ago} other {# hours ago}}",
@@ -4157,8 +4161,8 @@
           "hintGeneric": "Schema analysis and column sampling are running on the backend. This usually completes within a few seconds.",
           "hintUsageBilled": "BigQuery / Snowflake analysis runs INFORMATION_SCHEMA queries and per-column sampling. Expect 5–30s depending on dataset size."
         },
-        "heading": "New Design Project",
-        "intro": "Create a project to analyze your data source and design an ontology. Fields marked with <asterisk>*</asterisk> are required.",
+        "heading": "New Design Draft",
+        "intro": "Drafts branch from the workspace's canonical ontology — analyze a source, iterate the design, then complete to land the next canonical version. Fields marked with <asterisk>*</asterisk> are required.",
         "titleLabel": "Title",
         "titleHint": "Optional — auto-generated if empty",
         "titlePlaceholder": "e.g. Product Catalog Ontology",
@@ -5192,6 +5196,7 @@
   "lineage": {
     "title": "Data Lineage",
     "description": "Trace how source data flows into your knowledge graph.",
+    "noOntology": "No committed ontology available — create one in Design mode before reviewing lineage.",
     "summary": {
       "labels": "Graph Labels",
       "sources": "Source Tables",
