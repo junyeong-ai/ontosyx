@@ -166,30 +166,6 @@ pub enum TermRealisation {
     },
 }
 
-impl GlossaryTermDef {
-    /// Backwards-compat shim while call sites finish migrating from
-    /// term-anchored realisations to concept-anchored ones. Always
-    /// returns `None` now that the realisation lives on
-    /// [`crate::concept::ConceptDef`]; remove every consumer that
-    /// reaches for it and this helper goes too.
-    #[deprecated(
-        since = "1.0.0",
-        note = "realisation moved to ConceptDef; route through OntologyIR::concepts()"
-    )]
-    pub fn segment_id(&self) -> Option<&SegmentId> {
-        None
-    }
-
-    /// Backwards-compat shim — see [`GlossaryTermDef::segment_id`].
-    #[deprecated(
-        since = "1.0.0",
-        note = "realisation moved to ConceptDef; route through OntologyIR::concepts()"
-    )]
-    pub fn function_id(&self) -> Option<&FunctionId> {
-        None
-    }
-}
-
 /// One SKOS-style edge between two glossary terms.
 ///
 /// Relations are stored on the term whose perspective they describe
