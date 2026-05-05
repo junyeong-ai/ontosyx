@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  cancelEvaluationRun,
   createEvaluationRun,
   deleteEvaluationRun,
   executeEvaluationCase,
@@ -102,6 +103,16 @@ export function useDeleteEvaluationRun() {
   const qc = useQueryClient();
   return useMutation<void, Error, string>({
     mutationFn: (id) => deleteEvaluationRun(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: evaluationKeys.runs() });
+    },
+  });
+}
+
+export function useCancelEvaluationRun() {
+  const qc = useQueryClient();
+  return useMutation<EvaluationRun, Error, string>({
+    mutationFn: (id) => cancelEvaluationRun(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: evaluationKeys.runs() });
     },

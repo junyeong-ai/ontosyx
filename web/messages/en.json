@@ -2931,7 +2931,16 @@
         "name": "Run",
         "status": "Status",
         "startedAt": "Started",
-        "completedAt": "Completed"
+        "completedAt": "Completed",
+        "actions": "Actions",
+        "cancel": "Cancel",
+        "cancelTitle": "Mark this running run as cancelled",
+        "delete": "Delete",
+        "deleteConfirm": "Delete run `{name}`? Cases and metrics will cascade.",
+        "cancelSuccessToast": "Run cancelled",
+        "cancelErrorToast": "Cancel failed: {error}",
+        "deleteSuccessToast": "Run deleted",
+        "deleteErrorToast": "Delete failed: {error}"
       },
       "status": {
         "running": "Running",

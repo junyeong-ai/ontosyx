@@ -2931,7 +2931,16 @@
         "name": "실행",
         "status": "상태",
         "startedAt": "시작",
-        "completedAt": "완료"
+        "completedAt": "완료",
+        "actions": "동작",
+        "cancel": "취소",
+        "cancelTitle": "이 진행 중 실행을 취소 상태로 표시",
+        "delete": "삭제",
+        "deleteConfirm": "실행 `{name}` 을 삭제할까요? 케이스와 메트릭이 함께 삭제됩니다.",
+        "cancelSuccessToast": "실행이 취소되었습니다",
+        "cancelErrorToast": "취소 실패: {error}",
+        "deleteSuccessToast": "실행이 삭제되었습니다",
+        "deleteErrorToast": "삭제 실패: {error}"
       },
       "status": {
         "running": "진행 중",

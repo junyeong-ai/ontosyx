@@ -6,9 +6,12 @@ import { useState } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
 import {
+  useCancelEvaluationRun,
   useCreateEvaluationRun,
+  useDeleteEvaluationRun,
   useEvaluationRuns,
 } from "@/hooks/api/use-evaluation";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
@@ -86,6 +89,9 @@ export default function EvaluationPage() {
   const { isAdmin } = useAuth();
   const query = useEvaluationRuns();
   const create = useCreateEvaluationRun();
+  const cancel = useCancelEvaluationRun();
+  const remove = useDeleteEvaluationRun();
+  const confirm = useConfirm();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const canCreate = name.trim().length > 0 && !create.isPending;
@@ -111,6 +117,35 @@ export default function EvaluationPage() {
         },
       },
     );
+  };
+
+  const onCancel = (id: string) => {
+    cancel.mutate(id, {
+      onSuccess: () => toast.success(t("table.cancelSuccessToast")),
+      onError: (err) =>
+        toast.error(
+          t("table.cancelErrorToast", {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        ),
+    });
+  };
+  const onDelete = async (id: string, name: string) => {
+    const ok = await confirm({
+      title: t("table.delete"),
+      description: t("table.deleteConfirm", { name }),
+      variant: "danger",
+    });
+    if (!ok) return;
+    remove.mutate(id, {
+      onSuccess: () => toast.success(t("table.deleteSuccessToast")),
+      onError: (err) =>
+        toast.error(
+          t("table.deleteErrorToast", {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        ),
+    });
   };
 
   if (!isAdmin) {
@@ -179,6 +214,7 @@ export default function EvaluationPage() {
                 <th className="px-4 py-2 text-left">{t("table.status")}</th>
                 <th className="px-4 py-2 text-left">{t("table.startedAt")}</th>
                 <th className="px-4 py-2 text-left">{t("table.completedAt")}</th>
+                <th className="px-4 py-2 text-right">{t("table.actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-divider">
@@ -210,6 +246,31 @@ export default function EvaluationPage() {
                   </td>
                   <td className="px-4 py-2 text-foreground-muted tabular-nums">
                     {run.completed_at ? formatTimestamp(run.completed_at) : "—"}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <div className="flex justify-end gap-2">
+                      {run.status === "running" ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onCancel(run.id)}
+                          disabled={cancel.isPending}
+                          title={t("table.cancelTitle")}
+                        >
+                          {t("table.cancel")}
+                        </Button>
+                      ) : null}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="danger"
+                        onClick={() => onDelete(run.id, run.name)}
+                        disabled={remove.isPending}
+                      >
+                        {t("table.delete")}
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}

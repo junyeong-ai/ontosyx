@@ -56,6 +56,10 @@ export async function completeEvaluationRun(
   return res.run;
 }
 
+export async function cancelEvaluationRun(id: string): Promise<EvaluationRun> {
+  return completeEvaluationRun(id, { status: "cancelled" });
+}
+
 export async function deleteEvaluationRun(id: string): Promise<void> {
   await request(`${RUNS}/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
