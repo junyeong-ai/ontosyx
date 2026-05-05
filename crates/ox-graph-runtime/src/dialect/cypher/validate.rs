@@ -599,7 +599,12 @@ impl CypherValidator for OntologyValidator {
                         }
                     }
                 }
-                // --- Relationship pattern: type -----------------------
+                // --- Relationship pattern: type + inline properties ---
+                //
+                // `[r:WORKS_AT {since: 2020}]` — verify the type is
+                // declared and that `since` is defined on it. Multi-
+                // type unions (`[r:KNOWS|WORKS_AT]`) follow the same
+                // any-of semantics as multi-label nodes.
                 CypherPatternElement::Relationship(rel) => {
                     for rel_type in &rel.types {
                         if !known_edge_labels.contains(rel_type.as_str())
@@ -612,6 +617,36 @@ impl CypherValidator for OntologyValidator {
                                         .with("relationship_type", rel_type.clone())
                                         .message(format!(
                                             "unknown relationship type `{rel_type}` — not defined in the active ontology"
+                                        )),
+                                )
+                                .with_span(rel.span),
+                            );
+                        }
+                    }
+                    if rel.types.is_empty() || rel.properties.is_empty() {
+                        continue;
+                    }
+                    for (key, _) in &rel.properties {
+                        if is_system_property(key) {
+                            continue;
+                        }
+                        let matched = rel.types.iter().any(|ty| {
+                            self.ontology
+                                .edge_types()
+                                .iter()
+                                .find(|e| e.label.as_str() == ty)
+                                .is_some_and(|e| e.properties.iter().any(|p| p.name == *key))
+                        });
+                        if !matched {
+                            let type_list = rel.types.join("|");
+                            issues.push(
+                                ValidationIssue::error(
+                                    "ontology",
+                                    diag("runtime.cypher.ontology.unknown_relationship_property")
+                                        .with("property", key.clone())
+                                        .with("relationship_types", type_list.clone())
+                                        .message(format!(
+                                            "property `{key}` not defined on relationship type `{type_list}` in the active ontology"
                                         )),
                                 )
                                 .with_span(rel.span),
@@ -1334,7 +1369,16 @@ mod tests {
                 description: LocalizedText::default(),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
-                properties: vec![],
+                properties: vec![PropertyDef {
+                    id: "ep1".into(),
+                    name: pk("since"),
+                    property_type: PropertyType::Int,
+                    nullable: true,
+                    default_value: None,
+                    description: LocalizedText::default(),
+                    classification: None,
+                    ..Default::default()
+                }],
                 cardinality: Cardinality::ManyToOne,
                 ..Default::default()
             }],
@@ -1663,6 +1707,52 @@ mod tests {
             "MATCH (p:Person) SET p._workspace_id = $ws RETURN p",
         );
         assert!(!r.has_errors(), "system property must pass: {:?}", r.issues);
+    }
+
+    #[test]
+    fn ontology_accepts_known_relationship_inline_property() {
+        // `[r:WORKS_AT {since: 2020}]` — since is defined on the
+        // edge type, must pass.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (p:Person)-[r:WORKS_AT {since: 2020}]->(c:Company) RETURN r",
+        );
+        assert!(!r.has_errors(), "{:?}", r.issues);
+    }
+
+    #[test]
+    fn ontology_flags_unknown_relationship_inline_property() {
+        // `[r:WORKS_AT {sicne: 2020}]` — typo on edge property must
+        // be caught. Without this check the schema-less driver
+        // silently writes a brand-new edge property.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (p:Person)-[r:WORKS_AT {sicne: 2020}]->(c:Company) RETURN r",
+        );
+        assert!(r.has_errors(), "edge property typo must be flagged");
+        assert!(
+            r.errors().any(|e| e.message.message.contains("sicne")
+                && e.message.message.contains("relationship type")),
+            "diagnostic must name the offending property + edge type: {:?}",
+            r.issues
+        );
+    }
+
+    #[test]
+    fn ontology_relationship_property_check_skips_when_type_is_blank() {
+        // `[r {since: 2020}]` — type-less relationship; we cannot
+        // resolve ontologically, so skip rather than false-flag.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (p:Person)-[r {since: 2020}]->(c:Company) RETURN r",
+        );
+        assert!(!r.has_errors(), "{:?}", r.issues);
     }
 
     #[test]
