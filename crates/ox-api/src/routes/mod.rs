@@ -18,6 +18,7 @@ pub mod federation_admin;
 pub mod governance_audit;
 pub mod governance_routing;
 pub mod health;
+pub mod evaluation;
 pub mod insights;
 pub mod knowledge;
 pub mod lineage;
@@ -318,6 +319,31 @@ pub fn router(state: AppState) -> Router {
         .route("/insights/{id}", get(insights::get_insight))
         .route("/insights/{id}", axum::routing::put(insights::update_insight))
         .route("/insights/{id}", delete(insights::delete_insight))
+        // Evaluation surface — RAGAS-style metric loop.
+        .route("/evaluation/runs", post(evaluation::create_evaluation_run))
+        .route("/evaluation/runs", get(evaluation::list_evaluation_runs))
+        .route("/evaluation/runs/{id}", get(evaluation::get_evaluation_run))
+        .route("/evaluation/runs/{id}", delete(evaluation::delete_evaluation_run))
+        .route(
+            "/evaluation/runs/{id}/complete",
+            post(evaluation::complete_evaluation_run),
+        )
+        .route(
+            "/evaluation/runs/{run_id}/cases",
+            put(evaluation::upsert_evaluation_case),
+        )
+        .route(
+            "/evaluation/runs/{run_id}/cases",
+            get(evaluation::list_evaluation_cases),
+        )
+        .route(
+            "/evaluation/cases/{case_id}/metrics",
+            put(evaluation::record_evaluation_metric),
+        )
+        .route(
+            "/evaluation/cases/{case_id}/metrics",
+            get(evaluation::list_evaluation_metrics),
+        )
         // Perspectives
         .route("/perspectives", put(perspectives::save_perspective))
         .route(
