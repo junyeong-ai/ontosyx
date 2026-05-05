@@ -441,7 +441,16 @@ pub enum ShaclConstraint {
     /// failing constraint at validation time so an authoring
     /// mistake surfaces instead of silently accepting every
     /// value.
-    Or { branches: Vec<ShaclConstraint> },
+    Or {
+        /// `Vec<ShaclConstraint>` — `value_type = Object` keeps
+        /// utoipa's schema generator from infinitely inlining the
+        /// recursive variant into its own definition. Wire shape
+        /// stays the same; only the OpenAPI document references
+        /// `ShaclConstraint` by name on the recursive edge.
+        #[schema(value_type = Vec<Object>)]
+        #[schemars(with = "Vec<serde_json::Value>")]
+        branches: Vec<ShaclConstraint>,
+    },
 }
 
 impl ShaclConstraint {

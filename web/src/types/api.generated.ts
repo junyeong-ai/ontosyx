@@ -5180,6 +5180,7 @@ export interface components {
              */
             rules?: components["schemas"]["RuleId"][];
             source_lineage?: null | components["schemas"]["SourceLineage"];
+            upper_kind?: null | components["schemas"]["UpperKind"];
         };
         /** @description Type-safe identifier for node types in an ontology. */
         NodeTypeId: string;
@@ -6261,6 +6262,23 @@ export interface components {
             function_id: string;
             /** @enum {string} */
             kind: "derived";
+        } | {
+            /** @enum {string} */
+            kind: "concat";
+            /** @description Source columns in left-to-right concatenation order. */
+            parts: components["schemas"]["ColumnRef"][];
+            /**
+             * @description Literal separator inserted between every pair. Empty
+             *     string is valid (e.g. `area_code || phone_number`).
+             */
+            separator?: string;
+            /**
+             * @description Skip rows where any `parts` value is null. When `false`
+             *     (default), nulls coerce to the empty string so the
+             *     concatenation still produces a value — matches SQL's
+             *     `CONCAT_WS` semantics rather than `||`'s null-propagation.
+             */
+            skip_when_null?: boolean;
         };
         /** @description Property type: bool, int, float, string, date, datetime, duration, bytes, map */
         PropertyType: string;
@@ -6410,6 +6428,7 @@ export interface components {
              *     `None` means "current".
              */
             ontology_valid_at?: string | null;
+            plan?: null | components["schemas"]["ProvenancePlan"];
             /**
              * @description The entity whose origin this record explains. Polymorphic —
              *     PROV-O equivalent: `prov:Entity`.
@@ -6417,9 +6436,42 @@ export interface components {
             subject: components["schemas"]["EntityRef"];
             /** @description Input entities the activity used. PROV-O: `prov:used`. */
             used?: components["schemas"]["EntityRef"][];
+            /**
+             * @description Earlier activities whose output informed this one. PROV-O:
+             *     `prov:wasInformedBy`. Carries the *activity → activity* edge
+             *     PROV-O distinguishes from `derived_from` (entity → entity).
+             *     LLM pipelines walk it to trace "this Cypher call was informed
+             *     by these schema-RAG calls" without resolving every intermediate
+             *     entity; audit surfaces render it as the activity DAG above the
+             *     per-entity derivation graph.
+             */
+            was_informed_by?: components["schemas"]["ProvenanceId"][];
         };
         /** @description Stable identifier for a provenance record. */
         ProvenanceId: string;
+        /**
+         * @description PROV-O `prov:Plan` reference. Captures the recipe an activity
+         *     executed: prompt template + version + the deterministic hash of
+         *     the rendered prompt body. The hash is the replay key — two
+         *     activities sharing the same `prompt_render_hash` consumed the
+         *     same fully-resolved prompt and any divergence in their output is
+         *     attributable to the model alone.
+         */
+        ProvenancePlan: {
+            /**
+             * @description SHA-256 of the rendered prompt body — the deterministic
+             *     replay key. Identical hash + identical model = identical
+             *     generation under deterministic decoding.
+             */
+            prompt_render_hash: string;
+            /**
+             * @description Template id (the `prompts/<name>.toml` filename, sans
+             *     extension). Stable across versions.
+             */
+            template_id: string;
+            /** @description Semver of the template that ran. */
+            template_version: string;
+        };
         /**
          * @description A single query execution record: NL question → QueryIR → compiled → results.
          *
@@ -7369,6 +7421,17 @@ export interface components {
             kind: "equals";
             other_property: components["schemas"]["PropertyId"];
             target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /**
+             * @description `Vec<ShaclConstraint>` — `value_type = Object` keeps
+             *     utoipa's schema generator from infinitely inlining the
+             *     recursive variant into its own definition. Wire shape
+             *     stays the same; only the OpenAPI document references
+             *     `ShaclConstraint` by name on the recursive edge.
+             */
+            branches: Record<string, never>[];
+            /** @enum {string} */
+            kind: "or";
         };
         ShareDashboardRequest: {
             /**
@@ -7893,6 +7956,32 @@ export interface components {
             name: string;
             settings?: Record<string, never>;
         };
+        /**
+         * @description Upper-ontology categories. Picks a tri-split that maps cleanly
+         *     to BFO (Continuant / Occurrent / Concept) and to Foundry's
+         *     "Object / Link / Action" with the minimal extension that lets
+         *     the LLM disambiguate ontology intent without parsing labels:
+         *
+         *     - **`Object`** — a continuant / endurant. Customer, Product,
+         *       Account, Asset. The default category for "things that exist
+         *       over time".
+         *     - **`Event`** — an occurrent / happening. Order, Login, Payment,
+         *       Shipment. Carries an implicit temporal axis the planner uses
+         *       when matching time-window queries.
+         *     - **`Concept`** — an abstract category / vocabulary entity.
+         *       Glossary terms, code-system codes, taxonomies. Distinct from
+         *       instance-bearing types so federation doesn't ask the source
+         *       adapter to materialise a "Customer Segment Concept" row.
+         *     - **`Process`** — a long-running activity / workflow. Order
+         *       Fulfilment, Onboarding Flow. Carries lifecycle state and
+         *       sub-event aggregation; differs from `Event` in duration +
+         *       composability.
+         *     - **`Agent`** — a participating actor. User, Service, Bot,
+         *       Organisation. The PROV-O `prov:Agent` axis at the type
+         *       level — Action surfaces gate on agent identity.
+         * @enum {string}
+         */
+        UpperKind: "object" | "event" | "concept" | "process" | "agent";
         UpsertPerspectiveRequest: {
             /** @description Collapsed group settings JSON. */
             collapsed_groups?: unknown;

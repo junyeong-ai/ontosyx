@@ -8,7 +8,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-cargo run --quiet --bin dump_openapi -p ox-api > web/openapi.json
+# Stack bumped to 128MB so `dump_openapi`'s recursive
+# JsonSchema/ToSchema generation has room for nested structures
+# (`OntologyIR` → `RuleDef` → `ShaclConstraint::Or { branches:
+# Vec<ShaclConstraint> }` and similar self-referential variants).
+RUST_MIN_STACK=134217728 cargo run --quiet --bin dump_openapi -p ox-api > web/openapi.json
 
 cd web
 pnpm exec openapi-typescript ./openapi.json -o src/types/api.generated.ts
