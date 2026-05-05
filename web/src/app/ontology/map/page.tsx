@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, use } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 
@@ -32,18 +32,13 @@ interface AxisItem {
   description: string;
 }
 
-async function fetchMapSummary(id: string): Promise<MapSummary> {
-  return request<MapSummary>(`/ontologies/${encodeURIComponent(id)}/map-summary`);
+async function fetchMapSummary(): Promise<MapSummary> {
+  return request<MapSummary>("/ontology/map-summary");
 }
 
-async function fetchAxisItems(
-  ontologyId: string,
-  kind: string,
-): Promise<AxisItem[]> {
+async function fetchAxisItems(kind: string): Promise<AxisItem[]> {
   const qs = new URLSearchParams({ kind });
-  return request<AxisItem[]>(
-    `/ontologies/${encodeURIComponent(ontologyId)}/axis-items?${qs}`,
-  );
+  return request<AxisItem[]>(`/ontology/axis-items?${qs}`);
 }
 
 interface DrillTarget {
@@ -52,18 +47,13 @@ interface DrillTarget {
   count: number;
 }
 
-export default function OntologyMapPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
+export default function OntologyMapPage() {
   const t = useTranslations("ontology.map");
   const [drill, setDrill] = useState<DrillTarget | null>(null);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["ontology-map-summary", id],
-    queryFn: () => fetchMapSummary(id),
+    queryKey: ["ontology-map-summary"],
+    queryFn: () => fetchMapSummary(),
   });
 
   const axes = useMemo(() => {
@@ -80,22 +70,19 @@ export default function OntologyMapPage({
 
   if (isLoading) {
     return (
-      <main id="main" className="flex min-h-[50vh] items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center">
         <Spinner />
-      </main>
+      </div>
     );
   }
 
   if (error || !data) {
     return (
-      <main
-        id="main"
-        className="mx-auto mt-20 max-w-xl rounded border border-danger-border bg-danger-surface p-6 text-sm text-danger-foreground"
-      >
+      <div className="mx-auto mt-20 max-w-xl rounded border border-danger-border bg-danger-surface p-6 text-sm text-danger-foreground">
         {t("loadError", {
           message: error instanceof Error ? error.message : t("unknownError"),
         })}
-      </main>
+      </div>
     );
   }
 
@@ -105,7 +92,7 @@ export default function OntologyMapPage({
   );
 
   return (
-    <main id="main" className="mx-auto max-w-6xl px-6 py-8">
+    <div className="mx-auto max-w-6xl px-6 py-8">
       <header className="mb-6">
         <h1 className="text-xl font-semibold text-foreground-strong">
           {t("title")}
@@ -160,18 +147,17 @@ export default function OntologyMapPage({
         ))}
       </div>
 
-      <CrossRefFlow ontologyId={id} />
+      <CrossRefFlow />
 
       {drill && (
         <AxisDrillModal
-          ontologyId={id}
           axis={drill.axis}
           kind={drill.kind}
           count={drill.count}
           onClose={() => setDrill(null)}
         />
       )}
-    </main>
+    </div>
   );
 }
 
@@ -232,13 +218,11 @@ function AxisCard({
 }
 
 function AxisDrillModal({
-  ontologyId,
   axis,
   kind,
   count,
   onClose,
 }: {
-  ontologyId: string;
   axis: string;
   kind: string;
   count: number;
@@ -247,8 +231,8 @@ function AxisDrillModal({
   const t = useTranslations("ontology.map");
   const tDrill = useTranslations("ontology.map.drill");
   const { data, isLoading, error } = useQuery({
-    queryKey: ["ontology-axis-items", ontologyId, kind],
-    queryFn: () => fetchAxisItems(ontologyId, kind),
+    queryKey: ["ontology-axis-items", kind],
+    queryFn: () => fetchAxisItems(kind),
   });
 
   return (

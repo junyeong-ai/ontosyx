@@ -44,10 +44,8 @@ export interface CrossRefEdge {
   target_id: string;
 }
 
-async function fetchCrossRefs(id: string): Promise<CrossRefEdge[]> {
-  return request<CrossRefEdge[]>(
-    `/ontologies/${encodeURIComponent(id)}/cross-refs`,
-  );
+async function fetchCrossRefs(): Promise<CrossRefEdge[]> {
+  return request<CrossRefEdge[]>("/ontology/cross-refs");
 }
 
 // ---------------------------------------------------------------------------
@@ -176,14 +174,14 @@ const nodeTypes = { axis: AxisNode };
 // Exported component
 // ---------------------------------------------------------------------------
 
-export function CrossRefFlow({ ontologyId }: { ontologyId: string }) {
+export function CrossRefFlow() {
   const t = useTranslations("ontology.map.crossRef");
   const isDark = useIsDarkMode();
   const [selected, setSelected] = useState<AggregatedBucket | null>(null);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["ontology-cross-refs", ontologyId],
-    queryFn: () => fetchCrossRefs(ontologyId),
+    queryKey: ["ontology-cross-refs"],
+    queryFn: () => fetchCrossRefs(),
   });
 
   const { nodes, edges, buckets } = useMemo(() => {
