@@ -982,7 +982,7 @@ async fn main() -> anyhow::Result<()> {
                                             }
                                             Err(e) => {
                                                 let _ = retry_store
-                                                    .mark_embedding_failed(p.id, &e.to_string())
+                                                    .record_embedding_failure(p.id, &e.to_string())
                                                     .await;
                                             }
                                         }
@@ -1073,7 +1073,7 @@ async fn main() -> anyhow::Result<()> {
                                         {
                                             Ok(result) => {
                                                 // Persist the result for auditing
-                                                let analysis_result = ox_store::AnalysisResult {
+                                                let analysis_result = ox_store::RecipeExecutionResult {
                                                     id: uuid::Uuid::new_v4(),
                                                     recipe_id: Some(task.recipe_id),
                                                     ontology_lineage_id: None,
@@ -1238,7 +1238,7 @@ async fn shutdown_signal(cancel_token: tokio_util::sync::CancellationToken) {
 /// constraints catch re-runs.
 ///
 /// Machine principals (API keys, system tasks) look up the default
-/// workspace owner via `get_workspace_by_slug("default")` to stand
+/// workspace owner via `find_workspace_by_slug("default")` to stand
 /// in as the acting user — so without this seed, every machine-auth
 /// request 500s with "Default workspace not found".
 async fn seed_default_workspace_if_missing(
@@ -1248,7 +1248,7 @@ async fn seed_default_workspace_if_missing(
 
     const DEFAULT_SLUG: &str = "default";
 
-    if store.get_workspace_by_slug(DEFAULT_SLUG).await?.is_some() {
+    if store.find_workspace_by_slug(DEFAULT_SLUG).await?.is_some() {
         return Ok(());
     }
 
@@ -1375,7 +1375,7 @@ async fn evaluate_quality_rules(
                     }
                 };
                 let fetched = match identity {
-                    Some(identity) => match store.get_current_version(identity.id).await {
+                    Some(identity) => match store.find_current_version(identity.id).await {
                         Ok(Some(version)) => match store.get_ontology_ir(version.id).await {
                             Ok(Some(ir)) => {
                                 tracing::info!(

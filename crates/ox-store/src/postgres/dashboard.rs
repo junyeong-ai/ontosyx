@@ -178,7 +178,7 @@ impl DashboardStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_dashboard_by_share_token(&self, token: &str) -> OxResult<Option<Dashboard>> {
+    async fn find_dashboard_by_share_token(&self, token: &str) -> OxResult<Option<Dashboard>> {
         // Returns the row even if `share_expires_at` is in the past so the
         // caller can render a 410 Gone instead of a generic 404. The route
         // is responsible for the expiry check.

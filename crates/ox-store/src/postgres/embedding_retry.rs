@@ -41,7 +41,7 @@ impl EmbeddingRetryStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn mark_embedding_failed(&self, id: Uuid, error: &str) -> OxResult<()> {
+    async fn record_embedding_failure(&self, id: Uuid, error: &str) -> OxResult<()> {
         super::require_workspace_context()?;
         sqlx::query(
             "UPDATE pending_embeddings SET retry_count = retry_count + 1, last_error = $2 WHERE id = $1",

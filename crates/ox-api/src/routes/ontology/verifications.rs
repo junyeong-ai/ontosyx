@@ -65,7 +65,7 @@ pub(crate) async fn verify_element(
 
     let user = state
         .store
-        .get_user_by_provider("ontosyx", &principal.id)
+        .find_user_by_provider("ontosyx", &principal.id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("User"))?;
@@ -132,7 +132,7 @@ pub(crate) async fn delete_verification(
     let ontology_lineage_id = workspace_lineage_id(&state).await?;
     let user = state
         .store
-        .get_user_by_provider("ontosyx", &principal.id)
+        .find_user_by_provider("ontosyx", &principal.id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("User"))?;

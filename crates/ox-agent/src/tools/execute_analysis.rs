@@ -12,7 +12,7 @@ use tokio::sync::Semaphore;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use ox_store::{AnalysisResult, AnalysisResultStore};
+use ox_store::{RecipeExecutionResult, RecipeExecutionStore};
 
 /// Docker image name for the analysis sandbox.
 const SANDBOX_IMAGE: &str = "ontosyx-analysis-sandbox";
@@ -58,7 +58,7 @@ struct ExecuteAnalysisOutput {
 /// - Execution timeout (configurable via `OX_ANALYSIS_TIMEOUT_SECS`, default 120s)
 /// - Concurrency limit (configurable via `OX_ANALYSIS_CONCURRENCY`, default 4)
 pub struct ExecuteAnalysisTool {
-    pub store: Arc<dyn AnalysisResultStore>,
+    pub store: Arc<dyn RecipeExecutionStore>,
 }
 
 #[async_trait]
@@ -93,7 +93,7 @@ impl SchemaTool for ExecuteAnalysisTool {
             .and_then(|s| s.parse::<Uuid>().ok());
 
         // Check cache — return early if a recent result exists (< 1 hour)
-        if let Ok(Some(cached)) = self.store.get_cached_result(&input_hash, recipe_id).await {
+        if let Ok(Some(cached)) = self.store.find_cached_result(&input_hash, recipe_id).await {
             let age = Utc::now() - cached.created_at;
             if age.num_hours() < 1 {
                 info!(
@@ -138,7 +138,7 @@ impl SchemaTool for ExecuteAnalysisTool {
         };
 
         // Save result to cache (fire-and-forget)
-        let analysis_result = AnalysisResult {
+        let analysis_result = RecipeExecutionResult {
             id: Uuid::new_v4(),
             recipe_id,
             ontology_lineage_id: None,

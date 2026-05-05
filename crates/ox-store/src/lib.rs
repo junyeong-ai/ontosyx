@@ -40,7 +40,7 @@ pub use postgres::{SYSTEM_BYPASS, WORKSPACE_ID, require_workspace_context};
 // taking `sqlx` as a direct dependency.
 pub use sqlx::PgPool;
 pub use store::{
-    AclStore, AgentSessionStore, AmbiguityStore, AnalysisResultStore, AnalysisSnapshot,
+    AclStore, AgentSessionStore, AmbiguityStore, RecipeExecutionStore, AnalysisSnapshot,
     ApiKeyStore, ApprovalCommentStore, ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter,
     AuditTrailStore, ChangeRoutingStore, ConfigStore, CursorPage, CursorParams, DashboardStore,
     DataSourceStore, DraftClusterCheckpointStore, EmbeddingRetryStore, EvaluationStore,

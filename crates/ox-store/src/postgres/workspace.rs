@@ -35,7 +35,7 @@ impl WorkspaceStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_workspace_by_slug(&self, slug: &str) -> OxResult<Option<Workspace>> {
+    async fn find_workspace_by_slug(&self, slug: &str) -> OxResult<Option<Workspace>> {
         sqlx::query_as("SELECT * FROM workspaces WHERE slug = $1")
             .bind(slug)
             .fetch_optional(&self.pool)
@@ -233,7 +233,7 @@ impl WorkspaceStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_default_workspace(&self, user_id: Uuid) -> OxResult<Option<Workspace>> {
+    async fn find_default_workspace(&self, user_id: Uuid) -> OxResult<Option<Workspace>> {
         // Prefer the "default" slug workspace, then fall back to the first joined workspace
         sqlx::query_as(
             "SELECT w.*

@@ -305,7 +305,7 @@ impl EvaluationStore for PostgresStore {
     // --- Metrics -------------------------------------------------------
 
     #[tracing::instrument(level = "debug", skip_all, fields(case_id = %metric.case_id, metric.name = %metric.name))]
-    async fn record_evaluation_metric(
+    async fn upsert_evaluation_metric(
         &self,
         metric: &EvaluationMetric,
     ) -> OxResult<EvaluationMetric> {
@@ -365,7 +365,7 @@ impl EvaluationStore for PostgresStore {
 /// The capture is workspace-scoped via the same task-local
 /// guard the rest of the store uses; an evaluation scope
 /// without a workspace context fails the underlying
-/// `record_evaluation_metric` call rather than silently
+/// `upsert_evaluation_metric` call rather than silently
 /// landing rows under a different tenant.
 #[async_trait]
 impl EvaluationCapture for PostgresStore {
@@ -392,6 +392,6 @@ impl EvaluationCapture for PostgresStore {
             }),
             created_at: chrono::Utc::now(),
         };
-        self.record_evaluation_metric(&metric).await.map(|_| ())
+        self.upsert_evaluation_metric(&metric).await.map(|_| ())
     }
 }

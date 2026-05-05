@@ -111,7 +111,7 @@ pub(crate) async fn list_type_candidates(
     };
     let current = state
         .store
-        .get_current_version(row.id)
+        .find_current_version(row.id)
         .await
         .map_err(AppError::from)?;
     let Some(version) = current else {

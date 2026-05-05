@@ -191,8 +191,8 @@ impl Modify for SecurityAddon {
         // Perspectives
         perspectives::save_perspective,
         perspectives::list_perspectives,
-        perspectives::get_default_perspective,
-        perspectives::get_best_perspective,
+        perspectives::find_default_perspective,
+        perspectives::find_best_perspective,
         perspectives::delete_perspective,
         // Config
         config::get_config,

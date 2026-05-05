@@ -1520,7 +1520,7 @@ export interface paths {
             cookie?: never;
         };
         /** 2-tier perspective lookup: exact lineage match, then topology match. */
-        get: operations["get_best_perspective"];
+        get: operations["find_best_perspective"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1536,7 +1536,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_default_perspective"];
+        get: operations["find_default_perspective"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12332,7 +12332,7 @@ export interface operations {
             };
         };
     };
-    get_best_perspective: {
+    find_best_perspective: {
         parameters: {
             query: {
                 /** @description Topology hash for fallback matching */
@@ -12358,7 +12358,7 @@ export interface operations {
             };
         };
     };
-    get_default_perspective: {
+    find_default_perspective: {
         parameters: {
             query?: never;
             header?: never;

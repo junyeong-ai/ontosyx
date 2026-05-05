@@ -309,7 +309,7 @@ pub(crate) async fn diff_canonical(
     {
         Some(identity) => match state
             .store
-            .get_current_version(identity.id)
+            .find_current_version(identity.id)
             .await
             .map_err(AppError::from)?
         {
@@ -392,7 +392,7 @@ pub(crate) async fn rebase_preview(
     let head = match identity {
         Some(ref id) => state
             .store
-            .get_current_version(id.id)
+            .find_current_version(id.id)
             .await
             .map_err(AppError::from)?,
         None => None,
@@ -521,7 +521,7 @@ pub(crate) async fn rebase_draft(
 
     let head = state
         .store
-        .get_current_version(identity.id)
+        .find_current_version(identity.id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {

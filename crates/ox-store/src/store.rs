@@ -240,7 +240,7 @@ pub trait OntologyVersionStore: Send + Sync {
     ) -> OxResult<Option<crate::models::OntologyVersionSnapshot>>;
 
     /// The current (valid_to IS NULL) version for an ontology.
-    async fn get_current_version(
+    async fn find_current_version(
         &self,
         ontology_id: Uuid,
     ) -> OxResult<Option<crate::models::OntologyVersionSnapshot>>;
@@ -604,7 +604,7 @@ pub trait PerspectiveStore: Send + Sync {
         name: &str,
     ) -> OxResult<Option<WorkbenchPerspective>>;
 
-    async fn get_default_perspective(
+    async fn find_default_perspective(
         &self,
         user_id: &str,
         lineage_id: &str,
@@ -614,7 +614,7 @@ pub trait PerspectiveStore: Send + Sync {
     /// 1. Exact match: lineage_id + default
     /// 2. Topology match: different lineage but same topology_signature
     /// Returns the best matching perspective, or None.
-    async fn get_best_perspective(
+    async fn find_best_perspective(
         &self,
         user_id: &str,
         lineage_id: &str,
@@ -653,7 +653,7 @@ pub trait UserStore: Send + Sync {
 
     async fn get_user_by_id(&self, id: Uuid) -> OxResult<Option<User>>;
 
-    async fn get_user_by_provider(
+    async fn find_user_by_provider(
         &self,
         provider: &str,
         provider_sub: &str,
@@ -786,7 +786,7 @@ pub trait DashboardStore: Send + Sync {
     ) -> OxResult<()>;
     /// Resolve a share token to its dashboard. Returns `Ok(None)` if the
     /// token is unknown OR if the token has expired.
-    async fn get_dashboard_by_share_token(&self, token: &str) -> OxResult<Option<Dashboard>>;
+    async fn find_dashboard_by_share_token(&self, token: &str) -> OxResult<Option<Dashboard>>;
 
     async fn create_widget(&self, widget: &DashboardWidget) -> OxResult<()>;
     async fn list_widgets(&self, dashboard_id: Uuid) -> OxResult<Vec<DashboardWidget>>;
@@ -824,18 +824,18 @@ pub trait ScheduledTaskStore: Send + Sync {
 
 /// Storage for analysis execution results with input-hash-based caching.
 #[async_trait]
-pub trait AnalysisResultStore: Send + Sync {
-    async fn create_analysis_result(&self, result: &AnalysisResult) -> OxResult<()>;
-    async fn get_cached_result(
+pub trait RecipeExecutionStore: Send + Sync {
+    async fn create_analysis_result(&self, result: &RecipeExecutionResult) -> OxResult<()>;
+    async fn find_cached_result(
         &self,
         input_hash: &str,
         recipe_id: Option<Uuid>,
-    ) -> OxResult<Option<AnalysisResult>>;
+    ) -> OxResult<Option<RecipeExecutionResult>>;
     async fn list_analysis_results(
         &self,
         recipe_id: Uuid,
         limit: i64,
-    ) -> OxResult<Vec<AnalysisResult>>;
+    ) -> OxResult<Vec<RecipeExecutionResult>>;
     /// Delete analysis results older than `max_age_days`. Returns
     /// per-workspace counts so the maintenance loop can record one
     /// audit row per affected workspace.
@@ -855,7 +855,7 @@ pub trait HealthStore: Send + Sync {
 pub trait PromptTemplateStore: Send + Sync {
     async fn list_prompt_templates(&self, active_only: bool) -> OxResult<Vec<PromptTemplateRow>>;
     async fn get_prompt_template(&self, id: Uuid) -> OxResult<Option<PromptTemplateRow>>;
-    async fn get_active_prompt(&self, name: &str) -> OxResult<Option<PromptTemplateRow>>;
+    async fn find_active_prompt(&self, name: &str) -> OxResult<Option<PromptTemplateRow>>;
     /// Exact lookup by `(name, version)` — required for the TOML seed
     /// flow's drift-detection pass. Returns the row regardless of
     /// `is_active` so seed can compare content against an operator-
@@ -868,7 +868,7 @@ pub trait PromptTemplateStore: Send + Sync {
     /// Resolve a prompt with workspace-specific override fallback.
     /// Returns the workspace's override if one exists, otherwise the
     /// global active prompt with the same name.
-    async fn get_active_prompt_for_workspace(
+    async fn find_active_prompt_for_workspace(
         &self,
         name: &str,
         workspace_id: Option<Uuid>,
@@ -980,7 +980,7 @@ pub trait EmbeddingRetryStore: Send + Sync {
         metadata: &serde_json::Value,
     ) -> OxResult<()>;
     async fn list_pending_embeddings(&self, limit: i64) -> OxResult<Vec<PendingEmbedding>>;
-    async fn mark_embedding_failed(&self, id: Uuid, error: &str) -> OxResult<()>;
+    async fn record_embedding_failure(&self, id: Uuid, error: &str) -> OxResult<()>;
     async fn delete_pending_embedding(&self, id: Uuid) -> OxResult<bool>;
 }
 
@@ -1031,7 +1031,7 @@ pub trait ToolApprovalStore: Send + Sync {
 pub trait WorkspaceStore: Send + Sync {
     async fn create_workspace(&self, workspace: &Workspace) -> OxResult<()>;
     async fn get_workspace(&self, id: Uuid) -> OxResult<Option<Workspace>>;
-    async fn get_workspace_by_slug(&self, slug: &str) -> OxResult<Option<Workspace>>;
+    async fn find_workspace_by_slug(&self, slug: &str) -> OxResult<Option<Workspace>>;
     async fn list_user_workspaces(&self, user_id: Uuid) -> OxResult<Vec<WorkspaceSummary>>;
     async fn update_workspace(
         &self,
@@ -1073,7 +1073,7 @@ pub trait WorkspaceStore: Send + Sync {
     async fn list_workspace_members(&self, workspace_id: Uuid) -> OxResult<Vec<WorkspaceMember>>;
 
     /// Get user's default workspace (first workspace they belong to, or the "default" slug).
-    async fn get_default_workspace(&self, user_id: Uuid) -> OxResult<Option<Workspace>>;
+    async fn find_default_workspace(&self, user_id: Uuid) -> OxResult<Option<Workspace>>;
 
     /// Every workspace id known to the cluster. Used by
     /// system-bypass cron jobs that fan out per-tenant work — the
@@ -1457,7 +1457,7 @@ pub trait KnowledgeStore: Send + Sync {
     async fn update_knowledge_confidence(&self, id: Uuid, confidence: f64) -> OxResult<()>;
 
     /// Bulk-mark entries as stale when affected_labels overlap with changed labels.
-    async fn mark_stale_by_labels(
+    async fn expire_knowledge_by_labels(
         &self,
         ontology_name: &str,
         changed_labels: &[String],
@@ -1676,7 +1676,7 @@ pub trait DataSourceStore: Send + Sync {
     async fn delete_data_source_by_source_id(&self, source_id: &str) -> OxResult<bool>;
 
     /// Persist the most-recent introspection result for a source.
-    /// Stores the full `AnalysisResult` (schema + profile + warnings)
+    /// Stores the full `RecipeExecutionResult` (schema + profile + warnings)
     /// alongside the per-table fingerprint map so subsequent re-scans
     /// can compute a delta without describing every table again.
     /// `last_analyzed_at` is set to `now()` on the server side.
@@ -1917,7 +1917,7 @@ pub trait AmbiguityStore: Send + Sync {
         context_id: &ox_ontology::ambiguity::AmbiguityId,
     ) -> OxResult<Vec<ox_ontology::ambiguity::AmbiguityResolution>>;
 
-    async fn get_active_ambiguity_resolution(
+    async fn find_active_ambiguity_resolution(
         &self,
         source_id: &ox_ontology::mapping::refs::SourceId,
         column: &ox_ontology::mapping::refs::ColumnRef,
@@ -2089,7 +2089,7 @@ pub trait EvaluationStore: Send + Sync {
     /// the rubric tracking matters. Domain verb because the
     /// upsert carries audit semantics — every replacement stamps
     /// a fresh `created_at`.
-    async fn record_evaluation_metric(
+    async fn upsert_evaluation_metric(
         &self,
         metric: &EvaluationMetric,
     ) -> OxResult<EvaluationMetric>;
@@ -2112,7 +2112,7 @@ pub trait Store:
     + UserStore
     + RecipeStore
     + DashboardStore
-    + AnalysisResultStore
+    + RecipeExecutionStore
     + ScheduledTaskStore
     + ReportStore
     + PatternStore
@@ -2162,7 +2162,7 @@ impl<T> Store for T where
         + UserStore
         + RecipeStore
         + DashboardStore
-        + AnalysisResultStore
+        + RecipeExecutionStore
         + ScheduledTaskStore
         + ReportStore
         + PatternStore

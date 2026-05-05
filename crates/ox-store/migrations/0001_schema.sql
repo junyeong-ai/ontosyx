@@ -1836,10 +1836,10 @@ CREATE TABLE data_sources (
     kind          TEXT NOT NULL,
     config        JSONB NOT NULL,
 
-    -- Last full or partial AnalysisResult cached for this source.
+    -- Last full or partial RecipeExecutionResult cached for this source.
     -- NULL until the first analyze_* call lands. JSONB lets the
     -- shape evolve without a follow-up migration; the canonical
-    -- producer is `ox_source::AnalysisResult` (schema + profile +
+    -- producer is `ox_source::RecipeExecutionResult` (schema + profile +
     -- warnings). Subsetted analyses are still cached here — the
     -- selection used to produce them is implicit in the stored
     -- `tables` slice.

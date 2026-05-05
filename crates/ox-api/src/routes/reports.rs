@@ -55,7 +55,7 @@ async fn resolve_lineage_current_ir(
     if identity.lineage_id != lineage_id {
         return None;
     }
-    let version = state.store.get_current_version(identity.id).await.ok()??;
+    let version = state.store.find_current_version(identity.id).await.ok()??;
     let ir = state.store.get_ontology_ir(version.id).await.ok()??;
     Some(std::sync::Arc::new(ir))
 }

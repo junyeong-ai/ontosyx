@@ -1,7 +1,7 @@
 //! Catalog-level invariants the middleware relies on.
 //!
 //! `crates/ox-api/src/middleware.rs::workspace_context` calls
-//! `get_default_workspace(user_id)` and `get_member_role(workspace_id,
+//! `find_default_workspace(user_id)` and `get_member_role(workspace_id,
 //! user_id)` *before* `WORKSPACE_ID.scope` wraps the request — the
 //! `scope_request` integration test in `middleware.rs::tests` proves
 //! the *post-scope* path; this test pins the assumption the
@@ -91,7 +91,7 @@ async fn pre_scope_tables_carry_no_rls_policies() {
         offenders.is_empty(),
         "RLS policies must NOT live on pre-scope tables \
          ({tables:?}) — `crates/ox-api/src/middleware.rs::workspace_context` \
-         calls `get_default_workspace` / `get_member_role` *before* \
+         calls `find_default_workspace` / `get_member_role` *before* \
          `WORKSPACE_ID.scope` wraps the request. Adding RLS to any of these \
          tables silently re-introduces the `[22P02] invalid input syntax \
          for type uuid: \"\"` regression the ACL/scope ordering test \
@@ -295,7 +295,7 @@ async fn force_row_level_security_is_off_on_pre_scope_tables() {
         "RLS must remain DISABLED on pre-scope tables ({tables:?}). \
          If a security audit demands turning it on, the middleware site \
          in `crates/ox-api/src/middleware.rs::workspace_context` must \
-         move both `get_default_workspace` and `get_member_role` inside \
+         move both `find_default_workspace` and `get_member_role` inside \
          `WORKSPACE_ID.scope` — and the integration test \
          `middleware::tests::scope_request_loads_acl_snapshot_inside_workspace_scope` \
          must be extended to cover the human-user fallback path. \

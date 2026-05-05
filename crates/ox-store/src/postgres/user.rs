@@ -43,7 +43,7 @@ impl UserStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_user_by_provider(
+    async fn find_user_by_provider(
         &self,
         provider: &str,
         provider_sub: &str,

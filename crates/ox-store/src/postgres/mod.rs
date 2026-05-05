@@ -49,7 +49,7 @@ use ox_core::error::{OxError, OxResult};
 
 use crate::models::*;
 use crate::store::{
-    AclStore, AgentSessionStore, AmbiguityStore, AnalysisResultStore, AnalysisSnapshot,
+    AclStore, AgentSessionStore, AmbiguityStore, RecipeExecutionStore, AnalysisSnapshot,
     ApprovalCommentStore, ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter,
     AuditTrailStore, ChangeRoutingStore, ConfigStore, CursorPage, CursorParams, DashboardStore,
     DraftClusterCheckpointStore, EmbeddingRetryStore, ExtendResult, HealthStore, IdempotencyStore,
@@ -392,7 +392,7 @@ pub(crate) fn to_ox_error(e: sqlx::Error) -> OxError {
 mod acl;
 mod agent_session;
 mod ambiguity;
-mod analysis_result;
+mod recipe_execution;
 mod api_key;
 mod approval;
 mod approval_comment;

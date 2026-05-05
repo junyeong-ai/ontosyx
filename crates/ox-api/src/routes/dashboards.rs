@@ -592,7 +592,7 @@ pub(crate) async fn get_shared_dashboard(
     let (dashboard, widgets) = ox_store::SYSTEM_BYPASS
         .scope(true, async move {
             let dashboard = store
-                .get_dashboard_by_share_token(&token)
+                .find_dashboard_by_share_token(&token)
                 .await
                 .map_err(AppError::from)?
                 .ok_or_else(|| AppError::not_found("Shared dashboard"))?;

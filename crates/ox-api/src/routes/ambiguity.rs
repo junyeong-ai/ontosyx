@@ -72,7 +72,7 @@ pub(crate) async fn list_ambiguities(
     for ctx in contexts {
         let active = state
             .store
-            .get_active_ambiguity_resolution(&ctx.source_id, &ctx.column)
+            .find_active_ambiguity_resolution(&ctx.source_id, &ctx.column)
             .await
             .map_err(AppError::from)?;
         items.push(AmbiguitySummary {

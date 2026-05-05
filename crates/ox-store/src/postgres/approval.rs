@@ -210,7 +210,7 @@ impl ApprovalStore for PostgresStore {
         super::require_workspace_context()?;
         // Strict `<` so a request whose `expires_at == NOW()` is still
         // valid for its last clock tick — matches the share-token
-        // semantics in `get_dashboard_by_share_token`.
+        // semantics in `find_dashboard_by_share_token`.
         let rows: Vec<(Uuid, i64)> = sqlx::query_as(
             "WITH affected AS (
                  UPDATE approval_requests

@@ -53,7 +53,7 @@ impl PromptTemplateStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_active_prompt(&self, name: &str) -> OxResult<Option<PromptTemplateRow>> {
+    async fn find_active_prompt(&self, name: &str) -> OxResult<Option<PromptTemplateRow>> {
         // Active global template (workspace_id IS NULL). Sort by parsed
         // semver components (CHECK constraint guarantees `<int>.<int>.<int>`)
         // then `created_at` as the tie-breaker for the rare case of two
@@ -74,7 +74,7 @@ impl PromptTemplateStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_active_prompt_for_workspace(
+    async fn find_active_prompt_for_workspace(
         &self,
         name: &str,
         workspace_id: Option<Uuid>,

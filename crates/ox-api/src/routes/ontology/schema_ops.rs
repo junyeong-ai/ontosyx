@@ -33,7 +33,7 @@ async fn load_identity_current_ir(
         .ok_or_else(|| AppError::not_found("Ontology"))?;
     let version = state
         .store
-        .get_current_version(identity.id)
+        .find_current_version(identity.id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::ontology_not_committed(identity.lineage_id.clone()))?;

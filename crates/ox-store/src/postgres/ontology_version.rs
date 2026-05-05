@@ -241,7 +241,7 @@ impl crate::store::OntologyVersionStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_current_version(
+    async fn find_current_version(
         &self,
         ontology_id: Uuid,
     ) -> OxResult<Option<crate::models::OntologyVersionSnapshot>> {

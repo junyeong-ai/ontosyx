@@ -526,11 +526,11 @@ pub struct AnalysisRecipe {
 }
 
 // ---------------------------------------------------------------------------
-// AnalysisResult — cached/versioned recipe execution output
+// RecipeExecutionResult — cached/versioned recipe execution output
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct AnalysisResult {
+pub struct RecipeExecutionResult {
     pub id: Uuid,
     pub recipe_id: Option<Uuid>,
     pub ontology_lineage_id: Option<String>,
@@ -1210,7 +1210,7 @@ pub struct DataSource {
     pub source_id: String,
     pub kind: String,
     pub config: serde_json::Value,
-    /// Last cached `ox_source::AnalysisResult` for this source. `None`
+    /// Last cached `ox_source::RecipeExecutionResult` for this source. `None`
     /// until the first analyze_* call lands. The shape is opaque at
     /// the store layer; ox-api round-trips it through serde.
     #[serde(default, skip_serializing_if = "Option::is_none")]

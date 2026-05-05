@@ -298,7 +298,7 @@ impl AmbiguityStore for PostgresStore {
         rows.iter().map(ambiguity_resolution_from_row).collect()
     }
 
-    async fn get_active_ambiguity_resolution(
+    async fn find_active_ambiguity_resolution(
         &self,
         source_id: &ox_ontology::mapping::refs::SourceId,
         column: &ox_ontology::mapping::refs::ColumnRef,

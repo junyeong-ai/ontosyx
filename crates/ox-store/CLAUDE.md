@@ -138,7 +138,7 @@ parent has been superseded — the lost-update guard against
 concurrent admin direct edits via `/api/ontologies/{id}/edits`.
 
 Capture happens at `create_ontology_draft`: read
-`get_workspace_ontology()` + `get_current_version()` and stamp the
+`get_workspace_ontology()` + `find_current_version()` and stamp the
 result onto the new draft. Greenfield workspaces (no canonical
 yet) record `None`; `complete_ontology_draft` then takes the
 "first-version of new lineage" branch instead of the

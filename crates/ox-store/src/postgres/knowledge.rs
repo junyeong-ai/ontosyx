@@ -235,7 +235,7 @@ impl KnowledgeStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn mark_stale_by_labels(
+    async fn expire_knowledge_by_labels(
         &self,
         ontology_name: &str,
         changed_labels: &[String],

@@ -6,7 +6,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use ox_store::store::CursorParams;
-use ox_store::{AnalysisRecipe, AnalysisResult};
+use ox_store::{AnalysisRecipe, RecipeExecutionResult};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -221,7 +221,7 @@ pub(crate) async fn list_recipe_results(
     State(state): State<AppState>,
     _principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApiResponse<Vec<AnalysisResult>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<RecipeExecutionResult>>>, AppError> {
     let results = state
         .store
         .list_analysis_results(id, 20)

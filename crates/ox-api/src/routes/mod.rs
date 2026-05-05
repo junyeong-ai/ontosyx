@@ -353,7 +353,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route(
             "/evaluation/cases/{case_id}/metrics",
-            put(evaluation::record_evaluation_metric),
+            put(evaluation::upsert_evaluation_metric),
         )
         .route(
             "/evaluation/cases/{case_id}/metrics",
@@ -371,11 +371,11 @@ pub fn router(state: AppState) -> Router {
         )
         .route(
             "/perspectives/by-lineage/{lineage_id}/default",
-            get(perspectives::get_default_perspective),
+            get(perspectives::find_default_perspective),
         )
         .route(
             "/perspectives/by-lineage/{lineage_id}/best",
-            get(perspectives::get_best_perspective),
+            get(perspectives::find_best_perspective),
         )
         .route(
             "/perspectives/{id}",

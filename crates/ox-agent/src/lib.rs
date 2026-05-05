@@ -214,7 +214,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
 
         builder = builder
             .tool(ExecuteAnalysisTool {
-                store: Arc::clone(&domain.store) as Arc<dyn ox_store::AnalysisResultStore>,
+                store: Arc::clone(&domain.store) as Arc<dyn ox_store::RecipeExecutionStore>,
             })
             .tool(ExplainOntologyTool {
                 domain: Arc::clone(domain),
@@ -399,7 +399,7 @@ async fn build_system_prompt(domain: &DomainContext, user_role: &str) -> String 
     // base agent_system prompt without affecting other tenants.
     let lookup = domain
         .store
-        .get_active_prompt_for_workspace("agent_system", Some(domain.workspace_id))
+        .find_active_prompt_for_workspace("agent_system", Some(domain.workspace_id))
         .await;
     let base = match lookup {
         Ok(Some(row)) => row.content,

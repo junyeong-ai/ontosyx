@@ -1083,7 +1083,7 @@ pub(crate) async fn analyze_adapter(
         let parsed: ox_source::AnalysisResult =
             serde_json::from_value(snapshot).map_err(|e| {
                 AppError::internal(format!(
-                    "stored analysis snapshot is not a valid AnalysisResult: {e}"
+                    "stored analysis snapshot is not a valid RecipeExecutionResult: {e}"
                 ))
             })?;
         Some(parsed)

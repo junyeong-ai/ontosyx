@@ -161,7 +161,7 @@ async fn resolve_user_id(principal: &Principal, state: &AppState) -> Result<Uuid
         // Machine principals: use the default workspace owner as proxy identity
         let ws = state
             .store
-            .get_workspace_by_slug(DEFAULT_WORKSPACE_SLUG)
+            .find_workspace_by_slug(DEFAULT_WORKSPACE_SLUG)
             .await
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::internal("Default workspace not found"))?;

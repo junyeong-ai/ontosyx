@@ -387,7 +387,7 @@ pub(crate) async fn list_evaluation_cases(
     tag = "Evaluation",
 )]
 #[tracing::instrument(skip(state, principal, req))]
-pub(crate) async fn record_evaluation_metric(
+pub(crate) async fn upsert_evaluation_metric(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
@@ -407,7 +407,7 @@ pub(crate) async fn record_evaluation_metric(
     };
     let saved = state
         .store
-        .record_evaluation_metric(&metric)
+        .upsert_evaluation_metric(&metric)
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(EvaluationMetricResponse { metric: saved }))
@@ -637,7 +637,7 @@ pub(crate) async fn execute_evaluation_case(
             })?;
         let version = state
             .store
-            .get_current_version(identity.id)
+            .find_current_version(identity.id)
             .await
             .map_err(AppError::from)?
             .ok_or_else(|| {
@@ -853,7 +853,7 @@ pub(crate) async fn judge_evaluation_case(
         };
         let saved = state
             .store
-            .record_evaluation_metric(&metric)
+            .upsert_evaluation_metric(&metric)
             .await
             .map_err(AppError::from)?;
         metrics.push(saved);

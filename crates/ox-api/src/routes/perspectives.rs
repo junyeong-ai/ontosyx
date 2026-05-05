@@ -132,14 +132,14 @@ pub(crate) async fn list_perspectives(
     ),
     tag = "Perspectives",
 )]
-pub(crate) async fn get_default_perspective(
+pub(crate) async fn find_default_perspective(
     State(state): State<AppState>,
     principal: Principal,
     Path(lineage_id): Path<String>,
 ) -> Result<Json<ApiResponse<Option<WorkbenchPerspective>>>, AppError> {
     let perspective = state
         .store
-        .get_default_perspective(&principal.id, &lineage_id)
+        .find_default_perspective(&principal.id, &lineage_id)
         .await
         .map_err(AppError::from)?;
 
@@ -163,7 +163,7 @@ pub(crate) async fn get_default_perspective(
     ),
     tag = "Perspectives",
 )]
-pub(crate) async fn get_best_perspective(
+pub(crate) async fn find_best_perspective(
     State(state): State<AppState>,
     principal: Principal,
     Path(lineage_id): Path<String>,
@@ -171,7 +171,7 @@ pub(crate) async fn get_best_perspective(
 ) -> Result<Json<ApiResponse<Option<WorkbenchPerspective>>>, AppError> {
     let perspective = state
         .store
-        .get_best_perspective(&principal.id, &lineage_id, &params.topology_signature)
+        .find_best_perspective(&principal.id, &lineage_id, &params.topology_signature)
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(perspective))

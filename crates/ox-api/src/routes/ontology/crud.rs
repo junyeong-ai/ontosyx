@@ -90,7 +90,7 @@ pub(crate) async fn get_workspace_ontology_detail(
     };
     let version = state
         .store
-        .get_current_version(identity.id)
+        .find_current_version(identity.id)
         .await
         .map_err(AppError::from)?;
     let ir = if let Some(v) = &version {

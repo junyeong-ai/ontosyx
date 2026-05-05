@@ -411,7 +411,7 @@ async fn temporal_rewrite_pivots_customer_to_client() {
             .expect("resolve snapshot")
             .expect("v1 live at 2026-03-15");
         let current_row = store
-            .get_current_version(fx.ontology_id)
+            .find_current_version(fx.ontology_id)
             .await
             .expect("current version lookup")
             .expect("current version exists");
@@ -475,7 +475,7 @@ async fn temporal_rewrite_is_noop_inside_v2_window() {
             .expect("resolve snapshot")
             .expect("v2 live in its window");
         let current_row = store
-            .get_current_version(fx.ontology_id)
+            .find_current_version(fx.ontology_id)
             .await
             .expect("current version lookup")
             .expect("current version exists");
@@ -670,7 +670,7 @@ async fn temporal_rewrite_preserves_property_filters() {
             .expect("resolve")
             .expect("v1 window");
         let cur_row = store
-            .get_current_version(ontology_id)
+            .find_current_version(ontology_id)
             .await
             .expect("current")
             .expect("exists");

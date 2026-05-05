@@ -6395,7 +6395,7 @@
           "Perspectives"
         ],
         "summary": "2-tier perspective lookup: exact lineage match, then topology match.",
-        "operationId": "get_best_perspective",
+        "operationId": "find_best_perspective",
         "parameters": [
           {
             "name": "lineage_id",
@@ -6435,7 +6435,7 @@
         "tags": [
           "Perspectives"
         ],
-        "operationId": "get_default_perspective",
+        "operationId": "find_default_perspective",
         "parameters": [
           {
             "name": "lineage_id",

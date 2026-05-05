@@ -126,7 +126,7 @@ pub(crate) async fn create_token(
             if user.created_at == now {
                 let ws = state
                     .store
-                    .get_workspace_by_slug(crate::workspace::DEFAULT_WORKSPACE_SLUG)
+                    .find_workspace_by_slug(crate::workspace::DEFAULT_WORKSPACE_SLUG)
                     .await
                     .map_err(AppError::from)?
                     .ok_or_else(|| {

@@ -407,7 +407,7 @@ impl SchemaTool for QueryGraphTool {
             let active = self
                 .domain
                 .store
-                .get_active_ambiguity_resolution(&ctx.source_id, &ctx.column)
+                .find_active_ambiguity_resolution(&ctx.source_id, &ctx.column)
                 .await
                 .ok()
                 .flatten();
@@ -465,7 +465,7 @@ impl SchemaTool for QueryGraphTool {
             Some(ontology_id) => self
                 .domain
                 .store
-                .get_current_version(ontology_id)
+                .find_current_version(ontology_id)
                 .await
                 .ok()
                 .flatten(),

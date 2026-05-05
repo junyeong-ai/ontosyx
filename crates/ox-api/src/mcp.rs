@@ -315,7 +315,7 @@ async fn load_ontology(store: &dyn Store) -> Result<OntologyIR, McpError> {
             McpError::invalid_params("Workspace has no canonical ontology yet", None)
         })?;
     let version = store
-        .get_current_version(identity.id)
+        .find_current_version(identity.id)
         .await
         .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?
         .ok_or_else(|| {

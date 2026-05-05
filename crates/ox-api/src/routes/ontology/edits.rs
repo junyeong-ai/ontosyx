@@ -78,7 +78,7 @@ pub(crate) async fn apply_ontology_edits(
     // ---- 1. Load current version --------------------------------
     let current = state
         .store
-        .get_current_version(ontology_id)
+        .find_current_version(ontology_id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("ontology has no committed version yet"))?;

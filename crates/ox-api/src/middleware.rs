@@ -585,7 +585,7 @@ pub async fn workspace_context(
         // Fall back to default workspace
         let ws = state
             .store
-            .get_default_workspace(user_id)
+            .find_default_workspace(user_id)
             .await
             .map_err(|e| AppError::internal(format!("Failed to resolve workspace: {e}")))?;
         match ws {
@@ -598,7 +598,7 @@ pub async fn workspace_context(
 
     // Verify membership.
     //
-    // NOTE: There is a microsecond-level race between get_default_workspace()
+    // NOTE: There is a microsecond-level race between find_default_workspace()
     // and get_member_role() — a user could be removed between the two calls.
     // This is acceptable because:
     //   1. PostgreSQL RLS is the true enforcement boundary, not this middleware check.

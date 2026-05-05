@@ -1,11 +1,11 @@
-//! [`AnalysisResultStore`] — cached analysis recipe outputs keyed by input hash.
+//! [`RecipeExecutionStore`] — cached analysis recipe outputs keyed by input hash.
 
 use super::*;
 
 #[async_trait]
-impl AnalysisResultStore for PostgresStore {
+impl RecipeExecutionStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn create_analysis_result(&self, r: &AnalysisResult) -> OxResult<()> {
+    async fn create_analysis_result(&self, r: &RecipeExecutionResult) -> OxResult<()> {
         super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO analysis_results (id, recipe_id, ontology_lineage_id, input_hash, output, duration_ms, created_at)
@@ -27,11 +27,11 @@ impl AnalysisResultStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_cached_result(
+    async fn find_cached_result(
         &self,
         input_hash: &str,
         recipe_id: Option<Uuid>,
-    ) -> OxResult<Option<AnalysisResult>> {
+    ) -> OxResult<Option<RecipeExecutionResult>> {
         let result = if let Some(rid) = recipe_id {
             sqlx::query_as(
                 "SELECT * FROM analysis_results WHERE input_hash = $1 AND recipe_id = $2
@@ -61,7 +61,7 @@ impl AnalysisResultStore for PostgresStore {
         &self,
         recipe_id: Uuid,
         limit: i64,
-    ) -> OxResult<Vec<AnalysisResult>> {
+    ) -> OxResult<Vec<RecipeExecutionResult>> {
         sqlx::query_as(
             "SELECT * FROM analysis_results WHERE recipe_id = $1
              ORDER BY created_at DESC LIMIT $2",

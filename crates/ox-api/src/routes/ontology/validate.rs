@@ -44,7 +44,7 @@ pub(crate) async fn get_ontology_validate(
         .ok_or_else(|| AppError::not_found("Ontology"))?;
     let current = state
         .store
-        .get_current_version(identity.id)
+        .find_current_version(identity.id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("ontology has no committed version"))?;

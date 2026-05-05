@@ -69,7 +69,7 @@ pub(crate) async fn create_ontology_draft(
     let workspace_parent_version = match state.store.get_workspace_ontology().await {
         Ok(Some(canonical)) => state
             .store
-            .get_current_version(canonical.id)
+            .find_current_version(canonical.id)
             .await
             .ok()
             .flatten()
@@ -93,7 +93,7 @@ pub(crate) async fn create_ontology_draft(
                 .ok_or_else(AppError::ontology_not_found)?;
             let version = state
                 .store
-                .get_current_version(identity.id)
+                .find_current_version(identity.id)
                 .await
                 .map_err(AppError::from)?
                 .ok_or_else(|| {
@@ -548,7 +548,7 @@ pub(crate) async fn complete_ontology_draft(
         if let Some(identity) = existing_identity {
             let current = state
                 .store
-                .get_current_version(identity.id)
+                .find_current_version(identity.id)
                 .await
                 .map_err(AppError::from)?;
 
@@ -694,7 +694,7 @@ pub(crate) async fn complete_ontology_draft(
             // through the sqlx encoder.
             let breaking_str: Vec<String> = breaking.iter().map(|l| l.to_string()).collect();
             match store
-                .mark_stale_by_labels(&ontology_name, &breaking_str)
+                .expire_knowledge_by_labels(&ontology_name, &breaking_str)
                 .await
             {
                 Ok(count) if count > 0 => {
@@ -1383,7 +1383,7 @@ pub(crate) async fn execute_load_from_source(
                 return;
             };
             let ont_id = canonical.id;
-            let Ok(Some(current_version)) = store.get_current_version(ont_id).await else {
+            let Ok(Some(current_version)) = store.find_current_version(ont_id).await else {
                 return;
             };
             let Ok(Some(ontology)) = store.get_ontology_ir(current_version.id).await else {

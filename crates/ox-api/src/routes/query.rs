@@ -63,7 +63,7 @@ async fn load_ontology_current(
         .ok_or_else(|| AppError::not_found("Ontology"))?;
     let version = state
         .store
-        .get_current_version(identity.id)
+        .find_current_version(identity.id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {
@@ -111,7 +111,7 @@ async fn resolve_temporal(
     // Current version — the label space the caller's QueryIR is authored in.
     let current_version = state
         .store
-        .get_current_version(identity.id)
+        .find_current_version(identity.id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::ontology_not_committed(lineage_id.clone()))?;
@@ -323,7 +323,7 @@ pub(crate) async fn raw_query(
     let ontology_version = if let Some(id) = req.ontology_id {
         state
             .store
-            .get_current_version(id)
+            .find_current_version(id)
             .await
             .map_err(AppError::from)?
             .map(|v| v.version)
@@ -616,7 +616,7 @@ pub(crate) async fn execute_from_ir(
     let ontology_version = if let Some(id) = req.ontology_id {
         state
             .store
-            .get_current_version(id)
+            .find_current_version(id)
             .await
             .map_err(AppError::from)?
             .map(|v| v.version)
@@ -817,7 +817,7 @@ pub(crate) async fn execute_from_ir_federation(
     // Π-3 provenance pre-fetch — same pattern as the Cypher path.
     let ontology_version = state
         .store
-        .get_current_version(ontology_id)
+        .find_current_version(ontology_id)
         .await
         .map_err(AppError::from)?
         .map(|v| v.version);

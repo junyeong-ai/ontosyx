@@ -81,7 +81,7 @@ impl PerspectiveStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_default_perspective(
+    async fn find_default_perspective(
         &self,
         user_id: &str,
         lineage_id: &str,
@@ -100,7 +100,7 @@ impl PerspectiveStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_best_perspective(
+    async fn find_best_perspective(
         &self,
         user_id: &str,
         lineage_id: &str,
