@@ -438,13 +438,27 @@ function FieldControl<T>({
           >
             {variants.map((v) => (
               <option key={v} value={v}>
-                {t(`${field.labelKey}.${v}`)}
+                {t(`${field.labelKey}Options.${v}`)}
               </option>
             ))}
           </FormSelect>
           <StructuredForm
             schema={field.variants[activeVariant]}
             value={value}
+            onChange={onChange}
+            disabled={readOnly}
+          />
+        </div>
+      );
+    }
+
+    case "nested": {
+      const nestedValue = value ?? field.schema.buildDefault();
+      return (
+        <div className="rounded-md border border-divider bg-surface-inset/40 p-2">
+          <StructuredForm
+            schema={field.schema}
+            value={nestedValue}
             onChange={onChange}
             disabled={readOnly}
           />

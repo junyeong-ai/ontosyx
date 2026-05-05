@@ -30,6 +30,7 @@ export type FieldKind =
   | "list"
   | "ref"
   | "discriminated"
+  | "nested"
   | "custom";
 
 // ---------------------------------------------------------------------------
@@ -141,6 +142,15 @@ export interface DiscriminatedField<T> extends FieldBase<T, unknown> {
   variants: Readonly<Record<string, EntitySchema<unknown>>>;
 }
 
+export interface NestedField<T> extends FieldBase<T, unknown> {
+  kind: "nested";
+  /** Sub-schema applied to the nested object. Use for typed compound
+   *  values without a discriminator (e.g., `ColumnRef { relation, column }`,
+   *  `EndpointRef`). The nested schema's `entityKind` is the i18n
+   *  namespace its own labels resolve under. */
+  schema: EntitySchema<unknown>;
+}
+
 export interface CustomField<T> extends FieldBase<T, unknown> {
   kind: "custom";
   /** Bespoke renderer for fields that don't fit the canonical
@@ -164,6 +174,7 @@ export type FieldSchema<T> =
   | ListField<T, unknown>
   | RefField<T>
   | DiscriminatedField<T>
+  | NestedField<T>
   | CustomField<T>;
 
 // ---------------------------------------------------------------------------
@@ -209,7 +220,9 @@ export function findField<T>(
 }
 
 /** Run every field-level validator + the entity-level validator and
- *  return the flat error list. Empty list = record is valid. */
+ *  return the flat error list. Empty list = record is valid. Descends
+ *  into `nested` and `discriminated` sub-schemas so a typed compound
+ *  field's invariants are part of the same flat error report. */
 export function validateRecord<T>(
   schema: EntitySchema<T>,
   record: T,
@@ -227,6 +240,17 @@ export function validateRecord<T>(
     }
     const fieldError = field.validate?.(value as never, record);
     if (fieldError) errors.push(fieldError);
+    if (field.kind === "nested" && value != null) {
+      errors.push(...validateRecord(field.schema, value));
+    } else if (field.kind === "discriminated" && value != null) {
+      const tag = (value as Record<string, unknown>)[field.tag] as
+        | string
+        | undefined;
+      const variant = tag ? field.variants[tag] : undefined;
+      if (variant) {
+        errors.push(...validateRecord(variant, value));
+      }
+    }
   }
   if (schema.validate) errors.push(...schema.validate(record));
   return errors;
