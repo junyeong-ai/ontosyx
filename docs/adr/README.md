@@ -38,6 +38,7 @@ why the earlier shape existed.
 | 0023 | `HeuristicProposal` queue + no-auto-decisions       | Accepted |
 | 0024 | `advisory_lock` boot + cron singleton coordination  | Accepted |
 | 0025 | Migration immutability + SHA-pinned baseline        | Accepted |
+| 0026 | Design system Φ1–Φ7 landed (token + primitive + …) | Accepted |
 
 Companion architecture documents live in `../architecture/`:
 
