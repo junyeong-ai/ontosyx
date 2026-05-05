@@ -48,7 +48,7 @@ pub struct CreateApprovalCommentRequest {
     path = "/api/approvals",
     tag = "Approvals",
     responses(
-        (status = 200, description = "Pending approvals for the current workspace.", body = Vec<crate::openapi::ApprovalRequest>),
+        (status = 200, description = "Pending approvals for the current workspace.", body = Vec<ox_store::ApprovalRequest>),
         (status = 401, description = "Unauthenticated.", body = crate::openapi::ErrorResponse),
     ),
     security(("api_key" = [])),
@@ -77,7 +77,7 @@ pub(crate) async fn list_approvals(
     tag = "Approvals",
     params(("id" = Uuid, Path, description = "Approval request id")),
     responses(
-        (status = 200, description = "The approval request.", body = crate::openapi::ApprovalRequest),
+        (status = 200, description = "The approval request.", body = ox_store::ApprovalRequest),
         (status = 404, description = "Not found.", body = crate::openapi::ErrorResponse),
     ),
     security(("api_key" = [])),
@@ -231,7 +231,7 @@ pub(crate) async fn bulk_review_approvals(
     tag = "Approvals",
     params(("id" = Uuid, Path, description = "Approval request id")),
     responses(
-        (status = 200, description = "Thread of comments attached to this approval, oldest first.", body = Vec<crate::openapi::ApprovalComment>),
+        (status = 200, description = "Thread of comments attached to this approval, oldest first.", body = Vec<ox_store::ApprovalComment>),
         (status = 404, description = "Not found.", body = crate::openapi::ErrorResponse),
     ),
     security(("api_key" = [])),
@@ -269,7 +269,7 @@ pub(crate) async fn list_approval_comments(
     params(("id" = Uuid, Path, description = "Approval request id")),
     request_body = CreateApprovalCommentRequest,
     responses(
-        (status = 201, description = "Comment created and appended to the thread.", body = crate::openapi::ApprovalComment),
+        (status = 201, description = "Comment created and appended to the thread.", body = ox_store::ApprovalComment),
         (status = 400, description = "Empty body after trim.", body = crate::openapi::ErrorResponse),
         (status = 404, description = "Parent approval not found.", body = crate::openapi::ErrorResponse),
     ),

@@ -1255,7 +1255,7 @@ pub struct AuditTrailFilter {
 /// commit time; the surrounding fields attribute it to the source
 /// ontology so a multi-ontology workspace can render a rolled-up
 /// view without an extra detail fetch.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct AuditRecord {
     pub ontology_id: Uuid,
     pub ontology_lineage_id: String,

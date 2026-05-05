@@ -12,7 +12,7 @@ use uuid::Uuid;
 /// is referenced directly and the caller resolves a concrete version through
 /// `OntologyVersionStore`. Draft / unsaved executions store `ontology_snapshot`
 /// inline so an ad-hoc query that never gets committed still round-trips.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct QueryExecution {
     pub id: Uuid,
     pub user_id: String,
@@ -47,7 +47,7 @@ pub struct QueryExecution {
 }
 
 /// Lightweight projection for list endpoints (excludes large JSONB blobs).
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct QueryExecutionSummary {
     pub id: Uuid,
     pub question: String,
@@ -196,7 +196,7 @@ pub struct DiffRow {
 // row-shape DTOs.
 
 /// A pinned query result for quick access.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct PinboardItem {
     pub id: Uuid,
     pub query_execution_id: Uuid,
@@ -419,7 +419,7 @@ pub struct OntologyDraftSummary {
 // Ontology snapshots — revision history for design projects
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct OntologySnapshot {
     pub id: Uuid,
     pub ontology_draft_id: Uuid,
@@ -432,7 +432,7 @@ pub struct OntologySnapshot {
 }
 
 /// Lightweight projection for listing snapshots (excludes large JSONB blobs).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OntologySnapshotSummary {
     pub id: Uuid,
     pub revision: i32,
@@ -461,7 +461,7 @@ pub struct SystemConfigRow {
 // ---------------------------------------------------------------------------
 
 /// A saved workbench perspective: node positions, viewport, filters, etc.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct WorkbenchPerspective {
     pub id: Uuid,
     pub user_id: String,
@@ -483,7 +483,7 @@ pub struct WorkbenchPerspective {
 // Dashboard
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct Dashboard {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -564,7 +564,7 @@ pub struct ScheduledTask {
 // DashboardWidget — a saved query/analysis bound to a dashboard
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct DashboardWidget {
     pub id: Uuid,
     pub dashboard_id: Uuid,
@@ -821,7 +821,7 @@ pub struct UsageSummary {
 // Approval Requests — configurable gates for schema deployment & migration
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct ApprovalRequest {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -842,7 +842,7 @@ pub struct ApprovalRequest {
 /// One entry in the comment thread attached to an approval request.
 /// The reviewer's decision-time rationale is the first comment; any
 /// pre-/post-decision discussion follows in the same thread.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct ApprovalComment {
     pub id: Uuid,
     pub workspace_id: Uuid,

@@ -10367,7 +10367,7 @@
       },
       "ApprovalComment": {
         "type": "object",
-        "description": "One entry in the comment thread attached to an approval. The\nreviewer's decision-time rationale is the first comment; any\npre-/post-decision discussion follows in the same thread.",
+        "description": "One entry in the comment thread attached to an approval request.\nThe reviewer's decision-time rationale is the first comment; any\npre-/post-decision discussion follows in the same thread.",
         "required": [
           "id",
           "workspace_id",
@@ -10455,7 +10455,6 @@
       },
       "ApprovalRequest": {
         "type": "object",
-        "description": "Approval request — a queued gated operation awaiting review.",
         "required": [
           "id",
           "workspace_id",
@@ -10493,8 +10492,7 @@
             "type": [
               "string",
               "null"
-            ],
-            "description": "Display name resolved server-side from `users.name`. NULL when\nthe requester has been deleted from the workspace."
+            ]
           },
           "resource_id": {
             "type": "string"
@@ -10523,8 +10521,7 @@
             ]
           },
           "status": {
-            "type": "string",
-            "description": "`pending`, `approved`, `rejected`, or `expired`."
+            "type": "string"
           },
           "workspace_id": {
             "type": "string",
@@ -10662,7 +10659,7 @@
       },
       "AuditRecord": {
         "type": "object",
-        "description": "One record in the workspace-wide PROV-O audit stream. The\n`provenance` payload is the content-addressed `ProvenanceDef`\nemitted at IR commit time; the surrounding fields attribute it\nto the source ontology.",
+        "description": "One record in the audit stream. The `provenance` payload is the\ncontent-addressed PROV-O entity (`ProvenanceDef`) emitted at IR\ncommit time; the surrounding fields attribute it to the source\nontology so a multi-ontology workspace can render a rolled-up\nview without an extra detail fetch.",
         "required": [
           "ontology_id",
           "ontology_lineage_id",
@@ -10685,14 +10682,12 @@
           "ontology_name": {
             "type": "string"
           },
-          "provenance": {
-            "description": "`ProvenanceDef` JSON. Mirrors `crates/ox-ontology/src/provenance.rs`."
-          }
+          "provenance": {}
         }
       },
       "AuditRecordPage": {
         "type": "object",
-        "description": "Cursor-paginated audit page. The wire shape is\n`{ items: [...], next_cursor?: string }`. `next_cursor` is\nabsent when no further pages exist.",
+        "description": "Approval request — a queued gated operation awaiting review.\nOne entry in the comment thread attached to an approval. The\nreviewer's decision-time rationale is the first comment; any\npre-/post-decision discussion follows in the same thread.\nOne record in the workspace-wide PROV-O audit stream. The\n`provenance` payload is the content-addressed `ProvenanceDef`\nemitted at IR commit time; the surrounding fields attribute it\nto the source ontology.\nCursor-paginated audit page. The wire shape is\n`{ items: [...], next_cursor?: string }`. `next_cursor` is\nabsent when no further pages exist.",
         "required": [
           "items"
         ],
@@ -12834,7 +12829,6 @@
       },
       "Dashboard": {
         "type": "object",
-        "description": "Design project — ontology design lifecycle.\nDesign project summary (lightweight, for list endpoints).\nSaved dashboard — workspace-scoped, owner-private until shared.",
         "required": [
           "id",
           "workspace_id",
@@ -12863,10 +12857,7 @@
           "is_public": {
             "type": "boolean"
           },
-          "layout": {
-            "type": "object",
-            "description": "JSON array of `{widget_id, x, y, w, h}` placements."
-          },
+          "layout": {},
           "name": {
             "type": "string"
           },
@@ -12875,7 +12866,8 @@
               "string",
               "null"
             ],
-            "format": "date-time"
+            "format": "date-time",
+            "description": "When the share token expires. `None` means never (legacy rows);\nnew shares always set this via `update_dashboard_share_token`."
           },
           "share_token": {
             "type": [
@@ -12905,7 +12897,6 @@
       },
       "DashboardWidget": {
         "type": "object",
-        "description": "One widget on a dashboard.",
         "required": [
           "id",
           "dashboard_id",
@@ -12936,15 +12927,8 @@
             ],
             "format": "date-time"
           },
-          "last_result": {
-            "type": [
-              "object",
-              "null"
-            ]
-          },
-          "position": {
-            "type": "object"
-          },
+          "last_result": {},
+          "position": {},
           "query": {
             "type": [
               "string",
@@ -12958,18 +12942,11 @@
             ],
             "format": "int32"
           },
-          "thresholds": {
-            "type": [
-              "object",
-              "null"
-            ]
-          },
+          "thresholds": {},
           "title": {
             "type": "string"
           },
-          "widget_spec": {
-            "type": "object"
-          },
+          "widget_spec": {},
           "widget_type": {
             "type": "string"
           },
@@ -16738,10 +16715,10 @@
       },
       "OntologySnapshot": {
         "type": "object",
-        "description": "Ontology revision snapshot.",
         "required": [
           "id",
           "ontology_draft_id",
+          "workspace_id",
           "revision",
           "ontology",
           "created_at"
@@ -16755,7 +16732,9 @@
             "type": "string",
             "format": "uuid"
           },
-          "ontology": {},
+          "ontology": {
+            "description": "OntologyIR JSON — includes canonical `object_mappings`."
+          },
           "ontology_draft_id": {
             "type": "string",
             "format": "uuid"
@@ -16764,12 +16743,16 @@
           "revision": {
             "type": "integer",
             "format": "int32"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
       "OntologySnapshotSummary": {
         "type": "object",
-        "description": "Ontology revision snapshot summary (lightweight).",
+        "description": "Lightweight projection for listing snapshots (excludes large JSONB blobs).",
         "required": [
           "id",
           "revision",
@@ -17388,7 +17371,7 @@
       },
       "PinboardItem": {
         "type": "object",
-        "description": "Pinboard item — a saved query result.",
+        "description": "A pinned query result for quick access.",
         "required": [
           "id",
           "query_execution_id",
@@ -17592,7 +17575,7 @@
       },
       "PromptTemplateRow": {
         "type": "object",
-        "description": "Prompt template row (admin-only — wired by `routes/prompts_admin.rs`).\n\n`version` is the semver string (e.g. `1.2.3`). `workspace_id = null`\nmeans the template is global; a concrete uuid scopes it to one\nworkspace (used by the `/api/admin/prompts` workspace-override flow).",
+        "description": "Design project — ontology design lifecycle.\nDesign project summary (lightweight, for list endpoints).\nSaved dashboard — workspace-scoped, owner-private until shared.\nOne widget on a dashboard.\nQuery execution record.\nQuery execution summary (lightweight, for list endpoints).\nPinboard item — a saved query result.\nWorkbench perspective — saved canvas state.\nOntology revision snapshot.\nOntology revision snapshot summary (lightweight).\nPrompt template row (admin-only — wired by `routes/prompts_admin.rs`).\n\n`version` is the semver string (e.g. `1.2.3`). `workspace_id = null`\nmeans the template is global; a concrete uuid scopes it to one\nworkspace (used by the `/api/admin/prompts` workspace-override flow).",
         "required": [
           "id",
           "name",
@@ -18774,7 +18757,7 @@
       },
       "QueryExecution": {
         "type": "object",
-        "description": "Query execution record.",
+        "description": "A single query execution record: NL question → QueryIR → compiled → results.\n\nOntology reproducibility: when `ontology_id` is set, the ontology identity\nis referenced directly and the caller resolves a concrete version through\n`OntologyVersionStore`. Draft / unsaved executions store `ontology_snapshot`\ninline so an ad-hoc query that never gets committed still round-trips.",
         "required": [
           "id",
           "user_id",
@@ -18795,7 +18778,8 @@
             "type": "string"
           },
           "compiled_target": {
-            "type": "string"
+            "type": "string",
+            "description": "Compiler target language (e.g., \"cypher\")"
           },
           "created_at": {
             "type": "string",
@@ -18808,29 +18792,43 @@
           "explanation": {
             "type": "string"
           },
+          "feedback": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "User feedback on query accuracy: \"positive\" or \"negative\""
+          },
           "id": {
             "type": "string",
             "format": "uuid"
           },
           "model": {
-            "type": "string"
+            "type": "string",
+            "description": "LLM model used"
           },
           "ontology_id": {
             "type": [
               "string",
               "null"
             ],
-            "format": "uuid"
+            "format": "uuid",
+            "description": "FK to `ontologies.id` — the committed ontology identity this query\nran against. When set, `ontology_snapshot` is NULL."
           },
           "ontology_lineage_id": {
-            "type": "string"
+            "type": "string",
+            "description": "Lineage identifier (OntologyIR.id) at execution time. Stable\nacross revisions of the same ontology — used for grouping\nexecutions under one ontology even when its version changes."
           },
-          "ontology_snapshot": {},
+          "ontology_snapshot": {
+            "description": "Full OntologyIR snapshot (NULL when ontology_id is set)"
+          },
           "ontology_version": {
             "type": "integer",
             "format": "int32"
           },
-          "query_bindings": {},
+          "query_bindings": {
+            "description": "Resolved query bindings for graph highlighting (binding-aware provenance)"
+          },
           "query_ir": {},
           "question": {
             "type": "string"
@@ -18844,7 +18842,7 @@
       },
       "QueryExecutionSummary": {
         "type": "object",
-        "description": "Query execution summary (lightweight, for list endpoints).",
+        "description": "Lightweight projection for list endpoints (excludes large JSONB blobs).",
         "required": [
           "id",
           "question",
@@ -23311,10 +23309,11 @@
       },
       "WorkbenchPerspective": {
         "type": "object",
-        "description": "Workbench perspective — saved canvas state.",
+        "description": "A saved workbench perspective: node positions, viewport, filters, etc.",
         "required": [
           "id",
           "user_id",
+          "workspace_id",
           "lineage_id",
           "topology_signature",
           "name",
@@ -23364,7 +23363,11 @@
           "user_id": {
             "type": "string"
           },
-          "viewport": {}
+          "viewport": {},
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          }
         }
       },
       "WorkspaceMeResponse": {

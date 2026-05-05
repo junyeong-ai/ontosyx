@@ -508,8 +508,8 @@ impl Modify for SecurityAddon {
             users::UpdateUserRoleRequest,
             users::UserRoleUpdateResponse,
             // Dashboards
-            Dashboard,
-            DashboardWidget,
+            ox_store::Dashboard,
+            ox_store::DashboardWidget,
             dashboards::CreateDashboardRequest,
             dashboards::UpdateDashboardRequest,
             dashboards::CreateWidgetRequest,
@@ -518,22 +518,22 @@ impl Modify for SecurityAddon {
             dashboards::ShareDashboardResponse,
             dashboards::SharedDashboardResponse,
             dashboards::SharedWidgetResponse,
-            QueryExecution,
-            QueryExecutionSummary,
-            PinboardItem,
-            WorkbenchPerspective,
-            OntologySnapshot,
-            OntologySnapshotSummary,
+            ox_store::QueryExecution,
+            ox_store::QueryExecutionSummary,
+            ox_store::PinboardItem,
+            ox_store::WorkbenchPerspective,
+            ox_store::OntologySnapshot,
+            ox_store::OntologySnapshotSummary,
             // Approvals
-            ApprovalRequest,
-            ApprovalComment,
+            ox_store::ApprovalRequest,
+            ox_store::ApprovalComment,
             approvals::ReviewApprovalRequest,
             approvals::ReviewApprovalResponse,
             approvals::BulkReviewApprovalsRequest,
             approvals::BulkReviewApprovalsResponse,
             approvals::CreateApprovalCommentRequest,
             // Audit
-            AuditRecord,
+            ox_store::AuditRecord,
             AuditRecordPage,
             // Governance routing — wire types come from ox-ontology so the
             // route layer never reshapes the canonical IR enums.
@@ -619,149 +619,13 @@ pub struct CursorParams {
 /// Design project — ontology design lifecycle.
 /// Design project summary (lightweight, for list endpoints).
 /// Saved dashboard — workspace-scoped, owner-private until shared.
-#[derive(ToSchema)]
-#[schema(as = Dashboard)]
-#[allow(dead_code)]
-pub struct Dashboard {
-    pub id: uuid::Uuid,
-    pub workspace_id: uuid::Uuid,
-    pub user_id: String,
-    pub name: String,
-    pub description: Option<String>,
-    /// JSON array of `{widget_id, x, y, w, h}` placements.
-    #[schema(value_type = Object)]
-    pub layout: serde_json::Value,
-    pub is_public: bool,
-    pub share_token: Option<String>,
-    pub shared_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub share_expires_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// One widget on a dashboard.
-#[derive(ToSchema)]
-#[schema(as = DashboardWidget)]
-#[allow(dead_code)]
-pub struct DashboardWidget {
-    pub id: uuid::Uuid,
-    pub dashboard_id: uuid::Uuid,
-    pub workspace_id: uuid::Uuid,
-    pub title: String,
-    pub widget_type: String,
-    pub query: Option<String>,
-    #[schema(value_type = Object)]
-    pub widget_spec: serde_json::Value,
-    #[schema(value_type = Object)]
-    pub position: serde_json::Value,
-    pub refresh_interval_secs: Option<i32>,
-    #[schema(value_type = Option<Object>)]
-    pub last_result: Option<serde_json::Value>,
-    pub last_refreshed: Option<chrono::DateTime<chrono::Utc>>,
-    #[schema(value_type = Option<Object>)]
-    pub thresholds: Option<serde_json::Value>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// Query execution record.
-#[derive(ToSchema)]
-#[schema(as = QueryExecution)]
-#[allow(dead_code)]
-pub struct QueryExecution {
-    pub id: uuid::Uuid,
-    pub user_id: String,
-    pub question: String,
-    pub ontology_lineage_id: String,
-    pub ontology_version: i32,
-    pub ontology_id: Option<uuid::Uuid>,
-    pub ontology_snapshot: Option<serde_json::Value>,
-    pub query_ir: serde_json::Value,
-    pub compiled_target: String,
-    pub compiled_query: String,
-    pub results: serde_json::Value,
-    pub widget: Option<serde_json::Value>,
-    pub explanation: String,
-    pub model: String,
-    pub execution_time_ms: i64,
-    pub query_bindings: Option<serde_json::Value>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// Query execution summary (lightweight, for list endpoints).
-#[derive(ToSchema)]
-#[schema(as = QueryExecutionSummary)]
-#[allow(dead_code)]
-pub struct QueryExecutionSummary {
-    pub id: uuid::Uuid,
-    pub question: String,
-    pub ontology_lineage_id: String,
-    pub ontology_version: i32,
-    pub compiled_target: String,
-    pub model: String,
-    pub execution_time_ms: i64,
-    pub row_count: i64,
-    pub has_widget: bool,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// Pinboard item — a saved query result.
-#[derive(ToSchema)]
-#[schema(as = PinboardItem)]
-#[allow(dead_code)]
-pub struct PinboardItem {
-    pub id: uuid::Uuid,
-    pub query_execution_id: uuid::Uuid,
-    pub user_id: String,
-    pub widget_spec: serde_json::Value,
-    pub title: Option<String>,
-    pub pinned_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// Workbench perspective — saved canvas state.
-#[derive(ToSchema)]
-#[schema(as = WorkbenchPerspective)]
-#[allow(dead_code)]
-pub struct WorkbenchPerspective {
-    pub id: uuid::Uuid,
-    pub user_id: String,
-    pub lineage_id: String,
-    pub topology_signature: String,
-    pub ontology_draft_id: Option<uuid::Uuid>,
-    pub name: String,
-    pub positions: serde_json::Value,
-    pub viewport: serde_json::Value,
-    pub filters: serde_json::Value,
-    pub collapsed_groups: serde_json::Value,
-    pub is_default: bool,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// Ontology revision snapshot.
-#[derive(ToSchema)]
-#[schema(as = OntologySnapshot)]
-#[allow(dead_code)]
-pub struct OntologySnapshot {
-    pub id: uuid::Uuid,
-    pub ontology_draft_id: uuid::Uuid,
-    pub revision: i32,
-    pub ontology: serde_json::Value,
-    pub quality_report: Option<serde_json::Value>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// Ontology revision snapshot summary (lightweight).
-#[derive(ToSchema)]
-#[schema(as = OntologySnapshotSummary)]
-#[allow(dead_code)]
-pub struct OntologySnapshotSummary {
-    pub id: uuid::Uuid,
-    pub revision: i32,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub node_count: i64,
-    pub edge_count: i64,
-}
-
 /// Prompt template row (admin-only — wired by `routes/prompts_admin.rs`).
 ///
 /// `version` is the semver string (e.g. `1.2.3`). `workspace_id = null`
@@ -784,67 +648,19 @@ pub struct PromptTemplateRow {
 }
 
 /// Approval request — a queued gated operation awaiting review.
-#[derive(ToSchema)]
-#[schema(as = ApprovalRequest)]
-#[allow(dead_code)]
-pub struct ApprovalRequest {
-    pub id: uuid::Uuid,
-    pub workspace_id: uuid::Uuid,
-    pub requester_id: uuid::Uuid,
-    /// Display name resolved server-side from `users.name`. NULL when
-    /// the requester has been deleted from the workspace.
-    pub requester_name: Option<String>,
-    pub action_type: String,
-    pub resource_type: String,
-    pub resource_id: String,
-    pub payload: serde_json::Value,
-    /// `pending`, `approved`, `rejected`, or `expired`.
-    pub status: String,
-    pub reviewer_id: Option<uuid::Uuid>,
-    pub reviewer_name: Option<String>,
-    pub reviewed_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub expires_at: chrono::DateTime<chrono::Utc>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// One entry in the comment thread attached to an approval. The
 /// reviewer's decision-time rationale is the first comment; any
 /// pre-/post-decision discussion follows in the same thread.
-#[derive(ToSchema)]
-#[schema(as = ApprovalComment)]
-#[allow(dead_code)]
-pub struct ApprovalComment {
-    pub id: uuid::Uuid,
-    pub workspace_id: uuid::Uuid,
-    pub approval_id: uuid::Uuid,
-    pub author_id: uuid::Uuid,
-    pub author_name: Option<String>,
-    pub body: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// One record in the workspace-wide PROV-O audit stream. The
 /// `provenance` payload is the content-addressed `ProvenanceDef`
 /// emitted at IR commit time; the surrounding fields attribute it
 /// to the source ontology.
-#[derive(ToSchema)]
-#[schema(as = AuditRecord)]
-#[allow(dead_code)]
-pub struct AuditRecord {
-    pub ontology_id: uuid::Uuid,
-    pub ontology_lineage_id: String,
-    pub ontology_name: String,
-    /// `ProvenanceDef` JSON. Mirrors `crates/ox-ontology/src/provenance.rs`.
-    pub provenance: serde_json::Value,
-    pub at_time: chrono::DateTime<chrono::Utc>,
-}
-
 /// Cursor-paginated audit page. The wire shape is
 /// `{ items: [...], next_cursor?: string }`. `next_cursor` is
 /// absent when no further pages exist.
 #[derive(ToSchema)]
 #[allow(dead_code)]
 pub struct AuditRecordPage {
-    pub items: Vec<AuditRecord>,
+    pub items: Vec<ox_store::AuditRecord>,
     pub next_cursor: Option<String>,
 }

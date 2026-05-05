@@ -2681,8 +2681,8 @@ export interface components {
             project: components["schemas"]["OntologyDraftView"];
         };
         /**
-         * @description One entry in the comment thread attached to an approval. The
-         *     reviewer's decision-time rationale is the first comment; any
+         * @description One entry in the comment thread attached to an approval request.
+         *     The reviewer's decision-time rationale is the first comment; any
          *     pre-/post-decision discussion follows in the same thread.
          */
         ApprovalComment: {
@@ -2723,7 +2723,6 @@ export interface components {
             /** @description Human-readable rationale shown in the approval UI. */
             rationale?: components["schemas"]["LocalizedText"];
         };
-        /** @description Approval request — a queued gated operation awaiting review. */
         ApprovalRequest: {
             action_type: string;
             /** Format: date-time */
@@ -2735,10 +2734,6 @@ export interface components {
             payload: unknown;
             /** Format: uuid */
             requester_id: string;
-            /**
-             * @description Display name resolved server-side from `users.name`. NULL when
-             *     the requester has been deleted from the workspace.
-             */
             requester_name?: string | null;
             resource_id: string;
             resource_type: string;
@@ -2747,7 +2742,6 @@ export interface components {
             /** Format: uuid */
             reviewer_id?: string | null;
             reviewer_name?: string | null;
-            /** @description `pending`, `approved`, `rejected`, or `expired`. */
             status: string;
             /** Format: uuid */
             workspace_id: string;
@@ -2799,10 +2793,11 @@ export interface components {
             threshold: number;
         };
         /**
-         * @description One record in the workspace-wide PROV-O audit stream. The
-         *     `provenance` payload is the content-addressed `ProvenanceDef`
-         *     emitted at IR commit time; the surrounding fields attribute it
-         *     to the source ontology.
+         * @description One record in the audit stream. The `provenance` payload is the
+         *     content-addressed PROV-O entity (`ProvenanceDef`) emitted at IR
+         *     commit time; the surrounding fields attribute it to the source
+         *     ontology so a multi-ontology workspace can render a rolled-up
+         *     view without an extra detail fetch.
          */
         AuditRecord: {
             /** Format: date-time */
@@ -2811,11 +2806,18 @@ export interface components {
             ontology_id: string;
             ontology_lineage_id: string;
             ontology_name: string;
-            /** @description `ProvenanceDef` JSON. Mirrors `crates/ox-ontology/src/provenance.rs`. */
             provenance: unknown;
         };
         /**
-         * @description Cursor-paginated audit page. The wire shape is
+         * @description Approval request — a queued gated operation awaiting review.
+         *     One entry in the comment thread attached to an approval. The
+         *     reviewer's decision-time rationale is the first comment; any
+         *     pre-/post-decision discussion follows in the same thread.
+         *     One record in the workspace-wide PROV-O audit stream. The
+         *     `provenance` payload is the content-addressed `ProvenanceDef`
+         *     emitted at IR commit time; the surrounding fields attribute it
+         *     to the source ontology.
+         *     Cursor-paginated audit page. The wire shape is
          *     `{ items: [...], next_cursor?: string }`. `next_cursor` is
          *     absent when no further pages exist.
          */
@@ -3824,11 +3826,6 @@ export interface components {
             /** Format: double */
             y: number;
         };
-        /**
-         * @description Design project — ontology design lifecycle.
-         *     Design project summary (lightweight, for list endpoints).
-         *     Saved dashboard — workspace-scoped, owner-private until shared.
-         */
         Dashboard: {
             /** Format: date-time */
             created_at: string;
@@ -3836,10 +3833,13 @@ export interface components {
             /** Format: uuid */
             id: string;
             is_public: boolean;
-            /** @description JSON array of `{widget_id, x, y, w, h}` placements. */
-            layout: Record<string, never>;
+            layout: unknown;
             name: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the share token expires. `None` means never (legacy rows);
+             *     new shares always set this via `update_dashboard_share_token`.
+             */
             share_expires_at?: string | null;
             share_token?: string | null;
             /** Format: date-time */
@@ -3850,7 +3850,6 @@ export interface components {
             /** Format: uuid */
             workspace_id: string;
         };
-        /** @description One widget on a dashboard. */
         DashboardWidget: {
             /** Format: date-time */
             created_at: string;
@@ -3860,14 +3859,14 @@ export interface components {
             id: string;
             /** Format: date-time */
             last_refreshed?: string | null;
-            last_result?: Record<string, never> | null;
-            position: Record<string, never>;
+            last_result?: unknown;
+            position: unknown;
             query?: string | null;
             /** Format: int32 */
             refresh_interval_secs?: number | null;
-            thresholds?: Record<string, never> | null;
+            thresholds?: unknown;
             title: string;
-            widget_spec: Record<string, never>;
+            widget_spec: unknown;
             widget_type: string;
             /** Format: uuid */
             workspace_id: string;
@@ -5698,20 +5697,22 @@ export interface components {
             /** @description Version metadata (number + temporal window + provenance). */
             version: components["schemas"]["OntologyVersion"];
         };
-        /** @description Ontology revision snapshot. */
         OntologySnapshot: {
             /** Format: date-time */
             created_at: string;
             /** Format: uuid */
             id: string;
+            /** @description OntologyIR JSON — includes canonical `object_mappings`. */
             ontology: unknown;
             /** Format: uuid */
             ontology_draft_id: string;
             quality_report?: unknown;
             /** Format: int32 */
             revision: number;
+            /** Format: uuid */
+            workspace_id: string;
         };
-        /** @description Ontology revision snapshot summary (lightweight). */
+        /** @description Lightweight projection for listing snapshots (excludes large JSONB blobs). */
         OntologySnapshotSummary: {
             /** Format: date-time */
             created_at: string;
@@ -5925,7 +5926,7 @@ export interface components {
             kind: "other";
             value: string;
         };
-        /** @description Pinboard item — a saved query result. */
+        /** @description A pinned query result for quick access. */
         PinboardItem: {
             /** Format: uuid */
             id: string;
@@ -5991,7 +5992,17 @@ export interface components {
             version: string;
         };
         /**
-         * @description Prompt template row (admin-only — wired by `routes/prompts_admin.rs`).
+         * @description Design project — ontology design lifecycle.
+         *     Design project summary (lightweight, for list endpoints).
+         *     Saved dashboard — workspace-scoped, owner-private until shared.
+         *     One widget on a dashboard.
+         *     Query execution record.
+         *     Query execution summary (lightweight, for list endpoints).
+         *     Pinboard item — a saved query result.
+         *     Workbench perspective — saved canvas state.
+         *     Ontology revision snapshot.
+         *     Ontology revision snapshot summary (lightweight).
+         *     Prompt template row (admin-only — wired by `routes/prompts_admin.rs`).
          *
          *     `version` is the semver string (e.g. `1.2.3`). `workspace_id = null`
          *     means the template is global; a concrete uuid scopes it to one
@@ -6409,24 +6420,46 @@ export interface components {
         };
         /** @description Stable identifier for a provenance record. */
         ProvenanceId: string;
-        /** @description Query execution record. */
+        /**
+         * @description A single query execution record: NL question → QueryIR → compiled → results.
+         *
+         *     Ontology reproducibility: when `ontology_id` is set, the ontology identity
+         *     is referenced directly and the caller resolves a concrete version through
+         *     `OntologyVersionStore`. Draft / unsaved executions store `ontology_snapshot`
+         *     inline so an ad-hoc query that never gets committed still round-trips.
+         */
         QueryExecution: {
             compiled_query: string;
+            /** @description Compiler target language (e.g., "cypher") */
             compiled_target: string;
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
             execution_time_ms: number;
             explanation: string;
+            /** @description User feedback on query accuracy: "positive" or "negative" */
+            feedback?: string | null;
             /** Format: uuid */
             id: string;
+            /** @description LLM model used */
             model: string;
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description FK to `ontologies.id` — the committed ontology identity this query
+             *     ran against. When set, `ontology_snapshot` is NULL.
+             */
             ontology_id?: string | null;
+            /**
+             * @description Lineage identifier (OntologyIR.id) at execution time. Stable
+             *     across revisions of the same ontology — used for grouping
+             *     executions under one ontology even when its version changes.
+             */
             ontology_lineage_id: string;
+            /** @description Full OntologyIR snapshot (NULL when ontology_id is set) */
             ontology_snapshot?: unknown;
             /** Format: int32 */
             ontology_version: number;
+            /** @description Resolved query bindings for graph highlighting (binding-aware provenance) */
             query_bindings?: unknown;
             query_ir: unknown;
             question: string;
@@ -6434,7 +6467,7 @@ export interface components {
             user_id: string;
             widget?: unknown;
         };
-        /** @description Query execution summary (lightweight, for list endpoints). */
+        /** @description Lightweight projection for list endpoints (excludes large JSONB blobs). */
         QueryExecutionSummary: {
             compiled_target: string;
             /** Format: date-time */
@@ -8052,7 +8085,7 @@ export interface components {
             title?: string | null;
             widget_type?: string | null;
         };
-        /** @description Workbench perspective — saved canvas state. */
+        /** @description A saved workbench perspective: node positions, viewport, filters, etc. */
         WorkbenchPerspective: {
             collapsed_groups: unknown;
             /** Format: date-time */
@@ -8071,6 +8104,8 @@ export interface components {
             updated_at: string;
             user_id: string;
             viewport: unknown;
+            /** Format: uuid */
+            workspace_id: string;
         };
         /**
          * @description Per-request workspace identity surface for the FE. Carries the
