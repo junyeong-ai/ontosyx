@@ -14,6 +14,7 @@ pub mod design;
 pub mod knowledge_rag;
 pub mod knowledge_util;
 pub mod model_resolver;
+pub mod plan_router;
 pub mod prompts;
 pub mod provider;
 pub mod schema;
