@@ -25,14 +25,10 @@ export function useSourcePreview(source: ProjectSource | null) {
       // The wire shape is `#[serde(flatten)] source: ProjectSource`,
       // so the source's discriminator + fields sit at the top level
       // rather than nested under a `source` key.
-      const res = await request<{ data: PreviewSourceResponse }>(
-        PREVIEW_PATH,
-        {
-          method: "POST",
-          body: JSON.stringify(source),
-        },
-      );
-      return res.data;
+      return request<PreviewSourceResponse>(PREVIEW_PATH, {
+        method: "POST",
+        body: JSON.stringify(source),
+      });
     },
     enabled: source !== null,
     // Preview results reflect the source's catalog at fetch time —

@@ -9,29 +9,29 @@ import type {
 const BASE = "/insights";
 
 export async function createInsight(req: CreateInsightRequest): Promise<InsightDef> {
-  const res = await request<{ data: { insight: InsightDef } }>(BASE, {
+  const res = await request<{ insight: InsightDef }>(BASE, {
     method: "POST",
     body: JSON.stringify(req),
   });
-  return res.data.insight;
+  return res.insight;
 }
 
 export async function updateInsight(
   id: string,
   req: UpdateInsightRequest,
 ): Promise<InsightDef> {
-  const res = await request<{ data: { insight: InsightDef } }>(
+  const res = await request<{ insight: InsightDef }>(
     `${BASE}/${encodeURIComponent(id)}`,
     { method: "PUT", body: JSON.stringify(req) },
   );
-  return res.data.insight;
+  return res.insight;
 }
 
 export async function getInsight(id: string): Promise<InsightDef> {
-  const res = await request<{ data: { insight: InsightDef } }>(
+  const res = await request<{ insight: InsightDef }>(
     `${BASE}/${encodeURIComponent(id)}`,
   );
-  return res.data.insight;
+  return res.insight;
 }
 
 export interface ListInsightsParams {
@@ -61,8 +61,7 @@ export async function listInsights(
   if (params.cursor) qs.set("cursor", params.cursor);
   if (params.limit) qs.set("limit", String(params.limit));
   const suffix = qs.toString() ? `?${qs}` : "";
-  const res = await request<{ data: InsightListPage }>(`${BASE}${suffix}`);
-  return res.data;
+  return request<InsightListPage>(`${BASE}${suffix}`);
 }
 
 export async function deleteInsight(id: string): Promise<void> {

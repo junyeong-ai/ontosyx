@@ -24,15 +24,16 @@ const FIXTURE_SOURCE: ProjectSource = {
 };
 
 function previewResponse() {
+  // `request<T>` strips the `ApiResponse<T>` envelope before
+  // returning, so the mock returns the unwrapped payload to mirror
+  // the production contract.
   return {
-    data: {
-      source_type: "postgresql",
-      tables: [
-        { name: "audit_log", estimated_row_count: null, column_count: 4, last_modified: null },
-        { name: "customers", estimated_row_count: 1000, column_count: 8, last_modified: null },
-        { name: "orders", estimated_row_count: 5000, column_count: 12, last_modified: null },
-      ],
-    },
+    source_type: "postgresql",
+    tables: [
+      { name: "audit_log", estimated_row_count: null, column_count: 4, last_modified: null },
+      { name: "customers", estimated_row_count: 1000, column_count: 8, last_modified: null },
+      { name: "orders", estimated_row_count: 5000, column_count: 12, last_modified: null },
+    ],
   };
 }
 

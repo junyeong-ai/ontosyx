@@ -16,10 +16,9 @@ export const ontologyValidationKeys = {
 async function fetchOntologyValidation(
   ontologyId: string,
 ): Promise<DiagnosticMessage[]> {
-  const res = await request<{ data: DiagnosticMessage[] }>(
+  return request<DiagnosticMessage[]>(
     `/ontologies/${encodeURIComponent(ontologyId)}/validate`,
   );
-  return res.data;
 }
 
 /**

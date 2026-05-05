@@ -27,10 +27,9 @@ export type SchemaDependencyGraph =
 export async function getDependencyGraph(
   ontologyId: string,
 ): Promise<SchemaDependencyGraph> {
-  const res = await request<{ data: SchemaDependencyGraph }>(
+  return request<SchemaDependencyGraph>(
     `/ontologies/${encodeURIComponent(ontologyId)}/dependencies`,
   );
-  return res.data;
 }
 
 /**
