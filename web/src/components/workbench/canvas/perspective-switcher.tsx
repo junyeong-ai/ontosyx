@@ -172,7 +172,9 @@ export function PerspectiveSwitcher({
 
   return (
     <div ref={dropdownRef} className="relative">
-      {/* Trigger button */}
+      {/* Trigger button — label is capped at 9rem so a long
+          perspective name (or the "unsaved layout" sentinel)
+          can't push downstream toolbar siblings off the canvas. */}
       <button type="button"
         onClick={() => {
           setOpen((v) => {
@@ -180,15 +182,16 @@ export function PerspectiveSwitcher({
             return !v;
           });
         }}
+        title={activeName}
         className={cn(
-          "flex items-center gap-1 rounded-md border bg-surface-base px-2 py-1 text-2xs font-medium shadow-1 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+          "flex max-w-[12rem] items-center gap-1 rounded-md border bg-surface-base px-2 py-1 text-2xs font-medium shadow-1 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
           "border-divider text-foreground hover:bg-surface-raised",
         )}
       >
-        <KanbanSquare className="h-3 w-3" />
-        {activeName}
+        <KanbanSquare className="h-3 w-3 shrink-0" />
+        <span className="min-w-0 truncate">{activeName}</span>
         <ArrowDown className={cn(
- "h-2.5 w-2.5 transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+ "h-2.5 w-2.5 shrink-0 transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
  open && "rotate-180",
  )} />
       </button>

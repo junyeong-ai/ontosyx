@@ -97,165 +97,160 @@ export function ProjectWorkflow({
   const isDesigned = project.status === "designed";
   const isCompleted = project.status === "completed";
 
+  // Quality is summarised here as a compact one-line pill row; the
+  // full per-gap detail lives in the Quality tab. Workflow used to
+  // render a left/right split with a duplicate quality card on the
+  // right — that card carried no information the Quality tab didn't
+  // already own, just split the user's attention.
+  const quality = project.quality_report;
+  const gapCounts = quality
+    ? {
+        high: quality.gaps.filter((g) => g.severity === "high").length,
+        medium: quality.gaps.filter((g) => g.severity === "medium").length,
+        low: quality.gaps.filter((g) => g.severity === "low").length,
+      }
+    : null;
+
   return (
-    <div className="flex gap-6 p-4">
-      {/* Left: project info + actions — responsive width */}
-      <div className="w-80 shrink-0 space-y-3 xl:w-96 2xl:w-[480px]">
-        <PhaseStepper currentStepIndex={currentStepIndex} />
+    <div className="mx-auto w-full max-w-[64rem] space-y-3 p-4">
+      <PhaseStepper currentStepIndex={currentStepIndex} />
 
-        {/* Stale-report advisory: backend signalled the persisted
-            analysis_report can't deserialize against the current
-            schema. Design proceeds (gates skipped) but operator
-            should re-run analyse so gate enforcement comes back. */}
-        {project.analysis_report_status === "stale" && (
-          <div className="rounded-md border border-warning-border bg-warning-surface px-3 py-2">
-            <p className="text-xs font-medium text-warning-foreground">
-              {t("staleReportTitle")}
-            </p>
-            <p className="mt-0.5 text-2xs text-warning-foreground">
-              {t("staleReportHint")}
-            </p>
-          </div>
-        )}
+      {/* Stale-report advisory */}
+      {project.analysis_report_status === "stale" && (
+        <div className="rounded-md border border-warning-border bg-warning-surface px-3 py-2">
+          <p className="text-xs font-medium text-warning-foreground">
+            {t("staleReportTitle")}
+          </p>
+          <p className="mt-0.5 text-2xs text-warning-foreground">
+            {t("staleReportHint")}
+          </p>
+        </div>
+      )}
 
-        {/* Contextual status guide */}
-        {project.status === "analyzed" && (
-          <p className="px-2 text-xs text-foreground-muted">
-            {t("analyzedGuidance")}
-          </p>
-        )}
-        {project.status === "designed" && (
-          <p className="px-2 text-xs text-foreground-muted">
-            {t.rich("designedGuidance", {
-              kbd: () => <KeyboardShortcut keys="mod+k" />,
-            })}
-          </p>
-        )}
-        {project.status === "completed" && (
-          <p className="px-2 text-xs text-foreground-muted">
-            {t("completedGuidance")}
-          </p>
-        )}
+      {/* Quality summary — single line: confidence pill + gap counts +
+          link to Quality tab. Replaces the old card-chrome duplicate. */}
+      {quality && gapCounts && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-divider bg-surface-raised px-3 py-2 text-xs">
+          <span className="font-semibold uppercase tracking-wider text-foreground-muted">
+            {t("qualityHeader")}
+          </span>
+          <span
+            className={cn(
+              "rounded-full px-1.5 py-0.5 text-2xs font-medium uppercase",
+              quality.confidence === "high"
+                ? "bg-brand-surface-strong text-brand-foreground-strong"
+                : quality.confidence === "medium"
+                  ? "bg-warning-surface text-warning-foreground"
+                  : "bg-danger-surface text-danger-foreground",
+            )}
+          >
+            {quality.confidence === "high"
+              ? t("confidenceHigh")
+              : quality.confidence === "medium"
+                ? t("confidenceMedium")
+                : t("confidenceLow")}
+          </span>
+          {gapCounts.high > 0 && (
+            <span className="rounded-full bg-danger-surface px-1.5 py-0.5 text-2xs font-medium text-danger-foreground">
+              {t("highSeverity", { count: gapCounts.high })}
+            </span>
+          )}
+          {gapCounts.medium > 0 && (
+            <span className="rounded-full bg-warning-surface px-1.5 py-0.5 text-2xs font-medium text-warning-foreground">
+              {t("mediumSeverity", { count: gapCounts.medium })}
+            </span>
+          )}
+          {gapCounts.low > 0 && (
+            <span className="rounded-full bg-surface-inset px-1.5 py-0.5 text-2xs font-medium text-foreground">
+              {t("lowSeverity", { count: gapCounts.low })}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => useAppStore.getState().setDesignBottomTab("quality")}
+            className="ms-auto text-xs font-medium text-brand-foreground hover:text-brand-foreground-strong"
+          >
+            {t("viewFullReport")}
+          </button>
+        </div>
+      )}
 
-        {/* Delegated actions panel */}
-        <WorkflowActions
+      {/* Contextual status guide */}
+      {project.status === "analyzed" && (
+        <p className="px-2 text-xs text-foreground-muted">
+          {t("analyzedGuidance")}
+        </p>
+      )}
+      {project.status === "designed" && (
+        <p className="px-2 text-xs text-foreground-muted">
+          {t.rich("designedGuidance", {
+            kbd: () => <KeyboardShortcut keys="mod+k" />,
+          })}
+        </p>
+      )}
+      {project.status === "completed" && (
+        <p className="px-2 text-xs text-foreground-muted">
+          {t("completedGuidance")}
+        </p>
+      )}
+
+      {/* Actions */}
+      <WorkflowActions
+        project={project}
+        loading={loading}
+        setLoading={setLoading}
+        applyProjectSnapshot={applyProjectSnapshot}
+        onApiError={handleApiError}
+        analysisRef={analysisRef}
+        {...decisions}
+      />
+
+      {/* Revision history */}
+      {(isDesigned || isCompleted) && (
+        <RevisionHistoryPanel
           project={project}
           loading={loading}
           setLoading={setLoading}
           applyProjectSnapshot={applyProjectSnapshot}
           onApiError={handleApiError}
-          analysisRef={analysisRef}
-          {...decisions}
         />
-      </div>
+      )}
 
-      {/* Right: quality report + schema warning + revision history + analysis review */}
-      <div className="flex-1 space-y-3 overflow-auto">
-        {/* Large schema info is shown in the workflow-actions checkbox — no duplicate here */}
-
-        {/* Quality summary (detail in Quality tab) */}
-        {project.quality_report && (
-          <div className="rounded-lg border border-divider bg-surface-raised p-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
-                {t("qualityHeader")}
-              </h4>
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.5 text-2xs font-medium uppercase",
-                  project.quality_report.confidence === "high"
-                    ? "bg-brand-surface-strong text-brand-foreground-strong"
-                    : project.quality_report.confidence === "medium"
-                      ? "bg-warning-surface text-warning-foreground"
-                      : "bg-danger-surface text-danger-foreground",
-                )}
-              >
-                {project.quality_report.confidence === "high"
-                  ? t("confidenceHigh")
-                  : project.quality_report.confidence === "medium"
-                    ? t("confidenceMedium")
-                    : t("confidenceLow")}
-              </span>
-            </div>
-            {/* Counts summary */}
-            <div className="mt-2 flex items-center gap-2">
-              {(() => {
-                const gaps = project.quality_report.gaps;
-                const high = gaps.filter((g) => g.severity === "high").length;
-                const medium = gaps.filter((g) => g.severity === "medium").length;
-                const low = gaps.filter((g) => g.severity === "low").length;
-                return (
-                  <>
-                    {high > 0 && <span className="rounded-full bg-danger-surface px-1.5 py-0.5 text-xs font-medium text-danger-foreground">{t("highSeverity", { count: high })}</span>}
-                    {medium > 0 && <span className="rounded-full bg-warning-surface px-1.5 py-0.5 text-xs font-medium text-warning-foreground">{t("mediumSeverity", { count: medium })}</span>}
-                    {low > 0 && <span className="rounded-full bg-surface-inset px-1.5 py-0.5 text-xs font-medium text-foreground">{t("lowSeverity", { count: low })}</span>}
-                  </>
-                );
-              })()}
-            </div>
-            {/* Guidance */}
-            <p className="mt-2 text-xs text-foreground-muted">
-              {project.quality_report.confidence === "high" && t("guidanceHigh")}
-              {project.quality_report.confidence === "medium" && t("guidanceMedium")}
-              {project.quality_report.confidence === "low" && t("guidanceLow")}
-            </p>
-            {/* Link to Quality tab */}
-            <button type="button"
-              onClick={() => useAppStore.getState().setDesignBottomTab("quality")}
-              className="mt-1.5 text-xs font-medium text-brand-foreground hover:text-brand-foreground"
-            >
-              {t("viewFullReport")}
-            </button>
+      {/* Analysis review */}
+      {report && !isCompleted && (
+        <details ref={analysisRef} open={!isDesigned}>
+          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-foreground-muted hover:text-foreground-muted">
+            {t("analysisReview")}
+            <span className="ms-2 text-xs font-normal normal-case text-foreground-muted">
+              {decisions.unresolvedClarificationCount > 0
+                ? t("unresolved", {
+                    count: decisions.unresolvedClarificationCount,
+                  })
+                : t("allResolved")}
+            </span>
+          </summary>
+          <div className="mt-2">
+            <AnalysisReviewSection
+              report={report}
+              confirmedRelationships={decisions.confirmedRelationships}
+              setConfirmedRelationships={decisions.setConfirmedRelationships}
+              piiAnnotations={decisions.piiAnnotations}
+              setPiiAnnotations={decisions.setPiiAnnotations}
+              excludedColumns={decisions.excludedColumns}
+              setExcludedColumns={decisions.setExcludedColumns}
+              clarifications={decisions.clarifications}
+              setClarifications={decisions.setClarifications}
+              excludedTables={decisions.excludedTables}
+              setExcludedTables={decisions.setExcludedTables}
+              partialAnalysisAcknowledged={decisions.partialAnalysisAcknowledged}
+              setPartialAnalysisAcknowledged={decisions.setPartialAnalysisAcknowledged}
+              largeSchemaAcknowledged={decisions.largeSchemaAcknowledged}
+              setLargeSchemaAcknowledged={decisions.setLargeSchemaAcknowledged}
+              unresolvedClarificationCount={decisions.unresolvedClarificationCount}
+            />
           </div>
-        )}
-
-        {/* Revision history */}
-        {(isDesigned || isCompleted) && (
-          <RevisionHistoryPanel
-            project={project}
-            loading={loading}
-            setLoading={setLoading}
-            applyProjectSnapshot={applyProjectSnapshot}
-            onApiError={handleApiError}
-          />
-        )}
-
-        {/* Analysis review */}
-        {report && !isCompleted && (
-          <details ref={analysisRef} open={!isDesigned}>
-            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-foreground-muted hover:text-foreground-muted">
-              {t("analysisReview")}
-              <span className="ms-2 text-xs font-normal normal-case text-foreground-muted">
-                {decisions.unresolvedClarificationCount > 0
-                  ? t("unresolved", {
-                      count: decisions.unresolvedClarificationCount,
-                    })
-                  : t("allResolved")}
-              </span>
-            </summary>
-            <div className="mt-2">
-              <AnalysisReviewSection
-                report={report}
-                confirmedRelationships={decisions.confirmedRelationships}
-                setConfirmedRelationships={decisions.setConfirmedRelationships}
-                piiAnnotations={decisions.piiAnnotations}
-                setPiiAnnotations={decisions.setPiiAnnotations}
-                excludedColumns={decisions.excludedColumns}
-                setExcludedColumns={decisions.setExcludedColumns}
-                clarifications={decisions.clarifications}
-                setClarifications={decisions.setClarifications}
-                excludedTables={decisions.excludedTables}
-                setExcludedTables={decisions.setExcludedTables}
-                partialAnalysisAcknowledged={decisions.partialAnalysisAcknowledged}
-                setPartialAnalysisAcknowledged={decisions.setPartialAnalysisAcknowledged}
-                largeSchemaAcknowledged={decisions.largeSchemaAcknowledged}
-                setLargeSchemaAcknowledged={decisions.setLargeSchemaAcknowledged}
-                unresolvedClarificationCount={decisions.unresolvedClarificationCount}
-              />
-            </div>
-          </details>
-        )}
-      </div>
+        </details>
+      )}
     </div>
   );
 }

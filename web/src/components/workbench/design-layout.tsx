@@ -188,12 +188,12 @@ export function DesignLayout() {
               {hasContent && (
                 <button type="button"
                   onClick={() => setSearchOpen(true)}
-                  className="absolute start-1/2 top-2 z-canvas flex -translate-x-1/2 items-center gap-1.5 rounded-md border border-divider bg-surface-base px-2 py-1 shadow-1 hover:bg-surface-raised"
+                  className="absolute start-1/2 top-2 z-canvas flex w-72 -translate-x-1/2 items-center gap-2 rounded-md border border-divider bg-surface-base px-3 py-1.5 shadow-1 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:border-brand-border hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40"
                   aria-label={t("searchAria")}
                 >
-                  <Search className="h-3 w-3 text-foreground-muted" />
-                  <span className="text-2xs font-medium text-foreground-muted">{t("searchPlaceholder")}</span>
-                  <KeyboardShortcut keys="mod+k" variant="outline" className="ms-1" />
+                  <Search className="h-3.5 w-3.5 shrink-0 text-foreground-muted" />
+                  <span className="flex-1 truncate text-start text-xs font-medium text-foreground-muted">{t("searchPlaceholder")}</span>
+                  <KeyboardShortcut keys="mod+k" variant="outline" className="ms-1 shrink-0" />
                 </button>
               )}
               {hasContent && activeProject && (

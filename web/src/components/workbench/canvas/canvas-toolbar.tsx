@@ -58,7 +58,7 @@ export function CanvasToolbar({
   };
 
   return (
-    <div className="absolute end-2 top-2 z-canvas flex flex-wrap items-center justify-end gap-1.5">
+    <div className="absolute end-2 top-2 z-canvas flex max-w-[calc(100%-1rem)] flex-nowrap items-center justify-end gap-1.5">
       <PerspectiveSwitcher
         nodes={nodes}
         topologySignature={topologySignature}

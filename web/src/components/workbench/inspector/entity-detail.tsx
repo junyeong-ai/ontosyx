@@ -181,12 +181,13 @@ function EntityHeader({
           </button>
         </Tooltip>
       </div>
-      <div className="mt-1 flex items-center gap-1">
+      <div className="mt-1 flex items-start gap-1">
         <InlineEdit
           value={defaultText(entity.description)}
           placeholder={t("descriptionPlaceholder")}
           onSave={onUpdateDescription}
           className="flex-1 text-foreground-muted"
+          multiline
         />
       </div>
       {isEdge && (

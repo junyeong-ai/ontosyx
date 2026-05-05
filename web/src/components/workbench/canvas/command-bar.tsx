@@ -424,7 +424,7 @@ export function CommandBar() {
             disabled={loading || phase.type === "preview"}
             aria-label={t("inputAria")}
             className={cn(
-              "flex-1 bg-transparent text-sm text-foreground-strong outline-none placeholder:text-foreground-muted focus-visible:ring-2 focus-visible:ring-brand-foreground/40 focus-visible:rounded-md",
+              "flex-1 rounded-md bg-transparent px-2 py-1 text-sm text-foreground-strong outline-none placeholder:text-foreground-muted focus-visible:ring-2 focus-visible:ring-brand-foreground/40",
             )}
           />
 
