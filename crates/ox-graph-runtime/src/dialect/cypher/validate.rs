@@ -697,13 +697,21 @@ impl CypherValidator for OntologyValidator {
         // introduced by WITH / UNWIND, or local to a list
         // comprehension) we cannot decide ontologically and silently
         // skip.
-        let mut seen_unknown_where_props: HashSet<(String, String)> = HashSet::new();
+        // Read-side surfaces: WHERE / RETURN / WITH / ORDER BY all
+        // reference properties via `var.prop`. Same conservative
+        // token walk + node-then-edge resolution; one shared dedup
+        // set so the same typo across multiple read clauses still
+        // collapses to one diagnostic.
+        let mut seen_unknown_read_props: HashSet<(String, String)> = HashSet::new();
         for statement in &ast.statements {
             let variable_labels = statement.variable_labels();
             let variable_rel_types = statement.variable_relationship_types();
             for clause in &statement.clauses {
                 match clause.kind {
-                    ClauseKind::Where => {
+                    ClauseKind::Where
+                    | ClauseKind::Return
+                    | ClauseKind::With
+                    | ClauseKind::OrderBy => {
                         for (var, prop, span) in extract_property_accesses(&clause.tokens) {
                             if is_system_property(&prop) {
                                 continue;
@@ -714,7 +722,8 @@ impl CypherValidator for OntologyValidator {
                                 &var,
                                 &prop,
                                 span,
-                                &mut seen_unknown_where_props,
+                                clause.kind,
+                                &mut seen_unknown_read_props,
                             ) {
                                 issues.push(issue);
                             }
@@ -777,6 +786,21 @@ fn is_system_property(key: &str) -> bool {
 enum WriteKind {
     Set,
     Remove,
+}
+
+/// Surface the clause kind in a way the diagnostic message and
+/// editor can render — "WHERE", "RETURN", "WITH", "ORDER BY".
+/// Returns "clause" for any unhandled read kind so the message
+/// stays sensible if the matcher above grows a new entry without
+/// updating this label.
+fn read_clause_label(kind: ClauseKind) -> &'static str {
+    match kind {
+        ClauseKind::Where => "WHERE",
+        ClauseKind::Return => "RETURN",
+        ClauseKind::With => "WITH",
+        ClauseKind::OrderBy => "ORDER BY",
+        _ => "clause",
+    }
 }
 
 /// Walk a clause's token stream and pull out every
@@ -844,10 +868,11 @@ fn extract_property_accesses(
 }
 
 impl OntologyValidator {
-    /// Resolve a WHERE-side property reference. Same node-then-edge
-    /// fallback as [`Self::check_write_property`], but emits a
-    /// read-side diagnostic (`unknown_where_property`) so the editor
-    /// can distinguish it from a write-side typo.
+    /// Resolve a read-side property reference (WHERE / RETURN /
+    /// WITH / ORDER BY). Same node-then-edge fallback as
+    /// [`Self::check_write_property`]. The clause kind is named in
+    /// the diagnostic message so the editor can distinguish each
+    /// read surface.
     fn check_read_property(
         &self,
         variable_labels: &std::collections::HashMap<String, Vec<String>>,
@@ -855,8 +880,10 @@ impl OntologyValidator {
         variable: &str,
         property: &str,
         span: Span,
+        clause_kind: ClauseKind,
         seen: &mut HashSet<(String, String)>,
     ) -> Option<ValidationIssue> {
+        let clause_label = read_clause_label(clause_kind);
         if let Some(labels) = variable_labels.get(variable) {
             let known = labels.iter().any(|label| {
                 self.ontology
@@ -873,12 +900,13 @@ impl OntologyValidator {
             return Some(
                 ValidationIssue::error(
                     "ontology",
-                    diag("runtime.cypher.ontology.unknown_where_property")
+                    diag("runtime.cypher.ontology.unknown_read_property")
+                        .with("clause", clause_label.to_string())
                         .with("property", property.to_string())
                         .with("variable", variable.to_string())
                         .with("labels", label_list.clone())
                         .message(format!(
-                            "WHERE references property `{property}` not defined on label `{label_list}` in the active ontology",
+                            "{clause_label} references property `{property}` not defined on label `{label_list}` in the active ontology",
                         )),
                 )
                 .with_span(span),
@@ -905,12 +933,13 @@ impl OntologyValidator {
             return Some(
                 ValidationIssue::error(
                     "ontology",
-                    diag("runtime.cypher.ontology.unknown_where_property")
+                    diag("runtime.cypher.ontology.unknown_read_property")
+                        .with("clause", clause_label.to_string())
                         .with("property", property.to_string())
                         .with("variable", variable.to_string())
                         .with("relationship_types", type_list.clone())
                         .message(format!(
-                            "WHERE references property `{property}` not defined on relationship type `{type_list}` in the active ontology",
+                            "{clause_label} references property `{property}` not defined on relationship type `{type_list}` in the active ontology",
                         )),
                 )
                 .with_span(span),
@@ -2139,6 +2168,77 @@ mod tests {
             "list-comprehension local var must not raise a property error: {:?}",
             r.issues
         );
+    }
+
+    #[test]
+    fn ontology_flags_unknown_return_property() {
+        // `RETURN p.emial` — projection-time typo. The driver
+        // returns the property as null on every row, masquerading
+        // as missing data. Catch it pre-execute.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(&p, "MATCH (p:Person) RETURN p.emial");
+        assert!(r.has_errors(), "RETURN typo must be flagged");
+        assert!(
+            r.errors().any(|e| e.message.message.contains("emial")
+                && e.message.message.contains("RETURN")),
+            "diagnostic must name RETURN + typo: {:?}",
+            r.issues
+        );
+    }
+
+    #[test]
+    fn ontology_accepts_known_return_property() {
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(&p, "MATCH (p:Person) RETURN p.name, p.age");
+        assert!(!r.has_errors(), "{:?}", r.issues);
+    }
+
+    #[test]
+    fn ontology_flags_unknown_with_property() {
+        // `WITH p.emial AS e` — same typo class on the WITH
+        // pipeline boundary. Important to catch because WITH-scoped
+        // typos commonly cascade silently into RETURN.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (p:Person) WITH p.emial AS e WHERE e IS NOT NULL RETURN e",
+        );
+        assert!(r.has_errors(), "WITH typo must be flagged");
+        assert!(r.errors().any(|e| e.message.message.contains("WITH")));
+    }
+
+    #[test]
+    fn ontology_flags_unknown_order_by_property() {
+        // ORDER BY references the same projection slot the operator
+        // typed above. A standalone `ORDER BY p.emial` (without an
+        // upstream WITH/RETURN reference) still hits the validator.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (p:Person) RETURN p ORDER BY p.emial",
+        );
+        assert!(r.has_errors());
+        assert!(r.errors().any(|e| e.message.message.contains("emial")));
+    }
+
+    #[test]
+    fn ontology_dedupes_read_typo_across_clauses() {
+        // Same typo in WHERE + RETURN — one diagnostic, not two.
+        // Read-side dedup spans every read clause kind, since the
+        // operator's fix is at the property name regardless of
+        // which clause first surfaced it.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (p:Person) WHERE p.emial = 'x' RETURN p.emial",
+        );
+        let count = r.errors().filter(|e| e.message.message.contains("emial")).count();
+        assert_eq!(count, 1, "expected single dedup'd diagnostic across read clauses: {:?}", r.issues);
     }
 
     #[test]
