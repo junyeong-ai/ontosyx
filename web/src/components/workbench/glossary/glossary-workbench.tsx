@@ -32,6 +32,7 @@ import { arr } from "@/lib/ir-collections";
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
 import type { OntologyIR } from "@/types/api";
 
+import { Heading } from "@/components/ui/heading";
 import { TermTree, type TermAnchorCounts } from "./term-tree";
 import { UsageMap } from "./usage-map";
 
@@ -455,9 +456,9 @@ function EditorPane({
         <span className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-bold uppercase text-brand-foreground-strong">
           {t(mode === "create" ? "badges.create" : "badges.term")}
         </span>
-        <h2 className="flex-1 truncate text-sm font-semibold text-foreground-strong">
+        <Heading level={2} size={6} className="flex-1 truncate">
           {title}
-        </h2>
+        </Heading>
         {mode === "edit" && isInactive && (
           <span className="rounded bg-warning-surface px-2 py-0.5 text-2xs font-medium uppercase tracking-wider text-warning-foreground">
             {t(`lifecycle.${lifecycleState}`)}

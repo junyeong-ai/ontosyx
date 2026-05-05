@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import type { ReconcileReport } from "@/types/api";
 
+import { Heading } from "@/components/ui/heading";
 const CONFIDENCE_LEVELS = ["low", "medium", "high"] as const;
 type KnownConfidence = (typeof CONFIDENCE_LEVELS)[number];
 function isKnownConfidence(s: string): s is KnownConfidence {
@@ -44,7 +45,7 @@ export function ReconcileReportPanel({
       )}
     >
       <div className="flex items-center justify-between">
-        <h4 className="font-semibold text-foreground">
+        <Heading level={4} size={6}>
           {t("title")}
           <span
             className={cn(
@@ -58,7 +59,7 @@ export function ReconcileReportPanel({
           >
             {confidenceLabel}
           </span>
-        </h4>
+        </Heading>
         <button type="button"
           onClick={onDismiss}
           className="text-foreground-muted hover:text-foreground"

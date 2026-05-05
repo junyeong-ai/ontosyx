@@ -18,6 +18,7 @@ import { arr } from "@/lib/ir-collections";
 import { localizePresent } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/hooks/use-locale-chain";
 
+import { Heading } from "@/components/ui/heading";
 type DiffTranslator = ReturnType<typeof useTranslations<"workbench.bottomPanel.diff">>;
 
 // ---------------------------------------------------------------------------
@@ -43,9 +44,9 @@ export function DiffPanel({
     return (
       <Card variant="inset" padding="sm" className="text-xs">
         <div className="flex items-center justify-between">
-          <h4 className="font-semibold text-foreground">
+          <Heading level={4} size={6}>
             {t("noChanges")}
-          </h4>
+          </Heading>
           <button type="button"
             onClick={onDismiss}
             className="text-foreground-muted hover:text-foreground"
@@ -64,9 +65,9 @@ export function DiffPanel({
     <Card padding="sm" className="text-xs">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h4 className="font-semibold text-foreground">
+        <Heading level={4} size={6}>
           {t("heading", { baseLabel, targetLabel })}
-        </h4>
+        </Heading>
         <button type="button"
           onClick={onDismiss}
           className="text-foreground-muted hover:text-foreground"

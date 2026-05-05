@@ -125,9 +125,9 @@ export default function SharedDashboardPage({
     <main id="main" className="h-dvh overflow-auto bg-surface-raised">
       <div className="mx-auto max-w-6xl px-6 py-8">
         <header className="border-b border-divider pb-4">
-          <h1 className="text-xl font-semibold text-foreground-strong">
+          <Heading level={1} size={3}>
             {state.payload.dashboard.name}
-          </h1>
+          </Heading>
           {state.payload.dashboard.description && (
             <p className="mt-1 text-sm text-foreground">
               {state.payload.dashboard.description}
@@ -148,9 +148,9 @@ export default function SharedDashboardPage({
                 className="rounded-lg border border-divider bg-surface-base p-4"
               >
                 <div className="flex items-center justify-between">
-                  <h2 className="truncate text-sm font-medium text-foreground-strong">
+                  <Heading level={2} size={6} className="truncate">
                     {w.title}
-                  </h2>
+                  </Heading>
                   <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs text-foreground-muted">
                     {w.widget_type}
                   </span>

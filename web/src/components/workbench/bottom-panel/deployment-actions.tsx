@@ -8,6 +8,7 @@ import { useConfirm } from "@/components/providers/confirm-provider";
 import { compileLoad, deploySchema, generateLoadPlan } from "@/lib/api";
 import type { LoadPlan } from "@/types/api";
 
+import { Heading } from "@/components/ui/heading";
 export interface DeploymentActionsProps {
   ontologyDraftId: string;
   loading: boolean;
@@ -96,9 +97,9 @@ export function DeploymentActions({
     <>
       {/* Schema Deployment */}
       <div className="space-y-2 rounded-lg border border-info-border bg-info-surface/50 p-3">
-        <h4 className="text-xs font-semibold text-info-foreground">
+        <Heading level={4} size={6} className="text-info-foreground">
           {t("schemaDeployment")}
-        </h4>
+        </Heading>
         {deployPreview ? (
           <div className="space-y-2">
             <p className="text-2xs text-info-foreground">
@@ -154,9 +155,9 @@ export function DeploymentActions({
 
       {/* Load Data */}
       <div className="space-y-2 rounded-lg border border-concept-border bg-concept-surface/50 p-3">
-        <h4 className="text-xs font-semibold text-concept-foreground">
+        <Heading level={4} size={6} className="text-concept-foreground">
           {t("dataLoading")}
-        </h4>
+        </Heading>
         {loadPlan ? (
           <div className="space-y-2">
             <p className="text-2xs text-concept-foreground">

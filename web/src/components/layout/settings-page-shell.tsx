@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { Heading } from "@/components/ui/heading";
 import { SettingsBreadcrumb } from "./settings-breadcrumb";
 
 interface SettingsPageShellProps {
@@ -31,9 +32,9 @@ export function SettingsPageShell({
       >
         <div className="min-w-0">
           <SettingsBreadcrumb />
-          <h1 className="text-xl font-semibold tracking-tight text-foreground-strong">
+          <Heading level={1} size={3}>
             {title}
-          </h1>
+          </Heading>
           {subtitle && (
             <p className="mt-1 text-sm text-foreground-muted">{subtitle}</p>
           )}

@@ -23,6 +23,7 @@ import type {
 import { DiffPanel } from "./diff-panel";
 import { useFormatters } from "@/hooks/use-formatters";
 
+import { Heading } from "@/components/ui/heading";
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
@@ -298,9 +299,9 @@ export function RevisionHistoryPanel({
         {/* Migration result panel */}
         {migrationResult && migrationResult.up.length > 0 && (
           <div className="mt-3 space-y-2 rounded-lg border border-warning-border bg-warning-surface p-3">
-            <h4 className="text-xs font-semibold text-warning-foreground">
+            <Heading level={4} size={6} className="text-warning-foreground">
               {t("migrationPreview")}
-            </h4>
+            </Heading>
             {migrationResult.breaking_changes.length > 0 && (
               <div className="space-y-1">
                 <p className="text-2xs font-semibold text-danger-foreground">{t("breakingChanges")}</p>

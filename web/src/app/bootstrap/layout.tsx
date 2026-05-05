@@ -7,6 +7,7 @@ import { useCallback } from "react";
 
 import { BootstrapProvider } from "./bootstrap-state";
 
+import { Heading } from "@/components/ui/heading";
 const STEPS = [
   { key: "1-pilot", path: "/bootstrap/1-pilot" },
   { key: "2-source", path: "/bootstrap/2-source" },
@@ -41,9 +42,9 @@ export default function BootstrapLayout({
             ← {t("exit")}
           </Link>
 
-          <h1 className="mb-1 text-base font-semibold text-foreground-strong">
+          <Heading level={1} size={5} className="mb-1">
             {t("title")}
-          </h1>
+          </Heading>
           <p className="mb-6 text-xs text-foreground-muted">
             {t("subtitle")}
           </p>

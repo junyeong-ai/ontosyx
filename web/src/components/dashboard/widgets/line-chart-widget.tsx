@@ -15,6 +15,7 @@ import {
   AreaChart,
 } from "recharts";
 import { useIsDarkMode } from "@/hooks/use-dark-mode";
+import { Heading } from "@/components/ui/heading";
 import {
   PALETTE_PRIMARY,
   CATEGORY_THRESHOLD,
@@ -56,9 +57,9 @@ export function LineChartWidget({ spec, data }: LineChartWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground">
+        <Heading level={4} size={6}>
           {spec.title}
-        </h4>
+        </Heading>
       )}
       <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">

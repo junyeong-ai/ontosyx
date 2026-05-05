@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 
+import { Heading } from "@/components/ui/heading";
 interface TimelineWidgetProps {
   spec: WidgetSpec;
   data: QueryResult;
@@ -75,9 +76,9 @@ export function TimelineWidget({ spec, data }: TimelineWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground">
+        <Heading level={4} size={6}>
           {spec.title}
-        </h4>
+        </Heading>
       )}
       <div className="max-h-80 overflow-y-auto ps-4">
         <div className="relative border-s-2 border-divider">

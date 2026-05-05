@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth, authKeys } from "@/hooks/use-auth";
 import { Spinner } from "@/components/ui/spinner";
 
+import { Heading } from "@/components/ui/heading";
 const KNOWN_LOGIN_ERRORS = ["token_exchange_failed", "not_configured"] as const;
 type KnownLoginError = (typeof KNOWN_LOGIN_ERRORS)[number];
 
@@ -83,9 +84,9 @@ function LoginContent() {
         <div className="w-full max-w-sm">
           <div className="rounded-2xl border border-divider bg-surface-base p-8 shadow-4">
             <div className="text-center">
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground-strong">
+              <Heading level={1} size={2}>
                 {t("appTitle")}
-              </h1>
+              </Heading>
               <p className="mt-2 text-sm text-foreground-muted">{t("tagline")}</p>
             </div>
 

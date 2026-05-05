@@ -15,6 +15,7 @@ import {
 import { useAppStore } from "@/lib/store";
 import { useIsDarkMode } from "@/hooks/use-dark-mode";
 import { useFormatters } from "@/hooks/use-formatters";
+import { Heading } from "@/components/ui/heading";
 import {
   PALETTE_PRIMARY,
   CATEGORY_THRESHOLD,
@@ -61,9 +62,9 @@ export function PieChartWidget({ spec, data }: PieChartWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground">
+        <Heading level={4} size={6}>
           {spec.title}
-        </h4>
+        </Heading>
       )}
       <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">

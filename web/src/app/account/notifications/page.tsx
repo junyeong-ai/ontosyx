@@ -19,6 +19,7 @@ import { useFormatters } from "@/hooks/use-formatters";
 import { Button } from "@/components/ui/button";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import {
   listChannels,
   createChannel,
@@ -321,9 +322,9 @@ export default function NotificationsSettingsPage() {
 
       {/* Channels table */}
       <div className="mt-6">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+        <Eyebrow level={2} tone="muted" size="dense" caps="upper" className="mb-3">
           {t("channelsHeading")}
-        </h2>
+        </Eyebrow>
         <div className="overflow-x-auto -mx-6 px-6">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
@@ -412,9 +413,9 @@ export default function NotificationsSettingsPage() {
 
       {/* Recent notifications log */}
       <div className="mt-8">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+        <Eyebrow level={2} tone="muted" size="dense" caps="upper" className="mb-3">
           {t("recentHeading")}
-        </h2>
+        </Eyebrow>
         {logs.length === 0 ? (
           <p className="text-sm text-foreground-muted">{t("emptyLogs")}</p>
         ) : (

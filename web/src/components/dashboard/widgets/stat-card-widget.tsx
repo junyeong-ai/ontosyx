@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { useFormatters } from "@/hooks/use-formatters";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 
+import { Heading } from "@/components/ui/heading";
 // ---------------------------------------------------------------------------
 // Threshold-based color for KPI values
 // ---------------------------------------------------------------------------
@@ -42,9 +43,9 @@ export function StatCardWidget({ spec, data }: StatCardWidgetProps) {
     return (
       <Card padding="md">
         {spec.title && (
-          <h4 className="mb-2 text-xs font-semibold text-foreground-muted">
+          <Heading level={4} size={6} className="mb-2">
             {spec.title}
-          </h4>
+          </Heading>
         )}
         <p className="text-sm text-foreground">
           {spec.content ?? ""}

@@ -12,6 +12,8 @@ import type {
 } from "@/types/ontology";
 import { arr } from "@/lib/ir-collections";
 
+import { Heading } from "@/components/ui/heading";
+import { Eyebrow } from "@/components/ui/eyebrow";
 // ---------------------------------------------------------------------------
 // UsageMap — right pane of the Glossary workbench.
 //
@@ -106,9 +108,9 @@ export function UsageMap({ ontology, termId }: UsageMapProps) {
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 text-xs">
       <div>
-        <h2 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+        <Eyebrow level={2} tone="muted" size="dense" caps="upper">
           {t("heading")}
-        </h2>
+        </Eyebrow>
         <p className="mt-1 text-2xs text-foreground-muted">
           {t("subtitle", {
             count: anchors.length,
@@ -211,9 +213,9 @@ function UsageGroup({
   return (
     <section className="flex flex-col gap-1.5">
       <div className="flex items-baseline gap-2">
-        <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+        <Heading level={3} size={6}>
           {title}
-        </h3>
+        </Heading>
         <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-medium text-foreground-muted">
           {count}
         </span>

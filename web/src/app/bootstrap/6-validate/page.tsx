@@ -23,6 +23,7 @@ import {
   type OntologyEditOp,
 } from "@/lib/api/ontology";
 import { createOntologyDraft } from "@/lib/api/ontology-drafts";
+import { Heading } from "@/components/ui/heading";
 import type {
   AnalyzeSelection,
   CreateOntologyDraftRequest,
@@ -248,9 +249,9 @@ export default function ValidateStep() {
       subtitle={t("subtitle")}
     >
       <div className="rounded-lg border border-concept-border bg-concept-surface p-5">
-        <h3 className="mb-3 text-sm font-semibold text-concept-foreground">
+        <Heading level={3} size={6} className="mb-3 text-concept-foreground">
           {t("summary.title", { name: state.pilotName || t("summary.unnamed") })}
-        </h3>
+        </Heading>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
           <SummaryRow
             label={t("summary.scopeLabel")}

@@ -33,6 +33,7 @@ import { localizePresent } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/hooks/use-locale-chain";
 import { cn } from "@/lib/cn";
 
+import { Heading } from "@/components/ui/heading";
 const DRAFT_ID = "__new__";
 const SELECTION_PARAM = "rule";
 
@@ -247,9 +248,9 @@ function ListPane({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-divider px-3 py-2">
-        <h2 className="flex-1 text-xs font-semibold text-foreground-strong">
+        <Heading level={2} size={6} className="flex-1">
           {t("listHeading", { count: rules.length })}
-        </h2>
+        </Heading>
         <button
           type="button"
           onClick={onCreate}
@@ -373,9 +374,9 @@ function DetailPane({
   return (
     <div className="flex h-full min-w-0 flex-col">
       <header className="flex items-center gap-3 border-b border-divider px-4 py-3">
-        <h2 className="flex-1 truncate font-mono text-sm font-semibold text-foreground-strong">
+        <Heading level={2} size={6} className="flex-1 truncate font-mono">
           {title}
-        </h2>
+        </Heading>
         {!isDraft && selected && !isDerived && (
           <Button
             variant="danger"

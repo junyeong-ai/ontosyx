@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 
+import { Heading } from "@/components/ui/heading";
 // ---------------------------------------------------------------------------
 // Algorithm type → tone mapping for the algorithm chip.
 // ---------------------------------------------------------------------------
@@ -81,9 +82,9 @@ export function RecipeCard({
            aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
           </svg>
-          <h3 className="line-clamp-1 text-sm font-semibold text-foreground-strong">
+          <Heading level={3} size={6} className="line-clamp-1">
             {recipe.name}
-          </h3>
+          </Heading>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <StatusBadge tone={ALGO_TONE[algoKey] ?? ALGO_TONE.custom}>
@@ -104,9 +105,9 @@ export function RecipeCard({
 
       {!compact && params.length > 0 && (
         <div className="mt-3">
-          <h4 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+          <Heading level={4} size={6}>
             {t("parameters")}
-          </h4>
+          </Heading>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {params.map(([name, def]) => (
               <span

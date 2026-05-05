@@ -9,6 +9,8 @@ import type { SchemaEntityRef } from "@/lib/api/dependencies";
 import { arr } from "@/lib/ir-collections";
 import type { OntologyIR } from "@/types/api";
 
+import { Heading } from "@/components/ui/heading";
+import { Eyebrow } from "@/components/ui/eyebrow";
 // ---------------------------------------------------------------------------
 // LineageFacet — outbound + inbound dependency views for the
 // entity. Renders both directions in stacked columns so the
@@ -75,9 +77,9 @@ export function LineageFacet({
       {showOutbound && (
         <div className="space-y-1">
           {direction === undefined && (
-            <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+            <Eyebrow level={3} tone="muted" size="dense" caps="upper">
               {t("outboundHeader")}
-            </h3>
+            </Eyebrow>
           )}
           <LineageTree
             edges={outbound}
@@ -89,9 +91,9 @@ export function LineageFacet({
       {showInbound && (
         <div className="space-y-1">
           {direction === undefined && (
-            <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+            <Heading level={3} size={6}>
               {t("inboundHeader")}
-            </h3>
+            </Heading>
           )}
           <LineageTree
             edges={inbound}

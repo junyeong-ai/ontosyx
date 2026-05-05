@@ -94,9 +94,9 @@ export default function OntologyMapPage() {
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
       <header className="mb-6">
-        <h1 className="text-xl font-semibold text-foreground-strong">
+        <Heading level={1} size={3}>
           {t("title")}
-        </h1>
+        </Heading>
         <p className="mt-1 text-xs text-foreground-muted">
           {t("subtitle", {
             version: data.version ?? t("noVersion"),
@@ -107,9 +107,9 @@ export default function OntologyMapPage() {
 
       {data.danglers.length > 0 && (
         <aside className="mb-6 rounded border border-danger-border bg-danger-surface p-4">
-          <h2 className="text-xs font-semibold text-danger-foreground">
+          <Heading level={2} size={6} className="text-danger-foreground">
             {t("danglers.title", { count: data.danglers.length })}
-          </h2>
+          </Heading>
           <p className="mt-1 text-2xs text-danger-foreground">
             {t("danglers.hint")}
           </p>

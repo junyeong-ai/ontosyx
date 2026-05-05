@@ -30,6 +30,7 @@ import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import type { OntologyEditOp } from "@/lib/api/edit-ops";
 
+import { Eyebrow } from "@/components/ui/eyebrow";
 /**
  * Ontology-quality signal dashboard — the patent's "6 창" surface.
  *
@@ -70,9 +71,9 @@ export function SignalsFacet() {
       />
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-foreground-strong">
+        <Heading level={2} size={6} className="mb-3">
           {t("shacl.title")}
-        </h2>
+        </Heading>
         <ShaclFailureBars
           rows={failures.data ?? []}
           loading={failures.isLoading}
@@ -224,9 +225,9 @@ function MetricTile({
   return (
     <Card padding="md">
       <div className="mb-2 flex items-start justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">
+        <Eyebrow level={3} tone="muted" size="dense" caps="upper">
           {label}
-        </h3>
+        </Eyebrow>
         <TrendBadge delta={trend} />
       </div>
       <div className="flex items-baseline gap-2">

@@ -13,6 +13,7 @@ import {
   ZAxis,
 } from "recharts";
 import { useIsDarkMode } from "@/hooks/use-dark-mode";
+import { Heading } from "@/components/ui/heading";
 import { axisTickStyle, axisLineStroke, gridStroke, tooltipStyle } from "./chart-utils";
 
 interface ScatterChartWidgetProps {
@@ -48,9 +49,9 @@ export function ScatterChartWidget({ spec, data }: ScatterChartWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground">
+        <Heading level={4} size={6}>
           {spec.title}
-        </h4>
+        </Heading>
       )}
       <div className="h-64 w-full overflow-hidden">
         <ResponsiveContainer width="100%" height="100%">

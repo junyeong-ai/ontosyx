@@ -17,6 +17,7 @@ import { useDiagnosticResolver } from "@/lib/diagnostic";
 import { localize } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/hooks/use-locale-chain";
 
+import { Heading } from "@/components/ui/heading";
 /**
  * Compact "response basis" panel. Reads `arr(QueryResult.metadata.provenance)`
  * (Π-3) and shows the identity facts the LLM / admin UI needs to justify
@@ -114,9 +115,9 @@ export function ResponseBasis({
         (className ?? "")
       }
     >
-      <h3 className="mb-2 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+      <Heading level={3} size={6} className="mb-2">
         {t("title")}
-      </h3>
+      </Heading>
       {activeWarnings.length > 0 && (
         <ul
           className="mb-2 space-y-1 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-2xs text-warning-foreground"

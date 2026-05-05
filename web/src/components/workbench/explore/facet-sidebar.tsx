@@ -7,6 +7,8 @@ import { FormInput } from "@/components/ui/form-input";
 import type { GraphOverview } from "@/lib/api/queries";
 import { useFormatters } from "@/hooks/use-formatters";
 
+import { Heading } from "@/components/ui/heading";
+import { Eyebrow } from "@/components/ui/eyebrow";
 export interface ExploreFacetProps {
   overview: GraphOverview | null;
   loading: boolean;
@@ -55,9 +57,9 @@ export function ExploreFacetSidebar({
       className="flex h-full w-56 shrink-0 flex-col gap-4 border-e border-divider bg-surface-base p-3"
     >
       <section>
-        <h2 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+        <Eyebrow level={2} tone="muted" size="dense" caps="upper" className="mb-1">
           {t("depth.label")}
-        </h2>
+        </Eyebrow>
         <div
           role="radiogroup"
           aria-label={t("depth.label")}
@@ -87,9 +89,9 @@ export function ExploreFacetSidebar({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+          <Eyebrow level={2} tone="muted" size="dense" caps="upper">
             {t("types.label")}
-          </h2>
+          </Eyebrow>
           {selectedLabels.length > 0 && (
             <button
               type="button"
@@ -158,9 +160,9 @@ export function ExploreFacetSidebar({
 
       {!loading && overview && overview.relationships.length > 0 && (
         <section className="border-t border-divider pt-3">
-          <h2 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+          <Heading level={2} size={6} className="mb-1">
             {t("relationships.label")}
-          </h2>
+          </Heading>
           <ul className="flex max-h-40 flex-col gap-0.5 overflow-auto pe-1 text-2xs">
             {overview.relationships.map((r, idx) => (
               <li

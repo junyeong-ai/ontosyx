@@ -39,6 +39,7 @@ import type { EntitySchema } from "@/lib/forms/field-schema";
 import { cn } from "@/lib/cn";
 import type { OntologyIR } from "@/types/ontology";
 
+import { Heading } from "@/components/ui/heading";
 export interface MasterDetailEntityPageLabels {
   /** Page title. */
   title: string;
@@ -259,9 +260,9 @@ export function MasterDetailEntityPage<T extends { id?: string }>({
     renderUsage && selected && detail.data?.ontology_ir
       ? (
           <div className="flex h-full flex-col">
-            <h3 className="border-b border-divider px-3 py-2 text-xs font-semibold text-foreground-strong">
+            <Heading level={3} size={6} className="border-b border-divider px-3 py-2">
               {t("usageHeader")}
-            </h3>
+            </Heading>
             <div className="flex-1 overflow-y-auto px-3 py-2">
               {renderUsage(selected, detail.data.ontology_ir)}
             </div>
@@ -319,9 +320,9 @@ function ListPane<T>({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-divider px-3 py-2">
-        <h2 className="flex-1 text-xs font-semibold text-foreground-strong">
+        <Heading level={2} size={6} className="flex-1">
           {heading}
-        </h2>
+        </Heading>
         <button
           type="button"
           onClick={onCreate}
@@ -428,9 +429,9 @@ function DetailPane<T extends { id?: string }>({
   return (
     <div className="flex h-full min-w-0 flex-col">
       <header className="flex items-center gap-3 border-b border-divider px-4 py-3">
-        <h2 className="flex-1 truncate font-mono text-sm font-semibold text-foreground-strong">
+        <Heading level={2} size={6} className="flex-1 truncate font-mono">
           {title}
-        </h2>
+        </Heading>
         {!isDraft && selected && (
           <Button
             variant="danger"

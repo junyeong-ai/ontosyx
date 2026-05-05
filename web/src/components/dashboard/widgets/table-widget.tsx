@@ -11,6 +11,7 @@ import { formatValue } from "./chart-utils";
 import { compareKorean } from "@/lib/locale/sort";
 import { useLocaleChain } from "@/hooks/use-locale-chain";
 
+import { Heading } from "@/components/ui/heading";
 /** Maximum rows rendered in the table to prevent DOM overload */
 const MAX_VISIBLE_ROWS = 200;
 
@@ -80,9 +81,9 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
   return (
     <div className="space-y-1.5">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground">
+        <Heading level={4} size={6}>
           {spec.title}
-        </h4>
+        </Heading>
       )}
       <div className="max-h-80 overflow-auto rounded-lg border border-divider bg-surface-base">
         <table className="w-full text-start text-xs">

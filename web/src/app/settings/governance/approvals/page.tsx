@@ -163,9 +163,9 @@ export default function ApprovalsSettingsPage() {
       {pending.length > 0 && (
         <div>
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">
+            <Heading level={2} size={6}>
               {t("pendingHeading", { count: pending.length })}
-            </h2>
+            </Heading>
             <div className="flex items-center gap-2 text-xs text-foreground-muted">
               <Checkbox
                 checked={allVisibleSelected}

@@ -171,9 +171,9 @@ function GroupedSection({
 
   return (
     <div>
-      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+      <Eyebrow level={4} tone="muted" size="dense" caps="upper" className="mb-1">
         {title}
-      </h4>
+      </Eyebrow>
       <div className="space-y-1">
         {filteredGroups.map(([tableName, entries]) => {
           const unresolved = getUnresolvedCount(tableName);

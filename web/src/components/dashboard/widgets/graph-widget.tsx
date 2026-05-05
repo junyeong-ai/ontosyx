@@ -21,6 +21,7 @@ import { cn } from "@/lib/cn";
 import { useIsDarkMode } from "@/hooks/use-dark-mode";
 import { useContainerWidth } from "@/hooks/use-container-width";
 import { useDashboardTypeFilter } from "@/hooks/use-dashboard-type-filter";
+import { Heading } from "@/components/ui/heading";
 import { formatValue } from "./chart-utils";
 import type { GraphNodeData, FGNode, FGLink } from "./graph/graph-types";
 import { DEFAULT_MAX_NODES, DARK_BG, LIGHT_BG } from "./graph/graph-constants";
@@ -277,9 +278,9 @@ export const GraphWidget = memo(function GraphWidget({
   return (
     <div className="space-y-1.5">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground">
+        <Heading level={4} size={6}>
           {spec.title}
-        </h4>
+        </Heading>
       )}
       <div
         ref={containerRef}

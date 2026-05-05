@@ -6,6 +6,7 @@ import type { QueryResult, WidgetSpec } from "@/types/api";
 import { PALETTE_PRIMARY } from "./chart-utils";
 import { useFormatters } from "@/hooks/use-formatters";
 
+import { Heading } from "@/components/ui/heading";
 interface FunnelWidgetProps {
   spec: WidgetSpec;
   data: QueryResult;
@@ -60,9 +61,9 @@ export function FunnelWidget({ spec, data }: FunnelWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground">
+        <Heading level={4} size={6}>
           {spec.title}
-        </h4>
+        </Heading>
       )}
       <div className="space-y-1">
         {stages.map((stage, i) => {
