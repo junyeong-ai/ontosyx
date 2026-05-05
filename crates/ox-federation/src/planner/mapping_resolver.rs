@@ -109,9 +109,13 @@ impl<'a> MappingResolver<'a> {
             })
             .collect();
 
-        // Highest precedence first. Stable sort preserves source-order
-        // for ties, which makes multi-mapping dedup deterministic.
-        mappings.sort_by(|a, b| b.precedence.cmp(&a.precedence));
+        // Highest precedence first; ties resolve by mapping id ascending
+        // so the order is independent of the IR's insertion sequence.
+        mappings.sort_by(|a, b| {
+            b.precedence
+                .cmp(&a.precedence)
+                .then_with(|| a.id.as_str().cmp(b.id.as_str()))
+        });
 
         Ok(ResolvedMappings {
             node_type_id: node_type_id.clone(),
@@ -147,7 +151,11 @@ impl<'a> MappingResolver<'a> {
             .filter(|m| &m.edge_type_id == edge_type_id)
             .collect();
 
-        mappings.sort_by(|a, b| b.precedence.cmp(&a.precedence));
+        mappings.sort_by(|a, b| {
+            b.precedence
+                .cmp(&a.precedence)
+                .then_with(|| a.id.as_str().cmp(b.id.as_str()))
+        });
         Ok(mappings)
     }
 }
@@ -189,7 +197,7 @@ mod tests {
         node_type: &str,
         source: &str,
         relation: &str,
-        precedence: u8,
+        precedence: u32,
     ) -> ObjectMappingDef {
         let mut m =
             ObjectMappingDef::new(id, node_type, source, relation);

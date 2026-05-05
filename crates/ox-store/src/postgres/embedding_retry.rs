@@ -10,20 +10,25 @@ impl EmbeddingRetryStore for PostgresStore {
         content: &str,
         metadata: &serde_json::Value,
     ) -> OxResult<()> {
-        super::require_workspace_context()?;
-        sqlx::query("INSERT INTO pending_embeddings (content, metadata) VALUES ($1, $2)")
-            .bind(content)
-            .bind(metadata)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| OxError::Runtime {
-                message: format!("Database error: {e}"),
-            })?;
+        let workspace_id = super::bound_workspace_id_for_dml()?;
+        sqlx::query(
+            "INSERT INTO pending_embeddings (workspace_id, content, metadata) \
+             VALUES ($1, $2, $3)",
+        )
+        .bind(workspace_id)
+        .bind(content)
+        .bind(metadata)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| OxError::Runtime {
+            message: format!("Database error: {e}"),
+        })?;
         Ok(())
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn list_pending_embeddings(&self, limit: i64) -> OxResult<Vec<PendingEmbedding>> {
+        super::require_workspace_context()?;
         sqlx::query_as(
             "SELECT * FROM pending_embeddings WHERE retry_count < 3 ORDER BY created_at LIMIT $1",
         )

@@ -103,6 +103,32 @@ impl PromptBudget {
             surface: "refine",
         }
     }
+
+    /// Conservative ceiling for prompts that have no surface-specific
+    /// budget. Higher than `design`'s 80 KB so a translate / chat
+    /// invocation that legitimately carries the active ontology never
+    /// trips, low enough that runaway prompt construction surfaces
+    /// before LLM dollars are spent.
+    pub const fn default_for_unmapped() -> Self {
+        Self {
+            max_chars: 120_000,
+            soft_chars: Some(96_000),
+            surface: "default",
+        }
+    }
+
+    /// Pick a budget by prompt template name. Falls back to
+    /// [`Self::default_for_unmapped`] when no surface-specific budget
+    /// is registered — the gate still fires, just with a generous
+    /// ceiling.
+    pub fn for_prompt(prompt_name: &str) -> Self {
+        match prompt_name {
+            "design_ontology" => Self::design(),
+            "design_ontology_batch" | "resolve_cross_edges" => Self::batch(),
+            "refine_ontology" | "edit_ontology" => Self::refine(),
+            _ => Self::default_for_unmapped(),
+        }
+    }
 }
 
 /// Failure shape when a render busts the budget.

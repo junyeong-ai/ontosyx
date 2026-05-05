@@ -614,6 +614,86 @@ pub trait DataSourceAdapter: Send + Sync {
     fn supports_scan(&self) -> bool {
         false
     }
+
+    /// Declarative capability snapshot consumed by the federation
+    /// planner. Adapters override this to declare predicate-pushdown
+    /// support, partition awareness, and source-dialect emission for
+    /// `LinkMappingKind::Computed` so the planner can lift safe
+    /// filters into the source instead of buffering everything in
+    /// DataFusion. The default mirrors the legacy "introspection only"
+    /// stance — `supports_scan = false`, no pushdown, no partition
+    /// awareness — so a new adapter that forgets to override stays
+    /// explicit about its narrow surface.
+    fn capabilities(&self) -> AdapterCapabilities {
+        AdapterCapabilities {
+            supports_scan: self.supports_scan(),
+            predicate_pushdown: PredicatePushdown::None,
+            limit_pushdown: false,
+            aggregate_pushdown: false,
+            partition_aware: false,
+            computed_link_dialect: None,
+        }
+    }
+}
+
+/// Capability snapshot for one [`DataSourceAdapter`]. The federation
+/// planner reads this to decide which predicates to push, whether to
+/// emit `LIMIT` past the scan boundary, and whether the source can
+/// host a `LinkMappingKind::Computed` predicate as a server-side
+/// view. Every flag is read-mostly — adapters return the same shape
+/// for the lifetime of the connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AdapterCapabilities {
+    pub supports_scan: bool,
+    pub predicate_pushdown: PredicatePushdown,
+    pub limit_pushdown: bool,
+    pub aggregate_pushdown: bool,
+    /// Adapter prunes scans by partition column when the planner
+    /// supplies a literal predicate on it. `true` for BigQuery /
+    /// Snowflake / Hive; `false` for adapters that always read the
+    /// full relation.
+    pub partition_aware: bool,
+    /// Source-side dialect the adapter accepts when the planner emits
+    /// a server-side view for a `LinkMappingKind::Computed`
+    /// predicate. `None` when the adapter cannot host computed
+    /// links — those mappings must refuse rather than evaluate the
+    /// predicate in DataFusion.
+    pub computed_link_dialect: Option<SqlDialect>,
+}
+
+/// Predicate-pushdown depth declared by an adapter. The federation
+/// planner uses this to choose between `TableProviderFilterPushDown::
+/// Exact` (adapter promises faithful round-trip) and `Inexact` (the
+/// engine re-applies the filter in DataFusion).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PredicatePushdown {
+    /// No pushdown — every predicate stays in DataFusion. Safe
+    /// default; correct for any adapter.
+    None,
+    /// Equality on a single column with a literal RHS — sufficient
+    /// for partition-pruning warehouses that index on equality.
+    EqualityOnly,
+    /// Equality + range comparisons (`<`, `<=`, `>`, `>=`,
+    /// `BETWEEN`). Fits relational engines (PostgreSQL, MySQL,
+    /// BigQuery) that index ranges natively.
+    EqualityAndRange,
+    /// Full SQL `WHERE` round-trip including `AND` / `OR` /
+    /// `IS NULL` / `IN`. The adapter accepts arbitrary ANSI SQL
+    /// boolean expressions.
+    Full,
+}
+
+/// Source SQL dialect for `LinkMappingKind::Computed` view emission.
+/// The federation planner consults the adapter's
+/// `computed_link_dialect` to decide which dialect to emit when it
+/// has a `Computed` predicate to push server-side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SqlDialect {
+    PostgreSql,
+    MySql,
+    BigQuery,
+    Snowflake,
+    DuckDb,
 }
 
 #[cfg(test)]

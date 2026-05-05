@@ -8,6 +8,7 @@
     )
 )]
 
+pub mod advisory_lock;
 pub mod models;
 pub mod navigation;
 pub mod postgres;
@@ -28,6 +29,10 @@ pub use quality_signal::{
 };
 pub use postgres::PostgresStore;
 pub use postgres::{SYSTEM_BYPASS, WORKSPACE_ID, require_workspace_context};
+// Re-export `PgPool` so downstream crates that wire singleton
+// crons (`ox-api::background`) can refer to the type without
+// taking `sqlx` as a direct dependency.
+pub use sqlx::PgPool;
 pub use store::{
     AclStore, AgentSessionStore, AmbiguityStore, AnalysisResultStore, AnalysisSnapshot,
     ApiKeyStore, ApprovalCommentStore, ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter,

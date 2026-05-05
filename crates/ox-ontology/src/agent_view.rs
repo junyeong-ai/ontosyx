@@ -75,7 +75,6 @@ pub struct AgentOntologyView {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AgentNodeView {
-    pub id: String,
     pub label: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -86,7 +85,6 @@ pub struct AgentNodeView {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AgentEdgeView {
-    pub id: String,
     pub label: String,
     /// Source node label (not id) — the agent reasons in terms of
     /// labels, which are the surface in user questions.
@@ -112,10 +110,6 @@ pub struct AgentPropertyView {
     /// Synonym surface for natural language matching.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub aliases: Vec<String>,
-    /// `Measure` / `Dimension` / `Attribute` / `Identifier` —
-    /// drives NL2SQL aggregation choices.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub aggregation_role: Option<String>,
     /// First slice of the bound value set (when a `Required`
     /// `ValueSet` binding exists) so the model knows what literal
     /// values are valid in `WHERE p = '...'` clauses.
@@ -182,7 +176,6 @@ fn node_to_view(
     locale_chain: &[LanguageTag],
 ) -> AgentNodeView {
     AgentNodeView {
-        id: node.id.as_str().to_string(),
         label: node.label.as_str().to_string(),
         description: present(node.description.resolve(locale_chain)),
         implements: node
@@ -211,7 +204,6 @@ fn edge_to_view(
     locale_chain: &[LanguageTag],
 ) -> AgentEdgeView {
     AgentEdgeView {
-        id: edge.id.as_str().to_string(),
         label: edge.label.as_str().to_string(),
         source: ontology
             .node_by_id(edge.source_node_id.as_str())
@@ -221,7 +213,7 @@ fn edge_to_view(
             .node_by_id(edge.target_node_id.as_str())
             .map(|n| n.label.as_str().to_string())
             .unwrap_or_else(|| edge.target_node_id.as_str().to_string()),
-        cardinality: format!("{:?}", edge.cardinality),
+        cardinality: edge.cardinality.to_string(),
         description: present(edge.description.resolve(locale_chain)),
         properties: edge
             .properties
@@ -239,7 +231,7 @@ fn property_to_view(
 ) -> AgentPropertyView {
     AgentPropertyView {
         name: prop.name.as_str().to_string(),
-        property_type: format!("{:?}", prop.property_type),
+        property_type: prop.property_type.to_string(),
         nullable: prop.nullable,
         description: present(prop.description.resolve(locale_chain)),
         aliases: prop
@@ -248,7 +240,6 @@ fn property_to_view(
             .map(|alias| alias.resolve(locale_chain).to_string())
             .filter(|s| !s.is_empty())
             .collect(),
-        aggregation_role: prop.aggregation_role.as_ref().map(|r| format!("{r:?}")),
         allowed_values: collect_allowed_values(prop, ontology),
         format_pattern: collect_format_pattern(prop, ontology),
         glossary_term: collect_glossary_term(prop, ontology, locale_chain),

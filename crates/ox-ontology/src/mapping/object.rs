@@ -74,6 +74,15 @@ pub struct ObjectMappingDef {
     /// function).
     pub property_mappings: Vec<PropertyMappingDef>,
 
+    /// Partitioning columns the source enforces. When non-empty the
+    /// `SemanticGuardValidator` rejects queries that lack a literal
+    /// predicate on at least one of these columns — translates the
+    /// `require_partition_filter=true` contract from BigQuery /
+    /// Snowflake / Hive into a pre-flight check instead of a
+    /// per-query round-trip rejection.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub partition_columns: Vec<ColumnRef>,
+
     /// Column carrying the workspace id in the source, when present.
     /// The federation planner injects
     /// `workspace_scope = $_ws_id` into every scan on the mapping
@@ -83,9 +92,11 @@ pub struct ObjectMappingDef {
 
     /// Higher precedence wins in multi-mapping dedup. A new mapping
     /// that shadows an older one simply uses a higher number; the
-    /// oldest mapping can stay registered for audit purposes.
+    /// oldest mapping can stay registered for audit purposes. Ties
+    /// resolve by `id` ascending so the resolved order is independent
+    /// of insertion sequence.
     #[serde(default)]
-    pub precedence: u8,
+    pub precedence: u32,
 
     /// When this mapping became (or will become) authoritative. A
     /// planner evaluating a query with `ontology_valid_at = t`
@@ -122,8 +133,9 @@ impl ObjectMappingDef {
             primary_key_columns: Vec::new(),
             row_filter: None,
             property_mappings: Vec::new(),
+            partition_columns: Vec::new(),
             workspace_scope: None,
-            precedence: u8::MAX,
+            precedence: u32::MAX,
             valid_from: None,
             valid_to: None,
             cache_hint: CacheHintKind::default(),
@@ -147,7 +159,7 @@ mod tests {
     #[test]
     fn new_defaults_are_maximum_precedence_and_open_window() {
         let m = ObjectMappingDef::new("om-1", "nt-user", "pg-main", "users");
-        assert_eq!(m.precedence, u8::MAX);
+        assert_eq!(m.precedence, u32::MAX);
         assert!(m.valid_from.is_none() && m.valid_to.is_none());
         assert!(matches!(m.cache_hint, CacheHintKind::None));
     }

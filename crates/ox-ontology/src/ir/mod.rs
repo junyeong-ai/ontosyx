@@ -1,3 +1,5 @@
+mod cycles;
+pub mod migration;
 mod types;
 mod validation;
 
@@ -358,10 +360,27 @@ pub struct OntologyIR {
     lookup: OntologyLookup,
 }
 
-/// Custom Deserialize that auto-builds lookup indices after loading
-/// and rejects payloads from a future struct shape.
+/// Custom Deserialize that runs the JSONB migration pipeline,
+/// auto-builds lookup indices after loading, and rejects payloads
+/// from a future struct shape.
+///
+/// The deserialiser materialises the incoming payload as a
+/// `serde_json::Value`, hands it to [`migration::migrate_to_current`]
+/// to walk the version chain, and only then decodes into the typed
+/// `Wire` shape. This means a JSONB row written by a v3 server
+/// loads cleanly on a v5 server: the v4→v5 migration (concept fold-in)
+/// runs first, the resulting v5 shape decodes into `Wire`, and the
+/// post-image is structurally identical to a freshly-written row.
 impl<'de> Deserialize<'de> for OntologyIR {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // Materialise as Value first so the migration pipeline can
+        // walk the JSON shape. This adds one round-trip allocation
+        // — small price for forward-compatible reads of every
+        // historical schema version.
+        let raw = serde_json::Value::deserialize(deserializer)?;
+        let migrated = migration::migrate_to_current(raw)
+            .map_err(|e| serde::de::Error::custom(e.to_string()))?;
+
         #[derive(Deserialize)]
         struct Wire {
             #[serde(default = "default_ontology_ir_schema_version")]
@@ -412,7 +431,13 @@ impl<'de> Deserialize<'de> for OntologyIR {
             column_profiles: Vec<crate::column_profile::ColumnProfileDef>,
         }
 
-        let w = Wire::deserialize(deserializer)?;
+        let w: Wire = serde_json::from_value(migrated)
+            .map_err(serde::de::Error::custom)?;
+        // The migration pipeline already rejected any future
+        // version; the post-image carries a current-or-older tag.
+        // The redundant guard below stays as defence in depth — a
+        // bug in the chain that produced a payload tagged "future"
+        // surfaces here rather than corrupting downstream code.
         if w.schema_version > ONTOLOGY_IR_SCHEMA_VERSION {
             return Err(serde::de::Error::custom(format!(
                 "OntologyIR schema_version {} is newer than this build supports (max {}). \

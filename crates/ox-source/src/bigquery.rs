@@ -236,6 +236,17 @@ impl DataSourceAdapter for BigQueryAdapter {
         true
     }
 
+    fn capabilities(&self) -> crate::AdapterCapabilities {
+        crate::AdapterCapabilities {
+            supports_scan: true,
+            predicate_pushdown: crate::PredicatePushdown::EqualityAndRange,
+            limit_pushdown: true,
+            aggregate_pushdown: true,
+            partition_aware: true,
+            computed_link_dialect: Some(crate::SqlDialect::BigQuery),
+        }
+    }
+
     /// BigQuery surfaces a small, recognisable set of failure modes
     /// inside the otherwise-noisy `BQError::ResponseError` shape.
     /// Promote them to specific [`WarningClass`] variants so the FE

@@ -452,6 +452,16 @@ impl DefaultBrain {
         };
         let user_prompt = tmpl.render_user(vars);
 
+        let combined_render = format!("{}\n\n{}", tmpl.system, user_prompt);
+        crate::design::assert_within_budget(
+            &combined_render,
+            crate::design::PromptBudget::for_prompt(prompt_name),
+        )
+        .map_err(|err| OxError::Validation {
+            field: "prompt".to_string(),
+            message: err.to_string(),
+        })?;
+
         let (client, resolved) = self.resolve_for_operation(operation).await?;
         let effective_max_tokens = resolved.max_tokens.unwrap_or(tmpl.max_tokens);
         let effective_temperature = resolved.temperature.or(tmpl.temperature);
@@ -874,9 +884,13 @@ impl QueryTranslator for DefaultBrain {
         ctx.progress("knowledge_lookup")
             .completed(t_knowledge.elapsed().as_millis() as u64);
 
+        let glossary_section =
+            crate::design::render_glossary_section(ontology.glossary());
+
         let mut vars = HashMap::new();
         vars.insert("question", question);
         vars.insert("ontology", ontology_json.as_str());
+        vars.insert("glossary_section", glossary_section.as_str());
         vars.insert("knowledge", knowledge_context.as_str());
         // Empty placeholder by default; the label-retry path below
         // overrides it with the offending labels. Keeps `{{correction}}`
@@ -891,7 +905,7 @@ impl QueryTranslator for DefaultBrain {
         let query_ir = match self
             .call_structured::<ox_query_ir::StructuredMatchQuery>(
                 "translate_match_query",
-                Some("1.3.0"),
+                Some("1.0.0"),
                 "translate_match_query",
                 &vars,
                 "Translating to StructuredMatchQuery (structured output)",
@@ -919,7 +933,7 @@ impl QueryTranslator for DefaultBrain {
                 let result: OxResult<QueryIR> = self
                     .call_structured(
                         "translate_query",
-                        Some("1.2.0"),
+                        Some("1.0.0"),
                         "translate_query",
                         &vars,
                         "Translating to QueryIR (JSON mode fallback)",
@@ -945,7 +959,7 @@ impl QueryTranslator for DefaultBrain {
                         let retry_result = self
                             .call_structured::<QueryIR>(
                                 "translate_query",
-                                Some("1.2.0"),
+                                Some("1.0.0"),
                                 "translate_query",
                                 &vars,
                                 "Retrying query translation",
@@ -1002,7 +1016,7 @@ impl QueryTranslator for DefaultBrain {
                 let retry: OxResult<QueryIR> = self
                     .call_structured(
                         "translate_query",
-                        Some("1.2.0"),
+                        Some("1.0.0"),
                         "translate_query",
                         &retry_vars,
                         "Retrying query translation with label correction",
@@ -1010,6 +1024,27 @@ impl QueryTranslator for DefaultBrain {
                     .await;
                 match retry {
                     Ok(qir) => {
+                        let still_unknown =
+                            ox_query_ir::unknown_labels_in_query(ontology, &qir);
+                        if !still_unknown.is_empty() {
+                            ctx.progress("llm_label_retry")
+                                .failed(t_label_retry.elapsed().as_millis() as u64);
+                            let available: Vec<&str> = ontology
+                                .node_types()
+                                .iter()
+                                .map(|n| n.label.as_str())
+                                .chain(ontology.edge_types().iter().map(|e| e.label.as_str()))
+                                .collect();
+                            return Err(OxError::Validation {
+                                field: "labels".to_string(),
+                                message: format!(
+                                    "Query references labels that do not exist in the ontology \
+                                     even after correction: {}. Available labels: {}.",
+                                    still_unknown.join(", "),
+                                    available.join(", ")
+                                ),
+                            });
+                        }
                         ctx.progress("llm_label_retry")
                             .completed(t_label_retry.elapsed().as_millis() as u64);
                         qir
@@ -1017,10 +1052,15 @@ impl QueryTranslator for DefaultBrain {
                     Err(_) => {
                         ctx.progress("llm_label_retry")
                             .failed(t_label_retry.elapsed().as_millis() as u64);
-                        // Retry failed — fall through to the downstream
-                        // OntologyValidator so the agent sees a
-                        // deterministic rejection.
-                        query_ir
+                        return Err(OxError::Validation {
+                            field: "labels".to_string(),
+                            message: format!(
+                                "Query references labels that do not exist in the ontology \
+                                 ({}); the retry pass also failed. Re-state the question using \
+                                 the actual entities from the schema.",
+                                unknown.join(", ")
+                            ),
+                        });
                     }
                 }
             }

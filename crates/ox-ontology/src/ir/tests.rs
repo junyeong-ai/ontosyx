@@ -2064,3 +2064,240 @@ fn phrase_resolver_prefers_canonical_term_over_alias() {
     let resolved = onto.glossary_term_by_phrase("Buyer").unwrap();
     assert_eq!(resolved.id.as_str(), "gt-buyer");
 }
+
+#[test]
+fn validate_flags_glossary_broader_cycle() {
+    use crate::glossary::{
+        GlossaryTermDef, GlossaryTermId, TermLifecycle, TermRelation, TermRelationKind,
+    };
+
+    fn term(id: &str, broader: &str) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(id),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: vec![TermRelation {
+                kind: TermRelationKind::Broader,
+                target: GlossaryTermId::new(broader),
+            }],
+            governance: crate::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::default(),
+            realisation: None,
+        }
+    }
+
+    let mut onto = OntologyIR::new(
+        "ont".into(),
+        "Cycles".into(),
+        LocalizedText::default(),
+        1,
+        vec![minimal_node("nt-1", "X")],
+        vec![],
+        vec![],
+    );
+    onto.glossary.push(term("gt-a", "gt-b"));
+    onto.glossary.push(term("gt-b", "gt-a"));
+
+    let errors = onto.validate();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.code == "ontology.validate.glossary.broader_cycle"),
+        "validator must flag the Broader 2-cycle: {errors:?}"
+    );
+}
+
+#[test]
+fn validate_flags_glossary_replaced_by_cycle() {
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermLifecycle};
+    use chrono::Utc;
+
+    fn deprecated_term(id: &str, replaced_by: &str) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(id),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: crate::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::Deprecated {
+                replaced_by: Some(GlossaryTermId::new(replaced_by)),
+                deprecated_at: Utc::now(),
+            },
+            realisation: None,
+        }
+    }
+
+    let mut onto = OntologyIR::new(
+        "ont".into(),
+        "Cycles".into(),
+        LocalizedText::default(),
+        1,
+        vec![minimal_node("nt-1", "X")],
+        vec![],
+        vec![],
+    );
+    onto.glossary.push(deprecated_term("gt-a", "gt-b"));
+    onto.glossary.push(deprecated_term("gt-b", "gt-a"));
+
+    let errors = onto.validate();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.code == "ontology.validate.glossary.replaced_by_cycle"),
+        "validator must flag the deprecation 2-cycle: {errors:?}"
+    );
+}
+
+#[test]
+fn validate_flags_rule_with_inverted_validity_window() {
+    use crate::rule::{RuleDef, RuleKind};
+    use crate::action::RuleId;
+    use chrono::{Duration, Utc};
+
+    let mut onto = OntologyIR::new(
+        "ont".into(),
+        "X".into(),
+        LocalizedText::default(),
+        1,
+        vec![minimal_node("nt-1", "Order")],
+        vec![],
+        vec![],
+    );
+    let now = Utc::now();
+    onto.rules.push(RuleDef {
+        id: RuleId::new("r-bad"),
+        name: LocalizedText::new("inverted"),
+        description: LocalizedText::default(),
+        rationale: LocalizedText::default(),
+        kind: RuleKind::NodeShape {
+            target_node_type_id: "nt-1".into(),
+        },
+        severity: Default::default(),
+        enforcement: Default::default(),
+        activation: Default::default(),
+        origin: Default::default(),
+        constraints: vec![],
+        valid_from: Some(now + Duration::days(10)),
+        valid_to: Some(now),
+        sh_message: None,
+    });
+
+    let errors = onto.validate();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.code == "ontology.validate.rule.invalid_validity_window"),
+        "validator must flag valid_from >= valid_to: {errors:?}"
+    );
+}
+
+#[test]
+fn validate_with_sources_flags_unknown_object_mapping_source() {
+    use crate::mapping::{ObjectMappingDef, SourceId};
+    use std::collections::HashSet;
+
+    let mut node = minimal_node("nt-1", "Order");
+    node.properties.push(PropertyDef {
+        id: "p-id".into(),
+        name: pk("id"),
+        property_type: PropertyType::String,
+        nullable: false,
+        ..Default::default()
+    });
+
+    let mut onto = OntologyIR::new(
+        "ont".into(),
+        "X".into(),
+        LocalizedText::default(),
+        1,
+        vec![node],
+        vec![],
+        vec![],
+    );
+    onto.object_mappings.push(ObjectMappingDef::new(
+        "om-1",
+        "nt-1",
+        "bigquery:oydp-public-dw",
+        "fact.fsc_sal_slip_l",
+    ));
+
+    let known = HashSet::<SourceId>::new();
+    let errors = onto.validate_with_sources(&known);
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.code == "ontology.validate.object_mapping.unknown_source"),
+        "validator must flag mapping pointing at an unregistered source: {errors:?}"
+    );
+
+    let mut known = HashSet::<SourceId>::new();
+    known.insert(SourceId::from("bigquery:oydp-public-dw".to_string()));
+    let errors = onto.validate_with_sources(&known);
+    assert!(
+        !errors
+            .iter()
+            .any(|e| e.code == "ontology.validate.object_mapping.unknown_source"),
+        "validator must not flag mapping when its source is registered: {errors:?}"
+    );
+}
+
+#[test]
+fn validate_flags_property_with_two_glossary_bindings() {
+    use crate::binding::PropertyBinding;
+    use crate::glossary::GlossaryTermId;
+
+    let mut node = minimal_node("nt-1", "Doc");
+    node.properties.push(PropertyDef {
+        id: "p-title".into(),
+        name: pk("title"),
+        property_type: PropertyType::String,
+        nullable: false,
+        bindings: vec![
+            PropertyBinding::Glossary {
+                id: GlossaryTermId::new("gt-a"),
+                valid_from: None,
+                valid_to: None,
+            },
+            PropertyBinding::Glossary {
+                id: GlossaryTermId::new("gt-b"),
+                valid_from: None,
+                valid_to: None,
+            },
+        ],
+        ..Default::default()
+    });
+
+    let onto = OntologyIR::new(
+        "ont".into(),
+        "X".into(),
+        LocalizedText::default(),
+        1,
+        vec![node],
+        vec![],
+        vec![],
+    );
+
+    let errors = onto.validate();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.code == "ontology.validate.property.duplicate_binding_kind"
+                && e.params
+                    .get("kind")
+                    .map(|v| v == "glossary")
+                    .unwrap_or(false)),
+        "validator must flag duplicate Glossary bindings: {errors:?}"
+    );
+}

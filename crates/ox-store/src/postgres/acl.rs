@@ -140,7 +140,7 @@ impl AclStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_effective_policies(
+    async fn list_effective_policies(
         &self,
         platform_role: &str,
         workspace_role: &str,

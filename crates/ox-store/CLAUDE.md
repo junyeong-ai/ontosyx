@@ -52,3 +52,73 @@ crosses both layers keeps the postgres and graph contexts distinct in
 the same tokio task scope. Reusing the same bare names across layers
 would require `ox-store::WORKSPACE_ID::sync_scope(id, ws_id, ...)`
 disambiguation on every single call.
+
+## Migrations are append-only and hash-pinned
+
+`migrations/NNNN_*.sql` files are immutable once committed.
+sqlx-migrate records the SHA-256 of every applied migration in
+`_sqlx_migrations.checksum`; editing a historical file fails the
+checksum check on the next deploy. Schema evolution lands as a
+fresh `NNNN_<focus>.sql` (N == max(existing) + 1).
+
+The `migration_immutability` test pins every historical file's
+hash. Editing a migration file fails the test with the expected vs.
+actual hash printed for diagnosis. Adding a new migration extends
+`expected_hashes()` in the same test — first run prints the hash
+to copy in.
+
+The `migrations_directory_has_no_strays` test rejects anything that
+doesn't match `^\d{4}_[a-z0-9_]+\.sql$` — catches editor backups
+(`*.sql.bak`) and rename leftovers before they confuse sqlx-migrate.
+
+Don't try to "split" the historical `0001_schema.sql` monolith.
+The split would mutate every historical hash and break every
+existing deployment on the next migration sync. The sealed monolith
+documents the v0 baseline; new domains land as fresh files.
+
+## Workspace-scoped tables must carry full RLS protection
+
+Every table that holds a `workspace_id` column must satisfy four
+clauses (the canonical "RLS Policy Pattern" in this file):
+
+1. `ALTER TABLE … ENABLE ROW LEVEL SECURITY`
+2. `ALTER TABLE … FORCE ROW LEVEL SECURITY` — applies even to the
+   table owner
+3. A tenant-gate policy whose `qual` references
+   `app.workspace_id` (canonical name `ws_isolation`; dual-tenancy
+   tables use `ws_or_global` / `ws_write` / `ws_or_global_read` —
+   the test below checks the qual SQL, not the name)
+4. `system_bypass` policy for cross-workspace admin / scheduled
+   tasks
+
+`tests/rls_invariants.rs::workspace_scoped_tables_have_full_rls_protection`
+is a catalog scan that fails when a new migration introduces a
+`workspace_id` column without the four clauses. Runs against a
+live PostgreSQL behind `OX_TEST_DATABASE_URL` (CI's `rls` job).
+
+Pre-scope tables (`workspaces`, `workspace_members`, `users`) carry
+the OPPOSITE invariant — RLS is forbidden on them because the auth
+middleware reads them before `WORKSPACE_ID.scope` wraps the request.
+The `pre_scope_tables_carry_no_rls_policies` test pins this.
+
+## Advisory locks for boot-time + cron singletons
+
+Race-prone shared-write paths use `ox_store::advisory_lock`:
+
+- `with_advisory_lock(pool, key, fut)` — blocking. Boot-time
+  seeders that must run exactly once per fresh DB
+  (`ADVISORY_LOCK_PROMPT_SEED`).
+- `try_advisory_lock(pool, key, fut)` — non-blocking. Cron
+  singletons that should only run on one replica per tick
+  (`ADVISORY_LOCK_CRON_*`). Returns `Ok(None)` when another holder
+  has the lock; the caller silently skips.
+
+Pick a fresh `ADVISORY_LOCK_*` constant when adding a new lock
+surface — never inline a magic i64. The `lock_constants_are_unique`
+test catches collisions.
+
+Cron tasks override `CronTask::singleton_key()` to return
+`Some(ADVISORY_LOCK_CRON_<NAME>)` when their `run_once` writes
+shared state; in-process-only tasks (clarification evict,
+collaboration idle reap) leave it `None` because every replica
+must run on its own memory.

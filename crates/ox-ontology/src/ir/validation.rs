@@ -1,10 +1,13 @@
 use ox_core::diagnostic::{diag, DiagnosticMessage};
 use ox_core::types::PropertyType;
 
+use super::cycles::find_cycle;
 use super::{
     AggregationRole, EdgeKind, IndexDef, NodeConstraint, NodeTypeDef, NodeTypeId, OntologyIR,
     PropertyDef, PropertyId,
 };
+use crate::binding::PropertyBinding;
+use crate::glossary::{GlossaryTermId, TermLifecycle, TermRelationKind};
 
 /// Sentinel label produced by [`NodeTypeDef::default`] /
 /// [`EdgeTypeDef::default`] — a placeholder that satisfies
@@ -310,7 +313,64 @@ impl OntologyIR {
     /// (`next-intl` ICU MessageFormat); operator logs and the LLM
     /// tool-result channel consume the English `message` rendering.
     pub fn validate(&self) -> Vec<DiagnosticMessage> {
+        self.validate_internal(None)
+    }
+
+    /// Same as [`Self::validate`] but additionally checks that every
+    /// `source_id` referenced by an `ObjectMappingDef` or
+    /// `LinkMappingDef` resolves against the supplied set of
+    /// registered sources. Callers invoke this from API boundaries
+    /// where the `data_sources` row set is loaded — it surfaces
+    /// "mapping points at unregistered source" at IR commit time
+    /// rather than as a runtime adapter-resolver error.
+    pub fn validate_with_sources(
+        &self,
+        known_sources: &std::collections::HashSet<crate::mapping::SourceId>,
+    ) -> Vec<DiagnosticMessage> {
+        self.validate_internal(Some(known_sources))
+    }
+
+    fn validate_internal(
+        &self,
+        known_sources: Option<&std::collections::HashSet<crate::mapping::SourceId>>,
+    ) -> Vec<DiagnosticMessage> {
         let mut errors: Vec<DiagnosticMessage> = Vec::new();
+
+        if let Some(known) = known_sources {
+            for mapping in &self.object_mappings {
+                if !known.contains(&mapping.source_id) {
+                    errors.push(
+                        diag("ontology.validate.object_mapping.unknown_source")
+                            .with("mapping_id", mapping.id.as_str())
+                            .with("source_id", mapping.source_id.as_str())
+                            .with("relation", mapping.relation.as_str())
+                            .message(format!(
+                                "Object mapping '{}' targets relation '{}' on source '{}' \
+                                 which is not registered. Register the data source before \
+                                 committing the mapping.",
+                                mapping.id, mapping.relation, mapping.source_id
+                            )),
+                    );
+                }
+            }
+            for mapping in &self.link_mappings {
+                for endpoint in [&mapping.source_endpoint, &mapping.target_endpoint] {
+                    if !known.contains(&endpoint.source_id) {
+                        errors.push(
+                            diag("ontology.validate.link_mapping.unknown_source")
+                                .with("mapping_id", mapping.id.as_str())
+                                .with("source_id", endpoint.source_id.as_str())
+                                .message(format!(
+                                    "Link mapping '{}' references source '{}' \
+                                     which is not registered.",
+                                    mapping.id,
+                                    endpoint.source_id.as_str()
+                                )),
+                        );
+                    }
+                }
+            }
+        }
 
         if self.id.trim().is_empty() {
             errors.push(
@@ -1059,6 +1119,126 @@ impl OntologyIR {
                     }
                 }
                 None => {}
+            }
+        }
+
+        let glossary_index: std::collections::HashMap<&GlossaryTermId, &crate::glossary::GlossaryTermDef> =
+            self.glossary.iter().map(|t| (&t.id, t)).collect();
+
+        if let Some(cycle) = find_cycle(self.glossary.iter().map(|t| t.id.clone()), |id| {
+            glossary_index
+                .get(id)
+                .map(|term| {
+                    term.related_terms
+                        .iter()
+                        .filter(|r| matches!(r.kind, TermRelationKind::Broader))
+                        .map(|r| r.target.clone())
+                        .collect()
+                })
+                .unwrap_or_default()
+        }) {
+            errors.push(
+                diag("ontology.validate.glossary.broader_cycle")
+                    .with(
+                        "cycle",
+                        cycle
+                            .iter()
+                            .map(|id| id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" → "),
+                    )
+                    .message(format!(
+                        "Glossary Broader hierarchy forms a cycle: {}",
+                        cycle
+                            .iter()
+                            .map(|id| id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" → ")
+                    )),
+            );
+        }
+
+        if let Some(cycle) = find_cycle(self.glossary.iter().map(|t| t.id.clone()), |id| {
+            glossary_index
+                .get(id)
+                .and_then(|term| match &term.lifecycle {
+                    TermLifecycle::Deprecated { replaced_by, .. } => replaced_by.clone(),
+                    _ => None,
+                })
+                .map(|next| vec![next])
+                .unwrap_or_default()
+        }) {
+            errors.push(
+                diag("ontology.validate.glossary.replaced_by_cycle")
+                    .with(
+                        "cycle",
+                        cycle
+                            .iter()
+                            .map(|id| id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" → "),
+                    )
+                    .message(format!(
+                        "Glossary deprecation chain forms a cycle: {}",
+                        cycle
+                            .iter()
+                            .map(|id| id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" → ")
+                    )),
+            );
+        }
+
+        for rule in &self.rules {
+            if let (Some(from), Some(to)) = (rule.valid_from, rule.valid_to)
+                && from >= to
+            {
+                errors.push(
+                    diag("ontology.validate.rule.invalid_validity_window")
+                        .with("rule_id", rule.id.as_str())
+                        .with("valid_from", from.to_rfc3339())
+                        .with("valid_to", to.to_rfc3339())
+                        .message(format!(
+                            "Rule '{}' valid_from ({}) is not strictly before valid_to ({})",
+                            rule.id,
+                            from.to_rfc3339(),
+                            to.to_rfc3339()
+                        )),
+                );
+            }
+        }
+
+        for node in &self.node_types {
+            for property in &node.properties {
+                let mut counts: std::collections::HashMap<&'static str, usize> =
+                    std::collections::HashMap::new();
+                for binding in &property.bindings {
+                    let kind = match binding {
+                        PropertyBinding::Glossary { .. } => "glossary",
+                        PropertyBinding::NotationPattern { .. } => "notation_pattern",
+                        PropertyBinding::ValueRange { .. } => "value_range",
+                        PropertyBinding::ValueSet { .. } | PropertyBinding::CodeSystem { .. } => {
+                            continue;
+                        }
+                    };
+                    *counts.entry(kind).or_default() += 1;
+                }
+                for (kind, count) in counts.into_iter().filter(|(_, n)| *n > 1) {
+                    errors.push(
+                        diag("ontology.validate.property.duplicate_binding_kind")
+                            .with("node_label", node.label.as_str())
+                            .with("property_name", property.name.as_str())
+                            .with("kind", kind)
+                            .with("count", count.to_string())
+                            .message(format!(
+                                "Property '{}.{}' has {} '{}' bindings — at most one is allowed",
+                                node.label.as_str(),
+                                property.name.as_str(),
+                                count,
+                                kind
+                            )),
+                    );
+                }
             }
         }
 

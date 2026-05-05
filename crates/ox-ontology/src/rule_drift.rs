@@ -264,6 +264,7 @@ mod tests {
                 transform: PropertyTransform::Identity,
                 concept_map_id: None,
             }],
+            partition_columns: Vec::new(),
             workspace_scope: None,
             precedence: 0,
             valid_from: None,

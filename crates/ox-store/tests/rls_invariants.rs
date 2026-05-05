@@ -102,6 +102,154 @@ async fn pre_scope_tables_carry_no_rls_policies() {
     );
 }
 
+/// Catalog scan: every public table that carries a `workspace_id`
+/// column MUST be full-RLS protected (rowsecurity + forcerowsecurity
+/// + `ws_isolation` policy + `system_bypass` policy). Tripping this
+/// assertion means a recent migration added `workspace_id` without
+/// the matching `ALTER TABLE … ENABLE / FORCE ROW LEVEL SECURITY`
+/// + `CREATE POLICY` block — silently exposing rows across
+/// workspaces. The CLAUDE.md "RLS Policy Pattern (required for all
+/// workspace-scoped tables)" section codifies the contract; this
+/// test enforces it.
+///
+/// Pre-scope tables (`workspaces`, `workspace_members`, `users`)
+/// are excluded by name — their non-RLS status is the OPPOSITE
+/// invariant pinned by `pre_scope_tables_carry_no_rls_policies`.
+#[tokio::test]
+#[ignore = "requires OX_TEST_DATABASE_URL"]
+async fn workspace_scoped_tables_have_full_rls_protection() {
+    let Some(url) = resolve_test_db_url() else {
+        eprintln!("OX_TEST_DATABASE_URL not set — skipping");
+        return;
+    };
+
+    let store = ox_store::PostgresStore::connect(&url, 2)
+        .await
+        .expect("connect");
+    store.migrate().await.expect("migrate");
+    let pool = store.pool().clone();
+
+    // Tables that hold a `workspace_id` column — the universe of
+    // workspace-scoped data we care about.
+    let candidates = sqlx::query(
+        "SELECT table_name FROM information_schema.columns \
+         WHERE table_schema = 'public' AND column_name = 'workspace_id'",
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("information_schema query");
+    let tables: Vec<String> = candidates
+        .iter()
+        .map(|r| r.get::<String, _>("table_name"))
+        .filter(|name| !PRE_SCOPE_TABLES.contains(&name.as_str()))
+        .collect();
+
+    assert!(
+        !tables.is_empty(),
+        "expected at least one workspace-scoped table — schema may not be migrated",
+    );
+
+    // rowsecurity + forcerowsecurity flags
+    let class_rows = sqlx::query(
+        "SELECT relname, relrowsecurity, relforcerowsecurity \
+         FROM pg_class \
+         WHERE relnamespace = 'public'::regnamespace AND relname = ANY($1)",
+    )
+    .bind(&tables)
+    .fetch_all(&pool)
+    .await
+    .expect("pg_class query");
+
+    let mut missing_enable: Vec<String> = Vec::new();
+    let mut missing_force: Vec<String> = Vec::new();
+    for r in &class_rows {
+        let name: String = r.get("relname");
+        let enabled: bool = r.get("relrowsecurity");
+        let forced: bool = r.get("relforcerowsecurity");
+        if !enabled {
+            missing_enable.push(name.clone());
+        }
+        if !forced {
+            missing_force.push(name);
+        }
+    }
+
+    // Policy presence checked semantically — a tenant-gate policy
+    // is any policy whose `qual` references `app.workspace_id`. The
+    // canonical name is `ws_isolation`, but tables that support
+    // global-or-workspace dual tenancy intentionally use other
+    // names (`ws_or_global`, `ws_write`, `ws_or_global_read`) — all
+    // of them satisfy the gate because the WHERE clause itself
+    // mentions the session var. Checking the SQL text avoids
+    // false-positives when a migration introduces a clearer name.
+    let policy_rows = sqlx::query(
+        "SELECT tablename, policyname, qual FROM pg_policies \
+         WHERE schemaname = 'public' AND tablename = ANY($1)",
+    )
+    .bind(&tables)
+    .fetch_all(&pool)
+    .await
+    .expect("pg_policies query");
+
+    use std::collections::{HashMap, HashSet};
+    let mut policies_by_table: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    for r in &policy_rows {
+        let table: String = r.get("tablename");
+        let policy: String = r.get("policyname");
+        let qual: String = r.try_get("qual").unwrap_or_default();
+        policies_by_table
+            .entry(table)
+            .or_default()
+            .push((policy, qual));
+    }
+
+    let mut missing_tenant_gate: Vec<String> = Vec::new();
+    let mut missing_bypass: Vec<String> = Vec::new();
+    for table in &tables {
+        let entries = policies_by_table.get(table).cloned().unwrap_or_default();
+        let policy_names: HashSet<&str> =
+            entries.iter().map(|(name, _)| name.as_str()).collect();
+        // `system_bypass` is named consistently — admin paths look
+        // for that exact name when configuring sessions.
+        if !policy_names.contains("system_bypass") {
+            missing_bypass.push(table.clone());
+        }
+        // Tenant gate: any policy whose qual references the session
+        // var. The qual text in pg_policies expands `current_setting`
+        // canonically to `current_setting(...)` — match liberally.
+        let has_tenant_gate = entries.iter().any(|(_, qual)| {
+            qual.contains("app.workspace_id") || qual.contains("workspace_id")
+        });
+        if !has_tenant_gate {
+            missing_tenant_gate.push(table.clone());
+        }
+    }
+
+    let problems = [
+        ("ENABLE ROW LEVEL SECURITY", &missing_enable),
+        ("FORCE ROW LEVEL SECURITY", &missing_force),
+        ("tenant-gate policy referencing app.workspace_id", &missing_tenant_gate),
+        ("CREATE POLICY system_bypass", &missing_bypass),
+    ];
+    let any_failure = problems.iter().any(|(_, list)| !list.is_empty());
+
+    assert!(
+        !any_failure,
+        "Workspace-scoped tables are missing required RLS protection. \
+         The CLAUDE.md `RLS Policy Pattern` section requires all four of \
+         ENABLE / FORCE / ws_isolation / system_bypass on every table that \
+         carries `workspace_id`. Add the missing clauses to the migration \
+         that introduced the column. Offenders by clause:\n\
+         {}",
+        problems
+            .iter()
+            .filter(|(_, list)| !list.is_empty())
+            .map(|(label, list)| format!("  {label}: {list:?}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    );
+}
+
 #[tokio::test]
 #[ignore = "requires OX_TEST_DATABASE_URL"]
 async fn force_row_level_security_is_off_on_pre_scope_tables() {

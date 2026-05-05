@@ -94,7 +94,24 @@ pub fn estimate_cost(query: &QueryIR, ontology: &OntologyIR) -> QueryCost {
             .push("Many-to-many relationships without indexed filters — high fan-out risk".into());
     }
 
-    let risk_level = classify_risk(&ctx, uses_indexed_filter, has_high_fanout);
+    let missing_partition_filters = check_partition_filters(&ctx, ontology);
+    for entry in &missing_partition_filters {
+        warnings.push(format!(
+            "Label '{}' is mapped to a partition-aware source ({}) but the query carries no \
+             literal filter on any of its partition columns ({}). The source will reject the \
+             scan or charge for a full-table read.",
+            entry.label,
+            entry.relation,
+            entry.partition_columns.join(", "),
+        ));
+    }
+
+    let risk_level = classify_risk(
+        &ctx,
+        uses_indexed_filter,
+        has_high_fanout,
+        !missing_partition_filters.is_empty(),
+    );
 
     QueryCost {
         pattern_count: ctx.pattern_count,
@@ -122,10 +139,23 @@ struct CostCtx {
     filter_labels: Vec<(String, String)>,
     /// Relationship labels referenced — for cardinality check
     relationship_labels: Vec<String>,
+    /// Every node label the query mentions, including labels that
+    /// carry no property filter — partition-filter checks need to
+    /// see "label appears at all" not just "label appears in a
+    /// filter".
+    referenced_labels: HashSet<String>,
 }
 
-fn classify_risk(ctx: &CostCtx, indexed: bool, high_fanout: bool) -> RiskLevel {
-    if ctx.has_cartesian || ctx.max_var_length_depth > VAR_LENGTH_HIGH_THRESHOLD {
+fn classify_risk(
+    ctx: &CostCtx,
+    indexed: bool,
+    high_fanout: bool,
+    missing_partition_filter: bool,
+) -> RiskLevel {
+    if ctx.has_cartesian
+        || ctx.max_var_length_depth > VAR_LENGTH_HIGH_THRESHOLD
+        || missing_partition_filter
+    {
         return RiskLevel::High;
     }
     if ctx.max_var_length_depth > VAR_LENGTH_MEDIUM_THRESHOLD
@@ -136,6 +166,73 @@ fn classify_risk(ctx: &CostCtx, indexed: bool, high_fanout: bool) -> RiskLevel {
         return RiskLevel::Medium;
     }
     RiskLevel::Low
+}
+
+/// Pair the labels referenced by the query with their object mapping
+/// declarations, then flag any whose source declares
+/// `partition_columns` but the query supplies no literal filter on
+/// one of them. Returns one entry per offending label.
+fn check_partition_filters(
+    ctx: &CostCtx,
+    ontology: &OntologyIR,
+) -> Vec<MissingPartitionFilter> {
+    let mut filtered_columns: HashMap<&str, HashSet<&str>> = HashMap::new();
+    let mut all_labels: HashSet<&str> = HashSet::new();
+    for label in &ctx.referenced_labels {
+        all_labels.insert(label.as_str());
+    }
+    for (label, prop) in &ctx.filter_labels {
+        all_labels.insert(label.as_str());
+        filtered_columns
+            .entry(label.as_str())
+            .or_default()
+            .insert(prop.as_str());
+    }
+
+    let mut out = Vec::new();
+    for label in all_labels {
+        let Some(node) = ontology
+            .node_types()
+            .iter()
+            .find(|n| n.label.as_str() == label)
+        else {
+            continue;
+        };
+        for mapping in ontology
+            .object_mappings()
+            .iter()
+            .filter(|m| m.node_type_id == node.id)
+        {
+            if mapping.partition_columns.is_empty() {
+                continue;
+            }
+            let partition_names: HashSet<&str> = mapping
+                .partition_columns
+                .iter()
+                .map(|c| c.column.as_str())
+                .collect();
+            let filtered = filtered_columns.get(label).cloned().unwrap_or_default();
+            if partition_names.is_disjoint(&filtered) {
+                out.push(MissingPartitionFilter {
+                    label: label.to_string(),
+                    relation: mapping.relation.clone(),
+                    partition_columns: mapping
+                        .partition_columns
+                        .iter()
+                        .map(|c| c.column.clone())
+                        .collect(),
+                });
+            }
+        }
+    }
+    out
+}
+
+#[derive(Debug)]
+struct MissingPartitionFilter {
+    label: String,
+    relation: String,
+    partition_columns: Vec<String>,
 }
 
 /// Recursively walk a QueryOp tree, accumulating cost signals.
@@ -209,8 +306,8 @@ fn collect_pattern_signals(pattern: &GraphPattern, ctx: &mut CostCtx) {
             property_filters,
             ..
         } => {
-            // Track filtered label.property pairs for index check
             if let Some(lbl) = label {
+                ctx.referenced_labels.insert(lbl.to_string());
                 for pf in property_filters {
                     ctx.filter_labels
                         .push((lbl.to_string(), pf.property.to_string()));
@@ -802,5 +899,73 @@ mod tests {
         let ont = ontology_with_index();
         let cost = estimate_cost(&ir, &ont);
         assert!(cost.has_high_fanout);
+    }
+
+    fn ontology_with_partition_aware_mapping() -> OntologyIR {
+        use ox_ontology::mapping::{ColumnRef, ObjectMappingDef};
+        let mut ont = ontology_with_index();
+        let nt = ont.node_types()[0].id.clone();
+        let mut mapping = ObjectMappingDef::new(
+            "om-person",
+            nt,
+            "bigquery:warehouse",
+            "fact.persons",
+        );
+        mapping.partition_columns = vec![ColumnRef::new("fact.persons", "stdrd_ymd")];
+        ont.add_object_mapping(mapping)
+            .expect("partition-aware fixture mapping must register");
+        ont
+    }
+
+    fn ir_match_node(label: &'static str, var: &'static str, filters: Vec<PropertyFilter>) -> QueryIR {
+        QueryIR {
+            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn(var),
+                    label: Some(gl(label)),
+                    property_filters: filters,
+                }],
+                filter: None,
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+            as_of: None,
+        }
+    }
+
+    #[test]
+    fn missing_partition_filter_promotes_to_high_risk() {
+        let ir = ir_match_node("Person", "p", vec![]);
+        let ont = ontology_with_partition_aware_mapping();
+        let cost = estimate_cost(&ir, &ont);
+        assert_eq!(cost.risk_level, RiskLevel::High);
+        assert!(
+            cost.warnings.iter().any(|w| w.contains("partition")),
+            "expected a partition warning, got {:?}",
+            cost.warnings
+        );
+    }
+
+    #[test]
+    fn partition_column_in_filter_clears_warning() {
+        let filters = vec![PropertyFilter {
+            property: pk("stdrd_ymd"),
+            value: Expr::Literal {
+                value: ox_core::types::PropertyValue::String("2026-01-01".into()),
+            },
+        }];
+        let ir = ir_match_node("Person", "p", filters);
+        let ont = ontology_with_partition_aware_mapping();
+        let cost = estimate_cost(&ir, &ont);
+        assert!(
+            !cost.warnings.iter().any(|w| w.contains("partition")),
+            "expected no partition warning, got {:?}",
+            cost.warnings
+        );
     }
 }

@@ -28,7 +28,7 @@ impl VerificationStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_verifications(
+    async fn list_verifications(
         &self,
         ontology_lineage_id: &str,
     ) -> OxResult<Vec<ElementVerification>> {

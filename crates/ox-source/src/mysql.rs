@@ -88,6 +88,17 @@ impl DataSourceAdapter for MysqlAdapter {
         true
     }
 
+    fn capabilities(&self) -> crate::AdapterCapabilities {
+        crate::AdapterCapabilities {
+            supports_scan: true,
+            predicate_pushdown: crate::PredicatePushdown::Full,
+            limit_pushdown: true,
+            aggregate_pushdown: true,
+            partition_aware: false,
+            computed_link_dialect: Some(crate::SqlDialect::MySql),
+        }
+    }
+
     async fn list_tables(&self) -> OxResult<Vec<String>> {
         // information_schema.TABLES surfaces base tables and views in
         // the schema. SYSTEM VIEW rows belong to the server's own

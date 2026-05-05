@@ -925,6 +925,22 @@ pub enum Cardinality {
     ManyToMany,
 }
 
+impl std::fmt::Display for Cardinality {
+    /// ER-diagram notation, the form an LLM is most likely to have
+    /// seen in training data. `OneToOne → "1:1"`, `ManyToMany →
+    /// "N:N"`, etc. — readable both as documentation and as a hint
+    /// for query generation.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::OneToOne => "1:1",
+            Self::OneToMany => "1:N",
+            Self::ManyToOne => "N:1",
+            Self::ManyToMany => "N:N",
+        };
+        f.write_str(s)
+    }
+}
+
 impl Cardinality {
     /// Minimum number of source nodes per target. Always `1` today
     /// — the four canonical variants all model "exists".

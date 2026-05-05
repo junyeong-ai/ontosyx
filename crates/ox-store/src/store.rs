@@ -992,7 +992,7 @@ pub trait EmbeddingRetryStore: Send + Sync {
 #[async_trait]
 pub trait VerificationStore: Send + Sync {
     async fn verify_element(&self, v: &ElementVerification) -> OxResult<Uuid>;
-    async fn get_verifications(
+    async fn list_verifications(
         &self,
         ontology_lineage_id: &str,
     ) -> OxResult<Vec<ElementVerification>>;
@@ -1343,7 +1343,7 @@ pub trait AclStore: Send + Sync {
 
     /// Get all active policies applicable to a given subject (for runtime evaluation).
     /// Returns policies ordered by priority DESC (most specific first).
-    async fn get_effective_policies(
+    async fn list_effective_policies(
         &self,
         platform_role: &str,
         workspace_role: &str,

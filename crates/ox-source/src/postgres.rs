@@ -114,6 +114,17 @@ impl DataSourceAdapter for PostgresAdapter {
         true
     }
 
+    fn capabilities(&self) -> crate::AdapterCapabilities {
+        crate::AdapterCapabilities {
+            supports_scan: true,
+            predicate_pushdown: crate::PredicatePushdown::Full,
+            limit_pushdown: true,
+            aggregate_pushdown: true,
+            partition_aware: true,
+            computed_link_dialect: Some(crate::SqlDialect::PostgreSql),
+        }
+    }
+
     /// Lift recognised PostgreSQL error classes (permission denied, …)
     /// out of the raw libpq message and into a stable
     /// [`WarningClass`]. The default fallback keeps the raw message
