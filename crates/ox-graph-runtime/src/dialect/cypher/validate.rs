@@ -1666,6 +1666,34 @@ mod tests {
     }
 
     #[test]
+    fn ontology_flags_unknown_property_in_merge_on_create_set() {
+        // `MERGE (p:Person) ON CREATE SET p.emial = 'x'` — the parser
+        // splits ON CREATE SET into a free-standing SET clause whose
+        // variable is bound by the upstream MERGE pattern. The
+        // validator must catch the typo on the `Person` label.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MERGE (p:Person) ON CREATE SET p.emial = 'x@example.com' RETURN p",
+        );
+        assert!(r.has_errors(), "MERGE ON CREATE SET typo must be flagged");
+        assert!(r.errors().any(|e| e.message.message.contains("emial")));
+    }
+
+    #[test]
+    fn ontology_flags_unknown_property_in_merge_on_match_set() {
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MERGE (p:Person {name: 'Alice'}) ON MATCH SET p.emial = 'x' RETURN p",
+        );
+        assert!(r.has_errors(), "MERGE ON MATCH SET typo must be flagged");
+        assert!(r.errors().any(|e| e.message.message.contains("emial")));
+    }
+
+    #[test]
     fn ontology_dedupes_repeated_set_property_typos() {
         // `SET p.emial = 'x', p.emial = 'y'` — same typo on the same
         // variable in two assignments. One diagnostic, not two.
