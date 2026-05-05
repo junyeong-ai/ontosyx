@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import type { QueryResult, WidgetSpec } from "@/types/api";
+import { useFormatters } from "@/hooks/use-formatters";
 
 interface HeatmapWidgetProps {
   spec: WidgetSpec;
@@ -21,6 +22,7 @@ function heatColor(ratio: number): string {
 
 export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
   const t = useTranslations("widget.heatmap");
+  const fmt = useFormatters();
   const [hoveredCell, setHoveredCell] = useState<{
     x: string;
     y: string;
@@ -84,7 +86,7 @@ export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
   }, [rows, xCol, yCol, valueCol]);
 
   if (!xCol || !yCol || !valueCol || columns.length < 3) {
-    return <p className="text-xs text-muted-foreground">{t("needColumns")}</p>;
+    return <p className="text-xs text-foreground-muted">{t("needColumns")}</p>;
   }
 
   const range = max - min || 1;
@@ -92,7 +94,7 @@ export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground dark:text-muted-foreground">
+        <h4 className="text-xs font-semibold text-foreground">
           {spec.title}
         </h4>
       )}
@@ -114,7 +116,7 @@ export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
         {yLabels.map((y) => (
           <div key={y} className="flex items-center">
             <div
-              className="w-16 shrink-0 truncate pr-1 text-right text-2xs font-medium text-foreground-muted"
+              className="w-16 shrink-0 truncate pe-1 text-end text-2xs font-medium text-foreground-muted"
               title={y}
             >
               {y}
@@ -125,7 +127,7 @@ export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
               return (
                 <div
                   key={`${x}::${y}`}
-                  className="flex-1 min-w-[36px] aspect-square m-0.5 rounded-sm cursor-default transition-transform hover:scale-110"
+                  className="flex-1 min-w-[36px] aspect-square m-0.5 rounded-sm cursor-default transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:scale-110"
                   style={{ backgroundColor: heatColor(ratio) }}
                   onMouseEnter={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
@@ -147,27 +149,27 @@ export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
         {hoveredCell && (
           <div
             className={cn(
-              "pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full",
-              "rounded-md px-2 py-1 text-2xs font-medium shadow-md",
-              "bg-surface-base text-foreground-strong-strong",
+              "pointer-events-none fixed z-tooltip -translate-x-1/2 -translate-y-full",
+              "rounded-md px-2 py-1 text-2xs font-medium shadow-2",
+              "bg-surface-base text-foreground-strong",
             )}
             style={{ left: hoveredCell.left, top: hoveredCell.top - 4 }}
           >
-            {hoveredCell.x} / {hoveredCell.y}: {hoveredCell.value.toLocaleString()}
+            {hoveredCell.x} / {hoveredCell.y}: {fmt.number(hoveredCell.value)}
           </div>
         )}
       </div>
       {/* Legend */}
-      <div className="flex items-center gap-2 text-2xs text-muted-foreground">
-        <span>{min.toLocaleString()}</span>
+      <div className="flex items-center gap-2 text-2xs text-foreground-muted">
+        <span>{fmt.number(min)}</span>
         <div
           className="h-2 flex-1 rounded-full"
           style={{
             background: `linear-gradient(to right, ${heatColor(0)}, ${heatColor(0.5)}, ${heatColor(1)})`,
           }}
         />
-        <span>{max.toLocaleString()}</span>
-        <span className="ml-2">{t("cellsCount", { count: rows.length })}</span>
+        <span>{fmt.number(max)}</span>
+        <span className="ms-2">{t("cellsCount", { count: rows.length })}</span>
       </div>
     </div>
   );

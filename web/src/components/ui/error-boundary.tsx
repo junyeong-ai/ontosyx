@@ -73,19 +73,19 @@ function ErrorBoundaryFallback({
   return (
     <div className="flex items-center justify-center p-8">
       <div className="max-w-md text-center">
-        <p className="text-sm font-medium text-red-500 dark:text-red-400">
+        <p className="text-sm font-medium text-danger-foreground">
           {t("title")}
         </p>
-        <p className="mt-2 text-xs text-zinc-600 dark:text-muted-foreground">
+        <p className="mt-2 text-xs text-foreground-muted">
           {t("description")}
         </p>
         {showDetail && (
-          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all rounded bg-zinc-100 px-2 py-1 text-left text-[10px] text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-400">
+          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all rounded bg-surface-inset px-2 py-1 text-start text-2xs text-foreground-muted">
             {detail}
           </pre>
         )}
-        <button
-          className="mt-4 rounded bg-zinc-200 px-3 py-1 text-xs font-medium text-zinc-800 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
+        <button type="button"
+          className="mt-4 rounded bg-surface-inset px-3 py-1 text-xs font-medium text-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-raised"
           onClick={onRetry}
         >
           {t("retry")}

@@ -5,6 +5,10 @@ import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../messages/en.json";
 import { ExploreFacetSidebar } from "@/components/workbench/explore/facet-sidebar";
 
+vi.mock("@/hooks/use-locale-chain", () => ({
+  useLocaleChain: () => ["en"],
+}));
+
 function renderSidebar(
   overrides: Partial<Parameters<typeof ExploreFacetSidebar>[0]> = {},
 ) {

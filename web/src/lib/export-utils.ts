@@ -2,7 +2,7 @@
 
 import type { OntologyIR } from "@/types/api";
 import { exportOntology, exportCypher, exportMermaid, exportGraphql, exportOwl, exportShacl, exportTypescript, exportPython } from "@/lib/api";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 export type ExportFormat = "json" | "cypher" | "mermaid" | "graphql" | "owl" | "shacl" | "typescript" | "python";
 

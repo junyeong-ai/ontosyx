@@ -22,6 +22,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
+import { FormSelect } from "@/components/ui/form-input";
 import type {
   GlossaryTermDef,
   TermRelation,
@@ -125,16 +126,16 @@ export function RelationsField({
 
   return (
     <fieldset className="flex flex-col gap-2 rounded border border-divider p-3">
-      <legend className="px-1 text-[11px] font-medium text-foreground">
+      <legend className="px-1 text-2xs font-medium text-foreground">
         {t("title")}
       </legend>
-      <p className="text-2xs text-muted-foreground">{t("hint")}</p>
-      <p className="text-2xs text-muted-foreground italic">
+      <p className="text-2xs text-foreground-muted">{t("hint")}</p>
+      <p className="text-2xs text-foreground-muted italic">
         {t("inverseHint")}
       </p>
 
       {rows.length === 0 && (
-        <p className="py-1 text-[11px] italic text-muted-foreground">
+        <p className="py-1 text-2xs italic text-foreground-muted">
           {t("empty")}
         </p>
       )}
@@ -143,25 +144,27 @@ export function RelationsField({
         const choices = pickableTerms(row.target);
         return (
           <div key={row.rowId} className="flex items-center gap-2">
-            <select
+            <FormSelect
               aria-label={t("kindAria")}
               value={row.kind}
               onChange={(e) =>
                 update(row.rowId, { kind: e.target.value as TermRelationKind })
               }
-              className="rounded border border-divider bg-surface-base px-2 py-1 text-xs"
+              density="compact"
+              className="w-auto"
             >
               {SKOS_RELATION_KINDS.map((k) => (
                 <option key={k} value={k}>
                   {t(`kind.${k}`)}
                 </option>
               ))}
-            </select>
-            <select
+            </FormSelect>
+            <FormSelect
               aria-label={t("targetAria")}
               value={row.target}
               onChange={(e) => update(row.rowId, { target: e.target.value })}
-              className="flex-1 rounded border border-divider bg-surface-base px-2 py-1 text-xs"
+              density="compact"
+              className="flex-1"
             >
               <option value="">{t("targetPlaceholder")}</option>
               {choices.map((term) => (
@@ -176,7 +179,7 @@ export function RelationsField({
                 !choices.some((c) => c.id === row.target) && (
                   <option value={row.target}>{row.target}</option>
                 )}
-            </select>
+            </FormSelect>
             <Button
               type="button"
               variant="ghost"

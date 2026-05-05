@@ -8,6 +8,7 @@ import { ArrowDown01Icon, ArrowRight01Icon, Search01Icon } from "@hugeicons/core
 import { useAppStore, selectStateSelectedNodeId, selectStateSelectedEdgeId } from "@/lib/store";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
+import { SearchInput } from "@/components/ui/form-input";
 import type { QualityGap, NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
 import { localizeQualityGapIssue } from "@/lib/quality-gap-text";
@@ -42,7 +43,7 @@ function nodeLayerColor(
   if (highGapCount > 0) return "bg-danger-solid";
   if (isAdded) return "bg-info-surface";
   if (sourceTable) return "bg-brand-solid";
-  return "bg-surface-raised dark:bg-surface-base";
+  return "bg-surface-raised";
 }
 
 // ---------------------------------------------------------------------------
@@ -75,10 +76,10 @@ const NodeItem = memo(function NodeItem({
   const propCount = arr(node.properties).length;
 
   return (
-    <button
+    <button type="button"
       onClick={handleClick}
       className={cn(
-        "flex w-full items-center gap-2 px-4 py-1.5 text-left hover:bg-surface-raised dark:hover:bg-surface-base",
+        "flex w-full items-center gap-2 px-4 py-1.5 text-start hover:bg-surface-raised",
         selected && "bg-brand-surface",
       )}
     >
@@ -92,12 +93,12 @@ const NodeItem = memo(function NodeItem({
         {node.label}
       </span>
       <Tooltip content={tNode("propertyCount", { count: propCount })}>
-        <span className="text-2xs text-muted-foreground">
+        <span className="text-2xs text-foreground-muted">
           {tNode("propertyAbbrev", { count: propCount })}
         </span>
       </Tooltip>
       {isAdded && (
-        <span className="rounded bg-brand-surface-strong px-1 text-2xs font-bold uppercase text-brand-foreground-strong-strong">
+        <span className="rounded bg-brand-surface-strong px-1 text-2xs font-bold uppercase text-brand-foreground-strong">
           {tNode("newBadge")}
         </span>
       )}
@@ -139,23 +140,23 @@ const EdgeItem = memo(function EdgeItem({
   const handleClick = useCallback(() => onSelect(edge.id), [onSelect, edge.id]);
 
   return (
-    <button
+    <button type="button"
       onClick={handleClick}
       className={cn(
-        "flex w-full items-center gap-2 px-4 py-1.5 text-left hover:bg-surface-raised dark:hover:bg-surface-base",
+        "flex w-full items-center gap-2 px-4 py-1.5 text-start hover:bg-surface-raised",
         selected && "bg-brand-surface",
       )}
     >
-      <HugeiconsIcon icon={ArrowRight01Icon} className="h-2.5 w-2.5 text-muted-foreground" size="100%" />
+      <HugeiconsIcon icon={ArrowRight01Icon} className="h-2.5 w-2.5 text-foreground-muted" size="100%" />
       <span className="flex-1 truncate text-foreground">
-        <span className="text-muted-foreground">{sourceLabel}</span>
+        <span className="text-foreground-muted">{sourceLabel}</span>
         {" → "}
         <span className="font-medium">{edge.label.replace(/_/g, " ").toLowerCase()}</span>
         {" → "}
-        <span className="text-muted-foreground">{targetLabel}</span>
+        <span className="text-foreground-muted">{targetLabel}</span>
       </span>
       {isAdded && (
-        <span className="rounded bg-brand-surface-strong px-1 text-2xs font-bold uppercase text-brand-foreground-strong-strong">
+        <span className="rounded bg-brand-surface-strong px-1 text-2xs font-bold uppercase text-brand-foreground-strong">
           new
         </span>
       )}
@@ -178,25 +179,26 @@ const EdgeItem = memo(function EdgeItem({
 // ---------------------------------------------------------------------------
 
 export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
+  const tExplorer = useTranslations("workbench.explorer");
   const tNode = useTranslations("workbench.explorer.node");
   const tGap = useTranslations("qualityGap");
   const ontology = useAppStore((s) => s.ontology);
   const selectedNodeId = useAppStore(selectStateSelectedNodeId);
   const selectedEdgeId = useAppStore(selectStateSelectedEdgeId);
-  const select = useAppStore((s) => s.select);
+  const selectOne = useAppStore((s) => s.selectOne);
   const setDesignBottomTab = useAppStore((s) => s.setDesignBottomTab);
 
   const lastReconcileReport = useAppStore((s) => s.lastReconcileReport);
 
   const handleSelectNode = useCallback((id: string) => {
-    select({ type: "node", nodeId: id });
+    selectOne({ kind: "node", id: id });
     if (!useAppStore.getState().isInspectorOpen) useAppStore.getState().toggleInspector();
-  }, [select]);
+  }, [selectOne]);
 
   const handleSelectEdge = useCallback((id: string) => {
-    select({ type: "edge", edgeId: id });
+    selectOne({ kind: "edge", id: id });
     if (!useAppStore.getState().isInspectorOpen) useAppStore.getState().toggleInspector();
-  }, [select]);
+  }, [selectOne]);
 
   const [search, setSearch] = useState("");
   const [nodesOpen, setNodesOpen] = useState(true);
@@ -285,34 +287,36 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
 
   if (!ontology) {
     return (
-      <div className="flex h-full items-center justify-center p-4 text-xs text-muted-foreground">
-        No ontology
+      <div className="flex h-full items-center justify-center p-4 text-xs text-foreground-muted">
+        {tExplorer("noOntology")}
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <aside
+      aria-label={tExplorer("panelAria")}
+      className="flex h-full flex-col"
+    >
       {/* Search */}
       <div className="border-b border-divider p-2">
-        <div className="flex items-center gap-1.5 rounded-md border border-divider bg-surface-raised px-2 py-1">
-          <HugeiconsIcon icon={Search01Icon} className="h-3 w-3 text-muted-foreground" size="100%" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search..."
-            className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-foreground-muted-muted"
-          />
-        </div>
+        <SearchInput
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={tExplorer("searchPlaceholder")}
+          aria-label={tExplorer("searchPlaceholder")}
+          density="compact"
+          leadingIcon={Search01Icon}
+        />
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-divider px-3 py-1.5 text-2xs text-muted-foreground">
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-solid" />Asserted</span>
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-info-surface" />Suggested</span>
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-surface-raised dark:bg-surface-base" />Inferred</span>
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger-solid" />Problematic</span>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-divider px-3 py-1.5 text-2xs text-foreground-muted">
+        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-solid" />{tExplorer("legend.asserted")}</span>
+        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-info-surface" />{tExplorer("legend.suggested")}</span>
+        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-surface-raised" />{tExplorer("legend.inferred")}</span>
+        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-danger-solid" />{tExplorer("legend.problematic")}</span>
       </div>
 
       {/* Tree — virtualized for 1000+ node scale */}
@@ -342,19 +346,19 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
         {/* Source findings (quality gaps without canvas anchor) */}
         {sourceFindings.length > 0 && (
           <>
-            <button
+            <button type="button"
               onClick={toggleFindings}
-              className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-muted-foreground hover:bg-surface-raised dark:hover:bg-surface-base"
+              className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-foreground-muted hover:bg-surface-raised"
             >
               {findingsOpen ? <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3" size="100%" /> : <HugeiconsIcon icon={ArrowRight01Icon} className="h-3 w-3" size="100%" />}
-              Source Findings ({sourceFindings.length})
+              {tExplorer("sourceFindings", { count: sourceFindings.length })}
             </button>
             {findingsOpen && (
               <>
                 {sourceFindings.map((gap, i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-2 px-4 py-1.5 text-2xs text-muted-foreground"
+                    className="flex items-start gap-2 px-4 py-1.5 text-2xs text-foreground-muted"
                   >
                     <span
                       className={cn(
@@ -365,18 +369,18 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
                     <span>{localizeQualityGapIssue(gap, tGap)}</span>
                   </div>
                 ))}
-                <button
+                <button type="button"
                   onClick={viewInQualityReport}
-                  className="w-full px-4 py-1 text-left text-2xs font-medium text-concept-foreground hover:text-concept-foreground hover:bg-surface-raised dark:hover:text-concept-foreground dark:hover:bg-surface-base"
+                  className="w-full px-4 py-1 text-start text-2xs font-medium text-concept-foreground hover:text-concept-foreground hover:bg-surface-raised"
                 >
-                  View in Quality Report →
+                  {tExplorer("viewInQualityReport")}
                 </button>
               </>
             )}
           </>
         )}
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -444,7 +448,6 @@ function VirtualizedTree({
   // informational — the rest of the file still benefits from the
   // compiler's optimisations. The lint will clear once @tanstack/virtual
   // ships compiler-friendly metadata.
-  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
@@ -470,9 +473,9 @@ function VirtualizedTree({
               }}
             >
               {row.kind === "section-header" ? (
-                <button
+                <button type="button"
                   onClick={row.section === "nodes" ? toggleNodes : toggleEdges}
-                  className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-muted-foreground hover:bg-surface-raised dark:hover:bg-surface-base"
+                  className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-foreground-muted hover:bg-surface-raised"
                 >
                   <HugeiconsIcon
                     icon={row.open ? ArrowDown01Icon : ArrowRight01Icon}

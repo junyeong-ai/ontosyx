@@ -77,7 +77,7 @@ function severityBadgeClass(severity: QualityGapSeverity): string {
       ? "bg-danger-surface text-danger-foreground"
       : severity === "medium"
         ? "bg-warning-surface text-warning-foreground"
-        : "bg-surface-inset text-foreground dark:text-muted-foreground",
+        : "bg-surface-inset text-foreground",
   );
 }
 
@@ -133,10 +133,10 @@ export function QualityGapCard({
         <span className={severityBadgeClass(gap.severity)}>
           {gap.severity}
         </span>
-        <span className="text-2xs text-muted-foreground">
+        <span className="text-2xs text-foreground-muted">
           {formatGapLocation(gap.location)}
         </span>
-        <span className="ml-auto flex items-center gap-1.5">
+        <span className="ms-auto flex items-center gap-1.5">
           {hasActiveProject && actionType === "ai_fix" && (
             <button
               type="button"
@@ -146,9 +146,8 @@ export function QualityGapCard({
                 onFix(gap);
               }}
               className={cn(
-                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors",
+                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                 "bg-concept-surface text-concept-foreground hover:bg-concept-surface",
-                "dark:bg-concept-surface dark:hover:bg-concept-surface",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
@@ -166,9 +165,8 @@ export function QualityGapCard({
                 onFix(gap);
               }}
               className={cn(
-                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors",
+                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                 "bg-concept-surface text-concept-foreground hover:bg-concept-surface",
-                "dark:bg-concept-surface dark:hover:bg-concept-surface",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
@@ -183,9 +181,8 @@ export function QualityGapCard({
                 onAcknowledge(gap, gapIndex);
               }}
               className={cn(
-                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors",
+                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                 "bg-brand-surface-strong text-brand-foreground hover:bg-brand-surface-strong",
-                "dark:bg-brand-surface-strong dark:hover:bg-brand-surface-strong",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
@@ -202,9 +199,8 @@ export function QualityGapCard({
                 onNavigateToClarification(gap);
               }}
               className={cn(
-                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors",
+                "flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                 "bg-warning-surface text-warning-foreground hover:bg-warning-surface",
-                "dark:bg-warning-surface dark:hover:bg-warning-surface",
               )}
             >
               <HugeiconsIcon icon={Alert01Icon} className="h-2.5 w-2.5" size="100%" />
@@ -212,7 +208,7 @@ export function QualityGapCard({
             </button>
           )}
           {focusable && (
-            <span className="text-2xs text-muted-foreground">
+            <span className="text-2xs text-foreground-muted">
               {t("navigate")}
             </span>
           )}
@@ -221,7 +217,7 @@ export function QualityGapCard({
       <p className="mt-1 text-xs text-foreground-strong">
         {issue}
       </p>
-      <p className="mt-0.5 text-2xs text-muted-foreground">
+      <p className="mt-0.5 text-2xs text-foreground-muted">
         {suggestion}
       </p>
       {actionHint && (

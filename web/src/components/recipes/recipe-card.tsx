@@ -68,7 +68,7 @@ export function RecipeCard({
   const resolvedActionLabel = actionLabel ?? t("defaultAction");
 
   return (
-    <Card padding="md" className="transition-shadow hover:shadow-md">
+    <Card padding="md" className="transition-shadow duration-[var(--duration-base)] ease-[var(--ease-out)] hover:shadow-2">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <svg
@@ -78,7 +78,7 @@ export function RecipeCard({
             strokeWidth={1.5}
             stroke="currentColor"
             className="h-4 w-4 shrink-0 text-foreground-muted"
-          >
+           aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
           </svg>
           <h3 className="line-clamp-1 text-sm font-semibold text-foreground-strong">
@@ -111,7 +111,7 @@ export function RecipeCard({
             {params.map(([name, def]) => (
               <span
                 key={name}
-                className="inline-flex items-center gap-1 rounded bg-surface-inset px-1.5 py-0.5 text-[11px] text-foreground"
+                className="inline-flex items-center gap-1 rounded bg-surface-inset px-1.5 py-0.5 text-2xs text-foreground"
               >
                 <span className="font-medium">{name}</span>
                 <span className="text-foreground-muted">

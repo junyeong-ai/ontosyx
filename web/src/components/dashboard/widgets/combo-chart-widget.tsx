@@ -15,6 +15,8 @@ import {
   Legend,
 } from "recharts";
 import { useIsDarkMode } from "@/hooks/use-dark-mode";
+import { useFormatters } from "@/hooks/use-formatters";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 import {
   PALETTE_PRIMARY,
   PALETTE_SECONDARY,
@@ -67,6 +69,8 @@ function analyzeScales(
 export function ComboChartWidget({ spec, data }: ComboChartWidgetProps) {
   const t = useTranslations("widget.combo");
   const isDark = useIsDarkMode();
+  const fmt = useFormatters();
+  const localeChain = useLocaleChain();
   const labelCol = resolveLabelField(spec, data);
   const numericCols = useMemo(
     () => (labelCol ? getNumericColumns(data, labelCol) : []),
@@ -102,7 +106,7 @@ export function ComboChartWidget({ spec, data }: ComboChartWidgetProps) {
 
   if (!labelCol || numericCols.length < 2 || chartData.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-foreground-muted">
         {t("needColumns")}
       </p>
     );
@@ -114,7 +118,7 @@ export function ComboChartWidget({ spec, data }: ComboChartWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground dark:text-muted-foreground">
+        <h4 className="text-xs font-semibold text-foreground">
           {spec.title}
         </h4>
       )}
@@ -143,7 +147,7 @@ export function ComboChartWidget({ spec, data }: ComboChartWidgetProps) {
               axisLine={false}
               tickLine={false}
               width={55}
-              tickFormatter={(v: number) => v.toLocaleString()}
+              tickFormatter={(v: number) => fmt.number(v)}
             />
 
             {/* Right Y axis (lines) — only if mixed scale */}
@@ -155,14 +159,14 @@ export function ComboChartWidget({ spec, data }: ComboChartWidgetProps) {
                 axisLine={false}
                 tickLine={false}
                 width={65}
-                tickFormatter={(v: number) => v.toLocaleString()}
+                tickFormatter={(v: number) => fmt.number(v)}
               />
             )}
 
             <Tooltip
               contentStyle={tooltipStyle(isDark)}
               formatter={(value: unknown, name: unknown) => [
-                formatValue(value),
+                formatValue(value, localeChain),
                 String(name ?? ""),
               ]}
             />
@@ -203,7 +207,7 @@ export function ComboChartWidget({ spec, data }: ComboChartWidgetProps) {
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-2xs text-muted-foreground">
+      <p className="text-2xs text-foreground-muted">
         {t("summary", {
           items: chartData.length,
           bars: barCols.length,

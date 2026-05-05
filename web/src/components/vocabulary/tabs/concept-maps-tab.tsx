@@ -2,7 +2,12 @@
 
 import { useTranslations } from "next-intl";
 
-import { JsonEntityCrudPage } from "@/components/vocabulary/json-entity-crud-page";
+import { conceptMapSchema } from "@/components/forms/schemas/concept-map.schema";
+import { MasterDetailEntityPage } from "@/components/vocabulary/master-detail-entity-page";
+import {
+  VocabularyUsageMap,
+  collectConceptMapUsages,
+} from "@/components/vocabulary/usage-map";
 import type { ConceptMapDef } from "@/types/ontology";
 
 const CONCEPT_MAP_HINT = `{
@@ -24,36 +29,34 @@ export function ConceptMapsTab() {
   const t = useTranslations("settings.vocabulary.conceptMaps");
   const tCommon = useTranslations("common");
   return (
-    <JsonEntityCrudPage<ConceptMapDef>
+    <MasterDetailEntityPage<ConceptMapDef>
       schemaHint={CONCEPT_MAP_HINT}
+      schema={conceptMapSchema}
       selectItems={(ir) => ir.concept_maps ?? []}
       itemId={(cm) => cm.id}
       buildCreateOp={(def) => ({ op: "create_concept_map", def })}
       buildUpdateOp={(id, def) => ({ op: "update_concept_map", id, def })}
       buildDeleteOp={(id) => ({ op: "delete_concept_map", id })}
+      renderUsage={(cm, ir) => (
+        <VocabularyUsageMap entries={collectConceptMapUsages(ir, cm.id)} />
+      )}
       renderRow={(cm) => (
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-sm font-medium text-foreground-strong">
-              {cm.id}
-            </span>
-            <span className="text-xs text-foreground-muted">
-              · {cm.name} · v{cm.version}
-            </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-mono text-xs font-medium">
+            {cm.id}
           </div>
-          <p className="mt-1 text-2xs text-foreground-subtle">
-            {t("mappingSummary", {
-              source: cm.source_system_id,
-              target: cm.target_system_id,
-              count: cm.mappings?.length ?? 0,
-            })}
-          </p>
+          <div className="mt-0.5 truncate text-2xs text-foreground-muted">
+            {t("rowSummary", { name: cm.name, version: cm.version })}
+            {" · "}
+            {t("mappingCount", { count: cm.mappings?.length ?? 0 })}
+          </div>
         </div>
       )}
       labels={{
         title: t("pageTitle"),
         subtitle: t("pageSubtitle"),
         noOntology: t("noOntology"),
+        listHeading: (count) => t("listHeading", { count }),
         createButton: t("createButton"),
         editButton: t("editButton"),
         deleteButton: t("deleteButton"),

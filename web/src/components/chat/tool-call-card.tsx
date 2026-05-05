@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useAppStore, type ToolCall } from "@/lib/store";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { respondToolReview, normalizeQueryResult } from "@/lib/api";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowDown01Icon,
@@ -15,6 +15,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { Spinner } from "@/components/ui/spinner";
 import { CopyButton } from "@/components/ui/copy-button";
+import { useFormatters, type Formatters } from "@/hooks/use-formatters";
 import { toolErrorMessage } from "@/lib/error-messages";
 import { TOOL_META, DEFAULT_TOOL_META, STEP_LABELS } from "@/lib/constants/tool-meta";
 import { useAuth } from "@/hooks/use-auth";
@@ -29,6 +30,7 @@ interface ToolCallCardProps {
 
 export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const t = useTranslations("workbench.chat.toolCall");
+  const fmt = useFormatters();
   const [isExpanded, setIsExpanded] = useState(false);
   const { isAdmin } = useAuth();
   const meta = TOOL_META[toolCall.name] ?? DEFAULT_TOOL_META;
@@ -39,14 +41,14 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   // Parse structured result for inline rendering
   const parsedResult = useMemo(() => {
     if (!isDone || !toolCall.output) return null;
-    return tryParseToolResult(toolCall.name, toolCall.output, toolCall.durationMs, t);
-  }, [isDone, toolCall.output, toolCall.name, toolCall.durationMs, t]);
+    return tryParseToolResult(toolCall.name, toolCall.output, toolCall.durationMs, t, fmt);
+  }, [isDone, toolCall.output, toolCall.name, toolCall.durationMs, t, fmt]);
 
   return (
     <div
       role={isRunning ? "status" : undefined}
       aria-label={isRunning ? t("runningAria", { name: toolCall.name }) : undefined}
-      className={`overflow-hidden rounded-xl border transition-colors ${
+      className={`overflow-hidden rounded-xl border transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
         isRunning
           ? "border-brand-border bg-brand-surface/10"
           : isError
@@ -54,8 +56,8 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
             : "border-divider bg-surface-raised"
       }`}
     >
-      {/* Header row — the expand/collapse area is a real <button>; the
-          "jump to Results" affordance is a sibling <button> (nesting buttons
+      {/* Header row — the expand/collapse area is a real <button type="button">; the
+          "jump to Results" affordance is a sibling <button type="button"> (nesting buttons
           is invalid HTML, so they live side-by-side). */}
       <div className="flex w-full items-center gap-2 px-3 py-2 text-xs">
         <button
@@ -63,7 +65,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
           disabled={isRunning}
           aria-expanded={isExpanded}
           onClick={() => !isRunning && setIsExpanded(!isExpanded)}
-          className="flex flex-1 items-center gap-2 text-left cursor-pointer disabled:cursor-default"
+          className="flex flex-1 items-center gap-2 text-start cursor-pointer disabled:cursor-default"
         >
           {isRunning ? (
             <Spinner size="sm" className="text-brand-foreground" />
@@ -81,14 +83,14 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
           {/* Duration badge — show total time */}
           {(isDone || isError) && toolCall.durationMs != null && toolCall.durationMs > 0 && (
-            <span className="rounded-full bg-surface-inset px-1.5 py-0.5 text-2xs tabular-nums text-foreground-muted dark:text-muted-foreground">
+            <span className="rounded-full bg-surface-inset px-1.5 py-0.5 text-2xs tabular-nums text-foreground-muted">
               {toolCall.durationMs < 100 ? t("durationSub100") : t("durationSeconds", { seconds: (toolCall.durationMs / 1000).toFixed(1) })}
             </span>
           )}
 
           {/* Result summary */}
           {parsedResult?.summary && (
-            <span className="ml-1 text-2xs text-muted-foreground">
+            <span className="ms-1 text-2xs text-foreground-muted">
               {parsedResult.summary}
             </span>
           )}
@@ -108,7 +110,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
           {!isRunning && toolCall.output && (isAdmin || isError) && (
             <HugeiconsIcon
               icon={isExpanded ? ArrowUp01Icon : ArrowDown01Icon}
-              className="ml-auto h-3 w-3 text-muted-foreground"
+              className="ms-auto h-3 w-3 text-foreground-muted"
               size="100%"
             />
           )}
@@ -124,7 +126,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
               store.setAnalyzeRightTab("results");
               store.setFocusResultId(toolCall.id);
             }}
-            className="rounded p-0.5 text-muted-foreground hover:bg-surface-inset hover:text-brand-foreground dark:hover:text-brand-foreground"
+            className="rounded p-0.5 text-foreground-muted hover:bg-surface-inset hover:text-brand-foreground"
             title={t("viewInResults")}
           >
             <span className="text-2xs">→</span>
@@ -170,7 +172,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                 {STEP_LABELS[step.step] ?? step.step}
               </span>
               {step.durationMs != null && (
-                <span className="text-2xs tabular-nums text-muted-foreground">
+                <span className="text-2xs tabular-nums text-foreground-muted">
                   {step.durationMs < 100 ? t("durationSub100") : t("durationSeconds", { seconds: (step.durationMs / 1000).toFixed(1) })}
                 </span>
               )}
@@ -182,11 +184,12 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
       {/* HITL approval buttons */}
       {toolCall.status === "review" && (
         <div className="border-t border-warning-border/40 px-3 py-2">
-          <p className="text-[11px] text-warning-foreground mb-2">
+          <p className="text-2xs text-warning-foreground mb-2">
             {t("hitl.description")}
           </p>
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 const sessionId = useAppStore.getState().sessionId;
@@ -196,11 +199,12 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                     .catch(() => toast.error(t("hitl.toast.approveFailed")));
                 }
               }}
-              className="rounded-md bg-brand-solid px-3 py-1 text-xs font-medium text-white hover:bg-brand-solid"
+              className="rounded-md bg-brand-solid px-3 py-1 text-xs font-medium text-foreground-onbrand hover:bg-brand-solid"
             >
               {t("hitl.approve")}
             </button>
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 const sessionId = useAppStore.getState().sessionId;
@@ -210,7 +214,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                     .catch(() => toast.error(t("hitl.toast.rejectFailed")));
                 }
               }}
-              className="rounded-md border border-danger-border px-3 py-1 text-xs font-medium text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-surface/30"
+              className="rounded-md border border-danger-border px-3 py-1 text-xs font-medium text-danger-foreground hover:bg-danger-surface"
             >
               {t("hitl.reject")}
             </button>
@@ -230,7 +234,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
             {compiledQuery && (
               <div className="mt-1.5 rounded border border-danger-border/40 bg-surface-inset px-2 py-1.5">
                 <p className="mb-1 text-2xs font-medium text-foreground-muted">{t("error.attemptedQuery")}</p>
-                <pre className="max-h-20 overflow-auto text-2xs font-mono text-foreground dark:text-muted-foreground">
+                <pre className="max-h-20 overflow-auto text-2xs font-mono text-foreground">
                   {compiledQuery}
                 </pre>
               </div>
@@ -240,7 +244,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
             {toolCall.name === "query_graph" && (
               <div className="mt-2 rounded border border-warning-border bg-warning-surface px-3 py-2 text-xs text-warning-foreground">
                 <p className="font-medium">{t("error.tipsHeading")}</p>
-                <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                <ul className="mt-1 list-disc ps-4 space-y-0.5">
                   <li>{t("error.tipEntityNames")}</li>
                   <li>{t("error.tipPropertyNames")}</li>
                   <li>{t("error.tipSimpler")}</li>
@@ -248,6 +252,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                 <p className="mt-1.5 text-warning-foreground">
                   {t("error.tryVisualBuilderPrefix")}
                   <button
+                    type="button"
                     className="underline font-medium"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -264,12 +269,12 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
             {isExpanded && isAdmin && (
               <details className="mt-1">
-                <summary className="cursor-pointer text-2xs text-muted-foreground hover:text-foreground">
+                <summary className="cursor-pointer text-2xs text-foreground-muted hover:text-foreground">
                   {t("error.technicalDetails")}
                 </summary>
                 <div className="relative mt-1">
                   <CopyButton text={technicalDetail} />
-                  <pre className="max-h-32 overflow-auto rounded bg-surface-inset p-2 pr-8 text-2xs text-foreground-muted dark:text-muted-foreground select-text">
+                  <pre className="max-h-32 overflow-auto rounded bg-surface-inset p-2 pe-8 text-2xs text-foreground-muted select-text">
                     {truncateOutput(technicalDetail)}
                   </pre>
                 </div>
@@ -311,7 +316,7 @@ function AmbiguityChipStrip({ chips }: { chips: readonly AmbiguityChip[] }) {
           <a
             key={chip.contextId}
             href={`/glossary?ambiguity=${encodeURIComponent(chip.contextId)}`}
-            className="inline-flex items-center gap-1 rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 font-mono text-2xs text-warning-foreground transition-colors hover:border-warning-border hover:bg-warning-surface dark:hover:border-warning-border"
+            className="inline-flex items-center gap-1 rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 font-mono text-2xs text-warning-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:border-warning-border hover:bg-warning-surface"
             title={t("chipTooltip", {
               relation: chip.relation,
               column: chip.column,
@@ -369,6 +374,7 @@ function tryParseToolResult(
   output: string,
   durationMs: number | undefined,
   t: ToolCallTranslator,
+  fmt: Formatters,
 ): ParsedToolResult | null {
   try {
     const parsed = JSON.parse(output);
@@ -501,7 +507,7 @@ function tryParseToolResult(
     // Not JSON — return simple summary
   }
 
-  return { summary: output.length > 100 ? t("summary.charsCount", { count: output.length.toLocaleString() }) : "" };
+  return { summary: output.length > 100 ? t("summary.charsCount", { count: fmt.number(output.length) }) : "" };
 }
 
 // ---------------------------------------------------------------------------
@@ -534,6 +540,7 @@ function truncateOutput(output: string, maxLen = 3000): string {
 /** Formatted JSON display with collapse/expand for tool outputs. */
 function JsonBlock({ raw }: { raw: string }) {
   const t = useTranslations("workbench.chat.toolCall");
+  const fmt = useFormatters();
   const [expanded, setExpanded] = useState(false);
 
   let formatted: string;
@@ -555,16 +562,17 @@ function JsonBlock({ raw }: { raw: string }) {
 
   return (
     <div className="relative">
-      <pre className="max-h-64 overflow-auto p-3 pr-10 text-xs font-mono text-foreground leading-relaxed">
+      <pre className="max-h-64 overflow-auto p-3 pe-10 text-xs font-mono text-foreground leading-relaxed">
         {display}
         {!expanded && isLarge && (
-          <span className="text-muted-foreground">{"\n... ("}{t("json.truncatedChars", { count: formatted.length.toLocaleString() })}{")"}</span>
+          <span className="text-foreground-muted">{"\n... ("}{t("json.truncatedChars", { count: fmt.number(formatted.length) })}{")"}</span>
         )}
       </pre>
       {isLarge && (
         <button
+          type="button"
           onClick={() => setExpanded(!expanded)}
-          className="absolute bottom-2 right-2 rounded bg-surface-inset px-2 py-0.5 text-2xs text-foreground hover:bg-surface-raised"
+          className="absolute bottom-2 end-2 rounded bg-surface-inset px-2 py-0.5 text-2xs text-foreground hover:bg-surface-raised"
         >
           {expanded ? t("json.collapse") : t("json.expand")}
         </button>

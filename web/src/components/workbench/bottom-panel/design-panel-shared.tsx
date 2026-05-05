@@ -30,9 +30,7 @@ export function columnKey(table: string, column: string) {
 
 export const selectClassName = cn(
   "w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-sm",
-  "outline-none focus:border-brand-foreground focus:ring-1 focus:ring-brand-foreground/50",
-  "dark:border-divider-strong",
-  "dark:focus:border-brand-border dark:focus:ring-brand-foreground/50",
+  "outline-none focus:border-brand-foreground focus:ring-1 focus:ring-brand-foreground/40",
 );
 
 export function formatGapLocation(loc: Record<string, unknown>): string {

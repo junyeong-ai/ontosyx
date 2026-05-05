@@ -4,36 +4,60 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Refresh01Icon, Add01Icon } from "@hugeicons/core-free-icons";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
-import { FormInput } from "@/components/ui/form-input";
-import { FormTextarea } from "@/components/ui/form-textarea";
+import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { SourceImportPanel } from "@/components/workbench/source-import-panel";
+import type { FieldErrors } from "@/hooks/use-form-with-schema";
 import { cn } from "@/lib/cn";
 import type { DesignSource, ProjectSource } from "@/types/api";
+
+// ---------------------------------------------------------------------------
+// Inline error helpers
+// ---------------------------------------------------------------------------
+
+interface FieldErrorProps {
+  /** Translated error message; renders nothing when undefined. */
+  message: string | undefined;
+  /** DOM id used by `aria-describedby` to wire the field to its error. */
+  id: string;
+}
+
+function FieldError({ message, id }: FieldErrorProps) {
+  if (!message) return null;
+  return (
+    <p
+      id={id}
+      role="alert"
+      className="mt-1 text-2xs text-danger-foreground"
+    >
+      {message}
+    </p>
+  );
+}
+
+interface FormBannerErrorProps {
+  message: string | undefined;
+}
+
+function FormBannerError({ message }: FormBannerErrorProps) {
+  if (!message) return null;
+  return (
+    <p
+      role="alert"
+      className="rounded border border-danger-border bg-danger-surface px-2 py-1 text-2xs text-danger-foreground"
+    >
+      {message}
+    </p>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Reanalyze form
 // ---------------------------------------------------------------------------
 
-export function ReanalyzeForm({
-  sourceType,
-  connectionString,
-  setConnectionString,
-  schemaName,
-  setSchemaName,
-  sampleData,
-  setSampleData,
-  repoPath,
-  setRepoPath,
-  loading,
-  repoUrl,
-  setRepoUrl,
-  onSubmit,
-  modeledOnly,
-  setModeledOnly,
-  modeledTablesAvailable,
-}: {
+interface ReanalyzeFormProps {
   sourceType: string;
   connectionString: string;
   setConnectionString: (v: string) => void;
@@ -52,48 +76,90 @@ export function ReanalyzeForm({
   /** Number of tables in `analysis_scope.included` — when 0 the
    * "modeled only" checkbox is hidden (the action would 400). */
   modeledTablesAvailable: number;
-}) {
+  /** Field-keyed validation errors from the parent's schema. */
+  errors: FieldErrors;
+}
+
+export function ReanalyzeForm({
+  sourceType,
+  connectionString,
+  setConnectionString,
+  schemaName,
+  setSchemaName,
+  sampleData,
+  setSampleData,
+  repoPath,
+  setRepoPath,
+  loading,
+  repoUrl,
+  setRepoUrl,
+  onSubmit,
+  modeledOnly,
+  setModeledOnly,
+  modeledTablesAvailable,
+  errors,
+}: ReanalyzeFormProps) {
   const t = useTranslations("workbench.bottomPanel.workflowForms");
-  const isDisabled = loading || (() => {
-    if (sourceType === "postgresql") return !connectionString.trim();
-    if (sourceType === "code_repository") return !repoUrl.trim();
-    return !sampleData.trim();
-  })();
+  const tActions = useTranslations("workbench.bottomPanel.workflowActions");
+
+  const localizeError = (key: string | undefined) =>
+    key ? tActions(key) : undefined;
+
+  const connError = localizeError(errors.connectionString);
+  const repoError = localizeError(errors.repoUrl);
+  const sampleError = localizeError(errors.sampleData);
+  const formError = localizeError(errors._form);
 
   return (
     <div className="space-y-2 rounded-lg border border-divider bg-surface-raised p-3">
       {sourceType === "postgresql" ? (
-        <>
+        <div>
           <FormInput
             type="text"
             placeholder={t("postgresPlaceholder")}
             value={connectionString}
             onChange={(e) => setConnectionString(e.target.value)}
             className="font-mono"
+            error={!!connError}
+            aria-describedby={connError ? "reanalyze-conn-error" : undefined}
           />
+          <FieldError message={connError} id="reanalyze-conn-error" />
           <FormInput
             type="text"
             placeholder={t("schemaPlaceholder")}
             value={schemaName}
             onChange={(e) => setSchemaName(e.target.value)}
+            className="mt-2"
           />
-        </>
+        </div>
       ) : sourceType === "code_repository" ? (
-        <FormInput
-          type="text"
-          placeholder={t("repoUrlPlaceholder")}
-          value={repoUrl}
-          onChange={(e) => setRepoUrl(e.target.value)}
-          className="font-mono"
-        />
+        <div>
+          <FormInput
+            type="text"
+            placeholder={t("repoUrlPlaceholder")}
+            value={repoUrl}
+            onChange={(e) => setRepoUrl(e.target.value)}
+            className="font-mono"
+            error={!!repoError}
+            aria-describedby={repoError ? "reanalyze-repo-error" : undefined}
+          />
+          <FieldError message={repoError} id="reanalyze-repo-error" />
+        </div>
       ) : (
-        <FormTextarea
-          rows={4}
-          placeholder={t("dataPlaceholder")}
-          value={sampleData}
-          onChange={(e) => setSampleData(e.target.value)}
-          className="font-mono text-xs"
-        />
+        <div>
+          <FormTextarea
+            rows={4}
+            placeholder={t("dataPlaceholder")}
+            value={sampleData}
+            onChange={(e) => setSampleData(e.target.value)}
+            className="font-mono text-xs"
+            error={!!sampleError}
+            aria-describedby={
+              sampleError ? "reanalyze-sample-error" : undefined
+            }
+          />
+          <FieldError message={sampleError} id="reanalyze-sample-error" />
+        </div>
       )}
       {sourceType !== "text" && sourceType !== "code_repository" && (
         <FormInput
@@ -104,28 +170,28 @@ export function ReanalyzeForm({
         />
       )}
       {modeledTablesAvailable > 0 && sourceType !== "code_repository" && (
-        <label className="flex cursor-pointer items-center gap-2 rounded border border-divider bg-surface-base px-2 py-1.5 text-[11px] hover:bg-surface-raised dark:hover:bg-surface-base/50">
-          <input
-            type="checkbox"
-            checked={modeledOnly}
-            onChange={(e) => setModeledOnly(e.target.checked)}
-            className="h-3 w-3"
-          />
-          <span className="flex-1">
-            {t("modeledOnlyLabel", { count: modeledTablesAvailable })}
-          </span>
-        </label>
+        <Checkbox
+          checked={modeledOnly}
+          onChange={(e) => setModeledOnly(e.target.checked)}
+          label={
+            <span className="flex-1 text-2xs">
+              {t("modeledOnlyLabel", { count: modeledTablesAvailable })}
+            </span>
+          }
+          className="rounded border border-divider bg-surface-base px-2 py-1.5 hover:bg-surface-raised"
+        />
       )}
+      <FormBannerError message={formError} />
       <Button
         size="sm"
         onClick={onSubmit}
-        disabled={isDisabled}
+        disabled={loading}
         className="w-full text-xs"
       >
         {loading ? (
-          <Spinner size="xs" className="mr-1.5" />
+          <Spinner size="xs" className="me-1.5" />
         ) : (
-          <HugeiconsIcon icon={Refresh01Icon} className="mr-1.5 h-3 w-3" size="100%" />
+          <HugeiconsIcon icon={Refresh01Icon} className="me-1.5 h-3 w-3" size="100%" />
         )}
         {modeledOnly ? t("reanalyzeModeled") : t("reanalyze")}
       </Button>
@@ -219,6 +285,30 @@ export function extendSourceFromForm(
   }
 }
 
+interface ExtendSourceFormProps {
+  sourceType: DesignSource["type"];
+  setSourceType: (v: DesignSource["type"]) => void;
+  connectionString: string;
+  setConnectionString: (v: string) => void;
+  schemaName: string;
+  setSchemaName: (v: string) => void;
+  database: string;
+  setDatabase: (v: string) => void;
+  sampleData: string;
+  setSampleData: (v: string) => void;
+  repoUrl: string;
+  setRepoUrl: (v: string) => void;
+  duckdbFilePath?: string;
+  setDuckdbFilePath?: (v: string) => void;
+  importValue: import("@/components/workbench/source-import-panel").SourceImportValue;
+  setImportValue: (
+    v: import("@/components/workbench/source-import-panel").SourceImportValue,
+  ) => void;
+  loading: boolean;
+  onSubmit: () => void;
+  errors: FieldErrors;
+}
+
 export function ExtendSourceForm({
   sourceType,
   setSourceType,
@@ -238,27 +328,10 @@ export function ExtendSourceForm({
   setImportValue,
   loading,
   onSubmit,
-}: {
-  sourceType: DesignSource["type"];
-  setSourceType: (v: DesignSource["type"]) => void;
-  connectionString: string;
-  setConnectionString: (v: string) => void;
-  schemaName: string;
-  setSchemaName: (v: string) => void;
-  database: string;
-  setDatabase: (v: string) => void;
-  sampleData: string;
-  setSampleData: (v: string) => void;
-  repoUrl: string;
-  setRepoUrl: (v: string) => void;
-  duckdbFilePath?: string;
-  setDuckdbFilePath?: (v: string) => void;
-  importValue: import("@/components/workbench/source-import-panel").SourceImportValue;
-  setImportValue: (v: import("@/components/workbench/source-import-panel").SourceImportValue) => void;
-  loading: boolean;
-  onSubmit: () => void;
-}) {
+  errors,
+}: ExtendSourceFormProps) {
   const t = useTranslations("workbench.bottomPanel.workflowForms");
+  const tActions = useTranslations("workbench.bottomPanel.workflowActions");
   const sourceTypes = useMemo(
     () =>
       SOURCE_TYPE_OPTIONS.map((value) => ({
@@ -270,8 +343,18 @@ export function ExtendSourceForm({
     [t],
   );
 
+  const localizeError = (key: string | undefined) =>
+    key ? tActions(key) : undefined;
+
+  const connError = localizeError(errors.connectionString);
+  const databaseError = localizeError(errors.database);
+  const fileError = localizeError(errors.duckdbFilePath);
+  const repoError = localizeError(errors.repoUrl);
+  const sampleError = localizeError(errors.sampleData);
+  const formError = localizeError(errors._form);
+
   return (
-    <div className="space-y-2 rounded-lg border border-info-border bg-info-surface/50 p-3 dark:border-info-border">
+    <div className="space-y-2 rounded-lg border border-info-border bg-info-surface/50 p-3">
       <h4 className="text-xs font-semibold text-info-foreground">
         {t("newSource")}
       </h4>
@@ -279,14 +362,14 @@ export function ExtendSourceForm({
       {/* Source type selector */}
       <div className="flex gap-1">
         {sourceTypes.map((opt) => (
-          <button
+          <button type="button"
             key={opt.value}
             onClick={() => setSourceType(opt.value)}
             className={cn(
-              "rounded px-2 py-0.5 text-2xs font-medium transition-colors",
+              "rounded px-2 py-0.5 text-2xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
               sourceType === opt.value
-                ? "bg-info-foreground text-white dark:bg-info-foreground"
-                : "bg-surface-inset text-foreground hover:bg-surface-inset dark:text-muted-foreground dark:hover:bg-surface-base",
+                ? "bg-info-foreground text-foreground-onbrand"
+                : "bg-surface-inset text-foreground hover:bg-surface-inset",
             )}
           >
             {opt.label}
@@ -295,21 +378,47 @@ export function ExtendSourceForm({
       </div>
       {sourceType === "postgresql" || sourceType === "mysql" ? (
         <>
-          <FormInput
-            type="text"
-            placeholder={sourceType === "postgresql" ? t("postgresPlaceholder") : t("mysqlPlaceholder")}
-            value={connectionString}
-            onChange={(e) => setConnectionString(e.target.value)}
-            className="font-mono"
-          />
-          <FormInput
-            type="text"
-            placeholder={sourceType === "postgresql" ? t("schemaPlaceholder") : t("dbNamePlaceholder")}
-            value={sourceType === "postgresql" ? schemaName : database}
-            onChange={(e) => sourceType === "postgresql"
-              ? setSchemaName(e.target.value)
-              : setDatabase(e.target.value)}
-          />
+          <div>
+            <FormInput
+              type="text"
+              placeholder={
+                sourceType === "postgresql"
+                  ? t("postgresPlaceholder")
+                  : t("mysqlPlaceholder")
+              }
+              value={connectionString}
+              onChange={(e) => setConnectionString(e.target.value)}
+              className="font-mono"
+              error={!!connError}
+              aria-describedby={connError ? "extend-conn-error" : undefined}
+            />
+            <FieldError message={connError} id="extend-conn-error" />
+          </div>
+          <div>
+            <FormInput
+              type="text"
+              placeholder={
+                sourceType === "postgresql"
+                  ? t("schemaPlaceholder")
+                  : t("dbNamePlaceholder")
+              }
+              value={sourceType === "postgresql" ? schemaName : database}
+              onChange={(e) =>
+                sourceType === "postgresql"
+                  ? setSchemaName(e.target.value)
+                  : setDatabase(e.target.value)
+              }
+              error={sourceType === "mysql" && !!databaseError}
+              aria-describedby={
+                sourceType === "mysql" && databaseError
+                  ? "extend-db-error"
+                  : undefined
+              }
+            />
+            {sourceType === "mysql" && (
+              <FieldError message={databaseError} id="extend-db-error" />
+            )}
+          </div>
           <SourceImportPanel
             source={extendSourceFromForm({
               sourceType,
@@ -326,19 +435,31 @@ export function ExtendSourceForm({
         </>
       ) : sourceType === "mongodb" ? (
         <>
-          <FormInput
-            type="text"
-            placeholder={t("mongoPlaceholder")}
-            value={connectionString}
-            onChange={(e) => setConnectionString(e.target.value)}
-            className="font-mono"
-          />
-          <FormInput
-            type="text"
-            placeholder={t("dbNamePlaceholder")}
-            value={database}
-            onChange={(e) => setDatabase(e.target.value)}
-          />
+          <div>
+            <FormInput
+              type="text"
+              placeholder={t("mongoPlaceholder")}
+              value={connectionString}
+              onChange={(e) => setConnectionString(e.target.value)}
+              className="font-mono"
+              error={!!connError}
+              aria-describedby={connError ? "extend-conn-error" : undefined}
+            />
+            <FieldError message={connError} id="extend-conn-error" />
+          </div>
+          <div>
+            <FormInput
+              type="text"
+              placeholder={t("dbNamePlaceholder")}
+              value={database}
+              onChange={(e) => setDatabase(e.target.value)}
+              error={!!databaseError}
+              aria-describedby={
+                databaseError ? "extend-db-error" : undefined
+              }
+            />
+            <FieldError message={databaseError} id="extend-db-error" />
+          </div>
           <SourceImportPanel
             source={extendSourceFromForm({
               sourceType,
@@ -354,54 +475,57 @@ export function ExtendSourceForm({
           />
         </>
       ) : sourceType === "duckdb" ? (
-        <FormInput
-          type="text"
-          placeholder={t("duckdbFilePlaceholder")}
-          value={duckdbFilePath ?? ""}
-          onChange={(e) => setDuckdbFilePath?.(e.target.value)}
-          className="font-mono"
-        />
+        <div>
+          <FormInput
+            type="text"
+            placeholder={t("duckdbFilePlaceholder")}
+            value={duckdbFilePath ?? ""}
+            onChange={(e) => setDuckdbFilePath?.(e.target.value)}
+            className="font-mono"
+            error={!!fileError}
+            aria-describedby={fileError ? "extend-file-error" : undefined}
+          />
+          <FieldError message={fileError} id="extend-file-error" />
+        </div>
       ) : sourceType === "code_repository" ? (
-        <FormInput
-          type="text"
-          placeholder={t("repoUrlPlaceholder")}
-          value={repoUrl}
-          onChange={(e) => setRepoUrl(e.target.value)}
-          className="font-mono"
-        />
+        <div>
+          <FormInput
+            type="text"
+            placeholder={t("repoUrlPlaceholder")}
+            value={repoUrl}
+            onChange={(e) => setRepoUrl(e.target.value)}
+            className="font-mono"
+            error={!!repoError}
+            aria-describedby={repoError ? "extend-repo-error" : undefined}
+          />
+          <FieldError message={repoError} id="extend-repo-error" />
+        </div>
       ) : (
-        <FormTextarea
-          rows={4}
-          placeholder={t("dataPlaceholder")}
-          value={sampleData}
-          onChange={(e) => setSampleData(e.target.value)}
-          className="font-mono text-xs"
-        />
+        <div>
+          <FormTextarea
+            rows={4}
+            placeholder={t("dataPlaceholder")}
+            value={sampleData}
+            onChange={(e) => setSampleData(e.target.value)}
+            className="font-mono text-xs"
+            error={!!sampleError}
+            aria-describedby={sampleError ? "extend-sample-error" : undefined}
+          />
+          <FieldError message={sampleError} id="extend-sample-error" />
+        </div>
       )}
+      <FormBannerError message={formError} />
 
       <Button
         size="sm"
         onClick={onSubmit}
-        disabled={
-          loading ||
-          (sourceType === "postgresql"
-            ? !connectionString.trim()
-            : sourceType === "mysql"
-              ? !connectionString.trim() || !database.trim()
-              : sourceType === "mongodb"
-                ? !connectionString.trim() || !database.trim()
-                : sourceType === "duckdb"
-                  ? !(duckdbFilePath ?? "").trim()
-                  : sourceType === "code_repository"
-                    ? !repoUrl.trim()
-                    : !sampleData.trim())
-        }
+        disabled={loading}
         className="w-full text-xs"
       >
         {loading ? (
-          <Spinner size="xs" className="mr-1.5" />
+          <Spinner size="xs" className="me-1.5" />
         ) : (
-          <HugeiconsIcon icon={Add01Icon} className="mr-1.5 h-3 w-3" size="100%" />
+          <HugeiconsIcon icon={Add01Icon} className="me-1.5 h-3 w-3" size="100%" />
         )}
         {t("extendOntology")}
       </Button>

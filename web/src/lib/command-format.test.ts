@@ -64,13 +64,13 @@ description: { default: "" },
 describe("formatCommand — label resolution", () => {
   it("resolves node ids to their label on delete_node", () => {
     const cmd: OntologyCommand = { op: "delete_node", node_id: "node-person-uuid" };
-    expect(formatCommand(cmd, ontology())).toBe("Delete node: Person");
+    expect(formatCommand(cmd, ontology())).toEqual({
+      key: "deleteNode",
+      params: { label: "Person" },
+    });
   });
 
   it("resolves source + target labels on add_edge", () => {
-    // add_edge doesn't carry labels for endpoints — the formatter must
-    // resolve them from the ontology or the preview panel says
-    // "add_edge: X (uuid-0123… → uuid-4567…)", which is useless.
     const cmd: OntologyCommand = {
       op: "add_edge",
       id: "new",
@@ -79,9 +79,10 @@ describe("formatCommand — label resolution", () => {
       target_node_id: "node-company-uuid",
       cardinality: "one_to_many",
     };
-    expect(formatCommand(cmd, ontology())).toBe(
-      "Add edge: FOUNDED (Person → Company)",
-    );
+    expect(formatCommand(cmd, ontology())).toEqual({
+      key: "addEdge",
+      params: { label: "FOUNDED", source: "Person", target: "Company" },
+    });
   });
 
   it("resolves a property name on update_property", () => {
@@ -91,29 +92,37 @@ describe("formatCommand — label resolution", () => {
       property_id: "prop-email-uuid",
       patch: { nullable: true },
     };
-    expect(formatCommand(cmd, ontology())).toBe("Update property: email on Person");
+    expect(formatCommand(cmd, ontology())).toEqual({
+      key: "updateProperty",
+      params: { name: "email", owner: "Person" },
+    });
   });
 
   it("falls back to a truncated UUID when the id isn't in the ontology", () => {
-    // Lookup must not throw on unknown ids — the preview panel still
-    // has to render *something* informative.
     const cmd: OntologyCommand = {
       op: "delete_node",
       node_id: "00000000-aaaa-bbbb-cccc-deadbeef1234",
     };
-    expect(formatCommand(cmd, ontology())).toBe("Delete node: 00000000…");
+    expect(formatCommand(cmd, ontology())).toEqual({
+      key: "deleteNode",
+      params: { label: "00000000…" },
+    });
   });
 
   it("does not truncate short ids (12-char threshold)", () => {
     const cmd: OntologyCommand = { op: "delete_node", node_id: "short-id" };
-    expect(formatCommand(cmd, ontology())).toBe("Delete node: short-id");
+    expect(formatCommand(cmd, ontology())).toEqual({
+      key: "deleteNode",
+      params: { label: "short-id" },
+    });
   });
 
   it("works when the ontology is null (no context available)", () => {
-    // The builder preview can render commands before the ontology has
-    // loaded; the formatter must degrade cleanly rather than throw.
     const cmd: OntologyCommand = { op: "delete_node", node_id: "node-person-uuid" };
-    expect(formatCommand(cmd, null)).toBe("Delete node: node-per…");
+    expect(formatCommand(cmd, null)).toEqual({
+      key: "deleteNode",
+      params: { label: "node-per…" },
+    });
   });
 });
 
@@ -125,7 +134,10 @@ describe("formatCommand — per-op rendering", () => {
       label: "Customer",
       description: { default: "A paying user" },
     };
-    expect(formatCommand(cmd)).toBe("Add node: Customer");
+    expect(formatCommand(cmd)).toEqual({
+      key: "addNode",
+      params: { label: "Customer" },
+    });
   });
 
   it("renders rename_node with both labels", () => {
@@ -134,12 +146,13 @@ describe("formatCommand — per-op rendering", () => {
       node_id: "node-person-uuid",
       new_label: "Contact",
     };
-    expect(formatCommand(cmd, ontology())).toBe("Rename node: Person → Contact");
+    expect(formatCommand(cmd, ontology())).toEqual({
+      key: "renameNode",
+      params: { label: "Person", newLabel: "Contact" },
+    });
   });
 
-  it("singularises / pluralises the batch count correctly", () => {
-    // The preview pluralisation rule is simple but easy to get wrong
-    // silently when batches hit 1-command edge cases.
+  it("emits batch count as a numeric param so the renderer can pluralise via ICU", () => {
     const one: OntologyCommand = {
       op: "batch",
       description: "x",
@@ -153,13 +166,11 @@ describe("formatCommand — per-op rendering", () => {
         { op: "delete_node", node_id: "m" },
       ],
     };
-    expect(formatCommand(one)).toBe("Batch: 1 command");
-    expect(formatCommand(two)).toBe("Batch: 2 commands");
+    expect(formatCommand(one)).toEqual({ key: "batch", params: { count: 1 } });
+    expect(formatCommand(two)).toEqual({ key: "batch", params: { count: 2 } });
   });
 
   it("renders add_property with the property name taken from the command", () => {
-    // add_property carries the full PropertyDef, so the name comes
-    // from the command rather than from the ontology lookup.
     const prop: PropertyDef = {
       id: "prop-new",
       name: "phone",
@@ -171,7 +182,10 @@ description: { default: "" },
       owner_id: "node-person-uuid",
       property: prop,
     };
-    expect(formatCommand(cmd, ontology())).toBe("Add property: phone to Person");
+    expect(formatCommand(cmd, ontology())).toEqual({
+      key: "addProperty",
+      params: { name: "phone", owner: "Person" },
+    });
   });
 });
 

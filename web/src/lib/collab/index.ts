@@ -16,6 +16,7 @@ export {
   selectCursors,
   selectHidden,
   selectLastError,
+  selectLatestRemoteUpdate,
   selectLockFor,
   selectLocks,
   selectPresence,

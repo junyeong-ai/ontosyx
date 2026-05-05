@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import type { NodeMouseHandler, EdgeMouseHandler } from "@xyflow/react";
 
 import { useAppStore } from "@/lib/store";
@@ -107,7 +107,8 @@ export function useOntologyContextMenu(
 ): UseOntologyContextMenuResult {
   const t = useTranslations("workbench.contextMenu");
   const tInspector = useTranslations("inspector.toast");
-  const select = useAppStore((s) => s.select);
+  const tCommon = useTranslations("common");
+  const selectOne = useAppStore((s) => s.selectOne);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const applyCommand = useAppStore((s) => s.applyCommand);
   const toggleInspector = useAppStore((s) => s.toggleInspector);
@@ -131,18 +132,18 @@ export function useOntologyContextMenu(
   const handleNodeContextMenu: NodeMouseHandler = useCallback(
     (event, node) => {
       if (node.type === "group") return;
-      select({ type: "node", nodeId: node.id });
+      selectOne({ kind: "node", id: node.id });
       contextMenu.open(event, { type: "node", id: node.id });
     },
-    [contextMenu, select],
+    [contextMenu, selectOne],
   );
 
   const handleEdgeContextMenu: EdgeMouseHandler = useCallback(
     (event, edge) => {
-      select({ type: "edge", edgeId: edge.id });
+      selectOne({ kind: "edge", id: edge.id });
       contextMenu.open(event, { type: "edge", id: edge.id });
     },
-    [contextMenu, select],
+    [contextMenu, selectOne],
   );
 
   const target = contextMenu.state?.target ?? null;
@@ -157,27 +158,27 @@ export function useOntologyContextMenu(
     );
     const activeProject = useAppStore.getState().activeProject;
     return [
-      { label: "Inspect", onClick: () => { select({ type: "node", nodeId }); if (!useAppStore.getState().isInspectorOpen) toggleInspector(); } },
-      { label: "Focus Neighborhood", onClick: () => setNeighborhoodFocus({ nodeId, depth: 1 }) },
+      { label: t("inspect"), onClick: () => { selectOne({ kind: "node", id: nodeId }); if (!useAppStore.getState().isInspectorOpen) toggleInspector(); } },
+      { label: t("focusNeighborhood"), onClick: () => setNeighborhoodFocus({ nodeId, depth: 1 }) },
       {
-        label: "Improve with AI",
+        label: t("improveWithAi"),
         disabled: !activeProject,
         onClick: async () => {
           if (!activeProject) return;
-          select({ type: "node", nodeId });
+          selectOne({ kind: "node", id: nodeId });
           if (!useAppStore.getState().isInspectorOpen) toggleInspector();
           await improveWithAi("node", nodeDef.label, activeProject.id, activeProject.revision, applyCommand, aiCopy);
         },
       },
-      { label: "Add Property", onClick: () => { select({ type: "node", nodeId }); if (!useAppStore.getState().isInspectorOpen) toggleInspector(); } },
+      { label: t("addProperty"), onClick: () => { selectOne({ kind: "node", id: nodeId }); if (!useAppStore.getState().isInspectorOpen) toggleInspector(); } },
       {
-        label: "Rename",
+        label: t("rename"),
         onClick: async () => {
           const v = await prompt({
-            title: "Rename Node",
-            description: `Enter a new label for "${nodeDef.label}".`,
+            title: t("node.renamePrompt.title"),
+            description: t("node.renamePrompt.description", { label: nodeDef.label }),
             defaultValue: nodeDef.label,
-            confirmLabel: "Rename",
+            confirmLabel: t("rename"),
           });
           if (v?.trim() && v.trim() !== nodeDef.label) {
             applyCommand({ op: "rename_node", node_id: nodeId, new_label: v.trim() });
@@ -185,27 +186,25 @@ export function useOntologyContextMenu(
         },
       },
       {
-        label: connectedEdges.length > 0
-          ? `Delete Node (${connectedEdges.length} edge${connectedEdges.length !== 1 ? "s" : ""})`
-          : "Delete Node",
+        label: t("node.deleteLabel", { count: connectedEdges.length }),
         danger: true,
         onClick: async () => {
           if (connectedEdges.length > 0) {
             const confirmed = await confirm({
-              title: "Delete Node",
-              description: `Delete "${nodeDef.label}" and ${connectedEdges.length} connected edge(s)?`,
-              confirmLabel: "Delete",
+              title: t("node.deleteConfirm.title"),
+              description: t("node.deleteConfirm.description", { label: nodeDef.label, count: connectedEdges.length }),
+              confirmLabel: tCommon("delete"),
               variant: "danger",
             });
             if (!confirmed) return;
           }
           applyCommand({ op: "delete_node", node_id: nodeId });
           clearSelection();
-          toast.success(`Node "${nodeDef.label}" deleted`);
+          toast.success(t("node.deletedToast", { label: nodeDef.label }));
         },
       },
     ];
-  }, [target, ontology, select, clearSelection, applyCommand, toggleInspector, setNeighborhoodFocus, confirm, prompt, aiCopy]);
+  }, [target, ontology, selectOne, clearSelection, applyCommand, toggleInspector, setNeighborhoodFocus, confirm, prompt, aiCopy, t, tCommon]);
 
   const edgeContextMenuItems = useMemo((): ContextMenuItem[] => {
     if (!target || target.type !== "edge" || !ontology) return [];
@@ -213,26 +212,31 @@ export function useOntologyContextMenu(
     const edgeDef = arr(ontology.edge_types).find((e) => e.id === edgeId);
     if (!edgeDef) return [];
     const project = useAppStore.getState().activeProject;
+    const cardinalityLabel = (c: "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many") => {
+      const camel = c.split("_").map((p, i) => i === 0 ? p : p[0].toUpperCase() + p.slice(1)).join("") as
+        "oneToOne" | "oneToMany" | "manyToOne" | "manyToMany";
+      return t(`cardinality.${camel}`);
+    };
     return [
-      { label: "Inspect", onClick: () => { select({ type: "edge", edgeId }); if (!useAppStore.getState().isInspectorOpen) toggleInspector(); } },
+      { label: t("inspect"), onClick: () => { selectOne({ kind: "edge", id: edgeId }); if (!useAppStore.getState().isInspectorOpen) toggleInspector(); } },
       {
-        label: "Improve with AI",
+        label: t("improveWithAi"),
         disabled: !project,
         onClick: async () => {
           if (!project) return;
-          select({ type: "edge", edgeId });
+          selectOne({ kind: "edge", id: edgeId });
           if (!useAppStore.getState().isInspectorOpen) toggleInspector();
           await improveWithAi("edge", edgeDef.label, project.id, project.revision, applyCommand, aiCopy);
         },
       },
       {
-        label: "Rename",
+        label: t("rename"),
         onClick: async () => {
           const v = await prompt({
-            title: "Rename Edge",
-            description: `Enter a new label for "${edgeDef.label}".`,
+            title: t("edge.renamePrompt.title"),
+            description: t("edge.renamePrompt.description", { label: edgeDef.label }),
             defaultValue: edgeDef.label,
-            confirmLabel: "Rename",
+            confirmLabel: t("rename"),
           });
           if (v?.trim() && v.trim() !== edgeDef.label) {
             applyCommand({ op: "rename_edge", edge_id: edgeId, new_label: v.trim() });
@@ -240,33 +244,33 @@ export function useOntologyContextMenu(
         },
       },
       {
-        label: "Change Cardinality",
+        label: t("cardinality.label"),
         submenu: (["one_to_one", "one_to_many", "many_to_one", "many_to_many"] as const).map((c) => ({
-          label: c.replace(/_/g, " "),
+          label: cardinalityLabel(c),
           onClick: () => {
             applyCommand({ op: "update_edge_cardinality", edge_id: edgeId, cardinality: c });
-            toast.success(`Cardinality: ${c.replace(/_/g, " ")}`);
+            toast.success(t("cardinality.toast", { value: cardinalityLabel(c) }));
           },
         })),
       },
       {
-        label: "Delete Edge",
+        label: t("edge.deleteLabel"),
         danger: true,
         onClick: async () => {
           const confirmed = await confirm({
-            title: "Delete Edge",
-            description: `Delete edge "${edgeDef.label}"?`,
-            confirmLabel: "Delete",
+            title: t("edge.deleteConfirm.title"),
+            description: t("edge.deleteConfirm.description", { label: edgeDef.label }),
+            confirmLabel: tCommon("delete"),
             variant: "danger",
           });
           if (!confirmed) return;
           applyCommand({ op: "delete_edge", edge_id: edgeId });
           clearSelection();
-          toast.success(`Edge "${edgeDef.label}" deleted`);
+          toast.success(t("edge.deletedToast", { label: edgeDef.label }));
         },
       },
     ];
-  }, [target, ontology, select, clearSelection, applyCommand, toggleInspector, confirm, prompt, aiCopy]);
+  }, [target, ontology, selectOne, clearSelection, applyCommand, toggleInspector, confirm, prompt, aiCopy, t, tCommon]);
 
   return {
     handleNodeContextMenu,

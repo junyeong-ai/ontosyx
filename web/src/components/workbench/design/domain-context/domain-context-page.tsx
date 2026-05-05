@@ -220,6 +220,7 @@ function PageHeader({
   onRename: (next: string) => void;
 }) {
   const t = useTranslations("workbench.types.detail.readiness");
+  const tHeader = useTranslations("workbench.types.detail.header");
   const total = readiness.length;
   const allPassed = readinessPassed === total;
   return (
@@ -227,12 +228,12 @@ function PageHeader({
       <Link
         href="/design"
         aria-label={backLabel}
-        className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground dark:hover:bg-surface-base dark:hover:text-foreground-strong"
+        className="rounded p-1 text-foreground-muted hover:bg-surface-inset hover:text-foreground-strong"
       >
         <HugeiconsIcon icon={ArrowLeft01Icon} className="h-4 w-4" size="100%" />
       </Link>
       <span className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-bold uppercase text-brand-foreground-strong">
-        Node
+        {tHeader("nodeBadge")}
       </span>
       <div className="flex flex-1 flex-col">
         <InlineEdit
@@ -243,7 +244,7 @@ function PageHeader({
       </div>
       <Tooltip
         content={
-          <ul className="space-y-0.5 text-[11px]">
+          <ul className="space-y-0.5 text-2xs">
             {readiness.map((r) => (
               <li key={r.id} className="flex items-center gap-2">
                 <span className={r.passed ? "text-brand-foreground" : "text-danger-foreground"}>
@@ -274,7 +275,7 @@ function PageHeader({
 
 function EmptyShell({ message }: { message: string }) {
   return (
-    <div className="flex h-full items-center justify-center px-6 py-12 text-sm text-muted-foreground">
+    <div className="flex h-full items-center justify-center px-6 py-12 text-sm text-foreground-muted">
       <div className="max-w-md text-center">{message}</div>
     </div>
   );

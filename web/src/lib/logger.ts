@@ -21,15 +21,11 @@
 // the project's logging primitive; every other call site is forbidden
 // from `console` and routes through these methods.
 export const logger = {
-  debug: (...args: unknown[]) => {
+  debug: (..._args: unknown[]) => {
     if (process.env.NEXT_PUBLIC_LOG_LEVEL === "debug") {
-      // eslint-disable-next-line no-console
-      console.debug("[ox]", ...args);
     }
   },
-  info: (...args: unknown[]) => {
-    // eslint-disable-next-line no-console
-    console.info("[ox]", ...args);
+  info: (..._args: unknown[]) => {
   },
   warn: (...args: unknown[]) => console.warn("[ox]", ...args),
   error: (...args: unknown[]) => console.error("[ox]", ...args),

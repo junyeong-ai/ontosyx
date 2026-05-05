@@ -25,7 +25,7 @@ import { StepShell } from "@/app/bootstrap/step-shell";
 import { BootstrapProvider } from "@/app/bootstrap/bootstrap-state";
 import type { AmbiguityContext } from "@/lib/api/ambiguity";
 
-vi.mock("sonner", () => ({
+vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 

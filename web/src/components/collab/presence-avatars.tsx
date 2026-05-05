@@ -1,11 +1,11 @@
+"use client";
+
 // PresenceAvatars — stacked initials for the active members of a
 // collaboration room. Each avatar reads its hue from `colorFor`
 // so it matches the user's remote cursor and lock-ring colour
 // across every collaboration surface. Hovering an avatar opens a
 // detail card sourced from the workspace member roster — name,
 // email, role.
-
-"use client";
 
 import { useMemo } from "react";
 
@@ -82,7 +82,7 @@ export function PresenceAvatars({
             </ul>
           }
         >
-          <div className="flex h-7 w-7 items-center justify-center rounded-full border border-background bg-surface-raised text-2xs font-semibold text-foreground-strong dark:bg-surface-base dark:text-foreground">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full border border-background bg-surface-raised text-2xs font-semibold text-foreground-strong">
             +{overflow}
           </div>
         </Tooltip>

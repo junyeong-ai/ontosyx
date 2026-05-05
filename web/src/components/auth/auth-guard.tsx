@@ -1,3 +1,5 @@
+"use client";
+
 // AuthGuard — gate authenticated route segments.
 //
 // Wraps protected segments (workbench, settings) so unauthenticated
@@ -9,8 +11,6 @@
 // loading shell rather than `null` — keeping the layout stable
 // preserves scroll, motion, and SSR-painted chrome instead of
 // flashing white between hops.
-
-"use client";
 
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";

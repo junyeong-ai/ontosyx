@@ -16,7 +16,7 @@ export function SamplesFacet({ node }: { node: NodeTypeDef }) {
   const table = node.source_lineage?.table;
   if (!table) {
     return (
-      <p className="text-[11px] italic text-muted-foreground">
+      <p className="text-2xs italic text-foreground-muted">
         {t("noSourceLineage")}
       </p>
     );

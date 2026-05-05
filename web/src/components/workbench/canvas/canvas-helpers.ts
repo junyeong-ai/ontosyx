@@ -6,8 +6,7 @@ import {
   type Node,
   type Edge,
 } from "@xyflow/react";
-import { toPng, toSvg } from "html-to-image";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import type { NodeGroup } from "@/lib/store";
 import type { SchemaNodeData, NodeLayer, DiffStatus } from "./schema-node";
@@ -441,6 +440,11 @@ export async function exportCanvasImage(
   };
   const sanitized = ontologyName.replace(/[^a-zA-Z0-9_-]/g, "_") || "ontology";
   try {
+    // Dynamic import — `html-to-image` is ~30kb gzipped and only
+    // loads when the user actually invokes Export. Keeps the canvas
+    // module on the critical path lean for the much more common
+    // case of pan / zoom / select without export.
+    const { toPng, toSvg } = await import("html-to-image");
     if (format === "png") {
       const dataUrl = await toPng(el, options);
       downloadBlob(dataUrl, `${sanitized}_ontology.png`);

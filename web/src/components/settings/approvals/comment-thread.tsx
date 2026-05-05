@@ -6,12 +6,14 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { FormTextarea } from "@/components/ui/form-input";
 
 import {
   useApprovalComments,
   useCreateApprovalComment,
 } from "@/hooks/api/use-approval-comments";
+import { useFormatters } from "@/hooks/use-formatters";
 
 interface CommentThreadProps {
   approvalId: string;
@@ -23,7 +25,8 @@ interface CommentThreadProps {
 }
 
 export function CommentThread({ approvalId, readOnly = false }: CommentThreadProps) {
-  const t = useTranslations("settings.approvals.thread");
+  const t = useTranslations("settings.governance.approvals.thread");
+  const fmt = useFormatters();
   const query = useApprovalComments(approvalId);
   const mutation = useCreateApprovalComment(approvalId);
   const [draft, setDraft] = useState("");
@@ -48,18 +51,18 @@ export function CommentThread({ approvalId, readOnly = false }: CommentThreadPro
     if (query.isError) {
       toast.error(t("loadFailed"));
     }
-  }, [query.isError, query.errorUpdatedAt, t]);
+  }, [query.isError, t]);
 
   const comments = query.data ?? [];
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
         {t("heading")}
       </div>
 
       {query.isLoading ? null : comments.length === 0 ? (
-        <div className="text-xs italic text-muted-foreground">{t("empty")}</div>
+        <div className="text-xs italic text-foreground-muted">{t("empty")}</div>
       ) : (
         <ul className="flex flex-col gap-2">
           {comments.map((c) => (
@@ -67,11 +70,11 @@ export function CommentThread({ approvalId, readOnly = false }: CommentThreadPro
               key={c.id}
               className="rounded-md border border-divider bg-surface-base px-3 py-2 text-xs"
             >
-              <div className="flex items-center justify-between text-2xs text-muted-foreground">
+              <div className="flex items-center justify-between text-2xs text-foreground-muted">
                 <span className="font-medium">
                   {c.author_name ?? t("unknownAuthor")}
                 </span>
-                <span>{new Date(c.created_at).toLocaleString()}</span>
+                <span>{fmt.date(c.created_at)}</span>
               </div>
               <div className="mt-1 whitespace-pre-wrap text-foreground-strong">
                 {c.body}
@@ -83,19 +86,19 @@ export function CommentThread({ approvalId, readOnly = false }: CommentThreadPro
 
       {!readOnly && (
         <div className="flex flex-col gap-1.5">
-          <textarea
+          <FormTextarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={t("addPlaceholder")}
             rows={2}
-            className="rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs transition-colors focus:border-brand-foreground focus:outline-none focus:ring-1 focus:ring-brand-foreground/50 dark:focus:border-brand-border"
+            density="settings"
           />
           <div className="flex justify-end">
             <button
               type="button"
               onClick={handlePost}
               disabled={mutation.isPending || draft.trim().length === 0}
-              className="rounded-md bg-surface-base px-3 py-1.5 text-xs font-medium text-white hover:bg-surface-base disabled:cursor-not-allowed disabled:opacity-50-strong dark:hover:bg-surface-base"
+              className="rounded-md bg-surface-base px-3 py-1.5 text-xs font-medium text-foreground-onbrand hover:bg-surface-base disabled:cursor-not-allowed disabled:opacity-50-strong"
             >
               {mutation.isPending ? t("posting") : t("addButton")}
             </button>

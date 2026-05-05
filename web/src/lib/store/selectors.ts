@@ -1,4 +1,5 @@
 import type { AppStore } from "./types";
+import { selectionPrimary } from "./selection-slice";
 
 // State selectors return raw or derived state slices for use with
 // `useAppStore(selector)`. Action handles are read inline at the
@@ -12,12 +13,25 @@ import type { AppStore } from "./types";
 export const selectStateHasOntology = (s: AppStore) => s.ontology !== null;
 export const selectStateHasUnsavedEdits = (s: AppStore) =>
   s.commandStack.length > 0;
-export const selectStateSelectedNodeId = (s: AppStore) =>
-  s.selection.type === "node" ? s.selection.nodeId : null;
-export const selectStateSelectedEdgeId = (s: AppStore) =>
-  s.selection.type === "edge" ? s.selection.edgeId : null;
-export const selectStateSelectedWidgetId = (s: AppStore) =>
-  s.selection.type === "widget" ? s.selection.widgetId : null;
+
+// Primary-selection accessors — return the *most recently selected*
+// ref's id when its kind matches, else null. Multi-select consumers
+// (e.g. canvas dim-other rendering) read `selection` directly and
+// iterate `refs`.
+export const selectStateSelectionPrimary = (s: AppStore) =>
+  selectionPrimary(s.selection);
+export const selectStateSelectedNodeId = (s: AppStore) => {
+  const p = selectionPrimary(s.selection);
+  return p?.kind === "node" ? p.id : null;
+};
+export const selectStateSelectedEdgeId = (s: AppStore) => {
+  const p = selectionPrimary(s.selection);
+  return p?.kind === "edge" ? p.id : null;
+};
+export const selectStateSelectedWidgetId = (s: AppStore) => {
+  const p = selectionPrimary(s.selection);
+  return p?.kind === "widget" ? p.id : null;
+};
 export const selectStateCanChat = (s: AppStore) => s.ontology !== null;
 
 // ---------------------------------------------------------------------------

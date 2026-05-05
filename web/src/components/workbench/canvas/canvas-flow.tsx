@@ -1,12 +1,13 @@
 "use client";
 
-import {
-  type Node,
-  type Edge,
-  type NodeMouseHandler,
-  type EdgeMouseHandler,
-  type OnNodesChange,
-  type OnEdgesChange,
+import type {
+  Node,
+  Edge,
+  NodeMouseHandler,
+  EdgeMouseHandler,
+  OnNodesChange,
+  OnEdgesChange,
+  OnSelectionChangeFunc,
 } from "@xyflow/react";
 
 import { SchemaNode } from "./schema-node";
@@ -44,6 +45,7 @@ interface CanvasFlowProps {
   onNodeContextMenu: NodeMouseHandler;
   onEdgeContextMenu: EdgeMouseHandler;
   onPaneClick: () => void;
+  onSelectionChange?: OnSelectionChangeFunc;
 }
 
 /**
@@ -71,6 +73,7 @@ export function CanvasFlow(props: CanvasFlowProps) {
         onNodeContextMenu={props.onNodeContextMenu}
         onEdgeContextMenu={props.onEdgeContextMenu}
         onPaneClick={props.onPaneClick}
+        onSelectionChange={props.onSelectionChange}
         className="bg-surface-raised"
         minimap={{ nodeColor: ontologyMiniMapColor }}
       >

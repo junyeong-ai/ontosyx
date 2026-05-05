@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 
 import { useDependencyGraph } from "@/hooks/api/use-dependencies";
 import {
@@ -26,6 +27,7 @@ interface DependentsBadgeProps {
  * without clicking through.
  */
 export function DependentsBadge({ ontologyId, target }: DependentsBadgeProps) {
+  const t = useTranslations("inspector.dependents");
   const { data: graph } = useDependencyGraph(ontologyId);
 
   const summary = useMemo(() => {
@@ -37,70 +39,20 @@ export function DependentsBadge({ ontologyId, target }: DependentsBadgeProps) {
       byKind.set(edge.kind, (byKind.get(edge.kind) ?? 0) + 1);
     }
     const breakdown = [...byKind.entries()]
-      .map(([kind, count]) => `${count} × ${humanize(kind)}`)
+      .map(([kind, count]) => t("breakdownItem", { count, kind: t(`kind.${kind}`) }))
       .join(", ");
     return { count: edges.length, breakdown };
-  }, [graph, target]);
+  }, [graph, target, t]);
 
   if (!summary) return null;
 
   return (
     <span
       className="rounded bg-concept-surface px-1.5 py-0.5 text-2xs font-medium text-concept-foreground"
-      title={`Dependents: ${summary.breakdown}`}
+      title={t("titleAttr", { breakdown: summary.breakdown })}
     >
-      {summary.count} dependent{summary.count === 1 ? "" : "s"}
+      {t("count", { count: summary.count })}
     </span>
   );
 }
 
-/**
- * Map a [`DependencyKind`] to a short, human-readable phrase for the
- * tooltip breakdown. Kept inline — the catalogue would only have a
- * handful of entries and the kind set evolves slowly enough that a
- * `switch` is the lowest-friction surface.
- */
-function humanize(kind: DependencyKind): string {
-  switch (kind) {
-    case "property_of":
-      return "property";
-    case "edge_source":
-      return "edge source";
-    case "edge_target":
-      return "edge target";
-    case "interface_implementation":
-      return "interface impl";
-    case "property_binding_ref":
-      return "property binding";
-    case "function_derivation":
-      return "function derivation";
-    case "unit_reference":
-      return "unit";
-    case "rule_constraint":
-      return "rule";
-    case "rule_activation":
-      return "rule activation";
-    case "rule_vocabulary":
-      return "rule vocabulary";
-    case "metric_scope":
-      return "metric";
-    case "action_target":
-      return "action target";
-    case "action_rule":
-      return "action rule";
-    case "enrichment_target":
-      return "enrichment";
-    case "object_mapping_target":
-      return "object mapping";
-    case "link_mapping_target":
-      return "link mapping";
-    case "property_mapping_target":
-      return "property mapping";
-    case "value_set_composition":
-      return "value-set composition";
-    case "concept_map_endpoint":
-      return "concept-map endpoint";
-    case "data_quality_target":
-      return "data quality";
-  }
-}

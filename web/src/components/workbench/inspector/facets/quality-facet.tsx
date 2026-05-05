@@ -21,12 +21,12 @@ export function QualityFacet({ gaps }: { gaps: QualityGap[] }) {
   if (gaps.length === 0) {
     return (
       <div className="flex flex-col gap-2">
-        <p className="text-[11px] italic text-muted-foreground">
+        <p className="text-2xs italic text-foreground-muted">
           {t("noGaps")}
         </p>
         <Link
-          href="/settings/quality/signals"
-          className="text-[11px] font-medium text-brand-foreground hover:underline"
+          href="/settings/quality?tab=signals"
+          className="text-2xs font-medium text-brand-foreground hover:underline"
         >
           {t("viewWorkspaceSignals")}
         </Link>
@@ -38,8 +38,8 @@ export function QualityFacet({ gaps }: { gaps: QualityGap[] }) {
     <div className="flex flex-col gap-2">
       <QualityGapsList gaps={gaps} />
       <Link
-        href="/settings/quality/signals"
-        className="text-[11px] font-medium text-brand-foreground hover:underline"
+        href="/settings/quality?tab=signals"
+        className="text-2xs font-medium text-brand-foreground hover:underline"
       >
         {t("viewWorkspaceSignals")}
       </Link>

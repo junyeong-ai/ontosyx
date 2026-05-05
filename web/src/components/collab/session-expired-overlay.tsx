@@ -1,3 +1,5 @@
+"use client";
+
 // Session-expired overlay — persistent re-auth prompt.
 //
 // Why a dedicated surface (not a toast): an expired session blocks
@@ -11,8 +13,6 @@
 // Mounted once at the root layout. Listens to the collab store's
 // `lastError` and renders only when classification reports a
 // re-auth code (single source of truth in `error-classification.ts`).
-
-"use client";
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -64,7 +64,7 @@ export function SessionExpiredOverlay() {
       aria-labelledby="session-expired-title"
       aria-describedby="session-expired-description"
       onKeyDown={handleKeyDown}
-      className="fixed bottom-6 right-6 z-50 w-[22rem] overflow-hidden rounded-xl border border-divider bg-surface-base shadow-2xl"
+      className="fixed bottom-6 end-6 z-banner w-[22rem] overflow-hidden rounded-xl border border-divider bg-surface-base shadow-4"
     >
       <div className="flex gap-3 px-5 pt-5">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warning-surface">
@@ -92,7 +92,7 @@ export function SessionExpiredOverlay() {
           type="button"
           onClick={() => setDismissedCode(errorCode)}
           aria-label={tActions("dismiss")}
-          className="-mr-2 -mt-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-inset hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground"
+          className="-me-2 -mt-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground"
         >
           <HugeiconsIcon icon={Cancel01Icon} className="h-3.5 w-3.5" size="100%" />
         </button>

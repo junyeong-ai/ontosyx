@@ -3,9 +3,10 @@
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowUp01Icon } from "@hugeicons/core-free-icons";
+import { ArrowUp01Icon, StopIcon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
+import { ChatComposer, FormSelect } from "@/components/ui/form-input";
 import { useAppStore } from "@/lib/store";
 import { request } from "@/lib/api/client";
 import type { ModelConfig } from "@/lib/api/models";
@@ -17,12 +18,23 @@ function formatTokens(n: number): string {
 
 interface ChatInputProps {
   onSend: (message: string) => void;
+  /**
+   * When true, the trailing button switches from "send" to "stop"
+   * and clicking it cancels the in-flight stream via `onStop`. The
+   * caller owns the AbortController; this component just exposes
+   * the affordance — without one, a long completion lingers with
+   * no user-facing way out.
+   */
+  isStreaming?: boolean;
+  onStop?: () => void;
   disabled?: boolean;
   disabledReason?: string;
 }
 
 export function ChatInput({
   onSend,
+  isStreaming,
+  onStop,
   disabled,
   disabledReason,
 }: ChatInputProps) {
@@ -60,71 +72,71 @@ export function ChatInput({
     }
   };
 
-  const handleInput = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 200) + "px";
-  };
-
   const isRawMode = value.startsWith("!");
   const placeholder = disabledReason ? disabledReason : t("placeholder");
 
   const canSend = !disabled && value.trim().length > 0;
 
+  // Trailing slot owns the three button states: stop while streaming,
+  // disabled-with-reason, and idle send. ChatComposer handles the
+  // textarea sizing + overlay positioning so the surface stays
+  // the inverse-shape (textarea on left, button on right) every time.
+  const trailing =
+    isStreaming && onStop ? (
+      <Tooltip content={t("stopAria")}>
+        <button
+          type="button"
+          onClick={onStop}
+          className="flex h-7 w-7 items-center justify-center rounded-lg bg-danger-solid text-foreground-on-accent shadow-1 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] hover:bg-danger-solid-hover focus-visible:ring-2 focus-visible:ring-danger-foreground/40"
+          aria-label={t("stopAria")}
+        >
+          <HugeiconsIcon icon={StopIcon} className="h-3 w-3" size="100%" strokeWidth={2.5} />
+        </button>
+      </Tooltip>
+    ) : disabled && disabledReason ? (
+      <Tooltip content={disabledReason}>
+        <button
+          type="button"
+          disabled
+          className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-inset text-foreground-muted"
+          aria-label={disabledReason}
+        >
+          <HugeiconsIcon icon={ArrowUp01Icon} className="h-3.5 w-3.5" size="100%" strokeWidth={2.5} />
+        </button>
+      </Tooltip>
+    ) : (
+      <button
+        type="button"
+        onClick={handleSend}
+        disabled={!canSend}
+        className={cn(
+          "flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
+          canSend
+            ? "bg-brand-solid text-foreground-onbrand shadow-1 hover:bg-brand-solid"
+            : "bg-surface-inset text-foreground-muted",
+        )}
+        aria-label={t("sendAria")}
+      >
+        <HugeiconsIcon icon={ArrowUp01Icon} className="h-3.5 w-3.5" size="100%" strokeWidth={2.5} />
+      </button>
+    );
+
   return (
     <div className="border-t border-divider bg-surface-base px-4 py-3">
       <div className="mx-auto flex max-w-3xl items-end gap-2">
-        <div className="relative flex-1">
-          <textarea
-            ref={textareaRef}
-            data-chat-input
-            aria-label={t("messageAria")}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onInput={handleInput}
-            placeholder={placeholder}
-            rows={1}
-            disabled={disabled}
-            className={cn(
-              "w-full resize-none rounded-xl border border-divider bg-surface-raised px-4 py-3 pr-12",
-              "text-sm placeholder:text-muted-foreground",
-              "focus:border-brand-foreground focus:bg-surface-base focus:outline-none focus:ring-2 focus:ring-brand-foreground/50",
-              "dark:border-divider-strong",
-              "dark:focus:border-brand-border dark:focus:ring-brand-foreground/50",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-              "transition-all",
-            )}
-          />
-          {disabled && disabledReason ? (
-            <Tooltip content={disabledReason}>
-              <button
-                disabled
-                className="absolute right-2.5 top-1 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-surface-inset text-muted-foreground"
-                aria-label={disabledReason}
-              >
-                <HugeiconsIcon icon={ArrowUp01Icon} className="h-3.5 w-3.5" size="100%" strokeWidth={2.5} />
-              </button>
-            </Tooltip>
-          ) : (
-            <button
-              onClick={handleSend}
-              disabled={!canSend}
-              className={cn(
-                "absolute right-2.5 top-1 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg transition-all",
-                canSend
-                  ? "bg-brand-solid text-white shadow-sm hover:bg-brand-solid"
-                  : "bg-surface-inset text-muted-foreground",
-              )}
-              aria-label={t("sendAria")}
-            >
-              <HugeiconsIcon icon={ArrowUp01Icon} className="h-3.5 w-3.5" size="100%" strokeWidth={2.5} />
-            </button>
-          )}
-        </div>
+        <ChatComposer
+          ref={textareaRef}
+          data-chat-input
+          aria-label={t("messageAria")}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={disabled}
+          trailing={trailing}
+        />
       </div>
-      <div className="mx-auto mt-1.5 flex max-w-3xl items-center gap-2 text-2xs text-muted-foreground">
+      <div className="mx-auto mt-1.5 flex max-w-3xl items-center gap-2 text-2xs text-foreground-muted">
         <span>
           {isRawMode ? (
             <span className="text-warning-foreground">{t("rawMode")}</span>
@@ -132,18 +144,20 @@ export function ChatInput({
             t("enterHint")
           )}
           {tokenUsage && (
-            <span className="ml-2">
+            <span className="ms-2">
               {t("tokensUsed", { count: formatTokens(tokenUsage.input + tokenUsage.output) })}
             </span>
           )}
         </span>
         <span className="flex-1" />
         {models.length > 0 && (
-          <select
+          <FormSelect
+            density="compact"
             value={modelOverride ?? ""}
             onChange={(e) => setModelOverride(e.target.value || null)}
-            className="rounded-md border border-divider bg-surface-raised px-1.5 py-0.5 text-2xs text-foreground-muted dark:text-muted-foreground"
+            aria-label={t("modelSelectTitle")}
             title={t("modelSelectTitle")}
+            className="bg-surface-raised text-foreground-muted"
           >
             <option value="">{t("defaultModel")}</option>
             {models.map((m) => (
@@ -151,18 +165,19 @@ export function ChatInput({
                 {t("modelOption", { name: m.name, id: m.model_id })}
               </option>
             ))}
-          </select>
+          </FormSelect>
         )}
         <button
+          type="button"
           onClick={() => {
             const store = useAppStore.getState();
             store.setExecutionMode(store.executionMode === "auto" ? "supervised" : "auto");
           }}
           className={cn(
-            "rounded-md px-2 py-0.5 text-2xs font-medium transition-colors",
+            "rounded-md px-2 py-0.5 text-2xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
             executionMode === "supervised"
               ? "bg-warning-surface text-warning-foreground"
-              : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
+              : "text-foreground-muted hover:text-foreground-muted"
           )}
           title={executionMode === "auto" ? t("executionMode.autoTitle") : t("executionMode.supervisedTitle")}
         >

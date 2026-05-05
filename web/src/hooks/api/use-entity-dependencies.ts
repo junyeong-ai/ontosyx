@@ -40,7 +40,7 @@ export function useEntityDependencies(
   ref: SchemaEntityRef | null,
 ): EntityDependencies {
   const { data: graph, isLoading, error } = useDependencyGraph(ontologyId);
-  const refKey = ref ? entityRefKey(ref) : null;
+  const _refKey = ref ? entityRefKey(ref) : null;
   return useMemo(() => {
     if (!graph || !ref) {
       return {
@@ -58,6 +58,5 @@ export function useEntityDependencies(
     };
     // refKey collapses the structural ref into a stable string so
     // the memo doesn't churn on identity-only changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph, refKey, isLoading, error]);
+  }, [graph, isLoading, error, ref]);
 }

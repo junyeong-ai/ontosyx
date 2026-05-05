@@ -43,7 +43,7 @@ export function BarChartWidget({ spec, data }: BarChartWidgetProps) {
   );
 
   if (!xField || !yField || chartData.length === 0) {
-    return <p className="text-xs text-muted-foreground">{t("insufficient")}</p>;
+    return <p className="text-xs text-foreground-muted">{t("insufficient")}</p>;
   }
 
   const rotated = chartData.length > CATEGORY_THRESHOLD;
@@ -56,7 +56,7 @@ export function BarChartWidget({ spec, data }: BarChartWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground dark:text-muted-foreground">
+        <h4 className="text-xs font-semibold text-foreground">
           {spec.title}
         </h4>
       )}
@@ -91,7 +91,7 @@ export function BarChartWidget({ spec, data }: BarChartWidgetProps) {
               maxBarSize={MAX_BAR_SIZE}
               cursor="pointer"
               onClick={(data) => {
-                if (!data || !data.payload) return;
+                if (!data?.payload) return;
                 const label = data.payload.name;
                 useAppStore.getState().setDashboardFilter(xField, label);
               }}
@@ -99,7 +99,7 @@ export function BarChartWidget({ spec, data }: BarChartWidgetProps) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-2xs text-muted-foreground">{t("itemsCount", { count: chartData.length })}</p>
+      <p className="text-2xs text-foreground-muted">{t("itemsCount", { count: chartData.length })}</p>
     </div>
   );
 }

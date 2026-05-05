@@ -1,10 +1,56 @@
+import {
+  AlertCircleIcon,
+  ChartBarLineIcon,
+  Clock04Icon,
+  Search01Icon,
+  SecurityLockIcon,
+  SparklesIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { cn } from "@/lib/cn";
 import { Button } from "./button";
 
 type EmptyStateVariant = "hero" | "compact";
 
+/**
+ * Semantic categorisation of an empty surface, *orthogonal* to
+ * `variant` (which is purely density / layout). The two together
+ * determine icon, tone, and what action chrome reads naturally:
+ *
+ *   - `no-data` (default) — the list is genuinely empty, prompt
+ *     creation. Brand-tone icon. Most common kind.
+ *   - `no-results` — the list isn't empty, but the active filter
+ *     hides everything. Action is "clear filter", not "create".
+ *     Distinct register matters: a "Create your first project" CTA
+ *     on a filtered project list is a UX bug.
+ *   - `no-permission` — the surface exists, the user can see it,
+ *     but lacks read access. Lock-tone icon, no creation CTA;
+ *     the recovery is "ask an admin".
+ *   - `first-run` — onboarding moment for a workspace that's never
+ *     been touched. Sparkle-tone icon, primary CTA leads into the
+ *     intended first action.
+ *   - `pending` — the data is *eventually* coming (review queue
+ *     drained, scheduled job not fired yet). Clock-tone icon, copy
+ *     reassures rather than prompting. No primary CTA.
+ *   - `error` — the fetch surfaced a recoverable failure. Use
+ *     `<ErrorState>` instead for hard failures; `error` here is for
+ *     soft cases like "search backend timed out, list is empty".
+ */
+export type EmptyStateKind =
+  | "no-data"
+  | "no-results"
+  | "no-permission"
+  | "first-run"
+  | "pending"
+  | "error";
+
 interface EmptyStateProps {
+  /**
+   * Override the default icon for the kind. Most callers should let
+   * the kind choose so the visual language stays consistent —
+   * supply a custom icon only when the surface has a domain-strong
+   * icon (e.g. graph-shaped no-data on the Lineage tab).
+   */
   icon?: IconSvgElement;
   title: string;
   description?: string;
@@ -19,8 +65,49 @@ interface EmptyStateProps {
    * full-height card would dominate.
    */
   variant?: EmptyStateVariant;
+  /** Semantic kind (default `no-data`). Picks the default icon + tone. */
+  kind?: EmptyStateKind;
   className?: string;
 }
+
+const KIND_DEFAULT_ICON: Record<EmptyStateKind, IconSvgElement> = {
+  "no-data": ChartBarLineIcon,
+  "no-results": Search01Icon,
+  "no-permission": SecurityLockIcon,
+  "first-run": SparklesIcon,
+  pending: Clock04Icon,
+  error: AlertCircleIcon,
+};
+
+const KIND_TONE: Record<EmptyStateKind, { wrap: string; icon: string }> = {
+  // Brand tone for the affirmative kinds (data and onboarding).
+  "no-data": {
+    wrap: "bg-brand-surface",
+    icon: "text-brand-foreground",
+  },
+  "no-results": {
+    wrap: "bg-brand-surface",
+    icon: "text-brand-foreground",
+  },
+  "first-run": {
+    wrap: "bg-brand-surface",
+    icon: "text-brand-foreground",
+  },
+  // Muted tones for the descriptive kinds.
+  "no-permission": {
+    wrap: "bg-surface-inset",
+    icon: "text-foreground-muted",
+  },
+  pending: {
+    wrap: "bg-surface-inset",
+    icon: "text-foreground-muted",
+  },
+  // Warning tone for soft errors.
+  error: {
+    wrap: "bg-warning-surface",
+    icon: "text-warning-foreground",
+  },
+};
 
 const containerClass: Record<EmptyStateVariant, string> = {
   hero:    "h-full gap-3 p-8",
@@ -50,8 +137,11 @@ export function EmptyState({
   action,
   secondaryAction,
   variant = "hero",
+  kind = "no-data",
   className,
 }: EmptyStateProps) {
+  const resolvedIcon = icon ?? KIND_DEFAULT_ICON[kind];
+  const tone = KIND_TONE[kind];
   return (
     <div
       role="status"
@@ -61,16 +151,17 @@ export function EmptyState({
         className,
       )}
     >
-      {icon && (
+      {resolvedIcon && (
         <div
           className={cn(
-            "flex items-center justify-center rounded-full bg-brand-surface",
+            "flex items-center justify-center rounded-full",
+            tone.wrap,
             iconWrapClass[variant],
           )}
         >
           <HugeiconsIcon
-            icon={icon}
-            className={cn("text-brand-foreground", iconClass[variant])}
+            icon={resolvedIcon}
+            className={cn(tone.icon, iconClass[variant])}
             size="100%"
           />
         </div>

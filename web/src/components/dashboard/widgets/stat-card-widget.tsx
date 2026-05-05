@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
+import { useFormatters } from "@/hooks/use-formatters";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -35,6 +36,7 @@ interface StatCardWidgetProps {
 
 export function StatCardWidget({ spec, data }: StatCardWidgetProps) {
   const t = useTranslations("widget.statCard");
+  const fmt = useFormatters();
   // For text widget type, just render content as markdown text
   if (spec.widget_type === "text") {
     return (
@@ -53,13 +55,13 @@ export function StatCardWidget({ spec, data }: StatCardWidgetProps) {
 
   const valueCol = spec.data_mapping?.value ?? data.columns[0];
   if (!valueCol)
-    return <p className="text-xs text-muted-foreground">{t("noData")}</p>;
+    return <p className="text-xs text-foreground-muted">{t("noData")}</p>;
 
   const labelCol = spec.data_mapping?.label as string | undefined;
   const deltaCol = spec.data_mapping?.delta as string | undefined;
 
   const row = data.rows[0];
-  if (!row) return <p className="text-xs text-muted-foreground">{t("noData")}</p>;
+  if (!row) return <p className="text-xs text-foreground-muted">{t("noData")}</p>;
 
   const value = row[valueCol];
   const label = labelCol
@@ -69,7 +71,7 @@ export function StatCardWidget({ spec, data }: StatCardWidgetProps) {
 
   const formattedValue =
     typeof value === "number"
-      ? value.toLocaleString(undefined, { maximumFractionDigits: 2 })
+      ? fmt.number(value, { maximumFractionDigits: 2 })
       : String(value ?? "\u2014");
 
   const thresholds = spec.thresholds as
@@ -85,7 +87,6 @@ export function StatCardWidget({ spec, data }: StatCardWidgetProps) {
       className={cn(
         "inline-flex flex-col items-center rounded-xl px-6 py-4",
         "border border-divider bg-surface-base",
-        "dark:border-divider",
       )}
     >
       <span className={cn("text-2xl font-bold", valueColor)}>
@@ -102,7 +103,7 @@ export function StatCardWidget({ spec, data }: StatCardWidgetProps) {
               ? "text-brand-foreground"
               : delta < 0
                 ? "text-danger-foreground"
-                : "text-muted-foreground",
+                : "text-foreground-muted",
           )}
         >
           {delta > 0 ? "+" : ""}

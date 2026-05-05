@@ -4,19 +4,24 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAppStore, selectStateSelectedNodeId, selectStateSelectedEdgeId } from "@/lib/store";
 import { applyOntologyCommands } from "@/lib/api";
+import { isApiError } from "@/lib/api/client";
 import { cn } from "@/lib/cn";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { UndoIcon, RedoIcon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Tooltip } from "@/components/ui/tooltip";
-import type { QualityGap } from "@/types/api";
+import { MergeBanner } from "@/components/collab/merge-banner";
+import { CommandStackDiffDialog } from "@/components/collab/command-stack-diff-dialog";
+import type { OntologyCommand, QualityGap } from "@/types/api";
 import { EntityDetail, EdgeDetail } from "./entity-detail";
 import { arr } from "@/lib/ir-collections";
 import { gapTouchesEntity } from "@/lib/quality-utils";
 import { useEntityLock } from "@/components/collab/use-entity-lock";
 import { useEntityLockGuard } from "@/components/collab/use-entity-lock-guard";
+import { selectLatestRemoteUpdate, selectPresence, useCollabStore } from "@/lib/collab";
+import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
 // Inspector — editable detail view for selected node or edge
@@ -35,6 +40,56 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   const redo = useAppStore((s) => s.redo);
   const activeProject = useAppStore((s) => s.activeProject);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Conflict surface — set when `applyOntologyCommands` returns 409
+  // (revision moved on the server while the user was editing). The
+  // banner stays mounted until the user resolves it via `Keep mine`
+  // (rebase + retry) or `Take theirs` (drop local stack).
+  //
+  // BE contract for `remoteCommands`: the `EntityUpdated` WebSocket
+  // event broadcast by the collaboration room when another client
+  // commits ops carries `{ project_id, base_revision, remote_revision,
+  // commands }`. The room subscriber populates `remoteCommands` here
+  // so the diff dialog can render the symmetric inventory. Until the
+  // BE event lands, the field stays `undefined` and the dialog falls
+  // back to its opaque "remote arrived" message — no FE work needed
+  // when the BE ships.
+  const [conflict, setConflict] = useState<{
+    /** Display name of whoever shipped the remote update; falls back
+     *  to "another user" when the WS room hasn't seen the actor's
+     *  presence yet. */
+    remoteAuthorName: string;
+    /** Revision the local stack was authored against. */
+    baseRevision: number;
+    /** Revision the remote update brought in (best estimate — the
+     *  server returns the new revision in the 409 body, but in
+     *  practice we don't see it yet, so we surface `+1` as a
+     *  placeholder). */
+    remoteRevision: number;
+    /** Remote commands between `baseRevision` → `remoteRevision`,
+     *  oldest first. Populated when an `EntityUpdated` WS event has
+     *  delivered the inventory; absent until BE ships the event. */
+    remoteCommands?: readonly OntologyCommand[];
+  } | null>(null);
+  const [diffDialogOpen, setDiffDialogOpen] = useState(false);
+  // Pull the current presence list to attribute the conflict —
+  // the actor most likely is the only other active user in the
+  // room. When the room has multiple collaborators the banner
+  // shows "another user" as a generic fallback rather than guess.
+  const presence = useCollabStore((s) =>
+    activeProject ? selectPresence(activeProject.id)(s) : [],
+  );
+  const latestRemoteUpdate = useCollabStore((s) =>
+    activeProject ? selectLatestRemoteUpdate(activeProject.id)(s) : undefined,
+  );
+  const ackRemoteUpdate = useCollabStore((s) => s.ackRemoteUpdate);
+  // The current viewer's user id — distinct from `activeProject.user_id`,
+  // which is the project *owner*. A collaborator editing someone else's
+  // project must filter their own presence row out using their *own* id,
+  // not the project owner's, so the lone-remote heuristic and the
+  // self-authored EntityUpdated guard both work in shared rooms.
+  const auth = useAuth();
+  const currentUserId = auth.user?.sub;
 
   // Verification state
   const verifications = useAppStore((s) => s.verifications);
@@ -71,18 +126,108 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
       // Server canonical replaces local state + clears command stack
       // atomically — both halves can never drift.
       applyProjectSnapshot(resp.project);
+      setConflict(null);
       toast.success(t("saved"));
     } catch (err) {
+      // Revision conflict (409) — surface the merge banner instead
+      // of a generic "save failed" toast. The user resolves via
+      // Keep mine (rebase + retry) or Take theirs (discard local
+      // edits + accept server state).
+      if (isApiError(err) && err.kind() === "conflict") {
+        // Prefer the realtime `EntityUpdated` snapshot when one
+        // arrived — it carries the exact remote-ops inventory the
+        // diff dialog needs for symmetric rendering, plus the
+        // server-attributed author + true revision delta. The
+        // self-authored guard skips frames echoing this client's
+        // own previous save (the BE broadcasts to the room
+        // including the author), which would otherwise mislabel the
+        // remote actor as the local user. Falls back to presence-
+        // based attribution when no usable WS frame has landed.
+        const remote = latestRemoteUpdate;
+        const remoteIsSelf =
+          remote && currentUserId && remote.authorUserId === currentUserId;
+        if (remote && !remoteIsSelf) {
+          setConflict({
+            remoteAuthorName: remote.authorUserName,
+            baseRevision: remote.baseRevision,
+            remoteRevision: remote.newRevision,
+            remoteCommands: remote.commands,
+          });
+          return;
+        }
+        const others = currentUserId
+          ? presence.filter((p) => p.user_id !== currentUserId)
+          : presence;
+        const remoteAuthorName =
+          others.length === 1 ? others[0].user_name : t("conflictUnknownActor");
+        setConflict({
+          remoteAuthorName,
+          baseRevision: activeProject.revision,
+          remoteRevision: activeProject.revision + 1,
+        });
+        return;
+      }
       toast.error(err instanceof Error ? err.message : t("saveFailed"));
     } finally {
       setIsSaving(false);
     }
-  }, [activeProject, commandStack, applyProjectSnapshot, t]);
+  }, [
+    activeProject,
+    commandStack,
+    applyProjectSnapshot,
+    latestRemoteUpdate,
+    presence,
+    currentUserId,
+    t,
+  ]);
+
+  // Resolve the conflict by re-fetching the canonical project
+  // and replaying the unsaved command stack on top. The server's
+  // next save will use the fresher revision and either succeed or
+  // surface a tighter conflict.
+  const handleKeepLocal = useCallback(async () => {
+    if (!activeProject) return;
+    try {
+      const { getProject } = await import("@/lib/api/projects");
+      const fresh = await getProject(activeProject.id);
+      // `applyProjectSnapshot` replays the local commandStack atop
+      // the new server snapshot — see ontology-slice for the
+      // invariant.
+      applyProjectSnapshot(fresh);
+      setConflict(null);
+      ackRemoteUpdate(activeProject.id);
+      void handleSave();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("saveFailed"));
+    }
+  }, [activeProject, applyProjectSnapshot, ackRemoteUpdate, handleSave, t]);
+
+  // Drop the local stack and accept the server canonical verbatim.
+  const handleAcceptRemote = useCallback(async () => {
+    if (!activeProject) return;
+    try {
+      const { getProject } = await import("@/lib/api/projects");
+      const fresh = await getProject(activeProject.id);
+      useAppStore.getState().clearCommandStack();
+      applyProjectSnapshot(fresh);
+      setConflict(null);
+      ackRemoteUpdate(activeProject.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("saveFailed"));
+    }
+  }, [activeProject, applyProjectSnapshot, ackRemoteUpdate, t]);
 
 
-  if (!ontology) return <EmptyState variant="compact" title={tInspector("noOntology")} />;
-
+  // The body switches between "no ontology yet", "select something",
+  // "selected entity not found in ontology", and the live detail view.
+  // The outer `<aside id="inspector">` wraps every branch so the
+  // skip-link target is always present in the DOM whenever the panel
+  // is mounted — keeping `#inspector` resolvable even during transient
+  // states that previously short-circuited the wrapper.
   const content = (() => {
+    if (!ontology) {
+      return <EmptyState variant="compact" title={tInspector("noOntology")} />;
+    }
     if (selectedNodeId) {
       const node = arr(ontology.node_types).find((n) => n.id === selectedNodeId);
       if (!node) return <EmptyState variant="compact" title={tInspector("nodeNotFound")} />;
@@ -121,45 +266,53 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   })();
 
   return (
-    <div className="flex h-full flex-col">
+    <aside
+      id="inspector"
+      aria-label={tInspector("panelAria")}
+      // `tabIndex={-1}` makes the skip-link target programmatically
+      // focusable without adding the landmark itself to the tab cycle —
+      // pressing Tab again lands on the first inspector control.
+      tabIndex={-1}
+      className="flex h-full flex-col outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 focus-visible:ring-inset"
+    >
       {/* Undo/Redo toolbar — only visible when there's something actionable */}
       <div className={cn(
         "flex items-center gap-1 border-b border-divider px-2 py-1",
         commandStack.length === 0 && redoStack.length === 0 && "hidden",
       )}>
         <Tooltip content={tInspector("toolbar.undo")}>
-          <button
+          <button type="button"
             onClick={undo}
             disabled={commandStack.length === 0}
             aria-label={tInspector("toolbar.undo")}
-            className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-30"
+            className="rounded p-1 text-foreground-muted hover:bg-surface-inset hover:text-foreground disabled:opacity-30"
           >
             <HugeiconsIcon icon={UndoIcon} className="h-3 w-3" size="100%" />
           </button>
         </Tooltip>
         <Tooltip content={tInspector("toolbar.redo")}>
-          <button
+          <button type="button"
             onClick={redo}
             disabled={redoStack.length === 0}
             aria-label={tInspector("toolbar.redo")}
-            className="rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-30"
+            className="rounded p-1 text-foreground-muted hover:bg-surface-inset hover:text-foreground disabled:opacity-30"
           >
             <HugeiconsIcon icon={RedoIcon} className="h-3 w-3" size="100%" />
           </button>
         </Tooltip>
         {commandStack.length > 0 && (
           <>
-            <span className="ml-auto text-2xs text-muted-foreground">
+            <span className="ms-auto text-2xs text-foreground-muted">
               {tInspector("toolbar.changes", { count: commandStack.length })}
               {!activeProject && (
-                <span className="ml-1 text-warning-foreground" title={tInspector("toolbar.unsaveableHint")}>
+                <span className="ms-1 text-warning-foreground" title={tInspector("toolbar.unsaveableHint")}>
                   {tInspector("toolbar.unsaveable")}
                 </span>
               )}
             </span>
             {activeProject && (
               <Tooltip content={tInspector("toolbar.saveTooltip")}>
-                <button
+                <button type="button"
                   onClick={handleSave}
                   disabled={isSaving}
                   aria-label={tInspector("toolbar.save")}
@@ -176,7 +329,39 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
           </>
         )}
       </div>
+      {conflict && (
+        <div className="border-b border-divider p-2">
+          <MergeBanner
+            remoteAuthorName={conflict.remoteAuthorName}
+            onKeepLocal={handleKeepLocal}
+            onAcceptRemote={handleAcceptRemote}
+            onCompare={() => setDiffDialogOpen(true)}
+            busy={isSaving}
+          />
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto">{content}</div>
-    </div>
+      {conflict && (
+        <CommandStackDiffDialog
+          open={diffDialogOpen}
+          onOpenChange={setDiffDialogOpen}
+          ontology={ontology}
+          baseRevision={conflict.baseRevision}
+          remoteRevision={conflict.remoteRevision}
+          remoteAuthorName={conflict.remoteAuthorName}
+          commandStack={commandStack}
+          remoteCommands={conflict.remoteCommands}
+          onKeepLocal={() => {
+            setDiffDialogOpen(false);
+            void handleKeepLocal();
+          }}
+          onAcceptRemote={() => {
+            setDiffDialogOpen(false);
+            void handleAcceptRemote();
+          }}
+          busy={isSaving}
+        />
+      )}
+    </aside>
   );
 }

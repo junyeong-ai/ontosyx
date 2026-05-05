@@ -4,6 +4,7 @@ import {
   forwardRef,
 } from "react";
 import { cn } from "@/lib/cn";
+import { Heading, type HeadingLevel, type HeadingSize } from "./heading";
 
 type CardVariant = "surface" | "raised" | "inset";
 type CardPadding = "none" | "sm" | "md" | "lg";
@@ -34,9 +35,14 @@ const paddingClass: Record<CardPadding, string> = {
   lg:   "p-6",
 };
 
+// Tactile hover: subtle vertical lift + shadow ramp matches Linear /
+// Stripe card behaviour. Pure colour swap reads flat on touchpad-driven
+// surfaces; the 1px translate gives the click target an obvious target.
 const interactiveClass = cn(
-  "cursor-pointer transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
-  "hover:bg-surface-inset",
+  "cursor-pointer",
+  "transition-[colors,transform,box-shadow] duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+  "hover:-translate-y-px hover:shadow-1 hover:border-divider/80",
+  "active:translate-y-0 active:shadow-none",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 focus-visible:ring-offset-1",
 );
 
@@ -129,25 +135,34 @@ const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
 );
 CardFooter.displayName = "Card.Footer";
 
-type HeadingTag = "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
-
 interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
   /**
-   * Heading level. Defaults to `h3` because cards typically nest
-   * under a page-level `h1` and a section `h2`. Override when the
-   * card is itself a top-level region or a deeper sub-section so
-   * the document hierarchy doesn't skip levels (WCAG 2.4.6).
+   * Outline level. Defaults to `3` because cards typically nest
+   * under a page `h1` and a section `h2`; overriding shifts the
+   * rendered tag (`h1`…`h6`) to keep the document hierarchy
+   * uninterrupted (WCAG 2.4.6).
    */
-  as?: HeadingTag;
+  level?: HeadingLevel;
+  /**
+   * Visual tier. Defaults to `5` (the compact tier) — cards live in
+   * dense surfaces where heading-3 sizing would crowd the body. Bump
+   * to `4` / `3` for hero cards, drop the chrome to none for inline
+   * affordances.
+   */
+  size?: HeadingSize;
 }
 
 const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>(
-  ({ as: Tag = "h3", className, ...rest }, ref) => (
-    <Tag
+  ({ level = 3, size = 5, className, children, ...rest }, ref) => (
+    <Heading
       ref={ref}
-      className={cn("text-sm font-semibold text-foreground-strong", className)}
+      level={level}
+      size={size}
+      className={cn("font-semibold", className)}
       {...rest}
-    />
+    >
+      {children}
+    </Heading>
   ),
 );
 CardTitle.displayName = "Card.Title";

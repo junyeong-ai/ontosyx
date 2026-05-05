@@ -1,15 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  CopyIcon,
-  Tick01Icon,
-} from "@hugeicons/core-free-icons";
+import { CopyIcon, Tick01Icon } from "@hugeicons/core-free-icons";
 
-// ---------------------------------------------------------------------------
-// CopyButton
-// ---------------------------------------------------------------------------
+import { cn } from "@/lib/cn";
 
 interface CopyButtonProps {
   text: string;
@@ -18,6 +14,7 @@ interface CopyButtonProps {
 }
 
 export function CopyButton({ text, variant = "absolute" }: CopyButtonProps) {
+  const t = useTranslations("common.copyButton");
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -32,16 +29,23 @@ export function CopyButton({ text, variant = "absolute" }: CopyButtonProps) {
   }, [copied]);
 
   return (
-    <button
+    <button type="button"
       onClick={handleCopy}
-      className={`cursor-pointer rounded p-1 text-muted-foreground transition-colors hover:bg-zinc-200 hover:text-zinc-600 focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:outline-none dark:hover:bg-zinc-700 dark:hover:text-zinc-300 ${
-        variant === "absolute" ? "absolute right-2 top-2" : ""
-      }`}
-      aria-label="Copy to clipboard"
-      title={copied ? "Copied!" : "Copy"}
+      className={cn(
+        "cursor-pointer rounded p-1 text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+        "hover:bg-surface-inset hover:text-foreground",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 focus-visible:ring-offset-1",
+        variant === "absolute" && "absolute end-2 top-2",
+      )}
+      aria-label={t("ariaLabel")}
+      title={copied ? t("copied") : t("copy")}
     >
       {copied ? (
-        <HugeiconsIcon icon={Tick01Icon} className="h-3.5 w-3.5 text-emerald-500" size="100%" />
+        <HugeiconsIcon
+          icon={Tick01Icon}
+          className="h-3.5 w-3.5 text-success-foreground"
+          size="100%"
+        />
       ) : (
         <HugeiconsIcon icon={CopyIcon} className="h-3.5 w-3.5" size="100%" />
       )}

@@ -1,3 +1,5 @@
+"use client";
+
 // Reactive accessor for the active `CollaborationClient` singleton.
 // `useCollab` constructs it at the workbench shell; this hook is
 // the read-only counterpart UI components use to call
@@ -7,8 +9,6 @@
 // the store's `clientReady` flag flips synchronously the moment
 // the constructor runs, so deriving from it picks up the new
 // instance without an effect → setState round-trip.
-
-"use client";
 
 import type { CollaborationClient } from "@/lib/collab";
 import { useCollabStore } from "@/lib/collab";

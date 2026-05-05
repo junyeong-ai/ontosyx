@@ -13,7 +13,9 @@ export function useCanvasState() {
   return useAppStore(
     useShallow((s) => ({
       ontology: s.ontology,
-      select: s.select,
+      selectOne: s.selectOne,
+      toggleSelection: s.toggleSelection,
+      selectMany: s.selectMany,
       clearSelection: s.clearSelection,
       setHighlightedBindings: s.setHighlightedBindings,
       setNeighborhoodFocus: s.setNeighborhoodFocus,

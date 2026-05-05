@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { SettingsInput } from "@/components/ui/form-input";
+import { FormSelect, SettingsInput } from "@/components/ui/form-input";
 import type { ConstraintTarget, ShaclConstraint } from "@/lib/api/edit-ops";
 import { Button } from "@/components/ui/button";
 
@@ -55,7 +55,7 @@ export function ConstraintForm({
           type="button"
           variant="ghost"
           size="xs"
-          className="ml-2"
+          className="ms-2"
           onClick={onRemove}
         >
           {t("remove")}
@@ -76,19 +76,20 @@ export function ConstraintForm({
   return (
     <div className="flex flex-col gap-2 rounded border border-divider bg-surface-raised p-3">
       <div className="flex items-center justify-between gap-2">
-        <select
+        <FormSelect
           value={value.kind}
           onChange={(e) =>
             handleKindChange(e.target.value as ShaclConstraint["kind"])
           }
-          className="rounded border border-divider bg-surface-base px-2 py-1 text-xs"
+          density="compact"
+          className="w-auto"
         >
           {CONSTRAINT_KINDS.map((kind) => (
             <option key={kind} value={kind}>
               {t(`kinds.${kind}`)}
             </option>
           ))}
-        </select>
+        </FormSelect>
         <Button type="button" variant="ghost" size="xs" onClick={onRemove}>
           {t("remove")}
         </Button>
@@ -153,17 +154,17 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
       return (
         <label className="flex flex-col gap-1 text-xs text-foreground-muted">
           <span className="font-medium">{label}</span>
-          <select
+          <FormSelect
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
-            className="rounded border border-divider bg-surface-base px-2 py-1"
+            density="compact"
           >
             {(field.options ?? []).map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
               </option>
             ))}
-          </select>
+          </FormSelect>
         </label>
       );
     case "property_key_list":
@@ -179,6 +180,7 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
                 .filter(Boolean),
             )
           }
+          // i18n-audit-ignore — column-name example, language-neutral identifier
           placeholder="email, tenant_id"
           required={field.required}
         />
@@ -206,7 +208,7 @@ export function AddConstraintMenu({
   const t = useTranslations("settings.vocabulary.rules.constraints");
   return (
     <div className="flex items-center gap-2">
-      <select
+      <FormSelect
         defaultValue=""
         onChange={(e) => {
           const kind = e.target.value as ShaclConstraint["kind"];
@@ -216,7 +218,8 @@ export function AddConstraintMenu({
           onAdd(spec.toConstraint(spec.defaults()) as ShaclConstraint);
           e.target.value = "";
         }}
-        className="rounded border border-divider bg-surface-base px-2 py-1 text-xs"
+        density="compact"
+        className="w-auto"
       >
         <option value="">{t("addPlaceholder")}</option>
         {CONSTRAINT_KINDS.map((kind) => (
@@ -224,7 +227,7 @@ export function AddConstraintMenu({
             {t(`kinds.${kind}`)}
           </option>
         ))}
-      </select>
+      </FormSelect>
     </div>
   );
 }

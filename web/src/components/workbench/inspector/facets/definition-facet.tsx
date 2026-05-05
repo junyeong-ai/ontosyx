@@ -98,7 +98,7 @@ export function DefinitionFacet({
   return (
     <div className="space-y-3">
       <div>
-        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("descriptionLabel")}
         </span>
         <div className="mt-1 flex items-center gap-1">
@@ -125,10 +125,10 @@ export function DefinitionFacet({
         )}
       </div>
       <div>
-        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("anchorsLabel")}
         </span>
-        <p className="mt-0.5 text-2xs text-muted-foreground">
+        <p className="mt-0.5 text-2xs text-foreground-muted">
           {t("anchorsHint")}
         </p>
         <div className="mt-1.5">

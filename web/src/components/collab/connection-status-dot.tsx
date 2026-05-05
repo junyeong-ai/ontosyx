@@ -1,9 +1,9 @@
+"use client";
+
 // ConnectionStatusDot — minimal indicator for the collaboration
 // WebSocket lifecycle. Sits in the header next to the user menu;
 // hidden in the steady "ready" state so the chrome stays quiet
 // when nothing's wrong.
-
-"use client";
 
 import { useTranslations } from "next-intl";
 

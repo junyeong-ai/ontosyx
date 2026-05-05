@@ -111,13 +111,13 @@ export function TreemapWidget({ spec, data }: TreemapWidgetProps) {
   }, [data.rows, nameField, valueField, parentCol]);
 
   if (!nameField || !valueField || treeData.length === 0) {
-    return <p className="text-xs text-muted-foreground">{t("needColumns")}</p>;
+    return <p className="text-xs text-foreground-muted">{t("needColumns")}</p>;
   }
 
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground dark:text-muted-foreground">
+        <h4 className="text-xs font-semibold text-foreground">
           {spec.title}
         </h4>
       )}
@@ -133,7 +133,7 @@ export function TreemapWidget({ spec, data }: TreemapWidgetProps) {
           </Treemap>
         </ResponsiveContainer>
       </div>
-      <p className="text-2xs text-muted-foreground">{t("itemsCount", { count: data.rows.length })}</p>
+      <p className="text-2xs text-foreground-muted">{t("itemsCount", { count: data.rows.length })}</p>
     </div>
   );
 }

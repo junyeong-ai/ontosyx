@@ -113,12 +113,12 @@ export function ResponseBasis({
         (className ?? "")
       }
     >
-      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <h3 className="mb-2 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
         {t("title")}
       </h3>
       {activeWarnings.length > 0 && (
         <ul
-          className="mb-2 space-y-1 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-[11px] text-warning-foreground/30"
+          className="mb-2 space-y-1 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-2xs text-warning-foreground"
           aria-label={t("warningsLabel")}
         >
           {activeWarnings.map((w, i) => (
@@ -126,7 +126,7 @@ export function ResponseBasis({
               key={i}
               className={`font-mono leading-snug break-words ${diagnosticLevelClass(w.level)}`}
             >
-              <span className="mr-1 font-semibold uppercase tracking-wide">
+              <span className="me-1 font-semibold uppercase tracking-wide">
                 {w.validator} {w.level}:
               </span>
               {w.resolvedMessage}
@@ -138,7 +138,7 @@ export function ResponseBasis({
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
         {provenance.ontology_id && (
           <Row label={t("ontologyLabel")}>
-            <code className="font-mono text-[11px]">{provenance.ontology_id}</code>
+            <code className="font-mono text-2xs">{provenance.ontology_id}</code>
           </Row>
         )}
         {provenance.ontology_version && (
@@ -148,7 +148,7 @@ export function ResponseBasis({
         )}
         {provenance.as_of && (
           <Row label={t("asOfLabel")}>
-            <time dateTime={provenance.as_of} className="font-mono text-[11px]">
+            <time dateTime={provenance.as_of} className="font-mono text-2xs">
               {provenance.as_of}
             </time>
           </Row>
@@ -165,7 +165,7 @@ export function ResponseBasis({
         )}
         {provenance.filter_summary && (
           <Row label={t("filterLabel")}>
-            <code className="whitespace-pre-wrap break-all font-mono text-[11px]">
+            <code className="whitespace-pre-wrap break-all font-mono text-2xs">
               {provenance.filter_summary}
             </code>
           </Row>
@@ -195,6 +195,7 @@ export function ResponseBasis({
  * can decide whether to expand.
  */
 function ColumnLineageList({ rows }: { rows: ColumnLineage[] }) {
+  const t = useTranslations("widget.responseBasis");
   const grouped = new Map<string, ColumnLineage[]>();
   for (const row of rows) {
     const bucket = grouped.get(row.source_id);
@@ -205,10 +206,10 @@ function ColumnLineageList({ rows }: { rows: ColumnLineage[] }) {
     <ul className="flex flex-col gap-1.5">
       {Array.from(grouped.entries()).map(([sourceId, lines]) => (
         <li key={sourceId} className="flex flex-col gap-0.5">
-          <span className="font-mono text-2xs text-muted-foreground">
+          <span className="font-mono text-2xs text-foreground-muted">
             {sourceId}
           </span>
-          <ul className="flex flex-col gap-0.5 pl-3">
+          <ul className="flex flex-col gap-0.5 ps-3">
             {lines.map((row, idx) => (
               <li
                 key={`${row.output_column}-${idx}`}
@@ -217,12 +218,12 @@ function ColumnLineageList({ rows }: { rows: ColumnLineage[] }) {
                 <span className="text-foreground">
                   {row.output_column}
                 </span>
-                <span className="mx-1 text-muted-foreground">←</span>
+                <span className="mx-1 text-foreground-muted">←</span>
                 <span className="text-foreground-muted">
                   {row.source_column}
                 </span>
                 {row.transform && (
-                  <span className="ml-2 italic text-warning-foreground">
+                  <span className="ms-2 italic text-warning-foreground">
                     [{row.transform}]
                   </span>
                 )}
@@ -240,14 +241,14 @@ function ColumnLineageList({ rows }: { rows: ColumnLineage[] }) {
 
   return (
     <details className="group/lineage">
-      <summary className="cursor-pointer text-2xs text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted">
+      <summary className="cursor-pointer text-2xs text-foreground-muted hover:text-foreground-muted">
         <span className="font-mono">
-          {grouped.size} source{grouped.size === 1 ? "" : "s"} · {rows.length} rows
+          {t("lineageSummary", { sources: grouped.size, rows: rows.length })}
         </span>
-        <span className="ml-1 text-foreground-muted group-open/lineage:hidden">
+        <span className="ms-1 text-foreground-muted group-open/lineage:hidden">
           ▸
         </span>
-        <span className="ml-1 text-foreground-muted hidden group-open/lineage:inline">
+        <span className="ms-1 text-foreground-muted hidden group-open/lineage:inline">
           ▾
         </span>
       </summary>
@@ -265,7 +266,7 @@ const LINEAGE_INLINE_THRESHOLD = 3;
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <>
-      <dt className="text-[11px] font-medium text-muted-foreground">{label}</dt>
+      <dt className="text-2xs font-medium text-foreground-muted">{label}</dt>
       <dd className="min-w-0 break-words text-foreground">{children}</dd>
     </>
   );
@@ -372,7 +373,7 @@ function toneClasses(tone: "emerald" | "indigo"): string {
     case "emerald":
       return "bg-success-surface text-success-foreground";
     case "indigo":
-      return "bg-concept-surface text-concept-foreground dark:bg-concept-foreground/30 dark:text-concept-foreground";
+      return "bg-concept-surface text-concept-foreground";
   }
 }
 

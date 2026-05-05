@@ -14,7 +14,7 @@ import type {
   PinboardItem,
 } from "@/types/api";
 import { Button } from "@/components/ui/button";
-import { Tabs } from "@base-ui/react/tabs";
+import { TabBar } from "@/components/ui/tab-bar";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -24,9 +24,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import { Spinner } from "@/components/ui/spinner";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { ExecutionDetail } from "@/components/chat/execution-detail";
 import { ExecutionCard } from "@/components/chat/execution-card";
+import { useFormatters } from "@/hooks/use-formatters";
 
 type Tab = "recent" | "pinned";
 
@@ -35,43 +36,28 @@ export function HistoryPanel() {
   const [tab, setTab] = useState<Tab>("recent");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const handleTabChange = (value: Tab | null) => {
-    if (!value) return;
-    setTab(value);
+  const handleTabChange = (value: string) => {
+    setTab(value as Tab);
     setRefreshKey((k) => k + 1);
   };
 
   return (
     <div className="flex h-full flex-col bg-surface-raised">
-      <Tabs.Root value={tab} onValueChange={handleTabChange}>
-        {/* Tab bar */}
-        <Tabs.List className="flex border-b border-divider">
-          <Tabs.Tab
-            value="recent"
-            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted data-[active]:border-b-2 data-[active]:border-brand-foreground data-[active]:text-brand-foreground dark:data-[active]:text-brand-foreground"
-          >
-            <HugeiconsIcon icon={Clock01Icon} className="h-3.5 w-3.5" size="100%" />
-            {t("tabRecent")}
-          </Tabs.Tab>
-          <Tabs.Tab
-            value="pinned"
-            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted data-[active]:border-b-2 data-[active]:border-brand-foreground data-[active]:text-brand-foreground dark:data-[active]:text-brand-foreground"
-          >
-            <HugeiconsIcon icon={PinIcon} className="h-3.5 w-3.5" size="100%" />
-            {t("tabPinned")}
-          </Tabs.Tab>
-        </Tabs.List>
+      <div className="border-b border-divider">
+        <TabBar
+          tabs={[
+            { id: "recent", label: t("tabRecent"), icon: Clock01Icon },
+            { id: "pinned", label: t("tabPinned"), icon: PinIcon },
+          ]}
+          activeTab={tab}
+          onTabChange={handleTabChange}
+        />
+      </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          <Tabs.Panel value="recent">
-            <RecentTab key={refreshKey} />
-          </Tabs.Panel>
-          <Tabs.Panel value="pinned">
-            <PinnedTab key={refreshKey} />
-          </Tabs.Panel>
-        </div>
-      </Tabs.Root>
+      <div className="flex-1 overflow-y-auto">
+        {tab === "recent" && <RecentTab key={refreshKey} />}
+        {tab === "pinned" && <PinnedTab key={refreshKey} />}
+      </div>
     </div>
   );
 }
@@ -139,7 +125,7 @@ function RecentTab() {
 
       {loading && (
         <div className="flex justify-center py-8">
-          <Spinner size="md" className="text-muted-foreground" />
+          <Spinner size="md" className="text-foreground-muted" />
         </div>
       )}
 
@@ -160,6 +146,7 @@ function RecentTab() {
 
 function PinnedTab() {
   const t = useTranslations("workbench.chat.history");
+  const fmt = useFormatters();
   const [items, setItems] = useState<PinboardItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
@@ -213,6 +200,7 @@ function PinnedTab() {
             className="group flex items-start gap-2 rounded-lg border border-divider bg-surface-base p-3"
           >
             <button
+              type="button"
               onClick={async () => {
                 try {
                   const full = await getExecution(item.query_execution_id);
@@ -224,13 +212,13 @@ function PinnedTab() {
                 }
               }}
               aria-label={t("viewPinnedAria", { title: item.title ?? t("untitledPin") })}
-              className="min-w-0 flex-1 text-left"
+              className="min-w-0 flex-1 text-start"
             >
               <p className="text-sm font-medium text-foreground-strong line-clamp-2">
                 {item.title ?? t("untitledPin")}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {new Date(item.pinned_at).toLocaleString(undefined, {
+              <p className="mt-1 text-xs text-foreground-muted">
+                {fmt.date(item.pinned_at, {
                   month: "short",
                   day: "numeric",
                   hour: "2-digit",
@@ -239,8 +227,9 @@ function PinnedTab() {
               </p>
             </button>
             <button
+              type="button"
               onClick={() => handleUnpin(item.id)}
-              className="rounded p-1 text-foreground-muted opacity-0 transition-all hover:bg-danger-surface hover:text-danger-foreground group-hover:opacity-100 group-focus-within:opacity-100 dark:hover:bg-danger-surface/20"
+              className="rounded p-1 text-foreground-muted opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] hover:bg-danger-surface hover:text-danger-foreground group-hover:opacity-100 group-focus-within:opacity-100"
               aria-label={t("unpinAria")}
             >
               <HugeiconsIcon icon={Delete01Icon} className="h-3.5 w-3.5" size="100%" />
@@ -251,7 +240,7 @@ function PinnedTab() {
 
       {loading && (
         <div className="flex justify-center py-8">
-          <Spinner size="md" className="text-muted-foreground" />
+          <Spinner size="md" className="text-foreground-muted" />
         </div>
       )}
 

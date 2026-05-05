@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { FadeIn } from "@/components/motion/fade-in";
+import { SettingsBreadcrumb } from "./settings-breadcrumb";
 
 interface SettingsPageShellProps {
   title: string;
@@ -30,6 +30,7 @@ export function SettingsPageShell({
         )}
       >
         <div className="min-w-0">
+          <SettingsBreadcrumb />
           <h1 className="text-xl font-semibold tracking-tight text-foreground-strong">
             {title}
           </h1>
@@ -41,7 +42,7 @@ export function SettingsPageShell({
           <div className="flex shrink-0 items-center gap-2">{actions}</div>
         )}
       </header>
-      <FadeIn className="min-h-0 flex-1">{children}</FadeIn>
+      <div className="min-h-0 flex-1">{children}</div>
     </div>
   );
 }

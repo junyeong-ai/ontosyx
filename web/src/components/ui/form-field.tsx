@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 
 interface FormFieldProps {
@@ -27,6 +28,10 @@ interface FormFieldProps {
  * and the message is announced through `role="alert"`. Hint text is
  * suppressed while an error is active so the reader hears the
  * actionable message first.
+ *
+ * Required marker: the visual `*` is `aria-hidden`; an `sr-only`
+ * "required" string is appended so screen readers announce "{label},
+ * required" without the asterisk being read out as punctuation.
  */
 export function FormField({
   label,
@@ -37,8 +42,9 @@ export function FormField({
   children,
   className,
 }: FormFieldProps) {
+  const tCommon = useTranslations("common.formField");
   return (
-    <label className={cn("block space-y-1", className)}>
+    <label className={cn("block space-y-1.5", className)}>
       <span
         className={cn(
           "block text-xs font-medium text-foreground-muted",
@@ -47,9 +53,12 @@ export function FormField({
       >
         {label}
         {required && (
-          <span className="ml-0.5 text-danger-foreground" aria-hidden>
-            *
-          </span>
+          <>
+            <span className="ms-0.5 text-danger-foreground" aria-hidden="true">
+              *
+            </span>
+            <span className="sr-only"> {tCommon("required")}</span>
+          </>
         )}
       </span>
       {children}
@@ -62,7 +71,7 @@ export function FormField({
         </span>
       )}
       {hint && !error && (
-        <span className="block text-2xs text-muted-foreground">{hint}</span>
+        <span className="block text-2xs text-foreground-muted">{hint}</span>
       )}
     </label>
   );

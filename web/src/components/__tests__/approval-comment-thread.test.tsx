@@ -8,7 +8,7 @@ import messages from "../../../messages/en.json";
 import { CommentThread } from "@/components/settings/approvals/comment-thread";
 import * as approvalsApi from "@/lib/api/approvals";
 
-vi.mock("sonner", () => ({
+vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

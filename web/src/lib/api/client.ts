@@ -96,7 +96,7 @@ export async function fetchWithRetry(
         lastError = err as Error;
       }
       if (attempt < maxRetries) {
-        await new Promise((r) => setTimeout(r, 100 * Math.pow(2, attempt)));
+        await new Promise((r) => setTimeout(r, 100 * 2 ** attempt));
       }
     }
   }
@@ -108,29 +108,122 @@ export async function fetchWithRetry(
 // ApiError
 // ---------------------------------------------------------------------------
 
+/**
+ * Semantic categorisation of an API failure. Mapped from the HTTP
+ * `status` so UI surfaces (the `<ApiErrorState>` primitive, the
+ * collab error toaster, the inspector retry banner) all branch on
+ * the same names instead of re-deriving the categories from raw
+ * status numbers in three places.
+ */
+export type ApiErrorKind =
+  | "unauthorized" // 401 — session expired / not signed in
+  | "forbidden" // 403 — RBAC / workspace mismatch
+  | "notFound" // 404 — resource doesn't exist (any more)
+  | "conflict" // 409 / 410 — concurrent edit, optimistic-lock fail
+  | "rateLimited" // 429
+  | "serverError" // 5xx
+  | "network" // status === 0 (offline, CORS, abort)
+  | "clientError" // any other 4xx (400, 422, 415, …)
+  | "unknown"; // status didn't fit a bucket
+
+/** Wire-format error class from the backend. `client_error` = 4xx,
+ *  `server_error` = 5xx. Mirrors `ApiErrorClass` in
+ *  `crates/ox-api/src/error.rs`. */
+export type ApiErrorClass = "client_error" | "server_error";
+
+/** Wire-format params map — interpolation values for the FE i18n
+ *  catalog. Backend never produces user-facing prose, so the FE owns
+ *  the localised copy and reads `errors.<code>` with this map. */
+export type ApiErrorParams = Record<string, unknown>;
+
 export class ApiError extends Error {
   /** HTTP status code from the failing response, or 0 when unknown
    * (network error, aborted request, non-HTTP throw). Prefer this over
    * regex-matching the message string when deciding retry eligibility. */
   status: number;
-  type?: string;
-  details?: unknown;
+  /** Typed, language-neutral error code from the backend (mirrors
+   *  `ApiErrorCode` enum). Drives `errors.<code>` i18n lookup. */
+  code?: string;
+  /** Top-level partition — `client_error` or `server_error`. */
+  class?: ApiErrorClass;
+  /** Interpolation parameters for the i18n catalog entry. */
+  params: ApiErrorParams;
 
-  constructor(
-    message: string,
-    options?: { status?: number; type?: string; details?: unknown },
-  ) {
-    super(message);
+  constructor(options: {
+    status?: number;
+    code?: string;
+    class?: ApiErrorClass;
+    params?: ApiErrorParams;
+    /** Optional dev-only message (logs / fallback). The user-facing
+     *  prose comes from `localize(t)` reading the i18n catalog. */
+    devMessage?: string;
+  }) {
+    // The dev message defaults to "<code> <JSON params>" so console
+    // traces stay informative without forcing callers to format.
+    const dev =
+      options.devMessage ??
+      (options.code
+        ? `${options.code}${
+            options.params && Object.keys(options.params).length
+              ? ` ${JSON.stringify(options.params)}`
+              : ""
+          }`
+        : `API error ${options.status ?? "?"}`);
+    super(dev);
     this.name = "ApiError";
-    this.status = options?.status ?? 0;
-    this.type = options?.type;
-    this.details = options?.details;
+    this.status = options.status ?? 0;
+    this.code = options.code;
+    this.class = options.class;
+    this.params = options.params ?? {};
   }
 
   /** Non-retryable client error (4xx). */
   isClientError(): boolean {
     return this.status >= 400 && this.status < 500;
   }
+
+  /** Returns the semantic kind so UI components can branch without
+   *  re-implementing the mapping at every call site. */
+  kind(): ApiErrorKind {
+    const s = this.status;
+    if (s === 0) return "network";
+    if (s === 401) return "unauthorized";
+    if (s === 403) return "forbidden";
+    if (s === 404) return "notFound";
+    if (s === 409 || s === 410) return "conflict";
+    if (s === 429) return "rateLimited";
+    if (s >= 500 && s < 600) return "serverError";
+    if (s >= 400 && s < 500) return "clientError";
+    return "unknown";
+  }
+
+  /**
+   * Render the localised prose for this error using a next-intl
+   * translator scoped to the `errors` namespace. The `params` map
+   * interpolates into the catalog template (e.g. `errors.not_found`
+   * = `"{entity} 을(를) 찾을 수 없습니다."`).
+   *
+   * Falls back to `errors.unknown` if the code isn't in the catalog,
+   * and ultimately to `this.message` if even that lookup fails — so
+   * a missing translation never strands a user with a blank toast.
+   */
+  localize(t: (key: string, values?: ApiErrorParams) => string): string {
+    if (!this.code) return this.message;
+    try {
+      return t(this.code, this.params);
+    } catch {
+      try {
+        return t("unknown");
+      } catch {
+        return this.message;
+      }
+    }
+  }
+}
+
+/** Type guard — every `instanceof ApiError` site reads the same way. */
+export function isApiError(value: unknown): value is ApiError {
+  return value instanceof ApiError;
 }
 
 // ---------------------------------------------------------------------------
@@ -165,14 +258,13 @@ async function requestInternal<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(
-      body.error?.message ?? body.error ?? `API error ${res.status}`,
-      {
-        status: res.status,
-        type: body.error?.type,
-        details: body.error?.details,
-      },
-    );
+    const err = body?.error ?? {};
+    throw new ApiError({
+      status: res.status,
+      code: typeof err.code === "string" ? err.code : undefined,
+      class: err.class === "server_error" ? "server_error" : "client_error",
+      params: err.params && typeof err.params === "object" ? err.params : {},
+    });
   }
 
   return parseResponse(res);
@@ -207,7 +299,7 @@ function unwrapEnvelope<T>(body: unknown): T {
   if (
     body === null ||
     typeof body !== "object" ||
-    !Object.prototype.hasOwnProperty.call(body, "data")
+    !Object.hasOwn(body, "data")
   ) {
     return body as T;
   }

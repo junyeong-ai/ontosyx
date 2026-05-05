@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlusSignIcon, Search01Icon } from "@hugeicons/core-free-icons";
 
+import { SearchInput } from "@/components/ui/form-input";
+
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
 import { localize, localizePresent } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/hooks/use-locale-chain";
@@ -110,7 +112,7 @@ export function TermTree({
         <button
           type="button"
           onClick={onCreate}
-          className="inline-flex items-center gap-1 rounded bg-brand-solid px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-white shadow-sm transition-colors hover:bg-brand-solid"
+          className="inline-flex items-center gap-1 rounded bg-brand-solid px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-foreground-onbrand shadow-1 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-solid"
           aria-label={t("createAria")}
         >
           <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
@@ -119,26 +121,20 @@ export function TermTree({
       </div>
 
       <div className="border-b border-divider px-3 py-2">
-        <label className="relative block">
-          <span className="sr-only">{t("searchAria")}</span>
-          <HugeiconsIcon
-            icon={Search01Icon}
-            className="pointer-events-none absolute left-2 top-1 h-3 w-3 -translate-y-1/2 text-muted-foreground"
-            size="100%"
-          />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("searchPlaceholder")}
-            className="w-full rounded border border-divider bg-surface-base py-1.5 pl-7 pr-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-brand-border focus:outline-none focus:ring-1 focus:ring-brand-foreground/40-strong"
-          />
-        </label>
+        <SearchInput
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("searchPlaceholder")}
+          aria-label={t("searchAria")}
+          density="compact"
+          leadingIcon={Search01Icon}
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {filteredAndGrouped.totalMatches === 0 && (
-          <p className="px-2 py-3 text-[11px] italic text-muted-foreground">
+          <p className="px-2 py-3 text-2xs italic text-foreground-muted">
             {search.trim().length > 0
               ? t("emptySearch", { query: search })
               : t("emptyAll")}
@@ -194,7 +190,7 @@ function CategoryGroup({
           "px-2 pb-0.5 text-2xs font-semibold uppercase tracking-wider",
           tone === "muted"
             ? "text-foreground-subtle"
-            : "text-muted-foreground",
+            : "text-foreground-muted",
         )}
       >
         {label}
@@ -210,15 +206,15 @@ function CategoryGroup({
             type="button"
             onClick={() => onSelect(term.id)}
             className={cn(
-              "group flex items-center gap-2 rounded px-2 py-1 text-left transition-colors",
+              "group flex items-center gap-2 rounded px-2 py-1 text-start transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
               isSelected
-                ? "bg-brand-surface-strong text-brand-foreground-strong-strong/40-strong"
-                : "text-foreground hover:bg-surface-inset-muted",
+                ? "bg-brand-surface-strong text-brand-foreground-strong"
+                : "text-foreground hover:bg-surface-inset",
             )}
           >
             <span
               className={cn(
-                "flex-1 truncate text-[11px] font-medium",
+                "flex-1 truncate text-2xs font-medium",
                 isInactive && "line-through opacity-70",
               )}
             >
@@ -230,7 +226,7 @@ function CategoryGroup({
                   "rounded px-1.5 py-0 text-2xs font-medium",
                   isSelected
                     ? "bg-brand-surface-strong text-brand-foreground-strong"
-                    : "bg-surface-inset text-muted-foreground",
+                    : "bg-surface-inset text-foreground-muted",
                 )}
                 title={`${usageCount}`}
               >

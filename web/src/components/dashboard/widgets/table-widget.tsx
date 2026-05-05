@@ -9,6 +9,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { formatValue } from "./chart-utils";
 import { compareKorean } from "@/lib/locale/sort";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 
 /** Maximum rows rendered in the table to prevent DOM overload */
 const MAX_VISIBLE_ROWS = 200;
@@ -22,6 +23,7 @@ type SortDir = "ASC" | "DESC";
 
 export function TableWidget({ spec, data }: TableWidgetProps) {
   const t = useTranslations("widget.table");
+  const localeChain = useLocaleChain();
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("ASC");
   const router = useRouter();
@@ -78,12 +80,12 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
   return (
     <div className="space-y-1.5">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground dark:text-muted-foreground">
+        <h4 className="text-xs font-semibold text-foreground">
           {spec.title}
         </h4>
       )}
       <div className="max-h-80 overflow-auto rounded-lg border border-divider bg-surface-base">
-        <table className="w-full text-left text-xs">
+        <table className="w-full text-start text-xs">
           <thead className="sticky top-0 bg-surface-raised">
             <tr>
               {columns.map(({ key, label }) => (
@@ -100,16 +102,16 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
                   onClick={() => handleSort(key)}
                   className={cn(
                     "cursor-pointer select-none whitespace-nowrap px-3 py-2 font-semibold",
-                    "text-foreground dark:text-muted-foreground",
-                    "hover:bg-surface-inset dark:hover:bg-zinc-700",
-                    "transition-colors",
+                    "text-foreground",
+                    "hover:bg-surface-inset",
+                    "transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                     sortCol === key &&
                       "text-brand-foreground",
                   )}
                 >
                   {label}
                   {sortCol === key && (
-                    <span className="ml-1 text-2xs">
+                    <span className="ms-1 text-2xs">
                       {sortDir === "ASC" ? "\u2191" : "\u2193"}
                     </span>
                   )}
@@ -131,12 +133,12 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
                   router.push("/analyze");
                 }}
                 className={cn(
-                  "cursor-pointer transition-colors hover:bg-brand-surface dark:hover:bg-brand-surface/20",
+                  "cursor-pointer transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-surface",
                   ri % 2 === 1 && "bg-surface-raised/20",
                 )}
               >
                 {columns.map(({ key }) => {
-                  const formatted = formatValue(row[key]);
+                  const formatted = formatValue(row[key], localeChain);
                   const isTruncatable = formatted.length > 60;
                   return (
                     <td
@@ -158,10 +160,10 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
           </tbody>
         </table>
       </div>
-      <p className="text-2xs text-muted-foreground">
+      <p className="text-2xs text-foreground-muted">
         {t("rowsAndColumns", { rows: data.rows.length, columns: columns.length })}
         {isTruncated && (
-          <span className="ml-1 text-warning-foreground">
+          <span className="ms-1 text-warning-foreground">
             {t("showingFirst", { count: MAX_VISIBLE_ROWS })}
           </span>
         )}

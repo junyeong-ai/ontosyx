@@ -1,4 +1,4 @@
-import { type HTMLAttributes } from "react";
+import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
 export type StatusTone =
@@ -44,7 +44,7 @@ const solidClass: Record<StatusTone, string> = {
   brand:   "bg-brand-solid text-foreground-onbrand",
   success: "bg-brand-solid text-foreground-onbrand",
   warning: "bg-warning-foreground text-surface-base",
-  danger:  "bg-danger-solid text-foreground-onbrand",
+  danger:  "bg-danger-solid text-foreground-on-accent",
   info:    "bg-info-foreground text-surface-base",
   concept: "bg-concept-foreground text-surface-base",
 };

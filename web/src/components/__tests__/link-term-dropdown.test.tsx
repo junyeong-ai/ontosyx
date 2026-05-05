@@ -13,7 +13,7 @@ import * as editOps from "@/lib/api/edit-ops";
 // machine (loading / populated / pick / unbind) without network.
 // `vi.spyOn` keeps the real exports importable, critical for the
 // typed variables and for other tests that import from the same file.
-vi.mock("sonner", () => ({
+vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

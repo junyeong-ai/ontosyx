@@ -72,7 +72,7 @@ export function LineageTree({
 
   if (groups.length === 0) {
     return (
-      <p className="px-1 py-2 text-[11px] italic text-muted-foreground">
+      <p className="px-1 py-2 text-2xs italic text-foreground-muted">
         {emptyLabel ??
           (direction === "inbound" ? t("emptyInbound") : t("emptyOutbound"))}
       </p>
@@ -112,7 +112,7 @@ function KindGroupBlock({
   return (
     <div className="rounded border border-divider-soft">
       <header className="flex items-center justify-between gap-2 bg-surface-raised px-2 py-1">
-        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {kindLabel}
         </span>
         <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-medium text-foreground-muted">
@@ -155,22 +155,22 @@ function EdgeRow({
         type={interactive ? "button" : undefined}
         onClick={interactive ? () => onSelect!(edge.endpoint) : undefined}
         className={
-          "flex w-full items-center gap-2 px-2 py-1 text-left text-[11px] " +
+          "flex w-full items-center gap-2 px-2 py-1 text-start text-2xs " +
           (interactive
-            ? "hover:bg-concept-surface dark:hover:bg-concept-surface/30"
+            ? "hover:bg-concept-surface"
             : "")
         }
       >
         <HugeiconsIcon
           icon={arrow}
-          className="h-2.5 w-2.5 shrink-0 text-muted-foreground"
+          className="h-2.5 w-2.5 shrink-0 text-foreground-muted"
           size="100%"
         />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate font-medium text-foreground-strong">
             {label}
           </span>
-          <span className="truncate text-2xs text-muted-foreground">
+          <span className="truncate text-2xs text-foreground-muted">
             {edge.label}
           </span>
         </span>

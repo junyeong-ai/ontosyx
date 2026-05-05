@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { useFormatters } from "@/hooks/use-formatters";
+
 interface NumberTickerProps {
   value: number;
   /** Total animation duration in ms. */
@@ -13,7 +15,7 @@ interface NumberTickerProps {
   className?: string;
 }
 
-const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
 
 export function NumberTicker({
   value,
@@ -22,6 +24,7 @@ export function NumberTicker({
   format,
   className,
 }: NumberTickerProps) {
+  const fmt = useFormatters();
   const [display, setDisplay] = useState(value);
   const fromRef = useRef(value);
   const startRef = useRef<number | null>(null);
@@ -60,13 +63,12 @@ export function NumberTicker({
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, durationMs]);
+  }, [value, durationMs, display]);
 
   const rendered = format
     ? format(display)
     : decimals === 0
-      ? Math.round(display).toLocaleString()
+      ? fmt.number(Math.round(display))
       : display.toFixed(decimals);
 
   return <span className={className}>{rendered}</span>;

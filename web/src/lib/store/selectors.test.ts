@@ -65,16 +65,16 @@ describe("Selectors", () => {
     const store = createTestStore();
     expect(selectStateSelectedNodeId(store.getState())).toBeNull();
 
-    store.getState().select({ type: "node", nodeId: "n1" });
+    store.getState().selectOne({ kind: "node", id: "n1" });
     expect(selectStateSelectedNodeId(store.getState())).toBe("n1");
 
-    store.getState().select({ type: "edge", edgeId: "e1" });
+    store.getState().selectOne({ kind: "edge", id: "e1" });
     expect(selectStateSelectedNodeId(store.getState())).toBeNull();
   });
 
   it("selectStateSelectedEdgeId extracts from selection", () => {
     const store = createTestStore();
-    store.getState().select({ type: "edge", edgeId: "e1" });
+    store.getState().selectOne({ kind: "edge", id: "e1" });
     expect(selectStateSelectedEdgeId(store.getState())).toBe("e1");
 
     store.getState().clearSelection();
@@ -83,7 +83,7 @@ describe("Selectors", () => {
 
   it("selectStateSelectedWidgetId extracts from selection", () => {
     const store = createTestStore();
-    store.getState().select({ type: "widget", widgetId: "w1" });
+    store.getState().selectOne({ kind: "widget", id: "w1" });
     expect(selectStateSelectedWidgetId(store.getState())).toBe("w1");
   });
 

@@ -80,14 +80,14 @@ export function RecentProjects() {
             <button
               type="button"
               onClick={() => void onResume(p.id)}
-              className="group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-inset"
+              className="group flex w-full items-center gap-3 px-3 py-2 text-start transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset"
             >
               <ProjectStatusIcon status={p.status} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-foreground-strong">
                   {p.title ?? t("untitled")}
                 </p>
-                <p className="mt-0.5 truncate text-2xs text-muted-foreground">
+                <p className="mt-0.5 truncate text-2xs text-foreground-muted">
                   {t("meta", {
                     source: p.source_config.source_type,
                     updated: relativeTime(p.updated_at, t),
@@ -96,7 +96,7 @@ export function RecentProjects() {
               </div>
               <HugeiconsIcon
                 icon={ArrowRight01Icon}
-                className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                className="h-3 w-3 shrink-0 text-foreground-muted opacity-0 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] group-hover:opacity-100"
                 size="100%"
               />
             </button>
@@ -107,7 +107,7 @@ export function RecentProjects() {
           the compact 5-row "resume" list. */}
       <Link
         href="/projects"
-        className="flex items-center justify-center gap-1 border-t border-divider px-3 py-2 text-2xs font-medium text-brand-foreground transition-colors hover:bg-brand-surface dark:hover:bg-brand-surface/20"
+        className="flex items-center justify-center gap-1 border-t border-divider px-3 py-2 text-2xs font-medium text-brand-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-surface"
       >
         {t("viewAll")}
         <HugeiconsIcon icon={ArrowRight01Icon} className="h-3 w-3" size="100%" />

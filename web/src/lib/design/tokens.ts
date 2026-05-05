@@ -55,14 +55,14 @@ export const SHACL_KIND_COLOR: Record<string, ColorIntent> = {
 };
 
 /**
- * Spacing scale — the app pins cell + row padding at `py-3 pr-6` for
+ * Spacing scale — the app pins cell + row padding at `py-3 pe-6` for
  * settings tables (see `web/CLAUDE.md`). Exported here so components
  * reading "how wide is a settings column?" have an authoritative
- * answer without grepping for literal `py-3 pr-6` strings.
+ * answer without grepping for literal `py-3 pe-6` strings.
  */
 export const SETTINGS_TABLE = {
   cellPaddingY: "py-3",
-  cellPaddingX: "pr-6",
+  cellPaddingX: "pe-6",
   minWidth7Cols: "min-w-[900px]",
   minWidth9Cols: "min-w-[1100px]",
 } as const;
@@ -73,4 +73,4 @@ export const SETTINGS_TABLE = {
  * change (e.g. contrast audit bumps the ring to `emerald-600`)
  * stays a one-line edit.
  */
-export const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950";
+export const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-white950";

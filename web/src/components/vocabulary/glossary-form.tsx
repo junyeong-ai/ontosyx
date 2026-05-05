@@ -14,14 +14,22 @@
 // `xl:editorialNote`, `xl:changeNote`), which is what the SKOS
 // exporter walks at `crates/ox-compiler/src/export/glossary_skos.rs`.
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { z } from "zod";
 
-import { Button } from "@/components/ui/button";
+import { useDraftPersistence } from "@/hooks/use-draft-persistence";
+import { useFormWithSchema } from "@/hooks/use-form-with-schema";
+import { snapshotEqual } from "@/lib/snapshot-equal";
+import { ChipInput } from "@/components/ui/chip-input";
 import {
+  FormInput,
   SettingsInput,
+  SettingsSelect,
   SettingsTextarea,
 } from "@/components/ui/form-input";
+import { SaveBar } from "@/components/ui/save-bar";
+import { StatusPill, type StatusPillOption } from "@/components/ui/status-pill";
 import { RelationsField } from "@/components/vocabulary/relations-field";
 import type {
   GlossaryTermDef,
@@ -55,24 +63,26 @@ function mergeDefaultOptional(
   return value.trim().length > 0 ? mergeDefault(value, base) : undefined;
 }
 
-/** Convert a list-textarea (one entry per line) to `LocalizedText[]`,
- *  keeping the existing `translations` for any entry whose `default`
- *  matches an original — so reordering or editing one entry doesn't
- *  drop translations on the others. */
-function linesToLocalized(
-  text: string,
+// Chip-input adapter helpers — `LocalizedText` is the canonical
+// shape on the wire, but the chip input edits a flat string per
+// chip. `mergeChipsWithOriginals` re-attaches the per-entry
+// `translations` map for any chip whose `default` matches an
+// original entry, so reordering or editing one entry doesn't drop
+// translations on the others.
+function chipsToLocalized(
+  chips: readonly string[],
   originals: readonly LocalizedText[] = [],
 ): LocalizedText[] {
   const byDefault = new Map(originals.map((o) => [o.default, o]));
-  return text
-    .split("\n")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-    .map((line) => byDefault.get(line) ?? { default: line, translations: {} });
+  return chips.map(
+    (text) => byDefault.get(text) ?? { default: text, translations: {} },
+  );
 }
 
-function localizedToLines(items: readonly LocalizedText[] | undefined): string {
-  return (items ?? []).map((it) => it.default).join("\n");
+function localizedToChips(
+  items: readonly LocalizedText[] | undefined,
+): string[] {
+  return (items ?? []).map((it) => it.default);
 }
 
 // ---------------------------------------------------------------------------
@@ -82,6 +92,45 @@ function localizedToLines(items: readonly LocalizedText[] | undefined): string {
 // ---------------------------------------------------------------------------
 
 type LifecycleState = TermLifecycle["state"];
+
+// Snapshot every editable field on the form into a single object —
+// the localStorage draft layer round-trips this verbatim. The shape
+// mirrors the in-flight state slots so the restore action becomes
+// a fan-out of `setX(draft.x)` calls.
+interface GlossaryFormDraft {
+  termDefault: string;
+  displayDefault: string;
+  descriptionDefault: string;
+  aliases: string[];
+  examples: string[];
+  category: string;
+  relations: TermRelation[];
+  state: LifecycleState;
+  replacedBy: string;
+  deprecatedAt: string;
+  retiredAt: string;
+  validFrom: string;
+  validTo: string;
+  origin: OriginKind;
+  originTable: string;
+  originColumn: string;
+  originCatalog: string;
+  originExternalId: string;
+  scopeNotes: string[];
+  editorialNotes: string[];
+}
+
+// Schema validates the only required free-text field — the term
+// default. Everything else is optional or typed-enum-driven, so the
+// schema treats them as already valid; lifecycle / origin discrim-
+// inators carry their structural integrity through the build-on-
+// submit functions (`buildLifecycle`, `buildOrigin`) rather than
+// the schema layer.
+const GLOSSARY_FORM_SCHEMA = z.object({
+  termDefault: z.string().trim().min(1, { message: "errors.termRequired" }),
+});
+
+type GlossaryFormSchemaInput = z.input<typeof GLOSSARY_FORM_SCHEMA>;
 
 function lifecycleState(lc: TermLifecycle | undefined): LifecycleState {
   return lc?.state ?? "active";
@@ -201,6 +250,22 @@ export function GlossaryForm({
   const t = useTranslations("settings.vocabulary.glossary.form");
   const localeChain = useLocaleChain();
 
+  // Drafts are scoped to the create flow only — editing an existing
+  // term is server-of-truth, so a stale local draft over fresh data
+  // would confuse the user. Same approach as RuleForm. The key is
+  // shared across tabs deliberately; concurrent create flows on a
+  // single workspace are rare and last-writer-wins is the right
+  // ergonomic.
+  const isCreate = !initial;
+  const {
+    draft: draftValue,
+    hasDraft: hasDraftSnapshot,
+    save: saveDraft,
+    clear: clearDraft,
+  } = useDraftPersistence<GlossaryFormDraft>({
+    key: "draft:glossary:new",
+  });
+
   // Re-mount the form with a different `key` to bind to a new term —
   // we don't sync from `initial` via `useEffect` (per
   // react-hooks/set-state-in-effect).
@@ -211,11 +276,11 @@ export function GlossaryForm({
   const [descriptionDefault, setDescriptionDefault] = useState(
     initial?.description?.default ?? "",
   );
-  const [aliasesText, setAliasesText] = useState(
-    localizedToLines(initial?.aliases),
+  const [aliases, setAliases] = useState<string[]>(
+    localizedToChips(initial?.aliases),
   );
-  const [examplesText, setExamplesText] = useState(
-    localizedToLines(initial?.examples),
+  const [examples, setExamples] = useState<string[]>(
+    localizedToChips(initial?.examples),
   );
   const [category, setCategory] = useState(initial?.category ?? "");
   const [relations, setRelations] = useState<TermRelation[]>(
@@ -265,11 +330,11 @@ export function GlossaryForm({
       ? initialOrigin.external_id ?? ""
       : "",
   );
-  const [scopeNotesText, setScopeNotesText] = useState(
-    localizedToLines(initial?.governance?.scope_notes),
+  const [scopeNotes, setScopeNotes] = useState<string[]>(
+    localizedToChips(initial?.governance?.scope_notes),
   );
-  const [editorialNotesText, setEditorialNotesText] = useState(
-    localizedToLines(initial?.governance?.editorial_notes),
+  const [editorialNotes, setEditorialNotes] = useState<string[]>(
+    localizedToChips(initial?.governance?.editorial_notes),
   );
 
   const replacedByChoices = useMemo(
@@ -278,56 +343,249 @@ export function GlossaryForm({
     [availableTerms, initial?.id],
   );
 
+  // Draft restore banner — shown only when a stored draft exists
+  // and we're in create mode. Dismissing or restoring closes it.
+  const [draftBannerOpen, setDraftBannerOpen] = useState(
+    isCreate && hasDraftSnapshot,
+  );
+
+  // Snapshot of every editable slot. Used both for draft persistence
+  // (auto-save to localStorage on change) and for the SaveBar dirty
+  // calculation (deep-equal against the initial-derived snapshot).
+  const currentSnapshot = useMemo<GlossaryFormDraft>(
+    () => ({
+      termDefault,
+      displayDefault,
+      descriptionDefault,
+      aliases,
+      examples,
+      category,
+      relations,
+      state,
+      replacedBy,
+      deprecatedAt,
+      retiredAt,
+      validFrom,
+      validTo,
+      origin,
+      originTable,
+      originColumn,
+      originCatalog,
+      originExternalId,
+      scopeNotes,
+      editorialNotes,
+    }),
+    [
+      termDefault,
+      displayDefault,
+      descriptionDefault,
+      aliases,
+      examples,
+      category,
+      relations,
+      state,
+      replacedBy,
+      deprecatedAt,
+      retiredAt,
+      validFrom,
+      validTo,
+      origin,
+      originTable,
+      originColumn,
+      originCatalog,
+      originExternalId,
+      scopeNotes,
+      editorialNotes,
+    ],
+  );
+
+  // Initial snapshot — what the form looked like when it loaded.
+  // Computed once per `initial` so the SaveBar dirty flag can
+  // deep-compare against it without re-deriving on every keystroke.
+  const initialSnapshot = useMemo<GlossaryFormDraft>(
+    () => ({
+      termDefault: initial?.term?.default ?? "",
+      displayDefault: initial?.display_name?.default ?? "",
+      descriptionDefault: initial?.description?.default ?? "",
+      aliases: localizedToChips(initial?.aliases),
+      examples: localizedToChips(initial?.examples),
+      category: initial?.category ?? "",
+      relations: initial?.related_terms ?? [],
+      state: lifecycleState(initial?.lifecycle),
+      replacedBy:
+        initial?.lifecycle?.state === "deprecated"
+          ? initial.lifecycle.replaced_by ?? ""
+          : "",
+      deprecatedAt:
+        initial?.lifecycle?.state === "deprecated"
+          ? toDateInput(initial.lifecycle.deprecated_at)
+          : "",
+      retiredAt:
+        initial?.lifecycle?.state === "retired"
+          ? toDateInput(initial.lifecycle.retired_at)
+          : "",
+      validFrom: toDateInput(initial?.valid_from),
+      validTo: toDateInput(initial?.valid_to),
+      origin: originKind(initial?.governance?.origin),
+      originTable:
+        initial?.governance?.origin?.kind === "derived_from_column"
+          ? initial.governance.origin.table
+          : "",
+      originColumn:
+        initial?.governance?.origin?.kind === "derived_from_column"
+          ? initial.governance.origin.column
+          : "",
+      originCatalog:
+        initial?.governance?.origin?.kind === "imported_from"
+          ? initial.governance.origin.catalog
+          : "",
+      originExternalId:
+        initial?.governance?.origin?.kind === "imported_from"
+          ? initial.governance.origin.external_id ?? ""
+          : "",
+      scopeNotes: localizedToChips(initial?.governance?.scope_notes),
+      editorialNotes: localizedToChips(initial?.governance?.editorial_notes),
+    }),
+    [initial],
+  );
+
+  const dirty = useMemo(
+    () => !snapshotEqual(currentSnapshot, initialSnapshot),
+    [currentSnapshot, initialSnapshot],
+  );
+
+  // Persist on every state change. The hook debounces internally so
+  // a typing burst hits localStorage once after 500ms of inactivity.
+  // The dep list is just the memoised snapshot — every slot it
+  // captures is already in `currentSnapshot`'s own dep list, so we
+  // only re-run when the snapshot identity changes.
+  useEffect(() => {
+    if (!isCreate) return;
+    saveDraft(currentSnapshot);
+  }, [isCreate, currentSnapshot, saveDraft]);
+
+  const restoreDraft = useCallback(() => {
+    if (!draftValue) return;
+    setTermDefault(draftValue.termDefault);
+    setDisplayDefault(draftValue.displayDefault);
+    setDescriptionDefault(draftValue.descriptionDefault);
+    setAliases(draftValue.aliases);
+    setExamples(draftValue.examples);
+    setCategory(draftValue.category);
+    setRelations(draftValue.relations);
+    setState(draftValue.state);
+    setReplacedBy(draftValue.replacedBy);
+    setDeprecatedAt(draftValue.deprecatedAt);
+    setRetiredAt(draftValue.retiredAt);
+    setValidFrom(draftValue.validFrom);
+    setValidTo(draftValue.validTo);
+    setOriginState(draftValue.origin);
+    setOriginTable(draftValue.originTable);
+    setOriginColumn(draftValue.originColumn);
+    setOriginCatalog(draftValue.originCatalog);
+    setOriginExternalId(draftValue.originExternalId);
+    setScopeNotes(draftValue.scopeNotes);
+    setEditorialNotes(draftValue.editorialNotes);
+    setDraftBannerOpen(false);
+  }, [draftValue]);
+
+  const dismissDraft = useCallback(() => {
+    clearDraft();
+    setDraftBannerOpen(false);
+  }, [clearDraft]);
+
+  const { errors, submit, clearErrors } = useFormWithSchema({
+    schema: GLOSSARY_FORM_SCHEMA,
+    onValid: ({ termDefault: validTerm }) => {
+      clearDraft();
+      onSubmit({
+        id: initial?.id ?? "",
+        term: mergeDefault(validTerm, initial?.term),
+        display_name: mergeDefaultOptional(displayDefault, initial?.display_name),
+        description: mergeDefaultOptional(
+          descriptionDefault,
+          initial?.description,
+        ),
+        aliases: chipsToLocalized(aliases, initial?.aliases),
+        examples: chipsToLocalized(examples, initial?.examples),
+        category: category.trim() || undefined,
+        related_terms: relations,
+        lifecycle: buildLifecycle(state, replacedBy, deprecatedAt, retiredAt),
+        valid_from: fromDateInput(validFrom) ?? undefined,
+        valid_to: fromDateInput(validTo) ?? undefined,
+        governance: {
+          ...(initial?.governance ?? {}),
+          origin: buildOrigin(
+            origin,
+            originTable,
+            originColumn,
+            originCatalog,
+            originExternalId,
+          ),
+          scope_notes: chipsToLocalized(
+            scopeNotes,
+            initial?.governance?.scope_notes,
+          ),
+          editorial_notes: chipsToLocalized(
+            editorialNotes,
+            initial?.governance?.editorial_notes,
+          ),
+        },
+      });
+    },
+  });
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!termDefault.trim()) return;
-    onSubmit({
-      id: initial?.id ?? "",
-      term: mergeDefault(termDefault, initial?.term),
-      display_name: mergeDefaultOptional(displayDefault, initial?.display_name),
-      description: mergeDefaultOptional(
-        descriptionDefault,
-        initial?.description,
-      ),
-      aliases: linesToLocalized(aliasesText, initial?.aliases),
-      examples: linesToLocalized(examplesText, initial?.examples),
-      category: category.trim() || undefined,
-      related_terms: relations,
-      lifecycle: buildLifecycle(state, replacedBy, deprecatedAt, retiredAt),
-      valid_from: fromDateInput(validFrom) ?? undefined,
-      valid_to: fromDateInput(validTo) ?? undefined,
-      governance: {
-        ...(initial?.governance ?? {}),
-        origin: buildOrigin(
-          origin,
-          originTable,
-          originColumn,
-          originCatalog,
-          originExternalId,
-        ),
-        scope_notes: linesToLocalized(
-          scopeNotesText,
-          initial?.governance?.scope_notes,
-        ),
-        editorial_notes: linesToLocalized(
-          editorialNotesText,
-          initial?.governance?.editorial_notes,
-        ),
-      },
-    });
+    void submit({ termDefault } satisfies GlossaryFormSchemaInput);
   };
 
-  const submitLabel = initial ? t("submitUpdate") : t("submitCreate");
+  const termError = errors.termDefault ? t(errors.termDefault) : undefined;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <SettingsInput
-        label={t("term")}
-        value={termDefault}
-        onChange={(e) => setTermDefault(e.target.value)}
-        placeholder={t("termPlaceholder")}
-        required
-      />
+      {draftBannerOpen && (
+        <div className="flex items-center gap-2 rounded-md border border-info-border bg-info-surface px-3 py-2 text-xs">
+          <span className="flex-1 text-info-foreground">{t("draftFound")}</span>
+          <button
+            type="button"
+            onClick={restoreDraft}
+            className="rounded-md border border-info-border bg-surface-base px-2 py-1 text-info-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info-foreground/40"
+          >
+            {t("draftRestore")}
+          </button>
+          <button
+            type="button"
+            onClick={dismissDraft}
+            className="rounded-md px-2 py-1 text-info-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info-foreground/40"
+          >
+            {t("draftDiscard")}
+          </button>
+        </div>
+      )}
+      <div>
+        <SettingsInput
+          label={t("term")}
+          value={termDefault}
+          onChange={(e) => {
+            setTermDefault(e.target.value);
+            clearErrors("termDefault");
+          }}
+          placeholder={t("termPlaceholder")}
+          required
+          error={!!termError}
+          aria-describedby={termError ? "glossary-form-term-error" : undefined}
+        />
+        {termError && (
+          <p
+            id="glossary-form-term-error"
+            role="alert"
+            className="mt-1 text-2xs text-danger-foreground"
+          >
+            {termError}
+          </p>
+        )}
+      </div>
       <SettingsInput
         label={t("displayName")}
         value={displayDefault}
@@ -341,20 +599,26 @@ export function GlossaryForm({
         placeholder={t("descriptionPlaceholder")}
         rows={3}
       />
-      <SettingsTextarea
-        label={t("aliases")}
-        value={aliasesText}
-        onChange={(e) => setAliasesText(e.target.value)}
-        placeholder={t("aliasesPlaceholder")}
-        rows={2}
-      />
-      <SettingsTextarea
-        label={t("examples")}
-        value={examplesText}
-        onChange={(e) => setExamplesText(e.target.value)}
-        placeholder={t("examplesPlaceholder")}
-        rows={2}
-      />
+      <div className="flex flex-col gap-1">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+          {t("aliases")}
+        </span>
+        <ChipInput
+          values={aliases}
+          onChange={setAliases}
+          placeholder={t("aliasesPlaceholder")}
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+          {t("examples")}
+        </span>
+        <ChipInput
+          values={examples}
+          onChange={setExamples}
+          placeholder={t("examplesPlaceholder")}
+        />
+      </div>
       <SettingsInput
         label={t("category")}
         value={category}
@@ -363,91 +627,97 @@ export function GlossaryForm({
       />
 
       <fieldset className="flex flex-col gap-2 rounded border border-divider p-3">
-        <legend className="px-1 text-[11px] font-medium text-foreground">
+        <legend className="px-1 text-2xs font-medium text-foreground">
           {t("lifecycle.legend")}
         </legend>
-        <div
-          role="radiogroup"
-          aria-label={t("lifecycle.legend")}
-          className="flex flex-wrap items-center gap-3 text-xs"
-        >
-          {(["active", "deprecated", "retired"] as const).map((option) => (
-            <label
-              key={option}
-              className="flex items-center gap-1.5 text-foreground"
-            >
-              <input
-                type="radio"
-                name="lifecycle-state"
-                value={option}
-                checked={state === option}
-                onChange={() => setState(option)}
-              />
-              {t(`lifecycle.${option}`)}
-            </label>
-          ))}
+        <div className="flex items-center gap-2">
+          <StatusPill<LifecycleState>
+            value={state}
+            onChange={setState}
+            ariaLabel={t("lifecycle.legend")}
+            options={
+              [
+                {
+                  key: "active",
+                  label: t("lifecycle.active"),
+                  tone: "success",
+                },
+                {
+                  key: "deprecated",
+                  label: t("lifecycle.deprecated"),
+                  tone: "warning",
+                },
+                {
+                  key: "retired",
+                  label: t("lifecycle.retired"),
+                  tone: "neutral",
+                },
+              ] satisfies StatusPillOption<LifecycleState>[]
+            }
+          />
         </div>
         {state === "deprecated" && (
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-[11px] text-foreground">
-              {t("lifecycle.replacedBy")}
-              <select
-                value={replacedBy}
-                onChange={(e) => setReplacedBy(e.target.value)}
-                className="rounded border border-divider bg-surface-base px-2 py-1 text-xs"
-              >
-                <option value="">{t("lifecycle.replacedByEmpty")}</option>
-                {replacedByChoices.map((term) => (
-                  <option key={term.id} value={term.id}>
-                    {localize(term.term, localeChain)} ({term.id})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] text-foreground">
-              {t("lifecycle.deprecatedAt")}
-              <input
+            <SettingsSelect
+              label={t("lifecycle.replacedBy")}
+              value={replacedBy}
+              onChange={(e) => setReplacedBy(e.target.value)}
+            >
+              <option value="">{t("lifecycle.replacedByEmpty")}</option>
+              {replacedByChoices.map((term) => (
+                <option key={term.id} value={term.id}>
+                  {localize(term.term, localeChain)} ({term.id})
+                </option>
+              ))}
+            </SettingsSelect>
+            <label className="flex flex-col gap-1 text-2xs text-foreground">
+              <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+                {t("lifecycle.deprecatedAt")}
+              </span>
+              <FormInput
                 type="datetime-local"
                 value={deprecatedAt}
                 onChange={(e) => setDeprecatedAt(e.target.value)}
-                className="rounded border border-divider bg-surface-base px-2 py-1 text-xs"
               />
             </label>
           </div>
         )}
         {state === "retired" && (
-          <label className="flex flex-col gap-1 text-[11px] text-foreground">
-            {t("lifecycle.retiredAt")}
-            <input
+          <label className="flex flex-col gap-1 text-2xs text-foreground">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+              {t("lifecycle.retiredAt")}
+            </span>
+            <FormInput
               type="datetime-local"
               value={retiredAt}
               onChange={(e) => setRetiredAt(e.target.value)}
-              className="rounded border border-divider bg-surface-base px-2 py-1 text-xs"
             />
           </label>
         )}
       </fieldset>
 
       <fieldset className="grid gap-2 rounded border border-divider p-3 sm:grid-cols-2">
-        <legend className="px-1 text-[11px] font-medium text-foreground">
+        <legend className="px-1 text-2xs font-medium text-foreground">
           {t("validity.legend")}
         </legend>
-        <label className="flex flex-col gap-1 text-[11px] text-foreground">
-          {t("validity.validFrom")}
-          <input
+        <label className="flex flex-col gap-1 text-2xs text-foreground">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+            {t("validity.validFrom")}
+          </span>
+          <FormInput
             type="datetime-local"
             value={validFrom}
             onChange={(e) => setValidFrom(e.target.value)}
-            className="rounded border border-divider bg-surface-base px-2 py-1 text-xs"
           />
         </label>
-        <label className="flex flex-col gap-1 text-[11px] text-foreground">
-          {t("validity.validTo")}
-          <input
+        <label className="flex flex-col gap-1 text-2xs text-foreground">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+            {t("validity.validTo")}
+          </span>
+          <FormInput
             type="datetime-local"
             value={validTo}
             onChange={(e) => setValidTo(e.target.value)}
-            className="rounded border border-divider bg-surface-base px-2 py-1 text-xs"
           />
         </label>
       </fieldset>
@@ -459,26 +729,23 @@ export function GlossaryForm({
         }
         className="rounded border border-divider"
       >
-        <summary className="cursor-pointer px-3 py-2 text-[11px] font-medium text-foreground">
+        <summary className="cursor-pointer px-3 py-2 text-2xs font-medium text-foreground">
           {t("governance.legend")}
         </summary>
         <div className="flex flex-col gap-2 px-3 pb-3 pt-1">
-          <label className="flex flex-col gap-1 text-[11px] text-foreground">
-            {t("governance.originLabel")}
-            <select
-              value={origin}
-              onChange={(e) => setOriginState(e.target.value as OriginKind)}
-              className="rounded border border-divider bg-surface-base px-2 py-1 text-xs"
-            >
-              <option value="manual">{t("governance.originManual")}</option>
-              <option value="derived_from_column">
-                {t("governance.originDerivedFromColumn")}
-              </option>
-              <option value="imported_from">
-                {t("governance.originImportedFrom")}
-              </option>
-            </select>
-          </label>
+          <SettingsSelect
+            label={t("governance.originLabel")}
+            value={origin}
+            onChange={(e) => setOriginState(e.target.value as OriginKind)}
+          >
+            <option value="manual">{t("governance.originManual")}</option>
+            <option value="derived_from_column">
+              {t("governance.originDerivedFromColumn")}
+            </option>
+            <option value="imported_from">
+              {t("governance.originImportedFrom")}
+            </option>
+          </SettingsSelect>
           {origin === "derived_from_column" && (
             <div className="grid gap-2 sm:grid-cols-2">
               <SettingsInput
@@ -507,20 +774,26 @@ export function GlossaryForm({
               />
             </div>
           )}
-          <SettingsTextarea
-            label={t("governance.scopeNotes")}
-            value={scopeNotesText}
-            onChange={(e) => setScopeNotesText(e.target.value)}
-            placeholder={t("governance.scopeNotesPlaceholder")}
-            rows={2}
-          />
-          <SettingsTextarea
-            label={t("governance.editorialNotes")}
-            value={editorialNotesText}
-            onChange={(e) => setEditorialNotesText(e.target.value)}
-            placeholder={t("governance.editorialNotesPlaceholder")}
-            rows={2}
-          />
+          <div className="flex flex-col gap-1">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+              {t("governance.scopeNotes")}
+            </span>
+            <ChipInput
+              values={scopeNotes}
+              onChange={setScopeNotes}
+              placeholder={t("governance.scopeNotesPlaceholder")}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+              {t("governance.editorialNotes")}
+            </span>
+            <ChipInput
+              values={editorialNotes}
+              onChange={setEditorialNotes}
+              placeholder={t("governance.editorialNotesPlaceholder")}
+            />
+          </div>
         </div>
       </details>
 
@@ -531,24 +804,14 @@ export function GlossaryForm({
         availableTerms={availableTerms ?? []}
       />
 
-      <div className="mt-1 flex items-center justify-end gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onCancel}
-          disabled={pending}
-        >
-          {t("cancel")}
-        </Button>
-        <Button
-          type="submit"
-          size="sm"
-          disabled={pending || !termDefault.trim()}
-        >
-          {submitLabel}
-        </Button>
-      </div>
+      <SaveBar
+        dirty={dirty}
+        pending={pending}
+        onSave={() => {
+          void submit({ termDefault } satisfies GlossaryFormSchemaInput);
+        }}
+        onDiscard={onCancel}
+      />
     </form>
   );
 }

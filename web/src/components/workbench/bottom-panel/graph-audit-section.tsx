@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { MagicWand01Icon, Refresh01Icon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -60,21 +60,21 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
         : "red";
 
   return (
-    <div className="space-y-2 rounded-lg border border-success-border bg-success-surface/50 p-3 dark:border-success-border">
+    <div className="space-y-2 rounded-lg border border-success-border bg-success-surface/50 p-3">
       <h4 className="text-xs font-semibold text-success-foreground">
         {t("graphSync")}
       </h4>
 
       {!report ? (
         <div className="space-y-2">
-          <p className="text-2xs text-success-foreground dark:text-success-foreground">
+          <p className="text-2xs text-success-foreground">
             {t("graphSyncDescription")}
           </p>
           <Button size="sm" onClick={handleAudit} disabled={loading}>
             {loading ? (
               <Spinner size="xs" />
             ) : (
-              <HugeiconsIcon icon={Refresh01Icon} className="mr-1 h-3 w-3" />
+              <HugeiconsIcon icon={Refresh01Icon} className="me-1 h-3 w-3" />
             )}
             {t("auditGraph")}
           </Button>
@@ -85,7 +85,7 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
             <span
               className={`rounded-full px-2 py-0.5 text-2xs font-medium ${
                 syncColor === "emerald"
-                  ? "bg-brand-surface-strong text-brand-foreground-strong-strong"
+                  ? "bg-brand-surface-strong text-brand-foreground-strong"
                   : syncColor === "amber"
                     ? "bg-warning-surface text-warning-foreground"
                     : "bg-danger-surface text-danger-foreground"
@@ -97,7 +97,7 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
                   ? t("syncStatusPartial")
                   : t("syncStatusUnsynced")}
             </span>
-            <span className="text-2xs text-muted-foreground">
+            <span className="text-2xs text-foreground-muted">
               {t("syncPercentage", { percent: report.sync_percentage })}
             </span>
           </div>
@@ -156,7 +156,7 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
                 {adopting ? (
                   <Spinner size="xs" />
                 ) : (
-                  <HugeiconsIcon icon={MagicWand01Icon} className="mr-1 h-3 w-3" />
+                  <HugeiconsIcon icon={MagicWand01Icon} className="me-1 h-3 w-3" />
                 )}
                 {t("adoptGraphLabels")}
               </Button>

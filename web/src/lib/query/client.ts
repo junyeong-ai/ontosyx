@@ -1,5 +1,6 @@
-import { QueryClient, type DefaultOptions } from "@tanstack/react-query";
+import { QueryCache, QueryClient, type DefaultOptions } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
+import { authKeys } from "@/hooks/use-auth";
 
 /**
  * Shared default options for every query/mutation in the app.
@@ -45,6 +46,37 @@ export const queryDefaults: DefaultOptions = {
 };
 
 /**
+ * Global error sink — when ANY query throws an `ApiError(401)`, the user's
+ * session has lapsed mid-flight (cookie expired, token revoked, etc.).
+ * The `useAuth` query is cached with `staleTime: Infinity` so it never
+ * refetches on its own; without invalidation the page stays stuck on
+ * its own ErrorState forever. Invalidating the auth cache flips
+ * `useAuth` back into `loading` → `unauthenticated`, and `<AuthGuard>`
+ * routes to `/login?next=...` automatically — root-cause handling for
+ * "session expired mid-session" instead of a generic retry button that
+ * can't recover.
+ *
+ * 403 (forbidden) is intentionally NOT handled here — the user IS
+ * authenticated but lacks permission for that specific resource; a
+ * page-level inline error message is the right surface.
+ */
+function handleQueryError(error: unknown, queryClient: QueryClient): void {
+  if (error instanceof ApiError && error.status === 401) {
+    queryClient.invalidateQueries({ queryKey: authKeys.me() });
+  }
+}
+
+function makeClient(): QueryClient {
+  const client: QueryClient = new QueryClient({
+    defaultOptions: queryDefaults,
+    queryCache: new QueryCache({
+      onError: (error) => handleQueryError(error, client),
+    }),
+  });
+  return client;
+}
+
+/**
  * Singleton QueryClient for the browser.
  *
  * Why singleton: Next.js App Router mounts providers once per client boot;
@@ -58,10 +90,10 @@ export function getQueryClient(): QueryClient {
   if (typeof window === "undefined") {
     // Server-side: always a fresh client — the cache is not shared between
     // requests (would leak workspace data between users).
-    return new QueryClient({ defaultOptions: queryDefaults });
+    return makeClient();
   }
   if (!browserQueryClient) {
-    browserQueryClient = new QueryClient({ defaultOptions: queryDefaults });
+    browserQueryClient = makeClient();
   }
   return browserQueryClient;
 }

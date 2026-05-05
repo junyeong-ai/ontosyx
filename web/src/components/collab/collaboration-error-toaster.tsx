@@ -1,3 +1,5 @@
+"use client";
+
 // CollaborationErrorToaster — translates `ServerMessage::Error`
 // frames into localised toasts. Mounted once at the workbench
 // shell.
@@ -7,11 +9,9 @@
 // table in `error-classification.ts` is the single source of truth
 // for which surface handles which code.
 
-"use client";
-
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import {
   classifyError,

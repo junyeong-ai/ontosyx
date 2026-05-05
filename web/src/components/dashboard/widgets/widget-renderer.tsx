@@ -263,13 +263,14 @@ export function WidgetRenderer({ spec, data, dashboardId }: WidgetRendererProps)
             const label = t(labelKey satisfies SwitchableTypeKey);
             return (
               <button
+                type="button"
                 key={value}
                 onClick={() => setActiveType(value)}
                 className={cn(
-                  "rounded px-2 py-1 text-2xs font-medium transition-colors",
+                  "rounded px-2 py-1 text-2xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                   activeType === value
-                    ? "bg-surface-base text-foreground-strong shadow-sm-strong"
-                    : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-strong",
+                    ? "bg-surface-base text-foreground-strong shadow-1-strong"
+                    : "text-foreground-muted hover:text-foreground-strong",
                 )}
                 title={label}
               >

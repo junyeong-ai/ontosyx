@@ -20,6 +20,7 @@ const empty: CollabState = {
   setConnectionState: () => {},
   setClientReady: () => {},
   applyServerMessage: () => {},
+  ackRemoteUpdate: () => {},
   reset: () => {},
   hidden: false,
   setHidden: () => {},

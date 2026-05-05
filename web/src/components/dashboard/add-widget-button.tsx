@@ -4,9 +4,12 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlusSignIcon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { Heading } from "@/components/ui/heading";
 import { addWidget } from "@/lib/api";
 import { WIDGET_TYPES } from "@/components/dashboard/widgets/widget-types";
+import { Button } from "@/components/ui/button";
+import { FormInput, FormTextarea, SettingsSelect } from "@/components/ui/form-input";
 import type { DashboardWidget } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -107,8 +110,9 @@ export function AddWidgetButton({
     <>
       {/* Trigger button */}
       <button
+        type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-divider py-6 text-xs text-muted-foreground transition-colors hover:border-brand-border hover:text-brand-foreground dark:hover:border-brand-foreground"
+        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-divider py-6 text-xs text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:border-brand-border hover:text-brand-foreground"
       >
         <HugeiconsIcon icon={PlusSignIcon} className="h-4 w-4" size="100%" />
         {t("trigger")}
@@ -116,9 +120,9 @@ export function AddWidgetButton({
 
       {/* Modal overlay */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-surface-scrim-strong backdrop-blur-sm">
           <div
-            className="w-full max-w-lg rounded-xl border border-divider bg-surface-base p-6 shadow-xl"
+            className="w-full max-w-lg rounded-xl border border-divider bg-surface-base p-6 shadow-4"
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 setOpen(false);
@@ -127,58 +131,50 @@ export function AddWidgetButton({
             }}
           >
             {/* Header */}
-            <h3 className="text-sm font-semibold text-foreground-strong">
+            <Heading level={3} size={6}>
               {t("modalTitle")}
-            </h3>
-            <p className="mt-1 text-xs text-muted-foreground">
+            </Heading>
+            <p className="mt-1 text-xs text-foreground-muted">
               {t("modalDescription")}
             </p>
 
             <div className="mt-4 space-y-4">
-              {/* Title */}
-              <div>
-                <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <label className="block">
+                <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
                   {t("titleLabel")}
-                </label>
-                <input
+                </span>
+                <FormInput
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder={t("titlePlaceholder")}
                   autoFocus
-                  className="mt-1 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-sm text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
+                  className="mt-1"
                 />
-              </div>
+              </label>
 
-              {/* Widget type */}
-              <div>
-                <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t("typeLabel")}
-                </label>
-                <select
-                  value={widgetType}
-                  onChange={(e) => setWidgetType(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-sm text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
-                >
-                  {WIDGET_TYPES.map((wt) => (
-                    <option key={wt.value} value={wt.value}>
-                      {wt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SettingsSelect
+                label={t("typeLabel")}
+                value={widgetType}
+                onChange={(e) => setWidgetType(e.target.value)}
+              >
+                {WIDGET_TYPES.map((wt) => (
+                  <option key={wt.value} value={wt.value}>
+                    {wt.label}
+                  </option>
+                ))}
+              </SettingsSelect>
 
-              {/* Templates */}
               <div>
-                <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
                   {t("templatesLabel")}
-                </label>
+                </span>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {templates.map((tpl) => (
                     <button
                       key={tpl.key}
                       type="button"
                       onClick={() => setQuery(tpl.query)}
-                      className="rounded-full border border-divider px-2.5 py-1 text-[11px] text-foreground transition-colors hover:border-brand-border hover:bg-brand-surface hover:text-brand-foreground dark:text-muted-foreground dark:hover:border-brand-foreground dark:hover:bg-brand-surface dark:hover:text-brand-foreground"
+                      className="rounded-full border border-divider px-2.5 py-1 text-2xs text-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:border-brand-border hover:bg-brand-surface hover:text-brand-foreground"
                     >
                       {tpl.label}
                     </button>
@@ -186,39 +182,40 @@ export function AddWidgetButton({
                 </div>
               </div>
 
-              {/* Cypher query */}
-              <div>
-                <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <label className="block">
+                <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
                   {t("queryLabel")}
-                </label>
-                <textarea
+                </span>
+                <FormTextarea
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={t("queryPlaceholder")}
                   rows={6}
-                  className="mt-1 w-full rounded-md border border-divider bg-surface-base px-3 py-2 font-mono text-xs text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
+                  className="mt-1 font-mono text-xs"
                 />
-              </div>
+              </label>
             </div>
 
-            {/* Footer buttons */}
             <div className="mt-5 flex justify-end gap-2">
-              <button
+              <Button
+                variant="ghost"
+                size="md"
                 onClick={() => {
                   setOpen(false);
                   resetForm();
                 }}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-inset dark:text-muted-foreground"
               >
                 {tCommon("cancel")}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
                 onClick={handleSave}
-                disabled={!title.trim() || !query.trim() || isSaving}
-                className="rounded-lg bg-brand-solid px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-solid disabled:opacity-50"
+                disabled={!title.trim() || !query.trim()}
+                loading={isSaving}
               >
-                {isSaving ? t("submitting") : tCommon("submit")}
-              </button>
+                {tCommon("submit")}
+              </Button>
             </div>
           </div>
         </div>

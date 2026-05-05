@@ -5,6 +5,10 @@ import messages from "../../../messages/en.json";
 import { TableWidget } from "@/components/dashboard/widgets/table-widget";
 import type { QueryResult, WidgetSpec } from "@/types/ontology";
 
+vi.mock("@/hooks/use-locale-chain", () => ({
+  useLocaleChain: () => ["en"],
+}));
+
 function renderWithIntl(ui: React.ReactElement) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>

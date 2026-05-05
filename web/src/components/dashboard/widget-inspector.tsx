@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { useUpdateWidget } from "@/hooks/api/use-widgets";
 import { WIDGET_TYPES } from "@/components/dashboard/widgets/widget-types";
+import { Button } from "@/components/ui/button";
+import { FormInput, FormTextarea, SettingsSelect } from "@/components/ui/form-input";
 import type { DashboardWidget } from "@/types/api";
 
 interface ThresholdConfig {
@@ -21,7 +23,6 @@ export interface WidgetInspectorProps {
 
 export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspectorProps) {
   const t = useTranslations("workbench.dashboard.inspector");
-  const tCommon = useTranslations("common");
   const [title, setTitle] = useState(widget.title);
   const [widgetType, setWidgetType] = useState(widget.widget_type);
   const [query, setQuery] = useState(widget.query ?? "");
@@ -36,7 +37,7 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
     setQuery(widget.query ?? "");
     setRefreshSecs(widget.refresh_interval_secs ?? 0);
     setThresholds(widget.thresholds ?? {});
-  }, [widget.id, widget.title, widget.widget_type, widget.query, widget.refresh_interval_secs, widget.thresholds]);
+  }, [widget.title, widget.widget_type, widget.query, widget.refresh_interval_secs, widget.thresholds]);
 
   const origThresholds = widget.thresholds ?? {};
   const thresholdsChanged =
@@ -83,66 +84,61 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
 
   return (
     <div className="space-y-4">
-      <div>
-        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <label className="block">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("titleLabel")}
-        </label>
-        <input
+        </span>
+        <FormInput
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-2 py-1.5 text-sm text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
+          className="mt-0.5"
         />
-      </div>
-      <div>
-        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("chartTypeLabel")}
-        </label>
-        <select
-          value={widgetType}
-          onChange={(e) => setWidgetType(e.target.value)}
-          className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-2 py-1.5 text-sm text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
-        >
-          {WIDGET_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+      </label>
+      <SettingsSelect
+        label={t("chartTypeLabel")}
+        value={widgetType}
+        onChange={(e) => setWidgetType(e.target.value)}
+      >
+        {WIDGET_TYPES.map((t) => (
+          <option key={t.value} value={t.value}>
+            {t.label}
+          </option>
+        ))}
+      </SettingsSelect>
+      <label className="block">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("queryLabel")}
-        </label>
-        <textarea
+        </span>
+        <FormTextarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           rows={4}
-          className="mt-0.5 w-full rounded-md border border-divider bg-surface-raised px-2 py-1.5 font-mono text-xs text-brand-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none"
           placeholder={t("queryPlaceholder")}
+          className="mt-0.5 bg-surface-raised font-mono text-xs text-brand-foreground"
         />
-      </div>
-      <div>
-        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+      </label>
+      <label className="block">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("autoRefreshLabel")}
-        </label>
-        <input
+        </span>
+        <FormInput
           type="number"
           min={0}
           value={refreshSecs}
-          onChange={(e) => setRefreshSecs(parseInt(e.target.value) || 0)}
-          className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-2 py-1.5 text-sm text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
+          onChange={(e) => setRefreshSecs(parseInt(e.target.value, 10) || 0)}
           placeholder={t("autoRefreshPlaceholder")}
+          className="mt-0.5"
         />
-        <p className="mt-0.5 text-2xs text-muted-foreground">{t("autoRefreshHint")}</p>
-      </div>
+        <p className="mt-0.5 text-2xs text-foreground-muted">{t("autoRefreshHint")}</p>
+      </label>
       <div>
-        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("thresholdsLabel")}
-        </label>
+        </span>
         <div className="mt-0.5 grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-2xs text-muted-foreground">{t("warningLabel")}</label>
-            <input
+          <label className="block">
+            <span className="text-2xs text-foreground-muted">{t("warningLabel")}</span>
+            <FormInput
               type="number"
               value={thresholds.warning ?? ""}
               onChange={(e) =>
@@ -151,13 +147,12 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
                   warning: e.target.value ? Number(e.target.value) : undefined,
                 }))
               }
-              className="w-full rounded-md border border-divider bg-surface-base px-2 py-1 text-sm text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
               placeholder={t("warningPlaceholder")}
             />
-          </div>
-          <div>
-            <label className="text-2xs text-muted-foreground">{t("criticalLabel")}</label>
-            <input
+          </label>
+          <label className="block">
+            <span className="text-2xs text-foreground-muted">{t("criticalLabel")}</span>
+            <FormInput
               type="number"
               value={thresholds.critical ?? ""}
               onChange={(e) =>
@@ -166,12 +161,13 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
                   critical: e.target.value ? Number(e.target.value) : undefined,
                 }))
               }
-              className="w-full rounded-md border border-divider bg-surface-base px-2 py-1 text-sm text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
               placeholder={t("criticalPlaceholder")}
             />
-          </div>
+          </label>
         </div>
-        <select
+        <SettingsSelect
+          label={t("thresholdsLabel")}
+          hideLabel
           value={thresholds.direction ?? "above"}
           onChange={(e) =>
             setThresholds((prev) => ({
@@ -179,20 +175,22 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
               direction: e.target.value as "above" | "below",
             }))
           }
-          className="mt-1 w-full rounded-md border border-divider bg-surface-base px-2 py-1 text-xs text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
+          className="mt-1"
         >
           <option value="above">{t("directionAbove")}</option>
           <option value="below">{t("directionBelow")}</option>
-        </select>
+        </SettingsSelect>
       </div>
       {hasChanges && (
-        <button
+        <Button
+          variant="primary"
+          size="sm"
           onClick={handleSave}
-          disabled={isSaving}
-          className="w-full rounded-md bg-brand-solid px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-solid disabled:opacity-50"
+          loading={isSaving}
+          className="w-full"
         >
-          {isSaving ? tCommon("saving") : t("saveButton")}
-        </button>
+          {t("saveButton")}
+        </Button>
       )}
     </div>
   );

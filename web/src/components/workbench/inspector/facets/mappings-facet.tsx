@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { useAppStore } from "@/lib/store";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -14,7 +14,7 @@ import type { ObjectMappingDef } from "@/lib/api/edit-ops";
 
 // ---------------------------------------------------------------------------
 // MappingsFacet — single-mapping inline editor for a NodeType. The
-// multi-mapping admin path stays at /settings/mappings; this facet
+// multi-mapping admin path stays at /settings/knowledge/mappings; this facet
 // targets the common case (one mapping per node).
 // ---------------------------------------------------------------------------
 
@@ -72,14 +72,14 @@ export function MappingsFacet({
   if (!primary) {
     return (
       <div className="space-y-2">
-        <p className="text-[11px] italic text-muted-foreground">
+        <p className="text-2xs italic text-foreground-muted">
           {t("emptyState")}
         </p>
         <button
           type="button"
           onClick={handleCreate}
           disabled={!project?.source_id}
-          className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-[11px] text-muted-foreground hover:border-concept-border hover:text-concept-foreground disabled:opacity-50 dark:hover:border-concept-border dark:hover:text-concept-foreground"
+          className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-2xs text-foreground-muted hover:border-concept-border hover:text-concept-foreground disabled:opacity-50"
         >
           {t("createAction")}
         </button>
@@ -90,7 +90,7 @@ export function MappingsFacet({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-2xs text-muted-foreground">
+        <span className="font-mono text-2xs text-foreground-muted">
           {t("primaryLabel", { id: primary.id })}
         </span>
         <Tooltip content={t("deleteTooltip")}>
@@ -111,7 +111,7 @@ export function MappingsFacet({
         onChange={handleUpdate}
       />
       {additional > 0 && (
-        <p className="rounded border border-warning-border bg-warning-surface px-3 py-2 text-[11px] text-warning-foreground/30">
+        <p className="rounded border border-warning-border bg-warning-surface px-3 py-2 text-2xs text-warning-foreground">
           {t("multiMappingHint", { count: additional })}
         </p>
       )}

@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, MagicWand01Icon, Refresh01Icon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
 
 import { Button } from "@/components/ui/button";
 import { toAnalyzeSelection } from "@/components/workbench/source-import-panel";
@@ -16,9 +17,19 @@ import {
 } from "@/lib/api";
 import { isGitUrl } from "@/lib/git-url";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
-import type { DesignProject, DesignSource} from "@/types/api";
+import { useFormWithSchema } from "@/hooks/use-form-with-schema";
+import type { DesignProject } from "@/types/api";
+
 import { ReanalyzeForm, ExtendSourceForm } from "./workflow-forms";
 import { ReconcileReportPanel } from "./reconcile-report-panel";
+import {
+  ExtendSourceFormSchema,
+  ReanalyzeSourceFormSchema,
+  buildExtendInput,
+  buildReanalyzeInput,
+  toDesignSource,
+  type ValidatedSourceFormValue,
+} from "./source-form-schema";
 import type { useWorkflowFormState } from "./use-workflow-form-state";
 
 type FormState = ReturnType<typeof useWorkflowFormState>;
@@ -70,171 +81,118 @@ export function EnhanceActions({
     }
   }, [extendRequestCount, extend]);
 
-  async function handleExtend() {
-    if (!(await guardPendingEdits(t("guardActions.extend")))) return;
-    let source: DesignSource;
-    if (extend.sourceType === "postgresql") {
-      if (!extend.connectionString.trim()) {
-        toast.error(t("connectionStringRequired"));
-        return;
-      }
-      source = {
-        type: "postgresql",
-        connection_string: extend.connectionString.trim(),
-        schema: extend.schemaName.trim() || "public",
-      };
-    } else if (extend.sourceType === "mysql") {
-      if (!extend.connectionString.trim()) {
-        toast.error(t("connectionStringRequired"));
-        return;
-      }
-      if (!extend.database.trim()) {
-        toast.error(t("databaseRequired"));
-        return;
-      }
-      source = {
-        type: "mysql",
-        connection_string: extend.connectionString.trim(),
-        schema: extend.database.trim(),
-      };
-    } else if (extend.sourceType === "mongodb") {
-      if (!extend.connectionString.trim()) {
-        toast.error(t("connectionStringRequired"));
-        return;
-      }
-      if (!extend.database.trim()) {
-        toast.error(t("databaseRequired"));
-        return;
-      }
-      source = {
-        type: "mongodb",
-        connection_string: extend.connectionString.trim(),
-        database: extend.database.trim(),
-      };
-    } else if (extend.sourceType === "duckdb") {
-      if (!extend.duckdbFilePath.trim()) {
-        toast.error(t("filePathRequired"));
-        return;
-      }
-      source = { type: "duckdb", file_path: extend.duckdbFilePath.trim() };
-    } else if (extend.sourceType === "snowflake") {
-      toast.error(t("snowflakeExtendUnsupported"));
-      return;
-    } else if (extend.sourceType === "bigquery") {
-      toast.error(t("bigqueryExtendUnsupported"));
-      return;
-    } else if (extend.sourceType === "code_repository") {
-      if (!extend.repoUrl.trim()) {
-        toast.error(t("repoUrlRequired"));
-        return;
-      }
-      source = { type: "code_repository", url: extend.repoUrl.trim() };
-    } else {
-      if (!extend.sampleData.trim()) {
-        toast.error(t("sourceDataRequired"));
-        return;
-      }
-      source = { type: extend.sourceType, data: extend.sampleData.trim() };
-    }
+  // ---------------------------------------------------------------------------
+  // Extend
+  // ---------------------------------------------------------------------------
 
-    setLoading(true);
-    try {
-      const resp = await extendProject(project.id, {
-        revision: project.revision,
-        source,
-        // The Design-mode "Import Tables" flow always lowers
-        // `subset` to `extend` so the existing project absorbs
-        // only the picked tables.
-        selection: toAnalyzeSelection(extend.importValue, "extend"),
-      });
-      applyProjectSnapshot(resp.project);
-      setLastReconcileReport(resp.reconcile_report);
-      extend.setShowExtend(false);
-      toast.success(t("extendSuccess"));
-      if (analysisRef.current) analysisRef.current.open = true;
-    } catch (err) {
-      if (await onApiError(err, t("extendFailed"))) return;
-    } finally {
-      setLoading(false);
-    }
+  const extendForm = useFormWithSchema({
+    schema: ExtendSourceFormSchema,
+    onValid: async (validated: ValidatedSourceFormValue) => {
+      if (!(await guardPendingEdits(t("guardActions.extend")))) return;
+      setLoading(true);
+      try {
+        const resp = await extendProject(project.id, {
+          revision: project.revision,
+          source: toDesignSource(validated),
+          // Design-mode "Import Tables" always lowers `subset` to
+          // `extend` so the existing project absorbs only the picked
+          // tables.
+          selection: toAnalyzeSelection(extend.importValue, "extend"),
+        });
+        applyProjectSnapshot(resp.project);
+        setLastReconcileReport(resp.reconcile_report);
+        extend.setShowExtend(false);
+        toast.success(t("extendSuccess"));
+        if (analysisRef.current) analysisRef.current.open = true;
+      } catch (err) {
+        if (await onApiError(err, t("extendFailed"))) return;
+      } finally {
+        setLoading(false);
+      }
+    },
+  });
+
+  function handleExtend() {
+    void extendForm.submit(
+      buildExtendInput(extend.sourceType, {
+        connectionString: extend.connectionString,
+        schemaName: extend.schemaName,
+        database: extend.database,
+        duckdbFilePath: extend.duckdbFilePath,
+        repoUrl: extend.repoUrl,
+        sampleData: extend.sampleData,
+      }),
+    );
   }
 
-  async function handleReanalyze() {
-    if (!(await guardPendingEdits(t("guardActions.reanalyze")))) return;
-    let source: DesignSource;
-    if (reanalyzeSourceType === "postgresql") {
-      if (!reanalyze.connectionString.trim()) {
-        toast.error(t("connectionStringRequired"));
-        return;
-      }
-      source = {
-        type: "postgresql",
-        connection_string: reanalyze.connectionString.trim(),
-        schema: reanalyze.schemaName.trim() || "public",
-      };
-    } else if (reanalyzeSourceType === "code_repository") {
-      if (!reanalyze.repoUrl.trim()) {
-        toast.error(t("repoUrlRequired"));
-        return;
-      }
-      source = { type: "code_repository", url: reanalyze.repoUrl.trim() };
-    } else {
-      if (!reanalyze.sampleData.trim()) {
-        toast.error(t("sourceDataRequired"));
-        return;
-      }
-      source = {
-        type: reanalyzeSourceType as "text" | "csv" | "json",
-        data: reanalyze.sampleData.trim(),
-      };
-    }
+  // ---------------------------------------------------------------------------
+  // Reanalyze
+  // ---------------------------------------------------------------------------
 
-    setLoading(true);
-    try {
-      const repo_source = reanalyze.repoPath.trim()
-        ? isGitUrl(reanalyze.repoPath.trim())
-          ? { type: "git_url" as const, url: reanalyze.repoPath.trim() }
-          : { type: "local" as const, path: reanalyze.repoPath.trim() }
-        : undefined;
-      const resp = reanalyze.modeledOnly
-        ? await reanalyzeModeledProject(project.id, {
-            source,
-            revision: project.revision,
-            repo_source,
-          })
-        : await reanalyzeProject(project.id, {
-            source,
-            revision: project.revision,
-            repo_source,
-            selection: { kind: "all" },
-          });
-      applyProjectSnapshot(resp.project);
-      reanalyze.setShowReanalyze(false);
-      toast.success(t("reanalyzed"), {
-        description: resp.invalidated_decisions?.length
-          ? t("reanalyzedDescription", { count: resp.invalidated_decisions.length })
-          : undefined,
-      });
-    } catch (err) {
-      if (await onApiError(err, t("reanalyzeFailed"))) return;
-    } finally {
-      setLoading(false);
-    }
+  const reanalyzeForm = useFormWithSchema({
+    schema: ReanalyzeSourceFormSchema,
+    onValid: async (validated: ValidatedSourceFormValue) => {
+      if (!(await guardPendingEdits(t("guardActions.reanalyze")))) return;
+      setLoading(true);
+      try {
+        const repoPath = reanalyze.repoPath.trim();
+        const repo_source = repoPath
+          ? isGitUrl(repoPath)
+            ? { type: "git_url" as const, url: repoPath }
+            : { type: "local" as const, path: repoPath }
+          : undefined;
+        const source = toDesignSource(validated);
+        const resp = reanalyze.modeledOnly
+          ? await reanalyzeModeledProject(project.id, {
+              source,
+              revision: project.revision,
+              repo_source,
+            })
+          : await reanalyzeProject(project.id, {
+              source,
+              revision: project.revision,
+              repo_source,
+              selection: { kind: "all" },
+            });
+        applyProjectSnapshot(resp.project);
+        reanalyze.setShowReanalyze(false);
+        toast.success(t("reanalyzed"), {
+          description: resp.invalidated_decisions?.length
+            ? t("reanalyzedDescription", {
+                count: resp.invalidated_decisions.length,
+              })
+            : undefined,
+        });
+      } catch (err) {
+        if (await onApiError(err, t("reanalyzeFailed"))) return;
+      } finally {
+        setLoading(false);
+      }
+    },
+  });
+
+  function handleReanalyze() {
+    void reanalyzeForm.submit(
+      buildReanalyzeInput(reanalyzeSourceType, {
+        connectionString: reanalyze.connectionString,
+        schemaName: reanalyze.schemaName,
+        database: "",
+        duckdbFilePath: "",
+        repoUrl: reanalyze.repoUrl,
+        sampleData: reanalyze.sampleData,
+      }),
+    );
   }
 
   return (
     <>
       <div className="space-y-1.5">
-        <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("enhanceHeader")}
         </p>
-        <p className="text-2xs text-muted-foreground">
+        <p className="text-2xs text-foreground-muted">
           {t.rich("enhanceHint", {
-            kbd: (chunks) => (
-              <kbd className="rounded bg-surface-inset px-1 py-0.5 font-mono text-2xs">
-                {chunks}
-              </kbd>
-            ),
+            kbd: () => <KeyboardShortcut keys="mod+k" />,
           })}
         </p>
         <Button
@@ -244,29 +202,48 @@ export function EnhanceActions({
           disabled={loading}
           className="w-full text-xs"
         >
-          <HugeiconsIcon icon={Add01Icon} className="mr-1.5 h-3 w-3" size="100%" />
+          <HugeiconsIcon icon={Add01Icon} className="me-1.5 h-3 w-3" size="100%" />
           {extend.showExtend ? tCommon("cancel") : t("extendWithSource")}
         </Button>
         {extend.showExtend && (
           <ExtendSourceForm
             sourceType={extend.sourceType}
-            setSourceType={extend.setSourceType}
+            setSourceType={(next) => {
+              extend.setSourceType(next);
+              extendForm.clearErrors();
+            }}
             connectionString={extend.connectionString}
-            setConnectionString={extend.setConnectionString}
+            setConnectionString={(v) => {
+              extend.setConnectionString(v);
+              extendForm.clearErrors("connectionString");
+            }}
             schemaName={extend.schemaName}
             setSchemaName={extend.setSchemaName}
             database={extend.database}
-            setDatabase={extend.setDatabase}
+            setDatabase={(v) => {
+              extend.setDatabase(v);
+              extendForm.clearErrors("database");
+            }}
             sampleData={extend.sampleData}
-            setSampleData={extend.setSampleData}
+            setSampleData={(v) => {
+              extend.setSampleData(v);
+              extendForm.clearErrors("sampleData");
+            }}
             repoUrl={extend.repoUrl}
-            setRepoUrl={extend.setRepoUrl}
+            setRepoUrl={(v) => {
+              extend.setRepoUrl(v);
+              extendForm.clearErrors("repoUrl");
+            }}
             duckdbFilePath={extend.duckdbFilePath}
-            setDuckdbFilePath={extend.setDuckdbFilePath}
+            setDuckdbFilePath={(v) => {
+              extend.setDuckdbFilePath(v);
+              extendForm.clearErrors("duckdbFilePath");
+            }}
             importValue={extend.importValue}
             setImportValue={extend.setImportValue}
             loading={loading}
             onSubmit={handleExtend}
+            errors={extendForm.errors}
           />
         )}
       </div>
@@ -282,7 +259,7 @@ export function EnhanceActions({
       )}
 
       <details className="text-xs">
-        <summary className="cursor-pointer text-2xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted">
+        <summary className="cursor-pointer text-2xs font-semibold uppercase tracking-wider text-foreground-muted hover:text-foreground-muted">
           {t("advanced")}
         </summary>
         <div className="mt-2 space-y-2">
@@ -293,7 +270,7 @@ export function EnhanceActions({
             disabled={loading}
             className="w-full text-xs"
           >
-            <HugeiconsIcon icon={MagicWand01Icon} className="mr-1.5 h-3 w-3" size="100%" />
+            <HugeiconsIcon icon={MagicWand01Icon} className="me-1.5 h-3 w-3" size="100%" />
             {t("redesign")}
           </Button>
           {reanalyzeSourceType !== "ontology" && (
@@ -305,22 +282,31 @@ export function EnhanceActions({
                 disabled={loading}
                 className="w-full text-xs"
               >
-                <HugeiconsIcon icon={Refresh01Icon} className="mr-1.5 h-3 w-3" size="100%" />
+                <HugeiconsIcon icon={Refresh01Icon} className="me-1.5 h-3 w-3" size="100%" />
                 {reanalyze.showReanalyze ? tCommon("cancel") : t("reanalyzeSource")}
               </Button>
               {reanalyze.showReanalyze && (
                 <ReanalyzeForm
                   sourceType={reanalyzeSourceType}
                   connectionString={reanalyze.connectionString}
-                  setConnectionString={reanalyze.setConnectionString}
+                  setConnectionString={(v) => {
+                    reanalyze.setConnectionString(v);
+                    reanalyzeForm.clearErrors("connectionString");
+                  }}
                   schemaName={reanalyze.schemaName}
                   setSchemaName={reanalyze.setSchemaName}
                   sampleData={reanalyze.sampleData}
-                  setSampleData={reanalyze.setSampleData}
+                  setSampleData={(v) => {
+                    reanalyze.setSampleData(v);
+                    reanalyzeForm.clearErrors("sampleData");
+                  }}
                   repoPath={reanalyze.repoPath}
                   setRepoPath={reanalyze.setRepoPath}
                   repoUrl={reanalyze.repoUrl}
-                  setRepoUrl={reanalyze.setRepoUrl}
+                  setRepoUrl={(v) => {
+                    reanalyze.setRepoUrl(v);
+                    reanalyzeForm.clearErrors("repoUrl");
+                  }}
                   loading={loading}
                   onSubmit={handleReanalyze}
                   modeledOnly={reanalyze.modeledOnly}
@@ -328,6 +314,7 @@ export function EnhanceActions({
                   modeledTablesAvailable={
                     project.analysis_scope?.included?.length ?? 0
                   }
+                  errors={reanalyzeForm.errors}
                 />
               )}
             </>

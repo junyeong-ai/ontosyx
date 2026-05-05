@@ -18,7 +18,7 @@ import { Alert } from "@/components/ui/alert";
 import { useQualityAlerts } from "@/hooks/use-quality-alerts";
 import { dominantAlert } from "@/lib/quality/alerts";
 
-const SIGNALS_PATH = "/settings/quality/signals";
+const SIGNALS_PATH = "/settings/quality?tab=signals";
 
 export function QualityBanner() {
   const t = useTranslations("qualityBanner");
@@ -37,7 +37,7 @@ export function QualityBanner() {
   const metric = headline!.metric;
   const severity = headline!.severity;
   // Percent display — multiply by 100 and round. Matches the
-  // /settings/quality/signals dashboard's tile formatting.
+  // /settings/quality?tab=signals dashboard's tile formatting.
   const valueDisplay = `${(headline!.value * 100).toFixed(0)}%`;
   const thresholdDisplay = `${(headline!.threshold * 100).toFixed(0)}%`;
 
@@ -57,7 +57,7 @@ export function QualityBanner() {
           })}
         </span>
         {others > 0 && (
-          <span className="ml-1">
+          <span className="ms-1">
             {" · "}
             {t("others", { count: others })}
           </span>

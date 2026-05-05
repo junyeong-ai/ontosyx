@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { useAppStore } from "@/lib/store";
 import { applyOntologyCommands } from "@/lib/api";
@@ -19,7 +19,6 @@ export interface CanvasCommandsToastCopy {
 }
 
 interface CanvasCommandsOptions {
-  setIsPaletteOpen: (v: boolean | ((v: boolean) => boolean)) => void;
   setIsExportOpen: (v: boolean | ((v: boolean) => boolean)) => void;
   exportToastCopy: SchemaExportToastCopy;
   toastCopy: CanvasCommandsToastCopy;
@@ -42,9 +41,8 @@ export interface CanvasCommands {
  * and UI-local setters owned by the canvas component.
  */
 export function useCanvasCommands(options: CanvasCommandsOptions): CanvasCommands {
-  const { setIsPaletteOpen, setIsExportOpen, exportToastCopy, toastCopy } = options;
+  const { setIsExportOpen, exportToastCopy, toastCopy } = options;
   const ontology = useAppStore((s) => s.ontology);
-  const select = useAppStore((s) => s.select);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const applyCommand = useAppStore((s) => s.applyCommand);
   const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
@@ -71,24 +69,39 @@ export function useCanvasCommands(options: CanvasCommandsOptions): CanvasCommand
 
   const deleteSelected = useCallback(() => {
     const store = useAppStore.getState();
-    const nodeId = store.selection.type === "node" ? store.selection.nodeId : null;
-    const edgeId = store.selection.type === "edge" ? store.selection.edgeId : null;
-    if (nodeId) {
-      applyCommand({ op: "delete_node", node_id: nodeId });
-      clearSelection();
-      toast.success(toastCopy.nodeDeleted);
-    } else if (edgeId) {
-      applyCommand({ op: "delete_edge", edge_id: edgeId });
-      clearSelection();
-      toast.success(toastCopy.edgeDeleted);
+    // Bulk delete: every selected ref of node/edge kind drops out
+    // through the same command stack as a single-target delete, so
+    // multi-select honours undo/redo. Node deletes go first because
+    // an edge whose endpoint is being deleted on the same turn is
+    // already implied by `delete_node`.
+    const nodeIds = store.selection.refs
+      .filter((r) => r.kind === "node")
+      .map((r) => r.id);
+    const edgeIds = store.selection.refs
+      .filter((r) => r.kind === "edge")
+      .map((r) => r.id);
+    if (nodeIds.length === 0 && edgeIds.length === 0) return;
+    for (const id of nodeIds) {
+      applyCommand({ op: "delete_node", node_id: id });
     }
+    for (const id of edgeIds) {
+      applyCommand({ op: "delete_edge", edge_id: id });
+    }
+    clearSelection();
+    if (nodeIds.length > 0) toast.success(toastCopy.nodeDeleted);
+    else if (edgeIds.length > 0) toast.success(toastCopy.edgeDeleted);
   }, [applyCommand, clearSelection, toastCopy]);
 
   const selectAllNodes = useCallback(() => {
-    if (ontology && ontology.node_types.length > 0) {
-      select({ type: "node", nodeId: ontology.node_types[0].id });
+    if (!ontology) return;
+    const refs = ontology.node_types.map((n) => ({
+      kind: "node" as const,
+      id: n.id,
+    }));
+    if (refs.length > 0) {
+      useAppStore.getState().selectMany(refs);
     }
-  }, [ontology, select]);
+  }, [ontology]);
 
   const handleExport = useCallback(
     async (format: ExportFormat) => {
@@ -101,10 +114,9 @@ export function useCanvasCommands(options: CanvasCommandsOptions): CanvasCommand
   const deselectAll = useCallback(() => {
     clearSelection();
     setHighlightedBindings(null);
-    setIsPaletteOpen(false);
     setIsExportOpen(false);
     setNeighborhoodFocus(null);
-  }, [clearSelection, setHighlightedBindings, setNeighborhoodFocus, setIsPaletteOpen, setIsExportOpen]);
+  }, [clearSelection, setHighlightedBindings, setNeighborhoodFocus, setIsExportOpen]);
 
   return { handleSave, deleteSelected, selectAllNodes, handleExport, deselectAll };
 }

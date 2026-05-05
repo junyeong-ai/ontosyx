@@ -11,15 +11,17 @@
 // `app/settings/glossary/page.tsx`, `components/ui/prompt-dialog.tsx`).
 // ---------------------------------------------------------------------------
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { z } from "zod";
+import { toast } from "@/components/ui/toast";
 
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { FormInput } from "@/components/ui/form-input";
-import { FormTextarea } from "@/components/ui/form-textarea";
+import { FormField } from "@/components/ui/form-field";
+import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { useCreateInsight } from "@/hooks/api/use-insights";
+import { useFormWithSchema } from "@/hooks/use-form-with-schema";
 
 interface Props {
   open: boolean;
@@ -40,6 +42,12 @@ function splitCsv(raw: string): string[] {
     .filter(Boolean);
 }
 
+const SCHEMA = z.object({
+  question: z.string().trim().min(1, { message: "errors.questionRequired" }),
+});
+
+type SaveInsightFormInput = z.input<typeof SCHEMA>;
+
 export function SaveInsightDialog({
   open,
   onOpenChange,
@@ -54,37 +62,56 @@ export function SaveInsightDialog({
   const [conceptAnchorsInput, setConceptAnchorsInput] = useState("");
   const create = useCreateInsight();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onValid = useCallback(
+    async (value: SaveInsightFormInput) => {
+      try {
+        await create.mutateAsync({
+          // Wire shape mirrors `ox_query_ir::insight::CreateInsightRequest`:
+          // `description` is `LocalizedText` non-Option on the canonical
+          // `InsightDef`, but the request lets the client omit it; the
+          // server defaults to an empty `LocalizedText`. Sending a present-
+          // but-empty record from the client keeps the server contract
+          // honest without relying on that defaulting behaviour.
+          question: { default: value.question },
+          description: { default: description.trim() },
+          tags: splitCsv(tagsInput),
+          concept_anchors: splitCsv(conceptAnchorsInput),
+          query_ir: queryIr,
+          original_provenance: originalProvenance,
+        });
+        toast.success(t("saveSuccess"));
+        setQuestion("");
+        setDescription("");
+        setTagsInput("");
+        setConceptAnchorsInput("");
+        onOpenChange(false);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : t("saveFailed"));
+      }
+    },
+    [
+      create,
+      description,
+      tagsInput,
+      conceptAnchorsInput,
+      onOpenChange,
+      originalProvenance,
+      queryIr,
+      t,
+    ],
+  );
+
+  const { errors, submit, clearErrors, pending } = useFormWithSchema({
+    schema: SCHEMA,
+    onValid,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!question.trim()) {
-      toast.error(t("questionRequired"));
-      return;
-    }
-    try {
-      await create.mutateAsync({
-        question: { default: question.trim() },
-        // Wire shape mirrors `ox_query_ir::insight::CreateInsightRequest`:
-        // `description` is `LocalizedText` non-Option on the canonical
-        // `InsightDef`, but the request lets the client omit it; the
-        // server defaults to an empty `LocalizedText`. Sending a present-
-        // but-empty record from the client keeps the server contract
-        // honest without relying on that defaulting behaviour.
-        description: { default: description.trim() },
-        tags: splitCsv(tagsInput),
-        concept_anchors: splitCsv(conceptAnchorsInput),
-        query_ir: queryIr,
-        original_provenance: originalProvenance,
-      });
-      toast.success(t("saveSuccess"));
-      setQuestion("");
-      setDescription("");
-      setTagsInput("");
-      setConceptAnchorsInput("");
-      onOpenChange(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("saveFailed"));
-    }
+    void submit({ question });
   };
+
+  const questionError = errors.question ? t(errors.question) : undefined;
 
   return (
     <Modal
@@ -95,53 +122,49 @@ export function SaveInsightDialog({
       size="md"
     >
       <form onSubmit={handleSubmit} className="space-y-3">
-        <label className="block text-xs font-medium text-foreground">
-          {t("questionLabel")}
+        <FormField label={t("questionLabel")} error={questionError}>
           <FormInput
             type="text"
             value={question}
-            onChange={(e) => setQuestion(e.target.value)}
+            onChange={(e) => {
+              setQuestion(e.target.value);
+              clearErrors("question");
+            }}
             placeholder={t("questionPlaceholder")}
-            className="mt-1"
             autoFocus
+            error={!!questionError}
           />
-        </label>
+        </FormField>
 
-        <label className="block text-xs font-medium text-foreground">
-          {t("descriptionLabel")}
+        <FormField label={t("descriptionLabel")}>
           <FormTextarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={t("descriptionPlaceholder")}
             rows={3}
-            className="mt-1"
           />
-        </label>
+        </FormField>
 
-        <label className="block text-xs font-medium text-foreground">
-          {t("tagsLabel")}
+        <FormField label={t("tagsLabel")}>
           <FormInput
             type="text"
             value={tagsInput}
             onChange={(e) => setTagsInput(e.target.value)}
             placeholder={t("tagsPlaceholder")}
-            className="mt-1"
           />
-        </label>
+        </FormField>
 
-        <label className="block text-xs font-medium text-foreground">
-          {t("conceptAnchorsLabel")}
+        <FormField
+          label={t("conceptAnchorsLabel")}
+          hint={t("conceptAnchorsHint")}
+        >
           <FormInput
             type="text"
             value={conceptAnchorsInput}
             onChange={(e) => setConceptAnchorsInput(e.target.value)}
             placeholder={t("conceptAnchorsPlaceholder")}
-            className="mt-1"
           />
-          <span className="mt-1 block text-2xs text-foreground-muted">
-            {t("conceptAnchorsHint")}
-          </span>
-        </label>
+        </FormField>
 
         <div className="flex justify-end gap-2 pt-2">
           <Button
@@ -152,8 +175,8 @@ export function SaveInsightDialog({
           >
             {t("cancel")}
           </Button>
-          <Button type="submit" size="sm" disabled={create.isPending}>
-            {create.isPending ? t("saving") : t("save")}
+          <Button type="submit" size="sm" disabled={pending}>
+            {pending ? t("saving") : t("save")}
           </Button>
         </div>
       </form>

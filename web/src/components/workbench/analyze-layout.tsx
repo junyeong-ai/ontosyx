@@ -25,6 +25,7 @@ import { QueryBuilder } from "@/components/workbench/analyze/query-builder/query
 import { InsightsPanel } from "@/components/recipes/insights-panel";
 import { KnowledgePanel } from "@/components/workbench/analyze/knowledge-panel";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { RouteHeading } from "@/components/layout/route-heading";
 
 // ---------------------------------------------------------------------------
 // Analyze layout — Chat (left) | Results (right) OR Query Builder (full)
@@ -83,28 +84,16 @@ export function AnalyzeLayout() {
   return (
     <ErrorBoundary name="Analyze">
       <div className="flex h-full flex-col">
-        {/* Mode toggle bar */}
-        <div className="flex h-8 shrink-0 items-center gap-1 border-b border-divider px-3">
-          <button
-            onClick={() => setAnalyzeMode("chat")}
-            className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
-              analyzeMode === "chat"
-                ? "bg-brand-surface text-brand-foreground"
-                : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-muted"
-            }`}
-          >
-            {t("mode.chat")}
-          </button>
-          <button
-            onClick={() => setAnalyzeMode("builder")}
-            className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
-              analyzeMode === "builder"
-                ? "bg-brand-surface text-brand-foreground"
-                : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-muted"
-            }`}
-          >
-            {t("mode.builder")}
-          </button>
+        <RouteHeading route="analyze" />
+        <div className="flex h-9 shrink-0 items-center border-b border-divider px-3">
+          <TabBar
+            tabs={[
+              { id: "chat", label: t("mode.chat") },
+              { id: "builder", label: t("mode.builder") },
+            ]}
+            activeTab={analyzeMode}
+            onTabChange={(id) => setAnalyzeMode(id as AnalyzeMode)}
+          />
         </div>
 
         {/* Content */}
@@ -127,7 +116,7 @@ export function AnalyzeLayout() {
 
               {/* Right: Results / Query / History */}
               <Panel minSize="30%">
-                <div className="flex h-full flex-col border-l border-divider">
+                <div className="flex h-full flex-col border-s border-divider">
                   {/* Tab bar */}
                   <div className="flex h-8 shrink-0 items-center border-b border-divider px-1">
                     <TabBar

@@ -28,6 +28,7 @@
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 
+import { FormSelect } from "@/components/ui/form-input";
 import type { BindingStrength, PropertyBinding } from "@/types/ontology";
 
 type BindingKind = PropertyBinding["kind"];
@@ -104,25 +105,25 @@ export function BindingStrengthSelect({
       {showLabel && (
         <label
           htmlFor={selectId}
-          className="text-2xs font-medium uppercase tracking-wider text-muted-foreground"
+          className="text-2xs font-medium uppercase tracking-wider text-foreground-muted"
         >
           {t("label")}
         </label>
       )}
-      <select
+      <FormSelect
         id={selectId}
         value={value}
         onChange={(e) => onChange(e.target.value as BindingStrength)}
         disabled={disabled}
         aria-describedby={reason ? reasonId : undefined}
-        className="rounded border border-divider bg-surface-base px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+        density="compact"
       >
         {policy.options.map((s) => (
           <option key={s} value={s}>
             {t(`option.${s}`)}
           </option>
         ))}
-      </select>
+      </FormSelect>
       {reason && (
         // Visually hidden but exposed to assistive tech via
         // `aria-describedby`. `sr-only` is the project's existing

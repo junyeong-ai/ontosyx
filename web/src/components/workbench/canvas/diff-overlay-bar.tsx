@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { applyReconcile } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import type {
   ReconcileReport,
   MatchDecision,
@@ -93,10 +93,10 @@ export function DiffOverlayBar() {
   };
 
   return (
-    <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2">
+    <div className="absolute start-1/2 top-3 z-canvas -translate-x-1/2">
       <div
         className={cn(
-          "rounded-lg border shadow-lg backdrop-blur-sm",
+          "rounded-lg border shadow-3 backdrop-blur-sm",
           report.confidence === "low"
             ? "border-danger-border bg-danger-surface"
             : report.confidence === "medium"
@@ -116,7 +116,7 @@ export function DiffOverlayBar() {
             </span>
           )}
           {uncertainCount > 0 && (
-            <button
+            <button type="button"
               onClick={() => pending && setExpanded((v) => !v)}
               className={cn(
                 "text-warning-foreground",
@@ -131,24 +131,24 @@ export function DiffOverlayBar() {
               {t("deletedCount", { count: deletedCount })}
             </span>
           )}
-          <span className="text-muted-foreground">
+          <span className="text-foreground-muted">
             {t("preservedCount", { count: report.preserved_ids.length })}
           </span>
           {pending && (
-            <button
+            <button type="button"
               onClick={handleApplyDecisions}
               disabled={applying}
               className={cn(
-                "ml-1 rounded-md bg-brand-solid px-3 py-1 text-white hover:bg-brand-solid disabled:opacity-50",
+                "ms-1 rounded-md bg-brand-solid px-3 py-1 text-foreground-onbrand hover:bg-brand-solid disabled:opacity-50",
                 applying && "cursor-wait",
               )}
             >
               {applying ? t("applying") : t("applyDecisions")}
             </button>
           )}
-          <button
+          <button type="button"
             onClick={handleDismiss}
-            className="ml-1 rounded-md px-2 py-0.5 text-muted-foreground hover:bg-surface-base hover:text-foreground"
+            className="ms-1 rounded-md px-2 py-0.5 text-foreground-muted hover:bg-surface-base hover:text-foreground"
           >
             {t("dismiss")}
           </button>
@@ -166,25 +166,25 @@ export function DiffOverlayBar() {
                   <span className="min-w-0 flex-1 truncate text-foreground">
                     <span className="font-medium">{m.original_label}</span>
                     {m.original_label !== m.matched_label && (
-                      <span className="text-muted-foreground">
+                      <span className="text-foreground-muted">
                         {" -> "}
                         {m.matched_label}
                       </span>
                     )}
-                    <span className="ml-1 text-muted-foreground">
+                    <span className="ms-1 text-foreground-muted">
                       ({m.entity_kind})
                     </span>
-                    <span className="ml-1 italic text-muted-foreground">
+                    <span className="ms-1 italic text-foreground-muted">
                       {m.match_reason}
                     </span>
                   </span>
-                  <button
+                  <button type="button"
                     onClick={() => toggleDecision(m.original_id)}
                     className={cn(
-                      "shrink-0 rounded px-2 py-0.5 text-2xs font-semibold uppercase transition-colors",
+                      "shrink-0 rounded px-2 py-0.5 text-2xs font-semibold uppercase transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                       decisions[m.original_id]
-                        ? "bg-brand-surface-strong text-brand-foreground hover:bg-brand-surface-strong-strong-strong dark:hover:bg-brand-solid-hover"
-                        : "bg-danger-surface text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-solid",
+                        ? "bg-brand-surface-strong text-brand-foreground hover:bg-brand-surface-strong"
+                        : "bg-danger-surface text-danger-foreground hover:bg-danger-surface",
                     )}
                   >
                     {decisions[m.original_id] ? t("accept") : t("reject")}
@@ -217,7 +217,7 @@ function ConfidenceBadge({
       className={cn(
         "rounded px-1.5 py-0.5 text-2xs font-bold uppercase",
         confidence === "high"
-          ? "bg-brand-surface-strong text-brand-foreground-strong-strong"
+          ? "bg-brand-surface-strong text-brand-foreground-strong"
           : confidence === "medium"
             ? "bg-warning-surface text-warning-foreground"
             : "bg-danger-surface text-danger-foreground",

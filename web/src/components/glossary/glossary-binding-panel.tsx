@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import {
   useApplyBindingEdits,
@@ -17,6 +17,7 @@ import type { LocalizedText } from "@/types/ontology";
 import { localize } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/hooks/use-locale-chain";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface BindingTermContext {
   term_id: string;
@@ -89,8 +90,7 @@ export function GlossaryBindingPanel({
     suggest.mutate(body);
     // suggest.mutate is stable; the term_id bump drives the
     // refetch. Adding the mutate fn would re-fire spuriously.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [term.term_id]);
+  }, [term.term_id, suggest.mutate, term.term, term.description, term.aliases, displayTerm]);
 
   const candidateKey = (c: PropertyCandidate) =>
     `${c.owner_kind}:${c.owner_type_id}:${c.property_id}`;
@@ -136,13 +136,13 @@ export function GlossaryBindingPanel({
     <div className="flex h-full flex-col gap-3 overflow-hidden text-xs">
       <header className="flex items-center justify-between gap-2 border-b border-divider pb-2">
         <div className="min-w-0">
-          <p className="text-2xs uppercase tracking-wider text-muted-foreground">
+          <p className="text-2xs uppercase tracking-wider text-foreground-muted">
             {t("embedded.targetLabel")}
           </p>
           <p className="truncate font-medium text-foreground-strong">
             {displayTerm}
           </p>
-          <p className="truncate font-mono text-2xs text-muted-foreground">
+          <p className="truncate font-mono text-2xs text-foreground-muted">
             {term.term_id}
           </p>
         </div>
@@ -157,7 +157,7 @@ export function GlossaryBindingPanel({
             })
           }
           disabled={suggest.isPending}
-          className="shrink-0 rounded border border-concept-border px-2 py-1 text-2xs font-medium text-concept-foreground hover:bg-concept-surface disabled:opacity-50 dark:hover:bg-concept-surface/40"
+          className="shrink-0 rounded border border-concept-border px-2 py-1 text-2xs font-medium text-concept-foreground hover:bg-concept-surface disabled:opacity-50"
         >
           {suggest.isPending
             ? t("actions.searching")
@@ -177,15 +177,15 @@ export function GlossaryBindingPanel({
         {candidates.length > 0 && (
           <table className="w-full border-collapse text-xs">
             <thead>
-              <tr className="border-b border-divider text-left text-2xs uppercase tracking-wider text-muted-foreground">
-                <th className="w-8 py-2 pr-2"></th>
-                <th className="py-2 pr-3 font-medium">
+              <tr className="border-b border-divider text-start text-2xs uppercase tracking-wider text-foreground-muted">
+                <th className="w-8 py-2 pe-2"></th>
+                <th className="py-2 pe-3 font-medium">
                   {t("columns.owner")}
                 </th>
-                <th className="py-2 pr-3 font-medium">
+                <th className="py-2 pe-3 font-medium">
                   {t("columns.property")}
                 </th>
-                <th className="py-2 pr-2 font-medium">
+                <th className="py-2 pe-2 font-medium">
                   {t("columns.score")}
                 </th>
               </tr>
@@ -197,11 +197,10 @@ export function GlossaryBindingPanel({
                 return (
                   <tr
                     key={key}
-                    className="border-b border-divider-soft hover:bg-surface-raised dark:hover:bg-surface-base/30"
+                    className="border-b border-divider-soft hover:bg-surface-raised"
                   >
-                    <td className="py-1.5 pr-2">
-                      <input
-                        type="checkbox"
+                    <td className="py-1.5 pe-2">
+                      <Checkbox
                         checked={picked}
                         onChange={() => toggle(key)}
                         aria-label={t("rowAria", {
@@ -210,18 +209,18 @@ export function GlossaryBindingPanel({
                         })}
                       />
                     </td>
-                    <td className="py-1.5 pr-3">
-                      <span className="rounded bg-surface-inset px-1 py-0.5 text-2xs uppercase text-muted-foreground">
+                    <td className="py-1.5 pe-3">
+                      <span className="rounded bg-surface-inset px-1 py-0.5 text-2xs uppercase text-foreground-muted">
                         {c.owner_kind}
                       </span>{" "}
-                      <span className="text-[11px] font-medium">
+                      <span className="text-2xs font-medium">
                         {c.owner_label || c.owner_type_id}
                       </span>
                     </td>
-                    <td className="py-1.5 pr-3 font-mono text-2xs">
+                    <td className="py-1.5 pe-3 font-mono text-2xs">
                       {c.property_name}
                     </td>
-                    <td className="py-1.5 pr-2">
+                    <td className="py-1.5 pe-2">
                       <ScoreBar score={c.score} />
                     </td>
                   </tr>
@@ -238,7 +237,7 @@ export function GlossaryBindingPanel({
             type="button"
             onClick={onBatchBind}
             disabled={apply.isPending}
-            className="rounded bg-brand-solid px-3 py-1 text-[11px] font-medium text-white hover:bg-brand-solid disabled:opacity-50"
+            className="rounded bg-brand-solid px-3 py-1 text-2xs font-medium text-foreground-onbrand hover:bg-brand-solid disabled:opacity-50"
           >
             {apply.isPending
               ? t("actions.binding")
@@ -260,7 +259,7 @@ function ScoreBar({ score }: { score: number }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="tabular-nums text-2xs text-muted-foreground">
+      <span className="tabular-nums text-2xs text-foreground-muted">
         {pct}%
       </span>
     </div>

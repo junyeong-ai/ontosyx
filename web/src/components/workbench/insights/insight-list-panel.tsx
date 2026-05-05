@@ -19,7 +19,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Delete01Icon, Analytics01Icon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -103,27 +103,27 @@ export function InsightListPanel({ onOpen }: Props) {
         <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground-strong">
           {t("panelTitle")}
         </h2>
-        <span className="ml-auto text-2xs text-muted-foreground">
+        <span className="ms-auto text-2xs text-foreground-muted">
           {t("countSummary", { count: items.length })}
         </span>
       </div>
 
       {conceptAnchorChips.length > 0 && (
         <div className="flex flex-wrap items-center gap-1 border-b border-divider-soft px-3 py-1.5">
-          <span className="text-2xs uppercase tracking-wider text-muted-foreground">
+          <span className="text-2xs uppercase tracking-wider text-foreground-muted">
             {t("filterByConcept")}
           </span>
           {conceptAnchorChips.map((anchor) => {
             const active = activeAnchor === anchor;
             return (
-              <button
+              <button type="button"
                 key={anchor}
                 onClick={() => setActiveAnchor(active ? null : anchor)}
                 aria-pressed={active}
                 className={
                   active
-                    ? "rounded bg-brand-solid px-1.5 py-0.5 text-2xs font-medium text-white"
-                    : "rounded bg-surface-inset px-1.5 py-0.5 text-2xs text-foreground hover:bg-surface-inset-muted dark:hover:bg-surface-base"
+                    ? "rounded bg-brand-solid px-1.5 py-0.5 text-2xs font-medium text-foreground-onbrand"
+                    : "rounded bg-surface-inset px-1.5 py-0.5 text-2xs text-foreground hover:bg-surface-inset"
                 }
               >
                 {anchor}
@@ -131,9 +131,9 @@ export function InsightListPanel({ onOpen }: Props) {
             );
           })}
           {activeAnchor && (
-            <button
+            <button type="button"
               onClick={() => setActiveAnchor(null)}
-              className="text-2xs text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
+              className="text-2xs text-foreground-muted hover:text-foreground-muted"
             >
               {t("filterClear")}
             </button>
@@ -148,7 +148,7 @@ export function InsightListPanel({ onOpen }: Props) {
       )}
 
       {!loading && items.length === 0 && (
-        <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+        <p className="px-3 py-6 text-center text-xs text-foreground-muted">
           {t("emptyState")}
         </p>
       )}
@@ -165,15 +165,15 @@ export function InsightListPanel({ onOpen }: Props) {
                 className="border-b border-divider-soft last:border-b-0"
               >
                 <div className="flex items-start gap-2 px-3 py-2">
-                  <button
+                  <button type="button"
                     onClick={() => onOpen?.(insight)}
-                    className="flex-1 text-left"
+                    className="flex-1 text-start"
                   >
                     <p className="truncate text-xs font-medium text-foreground-strong">
                       {title}
                     </p>
                     {desc && (
-                      <p className="mt-0.5 line-clamp-2 text-2xs text-muted-foreground">
+                      <p className="mt-0.5 line-clamp-2 text-2xs text-foreground-muted">
                         {desc}
                       </p>
                     )}
@@ -183,7 +183,7 @@ export function InsightListPanel({ onOpen }: Props) {
                         {insight.concept_anchors.map((anchor) => (
                           <span
                             key={`anchor-${anchor}`}
-                            className="rounded bg-brand-surface-strong px-1 text-2xs font-medium text-brand-foreground-strong-strong"
+                            className="rounded bg-brand-surface-strong px-1 text-2xs font-medium text-brand-foreground-strong"
                             title={t("conceptAnchorTooltip")}
                           >
                             {anchor}

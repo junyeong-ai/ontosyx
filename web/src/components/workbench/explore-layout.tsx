@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { RouteHeading } from "@/components/layout/route-heading";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Search01Icon,
@@ -14,6 +16,7 @@ import { searchGraph, fetchGraphOverview } from "@/lib/api";
 import type { ExpandNeighbor, GraphOverview } from "@/lib/api/queries";
 import { expandMultiHop } from "@/lib/explore/multi-hop";
 import { Spinner } from "@/components/ui/spinner";
+import { SearchInput } from "@/components/ui/form-input";
 import { cn } from "@/lib/cn";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useQueryState } from "@/hooks/use-query-state";
@@ -25,7 +28,8 @@ import {
   type NodeClickModifiers,
 } from "./explore/explore-canvas";
 import { ExploreFacetSidebar } from "./explore/facet-sidebar";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { useFormatters } from "@/hooks/use-formatters";
 import {
   type SearchResultNode,
   toSearchResultNodes,
@@ -49,6 +53,8 @@ interface BreadcrumbEntry {
 // ---------------------------------------------------------------------------
 
 export function ExploreLayout() {
+  const t = useTranslations("workbench.explore");
+  const fmt = useFormatters();
   const router = useRouter();
 
   // Schema overview state
@@ -71,8 +77,7 @@ export function ExploreLayout() {
     if (searchInput.committedValue !== query) {
       setQuery(searchInput.committedValue);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchInput.committedValue]);
+  }, [searchInput.committedValue, query, setQuery]);
 
   const [results, setResults] = useState<SearchResultNode[]>([]);
   const [loading, setLoading] = useState(false);
@@ -98,11 +103,8 @@ export function ExploreLayout() {
     // endpoint. Until that endpoint lands, we surface the intent so
     // the operator sees the button wires up and the selection is
     // preserved for the follow-up session.
-    toast.info(
-      `Segment intent captured: ${selectedLabels.length} type(s). ` +
-        `Persistence lands with the /segments endpoint.`,
-    );
-  }, [selectedLabels.length]);
+    toast.info(t("segmentToast", { count: selectedLabels.length }));
+  }, [selectedLabels.length, t]);
 
   // ---- Fetch schema overview on mount ----
 
@@ -150,11 +152,10 @@ export function ExploreLayout() {
   // `runSearch` via Enter.
   const initialQueryRef = useRef(query);
   useEffect(() => {
-    if (initialQueryRef.current && initialQueryRef.current.trim()) {
+    if (initialQueryRef.current?.trim()) {
       runSearch();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [runSearch]);
 
   // ---- Expand a node ----
 
@@ -171,7 +172,7 @@ export function ExploreLayout() {
       setFocusedNode(node);
 
       if (appendBreadcrumb) {
-        const label = labels[0] || "Node";
+        const label = labels[0] || t("nodeFallback");
         const name = resolveDisplayName(props, label);
         setBreadcrumb((prev) => [...prev, { elementId, label, name }]);
       }
@@ -189,19 +190,19 @@ export function ExploreLayout() {
         setExpanding(false);
       }
     },
-    [expandDepth],
+    [expandDepth, t],
   );
 
   // ---- Select a search result ----
 
   const handleSelectResult = useCallback(
     (result: SearchResultNode) => {
-      const label = result.labels[0] || "Node";
+      const label = result.labels[0] || t("nodeFallback");
       const name = resolveDisplayName(result.props, label);
       setBreadcrumb([{ elementId: result.elementId, label, name }]);
       expandAndNavigate(result.elementId, result.labels, result.props, false);
     },
-    [expandAndNavigate],
+    [expandAndNavigate, t],
   );
 
   // ---- Browse by label (overview / schema graph entry point) ----
@@ -224,8 +225,8 @@ export function ExploreLayout() {
         // Auto-select first result for immediate graph view
         if (hits.length > 0) {
           const first = hits[0];
-          const name = resolveDisplayName(first.props, first.labels[0] || "Node");
-          setBreadcrumb([{ elementId: first.elementId, label: first.labels[0] || "Node", name }]);
+          const name = resolveDisplayName(first.props, first.labels[0] || t("nodeFallback"));
+          setBreadcrumb([{ elementId: first.elementId, label: first.labels[0] || t("nodeFallback"), name }]);
           expandAndNavigate(first.elementId, first.labels, first.props, false);
         }
       } catch {
@@ -234,7 +235,7 @@ export function ExploreLayout() {
         setLoading(false);
       }
     },
-    [expandAndNavigate, searchInput, setQuery],
+    [expandAndNavigate, searchInput, setQuery, t],
   );
 
   // ---- Graph node click (handles both schema mode and exploration mode) ----
@@ -325,6 +326,7 @@ export function ExploreLayout() {
   return (
     <ErrorBoundary name="Explore">
     <div className="flex h-full">
+      <RouteHeading route="explore" />
       <ExploreFacetSidebar
         overview={overview}
         loading={overviewLoading}
@@ -337,32 +339,31 @@ export function ExploreLayout() {
       />
 
       {/* Left: Search + Results */}
-      <div className="flex h-full w-72 shrink-0 flex-col border-r border-divider">
+      <div className="flex h-full w-72 shrink-0 flex-col border-e border-divider">
         {/* Search input */}
         <div className="border-b border-divider p-3">
-          <div className="flex items-center gap-1.5 rounded-md border border-divider bg-surface-raised px-2 py-1.5">
-            <HugeiconsIcon
-              icon={Search01Icon}
-              className="h-3 w-3 text-muted-foreground"
-              size="100%"
-            />
-            <input
-              type="search"
-              value={searchInput.value}
-              onChange={searchInput.bind.onChange}
-              onCompositionStart={searchInput.bind.onCompositionStart}
-              onCompositionEnd={searchInput.bind.onCompositionEnd}
-              onKeyDown={(e) => {
-                // Enter should only fire when NOT mid-composition. Browsers
-                // fire `Enter` at 229 keyCode during IME commit — checking
-                // `isComposing` avoids an errant search.
-                if (e.key === "Enter" && !e.nativeEvent.isComposing) runSearch();
-              }}
-              placeholder="Search nodes..."
-              className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-foreground-muted-muted"
-            />
-            {loading && <Spinner size="xs" className="text-muted-foreground" />}
-          </div>
+          <SearchInput
+            type="search"
+            value={searchInput.value}
+            onChange={searchInput.bind.onChange}
+            onCompositionStart={searchInput.bind.onCompositionStart}
+            onCompositionEnd={searchInput.bind.onCompositionEnd}
+            onKeyDown={(e) => {
+              // Enter should only fire when NOT mid-composition. Browsers
+              // fire `Enter` at 229 keyCode during IME commit — checking
+              // `isComposing` avoids an errant search.
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) runSearch();
+            }}
+            placeholder={t("search.placeholder")}
+            aria-label={t("search.placeholder")}
+            density="settings"
+            leadingIcon={Search01Icon}
+            trailing={
+              loading ? (
+                <Spinner size="xs" className="text-foreground-muted" />
+              ) : null
+            }
+          />
         </div>
 
         {/* Results / Overview */}
@@ -374,32 +375,32 @@ export function ExploreLayout() {
               <div className="flex gap-3">
                 <div className="rounded bg-surface-inset px-2 py-1">
                   <div className="text-xs font-semibold text-foreground">
-                    {overview.total_nodes.toLocaleString()}
+                    {fmt.number(overview.total_nodes)}
                   </div>
-                  <div className="text-2xs text-muted-foreground">nodes</div>
+                  <div className="text-2xs text-foreground-muted">{t("stats.nodes")}</div>
                 </div>
                 <div className="rounded bg-surface-inset px-2 py-1">
                   <div className="text-xs font-semibold text-foreground">
-                    {overview.total_relationships.toLocaleString()}
+                    {fmt.number(overview.total_relationships)}
                   </div>
-                  <div className="text-2xs text-muted-foreground">relationships</div>
+                  <div className="text-2xs text-foreground-muted">{t("stats.relationships")}</div>
                 </div>
               </div>
 
               {/* Node labels */}
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5">
-                  <HugeiconsIcon icon={DatabaseIcon} className="h-3 w-3 text-muted-foreground" size="100%" />
-                  <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Node Labels
+                  <HugeiconsIcon icon={DatabaseIcon} className="h-3 w-3 text-foreground-muted" size="100%" />
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+                    {t("overview.nodeLabels")}
                   </span>
                 </div>
                 <div className="space-y-0.5">
                   {overview.labels.map(({ label, count }) => (
-                    <button
+                    <button type="button"
                       key={label}
                       onClick={() => handleBrowseLabel(label)}
-                      className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left transition-colors hover:bg-surface-inset dark:hover:bg-surface-base"
+                      className="flex w-full items-center justify-between rounded px-2 py-1.5 text-start transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset"
                     >
                       <div className="flex items-center gap-2">
                         <span
@@ -410,8 +411,8 @@ export function ExploreLayout() {
                           {label}
                         </span>
                       </div>
-                      <span className="text-2xs tabular-nums text-muted-foreground">
-                        {count.toLocaleString()}
+                      <span className="text-2xs tabular-nums text-foreground-muted">
+                        {fmt.number(count)}
                       </span>
                     </button>
                   ))}
@@ -421,8 +422,8 @@ export function ExploreLayout() {
               {/* Relationship patterns */}
               {overview.relationships.length > 0 && (
                 <div>
-                  <div className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Relationship Patterns
+                  <div className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+                    {t("overview.relationshipPatterns")}
                   </div>
                   <div className="space-y-0.5">
                     {overview.relationships.slice(0, 15).map((rel) => (
@@ -430,12 +431,12 @@ export function ExploreLayout() {
                         key={`${rel.from_label}-${rel.rel_type}-${rel.to_label}`}
                         className="flex items-center gap-1 rounded px-2 py-1 text-2xs"
                       >
-                        <span className="font-medium text-foreground dark:text-muted-foreground">{rel.from_label}</span>
-                        <span className="text-muted-foreground">→</span>
-                        <span className="font-mono text-muted-foreground">{rel.rel_type}</span>
-                        <span className="text-muted-foreground">→</span>
-                        <span className="font-medium text-foreground dark:text-muted-foreground">{rel.to_label}</span>
-                        <span className="ml-auto tabular-nums text-muted-foreground">{rel.count.toLocaleString()}</span>
+                        <span className="font-medium text-foreground">{rel.from_label}</span>
+                        <span className="text-foreground-muted">→</span>
+                        <span className="font-mono text-foreground-muted">{rel.rel_type}</span>
+                        <span className="text-foreground-muted">→</span>
+                        <span className="font-medium text-foreground">{rel.to_label}</span>
+                        <span className="ms-auto tabular-nums text-foreground-muted">{fmt.number(rel.count)}</span>
                       </div>
                     ))}
                   </div>
@@ -447,8 +448,8 @@ export function ExploreLayout() {
           {/* Overview loading */}
           {!searched && overviewLoading && (
             <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-              <Spinner size="sm" className="text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">Loading graph schema...</p>
+              <Spinner size="sm" className="text-foreground-muted" />
+              <p className="text-xs text-foreground-muted">{t("overview.loading")}</p>
             </div>
           )}
 
@@ -459,42 +460,42 @@ export function ExploreLayout() {
                 <HugeiconsIcon icon={Search02Icon} className="h-4 w-4 text-brand-foreground" size="100%" />
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">No graph data yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Deploy a schema and load data from Design mode to start exploring.
+                <p className="text-sm font-medium text-foreground">{t("empty.title")}</p>
+                <p className="mt-1 text-xs text-foreground-muted">
+                  {t("empty.description")}
                 </p>
               </div>
-              <button
+              <button type="button"
                 onClick={() => router.push("/design")}
-                className="rounded-lg border border-brand-border bg-brand-surface px-4 py-2 text-xs font-medium text-brand-foreground transition-colors hover:bg-brand-surface-strong/30 dark:hover:bg-brand-surface/50"
+                className="rounded-lg border border-brand-border bg-brand-surface px-4 py-2 text-xs font-medium text-brand-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-surface-strong/30"
               >
-                Switch to Design
+                {t("empty.switchToDesign")}
               </button>
             </div>
           )}
 
           {/* Search results */}
           {searched && !loading && results.length === 0 && (
-            <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-              No results found
+            <div className="px-4 py-8 text-center text-xs text-foreground-muted">
+              {t("search.noResults")}
             </div>
           )}
           {results.map((result, i) => (
-            <button
+            <button type="button"
               key={result.elementId || i}
               onClick={() => handleSelectResult(result)}
               className={cn(
-                "flex w-full items-start gap-2 border-b border-divider-soft px-3 py-2 text-left transition-colors",
+                "flex w-full items-start gap-2 border-b border-divider-soft px-3 py-2 text-start transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                 focusedNode?.elementId === result.elementId
                   ? "bg-brand-surface"
-                  : "hover:bg-surface-raised dark:hover:bg-surface-base",
+                  : "hover:bg-surface-raised",
               )}
             >
               <div className="flex flex-wrap gap-1">
                 {result.labels.map((l) => (
                   <span
                     key={l}
-                    className="rounded bg-surface-inset px-1 py-0.5 text-2xs font-medium text-foreground dark:text-muted-foreground"
+                    className="rounded bg-surface-inset px-1 py-0.5 text-2xs font-medium text-foreground"
                   >
                     {l}
                   </span>
@@ -508,7 +509,7 @@ export function ExploreLayout() {
 
           {/* Back to overview — reset all exploration state */}
           {searched && (
-            <button
+            <button type="button"
               onClick={() => {
                 setSearched(false);
                 setResults([]);
@@ -518,9 +519,9 @@ export function ExploreLayout() {
                 setNeighbors([]);
                 setBreadcrumb([]);
               }}
-              className="w-full px-3 py-2 text-left text-2xs text-muted-foreground transition-colors hover:text-foreground dark:hover:text-foreground-muted"
+              className="w-full px-3 py-2 text-start text-2xs text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:text-foreground-muted"
             >
-              ← Back to overview
+              {t("backToOverview")}
             </button>
           )}
         </div>
@@ -536,34 +537,34 @@ export function ExploreLayout() {
                 {i > 0 && (
                   <HugeiconsIcon
                     icon={ArrowRight01Icon}
-                    className="h-2.5 w-2.5 text-muted-foreground"
+                    className="h-2.5 w-2.5 text-foreground-muted"
                     size="100%"
                   />
                 )}
-                <button
+                <button type="button"
                   onClick={() => handleBreadcrumbClick(i)}
                   className={cn(
-                    "flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs transition-colors",
+                    "flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                     i === breadcrumb.length - 1
                       ? "bg-brand-surface-strong font-medium text-brand-foreground-strong"
-                      : "text-muted-foreground hover:bg-surface-inset hover:text-foreground dark:hover:bg-surface-base dark:hover:text-foreground-muted",
+                      : "text-foreground-muted hover:bg-surface-inset hover:text-foreground-muted",
                   )}
                 >
-                  <span className="text-2xs text-muted-foreground">
+                  <span className="text-2xs text-foreground-muted">
                     {entry.label}:
                   </span>
                   <span className="max-w-24 truncate">{entry.name}</span>
                 </button>
               </span>
             ))}
-            {expanding && <Spinner size="xs" className="ml-1 text-muted-foreground" />}
+            {expanding && <Spinner size="xs" className="ms-1 text-foreground-muted" />}
           </div>
         )}
 
         {/* Graph view */}
         <div className="relative flex-1">
           {expanding && !focusedNode && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface-raised/80">
+            <div className="absolute inset-0 z-canvas flex items-center justify-center bg-surface-raised/80">
               <Spinner size="md" className="text-brand-foreground" />
             </div>
           )}
@@ -575,19 +576,19 @@ export function ExploreLayout() {
           />
           {/* Stats bar */}
           {focusedNode && neighbors.length > 0 && (
-            <div className="absolute bottom-2 right-2 rounded bg-surface-base/70 px-2 py-1 text-2xs text-foreground-muted">
-              {neighbors.length} neighbor{neighbors.length !== 1 ? "s" : ""}
+            <div className="absolute bottom-2 end-2 rounded bg-surface-base/70 px-2 py-1 text-2xs text-foreground-muted">
+              {t("neighborCount", { count: neighbors.length })}
             </div>
           )}
         </div>
       </div>
 
       {/* Right: Detail panel */}
-      <div className="flex h-full w-80 shrink-0 flex-col border-l border-divider">
+      <div className="flex h-full w-80 shrink-0 flex-col border-s border-divider">
         {/* Properties section */}
         <div className="flex h-7 items-center border-b border-divider px-3">
-          <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Properties
+          <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+            {t("propertiesHeading")}
           </span>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -619,7 +620,7 @@ export function ExploreLayout() {
               </div>
               {/* Element ID */}
               <div className="border-t border-divider-soft pt-2">
-                <span className="text-2xs text-muted-foreground">
+                <span className="text-2xs text-foreground-muted">
                   ID: {focusedNode.elementId}
                 </span>
               </div>
@@ -627,8 +628,8 @@ export function ExploreLayout() {
               {/* Relationships section */}
               {groupedRelationships.length > 0 && (
                 <div className="border-t border-divider-soft pt-3">
-                  <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Relationships
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+                    {t("relationshipsHeading")}
                   </span>
                   <div className="mt-2 space-y-1.5">
                     {groupedRelationships.map((group) => (
@@ -645,25 +646,25 @@ export function ExploreLayout() {
                           >
                             {group.direction === "outgoing" ? "\u2192" : "\u2190"}
                           </span>
-                          <span className="font-mono font-medium text-foreground dark:text-muted-foreground">
+                          <span className="font-mono font-medium text-foreground">
                             {group.type}
                           </span>
-                          <span className="text-muted-foreground">
+                          <span className="text-foreground-muted">
                             ({group.items.length})
                           </span>
                         </div>
                         {/* Individual neighbors */}
-                        <div className="ml-4 mt-0.5 space-y-0.5">
+                        <div className="ms-4 mt-0.5 space-y-0.5">
                           {group.items.map((neighbor) => (
-                            <button
+                            <button type="button"
                               key={neighbor.element_id}
                               onClick={() =>
                                 handleRelationshipClick(neighbor)
                               }
-                              className="flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left text-2xs transition-colors hover:bg-surface-inset dark:hover:bg-surface-base"
+                              className="flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-start text-2xs transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset"
                             >
-                              <span className="rounded bg-surface-inset px-1 py-0.5 text-2xs font-medium text-foreground-muted dark:text-muted-foreground">
-                                {neighbor.labels[0] || "Node"}
+                              <span className="rounded bg-surface-inset px-1 py-0.5 text-2xs font-medium text-foreground-muted">
+                                {neighbor.labels[0] || t("nodeFallback")}
                               </span>
                               <span className="min-w-0 flex-1 truncate text-foreground-muted">
                                 {resolveDisplayName(neighbor.props)}
@@ -678,8 +679,8 @@ export function ExploreLayout() {
               )}
             </div>
           ) : (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-              Select an entity to view properties
+            <div className="flex h-full items-center justify-center text-xs text-foreground-muted">
+              {t("selectEntityHint")}
             </div>
           )}
         </div>

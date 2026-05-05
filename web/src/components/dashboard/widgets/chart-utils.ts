@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 
+import { formatNumber } from "@/lib/locale/format";
+
 // ---------------------------------------------------------------------------
 // Color palettes — single source of truth for all chart & widget rendering
 // ---------------------------------------------------------------------------
@@ -136,23 +138,27 @@ export function toNameValuePairs(
 // Value formatting
 // ---------------------------------------------------------------------------
 
-/** Format a value for display — handles null, boolean, number, string, object */
-export function formatValue(value: unknown): string {
+/**
+ * Format a value for display — handles null, boolean, number, string,
+ * and object payloads. Numeric values walk the workspace locale chain so
+ * a Korean workspace renders thousand separators with the right glyph.
+ */
+export function formatValue(value: unknown, chain: readonly string[]): string {
   if (value == null) return "\u2014";
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number") return value.toLocaleString();
-  if (Array.isArray(value)) return value.map(formatValue).join(", ");
+  if (typeof value === "number") return formatNumber(value, chain);
+  if (Array.isArray(value)) return value.map((v) => formatValue(v, chain)).join(", ");
   if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
     // PropertyValue wrapper: {type: "string", value: "..."}
-    if ("type" in obj && "value" in obj) return formatValue(obj.value);
+    if ("type" in obj && "value" in obj) return formatValue(obj.value, chain);
     if ("type" in obj && obj.type === "null") return "\u2014";
     // Node object with properties sub-object
     if ("properties" in obj && typeof obj.properties === "object" && obj.properties !== null) {
       const props = obj.properties as Record<string, unknown>;
       // Prefer name > label > title > id for display
       for (const key of ["name", "label", "title", "id"]) {
-        if (key in props && props[key] != null) return formatValue(props[key]);
+        if (key in props && props[key] != null) return formatValue(props[key], chain);
       }
     }
     // Plain object — prefer name > label > title > id

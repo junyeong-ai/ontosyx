@@ -23,6 +23,8 @@ export type {
   BottomPanelMode,
   AnalyzeRightTab,
   Selection,
+  SelectionKind,
+  SelectionRef,
   CommandEntry,
   OntologySlice,
   ChatSlice,
@@ -32,6 +34,14 @@ export type {
   DashboardSlice,
   VerificationSlice,
 } from "./types";
+
+export {
+  refKey,
+  selectionContains,
+  selectionContainsId,
+  selectionOfKind,
+  selectionPrimary,
+} from "./selection-slice";
 
 export * from "./selectors";
 
@@ -62,6 +72,8 @@ export const useAppStore = create<AppStore>()(
         isInspectorOpen: state.isInspectorOpen,
         isBottomPanelOpen: state.isBottomPanelOpen,
         bottomPanelMode: state.bottomPanelMode,
+        sidebarMode: state.sidebarMode,
+        inspectorTabByKind: state.inspectorTabByKind,
       }),
     },
   ),

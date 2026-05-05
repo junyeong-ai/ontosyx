@@ -6,8 +6,8 @@ import { useAppStore, type ChatMessage, type ToolStep } from "@/lib/store";
 import { useWorkspaceMode } from "@/hooks/use-workspace-mode";
 import { chatStream, fetchSessionMessages, listAgentSessions, rawQuery, suggestInsights, type InsightHint } from "@/lib/api";
 import type { AgentSession } from "@/types/api";
-import { errorMessage } from "@/lib/error-messages";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { Heading } from "@/components/ui/heading";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ChatInput } from "./chat-input";
 import { MessageBubble } from "./message-bubble";
@@ -64,16 +64,15 @@ export function ChatPanel() {
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Load insight suggestions when ontology is present and chat is empty.
-  // Depend on the full `ontology` (not just `?.id`) so the lint can see the
-  // same reference that `suggestInsights(ontology)` actually closes over.
-  // The zustand `selectStateOntology` returns a stable reference between
-  // structural changes, so this won't churn the effect on every render.
+  // Load insight suggestions when ontology is present. The cache is
+  // updated only on the async path; visibility (gated by "chat is
+  // empty") is derived at render time via `visibleSuggestions` below
+  // so we never need to clear cache state synchronously. Depend on
+  // the full `ontology` (not just `?.id`) so the lint can see the
+  // same reference that `suggestInsights(ontology)` actually closes
+  // over.
   useEffect(() => {
-    if (!ontology || messages.length > 0) {
-      setSuggestions([]);
-      return;
-    }
+    if (!ontology) return;
     let cancelled = false;
     suggestInsights(ontology)
       .then((result) => {
@@ -85,14 +84,10 @@ export function ChatPanel() {
     return () => {
       cancelled = true;
     };
-  }, [ontology, messages.length]);
+  }, [ontology]);
 
-  // Load recent sessions when chat is empty (for resume UI)
+  // Load recent sessions on mount; visibility is render-derived.
   useEffect(() => {
-    if (messages.length > 0) {
-      setRecentSessions([]);
-      return;
-    }
     let cancelled = false;
     listAgentSessions({ limit: 5 })
       .then((page) => {
@@ -104,7 +99,11 @@ export function ChatPanel() {
     return () => {
       cancelled = true;
     };
-  }, [messages.length]);
+  }, []);
+
+  const visibleSuggestions =
+    ontology && messages.length === 0 ? suggestions : [];
+  const visibleRecentSessions = messages.length === 0 ? recentSessions : [];
 
   const handleResumeSession = useCallback(
     async (session: AgentSession) => {
@@ -134,7 +133,7 @@ export function ChatPanel() {
     [setSessionId, t],
   );
 
-  const lastMessageContent = messages[messages.length - 1]?.content;
+  const _lastMessageContent = messages[messages.length - 1]?.content;
   const lastMessageStreaming = messages[messages.length - 1]?.isStreaming;
   useEffect(() => {
     if (userScrolledUpRef.current) return;
@@ -142,7 +141,7 @@ export function ChatPanel() {
       top: scrollRef.current.scrollHeight,
       behavior: lastMessageStreaming ? "instant" : "smooth",
     });
-  }, [messages.length, lastMessageContent, lastMessageStreaming]);
+  }, [lastMessageStreaming]);
 
   const getState = useAppStore.getState;
 
@@ -357,9 +356,14 @@ export function ChatPanel() {
               }
             },
             onError(error) {
+              // Stream-level errors land here as raw strings — there's
+              // no typed `code` because the SSE pipeline already
+              // translated server-side errors into `agent_error` toasts
+              // upstream. Show the raw text so an operator can read
+              // network / parser failures without server log spelunking.
               updateMessage(assistantId, {
                 content: "",
-                error: errorMessage(undefined, String(error)),
+                error: String(error).replace(/^Runtime error:\s*/i, ""),
                 isStreaming: false,
               });
             },
@@ -378,17 +382,16 @@ export function ChatPanel() {
       }
     },
     [
-      ontology,
-      activeProject,
-      addMessage,
-      updateMessage,
-      setIsLoading,
-      getState,
-      ontologyId,
-      sessionId,
-      setSessionId,
-      workspaceMode,
-      t,
+      ontology, 
+      activeProject, 
+      addMessage, 
+      updateMessage, 
+      setIsLoading, 
+      ontologyId, 
+      sessionId, 
+      setSessionId, 
+      workspaceMode, 
+      t
     ],
   );
 
@@ -407,30 +410,32 @@ export function ChatPanel() {
             // inside the visible area at the smallest snap height.
             <div className="flex flex-col items-center justify-center text-center">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-surface-inset">
-                <HugeiconsIcon icon={ChatBotIcon} className="h-5 w-5 text-muted-foreground" size="100%" />
+                <HugeiconsIcon icon={ChatBotIcon} className="h-5 w-5 text-foreground-muted" size="100%" />
               </div>
-              <h2 className="text-sm font-semibold text-foreground-strong">
+              <Heading level={2} size={6}>
                 {t("appTitle")}
-              </h2>
-              {ontology && suggestions.length > 0 ? (
+              </Heading>
+              {visibleSuggestions.length > 0 ? (
                 <div className="mt-6 grid gap-2 w-full max-w-lg">
-                  {suggestions.map((s) => (
+                  {visibleSuggestions.map((s) => (
                     <button
+                      type="button"
                       key={`${s.category}-${s.question}`}
                       onClick={() => handleSend(s.question)}
-                      className="group flex items-start gap-3 rounded-xl border border-divider bg-surface-base px-4 py-3 text-left text-sm transition-all hover:border-brand-border hover:shadow-sm dark:hover:border-brand-border"
+                      className="group flex items-start gap-3 rounded-xl border border-divider bg-surface-base px-4 py-3 text-start text-sm transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] hover:border-brand-border hover:shadow-1"
                     >
                       <span className="mt-0.5 shrink-0 rounded-md bg-brand-surface px-1.5 py-0.5 text-2xs font-medium uppercase text-brand-foreground">
                         {s.category}
                       </span>
-                      <span className="flex-1 text-foreground group-hover:text-foreground-strong-muted dark:group-hover:text-foreground-strong">
+                      <span className="flex-1 text-foreground group-hover:text-foreground-strong-muted">
                         {s.question}
                       </span>
                     </button>
                   ))}
                   <button
+                    type="button"
                     onClick={() => handleSend(t("edaPrompt"))}
-                    className="mt-4 rounded-xl border-2 border-dashed border-brand-border bg-brand-surface px-6 py-3 text-sm font-medium text-brand-foreground transition-all hover:border-brand-border hover:bg-brand-surface-strong dark:hover:border-brand-foreground"
+                    className="mt-4 rounded-xl border-2 border-dashed border-brand-border bg-brand-surface px-6 py-3 text-sm font-medium text-brand-foreground transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] hover:border-brand-border hover:bg-brand-surface-strong"
                   >
                     {t("runEda")}
                   </button>
@@ -442,7 +447,7 @@ export function ChatPanel() {
                 // two lines on every viewport ≥ ~600px wide; the
                 // outer cap alone gives ~896px which keeps the hint
                 // on a single line up to common laptop widths.
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-foreground-muted">
                   {ontology
                     ? t("suggestionsHintWithOntology", { count: ontology.node_types.length })
                     : workspaceMode === "analyze"
@@ -450,23 +455,24 @@ export function ChatPanel() {
                       : t("designLoadHint")}
                 </p>
               )}
-              {recentSessions.length > 0 && (
+              {visibleRecentSessions.length > 0 && (
                 <div className="mt-6 w-full max-w-lg">
-                  <h3 className="mb-2 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <h3 className="mb-2 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
                     {t("recentSessions")}
                   </h3>
                   <div className="space-y-1">
-                    {recentSessions.map((s) => (
+                    {visibleRecentSessions.map((s) => (
                       <button
+                        type="button"
                         key={s.id}
                         onClick={() => handleResumeSession(s)}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-surface-inset"
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-xs transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset"
                       >
                         <span className="min-w-0 flex-1 truncate text-foreground-muted">
                           {s.user_message?.substring(0, 80) || t("untitledSession")}
                           {(s.user_message?.length ?? 0) > 80 ? "..." : ""}
                         </span>
-                        <span className="shrink-0 text-2xs text-muted-foreground">
+                        <span className="shrink-0 text-2xs text-foreground-muted">
                           {new Date(s.created_at).toLocaleDateString()}
                         </span>
                       </button>
@@ -494,6 +500,8 @@ export function ChatPanel() {
         onSend={handleSend}
         disabled={inputDisabled}
         disabledReason={disabledReason}
+        isStreaming={lastMessageStreaming}
+        onStop={() => abortRef.current?.abort()}
       />
     </div>
     </ErrorBoundary>

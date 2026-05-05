@@ -44,7 +44,7 @@ export function CanvasToolbar({
   };
 
   return (
-    <div className="absolute right-2 top-2 z-10 flex flex-wrap items-center justify-end gap-1.5">
+    <div className="absolute end-2 top-2 z-canvas flex flex-wrap items-center justify-end gap-1.5">
       <PerspectiveSwitcher
         nodes={nodes}
         topologySignature={topologySignature}
@@ -52,62 +52,62 @@ export function CanvasToolbar({
         onOpen={() => setIsExportOpen(false)}
       />
       <div ref={exportRef} className="relative">
-        <button
+        <button type="button"
           onClick={() => setIsExportOpen((v) => !v)}
-          className="flex items-center rounded-md border border-divider bg-surface-base px-2 py-1 text-2xs font-medium text-foreground shadow-sm transition-colors hover:bg-surface-raised dark:text-muted-foreground"
+          className="flex items-center rounded-md border border-divider bg-surface-base px-2 py-1 text-2xs font-medium text-foreground shadow-1 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-raised"
         >
           {t("export")}
         </button>
         {isExportOpen && (
-          <div className="absolute right-0 top-full mt-1 min-w-[160px] rounded-lg border border-divider bg-surface-base py-1 shadow-lg">
-            <div className="px-3 py-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground">{t("imageSection")}</div>
-            <button
+          <div className="absolute end-0 top-full mt-1 min-w-[160px] rounded-lg border border-divider bg-surface-base py-1 shadow-3">
+            <div className="px-3 py-1 text-2xs font-medium uppercase tracking-wider text-foreground-muted">{t("imageSection")}</div>
+            <button type="button"
               onClick={() => { setIsExportOpen(false); exportCanvasImage(nodes, "png", ontologyName, imageCopy); }}
-              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportPng")}
             </button>
-            <button
+            <button type="button"
               onClick={() => { setIsExportOpen(false); exportCanvasImage(nodes, "svg", ontologyName, imageCopy); }}
-              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportSvg")}
             </button>
             <div className="my-1 h-px bg-surface-inset" />
-            <div className="px-3 py-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground">{t("schemaSection")}</div>
-            <button
+            <div className="px-3 py-1 text-2xs font-medium uppercase tracking-wider text-foreground-muted">{t("schemaSection")}</div>
+            <button type="button"
               onClick={async () => { setIsExportOpen(false); await onExportSchema("json"); }}
-              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportJson")}
             </button>
-            <button
+            <button type="button"
               onClick={async () => { setIsExportOpen(false); await onExportSchema("cypher"); }}
-              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportCypher")}
             </button>
-            <button
+            <button type="button"
               onClick={async () => { setIsExportOpen(false); await onExportSchema("mermaid"); }}
-              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportMermaid")}
             </button>
-            <button
+            <button type="button"
               onClick={async () => { setIsExportOpen(false); await onExportSchema("graphql"); }}
-              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportGraphql")}
             </button>
-            <button
+            <button type="button"
               onClick={async () => { setIsExportOpen(false); await onExportSchema("owl"); }}
-              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportOwl")}
             </button>
-            <button
+            <button type="button"
               onClick={async () => { setIsExportOpen(false); await onExportSchema("shacl"); }}
-              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportShacl")}
             </button>

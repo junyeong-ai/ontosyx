@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
+import { FormInput } from "@/components/ui/form-input";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   PencilEdit01Icon,
@@ -26,6 +28,7 @@ export function InlineEdit({
   className?: string;
   inputClassName?: string;
 }) {
+  const t = useTranslations("inspector.aria");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
@@ -45,24 +48,30 @@ export function InlineEdit({
   if (editing) {
     return (
       <div className="flex items-center gap-1">
-        <input
+        <FormInput
           autoFocus
+          density="compact"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") commit();
             if (e.key === "Escape") cancel();
           }}
-          className={cn(
-            "w-full rounded border border-brand-border bg-surface-base px-1.5 py-0.5 text-xs outline-none",
-            inputClassName,
-          )}
+          className={cn("border-brand-border", inputClassName)}
           placeholder={placeholder}
         />
-        <button onClick={commit} className="text-brand-foreground hover:text-brand-foreground">
+        <button type="button"
+          onClick={commit}
+          aria-label={t("commitInline")}
+          className="text-brand-foreground hover:text-brand-foreground-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 rounded"
+        >
           <HugeiconsIcon icon={Tick01Icon} className="h-3 w-3" size="100%" />
         </button>
-        <button onClick={cancel} className="text-muted-foreground hover:text-foreground">
+        <button type="button"
+          onClick={cancel}
+          aria-label={t("cancelInline")}
+          className="text-foreground-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 rounded"
+        >
           <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
         </button>
       </div>
@@ -70,16 +79,16 @@ export function InlineEdit({
   }
 
   return (
-    <button
+    <button type="button"
       onClick={() => {
         setDraft(value);
         setEditing(true);
       }}
       className={cn(
-        "group flex items-center gap-1 text-left",
+        "group flex items-center gap-1 text-start",
         className,
       )}
-      aria-label="Click to edit"
+      aria-label={t("editInline")}
     >
       <span className="flex-1 truncate">{value || placeholder}</span>
       <HugeiconsIcon icon={PencilEdit01Icon} className="h-2.5 w-2.5 text-foreground-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" size="100%" />

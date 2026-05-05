@@ -1,9 +1,9 @@
+"use client";
+
 // React hooks for the collaboration WebSocket. The singleton lives
 // at module scope so multiple components calling `useCollab()`
 // share one socket; effects only manage lifecycle (init on mount,
 // teardown on workspace switch).
-
-"use client";
 
 import { useEffect, useLayoutEffect, useRef } from "react";
 

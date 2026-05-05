@@ -18,9 +18,11 @@ import {
   RepeatIcon,
 } from "@hugeicons/core-free-icons";
 import { Spinner } from "@/components/ui/spinner";
+import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
 import { CommandPreview } from "./command-preview";
 import { cn } from "@/lib/cn";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { TOAST_WARNING } from "@/lib/toast/durations";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import type { OntologyCommand } from "@/types/api";
 
@@ -56,9 +58,9 @@ function LoadingHint({ baseMessage }: { baseMessage: string }) {
 
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-2xs text-muted-foreground">{baseMessage}</span>
+      <span className="text-2xs text-foreground-muted">{baseMessage}</span>
       {showTip && (
-        <span className="text-2xs text-foreground-muted transition-opacity duration-300">
+        <span className="text-2xs text-foreground-muted transition-opacity duration-[var(--duration-slow)] ease-[var(--ease-out)]">
           · {tips[tipIndex]}
         </span>
       )}
@@ -126,10 +128,13 @@ export function CommandBar() {
     }
   }, [takeCommandBarInput, canEdit]);
 
-  // Cmd+K to toggle command bar
+  // Cmd+E to toggle the AI command bar. ⌘K is reserved for the
+  // unified command palette (cross-app discrete commands); the
+  // command bar is a natural-language prompt input — distinct UX,
+  // distinct chord.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") {
         e.preventDefault();
         // Allow opening if either mode is available
         if (!canEdit && !canRefine) return;
@@ -150,7 +155,7 @@ export function CommandBar() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [canEdit, canRefine, setMode, setPhase, setInput]);
+  }, [canEdit, canRefine]);
 
   // Reset phase when closing — derived from open state in close handler
   // (no effect needed, handleClose already resets phase)
@@ -194,7 +199,6 @@ export function CommandBar() {
   // Render-phase ref sync — global keybindings invoke this without
   // a hook dep array. Switch to `useEffectEvent` when it leaves
   // experimental.
-  // eslint-disable-next-line react-hooks/refs
   handleEditSubmitRef.current = handleEditSubmit;
 
   const handleApplyCommands = useCallback(
@@ -242,10 +246,10 @@ export function CommandBar() {
     } catch (err) {
       if (
         err instanceof ApiError &&
-        err.type === "uncertain_reconcile" &&
-        isPendingReconcile(err.details)
+        err.code === "uncertain_reconcile" &&
+        isPendingReconcile(err.params.details)
       ) {
-        const details = err.details;
+        const details = err.params.details;
         setLastReconcileReport(details.report);
         useAppStore.getState().setPendingReconcile({
           report: details.report,
@@ -255,7 +259,7 @@ export function CommandBar() {
         setOpen(false);
         toast.warning(t("uncertainMatchesTitle"), {
           description: t("uncertainMatchesDescription", { count: details.report.uncertain_matches.length }),
-          duration: 8000,
+          duration: TOAST_WARNING,
         });
       } else {
         toast.error(t("refineFailed"), {
@@ -301,8 +305,8 @@ export function CommandBar() {
   // Collapsed: small trigger button
   if (!open) {
     return (
-      <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2">
-        <button
+      <div className="absolute bottom-4 start-1/2 z-canvas -translate-x-1/2">
+        <button type="button"
           onClick={() => {
             if (!canEdit && canRefine) setMode("refine");
             else if (canEdit && !canRefine) setMode("edit");
@@ -312,9 +316,8 @@ export function CommandBar() {
           }}
           aria-expanded={open}
           className={cn(
-            "flex items-center gap-2 rounded-full border border-divider bg-surface-base px-4 py-2 text-xs font-medium text-foreground shadow-lg backdrop-blur-sm transition-all",
-            "hover:border-brand-border hover:bg-surface-base hover:text-brand-foreground hover:shadow-md",
-            "dark:border-divider dark:text-muted-foreground dark:hover:border-brand-foreground dark:hover:text-brand-foreground",
+            "flex items-center gap-2 rounded-full border border-divider bg-surface-base px-4 py-2 text-xs font-medium text-foreground shadow-3 backdrop-blur-sm transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
+            "hover:border-brand-border hover:bg-surface-base hover:text-brand-foreground hover:shadow-2",
           )}
         >
           <HugeiconsIcon
@@ -323,9 +326,7 @@ export function CommandBar() {
             size="100%"
           />
           {t("askOntosyx")}
-          <kbd className="ml-1 rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-mono text-muted-foreground">
-            {"\u2318"}K
-          </kbd>
+          <KeyboardShortcut keys="mod+k" size="default" className="ms-1" />
         </button>
       </div>
     );
@@ -333,7 +334,7 @@ export function CommandBar() {
 
   // Expanded: command bar
   return (
-    <div className="absolute bottom-4 left-1/2 z-10 w-panel-wide -translate-x-1/2" role="dialog" aria-label={t("commandBarAria")}>
+    <div className="absolute bottom-4 start-1/2 z-canvas w-panel-wide -translate-x-1/2" role="dialog" aria-label={t("commandBarAria")}>
       {/* Preview panel (rendered above input when in preview phase) */}
       {phase.type === "preview" && (
         <div className="mb-2">
@@ -350,8 +351,7 @@ export function CommandBar() {
       {/* Main input panel */}
       <div
         className={cn(
-          "rounded-xl border bg-surface-base shadow-2xl backdrop-blur-sm",
-          "dark:border-divider",
+          "rounded-xl border bg-surface-base shadow-4 backdrop-blur-sm",
           loading
             ? "border-brand-border"
             : "border-divider",
@@ -368,17 +368,17 @@ export function CommandBar() {
         <div className="flex items-center gap-2 px-3 py-3">
           {/* Mode toggle */}
           <div className="flex shrink-0 rounded-lg border border-divider bg-surface-raised p-0.5">
-            <button
+            <button type="button"
               onClick={() => {
                 if (canEdit) setMode("edit");
               }}
               disabled={!canEdit || loading}
               title={t("editTitle")}
               className={cn(
-                "flex items-center gap-1 rounded-md px-2 py-1 text-2xs font-medium transition-all",
+                "flex items-center gap-1 rounded-md px-2 py-1 text-2xs font-medium transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
                 mode === "edit"
-                  ? "bg-surface-base text-foreground-strong shadow-sm-strong"
-                  : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted",
+                  ? "bg-surface-base text-foreground-strong shadow-1-strong"
+                  : "text-foreground-muted hover:text-foreground-muted",
                 (!canEdit || loading) && "cursor-not-allowed opacity-40",
               )}
             >
@@ -389,17 +389,17 @@ export function CommandBar() {
               />
               {tCommon("edit")}
             </button>
-            <button
+            <button type="button"
               onClick={() => {
                 if (canRefine) setMode("refine");
               }}
               disabled={!canRefine || loading}
               title={t("refineTitle")}
               className={cn(
-                "flex items-center gap-1 rounded-md px-2 py-1 text-2xs font-medium transition-all",
+                "flex items-center gap-1 rounded-md px-2 py-1 text-2xs font-medium transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
                 mode === "refine"
-                  ? "bg-surface-base text-foreground-strong shadow-sm-strong"
-                  : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted",
+                  ? "bg-surface-base text-foreground-strong shadow-1-strong"
+                  : "text-foreground-muted hover:text-foreground-muted",
                 (!canRefine || loading) && "cursor-not-allowed opacity-40",
               )}
             >
@@ -418,7 +418,7 @@ export function CommandBar() {
           ) : (
             <HugeiconsIcon
               icon={MagicWand01Icon}
-              className="h-4 w-4 shrink-0 text-muted-foreground"
+              className="h-4 w-4 shrink-0 text-foreground-muted"
               size="100%"
             />
           )}
@@ -446,17 +446,16 @@ export function CommandBar() {
             disabled={loading || phase.type === "preview"}
             aria-label={t("inputAria")}
             className={cn(
-              "flex-1 bg-transparent text-sm text-foreground-strong outline-none placeholder:text-muted-foreground",
-              "dark:text-foreground-strong dark:placeholder:text-foreground-muted",
+              "flex-1 bg-transparent text-sm text-foreground-strong outline-none placeholder:text-foreground-muted focus-visible:ring-2 focus-visible:ring-brand-foreground/40 focus-visible:rounded-md",
             )}
           />
 
           {/* Submit button */}
           {input.trim() && phase.type === "input" && (
-            <button
+            <button type="button"
               onClick={handleSubmit}
               disabled={mode === "refine" && !canRefine}
-              className="flex items-center gap-1 rounded-lg bg-brand-solid px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-solid-hover disabled:opacity-50"
+              className="flex items-center gap-1 rounded-lg bg-brand-solid px-3 py-1.5 text-xs font-medium text-foreground-onbrand hover:bg-brand-solid-hover disabled:opacity-50"
             >
               <HugeiconsIcon
                 icon={Tick01Icon}
@@ -468,11 +467,11 @@ export function CommandBar() {
           )}
 
           {/* Close button */}
-          <button
+          <button type="button"
             onClick={handleClose}
             disabled={loading}
             aria-label={t("closeAria")}
-            className="rounded-md p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground disabled:opacity-50 dark:hover:bg-surface-base"
+            className="rounded-md p-1 text-foreground-muted hover:bg-surface-inset hover:text-foreground disabled:opacity-50"
           >
             <HugeiconsIcon
               icon={Cancel01Icon}
@@ -487,7 +486,7 @@ export function CommandBar() {
           {loading && phase.type === "loading" ? (
             <LoadingHint baseMessage={phase.message} />
           ) : (
-            <span className="text-2xs text-muted-foreground">
+            <span className="text-2xs text-foreground-muted">
               {phase.type === "preview"
                 ? t("hintPreview")
                 : mode === "edit"

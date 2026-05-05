@@ -8,10 +8,12 @@ import {
   Delete01Icon,
   MagicWand01Icon,
 } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { Heading } from "@/components/ui/heading";
 
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { FormInput } from "@/components/ui/form-input";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import {
@@ -28,7 +30,6 @@ import {
   updateDecisions,
 } from "@/lib/api";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
-import { errorMessage } from "@/lib/error-messages";
 import { arr } from "@/lib/ir-collections";
 import type { DesignOptions, DesignProject } from "@/types/api";
 
@@ -77,6 +78,7 @@ export function WorkflowActions({
 }: WorkflowActionsProps) {
   const t = useTranslations("workbench.bottomPanel.workflowActions");
   const tCommon = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const report = project.analysis_report;
   const [progressPhase, setProgressPhase] = useState<string | null>(null);
   const [progressDetail, setProgressDetail] = useState<string | null>(null);
@@ -193,8 +195,12 @@ export function WorkflowActions({
       });
 
       if (streamErrorMsg) {
+        // SSE error events ship `{ code, class, params: { detail } }`.
+        // The catalog `errors.<code>` template interpolates `detail`.
         toast.error(t("designFailed"), {
-          description: errorMessage(streamErrorType, streamErrorMsg),
+          description: streamErrorType
+            ? tErrors(streamErrorType, { detail: streamErrorMsg })
+            : streamErrorMsg,
         });
       }
     } catch (err) {
@@ -233,10 +239,12 @@ export function WorkflowActions({
         toast.success(t("completeSuccess"));
       }
     } catch (err) {
-      if (err instanceof ApiError && err.type === "quality_gate") {
+      if (err instanceof ApiError && err.code === "quality_gate") {
+        const detail =
+          (err.params.detail as string | undefined) ?? err.message;
         const ok = await confirmDialog({
           title: t("qualityGateWarningTitle"),
-          description: t("qualityGateWarningDescription", { message: err.message }),
+          description: t("qualityGateWarningDescription", { message: detail }),
           confirmLabel: t("qualityGateConfirmLabel"),
           variant: "warning",
         });
@@ -253,11 +261,22 @@ export function WorkflowActions({
   }
 
   async function handleDelete() {
+    // Phrase-match gate: user must type the project's title verbatim
+    // to confirm. Foundry / GitHub / Stripe all gate destructive ops
+    // on a phrase match — `delete` is too easy to autocomplete past
+    // when distracted, and accidental project drops are unrecoverable.
+    // Untitled projects fall back to a generic "delete" placeholder
+    // because there's no resource label worth typing in that case.
+    const phrase = project.title?.trim() || "delete";
     const ok = await confirmDialog({
       title: t("deleteProjectTitle"),
       description: t("deleteProjectDescription"),
       confirmLabel: t("deleteProjectConfirm"),
       variant: "danger",
+      typeToConfirm: {
+        phrase,
+        label: t("deleteProjectTypeLabel"),
+      },
     });
     if (!ok) return;
     setLoading(true);
@@ -276,10 +295,10 @@ export function WorkflowActions({
     <>
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">
+          <Heading level={3} size={6}>
             {project.title ?? t("untitledProject")}
-          </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          </Heading>
+          <p className="mt-0.5 text-xs text-foreground-muted">
             {t("revMeta", {
               source: project.source_config.source_type,
               revision: project.revision,
@@ -300,10 +319,10 @@ export function WorkflowActions({
             {tCommon("close")}
           </Button>
           {!isCompleted && (
-            <button
+            <button type="button"
               onClick={handleDelete}
               disabled={loading}
-              className="rounded p-1 text-muted-foreground hover:bg-danger-surface hover:text-danger-foreground dark:hover:bg-danger-surface"
+              className="rounded p-1 text-foreground-muted hover:bg-danger-surface hover:text-danger-foreground"
             >
               <HugeiconsIcon icon={Delete01Icon} className="h-3.5 w-3.5" size="100%" />
             </button>
@@ -326,7 +345,7 @@ export function WorkflowActions({
       {!isDesigned && !isCompleted && (
         <>
           <div>
-            <label className="mb-1 block text-xs font-medium text-foreground dark:text-muted-foreground">
+            <label className="mb-1 block text-xs font-medium text-foreground">
               {t("domainHintsLabel")}
             </label>
             <FormInput
@@ -356,13 +375,13 @@ export function WorkflowActions({
             className={cn(
               "w-full text-xs",
               !canDesign &&
-                "bg-surface-inset text-foreground-muted hover:bg-surface-inset dark:text-muted-foreground",
+                "bg-surface-inset text-foreground-muted hover:bg-surface-inset",
             )}
           >
             {loading ? (
-              <Spinner size="xs" className="mr-1.5" />
+              <Spinner size="xs" className="me-1.5" />
             ) : (
-              <HugeiconsIcon icon={MagicWand01Icon} className="mr-1.5 h-3.5 w-3.5" size="100%" />
+              <HugeiconsIcon icon={MagicWand01Icon} className="me-1.5 h-3.5 w-3.5" size="100%" />
             )}
             {t("designOntology")}
           </Button>
@@ -398,7 +417,7 @@ export function WorkflowActions({
       {/* Designed: bridge to completed */}
       {isDesigned && !isCompleted && (
         <div className="space-y-2 rounded-lg border border-brand-border bg-brand-surface p-3">
-          <h4 className="text-xs font-semibold text-brand-foreground-strong-strong">
+          <h4 className="text-xs font-semibold text-brand-foreground-strong">
             {t("finalize")}
           </h4>
           <FormInput
@@ -407,15 +426,11 @@ export function WorkflowActions({
             value={form.complete.completeName}
             onChange={(e) => form.complete.setCompleteName(e.target.value)}
           />
-          <label className="flex items-center gap-2 text-xs text-foreground dark:text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={form.complete.deployOnComplete}
-              onChange={(e) => form.complete.setDeployOnComplete(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-divider text-brand-foreground"
-            />
-            {t("deployOnComplete")}
-          </label>
+          <Checkbox
+            checked={form.complete.deployOnComplete}
+            onChange={(e) => form.complete.setDeployOnComplete(e.target.checked)}
+            label={t("deployOnComplete")}
+          />
           <Button
             size="sm"
             onClick={() => handleComplete()}
@@ -423,9 +438,9 @@ export function WorkflowActions({
             className="w-full text-xs"
           >
             {loading ? (
-              <Spinner size="xs" className="mr-1.5" />
+              <Spinner size="xs" className="me-1.5" />
             ) : (
-              <HugeiconsIcon icon={Tick01Icon} className="mr-1.5 h-3 w-3" size="100%" />
+              <HugeiconsIcon icon={Tick01Icon} className="me-1.5 h-3 w-3" size="100%" />
             )}
             {t("complete")}
           </Button>
@@ -437,7 +452,7 @@ export function WorkflowActions({
         <div className="space-y-2 rounded-lg border border-brand-border bg-brand-surface p-3">
           <div className="flex items-center gap-2">
             <HugeiconsIcon icon={Tick01Icon} className="h-4 w-4 text-brand-foreground" size="100%" />
-            <h4 className="text-xs font-semibold text-brand-foreground-strong-strong">
+            <h4 className="text-xs font-semibold text-brand-foreground-strong">
               {t("savedHeader")}
             </h4>
           </div>

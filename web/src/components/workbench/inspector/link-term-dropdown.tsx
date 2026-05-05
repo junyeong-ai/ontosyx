@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link01Icon, LinkSquare02Icon, UnlinkIcon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { Tooltip } from "@/components/ui/tooltip";
 import {
@@ -63,8 +63,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
     // but including it as a dep triggers infinite re-fires because
     // TanStack replaces the mutation state on each call. The identity
     // axis we care about is the four ids + open flag.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, boundTermId, ownerKind, ownerTypeId, propertyId]);
+  }, [open, boundTermId, ownerKind, ownerTypeId, propertyId, suggest.mutate]);
 
   // Click-outside closes the popover.
   useEffect(() => {
@@ -128,7 +127,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
             onClick={() => commitBinding(null)}
             disabled={apply.isPending}
             aria-label={t("unlinkAria", { term: boundTermId })}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs text-concept-foreground hover:bg-concept-surface dark:hover:bg-concept-surface disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs text-concept-foreground hover:bg-concept-surface disabled:opacity-50"
           >
             <HugeiconsIcon
               icon={LinkSquare02Icon}
@@ -145,7 +144,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
             onClick={() => setOpen((v) => !v)}
             aria-label={t("linkAria")}
             aria-expanded={open}
-            className="rounded p-0.5 text-muted-foreground opacity-0 hover:bg-surface-inset hover:text-concept-foreground group-hover:opacity-100 group-focus-within:opacity-100 dark:hover:bg-surface-base dark:hover:text-concept-foreground"
+            className="rounded p-0.5 text-foreground-muted opacity-0 hover:bg-surface-inset hover:text-concept-foreground group-hover:opacity-100 group-focus-within:opacity-100"
           >
             <HugeiconsIcon icon={Link01Icon} className="h-2.5 w-2.5" size="100%" />
           </button>
@@ -156,20 +155,20 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
         <div
           role="listbox"
           aria-label={t("suggestionsLabel")}
-          className="absolute right-0 top-full z-20 mt-1 w-64 rounded-md border border-divider bg-surface-base p-2 shadow-lg"
+          className="absolute end-0 top-full z-popover mt-1 w-64 rounded-md border border-divider bg-surface-base p-2 shadow-3"
         >
           {suggest.isPending && (
-            <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
+            <p className="px-2 py-1.5 text-2xs text-foreground-muted">
               {t("loading")}
             </p>
           )}
           {suggest.isError && (
-            <p className="px-2 py-1.5 text-[11px] text-danger-foreground dark:text-danger-foreground">
+            <p className="px-2 py-1.5 text-2xs text-danger-foreground">
               {t("fetchFailed")}
             </p>
           )}
           {suggest.isSuccess && suggest.data.candidates.length === 0 && (
-            <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
+            <p className="px-2 py-1.5 text-2xs text-foreground-muted">
               {t("noSuggestions")}
             </p>
           )}
@@ -183,7 +182,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
               />
             ))}
           {apply.isPending && (
-            <p className="px-2 pt-1.5 text-2xs italic text-muted-foreground">
+            <p className="px-2 pt-1.5 text-2xs italic text-foreground-muted">
               {t("applying")}
             </p>
           )}
@@ -210,14 +209,14 @@ function CandidateRow({
       type="button"
       onClick={onPick}
       disabled={disabled}
-      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-concept-surface disabled:opacity-50 dark:hover:bg-concept-surface/30"
+      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-start hover:bg-concept-surface disabled:opacity-50"
     >
       <HugeiconsIcon
         icon={UnlinkIcon}
-        className="h-2.5 w-2.5 text-muted-foreground"
+        className="h-2.5 w-2.5 text-foreground-muted"
         size="100%"
       />
-      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground-strong">
+      <span className="min-w-0 flex-1 truncate text-2xs font-medium text-foreground-strong">
         {candidate.term}
       </span>
       <span className="shrink-0 rounded bg-concept-surface px-1 text-2xs font-medium text-concept-foreground">

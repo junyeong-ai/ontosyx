@@ -53,7 +53,7 @@ const KIND_STYLES: Record<OpKind, string> = {
   update:
     "bg-warning-surface text-warning-foreground border-warning-border/30",
   delete:
-    "bg-danger-surface text-danger-foreground border-danger-border dark:bg-danger-foreground/30 dark:text-danger-foreground dark:border-danger-border",
+    "bg-danger-surface text-danger-foreground border-danger-border",
   deprecate:
     "bg-concept-surface text-concept-foreground border-concept-border/30",
   bind: "bg-info-surface text-info-foreground border-info-border/30",
@@ -80,7 +80,7 @@ function opSummary(op: OntologyEditOp): string {
 }
 
 export function EditOpPreview({ payload }: EditOpPreviewProps) {
-  const t = useTranslations("settings.approvals.preview");
+  const t = useTranslations("settings.governance.approvals.preview");
   const parsed = parsePayload(payload);
 
   if (!parsed) {
@@ -121,7 +121,7 @@ export function EditOpPreview({ payload }: EditOpPreviewProps) {
             ),
         )}
         {parsed.expected_version !== undefined && (
-          <span className="text-2xs text-muted-foreground">
+          <span className="text-2xs text-foreground-muted">
             {t("expectedVersion", { v: parsed.expected_version })}
           </span>
         )}
@@ -143,21 +143,21 @@ export function EditOpPreview({ payload }: EditOpPreviewProps) {
               >
                 {op.op}
               </span>
-              <span className="truncate font-mono text-[11px] text-foreground">
+              <span className="truncate font-mono text-2xs text-foreground">
                 {opSummary(op)}
               </span>
             </li>
           );
         })}
         {parsed.operations.length > 50 && (
-          <li className="text-2xs italic text-muted-foreground">
+          <li className="text-2xs italic text-foreground-muted">
             {t("truncated", { remaining: parsed.operations.length - 50 })}
           </li>
         )}
       </ul>
 
       {parsed.message && (
-        <p className="rounded border border-divider bg-surface-raised p-2 text-[11px] text-foreground-muted">
+        <p className="rounded border border-divider bg-surface-raised p-2 text-2xs text-foreground-muted">
           <span className="font-medium">{t("messageLabel")}:</span>{" "}
           {parsed.message}
         </p>

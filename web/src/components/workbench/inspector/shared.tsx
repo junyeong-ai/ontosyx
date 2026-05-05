@@ -19,7 +19,7 @@ export function Section({
   return (
     <div className="border-b border-divider">
       <div className="flex items-center justify-between bg-surface-raised px-3 py-1">
-        <span className="font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="font-semibold uppercase tracking-wider text-foreground-muted">
           {title}
         </span>
         {action && <div className="flex items-center gap-0.5">{action}</div>}

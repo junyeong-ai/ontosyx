@@ -6,7 +6,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useAppStore } from "@/lib/store";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { cn } from "@/lib/cn";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   ApiError,
   listRevisions,
@@ -21,6 +21,7 @@ import type {
   RevisionSummary,
 } from "@/types/api";
 import { DiffPanel } from "./diff-panel";
+import { useFormatters } from "@/hooks/use-formatters";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -53,6 +54,7 @@ export function RevisionHistoryPanel({
 }: RevisionHistoryPanelProps) {
   const t = useTranslations("workbench.bottomPanel.revision");
   const tCommon = useTranslations("common");
+  const fmt = useFormatters();
   const confirmDialog = useConfirm();
   const setActiveDiffOverlay = useAppStore((s) => s.setActiveDiffOverlay);
 
@@ -80,7 +82,7 @@ export function RevisionHistoryPanel({
     setMigrationTargetRev(null);
     setDiffResult(null);
     setDiffCompareBase(null);
-  }, [project.id]);
+  }, []);
 
   async function handleCompare(targetRevision: number) {
     if (diffCompareBase === null || diffCompareBase === targetRevision) return;
@@ -178,53 +180,53 @@ export function RevisionHistoryPanel({
         }
       }}
     >
-      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted">
+      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-foreground-muted hover:text-foreground-muted">
         {t("title")}
       </summary>
       <div className="mt-2">
         {/* Compare mode instructions */}
         {diffCompareBase !== null && (
-          <div className="mb-2 flex items-center gap-2 rounded bg-info-surface px-2 py-1.5 text-[11px] text-info-foreground dark:text-info-foreground">
+          <div className="mb-2 flex items-center gap-2 rounded bg-info-surface px-2 py-1.5 text-2xs text-info-foreground">
             <span>{t("compareBase", { revision: diffCompareBase })}</span>
-            <button
+            <button type="button"
               onClick={() => setDiffCompareBase(null)}
-              className="ml-auto text-2xs font-medium text-info-foreground hover:text-info-foreground dark:text-info-foreground"
+              className="ms-auto text-2xs font-medium text-info-foreground hover:text-info-foreground"
             >
               {tCommon("cancel")}
             </button>
           </div>
         )}
         {diffLoading && (
-          <div className="mb-2 flex items-center gap-2 py-1 text-xs text-muted-foreground">
+          <div className="mb-2 flex items-center gap-2 py-1 text-xs text-foreground-muted">
             <Spinner size="xs" /> {t("computing")}
           </div>
         )}
         {revisionsLoading ? (
-          <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 py-2 text-xs text-foreground-muted">
             <Spinner size="xs" /> {tCommon("loading")}
           </div>
         ) : revisions.length === 0 ? (
-          <p className="py-2 text-xs text-muted-foreground">{t("empty")}</p>
+          <p className="py-2 text-xs text-foreground-muted">{t("empty")}</p>
         ) : (
           <div className="space-y-1">
             {revisions.map((rev) => (
               <div
                 key={rev.id}
                 className={cn(
-                  "flex items-center justify-between rounded px-2 py-1.5 text-[11px]",
+                  "flex items-center justify-between rounded px-2 py-1.5 text-2xs",
                   rev.revision === project.revision
-                    ? "bg-brand-surface text-brand-foreground-strong-strong"
+                    ? "bg-brand-surface text-brand-foreground-strong"
                     : diffCompareBase === rev.revision
                       ? "bg-info-surface text-info-foreground"
-                      : "text-foreground hover:bg-surface-raised dark:text-muted-foreground dark:hover:bg-surface-base/50",
+                      : "text-foreground hover:bg-surface-raised",
                 )}
               >
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-medium">
                     {t("revisionLabel", { revision: rev.revision })}
                   </span>
-                  <span className="text-muted-foreground">
-                    {new Date(rev.created_at).toLocaleString(undefined, {
+                  <span className="text-foreground-muted">
+                    {fmt.date(rev.created_at, {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
@@ -232,40 +234,40 @@ export function RevisionHistoryPanel({
                       minute: "2-digit",
                     })}
                   </span>
-                  <span className="text-muted-foreground">
+                  <span className="text-foreground-muted">
                     {t("nodeEdgeCount", { nodeCount: rev.node_count, edgeCount: rev.edge_count })}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
                   {/* Compare button: start compare mode or select target */}
                   {diffCompareBase !== null && diffCompareBase !== rev.revision && !diffLoading && (
-                    <button
+                    <button type="button"
                       onClick={() => handleCompare(rev.revision)}
-                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-concept-foreground hover:bg-concept-surface dark:text-concept-foreground"
+                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-concept-foreground hover:bg-concept-surface"
                     >
                       {t("compare")}
                     </button>
                   )}
                   {diffCompareBase === null && revisions.length > 1 && (
-                    <button
+                    <button type="button"
                       onClick={() => setDiffCompareBase(rev.revision)}
-                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-concept-foreground hover:bg-concept-surface dark:text-concept-foreground"
+                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-concept-foreground hover:bg-concept-surface"
                     >
                       {t("diff")}
                     </button>
                   )}
                   {rev.revision !== project.revision && !loading && (
-                    <button
+                    <button type="button"
                       onClick={() => handleRestore(rev.revision)}
-                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-info-foreground hover:bg-info-surface dark:text-info-foreground"
+                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-info-foreground hover:bg-info-surface"
                     >
                       {t("restore")}
                     </button>
                   )}
                   {rev.revision !== project.revision && !loading && (
-                    <button
+                    <button type="button"
                       onClick={() => handleMigrate(rev.revision)}
-                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-warning-foreground hover:bg-warning-surface dark:hover:bg-warning-surface/30"
+                      className="rounded px-1.5 py-0.5 text-2xs font-medium text-warning-foreground hover:bg-warning-surface"
                     >
                       {t("migrate")}
                     </button>
@@ -320,17 +322,17 @@ export function RevisionHistoryPanel({
             </pre>
             <div className="flex gap-2">
               {migrationResult.breaking_changes.length === 0 && migrationTargetRev !== null && (
-                <button
+                <button type="button"
                   onClick={() => handleExecuteMigration(migrationTargetRev)}
                   disabled={loading}
-                  className="rounded bg-warning-foreground px-3 py-1 text-2xs font-medium text-white hover:bg-warning-foreground disabled:opacity-50"
+                  className="rounded bg-warning-foreground px-3 py-1 text-2xs font-medium text-foreground-onbrand hover:bg-warning-foreground disabled:opacity-50"
                 >
                   {t("executeMigration")}
                 </button>
               )}
-              <button
+              <button type="button"
                 onClick={() => setMigrationResult(null)}
-                className="rounded px-3 py-1 text-2xs font-medium text-foreground hover:bg-surface-inset dark:text-muted-foreground dark:hover:bg-surface-base"
+                className="rounded px-3 py-1 text-2xs font-medium text-foreground hover:bg-surface-inset"
               >
                 {t("dismiss")}
               </button>

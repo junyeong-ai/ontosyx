@@ -81,17 +81,17 @@ function layerColorClass(layer: NodeLayer): string {
     case "problematic": return "bg-danger-solid";
     case "suggested": return "bg-info-surface";
     case "asserted": return "bg-brand-solid";
-    default: return "bg-surface-raised dark:bg-surface-base";
+    default: return "bg-surface-raised";
   }
 }
 
 /** Resolve highlight border classes based on binding kind */
 function highlightBorderClass(kind?: import("@/types/api").BindingKind): string {
   switch (kind) {
-    case "exists": return "border-concept-foreground ring-2 ring-concept-foreground/20 dark:border-concept-foreground";
-    case "path_find": return "border-success-border ring-2 ring-success-foreground dark:border-success-border";
+    case "exists": return "border-concept-foreground ring-2 ring-concept-foreground/20";
+    case "path_find": return "border-success-border ring-2 ring-success-foreground";
     case "chain": return "border-warning-border ring-2 ring-warning-foreground/30";
-    case "mutation": return "border-danger-border ring-2 ring-danger-foreground dark:border-danger-border";
+    case "mutation": return "border-danger-border ring-2 ring-danger-foreground";
     default: return "border-info-border ring-2 ring-info-foreground/20"; // match + fallback
   }
 }
@@ -126,7 +126,7 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
   }, [detail, id, updateNodeInternals]);
 
   const borderClass = diffStatus === "added"
-    ? "border-brand-border ring-2 ring-brand-foreground/50 dark:border-brand-foreground"
+    ? "border-brand-border ring-2 ring-brand-foreground/50"
     : diffStatus === "removed"
       ? "border-danger-border ring-2 ring-danger-foreground/50"
       : diffStatus === "modified"
@@ -153,23 +153,23 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
       <div
         ref={containerRef}
         className={cn(
-          "relative min-w-[100px] rounded-lg border bg-surface-base shadow-sm",
+          "relative min-w-[100px] rounded-lg border bg-surface-base shadow-1",
           borderClass,
           dimmed && "opacity-15 pointer-events-none",
         )}
       >
-        <div className={cn("absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full", layerColorClass(layer))} />
+        <div className={cn("absolute start-0 top-1 bottom-1 w-[3px] rounded-e-full", layerColorClass(layer))} />
         <Handle type="target" position={Position.Left} id={`${nodeDef.id}:left`}
-          className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+          className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
         <Handle type="source" position={Position.Right} id={`${nodeDef.id}:right`}
-          className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+          className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
         <Handle type="target" position={Position.Top} id={`${nodeDef.id}:top`}
-          className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+          className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
         <Handle type="source" position={Position.Bottom} id={`${nodeDef.id}:bottom`}
-          className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+          className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
         <div className="flex items-center gap-1.5 px-3 py-1.5 overflow-hidden">
           {verified && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-solid" />}
-          <span className="pl-1.5 max-w-full truncate text-xs font-bold tracking-wide text-brand-foreground">
+          <span className="ps-1.5 max-w-full truncate text-xs font-bold tracking-wide text-brand-foreground">
             {nodeDef.label}
           </span>
         </div>
@@ -183,43 +183,43 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
       <div
         ref={containerRef}
         className={cn(
-          "relative min-w-[140px] rounded-lg border bg-surface-base shadow-sm",
+          "relative min-w-[140px] rounded-lg border bg-surface-base shadow-1",
           borderClass,
           dimmed && "opacity-15 pointer-events-none",
         )}
       >
-        <div className={cn("absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full", layerColorClass(layer))} />
+        <div className={cn("absolute start-0 top-2 bottom-2 w-[3px] rounded-e-full", layerColorClass(layer))} />
         {diffStatus && (
           <div
             className={cn(
-              "absolute -right-1.5 -top-1.5 rounded-full px-1.5 py-0.5 text-2xs font-bold uppercase leading-none",
-              diffStatus === "added" ? "bg-brand-solid text-white" : diffStatus === "removed" ? "bg-danger-solid text-white" : "bg-warning-foreground text-white",
+              "absolute -end-1.5 -top-1.5 rounded-full px-1.5 py-0.5 text-2xs font-bold uppercase leading-none",
+              diffStatus === "added" ? "bg-brand-solid text-foreground-onbrand" : diffStatus === "removed" ? "bg-danger-solid text-foreground-on-accent" : "bg-warning-foreground text-foreground-onbrand",
             )}
           >
             {diffStatus === "added" ? t("diffNew") : diffStatus === "removed" ? t("diffRemoved") : t("diffModified")}
           </div>
         )}
         <Handle type="target" position={Position.Left} id={`${nodeDef.id}:left`}
-          className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+          className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
         <Handle type="source" position={Position.Right} id={`${nodeDef.id}:right`}
-          className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+          className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
         <Handle type="target" position={Position.Top} id={`${nodeDef.id}:top`}
-          className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+          className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
         <Handle type="source" position={Position.Bottom} id={`${nodeDef.id}:bottom`}
-          className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+          className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
 
         <div className={cn("flex items-center gap-2 rounded-t-lg px-3 py-2 overflow-hidden", headerBgClass)}>
           {verified && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-solid" />}
-          <span className="pl-1.5 min-w-0 truncate text-xs font-bold tracking-wide text-brand-foreground">
+          <span className="ps-1.5 min-w-0 truncate text-xs font-bold tracking-wide text-brand-foreground">
             {nodeDef.label}
           </span>
           {highGaps.length > 0 && (
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-danger-solid text-2xs font-bold text-white">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-danger-solid text-2xs font-bold text-foreground-on-accent">
               {highGaps.length}
             </span>
           )}
           {mediumGaps.length > 0 && highGaps.length === 0 && (
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-warning-foreground text-2xs font-bold text-white">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-warning-foreground text-2xs font-bold text-foreground-onbrand">
               {mediumGaps.length}
             </span>
           )}
@@ -228,12 +228,12 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
         {/* Summary badges */}
         <div className="flex items-center gap-2 border-t border-divider-soft px-3 py-1">
           {arr(nodeDef.properties).length > 0 && (
-            <span className="pl-1.5 text-2xs text-muted-foreground">
+            <span className="ps-1.5 text-2xs text-foreground-muted">
               {t("properties", { count: arr(nodeDef.properties).length })}
             </span>
           )}
           {nodeDef.constraints && arr(nodeDef.constraints).length > 0 && (
-            <span className="text-2xs text-muted-foreground">
+            <span className="text-2xs text-foreground-muted">
               {t("constraints", { count: arr(nodeDef.constraints).length })}
             </span>
           )}
@@ -247,22 +247,22 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
     <div
       ref={containerRef}
       className={cn(
-        "relative min-w-[180px] rounded-lg border bg-surface-base shadow-sm",
+        "relative min-w-[180px] rounded-lg border bg-surface-base shadow-1",
         borderClass,
         dimmed && "opacity-15 pointer-events-none",
       )}
     >
       {/* Layer indicator bar (left edge) */}
-      <div className={cn("absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full", layerColorClass(layer))} />
+      <div className={cn("absolute start-0 top-2 bottom-2 w-[3px] rounded-e-full", layerColorClass(layer))} />
 
       {/* Diff badge */}
       {diffStatus && (
         <div
           className={cn(
-            "absolute -right-1.5 -top-1.5 rounded-full px-1.5 py-0.5 text-2xs font-bold uppercase leading-none",
+            "absolute -end-1.5 -top-1.5 rounded-full px-1.5 py-0.5 text-2xs font-bold uppercase leading-none",
             diffStatus === "added"
-              ? "bg-brand-solid text-white"
-              : "bg-warning-foreground text-white",
+              ? "bg-brand-solid text-foreground-onbrand"
+              : "bg-warning-foreground text-foreground-onbrand",
           )}
         >
           {diffStatus === "added" ? "NEW" : diffStatus === "removed" ? "DEL" : "MOD"}
@@ -271,37 +271,37 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
 
       {/* Handles */}
       <Handle type="target" position={Position.Left} id={`${nodeDef.id}:left`}
-        className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+        className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
       <Handle type="source" position={Position.Right} id={`${nodeDef.id}:right`}
-        className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+        className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
       <Handle type="target" position={Position.Top} id={`${nodeDef.id}:top`}
-        className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+        className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
       <Handle type="source" position={Position.Bottom} id={`${nodeDef.id}:bottom`}
-        className="!h-2 !w-2 !border-divider !bg-muted-foreground" />
+        className="!h-2 !w-2 !border-divider !bg-foreground-muted" />
 
       {/* Header */}
       <div className={cn("flex items-center gap-2 rounded-t-lg px-3 py-2 overflow-hidden", headerBgClass)}>
         {verified && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-solid" />}
-        <span className="pl-1.5 min-w-0 truncate text-xs font-bold tracking-wide text-brand-foreground">
+        <span className="ps-1.5 min-w-0 truncate text-xs font-bold tracking-wide text-brand-foreground">
           {nodeDef.label}
         </span>
         {highGaps.length > 0 && (
           <Tooltip content={t("qualityIssues", { count: highGaps.length })}>
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-danger-solid text-2xs font-bold text-white">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-danger-solid text-2xs font-bold text-foreground-on-accent">
               {highGaps.length}
             </span>
           </Tooltip>
         )}
         {mediumGaps.length > 0 && highGaps.length === 0 && (
           <Tooltip content={t("qualityIssues", { count: mediumGaps.length })}>
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-warning-foreground text-2xs font-bold text-white">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-warning-foreground text-2xs font-bold text-foreground-onbrand">
               {mediumGaps.length}
             </span>
           </Tooltip>
         )}
         {nodeDef.source_lineage?.table && (
           <Tooltip content={t("sourceTooltip", { table: nodeDef.source_lineage?.table })}>
-            <span className="ml-auto shrink-0 text-2xs text-muted-foreground">
+            <span className="ms-auto shrink-0 text-2xs text-foreground-muted">
               {nodeDef.source_lineage?.table}
             </span>
           </Tooltip>
@@ -316,7 +316,7 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
       {/* Constraints badge */}
       {nodeDef.constraints && arr(nodeDef.constraints).length > 0 && (
         <div className="border-t border-divider-soft px-3 py-1">
-          <span className="pl-1.5 text-2xs text-muted-foreground">
+          <span className="ps-1.5 text-2xs text-foreground-muted">
             {t("constraints", { count: arr(nodeDef.constraints).length })}
           </span>
         </div>
@@ -352,13 +352,13 @@ const PropertyList = memo(function PropertyList({
                 <span className="text-warning-foreground">*</span>
               </Tooltip>
             )}
-            <span className="pl-1.5 text-foreground">{prop.name}</span>
-            <span className="ml-auto text-muted-foreground">{formatPropertyType(prop.property_type)}</span>
+            <span className="ps-1.5 text-foreground">{prop.name}</span>
+            <span className="ms-auto text-foreground-muted">{formatPropertyType(prop.property_type)}</span>
           </div>
         );
       })}
       {properties.length > 8 && (
-        <div className="py-0.5 text-2xs text-muted-foreground">
+        <div className="py-0.5 text-2xs text-foreground-muted">
           {t("moreProperties", { count: properties.length - 8 })}
         </div>
       )}

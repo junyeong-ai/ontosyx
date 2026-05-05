@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAppStore, type ToolCall } from "@/lib/store";
 import type { QueryDiagnostic, QueryResult, WidgetSpec } from "@/types/api";
@@ -10,10 +10,12 @@ import { useExecution } from "@/hooks/api/use-executions";
 import { Message01Icon } from "@hugeicons/core-free-icons";
 import { CopyButton } from "@/components/ui/copy-button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FormInput, FormSelect } from "@/components/ui/form-input";
+import { Button } from "@/components/ui/button";
 import { WidgetRenderer } from "@/components/dashboard/widgets/widget-renderer";
 import { ResponseBasis } from "@/components/dashboard/widgets/response-basis";
 import { SaveInsightDialog } from "@/components/workbench/insights/save-insight-dialog";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { STEP_TIMING_LABELS } from "@/lib/constants/tool-meta";
 
 // ---------------------------------------------------------------------------
@@ -21,6 +23,7 @@ import { STEP_TIMING_LABELS } from "@/lib/constants/tool-meta";
 // ---------------------------------------------------------------------------
 
 export function AnalyzeResultsPanel() {
+  const t = useTranslations("workbench.queryBuilder.results");
   const messages = useAppStore((s) => s.messages);
   const focusResultId = useAppStore((s) => s.focusResultId);
   const setFocusResultId = useAppStore((s) => s.setFocusResultId);
@@ -47,8 +50,8 @@ export function AnalyzeResultsPanel() {
     return (
       <EmptyState
         icon={Message01Icon}
-        title="No results yet"
-        description="Ask a question in the chat to see query results and visualizations here."
+        title={t("empty.title")}
+        description={t("empty.description")}
       />
     );
   }
@@ -69,7 +72,7 @@ export function AnalyzeResultsPanel() {
               className={`rounded-lg border px-4 py-2.5 text-xs ${
                 insight.type === "warning"
                   ? "border-warning-border bg-warning-surface text-warning-foreground"
-                  : "border-info-border bg-info-surface text-info-foreground dark:border-info-border dark:text-info-foreground"
+                  : "border-info-border bg-info-surface text-info-foreground"
               }`}
             >
               <span className="font-medium">{insight.label}: </span>
@@ -122,6 +125,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
   // never from the LLM-facing tool envelope.
   const tSave = useTranslations("workbench.queryBuilder.results.saveButton");
   const tPin = useTranslations("workbench.queryBuilder.results.pin");
+  const tCommon = useTranslations("common");
   const isQueryResult = toolCall.name === "query_graph";
   const hasExecutionId = Boolean(parsed?.execution_id);
   const insightReady = Boolean(execution?.query_ir);
@@ -184,26 +188,26 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
         </span>
         <div className="flex shrink-0 items-center gap-2">
           {toolCall.durationMs != null && toolCall.durationMs > 0 && (
-            <span className="text-2xs text-muted-foreground">
+            <span className="text-2xs text-foreground-muted">
               {toolCall.durationMs < 100 ? "<0.1s" : `${(toolCall.durationMs / 1000).toFixed(1)}s`}
             </span>
           )}
           {isQueryResult && (
-            <button
+            <button type="button"
               onClick={() => setSaveInsightOpen(true)}
               disabled={saveState !== "ready"}
-              className="cursor-pointer rounded px-1.5 py-0.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-concept-surface hover:text-concept-foreground disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground dark:hover:text-concept-foreground"
+              className="cursor-pointer rounded px-1.5 py-0.5 text-2xs font-medium text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-concept-surface hover:text-concept-foreground disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-foreground-muted"
               title={tSave(`tooltip.${saveState}`)}
             >
               {tSave("label")}
             </button>
           )}
-          <button
+          <button type="button"
             onClick={() => setPinOpen(!pinOpen)}
-            className="cursor-pointer rounded px-1.5 py-0.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-brand-surface hover:text-brand-foreground dark:hover:bg-brand-surface dark:hover:text-brand-foreground"
-            title="Pin to Dashboard"
+            className="cursor-pointer rounded px-1.5 py-0.5 text-2xs font-medium text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-surface hover:text-brand-foreground"
+            title={tPin("buttonTooltip")}
           >
-            Pin
+            {tPin("buttonLabel")}
           </button>
         </div>
       </div>
@@ -224,7 +228,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
       )}
       {/* Step timings — populated from SSE progress events on toolCall.steps */}
       {toolCall.steps && toolCall.steps.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 pt-1 text-2xs text-muted-foreground">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 pt-1 text-2xs text-foreground-muted">
           {toolCall.steps.map((st) => {
             const label = STEP_TIMING_LABELS[st.step] ?? st.step;
             const ms = st.durationMs ?? 0;
@@ -240,39 +244,45 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
       {/* Pin-to-dashboard inline form */}
       {pinOpen && (
         <div className="flex items-center gap-2 border-b border-divider-soft bg-surface-raised px-4 py-2">
-          <select
+          <FormSelect
+            density="compact"
             value={selectedDashId}
             onChange={(e) => setSelectedDashId(e.target.value)}
-            className="h-7 rounded border border-divider bg-surface-base px-2 text-xs text-foreground-muted"
+            aria-label={tPin("buttonTooltip")}
+            className="h-7"
           >
             {dashboards.length === 0 && (
-              <option value="">No dashboards</option>
+              <option value="">{tPin("noDashboards")}</option>
             )}
             {dashboards.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
               </option>
             ))}
-          </select>
-          <input
+          </FormSelect>
+          <FormInput
             type="text"
+            density="compact"
             value={widgetTitle}
             onChange={(e) => setWidgetTitle(e.target.value)}
-            placeholder="Widget title"
-            className="h-7 flex-1 rounded border border-divider bg-surface-base px-2 text-xs text-foreground-muted"
+            placeholder={tPin("widgetTitlePlaceholder")}
+            aria-label={tPin("widgetTitlePlaceholder")}
+            className="flex-1"
           />
-          <button
+          <Button
+            variant="primary"
+            size="xs"
             onClick={handlePin}
-            disabled={!selectedDashId || isPinning}
-            className="h-7 rounded bg-brand-solid px-3 text-xs font-medium text-white transition-colors hover:bg-brand-solid disabled:opacity-50"
+            disabled={!selectedDashId}
+            loading={isPinning}
           >
-            {isPinning ? "..." : "Confirm"}
-          </button>
-          <button
+            {tPin("confirm")}
+          </Button>
+          <button type="button"
             onClick={() => setPinOpen(false)}
-            className="h-7 rounded px-2 text-xs text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
+            className="h-7 rounded px-2 text-xs text-foreground-muted hover:text-foreground"
           >
-            Cancel
+            {tCommon("cancel")}
           </button>
         </div>
       )}
@@ -336,6 +346,7 @@ function AnalysisResultBlock({
   raw?: string;
   durationMs?: number;
 }) {
+  const t = useTranslations("workbench.queryBuilder.results");
   const [expanded, setExpanded] = useState(false);
 
   if (!raw) return null;
@@ -371,10 +382,10 @@ function AnalysisResultBlock({
       {/* Metadata badges */}
       <div className="flex items-center gap-2">
         <span className={`rounded px-1.5 py-0.5 text-2xs font-medium ${exitCode === 0 ? "bg-success-surface text-success-foreground" : "bg-danger-surface text-danger-foreground"}`}>
-          exit {exitCode}
+          {t("analysis.exitCode", { code: exitCode })}
         </span>
         {ms > 0 && (
-          <span className="text-2xs text-muted-foreground">
+          <span className="text-2xs text-foreground-muted">
             {(ms / 1000).toFixed(1)}s
           </span>
         )}
@@ -392,13 +403,13 @@ function AnalysisResultBlock({
         <pre className="max-h-80 overflow-auto rounded-md bg-surface-base p-3 text-xs text-brand-foreground leading-relaxed">
           {display}
           {!expanded && isLarge && (
-            <span className="text-muted-foreground">{"\n... "}({formatted.length.toLocaleString()} chars)</span>
+            <span className="text-foreground-muted">{t("analysis.charsTruncated", { count: formatted.length })}</span>
           )}
         </pre>
         {isLarge && (
-          <button
+          <button type="button"
             onClick={() => setExpanded(!expanded)}
-            className="absolute bottom-2 right-2 rounded bg-surface-base px-2 py-0.5 text-2xs text-foreground-muted hover:bg-surface-base"
+            className="absolute bottom-2 end-2 rounded bg-surface-base px-2 py-0.5 text-2xs text-foreground-muted hover:bg-surface-base"
           >
             {expanded ? "Collapse" : "Expand"}
           </button>
@@ -409,6 +420,7 @@ function AnalysisResultBlock({
 }
 
 function JsonPreview({ raw }: { raw?: string }) {
+  const t = useTranslations("workbench.queryBuilder.results");
   const [expanded, setExpanded] = useState(false);
 
   if (!raw) return null;
@@ -430,13 +442,13 @@ function JsonPreview({ raw }: { raw?: string }) {
       <pre className="max-h-80 overflow-auto rounded-md bg-surface-base p-3 text-xs text-brand-foreground leading-relaxed">
         {display}
         {!expanded && isLarge && (
-          <span className="text-muted-foreground">{"\n... "}({formatted.length.toLocaleString()} chars)</span>
+          <span className="text-foreground-muted">{t("analysis.charsTruncated", { count: formatted.length })}</span>
         )}
       </pre>
       {isLarge && (
-        <button
+        <button type="button"
           onClick={() => setExpanded(!expanded)}
-          className="absolute bottom-2 right-2 rounded bg-surface-base px-2 py-0.5 text-2xs text-foreground-muted hover:bg-surface-base"
+          className="absolute bottom-2 end-2 rounded bg-surface-base px-2 py-0.5 text-2xs text-foreground-muted hover:bg-surface-base"
         >
           {expanded ? "Collapse" : "Expand"}
         </button>
@@ -565,30 +577,117 @@ function extractInsights(output: string): Insight[] {
 // ---------------------------------------------------------------------------
 
 // Keywords for Cypher (extensible to Gremlin, GQL, SPARQL)
-const CYPHER_KEYWORDS = /\b(MATCH|WHERE|RETURN|WITH|ORDER BY|LIMIT|SKIP|CREATE|MERGE|DELETE|SET|REMOVE|UNWIND|CALL|YIELD|OPTIONAL|UNION|AS|AND|OR|NOT|IN|IS|NULL|TRUE|FALSE|DISTINCT|COUNT|SUM|AVG|MIN|MAX|COLLECT|DESC|ASC|EXISTS|CASE|WHEN|THEN|ELSE|END)\b/gi;
-const CYPHER_LABELS = /(:[\w`]+)/g;
-const CYPHER_STRINGS = /('[^']*'|"[^"]*")/g;
-const CYPHER_NUMBERS = /\b(\d+\.?\d*)\b/g;
-
-function highlightCypher(query: string): string {
-  // Uses .ql-* CSS classes from globals.css (themeable via CSS custom properties)
-  const html = query
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(CYPHER_STRINGS, '<span class="ql-string">$1</span>')
-    .replace(CYPHER_KEYWORDS, '<span class="ql-keyword">$1</span>')
-    .replace(CYPHER_LABELS, '<span class="ql-label">$1</span>')
-    .replace(CYPHER_NUMBERS, '<span class="ql-number">$1</span>');
-  return html;
+// Token classes for the inline Cypher highlighter — kinds map onto
+// `.ql-*` CSS classes already wired in globals.css (themeable via
+// CSS custom properties). Order matters during tokenisation: strings
+// come first so quoted keyword text (e.g. `"MATCH"`) doesn't fragment
+// into a keyword span; labels precede keywords so `:Person` doesn't
+// pull the colon into a separate token.
+type CypherTokenKind = "string" | "keyword" | "label" | "number" | "text";
+interface CypherToken {
+  kind: CypherTokenKind;
+  text: string;
 }
 
+const CYPHER_KEYWORD_SET = new Set(
+  [
+    "MATCH",
+    "WHERE",
+    "RETURN",
+    "WITH",
+    "ORDER",
+    "BY",
+    "LIMIT",
+    "SKIP",
+    "CREATE",
+    "MERGE",
+    "DELETE",
+    "SET",
+    "REMOVE",
+    "UNWIND",
+    "CALL",
+    "YIELD",
+    "OPTIONAL",
+    "UNION",
+    "AS",
+    "AND",
+    "OR",
+    "NOT",
+    "IN",
+    "IS",
+    "NULL",
+    "TRUE",
+    "FALSE",
+    "DISTINCT",
+    "COUNT",
+    "SUM",
+    "AVG",
+    "MIN",
+    "MAX",
+    "COLLECT",
+    "DESC",
+    "ASC",
+    "EXISTS",
+    "CASE",
+    "WHEN",
+    "THEN",
+    "ELSE",
+    "END",
+  ].map((k) => k.toUpperCase()),
+);
+
+const CYPHER_TOKEN_RE =
+  /('[^']*'|"[^"]*")|(:[A-Za-z_`][A-Za-z0-9_`]*)|(\b\d+(?:\.\d+)?\b)|(\b[A-Za-z_][A-Za-z0-9_]*\b)/g;
+
+function tokenizeCypher(query: string): CypherToken[] {
+  const tokens: CypherToken[] = [];
+  let cursor = 0;
+  for (const match of query.matchAll(CYPHER_TOKEN_RE)) {
+    const idx = match.index ?? 0;
+    if (idx > cursor) {
+      tokens.push({ kind: "text", text: query.slice(cursor, idx) });
+    }
+    const [, str, label, num, word] = match;
+    if (str !== undefined) tokens.push({ kind: "string", text: str });
+    else if (label !== undefined) tokens.push({ kind: "label", text: label });
+    else if (num !== undefined) tokens.push({ kind: "number", text: num });
+    else if (word !== undefined) {
+      tokens.push({
+        kind: CYPHER_KEYWORD_SET.has(word.toUpperCase()) ? "keyword" : "text",
+        text: word,
+      });
+    }
+    cursor = idx + match[0].length;
+  }
+  if (cursor < query.length) {
+    tokens.push({ kind: "text", text: query.slice(cursor) });
+  }
+  return tokens;
+}
+
+const CYPHER_TOKEN_CLASS: Record<Exclude<CypherTokenKind, "text">, string> = {
+  string: "ql-string",
+  keyword: "ql-keyword",
+  label: "ql-label",
+  number: "ql-number",
+};
+
 function QueryBlock({ query }: { query: string }) {
+  const tokens = tokenizeCypher(query);
   return (
     <div className="group/qb relative">
-      <code
-        className="block max-h-20 overflow-auto rounded bg-surface-base px-2 py-1.5 pr-8 text-[11px] font-mono leading-relaxed text-foreground-muted"
-        dangerouslySetInnerHTML={{ __html: highlightCypher(query) }}
-      />
-      <div className="opacity-0 group-hover/qb:opacity-100 transition-opacity">
+      <code className="block max-h-20 overflow-auto rounded bg-surface-base px-2 py-1.5 pe-8 text-2xs font-mono leading-relaxed text-foreground-muted">
+        {tokens.map((tok, i) =>
+          tok.kind === "text" ? (
+            <Fragment key={i}>{tok.text}</Fragment>
+          ) : (
+            <span key={i} className={CYPHER_TOKEN_CLASS[tok.kind]}>
+              {tok.text}
+            </span>
+          ),
+        )}
+      </code>
+      <div className="opacity-0 group-hover/qb:opacity-100 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)]">
         <CopyButton text={query} />
       </div>
     </div>
@@ -600,6 +699,7 @@ function QueryBlock({ query }: { query: string }) {
 // ---------------------------------------------------------------------------
 
 function MemoryHitsList({ raw }: { raw?: string }) {
+  const t = useTranslations("workbench.queryBuilder.results");
   if (!raw) return null;
 
   let hits: { content: string; source: string; score: number }[] = [];
@@ -611,7 +711,7 @@ function MemoryHitsList({ raw }: { raw?: string }) {
   }
 
   if (hits.length === 0) {
-    return <p className="text-xs text-muted-foreground">No memories found</p>;
+    return <p className="text-xs text-foreground-muted">{t("memoriesEmpty")}</p>;
   }
 
   return (
@@ -619,14 +719,14 @@ function MemoryHitsList({ raw }: { raw?: string }) {
       {hits.map((hit, i) => (
         <div
           key={i}
-          className="rounded border-l-2 border-warning-border bg-surface-raised py-1.5 pl-3 pr-2"
+          className="rounded border-s-2 border-warning-border bg-surface-raised py-1.5 ps-3 pe-2"
         >
           <div className="flex items-center justify-between">
             <span className="text-2xs font-medium text-warning-foreground">
               {hit.source}
             </span>
-            <span className="text-2xs text-muted-foreground">
-              {(hit.score * 100).toFixed(0)}% match
+            <span className="text-2xs text-foreground-muted">
+              {t("memories.matchPercent", { pct: Math.round(hit.score * 100) })}
             </span>
           </div>
           <p className="mt-0.5 text-xs text-foreground line-clamp-2-muted">

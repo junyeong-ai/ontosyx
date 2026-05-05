@@ -8,13 +8,15 @@ import { getOntologyDetail } from "@/lib/api";
 import { WidgetToolbar } from "@/components/dashboard/widgets/widget-toolbar";
 import { ResponseBasis } from "@/components/dashboard/widgets/response-basis";
 import { Button } from "@/components/ui/button";
+import { useFormatters } from "@/hooks/use-formatters";
+import { TOAST_WARNING } from "@/lib/toast/durations";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
   PlayIcon,
   AiNetworkIcon,
 } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import { arr } from "@/lib/ir-collections";
 
@@ -51,7 +53,7 @@ export interface SectionProps {
 export function Section({ title, children }: SectionProps) {
   return (
     <div>
-      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
         {title}
       </h3>
       {children}
@@ -70,6 +72,7 @@ export interface ExecutionDetailProps {
 
 export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
   const t = useTranslations("workbench.chat.execution");
+  const fmt = useFormatters();
   const { loadStandaloneOntology, addMessage, clearMessages, setHighlightedBindings } =
     useAppStore();
   const router = useRouter();
@@ -102,7 +105,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
     if (!currentOntology) return;
 
     if (currentOntology.id !== execution.ontology_lineage_id) {
-      toast.warning(t("differentOntologyWarning"), { duration: 5000 });
+      toast.warning(t("differentOntologyWarning"), { duration: TOAST_WARNING });
     }
 
     // Validate that referenced node/edge IDs exist in current ontology
@@ -145,8 +148,6 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
     setHighlightedBindings(execution.query_bindings);
   };
 
-  const date = new Date(execution.created_at);
-
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -158,9 +159,9 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
           <p className="truncate text-sm font-medium text-foreground-strong">
             {execution.question}
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-foreground-muted">
             {t("meta", {
-              date: date.toLocaleString(),
+              date: fmt.date(execution.created_at),
               model: execution.model,
               duration: execution.execution_time_ms,
             })}
@@ -170,17 +171,17 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
           {execution.query_bindings && (
             <>
               <Button variant="outline" size="sm" onClick={handleShowOnGraph} title={t("highlightTitle")}>
-                <HugeiconsIcon icon={AiNetworkIcon} className="mr-1 h-3 w-3" size="100%" />
+                <HugeiconsIcon icon={AiNetworkIcon} className="me-1 h-3 w-3" size="100%" />
                 {t("highlight")}
               </Button>
               <Button variant="outline" size="sm" onClick={handleShowOnSnapshot} title={t("replayTitle")}>
-                <HugeiconsIcon icon={AiNetworkIcon} className="mr-1 h-3 w-3" size="100%" />
+                <HugeiconsIcon icon={AiNetworkIcon} className="me-1 h-3 w-3" size="100%" />
                 {t("replay")}
               </Button>
             </>
           )}
           <Button variant="outline" size="sm" onClick={handleLoadToChat}>
-            <HugeiconsIcon icon={PlayIcon} className="mr-1 h-3 w-3" size="100%" />
+            <HugeiconsIcon icon={PlayIcon} className="me-1 h-3 w-3" size="100%" />
             {t("loadToChat")}
           </Button>
         </div>
@@ -217,7 +218,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
 
         {/* Ontology info */}
         <Section title={t("sectionOntology")}>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-foreground-muted">
             {t("ontologyMeta", {
               id: execution.ontology_lineage_id,
               version: execution.ontology_version,

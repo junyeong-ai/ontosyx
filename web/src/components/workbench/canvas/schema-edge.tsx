@@ -72,9 +72,9 @@ function highlightStrokeColor(kind?: import("@/types/api").BindingKind): string 
 function highlightLabelClass(kind?: import("@/types/api").BindingKind): string {
   switch (kind) {
     case "exists": return "bg-concept-surface text-concept-foreground";
-    case "path_find": return "bg-success-surface text-success-foreground dark:bg-success-foreground dark:text-success-foreground";
+    case "path_find": return "bg-success-surface text-success-foreground";
     case "chain": return "bg-warning-surface text-warning-foreground";
-    case "mutation": return "bg-danger-surface text-danger-foreground dark:bg-danger-foreground dark:text-danger-foreground";
+    case "mutation": return "bg-danger-surface text-danger-foreground";
     default: return "bg-info-surface text-info-foreground";
   }
 }
@@ -143,14 +143,14 @@ export const SchemaEdge = memo(function SchemaEdge({
           className={cn(
             "nodrag nopan pointer-events-auto absolute rounded-md px-1.5 py-0.5 text-2xs font-medium",
             diffStatus === "added"
-              ? "bg-brand-surface-strong text-brand-foreground-strong-strong"
+              ? "bg-brand-surface-strong text-brand-foreground-strong"
               : diffStatus === "modified"
                 ? "bg-warning-surface text-warning-foreground"
                 : selected
-                  ? "bg-brand-surface-strong text-brand-foreground-strong-strong"
+                  ? "bg-brand-surface-strong text-brand-foreground-strong"
                   : highlighted
                     ? highlightLabelClass(highlightKind)
-                    : "bg-surface-base text-foreground-muted shadow-sm dark:text-muted-foreground",
+                    : "bg-surface-base text-foreground-muted shadow-1",
           )}
           style={{
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
@@ -158,7 +158,7 @@ export const SchemaEdge = memo(function SchemaEdge({
         >
           {diffStatus && (
             <span className={cn(
-              "mr-1 text-2xs font-bold uppercase",
+              "me-1 text-2xs font-bold uppercase",
               diffStatus === "added" ? "text-brand-foreground" : "text-warning-foreground",
             )}>
               {diffStatus === "added" ? "+" : "~"}
@@ -166,13 +166,13 @@ export const SchemaEdge = memo(function SchemaEdge({
           )}
           {edgeDef?.label ?? id}
           {edgeDef?.cardinality && edgeDef.cardinality !== "many_to_many" && (
-            <span className="ml-1 text-2xs text-muted-foreground">
+            <span className="ms-1 text-2xs text-foreground-muted">
               ({formatCardinality(edgeDef.cardinality)})
             </span>
           )}
           {highGapCount > 0 && (
             <span
-              className="ml-1 inline-flex h-3 min-w-3 items-center justify-center rounded-full bg-danger-solid px-0.5 text-2xs font-bold text-white"
+              className="ms-1 inline-flex h-3 min-w-3 items-center justify-center rounded-full bg-danger-solid px-0.5 text-2xs font-bold text-foreground-on-accent"
               aria-label={`${highGapCount} high-severity quality gaps`}
             >
               {highGapCount}
@@ -180,7 +180,7 @@ export const SchemaEdge = memo(function SchemaEdge({
           )}
           {mediumGapCount > 0 && highGapCount === 0 && (
             <span
-              className="ml-1 inline-flex h-3 min-w-3 items-center justify-center rounded-full bg-warning-foreground px-0.5 text-2xs font-bold text-white"
+              className="ms-1 inline-flex h-3 min-w-3 items-center justify-center rounded-full bg-warning-foreground px-0.5 text-2xs font-bold text-foreground-onbrand"
               aria-label={`${mediumGapCount} medium-severity quality gaps`}
             >
               {mediumGapCount}

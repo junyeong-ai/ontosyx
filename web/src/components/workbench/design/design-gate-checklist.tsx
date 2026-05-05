@@ -115,8 +115,8 @@ function GateRow({
         onClick={() => onFocus(gate)}
         disabled={!gate.anchor}
         className={cn(
-          "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
-          "hover:bg-surface-raised dark:hover:bg-surface-base/40",
+          "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-start transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+          "hover:bg-surface-raised",
           "disabled:cursor-default disabled:hover:bg-transparent",
           isUnmetBlocker && "border border-warning-border",
         )}
@@ -131,7 +131,7 @@ function GateRow({
               "text-xs",
               isMet
                 ? "text-foreground line-through decoration-brand-foreground-subtle"
-                : "text-foreground-strong-strong",
+                : "text-foreground-strong",
             )}
           >
             {t(`label.${gate.id}` as MessageKey, {
@@ -139,7 +139,7 @@ function GateRow({
             })}
           </span>
           {!isMet && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground-muted">
               {t(`hint.${gate.id}` as MessageKey, {
                 ...(gate.params ?? {}),
               })}
@@ -203,7 +203,7 @@ export function focusFirstUnmetGate(gates: ReadonlyArray<DesignGate>): void {
   const target = gates.find(
     (g) => g.blocks_design && g.status === "unmet" && !!g.anchor,
   );
-  if (!target || !target.anchor) return;
+  if (!target?.anchor) return;
   const el =
     typeof document !== "undefined" ? document.getElementById(target.anchor) : null;
   if (!el) return;

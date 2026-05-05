@@ -71,12 +71,12 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
   if (message.role === "user") {
     return (
       <div role="article" aria-label={t("userAria")} className="flex flex-row-reverse gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-base text-white dark:text-foreground-strong">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-base text-foreground-strong">
           <HugeiconsIcon icon={UserIcon} className="h-4 w-4" size="100%" />
         </div>
         <div className="flex max-w-[80%] justify-end">
-          <div className="rounded-2xl bg-surface-base px-4 py-2.5 text-sm leading-relaxed text-white-strong">
-            <p className="whitespace-pre-wrap text-left">{message.content}</p>
+          <div className="rounded-2xl bg-surface-base px-4 py-2.5 text-sm leading-relaxed text-foreground-strong">
+            <p className="whitespace-pre-wrap text-start">{message.content}</p>
           </div>
         </div>
       </div>
@@ -127,10 +127,10 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
 
         {/* Text content */}
         {(message.content || message.isStreaming) && !message.error && (
-          <div className="group/msg relative max-w-none rounded-2xl bg-surface-base px-4 py-2.5 text-sm leading-relaxed text-foreground-strong shadow-sm ring-1 ring-divider-strong dark:ring-divider">
+          <div className="group/msg relative max-w-none rounded-2xl bg-surface-base px-4 py-2.5 text-sm leading-relaxed text-foreground-strong shadow-1 ring-1 ring-divider-strong">
             {/* Copy button — visible on hover */}
             {message.content && !message.isStreaming && (
-              <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity">
+              <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)]">
                 <CopyButton text={message.content} />
               </div>
             )}
@@ -148,9 +148,9 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
             ) : null}
             {message.isStreaming && !message.content && !message.thinking && noToolsRunning(message) && (
               <div className="flex items-center gap-1 py-1">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:0ms]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:150ms]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:300ms]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground-muted [animation-delay:0ms]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground-muted [animation-delay:150ms]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground-muted [animation-delay:300ms]" />
               </div>
             )}
             {/* Streaming caret handled by Streamdown's built-in caret prop */}
@@ -229,11 +229,12 @@ function SuggestedFollowups({ content, onSend }: { content: string; onSend?: (te
     <div className="mt-3 max-w-[80%] space-y-1">
       {questions.slice(0, 3).map((q, i) => (
         <button
+          type="button"
           key={q}
           onClick={() => handleClick(q)}
-          className="block w-full text-left text-sm text-brand-foreground hover:text-brand-foreground-strong hover:underline"
+          className="block w-full text-start text-sm text-brand-foreground hover:text-brand-foreground-strong hover:underline"
         >
-          <span className="mr-2 text-muted-foreground">{i + 1}.</span>
+          <span className="me-2 text-foreground-muted">{i + 1}.</span>
           {q}
         </button>
       ))}
@@ -256,22 +257,24 @@ function MessageFeedback() {
   return (
     <div className="flex items-center gap-0.5 mt-1">
       <button
+        type="button"
         onClick={() => toggle("positive")}
-        className={`rounded p-1 text-xs transition-colors ${
+        className={`rounded p-1 text-xs transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
           feedback === "positive"
             ? "text-brand-foreground"
-            : "text-foreground-muted hover:text-foreground-muted dark:hover:text-muted-foreground"
+            : "text-foreground-muted hover:text-foreground-muted"
         }`}
         aria-label={feedback === "positive" ? t("removeHelpful") : t("helpful")}
       >
         <HugeiconsIcon icon={ThumbsUpIcon} className="h-3 w-3" size="100%" />
       </button>
       <button
+        type="button"
         onClick={() => toggle("negative")}
-        className={`rounded p-1 text-xs transition-colors ${
+        className={`rounded p-1 text-xs transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
           feedback === "negative"
             ? "text-danger-foreground"
-            : "text-foreground-muted hover:text-foreground-muted dark:hover:text-muted-foreground"
+            : "text-foreground-muted hover:text-foreground-muted"
         }`}
         aria-label={feedback === "negative" ? t("removeNotHelpful") : t("notHelpful")}
       >

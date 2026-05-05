@@ -55,12 +55,13 @@ export const TableWrapper: ComponentType<HTMLAttributes<HTMLTableElement>> = ({
       <div className="group/table relative my-2 overflow-x-auto rounded-lg border border-divider">
         {/* Fullscreen button */}
         <button
+          type="button"
           onClick={() => setIsFullscreen(true)}
-          className="absolute right-2 top-2 z-10 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-surface-inset hover:text-foreground group-hover/table:opacity-100 dark:hover:bg-surface-base dark:hover:text-foreground-muted"
+          className="absolute end-2 top-2 z-canvas rounded p-1 text-foreground-muted opacity-0 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset hover:text-foreground group-hover/table:opacity-100-muted"
           aria-label={t("viewFullscreen")}
           title={t("expandTable")}
         >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
           </svg>
         </button>
@@ -79,11 +80,12 @@ export const TableWrapper: ComponentType<HTMLAttributes<HTMLTableElement>> = ({
             {/* Header */}
             <div className="flex items-center justify-end border-b border-divider px-4 py-2">
               <button
+                type="button"
                 onClick={close}
-                className="rounded-md p-1.5 text-foreground-muted transition-colors hover:bg-surface-inset hover:text-foreground-strong dark:text-muted-foreground dark:hover:bg-surface-base dark:hover:text-foreground-strong"
+                className="rounded-md p-1.5 text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset hover:text-foreground-strong"
                 aria-label={t("closeFullscreen")}
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -108,7 +110,7 @@ export const TableHead: ComponentType<HTMLAttributes<HTMLTableSectionElement>> =
   ...props
 }) => (
   <thead
-    className="sticky top-0 z-10 border-b border-divider bg-surface-raised dark:border-divider"
+    className="sticky top-0 z-canvas border-b border-divider bg-surface-raised"
     {...props}
   >
     {children}
@@ -120,7 +122,7 @@ export const TableHeaderCell: ComponentType<ThHTMLAttributes<HTMLTableCellElemen
   ...props
 }) => (
   <th
-    className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-foreground-muted"
+    className="whitespace-nowrap px-3 py-2 text-start text-xs font-semibold uppercase tracking-wider text-foreground-muted"
     {...props}
   >
     {children}
@@ -144,7 +146,7 @@ export const TableRow: ComponentType<HTMLAttributes<HTMLTableRowElement>> = ({
   ...props
 }) => (
   <tr
-    className="transition-colors hover:bg-surface-raised dark:hover:bg-surface-base/50"
+    className="transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-raised"
     {...props}
   >
     {children}
@@ -199,7 +201,7 @@ export const Link: ComponentType<HTMLAttributes<HTMLAnchorElement> & { href?: st
 }) => (
   <a
     href={href}
-    className="text-brand-foreground underline underline-offset-2 transition-colors hover:text-brand-foreground dark:hover:text-brand-foreground-strong"
+    className="text-brand-foreground underline underline-offset-2 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:text-brand-foreground-strong"
     target={href?.startsWith("http") ? "_blank" : undefined}
     rel={href?.startsWith("http") ? "noopener noreferrer" : undefined}
     {...props}
@@ -215,7 +217,7 @@ export const Blockquote: ComponentType<HTMLAttributes<HTMLQuoteElement>> = ({
   ...props
 }) => (
   <blockquote
-    className="my-2 border-l-3 border-divider pl-3 text-foreground-muted dark:border-divider dark:text-muted-foreground"
+    className="my-2 border-s-3 border-divider ps-3 text-foreground-muted"
     {...props}
   >
     {children}

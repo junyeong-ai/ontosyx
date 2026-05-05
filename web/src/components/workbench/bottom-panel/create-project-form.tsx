@@ -8,13 +8,12 @@ import {
   CancelCircleIcon,
   ArrowLeft01Icon,
 } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { createProject } from "@/lib/api";
 import { isGitUrl } from "@/lib/git-url";
 import { Button } from "@/components/ui/button";
-import { FormInput } from "@/components/ui/form-input";
-import { FormTextarea } from "@/components/ui/form-textarea";
+import { FormInput, FormSelect, FormTextarea, SecretInput } from "@/components/ui/form-input";
 import { FormField } from "@/components/ui/form-field";
 import { Spinner } from "@/components/ui/spinner";
 import { TableSelector } from "@/components/source/table-selector";
@@ -24,7 +23,7 @@ import type {
   DesignProject,
   DesignSource,
 } from "@/types/api";
-import { type GenerateSourceType, selectClassName } from "./design-panel-shared";
+import type { GenerateSourceType } from "./design-panel-shared";
 
 /**
  * Two-phase project creation:
@@ -362,7 +361,7 @@ export function CreateProjectForm({
         </p>
 
         {preview.isLoading ? (
-          <div className="flex items-center gap-2 px-3 py-6 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 px-3 py-6 text-xs text-foreground-muted">
             <Spinner size="xs" />
             <span>{t("previewLoading")}</span>
           </div>
@@ -409,7 +408,7 @@ export function CreateProjectForm({
           >
             <HugeiconsIcon
               icon={ArrowLeft01Icon}
-              className="mr-1 h-4 w-4"
+              className="me-1 h-4 w-4"
               size="100%"
             />
             {t("backToConnection")}
@@ -420,11 +419,11 @@ export function CreateProjectForm({
             disabled={loading || selectedTables.size === 0}
           >
             {loading ? (
-              <Spinner size="xs" className="mr-2" />
+              <Spinner size="xs" className="me-2" />
             ) : (
               <HugeiconsIcon
                 icon={PlusSignIcon}
-                className="mr-2 h-4 w-4"
+                className="me-2 h-4 w-4"
                 size="100%"
               />
             )}
@@ -432,7 +431,7 @@ export function CreateProjectForm({
           </Button>
         </div>
         {selectedTables.size === 0 && !preview.isLoading && !preview.isError && (
-          <p className="mt-2 max-w-2xl text-right text-[11px] text-muted-foreground">
+          <p className="mt-2 max-w-2xl text-end text-2xs text-foreground-muted">
             {t("noTablesSelected")}
           </p>
         )}
@@ -462,13 +461,13 @@ export function CreateProjectForm({
         </FormField>
 
         <FormField label={t("sourceTypeLabel")} required>
-          <select
+          <FormSelect
             value={sourceType}
             onChange={(e) => {
               setSourceType(e.target.value as GenerateSourceType);
               resetPreview();
             }}
-            className={selectClassName}
+            density="settings"
           >
             <option value="postgresql">{t("sourceTypes.postgresql")}</option>
             <option value="mysql">{t("sourceTypes.mysql")}</option>
@@ -482,7 +481,7 @@ export function CreateProjectForm({
               {t("sourceTypes.codeRepository")}
             </option>
             <option value="text">{t("sourceTypes.text")}</option>
-          </select>
+          </FormSelect>
         </FormField>
 
         {sourceType === "postgresql" ? (
@@ -493,8 +492,7 @@ export function CreateProjectForm({
               error={connectionError}
               hint={t("postgresHint")}
             >
-              <FormInput
-                type="text"
+              <SecretInput
                 placeholder={t("postgresHint")}
                 value={connectionString}
                 onChange={(e) => {
@@ -503,7 +501,6 @@ export function CreateProjectForm({
                 }}
                 onBlur={() => markTouched("connectionString")}
                 error={!!connectionError}
-                className="font-mono"
               />
             </FormField>
             <FormField label={t("schemaLabel")} hint={t("schemaHint")}>
@@ -526,8 +523,7 @@ export function CreateProjectForm({
               error={connectionError}
               hint={t("mysqlHint")}
             >
-              <FormInput
-                type="text"
+              <SecretInput
                 placeholder={t("mysqlHint")}
                 value={connectionString}
                 onChange={(e) => {
@@ -536,7 +532,6 @@ export function CreateProjectForm({
                 }}
                 onBlur={() => markTouched("connectionString")}
                 error={!!connectionError}
-                className="font-mono"
               />
             </FormField>
             <FormField
@@ -565,8 +560,8 @@ export function CreateProjectForm({
               error={connectionError}
               hint={t("mongoHint")}
             >
-              <FormInput
-                type="text"
+              <SecretInput
+                // i18n-audit-ignore — connection-string format example, language-neutral
                 placeholder="mongodb://user:password@host:27017"
                 value={connectionString}
                 onChange={(e) => {
@@ -575,7 +570,6 @@ export function CreateProjectForm({
                 }}
                 onBlur={() => markTouched("connectionString")}
                 error={!!connectionError}
-                className="font-mono"
               />
             </FormField>
             <FormField
@@ -635,8 +629,7 @@ export function CreateProjectForm({
               required
               error={sfPasswordError}
             >
-              <FormInput
-                type="password"
+              <SecretInput
                 placeholder="••••••••"
                 value={sfPassword}
                 onChange={(e) => {
@@ -864,11 +857,11 @@ export function CreateProjectForm({
               className="w-full"
             >
               {loading ? (
-                <Spinner size="xs" className="mr-2" />
+                <Spinner size="xs" className="me-2" />
               ) : (
                 <HugeiconsIcon
                   icon={PlusSignIcon}
-                  className="mr-2 h-4 w-4"
+                  className="me-2 h-4 w-4"
                   size="100%"
                 />
               )}
@@ -917,7 +910,7 @@ function CreateProgressBanner({
     >
       <Spinner size="sm" className="mt-0.5 shrink-0 text-brand-foreground" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-brand-foreground-strong-strong">
+        <p className="text-xs font-medium text-brand-foreground-strong">
           {t("heading", { elapsed, count: tableCount })}
         </p>
         <p className="mt-0.5 text-xs text-brand-foreground-strong">

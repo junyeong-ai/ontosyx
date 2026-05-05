@@ -2,6 +2,8 @@
 
 import { useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FormInput, FormSelect } from "@/components/ui/form-input";
 import type { PatternNode, PatternEdge, PatternReturnField, Aggregation, PatternOrderClause } from "./ir-builder";
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
@@ -137,21 +139,21 @@ export function ReturnSelector({
     <div className="space-y-3">
       {/* RETURN fields */}
       <div>
-        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("heading")}
         </span>
 
         {groups.length === 0 && (
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-2xs text-foreground-muted">
             {t("emptyHint")}
           </p>
         )}
 
         {groups.map((group) => (
           <div key={group.alias} className="mt-2">
-            <span className="text-[11px] font-medium text-foreground-muted">
+            <span className="text-2xs font-medium text-foreground-muted">
               {group.alias}{" "}
-              <span className="text-muted-foreground">
+              <span className="text-foreground-muted">
                 {t("groupType", { label: group.label })}
               </span>
             </span>
@@ -164,22 +166,17 @@ export function ReturnSelector({
                 const dir = getOrderDir(group.alias, prop);
                 return (
                   <div key={prop} className="flex items-center gap-2">
-                    <label className="flex flex-1 cursor-pointer items-center gap-1.5">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleField(group.alias, prop)}
-                        className="h-3 w-3 rounded border-divider text-brand-foreground focus:ring-brand-foreground"
-                      />
-                      <span className="text-xs text-foreground">
-                        {prop}
-                      </span>
-                    </label>
+                    <Checkbox
+                      checked={checked}
+                      onChange={() => toggleField(group.alias, prop)}
+                      label={<span className="text-xs text-foreground">{prop}</span>}
+                      className="flex-1"
+                    />
 
                     {checked && (
                       <>
                         {/* Aggregation */}
-                        <select
+                        <FormSelect
                           value={field?.aggregation ?? ""}
                           onChange={(e) =>
                             setAggregation(
@@ -188,22 +185,23 @@ export function ReturnSelector({
                               (e.target.value as Aggregation) || null,
                             )
                           }
-                          className="h-6 rounded border border-divider bg-surface-base px-1 text-2xs text-foreground dark:text-muted-foreground"
+                          density="compact"
+                          className="w-auto"
                         >
                           {aggregations.map((a) => (
                             <option key={a.value} value={a.value}>
                               {a.label}
                             </option>
                           ))}
-                        </select>
+                        </FormSelect>
 
                         {/* Order toggle */}
-                        <button
+                        <button type="button"
                           onClick={() => toggleOrderBy(group.alias, prop)}
-                          className={`h-6 rounded px-1.5 text-2xs font-medium transition-colors ${
+                          className={`h-6 rounded px-1.5 text-2xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
                             dir
                               ? "bg-brand-surface text-brand-foreground"
-                              : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
+                              : "text-foreground-muted hover:text-foreground-muted"
                           }`}
                           title={t("sortToggleTitle")}
                         >
@@ -222,10 +220,10 @@ export function ReturnSelector({
       {/* LIMIT */}
       <div>
         <label className="flex items-center gap-2">
-          <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
             {t("limitLabel")}
           </span>
-          <input
+          <FormInput
             type="number"
             min={1}
             max={10000}
@@ -235,7 +233,8 @@ export function ReturnSelector({
               onLimitChange(v ? parseInt(v, 10) : null);
             }}
             placeholder={t("limitPlaceholder")}
-            className="h-7 w-24 rounded border border-divider bg-surface-base px-2 text-xs text-foreground-muted"
+            density="compact"
+            className="w-24"
           />
         </label>
       </div>

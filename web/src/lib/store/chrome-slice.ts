@@ -81,6 +81,16 @@ export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (s
       return { bottomPanelMode: next, isBottomPanelOpen: true };
     }),
 
+  sidebarMode: "rail",
+  toggleSidebarMode: () =>
+    set((s) => ({ sidebarMode: s.sidebarMode === "rail" ? "expanded" : "rail" })),
+
+  inspectorTabByKind: {},
+  setInspectorTab: (kind, tab) =>
+    set((s) => ({
+      inspectorTabByKind: { ...s.inspectorTabByKind, [kind]: tab },
+    })),
+
   analyzeRightTab: "results",
   setAnalyzeRightTab: (tab) => set({ analyzeRightTab: tab }),
 

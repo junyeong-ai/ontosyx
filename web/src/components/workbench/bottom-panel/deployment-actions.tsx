@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/providers/confirm-provider";
@@ -95,13 +95,13 @@ export function DeploymentActions({
   return (
     <>
       {/* Schema Deployment */}
-      <div className="space-y-2 rounded-lg border border-info-border bg-info-surface/50 p-3 dark:border-info-border">
+      <div className="space-y-2 rounded-lg border border-info-border bg-info-surface/50 p-3">
         <h4 className="text-xs font-semibold text-info-foreground">
           {t("schemaDeployment")}
         </h4>
         {deployPreview ? (
           <div className="space-y-2">
-            <p className="text-2xs text-info-foreground dark:text-info-foreground">
+            <p className="text-2xs text-info-foreground">
               {t("ddlStatements", {
                 count: deployPreview.length,
                 plural: deployPreview.length !== 1 ? t("ddlStatementsPlural") : "",
@@ -153,13 +153,13 @@ export function DeploymentActions({
       </div>
 
       {/* Load Data */}
-      <div className="space-y-2 rounded-lg border border-concept-border bg-concept-surface/50 p-3 dark:border-concept-border">
+      <div className="space-y-2 rounded-lg border border-concept-border bg-concept-surface/50 p-3">
         <h4 className="text-xs font-semibold text-concept-foreground">
           {t("dataLoading")}
         </h4>
         {loadPlan ? (
           <div className="space-y-2">
-            <p className="text-2xs text-concept-foreground dark:text-concept-foreground">
+            <p className="text-2xs text-concept-foreground">
               {t("loadSteps", {
                 count: loadPlan.steps.length,
                 plural: loadPlan.steps.length !== 1 ? t("ddlStatementsPlural") : "",

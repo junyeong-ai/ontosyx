@@ -2,10 +2,15 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useTranslations } from "next-intl";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import type { AnalysisRecipe } from "@/types/api";
 import { chatStream } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import { Spinner } from "@/components/ui/spinner";
+import { Heading } from "@/components/ui/heading";
+import { FormInput, FormTextarea } from "@/components/ui/form-input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // ---------------------------------------------------------------------------
 // Parameter type → form field
@@ -28,44 +33,24 @@ function ParamField({
   value: string;
   onChange: (v: string) => void;
 }) {
-  const inputCls =
-    "w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs-strong";
-
   return (
-    <div>
-      <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <label className="block">
+      <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
         {name}
         {def.description && (
-          <span className="ml-1 font-normal normal-case text-muted-foreground">
+          <span className="ms-1 font-normal normal-case text-foreground-muted">
             — {def.description}
           </span>
         )}
-      </label>
-      {def.type === "int" ? (
-        <input
-          type="number"
-          step={1}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={inputCls}
-        />
-      ) : def.type === "float" ? (
-        <input
-          type="number"
-          step={0.01}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={inputCls}
-        />
-      ) : (
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={inputCls}
-        />
-      )}
-    </div>
+      </span>
+      <FormInput
+        type={def.type === "int" || def.type === "float" ? "number" : "text"}
+        step={def.type === "int" ? 1 : def.type === "float" ? 0.01 : undefined}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-0.5"
+      />
+    </label>
   );
 }
 
@@ -163,25 +148,28 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="mx-4 flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border border-divider bg-surface-base shadow-xl">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-surface-scrim-strong">
+      <div className="mx-4 flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border border-divider bg-surface-base shadow-4">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-divider px-5 py-3">
           <div>
-            <h2 className="text-sm font-semibold text-foreground-strong">
+            <Heading level={2} size={6}>
               {recipe.name}
-            </h2>
-            <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
+            </Heading>
+            <p className="mt-0.5 text-xs text-foreground-muted line-clamp-1">
               {recipe.description}
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-muted-foreground hover:bg-surface-inset hover:text-foreground"
+            className="rounded-md p-1 text-foreground-muted hover:bg-surface-inset hover:text-foreground"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-              <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
-            </svg>
+            <HugeiconsIcon
+              icon={Cancel01Icon}
+              className="h-4 w-4"
+              size="100%"
+            />
           </button>
         </div>
 
@@ -190,7 +178,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           {/* Parameters */}
           {paramEntries.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
                 {t("parameters")}
               </h3>
               {paramEntries.map(([name, def]) => (
@@ -207,25 +195,21 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
 
           {/* Data Source */}
           <div className="space-y-2">
-            <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
               {t("dataSource")}
             </h3>
-            <label className="flex items-center gap-2 text-xs text-foreground dark:text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={useLastResult}
-                onChange={(e) => setUseLastResult(e.target.checked)}
-                className="rounded border-divider text-brand-foreground focus:ring-brand-foreground"
-              />
-              {t("useLastResult")}
-            </label>
+            <Checkbox
+              checked={useLastResult}
+              onChange={(e) => setUseLastResult(e.target.checked)}
+              label={t("useLastResult")}
+            />
             {!useLastResult && (
-              <textarea
+              <FormTextarea
                 value={cypherQuery}
                 onChange={(e) => setCypherQuery(e.target.value)}
                 placeholder={t("cypherPlaceholder")}
                 rows={3}
-                className="w-full rounded-md border border-divider bg-surface-base px-3 py-2 font-mono text-xs-strong"
+                className="font-mono text-xs"
               />
             )}
           </div>
@@ -233,7 +217,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           {/* Result */}
           {resultText && (
             <div>
-              <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
                 {t("result")}
               </h3>
               <pre className="mt-1 max-h-60 overflow-auto rounded-md bg-surface-raised p-3 text-xs text-foreground-muted">
@@ -249,8 +233,9 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
             <>
               <Spinner size="sm" />
               <button
+                type="button"
                 onClick={handleCancel}
-                className="rounded-md px-3 py-1.5 text-xs font-medium text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-surface"
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-danger-foreground hover:bg-danger-surface"
               >
                 {tCommon("cancel")}
               </button>
@@ -258,15 +243,16 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           ) : (
             <>
               <button
+                type="button"
                 onClick={onClose}
-                className="rounded-md px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-inset dark:text-muted-foreground"
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-inset"
               >
                 {tCommon("close")}
               </button>
-              <button
+              <button type="button"
                 onClick={handleRun}
                 disabled={!ontology}
-                className="rounded-md bg-brand-solid px-4 py-1.5 text-xs font-medium text-white hover:bg-brand-solid disabled:opacity-50"
+                className="rounded-md bg-brand-solid px-4 py-1.5 text-xs font-medium text-foreground-onbrand hover:bg-brand-solid disabled:opacity-50"
               >
                 {t("run")}
               </button>

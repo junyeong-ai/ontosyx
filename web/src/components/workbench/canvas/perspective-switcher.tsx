@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useReactFlow, type Node } from "@xyflow/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  ArrowDown01Icon,
+  KanbanIcon,
+} from "@hugeicons/core-free-icons";
 import { useAppStore } from "@/lib/store";
 import {
   listPerspectives,
@@ -12,8 +17,9 @@ import {
 import type { WorkbenchPerspective } from "@/types/api";
 import type { NodeGroup } from "@/lib/store/types";
 import { cn } from "@/lib/cn";
+import { FormInput } from "@/components/ui/form-input";
 import { useClickOutside } from "@/hooks/use-click-outside";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 // ---------------------------------------------------------------------------
 // Perspective Switcher — small dropdown on the canvas
@@ -49,6 +55,7 @@ export function PerspectiveSwitcher({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const lineageId = ontology?.id;
+  const activeProjectId = activeProject?.id;
 
   // Load perspectives when dropdown opens
   const loadPerspectives = useCallback(async () => {
@@ -126,7 +133,7 @@ export function PerspectiveSwitcher({
       await savePerspective({
         lineage_id: lineageId,
         topology_signature: topologySignature,
-        project_id: activeProject?.id,
+        project_id: activeProjectId,
         name: newName.trim(),
         positions,
         viewport: { x: vp.x, y: vp.y, zoom: vp.zoom },
@@ -143,7 +150,7 @@ export function PerspectiveSwitcher({
     } finally {
       setIsSaving(false);
     }
-  }, [lineageId, newName, isSaving, nodes, getViewport, topologySignature, activeProject?.id, loadPerspectives, t]);
+  }, [lineageId, newName, isSaving, nodes, getViewport, topologySignature, activeProjectId, loadPerspectives, t]);
 
   const handleDelete = useCallback(
     async (perspective: WorkbenchPerspective) => {
@@ -169,7 +176,7 @@ export function PerspectiveSwitcher({
   return (
     <div ref={dropdownRef} className="relative">
       {/* Trigger button */}
-      <button
+      <button type="button"
         onClick={() => {
           setOpen((v) => {
             if (!v) onOpen?.();
@@ -177,34 +184,35 @@ export function PerspectiveSwitcher({
           });
         }}
         className={cn(
-          "flex items-center gap-1 rounded-md border bg-surface-base px-2 py-1 text-2xs font-medium shadow-sm transition-colors",
+          "flex items-center gap-1 rounded-md border bg-surface-base px-2 py-1 text-2xs font-medium shadow-1 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
           "border-divider text-foreground hover:bg-surface-raised",
-          "dark:border-divider dark:text-muted-foreground",
         )}
       >
-        <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <rect x="2" y="2" width="12" height="12" rx="2" />
-          <path d="M2 6h12M6 6v8" />
-        </svg>
+        <HugeiconsIcon icon={KanbanIcon} className="h-3 w-3" size="100%" />
         {activeName}
-        <svg className={cn("h-2.5 w-2.5 transition-transform", open && "rotate-180")} viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M2 4l3 3 3-3" />
-        </svg>
+        <HugeiconsIcon
+          icon={ArrowDown01Icon}
+          className={cn(
+            "h-2.5 w-2.5 transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+            open && "rotate-180",
+          )}
+          size="100%"
+        />
       </button>
 
       {/* Dropdown */}
       {open && (
         <div className={cn(
-          "absolute left-0 top-full z-50 mt-1 w-48 rounded-lg border bg-surface-base shadow-lg",
+          "absolute start-0 top-full z-popover mt-1 w-48 rounded-lg border bg-surface-base shadow-3",
           "border-divider",
         )}>
           {/* Perspective list */}
           <div className="max-h-40 overflow-y-auto py-1">
-            <div className="px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
               {t("savedViews")}
             </div>
             {perspectives.length === 0 && (
-              <div className="px-3 py-2 text-2xs text-muted-foreground">{t("noSavedViews")}</div>
+              <div className="px-3 py-2 text-2xs text-foreground-muted">{t("noSavedViews")}</div>
             )}
             {perspectives.map((p) => (
               <div
@@ -214,23 +222,23 @@ export function PerspectiveSwitcher({
                   activeName === p.name && "bg-surface-raised",
                 )}
               >
-                <button
+                <button type="button"
                   onClick={() => handleSwitch(p)}
-                  className="flex-1 truncate text-left text-foreground"
+                  className="flex-1 truncate text-start text-foreground"
                 >
                   {p.name}
                   {p.is_default && (
-                    <span className="ml-1 text-2xs text-muted-foreground">{t("defaultTag")}</span>
+                    <span className="ms-1 text-2xs text-foreground-muted">{t("defaultTag")}</span>
                   )}
                 </button>
                 {!p.is_default && (
-                  <button
+                  <button type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDelete(p);
                     }}
                     disabled={deleting === p.id}
-                    className="hidden shrink-0 text-muted-foreground hover:text-danger-foreground group-hover:block disabled:opacity-50"
+                    className="hidden shrink-0 text-foreground-muted hover:text-danger-foreground group-hover:block disabled:opacity-50"
                   >
                     {deleting === p.id ? tCommon("deleting") : "\u00D7"}
                   </button>
@@ -243,7 +251,7 @@ export function PerspectiveSwitcher({
           <div className="border-t border-divider-soft">
             {showSaveAs ? (
               <div className="flex items-center gap-1 px-2 py-1.5">
-                <input
+                <FormInput
                   ref={inputRef}
                   type="text"
                   value={newName}
@@ -256,20 +264,21 @@ export function PerspectiveSwitcher({
                     }
                   }}
                   placeholder={t("namePlaceholder")}
-                  className="flex-1 rounded border border-divider bg-transparent px-1.5 py-0.5 text-2xs text-foreground outline-none placeholder:text-foreground-muted-muted"
+                  density="compact"
+                  className="flex-1"
                 />
-                <button
+                <button type="button"
                   onClick={handleSaveAs}
                   disabled={!newName.trim() || isSaving}
-                  className="rounded bg-brand-solid px-2 py-0.5 text-2xs text-white hover:bg-brand-solid disabled:opacity-50"
+                  className="rounded bg-brand-solid px-2 py-0.5 text-2xs text-foreground-onbrand hover:bg-brand-solid disabled:opacity-50"
                 >
                   {isSaving ? tCommon("saving") : tCommon("save")}
                 </button>
               </div>
             ) : (
-              <button
+              <button type="button"
                 onClick={() => setShowSaveAs(true)}
-                className="w-full px-3 py-1.5 text-left text-2xs text-muted-foreground hover:bg-surface-raised hover:text-foreground dark:hover:text-foreground-muted"
+                className="w-full px-3 py-1.5 text-start text-2xs text-foreground-muted hover:bg-surface-raised hover:text-foreground-muted"
               >
                 {t("saveAs")}
               </button>

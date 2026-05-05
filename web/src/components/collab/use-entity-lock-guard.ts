@@ -1,3 +1,5 @@
+"use client";
+
 // `useEntityLockGuard` — declares "I am editing this entity for
 // the lifetime of this component". Acquires on mount, refreshes
 // on a timer to keep the lock alive while the inspector is open,
@@ -8,8 +10,6 @@
 // idempotent path keeps the wire surface narrow — no separate
 // "renew" message — and the server treats every TTL bump as a
 // caller-only signal so other members don't see the heartbeat.
-
-"use client";
 
 import { useEffect } from "react";
 

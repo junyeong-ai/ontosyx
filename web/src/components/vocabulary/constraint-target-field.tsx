@@ -3,7 +3,7 @@
 import type { ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
 
-import { SettingsInput } from "@/components/ui/form-input";
+import { FormSelect, SettingsInput } from "@/components/ui/form-input";
 import type { ConstraintTarget } from "@/lib/api/edit-ops";
 
 interface ConstraintTargetFieldProps {
@@ -56,16 +56,16 @@ export function ConstraintTargetField({
       <label className="text-2xs font-medium uppercase tracking-wide text-foreground-muted">
         {label}
       </label>
-      <select
+      <FormSelect
         value={value.kind}
         onChange={handleKindChange}
-        className="rounded border border-divider bg-surface-base px-2 py-1 text-xs"
+        density="compact"
       >
         <option value="inherit">{t("inherit")}</option>
         <option value="property">{t("property")}</option>
         <option value="node_type">{t("nodeType")}</option>
         <option value="edge_label">{t("edgeLabel")}</option>
-      </select>
+      </FormSelect>
       {value.kind === "property" && (
         <div className="grid grid-cols-2 gap-2">
           <SettingsInput

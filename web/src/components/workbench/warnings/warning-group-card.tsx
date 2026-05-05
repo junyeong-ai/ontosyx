@@ -81,23 +81,23 @@ function WarningGroupCard({ group }: { group: WarningGroup }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+        className="flex w-full items-center gap-2 px-3 py-2 text-start"
       >
         <SeverityIcon level={group.level} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium text-foreground-strong-strong">
+          <p className="truncate text-xs font-medium text-foreground-strong">
             {summary}
           </p>
           {!open && hint && (
-            <p className="truncate text-[11px] text-muted-foreground">{hint}</p>
+            <p className="truncate text-2xs text-foreground-muted">{hint}</p>
           )}
         </div>
-        <span className="rounded-full border border-divider bg-surface-base px-1.5 py-0.5 text-2xs font-medium text-foreground dark:border-divider-strong">
+        <span className="rounded-full border border-divider bg-surface-base px-1.5 py-0.5 text-2xs font-medium text-foreground-strong">
           {t("affectedCount", { count: group.warnings.length })}
         </span>
         <HugeiconsIcon
           icon={open ? ArrowUp01Icon : ArrowDown01Icon}
-          className="h-3 w-3 shrink-0 text-muted-foreground"
+          className="h-3 w-3 shrink-0 text-foreground-muted"
           size="100%"
         />
       </button>
@@ -105,13 +105,13 @@ function WarningGroupCard({ group }: { group: WarningGroup }) {
       {open && (
         <div className="space-y-2 border-t border-divider px-3 pb-2 pt-2">
           {hint && (
-            <p className="rounded-md bg-brand-surface px-2 py-1.5 text-[11px] text-brand-foreground-strong">
+            <p className="rounded-md bg-brand-surface px-2 py-1.5 text-2xs text-brand-foreground-strong">
               {hint}
             </p>
           )}
           <ul className="flex flex-col gap-1">
             {group.warnings.map((w, idx) => (
-              <li key={`${w.group_key}-${idx}`} className="text-[11px]">
+              <li key={`${w.group_key}-${idx}`} className="text-2xs">
                 <p className="font-mono text-foreground">
                   {scopeLabel(w)}
                 </p>
@@ -141,7 +141,7 @@ function groupByFingerprint(
     // (e.g. an analysis_report blob persisted under an older schema)
     // — the boundary validator at the API client logs the
     // contract violation; here we only need to keep rendering.
-    if (!w || !w.scope || typeof w.scope.kind !== "string" || !w.group_key) {
+    if (!w?.scope || typeof w.scope.kind !== "string" || !w.group_key) {
       continue;
     }
     const existing = map.get(w.group_key);
@@ -220,7 +220,7 @@ function SeverityIcon({ level }: { level: WarningLevel }) {
 function levelToBorder(level: WarningLevel): string {
   switch (level) {
     case "info":
-      return "border-info-border dark:border-info-border";
+      return "border-info-border";
     case "warning":
       return "border-warning-border";
     case "error":

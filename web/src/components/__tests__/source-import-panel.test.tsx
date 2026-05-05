@@ -13,7 +13,7 @@ import {
 import * as clientModule from "@/lib/api/client";
 import type { ProjectSource } from "@/types/projects";
 
-vi.mock("sonner", () => ({
+vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

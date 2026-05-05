@@ -32,12 +32,12 @@ export const GraphLegend = memo(function GraphLegend({
   const interactive = !!onToggleType;
 
   return (
-    <div className="absolute bottom-2 left-2 z-10 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-surface-base px-2 py-1.5 text-2xs shadow-sm backdrop-blur/90">
+    <div className="absolute bottom-2 start-2 z-canvas flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-surface-base px-2 py-1.5 text-2xs shadow-1 backdrop-blur/90">
       {entries.map(([type, color]) => {
         const isHidden = hiddenTypes?.has(type) ?? false;
         const chip = (
           <span
-            className={`inline-block h-2.5 w-2.5 rounded-full transition-opacity ${
+            className={`inline-block h-2.5 w-2.5 rounded-full transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
               isHidden ? "opacity-30" : "opacity-100"
             }`}
             style={{ backgroundColor: color }}
@@ -45,9 +45,9 @@ export const GraphLegend = memo(function GraphLegend({
         );
         const label = (
           <span
-            className={`transition-colors ${
+            className={`transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
               isHidden
-                ? "text-muted-foreground line-through-muted"
+                ? "text-foreground-muted line-through-muted"
                 : "text-foreground-muted"
             }`}
           >
@@ -69,7 +69,7 @@ export const GraphLegend = memo(function GraphLegend({
             onClick={() => onToggleType?.(type)}
             aria-pressed={!isHidden}
             aria-label={isHidden ? t("legendShowAria", { type }) : t("legendHideAria", { type })}
-            className="flex cursor-pointer items-center gap-1 rounded px-0.5 transition-colors hover:bg-surface-inset dark:hover:bg-zinc-700"
+            className="flex cursor-pointer items-center gap-1 rounded px-0.5 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset"
           >
             {chip}
             {label}

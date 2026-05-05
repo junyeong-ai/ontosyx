@@ -2,35 +2,32 @@
 
 import { usePathname } from "next/navigation";
 
+import { listWorkbenchModes } from "@/lib/workbench-modes";
 import type { WorkspaceMode } from "@/lib/store";
 
 /**
  * URL-derived workspace mode. The pathname is the single source of
- * truth — reloads and share links land on the same surface. The
- * `"design"` fallback is defensive; every `(workbench)` page matches
- * one of the prefixes.
+ * truth — reloads and share links land on the same surface.
+ *
+ * The mode list is read from the workbench-mode registry on every
+ * call, so plugin-registered modes are recognised here automatically
+ * without needing a parallel switch statement. The `"design"` fallback
+ * fires only when the pathname doesn't match any registered mode —
+ * defensive against routes outside the workbench shell.
  */
-const MODE_PREFIXES: ReadonlyArray<[string, WorkspaceMode]> = [
-  ["/design", "design"],
-  ["/analyze", "analyze"],
-  ["/explore", "explore"],
-  ["/dashboard", "dashboard"],
-  ["/glossary", "glossary"],
-  ["/vocabulary", "vocabulary"],
-  ["/recipes", "recipes"],
-];
-
 export function useWorkspaceMode(): WorkspaceMode {
   const pathname = usePathname() ?? "";
-  for (const [prefix, mode] of MODE_PREFIXES) {
-    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
-      return mode;
+  for (const mode of listWorkbenchModes()) {
+    if (pathname === mode.href || pathname.startsWith(`${mode.href}/`)) {
+      return mode.id;
     }
   }
   return "design";
 }
 
-/** Path for a given mode, used by navigation helpers. */
+/** Path for a given mode id. Resolves through the registry so
+ *  plugin-supplied hrefs round-trip; falls back to `/<id>` for
+ *  unknown modes (matches the historical default-mode convention). */
 export function workspaceModeHref(mode: WorkspaceMode): string {
-  return `/${mode}`;
+  return listWorkbenchModes().find((m) => m.id === mode)?.href ?? `/${mode}`;
 }

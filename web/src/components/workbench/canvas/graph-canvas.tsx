@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   ReactFlow,
   Background,
@@ -14,6 +14,7 @@ import {
   type EdgeMouseHandler,
   type OnNodesChange,
   type OnEdgesChange,
+  type OnSelectionChangeFunc,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -56,6 +57,33 @@ export interface GraphCanvasProps {
   onNodeContextMenu?: NodeMouseHandler;
   onEdgeContextMenu?: EdgeMouseHandler;
   onPaneClick?: () => void;
+  /**
+   * Fires whenever ReactFlow's internal selection set changes —
+   * box-selection drag, multi-click, or programmatic. The ontology
+   * canvas listens to this to mirror lasso results into the Zustand
+   * selection slice. Click-driven selection still flows through the
+   * `onNodeClick` / `onEdgeClick` handlers (which are modifier-aware).
+   */
+  onSelectionChange?: OnSelectionChangeFunc;
+  /**
+   * The modifier held while dragging to draw a rubber-band selection
+   * box. Default `"Shift"` matches the ReactFlow norm — every other
+   * Foundry-class graph tool agrees on Shift for box-select.
+   */
+  selectionKeyCode?: string | string[] | null;
+  /**
+   * The modifier held while clicking to add the target to the existing
+   * selection. Default `["Meta", "Control"]` so macOS users use Cmd
+   * and Win/Linux users use Ctrl; both fire toggle behaviour.
+   */
+  multiSelectionKeyCode?: string | string[] | null;
+  /**
+   * ReactFlow's built-in delete key. Default `null` — every workbench
+   * canvas routes deletion through `useCanvasCommands` so undo/redo
+   * is uniform; bypassing the command stack would silently strip
+   * undo history.
+   */
+  deleteKeyCode?: string | string[] | null;
 
   // --- Interaction policy ----------------------------------------------
   //
@@ -100,6 +128,10 @@ export function GraphCanvas(props: GraphCanvasProps) {
     onNodeContextMenu,
     onEdgeContextMenu,
     onPaneClick,
+    onSelectionChange,
+    selectionKeyCode = "Shift",
+    multiSelectionKeyCode = ["Meta", "Control"],
+    deleteKeyCode = null,
     nodesDraggable = true,
     nodesConnectable = false,
     elementsSelectable = true,
@@ -127,6 +159,10 @@ export function GraphCanvas(props: GraphCanvasProps) {
       onNodeContextMenu={onNodeContextMenu}
       onEdgeContextMenu={onEdgeContextMenu}
       onPaneClick={onPaneClick}
+      onSelectionChange={onSelectionChange}
+      selectionKeyCode={selectionKeyCode}
+      multiSelectionKeyCode={multiSelectionKeyCode}
+      deleteKeyCode={deleteKeyCode}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       fitView={fitView}
@@ -144,7 +180,7 @@ export function GraphCanvas(props: GraphCanvasProps) {
       <Background gap={20} size={1} color="#e4e4e7" />
       <Controls
         showInteractive={false}
-        className="!rounded-lg !border-divider !bg-surface-base !shadow-sm dark:!border-divider"
+        className="!rounded-lg !border-divider !bg-surface-base !shadow-1"
       />
       {minimap && (
         <MiniMap
@@ -153,7 +189,7 @@ export function GraphCanvas(props: GraphCanvasProps) {
           nodeStrokeWidth={3}
           nodeColor={minimap.nodeColor}
           maskColor="rgba(0,0,0,0.08)"
-          className="!rounded-lg !border-divider !bg-surface-base dark:!border-divider"
+          className="!rounded-lg !border-divider !bg-surface-base"
         />
       )}
       {children}

@@ -1,3 +1,5 @@
+"use client";
+
 // Browser network-awareness for the collaboration client.
 //
 // `online` / `offline` and the Page Visibility API let us adjust
@@ -6,8 +8,6 @@
 // `online` event will trigger an immediate reconnect), and skip
 // cursor publishes while the tab is hidden so we don't burn CPU
 // or bandwidth painting cursors no one will see.
-
-"use client";
 
 import { useEffect } from "react";
 

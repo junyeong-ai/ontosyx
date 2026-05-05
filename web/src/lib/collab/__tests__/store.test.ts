@@ -11,6 +11,7 @@ const initial: CollabState = {
   setConnectionState: () => {},
   setClientReady: () => {},
   applyServerMessage: () => {},
+  ackRemoteUpdate: () => {},
   reset: () => {},
   hidden: false,
   setHidden: () => {},
@@ -197,5 +198,31 @@ describe("applyServerMessage", () => {
     };
     const next = applyServerMessage(initial, msg);
     expect(next.lastError?.code).toBe("session_revoked");
+  });
+
+  it("captures EntityUpdated as the room's latestRemoteUpdate snapshot", () => {
+    // The OpenAPI schema renders `commands` as `Record<string, never>[]`
+    // because `OntologyCommand` is internally tagged JSON the BE
+    // surfaces opaquely (utoipa can't derive a static schema for the
+    // runtime variant set). At the FE we know the actual shape; cast
+    // the literal through `unknown` to satisfy the typed wire shape.
+    const msg = {
+      type: "entity_updated",
+      project_id: projectA,
+      author_user_id: "u-bob",
+      author_user_name: "Bob",
+      base_revision: 5,
+      new_revision: 6,
+      commands: [
+        { op: "rename_node", node_id: "n1", new_label: "Customer" },
+      ],
+    } as unknown as ServerMessage;
+    const next = applyServerMessage(initial, msg);
+    const remote = next.rooms?.get(projectA)?.latestRemoteUpdate;
+    expect(remote?.authorUserId).toBe("u-bob");
+    expect(remote?.authorUserName).toBe("Bob");
+    expect(remote?.baseRevision).toBe(5);
+    expect(remote?.newRevision).toBe(6);
+    expect(remote?.commands).toHaveLength(1);
   });
 });

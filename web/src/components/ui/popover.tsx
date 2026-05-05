@@ -23,12 +23,14 @@ export function Popover({ open, onOpenChange, children }: PopoverProps) {
 export function PopoverTrigger({
   children,
   className,
+  "aria-label": ariaLabel,
 }: {
   children: React.ReactNode;
   className?: string;
+  "aria-label"?: string;
 }) {
   return (
-    <BasePopover.Trigger className={className}>
+    <BasePopover.Trigger className={className} aria-label={ariaLabel}>
       {children}
     </BasePopover.Trigger>
   );
@@ -53,7 +55,7 @@ export function PopoverContent({
         <BasePopover.Popup
           className={
             className ??
-            "z-50 rounded-lg border border-zinc-200 bg-white shadow-lg outline-none data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all dark:border-zinc-700 dark:bg-zinc-900"
+            "z-popover rounded-lg border border-divider bg-surface-base shadow-3 outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0"
           }
         >
           {children}

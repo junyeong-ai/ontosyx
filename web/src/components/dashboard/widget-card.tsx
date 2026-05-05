@@ -74,10 +74,10 @@ export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCard
     <div
       onClick={onClick}
       style={{ gridColumn: `span ${colSpan} / span ${colSpan}` }}
-      className={`cursor-pointer rounded-lg border transition-all ${
+      className={`cursor-pointer rounded-lg border transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] ${
         selected
           ? "border-brand-foreground ring-2 ring-brand-foreground/50 bg-surface-base"
-          : "border-divider bg-surface-base hover:border-divider dark:hover:border-divider"
+          : "border-divider bg-surface-base hover:border-divider"
       }`}
     >
       <div className="flex items-center justify-between border-b border-divider-soft px-3 py-2">
@@ -93,7 +93,7 @@ export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCard
                 clearDashboardTypes(widget.dashboard_id ?? "");
               }}
               title={t("crossFilterClearTitle", { types: hiddenTypes.join(", ") })}
-              className="inline-flex items-center gap-1 rounded bg-warning-surface px-1.5 py-0.5 text-2xs font-medium text-warning-foreground hover:bg-warning-surface dark:hover:bg-warning-surface/40"
+              className="inline-flex items-center gap-1 rounded bg-warning-surface px-1.5 py-0.5 text-2xs font-medium text-warning-foreground hover:bg-warning-surface"
             >
               <span>{t("crossFilterChip", { count: hiddenTypes.length })}</span>
               <span aria-hidden="true">×</span>
@@ -102,11 +102,11 @@ export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCard
           {widget.refresh_interval_secs && widget.refresh_interval_secs > 0 && (
             <HugeiconsIcon
               icon={RepeatIcon}
-              className={`h-3 w-3 text-muted-foreground ${refreshing ? "animate-spin" : ""}`}
+              className={`h-3 w-3 text-foreground-muted ${refreshing ? "animate-spin" : ""}`}
               size="100%"
             />
           )}
-          <span className="text-2xs text-muted-foreground">{widget.widget_type}</span>
+          <span className="text-2xs text-foreground-muted">{widget.widget_type}</span>
         </div>
       </div>
       <div className="p-2 min-h-[120px]">
@@ -123,7 +123,7 @@ export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCard
             <Spinner size="sm" />
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground text-center">{t("noQuery")}</p>
+          <p className="text-xs text-foreground-muted text-center">{t("noQuery")}</p>
         )}
       </div>
     </div>

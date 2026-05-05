@@ -6,6 +6,7 @@ import {
   ArrowDown01Icon,
   ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
+import { Heading } from "@/components/ui/heading";
 import { cn } from "@/lib/cn";
 
 // Generic collapsible accordion section. Used by full-screen
@@ -31,7 +32,7 @@ export function CollapsibleSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <section className="rounded-lg border border-divider bg-surface-base">
       <header
         className={cn(
           "flex items-center gap-3 px-4 py-3",
@@ -42,19 +43,19 @@ export function CollapsibleSection({
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          className="flex flex-1 items-center gap-2 text-left"
+          className="flex flex-1 items-center gap-2 text-start"
         >
           <HugeiconsIcon
             icon={open ? ArrowDown01Icon : ArrowRight01Icon}
-            className="h-3.5 w-3.5 text-muted-foreground"
+            className="h-3.5 w-3.5 text-foreground-muted"
             size="100%"
           />
-          <h2 className="text-sm font-semibold text-foreground-strong">
+          <Heading level={2} size={6}>
             {title}
-          </h2>
+          </Heading>
           {badge}
           {description && (
-            <span className="ml-2 text-[11px] text-muted-foreground">
+            <span className="ms-2 text-2xs text-foreground-muted">
               {description}
             </span>
           )}

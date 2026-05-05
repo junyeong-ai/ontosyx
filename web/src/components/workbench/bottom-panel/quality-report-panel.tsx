@@ -6,7 +6,8 @@ import { cn } from "@/lib/cn";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { MagicWand01Icon } from "@hugeicons/core-free-icons";
 import { useConfirm } from "@/components/providers/confirm-provider";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { FormInput } from "@/components/ui/form-input";
 import type {
   OntologyQualityReport,
   QualityGap,
@@ -85,7 +86,7 @@ function countBadgeClass(severity: QualityGapSeverity): string {
       ? "bg-danger-surface text-danger-foreground"
       : severity === "medium"
         ? "bg-warning-surface text-warning-foreground"
-        : "bg-surface-inset text-foreground dark:text-muted-foreground",
+        : "bg-surface-inset text-foreground",
   );
 }
 
@@ -357,7 +358,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
 
   if (report.gaps.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">{t("reportNoGaps")}</p>
+      <p className="text-xs text-foreground-muted">{t("reportNoGaps")}</p>
     );
   }
 
@@ -380,7 +381,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
               aria-pressed={enabledSeverities.has(sev)}
               onClick={() => toggleSeverity(sev)}
               className={cn(
-                "flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors",
+                "flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                 enabledSeverities.has(sev)
                   ? "border-divider bg-surface-base"
                   : "border-divider bg-surface-inset opacity-40",
@@ -397,9 +398,8 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
             type="button"
             onClick={fixAll}
             className={cn(
-              "ml-auto flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+              "ms-auto flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
               "border-concept-border bg-concept-surface text-concept-foreground hover:bg-concept-surface",
-              "dark:border-concept-border dark:hover:bg-concept-surface",
             )}
           >
             <HugeiconsIcon icon={MagicWand01Icon} className="h-3 w-3" size="100%" />
@@ -409,17 +409,17 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
       </div>
 
       {/* Search */}
-      <input
+      <FormInput
         type="text"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         placeholder={t("searchPlaceholder")}
-        className="w-full rounded-md border border-divider bg-surface-base px-2.5 py-1.5 text-xs text-foreground placeholder-foreground-muted focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
+        density="settings"
       />
 
       {/* Grouped gaps */}
       {grouped.size === 0 && (
-        <p className="text-xs text-muted-foreground">{t("noMatches")}</p>
+        <p className="text-xs text-foreground-muted">{t("noMatches")}</p>
       )}
 
       {Array.from(grouped.entries()).map(([category, gaps]) => {
@@ -429,18 +429,18 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
             <button
               type="button"
               onClick={() => toggleCategory(category)}
-              className="flex w-full items-center gap-1.5 py-1 text-left text-2xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
+              className="flex w-full items-center gap-1.5 py-1 text-start text-2xs font-semibold uppercase tracking-wider text-foreground-muted hover:text-foreground-muted"
             >
               <span
                 className={cn(
-                  "transition-transform text-2xs",
+                  "transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)] text-2xs",
                   collapsed ? "rotate-0" : "rotate-90",
                 )}
               >
                 ▶
               </span>
               {formatCategory(category, t)}
-              <span className="text-muted-foreground">{t("groupCount", { count: gaps.length })}</span>
+              <span className="text-foreground-muted">{t("groupCount", { count: gaps.length })}</span>
             </button>
 
             {!collapsed && (

@@ -8,6 +8,7 @@ import {
   ChartColumnIcon,
   Table01Icon,
 } from "@hugeicons/core-free-icons";
+import { useFormatters } from "@/hooks/use-formatters";
 
 // ---------------------------------------------------------------------------
 // ExecutionCard — list item for query executions
@@ -20,8 +21,8 @@ export interface ExecutionCardProps {
 
 export function ExecutionCard({ item, onClick }: ExecutionCardProps) {
   const t = useTranslations("workbench.chat.execution");
-  const date = new Date(item.created_at);
-  const timeStr = date.toLocaleString(undefined, {
+  const fmt = useFormatters();
+  const timeStr = fmt.date(item.created_at, {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -34,7 +35,7 @@ export function ExecutionCard({ item, onClick }: ExecutionCardProps) {
       interactive
       onClick={onClick}
       aria-label={t("viewAria", { question: item.question.slice(0, 60) })}
-      className="w-full text-left"
+      className="w-full text-start"
     >
       <p className="line-clamp-2 text-sm font-medium text-foreground-strong">
         {item.question}
@@ -49,7 +50,7 @@ export function ExecutionCard({ item, onClick }: ExecutionCardProps) {
           {t("rowsSummary", { count: item.row_count })}
         </span>
         <span>{item.execution_time_ms}ms</span>
-        <span className="ml-auto">{timeStr}</span>
+        <span className="ms-auto">{timeStr}</span>
       </div>
     </Card>
   );

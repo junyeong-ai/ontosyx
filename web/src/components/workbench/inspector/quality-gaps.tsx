@@ -24,6 +24,7 @@ export function QualityGapsList({
   gaps: QualityGap[];
 }) {
   const tGap = useTranslations("qualityGap");
+  const t = useTranslations("inspector.qualityGaps");
   const { canEdit, loading, suggestions, requestEdit, dismiss } = useAiEdit();
   const [fixingIndex, setFixingIndex] = useState<number | null>(null);
 
@@ -37,7 +38,7 @@ export function QualityGapsList({
   };
 
   return (
-    <Section title={`Quality Issues (${gaps.length})`}>
+    <Section title={t("title", { count: gaps.length })}>
       {suggestions && (
         <AiSuggestionList
           commands={suggestions.commands}
@@ -57,7 +58,7 @@ export function QualityGapsList({
             )}
           >
             <div className="flex items-center gap-1.5">
-              <Tooltip content={`Severity: ${gap.severity}`}>
+              <Tooltip content={t("severityTooltip", { severity: t(`severity.${gap.severity}`) })}>
                 <span
                   onClick={focusable ? () => navigateToGap(gap) : undefined}
                   className={cn(
@@ -72,20 +73,20 @@ export function QualityGapsList({
               </Tooltip>
               <span
                 onClick={focusable ? () => navigateToGap(gap) : undefined}
-                className="min-w-0 flex-1 truncate text-foreground dark:text-muted-foreground"
+                className="min-w-0 flex-1 truncate text-foreground"
               >
                 {issue}
               </span>
               {canEdit && (
-                <Tooltip content="Fix with AI">
-                  <button
+                <Tooltip content={t("fixWithAi")}>
+                  <button type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleFix(gap, i);
                     }}
                     disabled={loading}
-                    aria-label="Fix with AI"
-                    className="shrink-0 rounded p-0.5 text-concept-foreground opacity-40 transition-opacity hover:bg-concept-surface hover:opacity-100 hover:text-concept-foreground dark:hover:bg-concept-surface"
+                    aria-label={t("fixWithAi")}
+                    className="shrink-0 rounded p-0.5 text-concept-foreground opacity-40 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-concept-surface hover:opacity-100 hover:text-concept-foreground"
                   >
                     {fixingIndex === i && loading ? (
                       <Spinner size="xs" />
@@ -98,7 +99,7 @@ export function QualityGapsList({
             </div>
             <p
               onClick={focusable ? () => navigateToGap(gap) : undefined}
-              className="mt-0.5 truncate pl-3 text-muted-foreground"
+              className="mt-0.5 truncate ps-3 text-foreground-muted"
             >
               <Tooltip content={suggestion}>
                 <span className="cursor-default">{suggestion}</span>

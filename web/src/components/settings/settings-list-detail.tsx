@@ -19,7 +19,6 @@ interface SettingsListDetailProps<T> {
 }
 
 export function SettingsListDetail<T>({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   title: _title,
   items,
   selectedId,
@@ -60,16 +59,17 @@ export function SettingsListDetail<T>({
         {/* Sidebar list */}
         <div className="w-72 shrink-0 space-y-1">
           {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{resolvedEmptyMessage}</p>
+            <p className="text-sm text-foreground-muted">{resolvedEmptyMessage}</p>
           ) : (
             items.map((item) => {
               const id = getId(item);
               return (
                 <button
+                  type="button"
                   key={id}
                   onClick={() => onSelect(id)}
                   className={cn(
-                    "w-full rounded-md px-3 py-2 text-left text-sm transition-colors",
+                    "w-full rounded-md px-3 py-2 text-start text-sm transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                     id === selectedId
                       ? "bg-brand-surface text-brand-foreground-strong"
                       : "text-foreground hover:bg-surface-raised-muted",
@@ -87,7 +87,7 @@ export function SettingsListDetail<T>({
           {selected ? (
             renderDetail(selected)
           ) : (
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-foreground-muted">
               {t("selectPrompt")}
             </div>
           )}

@@ -6,8 +6,14 @@ import {
   useQueryClient,
   type UseQueryOptions,
 } from "@tanstack/react-query";
-import { createRecipe, deleteRecipe, listRecipes } from "@/lib/api/admin";
-import type { AnalysisRecipe, CursorPage } from "@/types/api";
+import {
+  createRecipe,
+  deleteRecipe,
+  listRecipes,
+  updateRecipeStatus,
+  type CreateRecipeRequest,
+} from "@/lib/api/admin";
+import type { AnalysisRecipe, CursorPage, RecipeStatus } from "@/types/api";
 
 // ---------------------------------------------------------------------------
 // Query keys
@@ -45,8 +51,7 @@ export function useRecipes(
 export function useCreateRecipe() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: Omit<AnalysisRecipe, "id" | "created_by" | "created_at">) =>
-      createRecipe(req),
+    mutationFn: (req: CreateRecipeRequest) => createRecipe(req),
     onSuccess: () => qc.invalidateQueries({ queryKey: recipesKeys.lists() }),
   });
 }
@@ -55,6 +60,15 @@ export function useDeleteRecipe() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteRecipe(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: recipesKeys.lists() }),
+  });
+}
+
+export function useUpdateRecipeStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: RecipeStatus }) =>
+      updateRecipeStatus(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: recipesKeys.lists() }),
   });
 }

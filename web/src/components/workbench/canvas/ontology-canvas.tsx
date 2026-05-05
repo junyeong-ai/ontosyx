@@ -10,11 +10,14 @@ import {
   type Edge,
   type NodeMouseHandler,
   type EdgeMouseHandler,
+  type OnSelectionChangeFunc,
 } from "@xyflow/react";
+
+import type { SelectionRef } from "@/lib/store";
 
 import { CommandBar, DiffOverlayBar, VersionDiffBar } from "./command-bar";
 import { ContextMenu } from "./context-menu";
-import { CommandPalette } from "./command-palette";
+import { CanvasCommandSource } from "./canvas-command-source";
 import { NeighborhoodToolbar } from "./neighborhood-toolbar";
 import { exportCanvasImage } from "./canvas-helpers";
 import { useCanvasLayout } from "./use-canvas-layout";
@@ -27,6 +30,7 @@ import { useCanvasState } from "./use-canvas-state";
 import { useOntologyContextMenu } from "./use-ontology-context-menu";
 import { useCanvasCommands } from "@/lib/store/canvas/commands";
 import { useCanvasKeyboard } from "@/lib/store/canvas/keyboard";
+import { useCanvasKeyboardMovement } from "@/lib/store/canvas/keyboard-movement";
 import { useCanvasSelection } from "@/lib/store/canvas/selection";
 import { useCanvasViewport } from "@/lib/store/canvas/viewport";
 import { useGraphContextMenu } from "@/hooks/use-graph-context-menu";
@@ -36,22 +40,33 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
   const tModeActions = useTranslations("chrome.modeActions");
   const tInspector = useTranslations("inspector.toast");
   const tImage = useTranslations("workbench.canvas.toolbar.image");
-  const { ontology, select, clearSelection, setHighlightedBindings, setNeighborhoodFocus } = useCanvasState();
-  const imageCopy = {
-    nothingToExport: tImage("nothingToExport"),
-    exported: tImage("exported"),
-    failed: tImage("failed"),
-  };
+  const {
+    ontology,
+    selectOne,
+    toggleSelection,
+    selectMany,
+    clearSelection,
+    setHighlightedBindings,
+    setNeighborhoodFocus,
+  } = useCanvasState();
+  const imageCopy = useMemo(
+    () => ({
+      nothingToExport: tImage("nothingToExport"),
+      exported: tImage("exported"),
+      failed: tImage("failed"),
+    }),
+    [tImage],
+  );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 
   const { flowElements, topologySignature } = useCanvasViewport(gaps);
 
   useCanvasSelection({ ontology, setNodes, setEdges });
+  useCanvasKeyboardMovement({ setNodes });
 
   const { onNodeDragStop, runAutoLayout, layoutReady } = useCanvasLayout(
     flowElements,
@@ -61,7 +76,6 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
   );
 
   const { handleSave, deleteSelected, selectAllNodes, handleExport, deselectAll } = useCanvasCommands({
-    setIsPaletteOpen,
     setIsExportOpen,
     exportToastCopy: { failedTitle: tModeActions("exportFailed") },
     toastCopy: {
@@ -72,17 +86,36 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
     },
   });
 
-  const { paletteCommands: getPaletteCommands } = useCanvasKeyboard({
+  useCanvasKeyboard({
     handleSave,
     deleteSelected,
-    runAutoLayout: () => runAutoLayout(nodes, edges),
     selectAllNodes,
     deselectAll,
-    exportPng: () => exportCanvasImage(nodes, "png", ontology?.name ?? "ontology", imageCopy),
-    exportSvg: () => exportCanvasImage(nodes, "svg", ontology?.name ?? "ontology", imageCopy),
-    setIsPaletteOpen,
   });
-  const memoizedPaletteCommands = useMemo(() => getPaletteCommands(), [getPaletteCommands]);
+  const canvasCommandActions = useMemo(
+    () => ({
+      handleSave,
+      deleteSelected,
+      runAutoLayout: () => runAutoLayout(nodes, edges),
+      selectAllNodes,
+      deselectAll,
+      exportPng: () =>
+        exportCanvasImage(nodes, "png", ontology?.name ?? "ontology", imageCopy),
+      exportSvg: () =>
+        exportCanvasImage(nodes, "svg", ontology?.name ?? "ontology", imageCopy),
+    }),
+    [
+      handleSave,
+      deleteSelected,
+      runAutoLayout,
+      selectAllNodes,
+      deselectAll,
+      nodes,
+      edges,
+      ontology?.name,
+      imageCopy,
+    ],
+  );
 
   const contextMenu = useGraphContextMenu();
   const {
@@ -92,13 +125,19 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
     edgeContextMenuItems,
   } = useOntologyContextMenu(ontology, contextMenu);
 
+  // Modifier-aware click → store. Cmd / Ctrl toggles add/remove
+  // (mac Cmd, win/linux Ctrl); a plain click replaces the selection.
+  // Shift + drag is owned by ReactFlow's lasso (`selectionKeyCode="Shift"`)
+  // — we never reach here for box selections.
   const onNodeClick: NodeMouseHandler = useCallback(
-    (_event, node) => {
+    (event, node) => {
       contextMenu.close();
       if (node.type === "group") return;
-      select({ type: "node", nodeId: node.id });
+      const ref = { kind: "node" as const, id: node.id };
+      if (event.metaKey || event.ctrlKey) toggleSelection(ref);
+      else selectOne(ref);
     },
-    [select, contextMenu],
+    [selectOne, toggleSelection, contextMenu],
   );
 
   const onNodeDoubleClick: NodeMouseHandler = useCallback(
@@ -110,11 +149,13 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
   );
 
   const onEdgeClick: EdgeMouseHandler = useCallback(
-    (_event, edge) => {
+    (event, edge) => {
       contextMenu.close();
-      select({ type: "edge", edgeId: edge.id });
+      const ref = { kind: "edge" as const, id: edge.id };
+      if (event.metaKey || event.ctrlKey) toggleSelection(ref);
+      else selectOne(ref);
     },
-    [select, contextMenu],
+    [selectOne, toggleSelection, contextMenu],
   );
 
   const onPaneClick = useCallback(() => {
@@ -122,6 +163,28 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
     clearSelection();
     setHighlightedBindings(null);
   }, [clearSelection, setHighlightedBindings, contextMenu]);
+
+  // Lasso (shift-drag) result → store. ReactFlow tracks its own
+  // `node.selected` flag during the drag; on completion we mirror
+  // the resulting set into the store as canonical truth. Single-
+  // element changes already routed through onNodeClick / onEdgeClick,
+  // so we ignore them to avoid re-entry.
+  const onSelectionChange: OnSelectionChangeFunc = useCallback(
+    ({ nodes: rfNodes, edges: rfEdges }) => {
+      if (rfNodes.length + rfEdges.length <= 1) return;
+      const refs: SelectionRef[] = [];
+      for (const n of rfNodes) {
+        if (n.type === "group") continue;
+        refs.push({ kind: "node", id: n.id });
+      }
+      for (const e of rfEdges) {
+        refs.push({ kind: "edge", id: e.id });
+      }
+      if (refs.length === 0) return;
+      selectMany(refs);
+    },
+    [selectMany],
+  );
 
   const applyPositions = useCallback(
     (positions: Record<string, { x: number; y: number }>) => {
@@ -153,6 +216,7 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
         onNodeContextMenu={handleNodeContextMenu}
         onEdgeContextMenu={handleEdgeContextMenu}
         onPaneClick={onPaneClick}
+        onSelectionChange={onSelectionChange}
       />
 
       <CanvasToolbar
@@ -186,13 +250,7 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
         />
       )}
 
-      {isPaletteOpen && (
-        <CommandPalette
-          open={isPaletteOpen}
-          onClose={() => setIsPaletteOpen(false)}
-          commands={memoizedPaletteCommands}
-        />
-      )}
+      <CanvasCommandSource actions={canvasCommandActions} />
     </div>
   );
 }

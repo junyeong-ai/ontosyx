@@ -44,7 +44,7 @@ export function LineChartWidget({ spec, data }: LineChartWidgetProps) {
   );
 
   if (!xField || !yField || chartData.length === 0) {
-    return <p className="text-xs text-muted-foreground">{t("insufficient")}</p>;
+    return <p className="text-xs text-foreground-muted">{t("insufficient")}</p>;
   }
 
   const isArea = spec.chart_type === "area";
@@ -56,7 +56,7 @@ export function LineChartWidget({ spec, data }: LineChartWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground dark:text-muted-foreground">
+        <h4 className="text-xs font-semibold text-foreground">
           {spec.title}
         </h4>
       )}
@@ -100,7 +100,7 @@ export function LineChartWidget({ spec, data }: LineChartWidgetProps) {
           </ChartComponent>
         </ResponsiveContainer>
       </div>
-      <p className="text-2xs text-muted-foreground">{t("dataPointsCount", { count: chartData.length })}</p>
+      <p className="text-2xs text-foreground-muted">{t("dataPointsCount", { count: chartData.length })}</p>
     </div>
   );
 }

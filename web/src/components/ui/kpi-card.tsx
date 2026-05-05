@@ -1,9 +1,10 @@
 "use client";
 
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { NumberTicker } from "@/components/motion/number-ticker";
 import type { StatusTone } from "@/components/ui/status-badge";
+import { useFormatters } from "@/hooks/use-formatters";
 
 type KpiTone = Exclude<StatusTone, "concept"> | "neutral";
 
@@ -51,6 +52,7 @@ export function KpiCard({
   staticValue = false,
   className,
 }: KpiCardProps) {
+  const fmt = useFormatters();
   return (
     <div
       className={cn(
@@ -71,7 +73,7 @@ export function KpiCard({
             )}
           >
             {staticValue ? (
-              format ? format(value) : value.toLocaleString()
+              format ? format(value) : fmt.number(value)
             ) : (
               <NumberTicker value={value} format={format} />
             )}

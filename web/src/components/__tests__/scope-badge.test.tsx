@@ -10,7 +10,7 @@ import * as projectsApi from "@/lib/api/projects";
 import { useAppStore } from "@/lib/store";
 import type { DesignProject } from "@/types/api";
 
-vi.mock("sonner", () => ({
+vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

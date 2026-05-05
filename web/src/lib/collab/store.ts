@@ -7,6 +7,7 @@ import { create } from "zustand";
 import type {
   ConnectionState,
 } from "./client";
+import type { OntologyCommand } from "@/types/api";
 import type {
   CursorPosition,
   LockState,
@@ -34,6 +35,25 @@ export interface CursorEntry extends CursorPosition {
   lastUpdateAt: number;
 }
 
+/**
+ * The latest `entity_updated` frame observed for a project. The
+ * inspector panel reads this on a 409 to populate
+ * `conflict.remoteCommands` so the merge dialog renders the
+ * symmetric remote-ops inventory instead of the opaque fallback.
+ *
+ * Stored per-room rather than queued because conflict resolution is
+ * "all-or-nothing" — Keep mine rebases atop the freshly fetched
+ * server state, Take theirs accepts it verbatim. The user always
+ * resolves against the latest known remote commit.
+ */
+export interface RemoteUpdateSnapshot {
+  authorUserId: string;
+  authorUserName: string;
+  baseRevision: number;
+  newRevision: number;
+  commands: readonly OntologyCommand[];
+}
+
 /** Snapshot of one collaboration room. */
 export interface RoomState {
   presence: PresenceInfo[];
@@ -41,6 +61,9 @@ export interface RoomState {
   cursors: Map<string, CursorEntry>;
   /** entity_id → lock holder + expiry */
   locks: Map<string, LockState>;
+  /** Latest `entity_updated` for the room, or `undefined` until one
+   *  arrives. Cleared after the conflict surface resolves. */
+  latestRemoteUpdate?: RemoteUpdateSnapshot;
 }
 
 const emptyRoom = (): RoomState => ({
@@ -75,6 +98,10 @@ export interface CollabState {
   setClientReady(ready: boolean): void;
   setHidden(hidden: boolean): void;
   applyServerMessage(msg: ServerMessage): void;
+  /** Clear `latestRemoteUpdate` for a project — called after the
+   *  conflict resolution flow consumes it (Keep mine / Take theirs)
+   *  so the next 409 starts from a clean slate. */
+  ackRemoteUpdate(projectId: string): void;
   reset(): void;
 }
 
@@ -99,6 +126,20 @@ export const useCollabStore = create<CollabState>((set) => ({
 
   applyServerMessage(msg) {
     set((s) => applyServerMessage(s, msg));
+  },
+
+  ackRemoteUpdate(projectId) {
+    set((s) => {
+      const room = s.rooms.get(projectId);
+      if (!room?.latestRemoteUpdate) return {};
+      const rooms = new Map(s.rooms);
+      rooms.set(projectId, {
+        presence: room.presence,
+        cursors: room.cursors,
+        locks: room.locks,
+      });
+      return { rooms };
+    });
   },
 
   reset() {
@@ -219,6 +260,29 @@ export function applyServerMessage(
       // errors (auth, etc.) with workflow signals.
       return {};
 
+    case "entity_updated": {
+      const rooms = new Map(state.rooms);
+      const room = rooms.get(msg.project_id) ?? emptyRoom();
+      // The OpenAPI surface types `commands` as
+      // `Record<string, never>[]` because `OntologyCommand` is an
+      // internally-tagged union utoipa can't derive a static schema
+      // for. The runtime payload is the canonical wire shape — narrow
+      // it through `unknown` at the single wire boundary so downstream
+      // consumers see the typed union.
+      const commands = msg.commands as unknown as readonly OntologyCommand[];
+      rooms.set(msg.project_id, {
+        ...room,
+        latestRemoteUpdate: {
+          authorUserId: msg.author_user_id,
+          authorUserName: msg.author_user_name,
+          baseRevision: msg.base_revision,
+          newRevision: msg.new_revision,
+          commands,
+        },
+      });
+      return { rooms };
+    }
+
     case "error":
       return { lastError: { code: msg.code, params: msg.params } };
 
@@ -251,6 +315,11 @@ export const selectLockFor =
   (projectId: string, entityId: string) =>
   (state: CollabState): LockState | undefined =>
     state.rooms.get(projectId)?.locks.get(entityId);
+
+export const selectLatestRemoteUpdate =
+  (projectId: string) =>
+  (state: CollabState): RemoteUpdateSnapshot | undefined =>
+    state.rooms.get(projectId)?.latestRemoteUpdate;
 
 export const selectConnectionState = (state: CollabState): ConnectionState =>
   state.connectionState;

@@ -1,6 +1,9 @@
 "use client";
 
+import { Fragment } from "react";
 import { useTranslations } from "next-intl";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Tick01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/cn";
 
 /**
@@ -10,7 +13,7 @@ import { cn } from "@/lib/cn";
  * everywhere the operator needs to see "where am I in the flow".
  * The pre-project state (no project loaded yet, just a create form)
  * sits at index `-1` — every step is rendered as pending and the
- * connector lines stay grey until step 0 ("analyze") becomes
+ * connector tracks stay grey until step 0 ("analyze") becomes
  * active. After a project exists, the indicator follows
  * `DesignProject.status` via the integer in `currentStepIndex`.
  *
@@ -42,43 +45,75 @@ export function PhaseStepper({
   const t = useTranslations("workbench.bottomPanel.workflow");
 
   return (
-    <div className={cn("flex items-center justify-between px-2", className)}>
-      {STEPS.map((step, i) => (
-        <div key={step} className="flex items-center">
-          <div className="flex flex-col items-center gap-1">
-            <div
-              className={cn(
-                "flex h-5 w-5 items-center justify-center rounded-full text-2xs font-bold",
-                i <= currentStepIndex
-                  ? "bg-brand-solid text-white"
-                  : "bg-surface-inset text-muted-foreground",
-              )}
+    <ol
+      className={cn("flex items-start px-2", className)}
+      aria-label={t("phaseAria")}
+    >
+      {STEPS.map((step, i) => {
+        const isActive = i === currentStepIndex;
+        const isComplete = i < currentStepIndex;
+        const isPending = i > currentStepIndex;
+        return (
+          <Fragment key={step}>
+            {i > 0 && (
+              <Connector active={i <= currentStepIndex} />
+            )}
+            <li
+              className="flex flex-col items-center gap-1"
+              aria-current={isActive ? "step" : undefined}
             >
-              {i + 1}
-            </div>
-            <span
-              className={cn(
-                "text-2xs font-medium capitalize",
-                i <= currentStepIndex
-                  ? "text-brand-foreground"
-                  : "text-muted-foreground",
-              )}
-            >
-              {t(LABEL_KEY[step])}
-            </span>
-          </div>
-          {i < STEPS.length - 1 && (
-            <div
-              className={cn(
-                "mx-2 h-px w-8",
-                i < currentStepIndex
-                  ? "bg-brand-solid"
-                  : "bg-surface-inset",
-              )}
-            />
-          )}
-        </div>
-      ))}
-    </div>
+              <div
+                className={cn(
+                  "flex h-6 w-6 items-center justify-center rounded-full text-2xs font-semibold transition-colors duration-[var(--duration-quick)]",
+                  isActive &&
+                    "bg-brand-solid text-foreground-onbrand ring-2 ring-brand-foreground/30 ring-offset-2 ring-offset-surface-base",
+                  isComplete && "bg-brand-solid text-foreground-onbrand",
+                  isPending && "bg-surface-inset text-foreground-muted",
+                )}
+              >
+                {isComplete ? <CheckGlyph /> : i + 1}
+              </div>
+              <span
+                className={cn(
+                  "text-2xs font-medium",
+                  i <= currentStepIndex
+                    ? "text-brand-foreground"
+                    : "text-foreground-muted",
+                )}
+              >
+                {t(LABEL_KEY[step])}
+              </span>
+            </li>
+          </Fragment>
+        );
+      })}
+    </ol>
+  );
+}
+
+function Connector({ active }: { active: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        // The connector sits at the circle's vertical centre. Step
+        // column is `gap-1` (4px) between circle (24px) and label,
+        // so 12px from the column top puts the connector through the
+        // middle of the dot.
+        "mt-3 h-0.5 flex-1 transition-colors duration-[var(--duration-quick)]",
+        active ? "bg-brand-solid" : "bg-surface-inset",
+      )}
+    />
+  );
+}
+
+function CheckGlyph() {
+  return (
+    <HugeiconsIcon
+      icon={Tick01Icon}
+      className="h-3 w-3"
+      size="100%"
+      strokeWidth={2.5}
+    />
   );
 }

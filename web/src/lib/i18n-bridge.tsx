@@ -1,3 +1,5 @@
+"use client";
+
 // i18n bridge — module-level translator handle for non-component
 // callers (Zustand stores, lib utilities). React-context-free
 // modules can't call `useTranslations`; the workbench shell
@@ -10,8 +12,6 @@
 // namespaces into raw JSON, and stashes them here so a Zustand
 // reducer can format a toast string at command-application time
 // without round-tripping through React.
-
-"use client";
 
 import { useEffect } from "react";
 import { useTranslations } from "next-intl";

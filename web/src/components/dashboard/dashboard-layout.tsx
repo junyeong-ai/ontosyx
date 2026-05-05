@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore, selectStateSelectedWidgetId } from "@/lib/store";
@@ -19,10 +20,11 @@ import { SkeletonWidgetGrid } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Modal } from "@/components/ui/modal";
-import { FormInput } from "@/components/ui/form-input";
+import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { toast } from "sonner";
+import { RouteHeading } from "@/components/layout/route-heading";
+import { toast } from "@/components/ui/toast";
 import {
   createDashboard,
   deleteDashboard,
@@ -34,7 +36,24 @@ import { dashboardsKeys, useDashboards } from "@/hooks/api/use-dashboards";
 import { widgetsKeys, useWidgets } from "@/hooks/api/use-widgets";
 import { DashboardAiDialog } from "./dashboard-ai-dialog";
 import { InsightListPanel } from "@/components/workbench/insights/insight-list-panel";
-import { WidgetGrid } from "./widget-grid";
+// `WidgetGrid` pulls in `react-grid-layout` (~50kb gzipped) and
+// every `recharts`-backed chart widget (~120kb gzipped). Splitting
+// the chunk via `next/dynamic` keeps both off the critical path
+// for users who never mount this layout — workspace setup,
+// settings flows, and the design / analyze / explore modes never
+// see the dashboard chunks. `ssr: false` because react-grid-layout
+// reads window measurements during construction. We reuse
+// `SkeletonWidgetGrid` as the loading state so the chunk-resolution
+// gap reads as a continuation of the same widget-loading skeleton
+// the page already shows on initial fetch — visual register stays
+// stable, no flash of "loading dashboard" text.
+const WidgetGrid = dynamic(
+  () => import("./widget-grid").then((m) => m.WidgetGrid),
+  {
+    ssr: false,
+    loading: () => <SkeletonWidgetGrid count={4} />,
+  },
+);
 import { WidgetInspector } from "./widget-inspector";
 import { AddWidgetButton } from "./add-widget-button";
 
@@ -202,6 +221,7 @@ export function DashboardLayout() {
   if (isLoading) {
     return (
       <div className="p-4">
+        <RouteHeading route="dashboard" />
         <SkeletonWidgetGrid count={4} />
       </div>
     );
@@ -209,10 +229,11 @@ export function DashboardLayout() {
 
   return (
     <ErrorBoundary name="Dashboard">
+    <RouteHeading route="dashboard" />
     <Group orientation="horizontal" className="h-full">
       {/* Left: Saved insights — author-curated re-runnable artefacts. */}
       <Panel defaultSize="20%" minSize="14%" maxSize="32%">
-        <div className="h-full border-r border-divider">
+        <div className="h-full border-e border-divider">
           <InsightListPanel />
         </div>
       </Panel>
@@ -274,19 +295,20 @@ export function DashboardLayout() {
               </span>
               {Object.entries(dashboardFilters).map(([key, value]) => (
                 <button
+                  type="button"
                   key={key}
                   onClick={() => {
                     const next = { ...dashboardFilters };
                     delete next[key];
                     useAppStore.getState().clearDashboardFilters();
-                    Object.entries(next).forEach(([k, v]) =>
-                      useAppStore.getState().setDashboardFilter(k, v),
-                    );
+                    for (const [k, v] of Object.entries(next)) {
+                      useAppStore.getState().setDashboardFilter(k, v);
+                    }
                   }}
-                  className="flex items-center gap-1 rounded-full bg-brand-surface px-2.5 py-0.5 text-[11px] text-brand-foreground hover:bg-brand-surface-strong/30"
+                  className="flex items-center gap-1 rounded-full bg-brand-surface px-2.5 py-0.5 text-2xs text-brand-foreground hover:bg-brand-surface-strong/30"
                 >
                   {key}: {String(value)}
-                  <span className="ml-0.5 text-brand-foreground">&times;</span>
+                  <span className="ms-0.5 text-brand-foreground">&times;</span>
                 </button>
               ))}
               <Button
@@ -311,7 +333,7 @@ export function DashboardLayout() {
                     selectedWidgetId={selectedWidgetId}
                     refreshKey={refreshKey}
                     onSelect={(id) =>
-                      useAppStore.getState().select({ type: "widget", widgetId: id })
+                      useAppStore.getState().selectOne({ kind: "widget", id: id })
                     }
                     onLayoutChange={(newLayout) => {
                       if (!activeDashboardId) return;
@@ -343,7 +365,7 @@ export function DashboardLayout() {
 
       {/* Right: Widget Inspector */}
       <Panel defaultSize="25%" minSize="15%" maxSize="40%">
-        <div className="flex h-full flex-col border-l border-divider">
+        <div className="flex h-full flex-col border-s border-divider">
           <div className="flex h-10 shrink-0 items-center border-b border-divider px-3">
             <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
               {t("inspector.heading")}
@@ -485,12 +507,11 @@ function CreateDashboardDialog({
           <span className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
             {t("descriptionLabel")}
           </span>
-          <textarea
+          <FormTextarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
             placeholder={t("descriptionPlaceholder")}
-            className="w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-sm text-foreground-strong placeholder:text-foreground-subtle outline-none transition-colors duration-[var(--duration-quick)] focus:border-brand-foreground focus:ring-1 focus:ring-brand-foreground/40"
           />
         </label>
       </div>

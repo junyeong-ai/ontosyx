@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Heading } from "@/components/ui/heading";
 import {
   Alert02Icon,
   DatabaseIcon,
@@ -28,20 +29,20 @@ export function CanvasEmptyState() {
           <HugeiconsIcon icon={PencilEdit01Icon} className="h-6 w-6 text-brand-foreground" size="100%" />
         </div>
         <div className="text-center">
-          <h2 className="text-lg font-semibold text-foreground-strong">{t("readyTitle")}</h2>
-          <p className="mt-1.5 max-w-md text-sm text-foreground dark:text-muted-foreground">
+          <Heading level={2} size={4}>{t("readyTitle")}</Heading>
+          <p className="mt-1.5 max-w-md text-sm text-foreground">
             {t.rich("readyHint", {
               bold: (chunks) => <strong>{chunks}</strong>,
             })}
           </p>
         </div>
-        <button
+        <button type="button"
           onClick={() => {
             const s = useAppStore.getState();
             s.setDesignBottomTab("workflow");
             if (!s.isBottomPanelOpen) s.toggleBottomPanel();
           }}
-          className="rounded-lg bg-brand-solid px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-solid"
+          className="rounded-lg bg-brand-solid px-4 py-2 text-xs font-medium text-foreground-onbrand transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-solid"
         >
           {t("openWorkflow")}
         </button>
@@ -55,35 +56,35 @@ export function CanvasEmptyState() {
         <HugeiconsIcon icon={PencilEdit01Icon} className="h-6 w-6 text-brand-foreground" size="100%" />
       </div>
       <div className="text-center">
-        <h2 className="text-lg font-semibold text-foreground-strong">{t("startTitle")}</h2>
-        <p className="mt-1.5 max-w-md text-sm text-foreground dark:text-muted-foreground">
+        <Heading level={2} size={4}>{t("startTitle")}</Heading>
+        <p className="mt-1.5 max-w-md text-sm text-foreground">
           {t("startHint")}
         </p>
       </div>
       <div className="flex items-center gap-4">
-        <button
+        <button type="button"
           onClick={() => {
             const s = useAppStore.getState();
             s.setDesignBottomTab("workflow");
             if (!s.isBottomPanelOpen) s.toggleBottomPanel();
           }}
-          className="flex flex-col items-center gap-2 rounded-xl border border-divider bg-surface-base p-5 text-center transition-all hover:border-brand-border hover:shadow-md dark:hover:border-brand-border"
+          className="flex flex-col items-center gap-2 rounded-xl border border-divider bg-surface-base p-5 text-center transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] hover:border-brand-border hover:shadow-2"
         >
           <HugeiconsIcon icon={DatabaseIcon} className="h-5 w-5 text-brand-foreground" size="100%" />
           <span className="text-xs font-medium text-foreground">{t("createProject")}</span>
-          <span className="text-2xs text-muted-foreground">{t("createProjectHint")}</span>
+          <span className="text-2xs text-foreground-muted">{t("createProjectHint")}</span>
         </button>
-        <span className="text-xs text-muted-foreground">{t("or")}</span>
-        <button
+        <span className="text-xs text-foreground-muted">{t("or")}</span>
+        <button type="button"
           onClick={() => {
             const fileInput = document.querySelector('input[type="file"][accept=".json,.ttl,.owl"]') as HTMLInputElement;
             fileInput?.click();
           }}
-          className="flex flex-col items-center gap-2 rounded-xl border border-divider bg-surface-base p-5 text-center transition-all hover:border-brand-border hover:shadow-md dark:hover:border-brand-border"
+          className="flex flex-col items-center gap-2 rounded-xl border border-divider bg-surface-base p-5 text-center transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] hover:border-brand-border hover:shadow-2"
         >
-          <HugeiconsIcon icon={Upload04Icon} className="h-5 w-5 text-concept-foreground dark:text-concept-foreground" size="100%" />
+          <HugeiconsIcon icon={Upload04Icon} className="h-5 w-5 text-concept-foreground" size="100%" />
           <span className="text-xs font-medium text-foreground">{t("importOntology")}</span>
-          <span className="text-2xs text-muted-foreground">{t("importOntologyHint")}</span>
+          <span className="text-2xs text-foreground-muted">{t("importOntologyHint")}</span>
         </button>
       </div>
     </div>
@@ -112,14 +113,14 @@ export function CanvasZeroNodesState() {
         />
       </div>
       <div className="text-center">
-        <h2 className="text-lg font-semibold text-foreground-strong">
+        <Heading level={2} size={4}>
           {t("title")}
-        </h2>
-        <p className="mt-1.5 max-w-md text-sm text-foreground dark:text-muted-foreground">
+        </Heading>
+        <p className="mt-1.5 max-w-md text-sm text-foreground">
           {t("description")}
         </p>
       </div>
-      <button
+      <button type="button"
         onClick={() => {
           const s = useAppStore.getState();
           s.setDesignBottomTab("workflow");
@@ -132,7 +133,7 @@ export function CanvasZeroNodesState() {
               ?.scrollIntoView({ behavior: "smooth", block: "start" });
           });
         }}
-        className="rounded-lg bg-brand-solid px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-solid"
+        className="rounded-lg bg-brand-solid px-4 py-2 text-xs font-medium text-foreground-onbrand transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-solid"
       >
         {t("openReview")}
       </button>

@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
+import { FormInput } from "@/components/ui/form-input";
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import type { Suggestion } from "./use-suggestions";
 import { arr } from "@/lib/ir-collections";
@@ -79,44 +80,44 @@ export function PatternPalette({
     <div className="flex h-full flex-col">
       {/* Search */}
       <div className="shrink-0 p-2">
-        <input
+        <FormInput
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t("searchPlaceholder")}
-          className="h-7 w-full rounded border border-divider bg-surface-base px-2 text-xs text-foreground placeholder:text-muted-foreground-muted"
+          density="compact"
         />
       </div>
 
       {/* Tabs */}
       <div className="flex shrink-0 border-b border-divider px-2">
-        <button
+        <button type="button"
           onClick={() => setTab("nodes")}
-          className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+          className={`px-3 py-1.5 text-xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
             tab === "nodes"
               ? "border-b-2 border-brand-foreground text-brand-foreground"
-              : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-muted"
+              : "text-foreground-muted hover:text-foreground-muted"
           }`}
         >
           {t("tabNodes", { count: filteredNodes.length })}
         </button>
-        <button
+        <button type="button"
           onClick={() => setTab("edges")}
-          className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+          className={`px-3 py-1.5 text-xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
             tab === "edges"
               ? "border-b-2 border-brand-foreground text-brand-foreground"
-              : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-muted"
+              : "text-foreground-muted hover:text-foreground-muted"
           }`}
         >
           {t("tabEdges", { count: filteredEdges.length })}
         </button>
         {selectedNodeLabel && (
-          <button
+          <button type="button"
             onClick={() => setTab("suggested")}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`px-3 py-1.5 text-xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
               tab === "suggested"
-                ? "border-b-2 border-concept-foreground text-concept-foreground dark:border-concept-foreground"
-                : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-muted"
+                ? "border-b-2 border-concept-foreground text-concept-foreground"
+                : "text-foreground-muted hover:text-foreground-muted"
             }`}
           >
             {t("tabSuggested", { count: suggestions.length })}
@@ -135,20 +136,20 @@ export function PatternPalette({
                 draggable
                 onDragStart={(e) => handleDragStartNode(e, nt)}
                 onClick={() => onAddNode(nt)}
-                className="group cursor-grab rounded-lg border border-divider bg-surface-base px-3 py-2 transition-colors hover:border-brand-border hover:bg-brand-surface active:cursor-grabbing dark:hover:border-brand-border dark:hover:bg-brand-surface/20"
+                className="group cursor-grab rounded-lg border border-divider bg-surface-base px-3 py-2 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:border-brand-border hover:bg-brand-surface active:cursor-grabbing"
               >
                 <div className="flex items-center gap-2">
-                  <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-info-foreground dark:bg-info-foreground" />
+                  <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-info-foreground" />
                   <span className="text-xs font-medium text-foreground">
                     {nt.label}
                   </span>
                 </div>
                 {description && (
-                  <p className="mt-0.5 text-2xs text-muted-foreground line-clamp-1">
+                  <p className="mt-0.5 text-2xs text-foreground-muted line-clamp-1">
                     {description}
                   </p>
                 )}
-                <div className="mt-1 text-2xs text-muted-foreground">
+                <div className="mt-1 text-2xs text-foreground-muted">
                   {t("propertiesCount", { count: arr(nt.properties).length })}
                 </div>
               </div>
@@ -167,7 +168,7 @@ export function PatternPalette({
                 draggable
                 onDragStart={(e) => handleDragStartEdge(e, et)}
                 onClick={() => onAddEdge(et)}
-                className="group cursor-grab rounded-lg border border-divider bg-surface-base px-3 py-2 transition-colors hover:border-brand-border hover:bg-brand-surface active:cursor-grabbing dark:hover:border-brand-border dark:hover:bg-brand-surface/20"
+                className="group cursor-grab rounded-lg border border-divider bg-surface-base px-3 py-2 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:border-brand-border hover:bg-brand-surface active:cursor-grabbing"
               >
                 <div className="flex items-center gap-2">
                   <div className="h-2.5 w-2.5 shrink-0 rounded-sm bg-warning-foreground" />
@@ -175,7 +176,7 @@ export function PatternPalette({
                     {et.label}
                   </span>
                 </div>
-                <p className="mt-0.5 text-2xs text-muted-foreground">
+                <p className="mt-0.5 text-2xs text-foreground-muted">
                   {srcLabel} &rarr; {tgtLabel}
                 </p>
               </div>
@@ -183,18 +184,18 @@ export function PatternPalette({
           })}
 
         {tab === "nodes" && filteredNodes.length === 0 && (
-          <p className="py-4 text-center text-xs text-muted-foreground">
+          <p className="py-4 text-center text-xs text-foreground-muted">
             {t("noNodeTypes")}
           </p>
         )}
         {tab === "edges" && filteredEdges.length === 0 && (
-          <p className="py-4 text-center text-xs text-muted-foreground">
+          <p className="py-4 text-center text-xs text-foreground-muted">
             {t("noEdgeTypes")}
           </p>
         )}
 
         {tab === "suggested" && !selectedNodeLabel && (
-          <p className="py-4 text-center text-xs text-muted-foreground">
+          <p className="py-4 text-center text-xs text-foreground-muted">
             {t("selectNodeForSuggestions")}
           </p>
         )}
@@ -205,24 +206,24 @@ export function PatternPalette({
             <div
               key={`${s.edge.id}-${s.direction}-${i}`}
               onClick={() => onAddSuggestion?.(s)}
-              className="group cursor-pointer rounded-lg border border-divider bg-surface-base px-3 py-2 transition-colors hover:border-concept-border hover:bg-concept-surface dark:hover:border-concept-border dark:hover:bg-concept-surface/20"
+              className="group cursor-pointer rounded-lg border border-divider bg-surface-base px-3 py-2 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:border-concept-border hover:bg-concept-surface"
             >
               <div className="flex items-center gap-2">
-                <span className="shrink-0 text-2xs text-muted-foreground">
+                <span className="shrink-0 text-2xs text-foreground-muted">
                   {s.direction === "outgoing" ? "\u2192" : "\u2190"}
                 </span>
                 <span className="text-xs font-medium text-foreground">
                   {s.edge.label}
                 </span>
                 <span
-                  className={`ml-auto h-2 w-2 shrink-0 rounded-full ${
+                  className={`ms-auto h-2 w-2 shrink-0 rounded-full ${
                     s.alreadyInPattern
                       ? "bg-brand-solid"
-                      : "bg-info-foreground dark:bg-info-foreground"
+                      : "bg-info-foreground"
                   }`}
                 />
               </div>
-              <p className="mt-0.5 text-2xs text-muted-foreground">
+              <p className="mt-0.5 text-2xs text-foreground-muted">
                 {s.direction === "outgoing" ? "\u2192 " : "\u2190 "}
                 {s.targetNode.label}
               </p>
@@ -232,7 +233,7 @@ export function PatternPalette({
         {tab === "suggested" &&
           selectedNodeLabel &&
           suggestions.length === 0 && (
-            <p className="py-4 text-center text-xs text-muted-foreground">
+            <p className="py-4 text-center text-xs text-foreground-muted">
               {t("noRelatedEdges")}
             </p>
           )}

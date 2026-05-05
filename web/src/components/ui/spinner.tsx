@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 
 type SpinnerSize = "xs" | "sm" | "md" | "lg";
@@ -15,12 +18,13 @@ interface SpinnerProps {
 }
 
 export function Spinner({ size = "sm", className }: SpinnerProps) {
+  const t = useTranslations("common");
   return (
     <span
       role="status"
-      aria-label="Loading"
+      aria-label={t("loading")}
       className={cn(
-        "inline-block animate-spin rounded-full border-current border-r-transparent",
+        "inline-block animate-spin rounded-full border-current border-e-transparent",
         sizeClasses[size],
         className,
       )}

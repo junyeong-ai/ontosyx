@@ -26,8 +26,9 @@ export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
   return (
     <div className="rounded-xl border border-warning-border/60 bg-warning-surface/20">
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-warning-foreground transition-colors hover:bg-warning-surface dark:hover:bg-warning-surface/30"
+        className="flex w-full items-center gap-2 px-3 py-2 text-start text-xs text-warning-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-warning-surface"
       >
         {isStreaming ? (
           <Spinner size="sm" className="text-warning-foreground" />
@@ -37,7 +38,7 @@ export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
         <span className="font-medium">
           {isStreaming && !content ? t("thinking") : t("reasoning")}
         </span>
-        <span className="ml-auto text-2xs text-warning-foreground">
+        <span className="ms-auto text-2xs text-warning-foreground">
           {content.length > 0 && t("steps", { count: content.split("\n").length })}
         </span>
         <HugeiconsIcon
@@ -48,9 +49,9 @@ export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
       </button>
       {isOpen && (
         <div className="border-t border-warning-border/40 px-3 py-2">
-          <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-warning-foreground/70">
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-2xs leading-relaxed text-warning-foreground">
             {content}
-            {isStreaming && <span className="ml-0.5 inline-block h-3 w-0.5 animate-blink bg-warning-foreground align-text-bottom" />}
+            {isStreaming && <span className="ms-0.5 inline-block h-3 w-0.5 animate-blink bg-warning-foreground align-text-bottom" />}
           </pre>
         </div>
       )}

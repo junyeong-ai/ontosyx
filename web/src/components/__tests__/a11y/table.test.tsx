@@ -14,6 +14,10 @@ import messages from "../../../../messages/en.json";
 import { TableWidget } from "@/components/dashboard/widgets/table-widget";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 
+vi.mock("@/hooks/use-locale-chain", () => ({
+  useLocaleChain: () => ["en"],
+}));
+
 function renderWithIntl(ui: React.ReactElement) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
@@ -70,7 +74,7 @@ describe("TableWidget (a11y)", () => {
     const { container } = renderWithIntl(<TableWidget spec={spec} data={data} />);
     const ths = container.querySelectorAll("thead th");
     expect(ths.length).toBeGreaterThan(0);
-    ths.forEach((th) => expect(th.getAttribute("scope")).toBe("col"));
+    for (const th of ths) expect(th.getAttribute("scope")).toBe("col");
   });
 
   it("has no axe violations", async () => {

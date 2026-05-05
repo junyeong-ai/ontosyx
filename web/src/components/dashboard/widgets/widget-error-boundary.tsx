@@ -51,8 +51,9 @@ class WidgetErrorBoundaryInner extends Component<BoundaryProps, State> {
             {this.state.error?.message ?? this.props.unknownErrorLabel}
           </p>
           <button
+            type="button"
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="mt-2 rounded bg-danger-surface px-3 py-1 text-xs font-medium text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-solid"
+            className="mt-2 rounded bg-danger-surface px-3 py-1 text-xs font-medium text-danger-foreground hover:bg-danger-surface"
           >
             {this.props.retryLabel}
           </button>

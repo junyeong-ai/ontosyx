@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { cn } from "@/lib/cn";
+import { colorFor } from "@/lib/collab/colors";
 
 // ---------------------------------------------------------------------------
 // Avatar — unified profile image with graceful initials fallback.
@@ -37,8 +38,8 @@ const SIZE_PX: Record<AvatarSize, number> = {
 };
 
 const SIZE_CLASSES: Record<AvatarSize, string> = {
-  xs: "h-6 w-6 text-[10px]",
-  sm: "h-7 w-7 text-[10px]",
+  xs: "h-6 w-6 text-2xs",
+  sm: "h-7 w-7 text-2xs",
   md: "h-10 w-10 text-xs",
   lg: "h-16 w-16 text-xl",
 };
@@ -76,10 +77,11 @@ export function Avatar({ src, name, size = "md", className }: AvatarProps) {
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full bg-indigo-600 font-semibold text-white",
+        "flex shrink-0 items-center justify-center rounded-full font-semibold text-white",
         sizeClass,
         className,
       )}
+      style={{ backgroundColor: colorFor(name) }}
       aria-label={name}
     >
       {getInitials(name)}

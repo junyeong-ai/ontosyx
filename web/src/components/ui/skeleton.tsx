@@ -19,7 +19,7 @@ interface SkeletonProps {
 export function Skeleton({ className }: SkeletonProps) {
   return (
     <div
-      aria-hidden
+      aria-hidden="true"
       className={cn(
         "skeleton-shimmer rounded-md bg-surface-inset",
         className,
@@ -92,7 +92,7 @@ export function SkeletonList({ count = 5 }: { count?: number }) {
 
 /**
  * Tabular placeholder — `rows` x `cols` evenly-spaced lines for any
- * DataTable host while the first page is in flight.
+ * `<table>` host while the first page is in flight.
  */
 export function SkeletonTable({
   rows = 5,

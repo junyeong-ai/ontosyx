@@ -35,7 +35,7 @@ export function LocaleSwitcher() {
 
   return (
     <div className="px-3 py-2">
-      <p className="mb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <p className="mb-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
         {t("switcher")}
       </p>
       <div className="flex gap-1">
@@ -48,10 +48,10 @@ export function LocaleSwitcher() {
               disabled={isPending}
               aria-pressed={active}
               onClick={() => handleChange(loc)}
-              className={`flex-1 rounded-md border px-2 py-1 text-xs transition-colors ${
+              className={`flex-1 rounded-md border px-2 py-1 text-xs transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
                 active
                   ? "border-brand-foreground bg-brand-surface text-brand-foreground-strong"
-                  : "border-divider bg-surface-base text-foreground hover:bg-surface-raised dark:text-muted-foreground"
+                  : "border-divider bg-surface-base text-foreground hover:bg-surface-raised"
               } disabled:opacity-50`}
             >
               {LOCALE_LABELS[loc]}

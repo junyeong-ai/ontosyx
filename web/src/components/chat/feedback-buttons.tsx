@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { setQueryFeedback } from "@/lib/api";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -43,24 +43,26 @@ export function FeedbackButtons({ executionId }: FeedbackButtonsProps) {
   return (
     <div className="flex items-center gap-0.5">
       <button
+        type="button"
         onClick={() => handleFeedback("positive")}
         disabled={saving}
-        className={`rounded p-1 text-xs transition-colors ${
+        className={`rounded p-1 text-xs transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
           feedback === "positive"
             ? "text-brand-foreground"
-            : "text-muted-foreground hover:bg-surface-inset hover:text-foreground dark:hover:text-foreground-muted"
+            : "text-foreground-muted hover:bg-surface-inset hover:text-foreground-muted"
         } disabled:cursor-wait`}
         aria-label={t("good")}
       >
         <HugeiconsIcon icon={ThumbsUpIcon} className="h-3 w-3" size="100%" />
       </button>
       <button
+        type="button"
         onClick={() => handleFeedback("negative")}
         disabled={saving}
-        className={`rounded p-1 text-xs transition-colors ${
+        className={`rounded p-1 text-xs transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
           feedback === "negative"
             ? "text-danger-foreground"
-            : "text-muted-foreground hover:bg-surface-inset hover:text-foreground dark:hover:text-foreground-muted"
+            : "text-foreground-muted hover:bg-surface-inset hover:text-foreground-muted"
         } disabled:cursor-wait`}
         aria-label={t("bad")}
       >

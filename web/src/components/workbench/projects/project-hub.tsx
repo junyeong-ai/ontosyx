@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { FormInput } from "@/components/ui/form-input";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Add01Icon,
@@ -16,10 +17,12 @@ import { useProjects } from "@/hooks/api/use-projects";
 import { useAppStore } from "@/lib/store";
 import { getProject } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { EmptyState } from "@/components/ui/empty-state";
-import { ErrorState } from "@/components/ui/error-state";
+import { Button } from "@/components/ui/button";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
+import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell";
+import { PageStateView } from "@/components/layout/page-state-view";
+import type { PageState } from "@/components/layout/page-state";
 import type {
   DesignProjectStatus,
   DesignProjectSummary,
@@ -98,96 +101,118 @@ export function ProjectHub() {
     });
   };
 
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter(new Set());
+  };
+
+  const pageState: PageState = isLoading
+    ? { kind: "loading" }
+    : isError
+      ? { kind: "error", onRetry: () => void refetch() }
+      : items.length === 0
+        ? { kind: "empty" }
+        : filtered.length === 0
+          ? { kind: "filtered-empty", onClearFilters: clearFilters }
+          : { kind: "data" };
+
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between border-b border-divider px-6 py-4">
-        <div>
-          <h1 className="text-base font-semibold text-foreground-strong">
-            {t("heading")}
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            {t("subheading", { count: items.length })}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onCreate}
-          className="flex items-center gap-1.5 rounded-md bg-brand-solid px-3 py-1.5 text-xs font-medium text-foreground-onbrand hover:bg-brand-solid-hover"
-        >
+    <WorkbenchPageShell
+      title={t("heading")}
+      count={items.length}
+      pageState={pageState}
+      actions={
+        <Button variant="primary" size="sm" onClick={onCreate}>
           <HugeiconsIcon icon={Add01Icon} className="h-3.5 w-3.5" size="100%" />
           {t("createButton")}
-        </button>
-      </header>
-
-      <div className="flex shrink-0 items-center gap-3 border-b border-divider px-6 py-3">
-        <div className="relative flex-1 max-w-md">
-          <HugeiconsIcon
-            icon={Search01Icon}
-            className="pointer-events-none absolute left-2 top-1 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-            size="100%"
-          />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("searchPlaceholder")}
-            className="w-full rounded-md border border-divider bg-surface-base py-1.5 pl-7 pr-3 text-xs text-foreground-strong placeholder-muted-foreground focus:border-brand-border focus:outline-none-strong"
-            aria-label={t("searchLabel")}
-          />
-        </div>
-        <div className="flex items-center gap-1.5" role="group" aria-label={t("statusFilterLabel")}>
-          {(["analyzed", "designed", "completed"] as const).map((status) => {
-            const active = statusFilter.has(status);
-            return (
-              <button
-                key={status}
-                type="button"
-                onClick={() => toggleStatus(status)}
-                aria-pressed={active}
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-2xs font-medium transition-colors",
-                  active
-                    ? "border-brand-border bg-brand-surface text-brand-foreground-strong"
-                    : "border-divider bg-surface-raised text-foreground hover:bg-surface-inset dark:text-muted-foreground dark:hover:bg-surface-base",
-                )}
-              >
-                {t(`status.${status}`)}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        {isLoading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 8 }, (_, i) => (
-              <SkeletonCard key={i} />
-            ))}
+        </Button>
+      }
+      filters={
+        <>
+          <div className="relative flex-1 max-w-md">
+            <HugeiconsIcon
+              icon={Search01Icon}
+              className="pointer-events-none absolute start-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-foreground-muted"
+              size="100%"
+            />
+            <FormInput
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("searchPlaceholder")}
+              density="compact"
+              className="ps-7"
+              aria-label={t("searchLabel")}
+            />
           </div>
-        ) : isError ? (
-          <ErrorState
-            title={tCommon("loadError.title")}
-            description={tCommon("loadError.description")}
-            onRetry={() => refetch()}
-            retryLabel={tCommon("retry")}
-          />
-        ) : filtered.length === 0 ? (
-          <EmptyState
-            icon={Add01Icon}
-            title={t("empty.heading")}
-            description={t("empty.subheading")}
-            action={{ label: t("empty.cta"), onClick: onCreate }}
-          />
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div
+            className="flex items-center gap-1.5"
+            role="group"
+            aria-label={t("statusFilterLabel")}
+          >
+            {(["analyzed", "designed", "completed"] as const).map((status) => {
+              const active = statusFilter.has(status);
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => toggleStatus(status)}
+                  aria-pressed={active}
+                  className={cn(
+                    "rounded-full border px-2.5 py-0.5 text-2xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+                    active
+                      ? "border-brand-border bg-brand-surface text-brand-foreground-strong"
+                      : "border-divider bg-surface-raised text-foreground hover:bg-surface-inset",
+                  )}
+                >
+                  {t(`status.${status}`)}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      }
+    >
+      <div className="px-6 py-6">
+        <PageStateView
+          state={pageState}
+          skeleton={
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 8 }, (_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          }
+          error={{
+            title: tCommon("loadError.title"),
+            description: tCommon("loadError.description"),
+            retryLabel: tCommon("retry"),
+          }}
+          empty={{
+            icon: Add01Icon,
+            title: t("empty.heading"),
+            description: t("empty.subheading"),
+            action: { label: t("empty.cta"), onClick: onCreate },
+          }}
+          filteredEmpty={{
+            icon: Search01Icon,
+            title: t("filteredEmpty.heading"),
+            description: t("filteredEmpty.subheading"),
+            clearLabel: t("filteredEmpty.clearFilters"),
+          }}
+        >
+          <div className="stagger-fade-in grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((p) => (
-              <ProjectCard key={p.id} project={p} onOpen={() => void onOpen(p.id)} />
+              <ProjectCard
+                key={p.id}
+                project={p}
+                onOpen={() => void onOpen(p.id)}
+              />
             ))}
           </div>
-        )}
+        </PageStateView>
       </div>
-    </div>
+    </WorkbenchPageShell>
   );
 }
 
@@ -204,7 +229,7 @@ function ProjectCard({
       variant="raised"
       interactive
       onClick={onOpen}
-      className="flex flex-col items-stretch text-left"
+      className="flex flex-col items-stretch text-start"
     >
       <div className="flex items-center gap-2">
         <StatusIcon status={project.status as DesignProjectStatus} />
@@ -229,7 +254,7 @@ function StatusIcon({ status }: { status: DesignProjectStatus }) {
   const visual = {
     analyzed: { icon: ChartUpIcon, color: "text-warning-foreground" },
     designed: { icon: PencilEdit01Icon, color: "text-brand-foreground" },
-    completed: { icon: CheckmarkCircle02Icon, color: "text-info-foreground dark:text-info-foreground" },
+    completed: { icon: CheckmarkCircle02Icon, color: "text-info-foreground" },
   } as const;
   const v = visual[status];
   return (

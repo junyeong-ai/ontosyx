@@ -1,9 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../messages/en.json";
 import { StatCardWidget } from "@/components/dashboard/widgets/stat-card-widget";
 import type { QueryResult, WidgetSpec } from "@/types/ontology";
+
+vi.mock("@/hooks/use-locale-chain", () => ({
+  useLocaleChain: () => ["en"],
+}));
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
@@ -50,7 +54,11 @@ describe("StatCardWidget", () => {
     ).toBeInTheDocument();
   });
 
-  it("applies threshold colors for critical values (above direction)", () => {
+  it("applies the danger semantic colour for critical values (above direction)", () => {
+    // Threshold colours go through `text-{tone}-foreground` semantic
+    // tokens — the wire-protocol thresholds (`warning` / `critical`)
+    // map onto design-system tone tokens, not raw palette literals,
+    // so a future tone palette tweak doesn't drift the widget.
     const spec: WidgetSpec = {
       widget_type: "stat_card",
       data_mapping: { value: "latency_ms" },
@@ -61,7 +69,7 @@ describe("StatCardWidget", () => {
       rows: [{ latency_ms: 1000 }],
     };
     const { container } = renderWithIntl(<StatCardWidget spec={spec} data={data} />);
-    const valueSpan = container.querySelector(".text-red-600");
+    const valueSpan = container.querySelector(".text-danger-foreground");
     expect(valueSpan).not.toBeNull();
     expect(valueSpan?.textContent).toBe("1,000");
   });

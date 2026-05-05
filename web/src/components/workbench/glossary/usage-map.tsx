@@ -106,10 +106,10 @@ export function UsageMap({ ontology, termId }: UsageMapProps) {
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 text-xs">
       <div>
-        <h2 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("heading")}
         </h2>
-        <p className="mt-1 text-[11px] text-muted-foreground">
+        <p className="mt-1 text-2xs text-foreground-muted">
           {t("subtitle", {
             count: anchors.length,
           })}
@@ -125,7 +125,7 @@ export function UsageMap({ ontology, termId }: UsageMapProps) {
           <Link
             key={node.id}
             href={`/design/types/${node.id}`}
-            className="flex items-center justify-between rounded border border-divider-soft bg-surface-base px-2.5 py-1.5 transition-colors hover:border-brand-border hover:bg-brand-surface dark:hover:border-brand-border dark:hover:bg-brand-surface/30"
+            className="flex items-center justify-between rounded border border-divider-soft bg-surface-base px-2.5 py-1.5 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:border-brand-border hover:bg-brand-surface"
           >
             <span className="font-medium text-foreground-strong">
               {node.label}
@@ -162,7 +162,7 @@ export function UsageMap({ ontology, termId }: UsageMapProps) {
                   {t("badges.edge")}
                 </span>
               </div>
-              <p className="mt-0.5 font-mono text-2xs text-muted-foreground">
+              <p className="mt-0.5 font-mono text-2xs text-foreground-muted">
                 {src} → {tgt}
               </p>
             </div>
@@ -183,10 +183,10 @@ export function UsageMap({ ontology, termId }: UsageMapProps) {
                 ? `/design/types/${p.ownerId}`
                 : "/design"
             }
-            className="block rounded border border-divider-soft bg-surface-base px-2.5 py-1.5 transition-colors hover:border-brand-border hover:bg-brand-surface dark:hover:border-brand-border dark:hover:bg-brand-surface/30"
+            className="block rounded border border-divider-soft bg-surface-base px-2.5 py-1.5 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:border-brand-border hover:bg-brand-surface"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-[11px] text-foreground-strong">
+              <span className="font-mono text-2xs text-foreground-strong">
                 {p.ownerLabel}.{p.property.name}
               </span>
             </div>
@@ -211,7 +211,7 @@ function UsageGroup({
   return (
     <section className="flex flex-col gap-1.5">
       <div className="flex items-baseline gap-2">
-        <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {title}
         </h3>
         <span className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-medium text-foreground-muted">
@@ -219,7 +219,7 @@ function UsageGroup({
         </span>
       </div>
       {count === 0 ? (
-        <p className="text-2xs italic text-muted-foreground">
+        <p className="text-2xs italic text-foreground-muted">
           {emptyHint}
         </p>
       ) : (

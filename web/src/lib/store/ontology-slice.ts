@@ -7,7 +7,7 @@ import type {
 } from "@/types/api";
 import type { AppStore, CommandEntry, OntologySlice } from "./types";
 import { type OntologyIndex, buildOntologyIndex } from "@/lib/ontology-index";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { arr } from "@/lib/ir-collections";
 import { getI18nBridge } from "@/lib/i18n-bridge";
 
@@ -675,7 +675,6 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
   },
   removeGroup: (groupId) => {
     set((s) => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { [groupId]: _, ...rest } = s.nodeGroups;
       return { nodeGroups: rest };
     });

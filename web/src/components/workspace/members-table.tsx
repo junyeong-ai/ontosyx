@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { Heading } from "@/components/ui/heading";
+import { FormSelect } from "@/components/ui/form-input";
 import { Spinner } from "@/components/ui/spinner";
 import {
   addMember,
@@ -15,9 +17,9 @@ import type { UserInfo } from "@/types/admin";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "bg-warning-surface text-warning-foreground",
-  admin: "bg-concept-surface text-concept-foreground dark:bg-concept-foreground/50 dark:text-concept-foreground",
-  member: "bg-surface-inset text-foreground dark:text-muted-foreground",
-  viewer: "bg-surface-inset text-muted-foreground",
+  admin: "bg-concept-surface text-concept-foreground",
+  member: "bg-surface-inset text-foreground",
+  viewer: "bg-surface-inset text-foreground-muted",
 };
 
 const ROLES = ["admin", "member", "viewer"];
@@ -85,12 +87,12 @@ export function MembersTable({ wsId, members, onReload }: Props) {
   return (
     <section className="mt-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground-strong">
+        <Heading level={2} size={6}>
           {t("heading")}
-        </h2>
-        <button
+        </Heading>
+        <button type="button"
           onClick={openAdd}
-          className="rounded-md bg-concept-foreground px-3 py-1 text-xs font-medium text-white hover:bg-concept-foreground"
+          className="rounded-md bg-concept-foreground px-3 py-1 text-xs font-medium text-foreground-onbrand hover:bg-concept-foreground"
         >
           {t("add")}
         </button>
@@ -99,12 +101,12 @@ export function MembersTable({ wsId, members, onReload }: Props) {
       {showAdd && (
         <div className="mt-3 rounded-md border border-divider bg-surface-raised p-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-foreground dark:text-muted-foreground">
+            <span className="text-xs font-medium text-foreground">
               {t("selectUserPrompt")}
             </span>
-            <button
+            <button type="button"
               onClick={() => setShowAdd(false)}
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-xs text-foreground-muted hover:text-foreground"
             >
               {tCommon("cancel")}
             </button>
@@ -112,19 +114,19 @@ export function MembersTable({ wsId, members, onReload }: Props) {
           {usersLoading ? (
             <Spinner size="sm" className="mx-auto" />
           ) : users.length === 0 ? (
-            <p className="text-xs text-muted-foreground">{t("noUsersAvailable")}</p>
+            <p className="text-xs text-foreground-muted">{t("noUsersAvailable")}</p>
           ) : (
             <div className="max-h-40 space-y-1 overflow-auto">
               {users.map((u) => (
-                <button
+                <button type="button"
                   key={u.id}
                   onClick={() => handleAdd(u.id)}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-surface-base dark:hover:bg-surface-base"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs hover:bg-surface-base"
                 >
                   <span className="text-foreground">
                     {u.name || u.email}
                   </span>
-                  {u.name && <span className="text-muted-foreground">{u.email}</span>}
+                  {u.name && <span className="text-foreground-muted">{u.email}</span>}
                 </button>
               ))}
             </div>
@@ -135,11 +137,11 @@ export function MembersTable({ wsId, members, onReload }: Props) {
       <div className="mt-3">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-divider text-left text-xs font-medium uppercase text-muted-foreground">
+            <tr className="border-b border-divider text-start text-xs font-medium uppercase text-foreground-muted">
               <th className="py-2">{t("column.user")}</th>
               <th className="py-2">{t("column.role")}</th>
               <th className="py-2">{t("column.joined")}</th>
-              <th className="py-2 text-right">{t("column.actions")}</th>
+              <th className="py-2 text-end">{t("column.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -159,47 +161,47 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                       {t("ownerBadge")}
                     </span>
                   ) : (
-                    <select
+                    <FormSelect
                       value={m.role}
                       onChange={(e) =>
                         handleRoleChange(m.user_id, e.target.value)
                       }
-                      className="rounded border border-divider bg-surface-base px-1.5 py-0.5 text-xs-muted"
+                      density="compact"
                     >
                       {ROLES.map((r) => (
                         <option key={r} value={r}>
                           {r}
                         </option>
                       ))}
-                    </select>
+                    </FormSelect>
                   )}
                 </td>
-                <td className="py-2 text-muted-foreground">
+                <td className="py-2 text-foreground-muted">
                   {m.joined_at
                     ? new Date(m.joined_at).toLocaleDateString()
                     : t("dateFallback")}
                 </td>
-                <td className="py-2 text-right">
+                <td className="py-2 text-end">
                   {m.role !== "owner" &&
                     (confirmRemove === m.user_id ? (
                       <span className="space-x-1">
-                        <button
+                        <button type="button"
                           onClick={() => handleRemove(m.user_id)}
-                          className="rounded bg-danger-solid px-2 py-0.5 text-2xs font-medium text-white hover:bg-danger-solid-hover"
+                          className="rounded bg-danger-solid px-2 py-0.5 text-2xs font-medium text-foreground-on-accent hover:bg-danger-solid-hover"
                         >
                           {t("confirmRemove")}
                         </button>
-                        <button
+                        <button type="button"
                           onClick={() => setConfirmRemove(null)}
-                          className="rounded px-2 py-0.5 text-2xs text-muted-foreground hover:bg-surface-inset dark:hover:bg-surface-base"
+                          className="rounded px-2 py-0.5 text-2xs text-foreground-muted hover:bg-surface-inset"
                         >
                           {tCommon("cancel")}
                         </button>
                       </span>
                     ) : (
-                      <button
+                      <button type="button"
                         onClick={() => setConfirmRemove(m.user_id)}
-                        className="rounded px-2 py-0.5 text-2xs text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-surface/30"
+                        className="rounded px-2 py-0.5 text-2xs text-danger-foreground hover:bg-danger-surface"
                       >
                         {t("remove")}
                       </button>
@@ -209,7 +211,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
             ))}
             {members.length === 0 && (
               <tr>
-                <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                <td colSpan={4} className="py-8 text-center text-foreground-muted">
                   {t("noMembers")}
                 </td>
               </tr>

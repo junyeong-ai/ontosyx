@@ -87,28 +87,49 @@ export function useQueryState<T>(
   });
 
   // Sync when the URL changes externally (e.g. browser back button).
-  // Only depends on `rawUrlValue` + `key` — stable primitives — to avoid
-  // an infinite loop when callers pass fresh option objects each render.
+  // Only the `rawUrlValue` primitive triggers re-runs — `parser`,
+  // `deserialize`, and `defaultValue` flow through a ref so callers
+  // that pass them inline (the common case for zod schemas / inline
+  // defaults) don't churn the effect on every render.
+  const optionsRef = useRef({ parser, deserialize, defaultValue });
   useEffect(() => {
+    optionsRef.current = { parser, deserialize, defaultValue };
+  });
+  useEffect(() => {
+    const opts = optionsRef.current;
     let next: T;
     if (rawUrlValue === null) {
-      next = defaultValue;
+      next = opts.defaultValue;
     } else {
-      const deserialized = deserialize ? deserialize(rawUrlValue) : rawUrlValue;
-      const parsed = parser.safeParse(deserialized);
-      next = parsed.success ? parsed.data : defaultValue;
+      const deserialized = opts.deserialize
+        ? opts.deserialize(rawUrlValue)
+        : rawUrlValue;
+      const parsed = opts.parser.safeParse(deserialized);
+      next = parsed.success ? parsed.data : opts.defaultValue;
     }
     // Shallow-compare via JSON so structurally identical arrays/objects
     // don't trigger cascading re-renders.
-    setLocalValue((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawUrlValue, key]);
+    setLocalValue((prev) =>
+      JSON.stringify(prev) === JSON.stringify(next) ? prev : next,
+    );
+  }, [rawUrlValue]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // `searchParams` is a fresh `ReadonlyURLSearchParams` reference on
+  // every Next.js navigation, so depending on it directly destabilises
+  // every downstream `useCallback` and chains through to consumers'
+  // effects (the classic infinite-loop trigger). Read through a ref
+  // synced after render — the writer always sees the latest URL on
+  // its next call without forcing a setter rebuild.
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  });
+
   const writeToUrl = useCallback(
     (next: T) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchParamsRef.current.toString());
       const isDefault =
         JSON.stringify(next) === JSON.stringify(defaultValue);
       if (isDefault) {
@@ -123,7 +144,7 @@ export function useQueryState<T>(
       // navigations. Otherwise every keystroke lands in browser history.
       router.replace(url, { scroll: false });
     },
-    [key, pathname, router, searchParams, defaultValue, serialize],
+    [key, pathname, router, defaultValue, serialize],
   );
 
   // Cancel any pending debounced write on unmount OR pathname change.
@@ -142,7 +163,7 @@ export function useQueryState<T>(
         debounceRef.current = null;
       }
     };
-  }, [pathname]);
+  }, []);
 
   const setValue = useCallback(
     (next: T) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   ReactFlowProvider,
   BaseEdge,
@@ -20,6 +21,7 @@ import { GraphCanvas } from "@/components/workbench/canvas/graph-canvas";
 import { computeElkLayout } from "@/components/workbench/canvas/elk-layout";
 import { useIsDarkMode } from "@/hooks/use-dark-mode";
 import { useTypeFilter } from "@/hooks/use-type-filter";
+import { useFormatters, type Formatters } from "@/hooks/use-formatters";
 import type { ExpandNeighbor, GraphOverview } from "@/lib/api/queries";
 
 import { resolveDisplayName, resolveNodeColor } from "./graph-utils";
@@ -92,17 +94,17 @@ function ExploreNodeRenderer({ data }: NodeProps & { data: ExploreNodeData }) {
   return (
     <div
       className={`group relative flex flex-col items-center ${
-        data.focused ? "z-10" : ""
+        data.focused ? "z-canvas" : ""
       }`}
       style={{ width: diameter }}
     >
       <Handle type="target" position={Position.Top} className="!h-1 !w-1 !opacity-0" />
       <Handle type="source" position={Position.Bottom} className="!h-1 !w-1 !opacity-0" />
       <div
-        className={`flex items-center justify-center rounded-full border-2 text-white transition-shadow ${
+        className={`flex items-center justify-center rounded-full border-2 text-foreground-onbrand transition-shadow duration-[var(--duration-base)] ease-[var(--ease-out)] ${
           data.focused
             ? "border-brand-border shadow-[0_0_0_3px_rgba(16,185,129,0.25)]"
-            : "border-white/60 shadow-sm"
+            : "border-foreground-on-accent/60 shadow-1"
         }`}
         style={{
           width: diameter,
@@ -114,7 +116,7 @@ function ExploreNodeRenderer({ data }: NodeProps & { data: ExploreNodeData }) {
       >
         {data.caption.split("\n")[0]}
       </div>
-      <div className="pointer-events-none mt-1 max-w-[140px] truncate rounded bg-surface-base px-1 text-2xs text-foreground shadow-sm backdrop-blur/80-muted">
+      <div className="pointer-events-none mt-1 max-w-[140px] truncate rounded bg-surface-base px-1 text-2xs text-foreground shadow-1 backdrop-blur/80-muted">
         {data.subtitle ?? data.caption}
       </div>
     </div>
@@ -150,7 +152,7 @@ function ExploreEdgeRenderer(props: EdgeProps) {
         <EdgeLabelRenderer>
           <div
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            className="pointer-events-none rounded-full border border-divider bg-surface-base px-1.5 py-0.5 text-2xs text-foreground-muted shadow-sm dark:text-muted-foreground"
+            className="pointer-events-none rounded-full border border-divider bg-surface-base px-1.5 py-0.5 text-2xs text-foreground-muted shadow-1"
           >
             {data.caption}
           </div>
@@ -235,7 +237,7 @@ function buildNeighborhoodGraph(focusedNode: FocusedNode, neighbors: ExpandNeigh
   };
 }
 
-function buildSchemaGraph(overview: GraphOverview): BuiltGraph {
+function buildSchemaGraph(overview: GraphOverview, fmt: Formatters): BuiltGraph {
   const labelSet = new Set<string>();
   const maxCount = Math.max(...overview.labels.map((l) => l.count), 1);
 
@@ -249,7 +251,7 @@ function buildSchemaGraph(overview: GraphOverview): BuiltGraph {
       position: { x: 0, y: 0 },
       data: {
         caption: l.label,
-        subtitle: `${l.label} · ${l.count.toLocaleString()}`,
+        subtitle: `${l.label} · ${fmt.number(l.count)}`,
         color: resolveNodeColor(l.label, false),
         radius,
         focused: false,
@@ -281,14 +283,16 @@ function buildSchemaGraph(overview: GraphOverview): BuiltGraph {
 // ---------------------------------------------------------------------------
 
 function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClick }: ExploreCanvasProps) {
+  const t = useTranslations("workbench.explore.canvas");
   const isDark = useIsDarkMode();
+  const fmt = useFormatters();
   const isSchemaMode = !focusedNode && !!schemaOverview && schemaOverview.labels.length > 0;
 
   const built = useMemo<BuiltGraph>(() => {
     if (focusedNode) return buildNeighborhoodGraph(focusedNode, neighbors);
-    if (schemaOverview && schemaOverview.labels.length > 0) return buildSchemaGraph(schemaOverview);
+    if (schemaOverview && schemaOverview.labels.length > 0) return buildSchemaGraph(schemaOverview, fmt);
     return { nodes: [], edges: [], legendLabels: [], focusedId: null };
-  }, [focusedNode, neighbors, schemaOverview]);
+  }, [focusedNode, neighbors, schemaOverview, fmt]);
 
   // Filter by node type (legend chips) — mirrors the widget graph's pattern.
   const typeFilter = useTypeFilter<Node, Edge>({
@@ -322,7 +326,6 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
     // lifecycle of an external async operation (ELK worker), not a React-
     // internal cascade. Async mutation state can't be derived from render
     // and has no useSyncExternalStore analogue.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLaying(true);
     // Feed the shared worker circles with diameter + label gutter so
     // ELK's repulsion accounts for the rendered footprint, not just
@@ -398,10 +401,10 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
   if (built.nodes.length === 0) {
     return (
       <div
-        className="flex h-full items-center justify-center text-sm text-muted-foreground"
+        className="flex h-full items-center justify-center text-sm text-foreground-muted"
         style={{ backgroundColor: bg }}
       >
-        {focusedNode ? "No neighbors found" : "Loading graph schema..."}
+        {focusedNode ? t("noNeighbors") : t("loadingSchema")}
       </div>
     );
   }
@@ -420,17 +423,17 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
         elementsSelectable
       />
       {laying && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-          Laying out graph…
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-foreground-muted">
+          {t("layingOut")}
         </div>
       )}
       {isSchemaMode && !laying && (
-        <div className="pointer-events-none absolute right-3 top-3 rounded bg-surface-base px-2.5 py-1 text-2xs text-foreground-muted shadow-sm/80 dark:text-muted-foreground">
-          Data Model — click a node to explore
+        <div className="pointer-events-none absolute end-3 top-3 rounded bg-surface-base px-2.5 py-1 text-2xs text-foreground-muted shadow-1/80">
+          {t("schemaHint")}
         </div>
       )}
       {built.legendLabels.length > 0 && (
-        <div className="absolute left-3 top-3 z-10 flex max-w-[60%] flex-wrap gap-1">
+        <div className="absolute start-3 top-3 z-canvas flex max-w-[60%] flex-wrap gap-1">
           {built.legendLabels.map((label) => {
             const hidden = typeFilter.hiddenTypes.has(label);
             const focused = !isSchemaMode && label === (focusedNode?.labels[0] || "");
@@ -441,9 +444,9 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
                 onClick={() => typeFilter.toggle(label)}
                 aria-pressed={!hidden}
                 aria-label={`${hidden ? "Show" : "Hide"} ${label} nodes`}
-                className={`flex cursor-pointer items-center gap-1 rounded-full bg-surface-base px-2 py-0.5 text-2xs shadow-sm transition-opacity/80 ${
+                className={`flex cursor-pointer items-center gap-1 rounded-full bg-surface-base px-2 py-0.5 text-2xs shadow-1 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)]/80 ${
                   hidden
-                    ? "text-muted-foreground line-through opacity-60-muted"
+                    ? "text-foreground-muted line-through opacity-60-muted"
                     : "text-foreground-muted"
                 }`}
               >

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ContextSelector } from "@/components/layout/context-selector";
 import { ContextBadge } from "@/components/layout/context-badge";
@@ -17,19 +18,22 @@ import { useAuth } from "@/hooks/use-auth";
 // ---------------------------------------------------------------------------
 
 /**
- * App branding rendered as the document's `<h1>`. Every client route
- * mounts this component, so using `<h1>` here ensures axe's
- * `page-has-heading-one` rule passes without sprinkling visually-hidden
- * headings into individual pages. Visual weight stays identical thanks
- * to the typography utilities; screen readers announce it as the main
- * landmark heading for the app.
+ * Brand mark — anchor link to the workspace home (`/design`). Chrome
+ * branding is not a content heading, so it is *not* an `<h1>`; each
+ * route owns its own page-level heading via `WorkbenchPageShell` /
+ * `SettingsPageShell`, and canvas layouts render an `sr-only` `<h1>`
+ * for axe's `page-has-heading-one` rule.
  */
 function AppBranding() {
   const t = useTranslations("chrome.header");
   return (
-    <h1 className="m-0 text-sm font-semibold tracking-tight text-foreground-strong">
+    <Link
+      href="/design"
+      aria-label={t("appTitle")}
+      className="rounded-sm text-sm font-semibold tracking-tight text-foreground-strong outline-none transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-foreground/40 focus-visible:ring-offset-1"
+    >
       {t("appTitle")}
-    </h1>
+    </Link>
   );
 }
 
@@ -37,7 +41,7 @@ export function Header() {
   const activeProject = useAppStore(selectStateActiveProject);
   const { user } = useAuth();
   return (
-    <header className="relative z-20 flex h-11 shrink-0 items-center justify-between border-b border-divider bg-surface-base px-3">
+    <header className="relative z-chrome flex h-11 shrink-0 items-center justify-between border-b border-divider bg-surface-base px-3">
       {/* Left: Logo + Context */}
       <div className="flex min-w-0 items-center gap-3">
         <span className="shrink-0"><AppBranding /></span>
@@ -49,12 +53,12 @@ export function Header() {
       </div>
 
       {/* Right: Presence + Status + Actions + User */}
-      <div className="flex shrink-0 items-center gap-2 pl-3">
+      <div className="flex shrink-0 items-center gap-2 ps-3">
         {activeProject?.id && (
           <PresenceAvatars
             projectId={activeProject.id}
             excludeUserId={user?.sub}
-            className="mr-1"
+            className="me-1"
           />
         )}
         <ConnectionStatusDot />

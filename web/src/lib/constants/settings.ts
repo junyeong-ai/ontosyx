@@ -12,7 +12,6 @@
  * pages inherit the wide default automatically — no list maintenance.
  */
 export const NARROW_SETTINGS_PAGES = new Set([
-  "/settings/profile",
-  "/settings/workspace",
-  "/settings/system",
+  "/settings/workspace/general",
+  "/settings/runtime",
 ]);

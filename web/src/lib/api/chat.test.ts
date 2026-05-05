@@ -6,7 +6,6 @@ function mockSSEResponse(events: Array<{ event: string; data: unknown }>): Respo
   const lines = events.flatMap(({ event, data }) => [
     `event: ${event}`,
     `data: ${JSON.stringify(data)}`,
-    "",
   ]);
   const text = lines.join("\n");
   const encoder = new TextEncoder();
@@ -169,13 +168,10 @@ describe("chatStream", () => {
     const text = [
       "event: text",
       "data: {not valid json",
-      "",
       "event: text",
       'data: {"delta":"ok"}',
-      "",
       "event: complete",
       'data: {"session_id":"s1","text":"ok","tool_calls":0,"iterations":1}',
-      "",
     ].join("\n");
     const encoder = new TextEncoder();
     const stream = new ReadableStream({

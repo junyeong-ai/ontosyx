@@ -31,7 +31,6 @@ export function useCanvasLayout(
   // Render-phase ref sync — layout math below reads the freshest
   // uiConfig without re-firing on every field. Switch to
   // `useEffectEvent` when it leaves experimental.
-  // eslint-disable-next-line react-hooks/refs
   uiConfigRef.current = uiConfig;
   const ontology = useAppStore((s) => s.ontology);
   const { fitView, setViewport, getViewport, getNodes: getFlowNodes } = useReactFlow();
@@ -57,7 +56,7 @@ export function useCanvasLayout(
         .then((perspective) => {
           if (layoutVersionRef.current !== version) return;
 
-          if (perspective && perspective.positions && Object.keys(perspective.positions).length > 0) {
+          if (perspective?.positions && Object.keys(perspective.positions).length > 0) {
             const positions = perspective.positions as Record<string, { x: number; y: number }>;
             const restoredNodes = flowElements.nodes.map((n) => ({
               ...n,

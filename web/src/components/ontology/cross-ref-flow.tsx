@@ -17,6 +17,7 @@ import {
 
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
+import { Heading } from "@/components/ui/heading";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useIsDarkMode } from "@/hooks/use-dark-mode";
 
@@ -139,10 +140,11 @@ interface AxisNodeData {
 }
 
 function AxisNode({ data }: NodeProps<Node<AxisNodeData>>) {
+  const t = useTranslations("ontology.map.crossRef");
   const colors = AXIS_COLOR[data.axis];
   return (
     <div
-      className="flex min-w-[110px] flex-col items-center rounded-lg border-2 px-3 py-2 shadow-sm"
+      className="flex min-w-[110px] flex-col items-center rounded-lg border-2 px-3 py-2 shadow-1"
       style={{
         background: colors.fill,
         borderColor: colors.ring,
@@ -151,7 +153,7 @@ function AxisNode({ data }: NodeProps<Node<AxisNodeData>>) {
     >
       <span className="text-xs font-semibold">{data.label}</span>
       <span className="mt-0.5 text-2xs text-foreground">
-        {data.outgoing + data.incoming} refs
+        {t("axisRefs", { count: data.outgoing + data.incoming })}
       </span>
       {/* Hidden handles — React Flow needs at least one source +
           one target to route edges; we keep both on every side so
@@ -266,10 +268,10 @@ export function CrossRefFlow({ ontologyId }: { ontologyId: string }) {
   return (
     <section className="mt-6 rounded-lg border border-divider bg-surface-base">
       <header className="border-b border-divider px-5 py-3">
-        <h2 className="text-sm font-semibold text-foreground-strong">
+        <Heading level={2} size={6}>
           {t("title")}
-        </h2>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
+        </Heading>
+        <p className="mt-0.5 text-2xs text-foreground-muted">
           {t("subtitle")}
         </p>
       </header>
@@ -280,7 +282,7 @@ export function CrossRefFlow({ ontologyId }: { ontologyId: string }) {
         </div>
       )}
       {error && (
-        <p className="px-5 py-8 text-center text-xs text-danger-foreground dark:text-danger-foreground">
+        <p className="px-5 py-8 text-center text-xs text-danger-foreground">
           {t("loadError", {
             message: error instanceof Error ? error.message : t("unknownError"),
           })}
@@ -334,12 +336,15 @@ function CrossRefBucketModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="crossref-bucket-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-surface-base/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-modal flex items-center justify-center bg-[var(--color-surface-overlay)] p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
     >
-      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-divider bg-surface-base shadow-xl">
+      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-divider bg-surface-base shadow-4">
         <header className="flex items-baseline justify-between border-b border-divider px-5 py-3">
           <div>
             <h2
@@ -348,7 +353,7 @@ function CrossRefBucketModal({
             >
               {tAxis(bucket.source)} → {tAxis(bucket.target)}
             </h2>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
+            <p className="mt-0.5 text-2xs text-foreground-muted">
               {t("bucketSubtitle", { count: bucket.count })}
             </p>
           </div>
@@ -356,7 +361,7 @@ function CrossRefBucketModal({
             type="button"
             onClick={onClose}
             aria-label={t("close")}
-            className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-surface-inset dark:hover:bg-surface-base"
+            className="rounded px-2 py-0.5 text-xs text-foreground-muted hover:bg-surface-inset"
           >
             ✕
           </button>
@@ -374,7 +379,7 @@ function CrossRefBucketModal({
                 <span className="truncate text-foreground-strong">
                   {edge.source_id}
                 </span>
-                <span className="text-muted-foreground">—{edge.edge_kind}→</span>
+                <span className="text-foreground-muted">—{edge.edge_kind}→</span>
                 <span className="rounded bg-surface-inset px-1.5 py-0.5 font-mono text-2xs text-foreground-muted">
                   {edge.target_kind}
                 </span>

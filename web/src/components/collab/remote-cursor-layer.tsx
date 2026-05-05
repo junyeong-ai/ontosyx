@@ -1,3 +1,5 @@
+"use client";
+
 // RemoteCursorLayer — emits the current viewer's cursor and renders
 // every other collaborator's cursor on top of the canvas. Drops in
 // as a child of `<GraphCanvas>` so it lives inside the ReactFlow
@@ -8,8 +10,6 @@
 // users at different zoom levels still see each other in the right
 // canvas-relative spot. The screen-pixel translation happens
 // per-render at the receiver.
-
-"use client";
 
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useReactFlow } from "@xyflow/react";
@@ -186,8 +186,8 @@ function CursorRenderer({
 
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-30"
-      aria-hidden
+      className="pointer-events-none fixed inset-0 z-presence"
+      aria-hidden="true"
     >
       {rendered.map((c) => (
         <RemoteCursor key={c.userId} {...c} />
@@ -209,7 +209,7 @@ function RemoteCursor({ userName, x, y, color, opacity }: RemoteCursorProps) {
   return (
     <div
       className={cn(
-        "absolute -translate-x-1 -translate-y-1 transition-[left,top,opacity] duration-200 ease-linear",
+        "absolute -translate-x-1 -translate-y-1 transition-[left,top,opacity] duration-[var(--duration-base)] ease-linear",
         "fade-in-0 animate-in",
       )}
       style={{
@@ -220,7 +220,7 @@ function RemoteCursor({ userName, x, y, color, opacity }: RemoteCursorProps) {
     >
       <CursorArrow color={color} />
       <span
-        className="ml-3 mt-1 inline-block whitespace-nowrap rounded-md px-1.5 py-0.5 text-2xs font-medium text-white shadow-sm"
+        className="ms-3 mt-1 inline-block whitespace-nowrap rounded-md px-1.5 py-0.5 text-2xs font-medium text-white shadow-1"
         style={{ backgroundColor: color }}
       >
         {userName}
@@ -238,7 +238,7 @@ function CursorArrow({ color }: { color: string }) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }}
-    >
+     aria-hidden="true">
       <path
         d="M2 1L12 11L7 12L9 17L6 18L4 13L2 16V1Z"
         fill={color}

@@ -1,29 +1,37 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
+import { z } from "zod";
 import { Spinner } from "@/components/ui/spinner";
-import { SettingsSelect } from "@/components/ui/form-input";
-import { FormInput } from "@/components/ui/form-input";
+import { Heading } from "@/components/ui/heading";
+import { FormField } from "@/components/ui/form-field";
+import { FormInput, FormTextarea, SettingsSelect } from "@/components/ui/form-input";
 import { Button } from "@/components/ui/button";
+import { useFormWithSchema } from "@/hooks/use-form-with-schema";
 import { Card } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell";
-import { toast } from "sonner";
+import { PageStateView } from "@/components/layout/page-state-view";
+import type { PageState } from "@/components/layout/page-state";
+import { toast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import type { AnalysisRecipe, RecipeStatus } from "@/types/api";
 import {
   type CreateRecipeRequest,
-  listRecipes,
-  createRecipe,
-  deleteRecipe,
   listRecipeVersions,
-  updateRecipeStatus,
 } from "@/lib/api";
+import {
+  useRecipes,
+  useCreateRecipe,
+  useDeleteRecipe,
+  useUpdateRecipeStatus,
+} from "@/hooks/api/use-recipes";
 import { useAuth } from "@/hooks/use-auth";
 import { RecipeCard } from "@/components/recipes/recipe-card";
 import { RecipeRunner } from "@/components/recipes/recipe-runner";
-import { Analytics01Icon } from "@hugeicons/core-free-icons";
+import { Analytics01Icon, ArrowDown01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 
 const ALGORITHM_TYPES = [
@@ -57,8 +65,11 @@ const STATUS_TONE: Record<RecipeStatus, StatusTone> = {
 
 export function RecipesWorkbench() {
   const t = useTranslations("settings.recipes");
-  const [recipes, setRecipes] = useState<AnalysisRecipe[]>([]);
-  const [loading, setLoading] = useState(true);
+  const tCommon = useTranslations("common");
+  const recipesQuery = useRecipes();
+  const createMutation = useCreateRecipe();
+  const deleteMutation = useDeleteRecipe();
+  const statusMutation = useUpdateRecipeStatus();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [runningRecipe, setRunningRecipe] = useState<AnalysisRecipe | null>(null);
   const [search, setSearch] = useState("");
@@ -66,75 +77,81 @@ export function RecipesWorkbench() {
   const { isAdmin } = useAuth();
   const confirm = useConfirm();
 
-  useEffect(() => {
-    listRecipes()
-      .then((page) => setRecipes(page.items))
-      .catch(() => toast.error(t("toast.loadFailed")))
-      .finally(() => setLoading(false));
-  }, [t]);
+  const recipes = useMemo(
+    () => recipesQuery.data?.items ?? [],
+    [recipesQuery.data],
+  );
 
-  const handleDelete = async (id: string) => {
-    const recipe = recipes.find((r) => r.id === id);
-    const ok = await confirm({
-      title: t("deleteConfirm.title", { name: recipe?.name ?? id }),
-      description: t("deleteConfirm.description"),
-      variant: "danger",
-    });
-    if (!ok) return;
-    try {
-      await deleteRecipe(id);
-      setRecipes((prev) => prev.filter((r) => r.id !== id));
-      if (selectedId === id) setSelectedId(null);
-      toast.success(t("toast.deleted"));
-    } catch {
-      toast.error(t("toast.deleteFailed"));
-    }
-  };
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return recipes;
+    return recipes.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.description.toLowerCase().includes(q),
+    );
+  }, [recipes, search]);
 
-  const handleCreate = async (values: CreateRecipeRequest) => {
-    const recipe = await createRecipe(values);
-    setRecipes((prev) => [recipe, ...prev]);
-    toast.success(t("toast.created"));
-  };
+  const selected = recipes.find((r) => r.id === selectedId);
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      const recipe = recipes.find((r) => r.id === id);
+      const ok = await confirm({
+        title: t("deleteConfirm.title", { name: recipe?.name ?? id }),
+        description: t("deleteConfirm.description"),
+        variant: "danger",
+      });
+      if (!ok) return;
+      try {
+        await deleteMutation.mutateAsync(id);
+        if (selectedId === id) setSelectedId(null);
+        toast.success(t("toast.deleted"));
+      } catch {
+        toast.error(t("toast.deleteFailed"));
+      }
+    },
+    [recipes, confirm, t, deleteMutation, selectedId],
+  );
+
+  const handleCreate = useCallback(
+    async (values: CreateRecipeRequest) => {
+      await createMutation.mutateAsync(values);
+      toast.success(t("toast.created"));
+    },
+    [createMutation, t],
+  );
 
   const handleStatusChange = useCallback(
     async (recipeId: string, status: RecipeStatus) => {
       try {
-        await updateRecipeStatus(recipeId, status);
-        setRecipes((prev) =>
-          prev.map((r) => (r.id === recipeId ? { ...r, status } : r)),
+        await statusMutation.mutateAsync({ id: recipeId, status });
+        toast.success(
+          t("toast.statusChanged", { status: t(`status.${status}`) }),
         );
-        toast.success(t("toast.statusChanged", { status: t(`status.${status}`) }));
       } catch {
         toast.error(t("toast.statusChangeFailed"));
       }
     },
-    [t],
+    [statusMutation, t],
   );
 
-  if (loading) {
-    return (
-      <WorkbenchPageShell title={t("title")} subtitle={t("description")}>
-        <div className="flex h-full items-center justify-center py-12">
-          <Spinner size="lg" />
-        </div>
-      </WorkbenchPageShell>
-    );
-  }
-
-  const selected = recipes.find((r) => r.id === selectedId);
-
-  const filtered = recipes.filter(
-    (r) =>
-      !search ||
-      r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.description.toLowerCase().includes(search.toLowerCase()),
-  );
+  const pageState: PageState = recipesQuery.isLoading
+    ? { kind: "loading" }
+    : recipesQuery.isError
+      ? { kind: "error", onRetry: () => void recipesQuery.refetch() }
+      : recipes.length === 0
+        ? { kind: "empty" }
+        : filtered.length === 0
+          ? { kind: "filtered-empty", onClearFilters: () => setSearch("") }
+          : { kind: "data" };
 
   return (
     <WorkbenchPageShell
       title={t("title")}
       subtitle={t("description")}
+      count={recipes.length}
+      pageState={pageState}
       actions={
         !createOpen && (
           <Button
@@ -146,6 +163,15 @@ export function RecipesWorkbench() {
           </Button>
         )
       }
+      filters={
+        <div className="max-w-xs flex-1">
+          <FormInput
+            placeholder={t("searchPlaceholder")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      }
     >
       <div className="px-4 py-4">
         {createOpen && (
@@ -155,46 +181,58 @@ export function RecipesWorkbench() {
           />
         )}
 
-        {/* Search row */}
-        <div className="mb-4 max-w-xs">
-          <FormInput
-            placeholder={t("searchPlaceholder")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        {/* Gallery grid */}
-        {filtered.length === 0 ? (
-          <EmptyState
-            icon={Analytics01Icon}
-            title={recipes.length === 0 ? t("emptyAll") : t("emptyFiltered")}
-          />
-        ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <PageStateView
+          state={pageState}
+          skeleton={
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }, (_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          }
+          error={{
+            title: tCommon("loadError.title"),
+            description: tCommon("loadError.description"),
+            retryLabel: tCommon("retry"),
+          }}
+          empty={{
+            icon: Analytics01Icon,
+            title: t("empty.title"),
+            description: t("empty.description"),
+            action: {
+              label: t("empty.cta"),
+              onClick: () => setCreateOpen(true),
+            },
+          }}
+          filteredEmpty={{
+            icon: Search01Icon,
+            title: t("filteredEmpty.title"),
+            description: t("filteredEmpty.description"),
+            clearLabel: t("filteredEmpty.clearFilters"),
+          }}
+        >
+          <div className="stagger-fade-in grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((r) => (
               <div
                 key={r.id}
                 onClick={() => setSelectedId(r.id === selectedId ? null : r.id)}
-                className={`cursor-pointer rounded-lg ring-2 transition-shadow ${
+                className={`cursor-pointer rounded-lg ring-2 transition-shadow duration-[var(--duration-base)] ease-[var(--ease-out)] ${
                   r.id === selectedId
                     ? "ring-brand-foreground"
-                    : "ring-transparent hover:ring-divider dark:hover:ring-divider"
+                    : "ring-transparent hover:ring-divider"
                 }`}
               >
                 <RecipeCard
                   recipe={r}
                   onRun={(recipe) => {
-                    // Stop click from toggling selection
                     setRunningRecipe(recipe);
                   }}
                 />
               </div>
             ))}
           </div>
-        )}
+        </PageStateView>
 
-        {/* Detail panel */}
         {selected && (
           <Card variant="inset" padding="lg" className="mt-6">
             <RecipeDetail
@@ -207,7 +245,6 @@ export function RecipesWorkbench() {
         )}
       </div>
 
-      {/* Runner modal */}
       {runningRecipe && (
         <RecipeRunner
           recipe={runningRecipe}
@@ -265,10 +302,18 @@ function RecipeDetail({
     }
   }, [recipe.id, isVersionsOpen, t]);
 
-  useEffect(() => {
+  // Reset version-history disclosure when the recipe identity
+  // changes — tracked-key idiom (conditional setState during render)
+  // is the React-19-blessed alternative to a setState-in-effect
+  // reset. The first render after a recipe.id change sees the
+  // mismatch, updates state in one pass, and subsequent renders
+  // skip the branch.
+  const [trackedRecipeId, setTrackedRecipeId] = useState(recipe.id);
+  if (trackedRecipeId !== recipe.id) {
+    setTrackedRecipeId(recipe.id);
     setIsVersionsOpen(false);
     setVersions(null);
-  }, [recipe.id]);
+  }
 
   const algoLabel = isKnownAlgorithmType(recipe.algorithm_type)
     ? t(`algorithmType.${recipe.algorithm_type}`)
@@ -279,12 +324,12 @@ function RecipeDetail({
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-foreground-strong">
+            <Heading level={2} size={6}>
               {recipe.name}
-            </h2>
+            </Heading>
             <RecipeStatusBadge status={recipe.status} />
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-foreground-muted">
             {t("detail.meta", {
               algorithm: algoLabel,
               version: recipe.version,
@@ -308,10 +353,10 @@ function RecipeDetail({
               <option value="deprecated">{t("status.deprecated")}</option>
             </SettingsSelect>
           )}
-          <button
+          <button type="button"
             onClick={loadVersions}
             disabled={isVersionsLoading}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-inset dark:text-muted-foreground dark:hover:bg-surface-base"
+            className="rounded-md px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-inset"
           >
             {isVersionsLoading ? (
               <Spinner size="sm" />
@@ -321,9 +366,9 @@ function RecipeDetail({
               t("detail.versions")
             )}
           </button>
-          <button
+          <button type="button"
             onClick={() => onDelete(recipe.id)}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-surface"
+            className="rounded-md px-3 py-1.5 text-xs font-medium text-danger-foreground hover:bg-danger-surface"
           >
             {t("detail.delete")}
           </button>
@@ -335,7 +380,7 @@ function RecipeDetail({
       )}
 
       <div>
-        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <label className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("detail.description")}
         </label>
         <p className="mt-0.5 text-sm text-foreground">
@@ -344,14 +389,14 @@ function RecipeDetail({
       </div>
 
       <div>
-        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <label className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("detail.requiredColumns")}
         </label>
         <div className="mt-0.5 flex flex-wrap gap-1">
           {recipe.required_columns.map((col) => (
             <span
               key={col}
-              className="rounded bg-surface-inset px-1.5 py-0.5 text-xs text-foreground dark:text-muted-foreground"
+              className="rounded bg-surface-inset px-1.5 py-0.5 text-xs text-foreground"
             >
               {col}
             </span>
@@ -361,7 +406,7 @@ function RecipeDetail({
 
       {recipe.output_description && (
         <div>
-          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
             {t("detail.output")}
           </label>
           <p className="mt-0.5 text-sm text-foreground">
@@ -371,7 +416,7 @@ function RecipeDetail({
       )}
 
       <div>
-        <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <label className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("detail.codeTemplate")}
         </label>
         <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-surface-base p-3 text-xs text-brand-foreground">
@@ -381,10 +426,10 @@ function RecipeDetail({
 
       {recipe.parameters && Object.keys(recipe.parameters).length > 0 && (
         <div>
-          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
             {t("detail.parameters")}
           </label>
-          <pre className="mt-1 rounded-md bg-surface-raised p-2 text-xs text-foreground dark:text-muted-foreground">
+          <pre className="mt-1 rounded-md bg-surface-raised p-2 text-xs text-foreground">
             {JSON.stringify(recipe.parameters, null, 2)}
           </pre>
         </div>
@@ -451,15 +496,15 @@ function VersionRow({
 
   return (
     <div>
-      <button
+      <button type="button"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs hover:bg-surface-inset dark:hover:bg-surface-base"
+        className="flex w-full items-center gap-3 px-3 py-2 text-start text-xs hover:bg-surface-inset"
       >
         <span className="font-medium text-foreground">
           {t("versions.versionPrefix", { version: version.version })}
         </span>
         <RecipeStatusBadge status={version.status} />
-        <span className="flex-1 text-muted-foreground">
+        <span className="flex-1 text-foreground-muted">
           {t("versions.meta", {
             date: new Date(version.created_at).toLocaleDateString(),
             user: version.created_by,
@@ -470,38 +515,33 @@ function VersionRow({
             {t("versions.current")}
           </span>
         )}
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={2}
-          stroke="currentColor"
-          className={`h-3 w-3 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-        </svg>
+        <HugeiconsIcon
+          icon={ArrowDown01Icon}
+          className={`h-3 w-3 text-foreground-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)] ${isExpanded ? "rotate-180" : ""}`}
+          size="100%"
+        />
       </button>
       {isExpanded && (
         <div className="border-t border-divider bg-surface-base px-3 py-3">
           <div className="space-y-2">
             <div>
-              <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <label className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
                 {t("versions.description")}
               </label>
-              <p className="text-xs text-foreground dark:text-muted-foreground">
+              <p className="text-xs text-foreground">
                 {version.description || t("versions.noDescription")}
               </p>
             </div>
             <div>
-              <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <label className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
                 {t("versions.algorithm")}
               </label>
-              <p className="text-xs text-foreground dark:text-muted-foreground">
+              <p className="text-xs text-foreground">
                 {algoLabel}
               </p>
             </div>
             <div>
-              <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <label className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
                 {t("versions.code")}
               </label>
               <pre className="mt-0.5 max-h-40 overflow-auto rounded-md bg-surface-base p-2 text-2xs text-brand-foreground">
@@ -519,6 +559,16 @@ function VersionRow({
 // Recipe creation form
 // ---------------------------------------------------------------------------
 
+const RECIPE_CREATE_SCHEMA = z.object({
+  name: z.string().trim().min(1, { message: "form.errors.nameRequired" }),
+  codeTemplate: z
+    .string()
+    .trim()
+    .min(1, { message: "form.errors.codeTemplateRequired" }),
+});
+
+type RecipeCreateFormInput = z.input<typeof RECIPE_CREATE_SCHEMA>;
+
 function RecipeCreateForm({
   onSubmit,
   onClose,
@@ -530,7 +580,6 @@ function RecipeCreateForm({
   onClose: () => void;
 }) {
   const t = useTranslations("settings.recipes");
-  const [isSaving, setIsSaving] = useState(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -539,40 +588,59 @@ function RecipeCreateForm({
   const [requiredColumns, setRequiredColumns] = useState("");
   const [outputDescription, setOutputDescription] = useState("");
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setName("");
     setDescription("");
     setAlgorithmType(ALGORITHM_TYPES[0]);
     setCodeTemplate("");
     setRequiredColumns("");
     setOutputDescription("");
+  }, []);
+
+  const onValid = useCallback(
+    async (validated: RecipeCreateFormInput) => {
+      try {
+        await onSubmit({
+          name: validated.name,
+          description: description.trim(),
+          algorithm_type: algorithmType,
+          code_template: validated.codeTemplate,
+          parameters: {},
+          required_columns: requiredColumns
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+          output_description: outputDescription.trim(),
+        });
+        reset();
+        onClose();
+      } catch {
+        toast.error(t("toast.createFailed"));
+      }
+    },
+    [
+      onSubmit, 
+      onClose, 
+      description, 
+      algorithmType, 
+      requiredColumns, 
+      outputDescription, 
+      t, reset
+    ],
+  );
+
+  const { errors, submit, clearErrors, pending } = useFormWithSchema({
+    schema: RECIPE_CREATE_SCHEMA,
+    onValid,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submit({ name, codeTemplate });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || !codeTemplate.trim()) return;
-    setIsSaving(true);
-    try {
-      await onSubmit({
-        name: name.trim(),
-        description: description.trim(),
-        algorithm_type: algorithmType,
-        code_template: codeTemplate,
-        parameters: {},
-        required_columns: requiredColumns
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-        output_description: outputDescription.trim(),
-      });
-      reset();
-      onClose();
-    } catch {
-      toast.error(t("toast.createFailed"));
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const nameError = errors.name ? t(errors.name) : undefined;
+  const codeError = errors.codeTemplate ? t(errors.codeTemplate) : undefined;
 
   return (
     <form
@@ -586,102 +654,84 @@ function RecipeCreateForm({
         <button
           type="button"
           onClick={() => { reset(); onClose(); }}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="text-xs text-foreground-muted hover:text-foreground"
         >
           {t("form.cancel")}
         </button>
       </div>
 
       <div className="space-y-3">
-        <div>
-          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("form.name")}
-          </label>
-          <input
+        <FormField label={t("form.name")} error={nameError}>
+          <FormInput
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              clearErrors("name");
+            }}
             placeholder={t("form.namePlaceholder")}
-            required
-            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
+            error={!!nameError}
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("form.description")}
-          </label>
-          <textarea
+        <FormField label={t("form.description")}>
+          <FormTextarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={t("form.descriptionPlaceholder")}
             rows={2}
-            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("form.algorithmType")}
-          </label>
-          <SettingsSelect
-            label={t("form.algorithmType")}
-            hideLabel
-            value={algorithmType}
-            onChange={(e) => setAlgorithmType(e.target.value)}
-          >
-            {ALGORITHM_TYPES.map((value) => (
-              <option key={value} value={value}>
-                {t(`algorithmType.${value}`)}
-              </option>
-            ))}
-          </SettingsSelect>
-        </div>
+        <SettingsSelect
+          label={t("form.algorithmType")}
+          value={algorithmType}
+          onChange={(e) => setAlgorithmType(e.target.value)}
+        >
+          {ALGORITHM_TYPES.map((value) => (
+            <option key={value} value={value}>
+              {t(`algorithmType.${value}`)}
+            </option>
+          ))}
+        </SettingsSelect>
 
-        <div>
-          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("form.codeTemplate")}
-          </label>
-          <textarea
+        <FormField label={t("form.codeTemplate")} error={codeError}>
+          <FormTextarea
             value={codeTemplate}
-            onChange={(e) => setCodeTemplate(e.target.value)}
+            onChange={(e) => {
+              setCodeTemplate(e.target.value);
+              clearErrors("codeTemplate");
+            }}
             placeholder={t("form.codeTemplatePlaceholder")}
             rows={12}
-            required
-            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 font-mono text-xs"
+            className="font-mono"
+            error={!!codeError}
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("form.requiredColumns")}
-          </label>
-          <input
+        <FormField label={t("form.requiredColumns")}>
+          <FormInput
             value={requiredColumns}
             onChange={(e) => setRequiredColumns(e.target.value)}
             placeholder={t("form.requiredColumnsPlaceholder")}
-            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("form.outputDescription")}
-          </label>
-          <input
+        <FormField label={t("form.outputDescription")}>
+          <FormInput
             value={outputDescription}
             onChange={(e) => setOutputDescription(e.target.value)}
             placeholder={t("form.outputDescriptionPlaceholder")}
-            className="mt-0.5 w-full rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs"
           />
-        </div>
+        </FormField>
 
-        <button
+        <Button
           type="submit"
-          disabled={!name.trim() || !codeTemplate.trim() || isSaving}
-          className="rounded-md bg-brand-solid px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-brand-solid"
+          variant="primary"
+          size="sm"
+          loading={pending}
         >
-          {isSaving ? t("form.creating") : t("form.create")}
-        </button>
+          {t("form.create")}
+        </Button>
       </div>
     </form>
   );

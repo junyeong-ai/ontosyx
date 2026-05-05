@@ -4,6 +4,7 @@ import { memo } from "react";
 import { useTranslations } from "next-intl";
 import type { GraphNodeData } from "./graph-types";
 import { formatValue } from "../chart-utils";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 
 // ---------------------------------------------------------------------------
 // GraphDetailPanel — shows selected node properties
@@ -19,19 +20,23 @@ export const GraphDetailPanel = memo(function GraphDetailPanel({
   onClose,
 }: NodeDetailPanelProps) {
   const t = useTranslations("widget.graph");
+  const localeChain = useLocaleChain();
   const entries = Object.entries(node.properties).filter(
     ([, v]) => v != null,
   );
 
   return (
     <div
-      className="absolute right-2 top-2 z-10 w-64 overflow-hidden rounded-lg border border-divider bg-surface-base shadow-lg"
-      role="dialog"
+      className="absolute end-2 top-2 z-canvas w-64 overflow-hidden rounded-lg border border-divider bg-surface-base shadow-3"
+      role="region"
       aria-label={t("detailAria", { label: node.label })}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
     >
       <div className="flex items-center justify-between border-b border-divider-soft px-3 py-2">
         <div className="min-w-0">
-          <div className="truncate text-xs font-semibold text-foreground-strong-strong">
+          <div className="truncate text-xs font-semibold text-foreground-strong">
             {node.label}
           </div>
           {node.type && (
@@ -41,11 +46,12 @@ export const GraphDetailPanel = memo(function GraphDetailPanel({
           )}
         </div>
         <button
+          type="button"
           onClick={onClose}
-          className="ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-inset hover:text-foreground dark:hover:bg-surface-base dark:hover:text-foreground-muted"
+          className="ms-2 flex h-5 w-5 shrink-0 items-center justify-center rounded text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset hover:text-foreground-muted"
           aria-label={t("closeDetail")}
         >
-          <svg viewBox="0 0 12 12" className="h-3 w-3" fill="currentColor">
+          <svg viewBox="0 0 12 12" className="h-3 w-3" fill="currentColor" aria-hidden="true">
             <path d="M3.05 3.05a.5.5 0 01.7 0L6 5.29l2.25-2.24a.5.5 0 01.7.7L6.71 6l2.24 2.25a.5.5 0 01-.7.7L6 6.71 3.75 8.95a.5.5 0 01-.7-.7L5.29 6 3.05 3.75a.5.5 0 010-.7z" />
           </svg>
         </button>
@@ -59,13 +65,13 @@ export const GraphDetailPanel = memo(function GraphDetailPanel({
                   {key}
                 </dt>
                 <dd className="mt-0.5 text-foreground break-words">
-                  {formatValue(val)}
+                  {formatValue(val, localeChain)}
                 </dd>
               </div>
             ))}
           </dl>
         ) : (
-          <p className="text-2xs text-muted-foreground">{t("noProperties")}</p>
+          <p className="text-2xs text-foreground-muted">{t("noProperties")}</p>
         )}
       </div>
     </div>

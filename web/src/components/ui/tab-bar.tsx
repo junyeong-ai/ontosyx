@@ -31,7 +31,7 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
               key={id}
               value={id}
               className={cn(
-                "relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium outline-none",
+                "relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-foreground/40",
                 "transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                 active
                   ? "text-brand-foreground"
@@ -41,7 +41,7 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
               {icon && <HugeiconsIcon icon={icon} className="h-3 w-3" size="100%" />}
               {label}
               {badge != null && badge > 0 && (
-                <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-warning-surface px-1 text-2xs font-bold text-warning-foreground">
+                <span className="ms-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-warning-surface px-1 text-2xs font-bold text-warning-foreground">
                   {badge}
                 </span>
               )}

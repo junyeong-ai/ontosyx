@@ -48,20 +48,20 @@ export function ReconcileReportPanel({
           {t("title")}
           <span
             className={cn(
-              "ml-2 rounded px-1.5 py-0.5 text-2xs font-bold uppercase",
+              "ms-2 rounded px-1.5 py-0.5 text-2xs font-bold uppercase",
               report.confidence === "low"
                 ? "bg-danger-surface text-danger-foreground"
                 : report.confidence === "medium"
                   ? "bg-warning-surface text-warning-foreground"
-                  : "bg-brand-surface-strong text-brand-foreground-strong-strong",
+                  : "bg-brand-surface-strong text-brand-foreground-strong",
             )}
           >
             {confidenceLabel}
           </span>
         </h4>
-        <button
+        <button type="button"
           onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground"
+          className="text-foreground-muted hover:text-foreground"
         >
           ✕
         </button>
@@ -69,7 +69,7 @@ export function ReconcileReportPanel({
 
       <div className="mt-2 space-y-1.5">
         {report.preserved_ids.length > 0 && (
-          <p className="text-muted-foreground">
+          <p className="text-foreground-muted">
             <span className="font-medium text-brand-foreground">{t("preserved")}</span>{" "}
             {t("preservedCount", { count: report.preserved_ids.length })}
           </p>
@@ -77,12 +77,12 @@ export function ReconcileReportPanel({
 
         {hasGenerated && (
           <div>
-            <p className="font-medium text-info-foreground dark:text-info-foreground">
+            <p className="font-medium text-info-foreground">
               {t("added", { count: report.generated_ids.length })}
             </p>
-            <ul className="ml-3 mt-0.5 space-y-0.5">
+            <ul className="ms-3 mt-0.5 space-y-0.5">
               {report.generated_ids.map((e) => (
-                <li key={e.id} className="text-foreground dark:text-muted-foreground">
+                <li key={e.id} className="text-foreground">
                   {e.entity_kind}: {e.label}
                 </li>
               ))}
@@ -95,9 +95,9 @@ export function ReconcileReportPanel({
             <p className="font-medium text-danger-foreground">
               {t("removed", { count: report.deleted_entities.length })}
             </p>
-            <ul className="ml-3 mt-0.5 space-y-0.5">
+            <ul className="ms-3 mt-0.5 space-y-0.5">
               {report.deleted_entities.map((e) => (
-                <li key={e.id} className="text-foreground dark:text-muted-foreground">
+                <li key={e.id} className="text-foreground">
                   {e.entity_kind}: {e.label}
                 </li>
               ))}
@@ -110,13 +110,13 @@ export function ReconcileReportPanel({
             <p className="font-medium text-warning-foreground">
               {t("uncertain", { count: report.uncertain_matches.length })}
             </p>
-            <ul className="ml-3 mt-0.5 space-y-1">
+            <ul className="ms-3 mt-0.5 space-y-1">
               {report.uncertain_matches.map((m) => (
-                <li key={m.original_id} className="text-foreground dark:text-muted-foreground">
+                <li key={m.original_id} className="text-foreground">
                   <span className="font-medium">{m.original_label}</span>
                   {" → "}
                   <span className="font-medium">{m.matched_label}</span>
-                  <span className="ml-1 text-muted-foreground">({m.match_reason})</span>
+                  <span className="ms-1 text-foreground-muted">({m.match_reason})</span>
                 </li>
               ))}
             </ul>

@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 import messages from "../../../messages/en.json";
 import { ReanalyzeForm } from "@/components/workbench/bottom-panel/workflow-forms";
 
-vi.mock("sonner", () => ({
+vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -38,6 +38,7 @@ function renderForm(props: RenderProps = {}) {
         modeledOnly={props.modeledOnly ?? false}
         setModeledOnly={setModeledOnly}
         modeledTablesAvailable={props.modeledTablesAvailable ?? 0}
+        errors={{}}
       />
     </NextIntlClientProvider>
   );

@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioCard } from "@/components/ui/radio";
 import { Spinner } from "@/components/ui/spinner";
 import { useSourcePreview } from "@/hooks/use-source-preview";
 import type { AnalyzeSelection, ProjectSource } from "@/types/projects";
@@ -85,27 +87,15 @@ export function SourceImportPanel({ source, value, onChange }: Props) {
         aria-label={t("modeLabel")}
       >
         {(["all", "subset", "staged"] as const).map((m) => (
-          <label
+          <RadioCard
             key={m}
-            className={`cursor-pointer rounded border px-3 py-3 text-xs ${
-              value.mode === m
-                ? "border-concept-foreground bg-concept-surface text-concept-foreground"
-                : "border-divider bg-surface-base text-muted-foreground hover:bg-surface-raised dark:hover:bg-surface-base"
-            }`}
-          >
-            <input
-              type="radio"
-              name="source-import-mode"
-              value={m}
-              checked={value.mode === m}
-              onChange={() => setMode(m)}
-              className="sr-only"
-            />
-            <p className="font-medium">{t(`modes.${m}.label`)}</p>
-            <p className="mt-0.5 text-2xs text-muted-foreground">
-              {t(`modes.${m}.hint`)}
-            </p>
-          </label>
+            name="source-import-mode"
+            value={m}
+            checked={value.mode === m}
+            onChange={() => setMode(m)}
+            title={t(`modes.${m}.label`)}
+            hint={t(`modes.${m}.hint`)}
+          />
         ))}
       </fieldset>
 
@@ -147,7 +137,7 @@ export function SourceImportPanel({ source, value, onChange }: Props) {
           )}
 
           {error && (
-            <p className="rounded border border-danger-border bg-danger-surface p-3 text-xs text-danger-foreground dark:border-danger-border dark:text-danger-foreground">
+            <p className="rounded border border-danger-border bg-danger-surface p-3 text-xs text-danger-foreground">
               {t("error", { error })}
             </p>
           )}
@@ -165,17 +155,15 @@ export function SourceImportPanel({ source, value, onChange }: Props) {
                   key={row.name}
                   className="border-b border-divider-soft last:border-b-0"
                 >
-                  <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-surface-raised dark:hover:bg-surface-base/50">
-                    <input
-                      type="checkbox"
+                  <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-surface-raised">
+                    <Checkbox
                       checked={selectedSet.has(row.name)}
                       onChange={() => toggleTable(row.name)}
-                      className="h-3.5 w-3.5 rounded border-divider text-brand-foreground focus:ring-brand-foreground"
                     />
                     <span className="font-mono text-xs text-foreground-strong">
                       {row.name}
                     </span>
-                    <span className="ml-auto flex items-center gap-2 text-2xs text-foreground-subtle">
+                    <span className="ms-auto flex items-center gap-2 text-2xs text-foreground-subtle">
                       <span>{t("columnCount", { count: row.column_count })}</span>
                       {row.estimated_row_count !== null && (
                         <span>

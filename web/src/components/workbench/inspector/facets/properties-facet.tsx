@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlusSignIcon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { useAppStore } from "@/lib/store";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -91,7 +91,7 @@ export function PropertiesFacet({
             <button
               type="button"
               onClick={() => setAdding(true)}
-              className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-[11px] text-muted-foreground hover:border-brand-border hover:text-brand-foreground dark:hover:border-brand-border dark:hover:text-brand-foreground"
+              className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-2xs text-foreground-muted hover:border-brand-border hover:text-brand-foreground"
             >
               <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
               {t("addAction")}

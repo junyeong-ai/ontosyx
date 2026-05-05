@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -339,7 +339,7 @@ export function GlossaryWorkbench() {
             />
           ) : (
             <div className="flex h-full flex-col items-center justify-center px-4 py-8 text-center">
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-foreground-muted">
                 {t("usage.placeholder")}
               </p>
             </div>
@@ -388,10 +388,10 @@ function RightPane({
             type="button"
             onClick={() => setTab(k)}
             aria-pressed={tab === k}
-            className={`relative px-2.5 py-2 text-[11px] font-medium ${
+            className={`relative px-2.5 py-2 text-2xs font-medium ${
               tab === k
                 ? "text-brand-foreground"
-                : "text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted"
+                : "text-foreground-muted hover:text-foreground-muted"
             }`}
           >
             {t(`tabs.${k}`)}
@@ -455,9 +455,9 @@ function EditorPane({
         <span className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-bold uppercase text-brand-foreground-strong">
           {t(mode === "create" ? "badges.create" : "badges.term")}
         </span>
-        <h1 className="flex-1 truncate text-sm font-semibold text-foreground-strong">
+        <h2 className="flex-1 truncate text-sm font-semibold text-foreground-strong">
           {title}
-        </h1>
+        </h2>
         {mode === "edit" && isInactive && (
           <span className="rounded bg-warning-surface px-2 py-0.5 text-2xs font-medium uppercase tracking-wider text-warning-foreground">
             {t(`lifecycle.${lifecycleState}`)}
@@ -468,7 +468,7 @@ function EditorPane({
             type="button"
             onClick={onDelete}
             disabled={pending}
-            className="rounded border border-danger-border px-2.5 py-1 text-[11px] font-medium text-danger-foreground hover:bg-danger-surface disabled:opacity-50 dark:hover:bg-danger-surface/30"
+            className="rounded border border-danger-border px-2.5 py-1 text-2xs font-medium text-danger-foreground hover:bg-danger-surface disabled:opacity-50"
           >
             {t("deleteAction")}
           </button>
@@ -556,7 +556,7 @@ function AmbiguityResolutionBanner({
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="rounded bg-warning-foreground px-2.5 py-1 text-[11px] font-medium text-white hover:bg-warning-foreground"
+            className="rounded bg-warning-foreground px-2.5 py-1 text-2xs font-medium text-foreground-onbrand hover:bg-warning-foreground"
           >
             {t("resolve")}
           </button>
@@ -564,7 +564,7 @@ function AmbiguityResolutionBanner({
         <button
           type="button"
           onClick={onDismiss}
-          className="rounded p-1 text-warning-foreground hover:bg-warning-surface dark:hover:bg-warning-surface/40"
+          className="rounded p-1 text-warning-foreground hover:bg-warning-surface"
           aria-label={t("dismissAria")}
         >
           ✕

@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Delete01Icon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { useAppStore } from "@/lib/store";
 import { useConfirm } from "@/components/providers/confirm-provider";
@@ -28,15 +28,12 @@ import { arr } from "@/lib/ir-collections";
 
 import { DependentsBadge } from "./dependents-badge";
 import { InlineEdit } from "./inline-edit";
-import { DefinitionFacet } from "./facets/definition-facet";
-import { PropertiesFacet } from "./facets/properties-facet";
-import { SamplesFacet } from "./facets/samples-facet";
-import { ConstraintsFacet } from "./facets/constraints-facet";
-import { MappingsFacet } from "./facets/mappings-facet";
-import { LineageFacet } from "./facets/lineage-facet";
-import { QualityFacet } from "./facets/quality-facet";
-import { ChangeLogFacet } from "./facets/change-log-facet";
-import { Section } from "./shared";
+import {
+  inspectorFacetById,
+  visibleInspectorFacets,
+  type InspectorFacetContext,
+  type InspectorFacetId,
+} from "./facets/registry";
 
 // Re-exports kept for callers that imported the inspector body
 // directly. The facets are the canonical surface — these stay so
@@ -46,8 +43,8 @@ export { Section } from "./shared";
 export { QualityGapsList } from "./quality-gaps";
 
 // ---------------------------------------------------------------------------
-// Inspector tabs — five-pane navigation that mirrors the page-side
-// CollapsibleSection set, minus a couple of always-relevant facets
+// Inspector tabs — facet registry drives the tab strip and the body
+// switch. Adding a new tab is one entry in `INSPECTOR_FACETS`
 // that ride directly under "Definition" because they're how an
 // operator typically iterates on a type from the canvas.
 //
@@ -57,8 +54,6 @@ export { QualityGapsList } from "./quality-gaps";
 // scroll. Each pane (in both adapters) calls the same facet
 // component so the inspector and the page stay in lockstep.
 // ---------------------------------------------------------------------------
-
-type InspectorTab = "definition" | "sample" | "lineage" | "quality" | "changelog";
 
 function useEntityRef(
   kind: "node_type" | "edge_type",
@@ -84,22 +79,23 @@ function VerificationBadge({
     (v) => v.element_id === elementId && !v.invalidated_at,
   );
 
+  const t = useTranslations("inspector.entity");
   if (active) {
     return (
       <div className="flex items-center gap-1.5 rounded bg-brand-surface px-2 py-1 text-2xs text-brand-foreground">
         <span className="h-1.5 w-1.5 rounded-full bg-brand-solid" />
-        <span>Verified by {active.verified_by_name ?? active.verified_by}</span>
+        <span>{t("verifiedBy", { name: active.verified_by_name ?? active.verified_by })}</span>
       </div>
     );
   }
 
   if (onVerify) {
     return (
-      <button
+      <button type="button"
         onClick={onVerify}
-        className="rounded border border-divider px-2 py-0.5 text-2xs text-muted-foreground hover:bg-surface-raised dark:hover:bg-surface-base"
+        className="rounded border border-divider px-2 py-0.5 text-2xs text-foreground-muted hover:bg-surface-raised"
       >
-        Verify
+        {t("verify")}
       </button>
     );
   }
@@ -133,6 +129,8 @@ function EntityHeader({
   onUpdateDescription: (desc: string) => void;
   onDelete: () => void;
 }) {
+  const t = useTranslations("inspector.entity");
+  const tAria = useTranslations("inspector.aria");
   const activeProject = useAppStore((s) => s.activeProject);
   const isEdge = kind === "edge";
   const edge = isEdge ? (entity as EdgeTypeDef) : null;
@@ -151,7 +149,7 @@ function EntityHeader({
         <span
           className={
             isEdge
-              ? "rounded bg-info-surface px-1.5 py-0.5 text-2xs font-bold uppercase text-info-foreground dark:bg-info-foreground dark:text-info-foreground"
+              ? "rounded bg-info-surface px-1.5 py-0.5 text-2xs font-bold uppercase text-info-foreground"
               : "rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-bold uppercase text-brand-foreground-strong"
           }
         >
@@ -172,13 +170,13 @@ function EntityHeader({
         <LockIndicator
           projectId={activeProject?.id}
           entityId={entity.id}
-          className="ml-auto"
+          className="ms-auto"
         />
-        <Tooltip content={isEdge ? "Delete edge" : "Delete node"}>
-          <button
+        <Tooltip content={isEdge ? tAria("deleteEdge") : tAria("deleteNode")}>
+          <button type="button"
             onClick={onDelete}
-            aria-label={isEdge ? "Delete edge" : "Delete node"}
-            className="rounded p-1 text-foreground-muted hover:bg-danger-surface hover:text-danger-foreground dark:hover:bg-danger-surface"
+            aria-label={isEdge ? tAria("deleteEdge") : tAria("deleteNode")}
+            className="rounded p-1 text-foreground-muted hover:bg-danger-surface hover:text-danger-foreground"
           >
             <HugeiconsIcon icon={Delete01Icon} className="h-3 w-3" size="100%" />
           </button>
@@ -187,16 +185,16 @@ function EntityHeader({
       <div className="mt-1 flex items-center gap-1">
         <InlineEdit
           value={defaultText(entity.description)}
-          placeholder="Add description..."
+          placeholder={t("descriptionPlaceholder")}
           onSave={onUpdateDescription}
-          className="flex-1 text-muted-foreground"
+          className="flex-1 text-foreground-muted"
         />
       </div>
       {isEdge && (
-        <p className="mt-1 text-muted-foreground">
+        <p className="mt-1 text-foreground-muted">
           {src} → {tgt}
           {edge?.cardinality && (
-            <span className="ml-2">· Cardinality: {edge.cardinality}</span>
+            <span className="ms-2">{t("cardinalityLabel", { value: edge.cardinality })}</span>
           )}
         </p>
       )}
@@ -239,7 +237,7 @@ function LockedByOtherBanner({
       <span
         className="inline-block h-2 w-2 shrink-0 rounded-full"
         style={{ backgroundColor: color }}
-        aria-hidden
+        aria-hidden="true"
       />
       <span>{t("editingBy", { name: holderName })}</span>
     </div>
@@ -266,13 +264,37 @@ export function EntityDetail({
   const applyCommand = useAppStore((s) => s.applyCommand);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const activeProject = useAppStore((s) => s.activeProject);
-  const [tab, setTab] = useState<InspectorTab>("definition");
+  const tab = useAppStore(
+    (s) => (s.inspectorTabByKind.node_type ?? "definition") as InspectorFacetId,
+  );
+  const setTab = useCallback(
+    (next: InspectorFacetId) =>
+      useAppStore.getState().setInspectorTab("node_type", next),
+    [],
+  );
   const confirm = useConfirm();
   const t = useTranslations("inspector.tabs");
+  const tEntity = useTranslations("inspector.entity");
+  const tCommon = useTranslations("common");
   const ref = useEntityRef("node_type", node.id);
   const { inbound, outbound } = useEntityDependencies(ontology.id, ref);
   const lock = useEntityLock(activeProject?.id, node.id);
   const lockedByOther = lock.kind === "locked-by-other";
+
+  const facetCtx: InspectorFacetContext = useMemo(
+    () => ({
+      ontology,
+      kind: "node",
+      entityRef: ref,
+      entity: node,
+      node,
+      edge: null,
+      gaps,
+      inboundCount: inbound.length,
+      outboundCount: outbound.length,
+    }),
+    [ontology, ref, node, gaps, inbound.length, outbound.length],
+  );
 
   const handleRename = useCallback(
     (newLabel: string) => {
@@ -294,37 +316,37 @@ export function EntityDetail({
 
   const handleDeleteNode = useCallback(async () => {
     const ok = await confirm({
-      title: "Delete Node",
-      description: `Delete "${node.label}" and all connected edges? This action cannot be undone.`,
-      confirmLabel: "Delete",
+      title: tEntity("node.deleteTitle"),
+      description: tEntity("node.deleteDescription", { label: node.label }),
+      confirmLabel: tCommon("delete"),
       variant: "danger",
     });
     if (!ok) return;
     applyCommand({ op: "delete_node", node_id: node.id });
     clearSelection();
-    toast.success(`Node "${node.label}" deleted`);
-  }, [applyCommand, confirm, node.id, node.label, clearSelection]);
+    toast.success(tEntity("node.deletedToast", { label: node.label }));
+  }, [applyCommand, confirm, node.id, node.label, clearSelection, tEntity, tCommon]);
 
-  const tabs = useMemo(
-    () => [
-      { id: "definition", label: t("definition") },
-      ...(node.source_lineage?.table
-        ? [{ id: "sample", label: t("sample") }]
-        : []),
-      {
-        id: "lineage",
-        label: t("lineage"),
-        badge: outbound.length + inbound.length || undefined,
-      },
-      {
-        id: "quality",
-        label: t("quality"),
-        badge: gaps.length || undefined,
-      },
-      { id: "changelog", label: t("changelog") },
-    ],
-    [t, node.source_lineage?.table, outbound.length, inbound.length, gaps.length],
+  const visibleFacets = useMemo(
+    () => visibleInspectorFacets(facetCtx),
+    [facetCtx],
   );
+  const tabs = useMemo(
+    () =>
+      visibleFacets.map((f) => ({
+        id: f.id,
+        label: t(f.labelKey),
+        badge: f.badge?.(facetCtx),
+      })),
+    [visibleFacets, t, facetCtx],
+  );
+  // Fall back to the first visible facet when the persisted tab is
+  // hidden for this entity (e.g. user was on `sample` for a lineage
+  // node, then selected an edge — `sample` no longer applies).
+  const activeFacet =
+    inspectorFacetById(tab) && visibleFacets.some((f) => f.id === tab)
+      ? inspectorFacetById(tab)!
+      : visibleFacets[0];
 
   return (
     <div className="flex h-full flex-col overflow-hidden text-xs">
@@ -349,8 +371,8 @@ export function EntityDetail({
       <div className="border-b border-divider">
         <TabBar
           tabs={tabs}
-          activeTab={tab}
-          onTabChange={(id) => setTab(id as InspectorTab)}
+          activeTab={activeFacet.id}
+          onTabChange={(id) => setTab(id as InspectorFacetId)}
         />
       </div>
 
@@ -361,71 +383,7 @@ export function EntityDetail({
         )}
         aria-disabled={lockedByOther || undefined}
       >
-        {tab === "definition" && (
-          <>
-            <Section title={t("definitionSubsection.glossary")}>
-              <div className="px-3 py-2">
-                <DefinitionFacet
-                  ontology={ontology}
-                  entity={node}
-                  kind="node"
-                />
-              </div>
-            </Section>
-            <Section title={`Properties (${arr(node.properties).length})`}>
-              <div className="px-3 py-2">
-                <PropertiesFacet
-                  ontology={ontology}
-                  entity={node}
-                  kind="node"
-                />
-              </div>
-            </Section>
-            <Section
-              title={`Constraints (${arr(node.constraints).length})`}
-            >
-              <div className="px-3 py-2">
-                <ConstraintsFacet node={node} />
-              </div>
-            </Section>
-            <Section title={t("definitionSubsection.mappings")}>
-              <div className="px-3 py-2">
-                <MappingsFacet node={node} ontology={ontology} />
-              </div>
-            </Section>
-            <p className="mt-3 px-3 pb-2 text-2xs text-muted-foreground">
-              Tip: Press{" "}
-              <kbd className="rounded bg-surface-inset px-1 py-0.5 font-mono text-2xs">
-                {"⌘"}K
-              </kbd>{" "}
-              to edit with AI
-            </p>
-          </>
-        )}
-
-        {tab === "sample" && (
-          <div className="px-3 py-3">
-            <SamplesFacet node={node} />
-          </div>
-        )}
-
-        {tab === "lineage" && (
-          <div className="px-3 py-3">
-            <LineageFacet ontology={ontology} entityRef={ref} />
-          </div>
-        )}
-
-        {tab === "quality" && (
-          <div className="px-3 py-3">
-            <QualityFacet gaps={gaps} />
-          </div>
-        )}
-
-        {tab === "changelog" && (
-          <div className="px-3 py-3">
-            <ChangeLogFacet ontology={ontology} entity={node} kind="node" />
-          </div>
-        )}
+        {activeFacet.render(facetCtx)}
       </div>
     </div>
   );
@@ -451,13 +409,37 @@ export function EdgeDetail({
   const applyCommand = useAppStore((s) => s.applyCommand);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const activeProject = useAppStore((s) => s.activeProject);
-  const [tab, setTab] = useState<InspectorTab>("definition");
+  const tab = useAppStore(
+    (s) => (s.inspectorTabByKind.edge_type ?? "definition") as InspectorFacetId,
+  );
+  const setTab = useCallback(
+    (next: InspectorFacetId) =>
+      useAppStore.getState().setInspectorTab("edge_type", next),
+    [],
+  );
   const confirm = useConfirm();
   const t = useTranslations("inspector.tabs");
+  const tEntity = useTranslations("inspector.entity");
+  const tCommon = useTranslations("common");
   const ref = useEntityRef("edge_type", edge.id);
   const { inbound, outbound } = useEntityDependencies(ontology.id, ref);
   const lock = useEntityLock(activeProject?.id, edge.id);
   const lockedByOther = lock.kind === "locked-by-other";
+
+  const facetCtx: InspectorFacetContext = useMemo(
+    () => ({
+      ontology,
+      kind: "edge",
+      entityRef: ref,
+      entity: edge,
+      node: null,
+      edge,
+      gaps,
+      inboundCount: inbound.length,
+      outboundCount: outbound.length,
+    }),
+    [ontology, ref, edge, gaps, inbound.length, outbound.length],
+  );
 
   const src =
     arr(ontology.node_types).find((n) => n.id === edge.source_node_id)?.label ??
@@ -486,34 +468,34 @@ export function EdgeDetail({
 
   const handleDeleteEdge = useCallback(async () => {
     const ok = await confirm({
-      title: "Delete Edge",
-      description: `Delete edge "${edge.label}" (${src} → ${tgt})? This action cannot be undone.`,
-      confirmLabel: "Delete",
+      title: tEntity("edge.deleteTitle"),
+      description: tEntity("edge.deleteDescription", { label: edge.label, source: src, target: tgt }),
+      confirmLabel: tCommon("delete"),
       variant: "danger",
     });
     if (!ok) return;
     applyCommand({ op: "delete_edge", edge_id: edge.id });
     clearSelection();
-    toast.success(`Edge "${edge.label}" deleted`);
-  }, [applyCommand, confirm, edge.id, edge.label, clearSelection, src, tgt]);
+    toast.success(tEntity("edge.deletedToast", { label: edge.label }));
+  }, [applyCommand, confirm, edge.id, edge.label, clearSelection, src, tgt, tEntity, tCommon]);
 
-  const tabs = useMemo(
-    () => [
-      { id: "definition", label: t("definition") },
-      {
-        id: "lineage",
-        label: t("lineage"),
-        badge: outbound.length + inbound.length || undefined,
-      },
-      {
-        id: "quality",
-        label: t("quality"),
-        badge: gaps.length || undefined,
-      },
-      { id: "changelog", label: t("changelog") },
-    ],
-    [t, outbound.length, inbound.length, gaps.length],
+  const visibleFacets = useMemo(
+    () => visibleInspectorFacets(facetCtx),
+    [facetCtx],
   );
+  const tabs = useMemo(
+    () =>
+      visibleFacets.map((f) => ({
+        id: f.id,
+        label: t(f.labelKey),
+        badge: f.badge?.(facetCtx),
+      })),
+    [visibleFacets, t, facetCtx],
+  );
+  const activeFacet =
+    inspectorFacetById(tab) && visibleFacets.some((f) => f.id === tab)
+      ? inspectorFacetById(tab)!
+      : visibleFacets[0];
 
   return (
     <div className="flex h-full flex-col overflow-hidden text-xs">
@@ -538,8 +520,8 @@ export function EdgeDetail({
       <div className="border-b border-divider">
         <TabBar
           tabs={tabs}
-          activeTab={tab}
-          onTabChange={(id) => setTab(id as InspectorTab)}
+          activeTab={activeFacet.id}
+          onTabChange={(id) => setTab(id as InspectorFacetId)}
         />
       </div>
 
@@ -550,53 +532,7 @@ export function EdgeDetail({
         )}
         aria-disabled={lockedByOther || undefined}
       >
-        {tab === "definition" && (
-          <>
-            <Section title={t("definitionSubsection.glossary")}>
-              <div className="px-3 py-2">
-                <DefinitionFacet
-                  ontology={ontology}
-                  entity={edge}
-                  kind="edge"
-                />
-              </div>
-            </Section>
-            <Section title={`Properties (${arr(edge.properties).length})`}>
-              <div className="px-3 py-2">
-                <PropertiesFacet
-                  ontology={ontology}
-                  entity={edge}
-                  kind="edge"
-                />
-              </div>
-            </Section>
-            <p className="mt-3 px-3 pb-2 text-2xs text-muted-foreground">
-              Tip: Press{" "}
-              <kbd className="rounded bg-surface-inset px-1 py-0.5 font-mono text-2xs">
-                {"⌘"}K
-              </kbd>{" "}
-              to edit with AI
-            </p>
-          </>
-        )}
-
-        {tab === "lineage" && (
-          <div className="px-3 py-3">
-            <LineageFacet ontology={ontology} entityRef={ref} />
-          </div>
-        )}
-
-        {tab === "quality" && (
-          <div className="px-3 py-3">
-            <QualityFacet gaps={gaps} />
-          </div>
-        )}
-
-        {tab === "changelog" && (
-          <div className="px-3 py-3">
-            <ChangeLogFacet ontology={ontology} entity={edge} kind="edge" />
-          </div>
-        )}
+        {activeFacet.render(facetCtx)}
       </div>
     </div>
   );

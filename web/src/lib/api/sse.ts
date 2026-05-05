@@ -26,6 +26,31 @@ export async function consumeSSEStream(
   let buffer = "";
   let currentEvent = "";
 
+  /**
+   * Process a single complete line. Hoisted out of the read loop so
+   * the trailing-buffer flush at end-of-stream uses the same parsing
+   * path — a server that closes the socket without a final blank line
+   * (network truncation, abrupt shutdown) still has its last
+   * `event:`/`data:` pair dispatched.
+   */
+  const handleLine = (line: string) => {
+    if (line.startsWith("event: ")) {
+      currentEvent = line.slice(7).trim();
+      return;
+    }
+    if (line.startsWith("data: ")) {
+      const raw = line.slice(6);
+      if (currentEvent && handlers[currentEvent]) {
+        try {
+          handlers[currentEvent](JSON.parse(raw));
+        } catch {
+          // Skip malformed SSE data
+        }
+      }
+      currentEvent = "";
+    }
+  };
+
   try {
     while (true) {
       if (options?.signal?.aborted) break;
@@ -37,26 +62,16 @@ export async function consumeSSEStream(
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
 
-      for (const line of lines) {
-        if (line.startsWith("event: ")) {
-          currentEvent = line.slice(7).trim();
-          continue;
-        }
-
-        if (line.startsWith("data: ")) {
-          const raw = line.slice(6);
-          if (currentEvent && handlers[currentEvent]) {
-            try {
-              const data = JSON.parse(raw);
-              handlers[currentEvent](data);
-            } catch {
-              // Skip malformed SSE data
-            }
-          }
-          currentEvent = "";
-        }
-      }
+      for (const line of lines) handleLine(line);
     }
+
+    // End-of-stream flush. The decoder may still hold a partial UTF-8
+    // sequence; calling without `{ stream: true }` finalises it. Any
+    // residue in `buffer` after the read loop is the stream's final
+    // line — process it so an abrupt close (no terminating blank
+    // line) doesn't drop the last event.
+    buffer += decoder.decode();
+    if (buffer.length > 0) handleLine(buffer);
   } finally {
     reader.cancel().catch(() => {});
   }

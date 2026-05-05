@@ -10,6 +10,7 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 import type { ForceGraphMethods } from "react-force-graph-2d";
 import type {
   QueryResult,
@@ -60,6 +61,7 @@ export const GraphWidget = memo(function GraphWidget({
   dashboardId,
 }: GraphWidgetProps) {
   const t = useTranslations("widget.graph");
+  const localeChain = useLocaleChain();
   const containerRef = useRef<HTMLDivElement>(null);
   // ForceGraphMethods with default generics — our extra fields are accessible
   // through the [others: string]: any index signature on NodeObject/LinkObject.
@@ -129,7 +131,7 @@ export const GraphWidget = memo(function GraphWidget({
       graphRef.current?.zoomToFit(400, 40);
     }, 500);
     return () => clearTimeout(timer);
-  }, [extracted]);
+  }, []);
 
   const graphHeight = Math.min(400, Math.max(280, containerWidth * 0.6));
 
@@ -235,11 +237,11 @@ export const GraphWidget = memo(function GraphWidget({
       if (!gl.label) return "";
       const props = Object.entries(gl.properties)
         .filter(([, v]) => v != null)
-        .map(([k, v]) => `${k}: ${formatValue(v)}`)
+        .map(([k, v]) => `${k}: ${formatValue(v, localeChain)}`)
         .join("\n");
       return props ? `${gl.label}\n${props}` : gl.label;
     },
-    [],
+    [localeChain],
   );
 
   // Link color — lighter in dark mode for visibility
@@ -258,16 +260,16 @@ export const GraphWidget = memo(function GraphWidget({
   const nodeLabel = useCallback(
     (node: Record<string, unknown>): string => {
       const gn = node as unknown as FGNode;
-      return buildTooltipHtml(gn, nodeConfig?.tooltip_fields);
+      return buildTooltipHtml(gn, nodeConfig?.tooltip_fields, localeChain);
     },
-    [nodeConfig?.tooltip_fields],
+    [nodeConfig?.tooltip_fields, localeChain],
   );
 
   // Empty state
   if (!data.rows.length || extracted.nodes.length === 0) {
     return (
       <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-divider">
-        <p className="text-xs text-muted-foreground">{t("noData")}</p>
+        <p className="text-xs text-foreground-muted">{t("noData")}</p>
       </div>
     );
   }
@@ -275,7 +277,7 @@ export const GraphWidget = memo(function GraphWidget({
   return (
     <div className="space-y-1.5">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground dark:text-muted-foreground">
+        <h4 className="text-xs font-semibold text-foreground">
           {spec.title}
         </h4>
       )}
@@ -342,18 +344,18 @@ export const GraphWidget = memo(function GraphWidget({
       </div>
 
       {/* Footer stats */}
-      <p className="text-2xs text-muted-foreground">
+      <p className="text-2xs text-foreground-muted">
         {t("nodesEdges", {
           nodes: graphData.nodes.length,
           edges: graphData.links.length,
         })}
         {typeFilter.isAnyHidden && (
-          <span className="ml-1 text-foreground-muted">
+          <span className="ms-1 text-foreground-muted">
             {t("hiddenCount", { count: extracted.nodes.length - graphData.nodes.length })}
           </span>
         )}
         {isTruncated && (
-          <span className="ml-1 text-warning-foreground">
+          <span className="ms-1 text-warning-foreground">
             {t("showingTruncated", { shown: extracted.nodes.length, total: extracted.totalNodes })}
           </span>
         )}

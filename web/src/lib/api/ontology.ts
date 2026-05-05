@@ -37,7 +37,7 @@ export async function listOntologies(params?: {
   const qs = new URLSearchParams();
   if (params?.cursor) qs.set("cursor", params.cursor);
   if (params?.limit) qs.set("limit", String(params.limit));
-  if (params?.nameEq && params.nameEq.trim())
+  if (params?.nameEq?.trim())
     qs.set("name_eq", params.nameEq);
   const query = qs.toString();
   const data = await request(`/ontologies${query ? `?${query}` : ""}`);

@@ -3,8 +3,15 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useReactFlow, type Node, type Edge } from "@xyflow/react";
 
-import { useAppStore, selectStateSelectedNodeId, selectStateSelectedEdgeId } from "@/lib/store";
-import { getNeighborhood, getNeighborhoodEdges } from "@/components/workbench/canvas/neighborhood";
+import {
+  selectionPrimary,
+  selectStateSelection,
+  useAppStore,
+} from "@/lib/store";
+import {
+  getNeighborhood,
+  getNeighborhoodEdges,
+} from "@/components/workbench/canvas/neighborhood";
 import type { OntologyIR } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
 
@@ -20,97 +27,161 @@ interface SelectionSets {
 }
 
 /**
- * Syncs the store's selection + neighborhood focus into ReactFlow node/edge
- * data so the renderer can apply "selected" and "dimmed" styling.
+ * Syncs the store's selection + neighborhood focus into ReactFlow
+ * node/edge data so the renderer can apply "selected" and "dimmed"
+ * styling. Multi-select is honoured — every ref in `selection.refs`
+ * lights up, the most-recent ref drives pan/zoom and acts as the
+ * inspector focus.
  *
- * Also pans/zooms the viewport to the currently selected element and escapes
- * neighborhood focus on Escape keypress. Computes neighborhood sets once per
- * focus change and returns the current selection ids so the caller can wire
- * them into event handlers.
+ * Pan target: the viewport pans to the *primary* (most recent) ref
+ * only — chasing every multi-select tick would whiplash the canvas.
+ *
+ * Escape exits neighborhood mode; the registry-owned `Escape`
+ * handlers handle other contexts.
  */
 export function useCanvasSelection(options: SelectionOptions) {
   const { ontology, setNodes, setEdges } = options;
 
-  const selectedNodeId = useAppStore(selectStateSelectedNodeId);
-  const selectedEdgeId = useAppStore(selectStateSelectedEdgeId);
+  const selection = useAppStore(selectStateSelection);
   const neighborhoodFocus = useAppStore((s) => s.neighborhoodFocus);
   const setNeighborhoodFocus = useAppStore((s) => s.setNeighborhoodFocus);
 
   const { fitView } = useReactFlow();
 
-  // Neighborhood sets for dimming
+  // Build the {selected node ids, selected edge ids} pair once per
+  // selection change. Components downstream consume the sets directly;
+  // the effect below diffs them against the previous render to limit
+  // node/edge data churn.
+  const selectionSets = useMemo<SelectionSets>(() => {
+    const nodeIds = new Set<string>();
+    const edgeIds = new Set<string>();
+    for (const ref of selection.refs) {
+      if (ref.kind === "node") nodeIds.add(ref.id);
+      else if (ref.kind === "edge") edgeIds.add(ref.id);
+    }
+    return { nodeIds, edgeIds };
+  }, [selection]);
+
+  const primary = useMemo(() => selectionPrimary(selection), [selection]);
+  const primaryNodeId = primary?.kind === "node" ? primary.id : null;
+  const primaryEdgeId = primary?.kind === "edge" ? primary.id : null;
+
+  // Neighborhood sets for dimming.
   const neighborhoodSets = useMemo<SelectionSets | null>(() => {
     if (!neighborhoodFocus || !ontology) return null;
-    const nodeIds = getNeighborhood(ontology, neighborhoodFocus.nodeId, neighborhoodFocus.depth);
+    const nodeIds = getNeighborhood(
+      ontology,
+      neighborhoodFocus.nodeId,
+      neighborhoodFocus.depth,
+    );
     const edgeIds = getNeighborhoodEdges(ontology, nodeIds);
     return { nodeIds, edgeIds };
   }, [neighborhoodFocus, ontology]);
 
-  // Pan/zoom to selected element
+  // Pan/zoom to the primary selection (single ref).
   useEffect(() => {
-    if (selectedNodeId) {
-      fitView({ nodes: [{ id: selectedNodeId }], duration: 300, padding: 0.3 });
-    } else if (selectedEdgeId && ontology) {
-      const edge = arr(ontology.edge_types).find((e) => e.id === selectedEdgeId);
+    if (primaryNodeId) {
+      fitView({
+        nodes: [{ id: primaryNodeId }],
+        duration: 300,
+        padding: 0.3,
+      });
+    } else if (primaryEdgeId && ontology) {
+      const edge = arr(ontology.edge_types).find(
+        (e) => e.id === primaryEdgeId,
+      );
       if (edge) {
-        fitView({ nodes: [{ id: edge.source_node_id }, { id: edge.target_node_id }], duration: 300, padding: 0.3 });
+        fitView({
+          nodes: [
+            { id: edge.source_node_id },
+            { id: edge.target_node_id },
+          ],
+          duration: 300,
+          padding: 0.3,
+        });
       }
     }
-  }, [selectedNodeId, selectedEdgeId, ontology, fitView]);
+  }, [primaryNodeId, primaryEdgeId, ontology, fitView]);
 
-  // Apply selection + neighborhood dimming.
-  // Track previous selection to limit updates to changed nodes only.
-  const prevSelectionRef = useRef<{
-    nodeId: string | null;
-    edgeId: string | null;
+  // Apply selection + neighborhood dimming. Diff against the prior
+  // render to avoid touching nodes that didn't change selection state.
+  const prevRef = useRef<{
+    selectionSets: SelectionSets | null;
     neighborhoodSets: SelectionSets | null;
-  }>({ nodeId: null, edgeId: null, neighborhoodSets: null });
+  }>({ selectionSets: null, neighborhoodSets: null });
 
   useEffect(() => {
-    const prev = prevSelectionRef.current;
+    const prev = prevRef.current;
     const neighborhoodChanged = prev.neighborhoodSets !== neighborhoodSets;
+    const selectionChanged = prev.selectionSets !== selectionSets;
 
-    // Build set of node IDs that need updating (old selection + new selection + neighborhood changes)
+    // Compute the set of node ids whose `selected` flag may have
+    // flipped this tick. Empty when both prev and current are empty
+    // (skips the per-node loop on idle re-renders).
     const affectedNodeIds = new Set<string>();
-    if (prev.nodeId) affectedNodeIds.add(prev.nodeId);
-    if (selectedNodeId) affectedNodeIds.add(selectedNodeId);
+    if (prev.selectionSets) {
+      for (const id of prev.selectionSets.nodeIds) affectedNodeIds.add(id);
+    }
+    for (const id of selectionSets.nodeIds) affectedNodeIds.add(id);
 
     const affectedEdgeIds = new Set<string>();
-    if (prev.edgeId) affectedEdgeIds.add(prev.edgeId);
-    if (selectedEdgeId) affectedEdgeIds.add(selectedEdgeId);
+    if (prev.selectionSets) {
+      for (const id of prev.selectionSets.edgeIds) affectedEdgeIds.add(id);
+    }
+    for (const id of selectionSets.edgeIds) affectedEdgeIds.add(id);
 
-    prevSelectionRef.current = { nodeId: selectedNodeId, edgeId: selectedEdgeId, neighborhoodSets };
+    prevRef.current = { selectionSets, neighborhoodSets };
+
+    if (!selectionChanged && !neighborhoodChanged) return;
 
     setNodes((prevNodes) =>
       prevNodes.map((n) => {
         if (n.type === "group") return n;
-        if (!neighborhoodChanged && affectedNodeIds.size > 0 && !affectedNodeIds.has(n.id)) return n;
-        const isSelected = n.id === selectedNodeId;
+        if (
+          !neighborhoodChanged &&
+          affectedNodeIds.size > 0 &&
+          !affectedNodeIds.has(n.id)
+        ) {
+          return n;
+        }
+        const isSelected = selectionSets.nodeIds.has(n.id);
         const data = n.data as Record<string, unknown>;
         if (!data) return n;
-        const dimmed = neighborhoodSets ? !neighborhoodSets.nodeIds.has(n.id) : false;
+        const dimmed = neighborhoodSets
+          ? !neighborhoodSets.nodeIds.has(n.id)
+          : false;
         if (data.selected === isSelected && data.dimmed === dimmed) return n;
         return { ...n, data: { ...data, selected: isSelected, dimmed } };
       }),
     );
     setEdges((prevEdges) =>
       prevEdges.map((e) => {
-        if (!neighborhoodChanged && affectedEdgeIds.size > 0 && !affectedEdgeIds.has(e.id)) return e;
-        const isSelected = e.id === selectedEdgeId;
+        if (
+          !neighborhoodChanged &&
+          affectedEdgeIds.size > 0 &&
+          !affectedEdgeIds.has(e.id)
+        ) {
+          return e;
+        }
+        const isSelected = selectionSets.edgeIds.has(e.id);
         const data = e.data as Record<string, unknown> | undefined;
         if (!data) return e;
-        const dimmed = neighborhoodSets ? !neighborhoodSets.edgeIds.has(e.id) : false;
+        const dimmed = neighborhoodSets
+          ? !neighborhoodSets.edgeIds.has(e.id)
+          : false;
         if (data.selected === isSelected && data.dimmed === dimmed) return e;
         return {
           ...e,
           data: { ...data, selected: isSelected, dimmed },
-          style: dimmed ? { opacity: 0.15, pointerEvents: "none" as const } : undefined,
+          style: dimmed
+            ? { opacity: 0.15, pointerEvents: "none" as const }
+            : undefined,
         };
       }),
     );
-  }, [selectedNodeId, selectedEdgeId, neighborhoodSets, setNodes, setEdges]);
+  }, [selectionSets, neighborhoodSets, setNodes, setEdges]);
 
-  // Escape exits neighborhood mode
+  // Escape exits neighborhood mode.
   useEffect(() => {
     if (!neighborhoodFocus) return;
     const handler = (e: KeyboardEvent) => {
@@ -120,5 +191,10 @@ export function useCanvasSelection(options: SelectionOptions) {
     return () => window.removeEventListener("keydown", handler);
   }, [neighborhoodFocus, setNeighborhoodFocus]);
 
-  return { selectedNodeId, selectedEdgeId, neighborhoodSets };
+  return {
+    primaryNodeId,
+    primaryEdgeId,
+    selectionSets,
+    neighborhoodSets,
+  };
 }

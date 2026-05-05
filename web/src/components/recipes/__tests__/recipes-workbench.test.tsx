@@ -10,7 +10,12 @@ vi.mock("@/hooks/use-auth", () => ({
   useAuth: vi.fn(),
 }));
 
-vi.mock("@/lib/api", () => ({
+// Mock the admin module — that's where `useRecipes` (via the hook
+// chain) reaches the network. The component also imports
+// `listRecipeVersions` and `CreateRecipeRequest` from the `@/lib/api`
+// barrel; both re-export from `@/lib/api/admin`, so mocking the
+// admin module covers both call paths without a second factory.
+vi.mock("@/lib/api/admin", () => ({
   listRecipes: vi.fn(),
   createRecipe: vi.fn(),
   deleteRecipe: vi.fn(),
@@ -25,7 +30,7 @@ vi.mock("@/components/providers/confirm-provider", () => ({
     children,
 }));
 
-vi.mock("sonner", () => ({
+vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -36,11 +41,11 @@ vi.mock("@/components/recipes/recipe-runner", () => ({
 }));
 
 import { RecipesWorkbench } from "@/components/recipes/recipes-workbench";
-import * as api from "@/lib/api";
+import * as api from "@/lib/api/admin";
 import { useAuth } from "@/hooks/use-auth";
 import { mockAuth } from "@/test-utils/auth";
 import type { AnalysisRecipe } from "@/types/api";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 function sampleRecipe(overrides: Partial<AnalysisRecipe> = {}): AnalysisRecipe {
   return {

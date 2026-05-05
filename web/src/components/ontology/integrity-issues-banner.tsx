@@ -44,23 +44,23 @@ export function IntegrityIssuesBanner({
           className="h-3.5 w-3.5 text-warning-foreground"
           size="100%"
         />
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-warning-foreground">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-warning-foreground">
           {t("heading", { count: issues.length })}
         </span>
       </div>
       <ul className="space-y-1.5">
         {visible.map((issue, index) => (
-          <li key={`${issue.code}-${index}`} className="text-[11px]">
+          <li key={`${issue.code}-${index}`} className="text-2xs">
             <span className="font-mono text-warning-foreground">
               {issue.code}
             </span>
-            <span className="ml-2 text-warning-foreground">
+            <span className="ms-2 text-warning-foreground">
               {issue.message}
             </span>
           </li>
         ))}
         {hidden > 0 && (
-          <li className="text-2xs italic text-muted-foreground">
+          <li className="text-2xs italic text-foreground-muted">
             {t("more", { n: hidden })}
           </li>
         )}

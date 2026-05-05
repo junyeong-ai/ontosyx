@@ -4,9 +4,10 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Alert01Icon, MagicWand01Icon } from "@hugeicons/core-free-icons";
-import { FormInput } from "@/components/ui/form-input";
+import { FormInput, SettingsSelect } from "@/components/ui/form-input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/cn";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { WarningGroupList } from "@/components/workbench/warnings/warning-group-card";
 import { ReviewToc, type ReviewTOCEntry } from "./review-toc";
 import { useReviewKeyboardNav } from "./use-review-keyboard-nav";
@@ -21,7 +22,6 @@ import type {
 import {
   relationshipKey,
   columnKey,
-  selectClassName,
 } from "./design-panel-shared";
 import type { PiiAnnotationEntry } from "./use-design-decisions";
 
@@ -80,7 +80,7 @@ function inferClarification(column: AmbiguityContext, t: AnalysisTranslator): st
     return t("inferPercentage");
   }
   if (/rating/.test(col) && samples.every((v) => /^\d{1,2}$/.test(v.trim()))) {
-    const nums = samples.map((v) => Number(v.trim())).filter((n) => !isNaN(n));
+    const nums = samples.map((v) => Number(v.trim())).filter((n) => !Number.isNaN(n));
     if (nums.length > 0) {
       return t("inferRatingRange", { min: Math.min(...nums), max: Math.max(...nums) });
     }
@@ -159,7 +159,7 @@ function GroupedSection({
     const totalItems = Array.from(groups.values()).reduce((acc, list) => acc + list.length, 0);
     return (
       <div>
-        <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
           {title}
         </h4>
         <p className="rounded border border-brand-border bg-brand-surface px-2 py-1.5 text-xs text-brand-foreground-strong">
@@ -171,7 +171,7 @@ function GroupedSection({
 
   return (
     <div>
-      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
         {title}
       </h4>
       <div className="space-y-1">
@@ -179,7 +179,7 @@ function GroupedSection({
           const unresolved = getUnresolvedCount(tableName);
           return (
             <details key={tableName} open={unresolved > 0}>
-              <summary className="flex cursor-pointer select-none items-center gap-2 rounded border border-divider bg-surface-inset px-2 py-1 text-xs font-medium text-foreground hover:bg-surface-inset-muted">
+              <summary className="flex cursor-pointer select-none items-center gap-2 rounded border border-divider bg-surface-inset px-2 py-1 text-xs font-medium text-foreground hover:bg-surface-inset">
                 <span className="flex-1">{tableName}</span>
                 {renderBatchAction?.(tableName)}
                 {unresolved > 0 && (
@@ -188,7 +188,7 @@ function GroupedSection({
                   </span>
                 )}
               </summary>
-              <div className="mt-1 space-y-1 pl-2">
+              <div className="mt-1 space-y-1 ps-2">
                 {entries.map((entry) => (
                   <div key={entry.key}>{renderItem(entry)}</div>
                 ))}
@@ -550,7 +550,7 @@ export function AnalysisReviewSection({
           <p className="text-xs font-semibold text-foreground-strong">
             {t("heading")}
           </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="mt-0.5 text-xs text-foreground-muted">
             {t("description", {
               tables: report.schema_stats.table_count,
               columns: report.schema_stats.column_count,
@@ -566,9 +566,8 @@ export function AnalysisReviewSection({
               type="button"
               onClick={autoFill}
               className={cn(
-                "flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+                "flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                 "border-concept-border bg-concept-surface text-concept-foreground hover:bg-concept-surface",
-                "dark:border-concept-border dark:hover:bg-concept-surface",
               )}
             >
               <HugeiconsIcon icon={MagicWand01Icon} className="h-3 w-3" size="100%" />
@@ -592,14 +591,14 @@ export function AnalysisReviewSection({
 
       {totalItems > 0 && (
         <div>
-          <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+          <div className="mb-1 flex items-center justify-between text-xs text-foreground-muted">
             <span>{t("progressResolved", { percent: progressPercent, resolved: totalResolved, total: totalItems })}</span>
-            <span className="text-muted-foreground">{t("progressRemaining", { count: totalUnresolved })}</span>
+            <span className="text-foreground-muted">{t("progressRemaining", { count: totalUnresolved })}</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-inset">
             <div
               className={cn(
-                "h-full rounded-full transition-all duration-300",
+                "h-full rounded-full transition-all duration-[var(--duration-slow)] ease-[var(--ease-out)]",
                 progressPercent === 100
                   ? "bg-brand-solid"
                   : progressPercent >= 50
@@ -616,24 +615,20 @@ export function AnalysisReviewSection({
 
       {totalItems > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-divider bg-surface-base px-2 py-1.5">
-          <label className="flex items-center gap-1.5 text-xs text-foreground-muted">
-            <input
-              type="checkbox"
-              checked={unresolvedOnly}
-              onChange={(e) => setUnresolvedOnly(e.target.checked)}
-              className="accent-brand-foreground"
-            />
-            {t("unresolvedOnly")}
-          </label>
+          <Checkbox
+            checked={unresolvedOnly}
+            onChange={(e) => setUnresolvedOnly(e.target.checked)}
+            label={t("unresolvedOnly")}
+          />
           <div className="h-3 w-px bg-surface-inset" />
-          <input
+          <FormInput
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder={t("filterPlaceholder")}
-            className="flex-1 border-none bg-transparent text-xs text-foreground outline-none placeholder:text-foreground-muted-strong dark:placeholder:text-foreground-muted"
+            className="flex-1 border-none bg-transparent focus:ring-0"
           />
-          <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
+          <span className="whitespace-nowrap text-xs font-medium text-foreground-muted">
             {t("filterCount", { remaining: totalUnresolved, total: totalItems })}
           </span>
         </div>
@@ -653,18 +648,14 @@ export function AnalysisReviewSection({
           <div className="mt-2">
             <WarningGroupList warnings={report.analysis_warnings} />
           </div>
-          <label
+          <Checkbox
             id="review-partial-acknowledgement"
-            className="mt-2 flex items-start gap-1.5 text-xs text-foreground"
-          >
-            <input
-              type="checkbox"
-              checked={partialAnalysisAcknowledged}
-              onChange={(e) => setPartialAnalysisAcknowledged(e.target.checked)}
-              className="mt-0.5"
-            />
-            <span className="font-medium">{t("acknowledgePartial")}</span>
-          </label>
+            checked={partialAnalysisAcknowledged}
+            onChange={(e) => setPartialAnalysisAcknowledged(e.target.checked)}
+            align="start"
+            label={<span className="font-medium">{t("acknowledgePartial")}</span>}
+            className="mt-2"
+          />
         </div>
       )}
 
@@ -685,23 +676,19 @@ export function AnalysisReviewSection({
           <p className="mt-1 text-xs text-warning-foreground">
             {t("largeSchemaHint")}
           </p>
-          <label
+          <Checkbox
             id="review-large-schema-acknowledgement"
-            className="mt-2 flex items-start gap-1.5 text-xs text-foreground"
-          >
-            <input
-              type="checkbox"
-              checked={largeSchemaAcknowledged}
-              onChange={(e) => setLargeSchemaAcknowledged(e.target.checked)}
-              className="mt-0.5"
-            />
-            <span className="font-medium">{t("acknowledgeLargeSchema")}</span>
-          </label>
+            checked={largeSchemaAcknowledged}
+            onChange={(e) => setLargeSchemaAcknowledged(e.target.checked)}
+            align="start"
+            label={<span className="font-medium">{t("acknowledgeLargeSchema")}</span>}
+            className="mt-2"
+          />
         </div>
       )}
 
       {report.repo_summary && (
-        <div className="space-y-1 text-xs text-muted-foreground">
+        <div className="space-y-1 text-xs text-foreground-muted">
           <p>
             {t("repoSummary", {
               status: report.repo_summary.status,
@@ -737,7 +724,7 @@ export function AnalysisReviewSection({
                   e.preventDefault();
                   acceptAllRelInTable(tableName);
                 }}
-                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong-strong/40-strong dark:hover:bg-brand-solid-hover/60"
+                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong/60"
               >
                 {t("acceptAll")}
               </button>
@@ -746,24 +733,24 @@ export function AnalysisReviewSection({
           renderItem={(entry) => {
             const rel = entry.item as ImpliedRelationship;
             return (
-              <label className="flex items-center gap-1.5 rounded border border-divider bg-surface-base px-2 py-1 text-xs/60">
-                <input
-                  type="checkbox"
-                  checked={!!confirmedRelationships[entry.key]}
-                  onChange={(e) =>
-                    setConfirmedRelationships((c) => ({ ...c, [entry.key]: e.target.checked }))
-                  }
-                />
-                <span className="text-foreground-muted">
-                  {t("relationshipRow", {
-                    fromTable: rel.from_table,
-                    fromColumn: rel.from_column,
-                    toTable: rel.to_table,
-                    toColumn: rel.to_column,
-                    confidence: Math.round(rel.confidence * 100),
-                  })}
-                </span>
-              </label>
+              <Checkbox
+                checked={!!confirmedRelationships[entry.key]}
+                onChange={(e) =>
+                  setConfirmedRelationships((c) => ({ ...c, [entry.key]: e.target.checked }))
+                }
+                label={
+                  <span className="text-foreground-muted">
+                    {t("relationshipRow", {
+                      fromTable: rel.from_table,
+                      fromColumn: rel.from_column,
+                      toTable: rel.to_table,
+                      toColumn: rel.to_column,
+                      confidence: Math.round(rel.confidence * 100),
+                    })}
+                  </span>
+                }
+                className="rounded border border-divider bg-surface-base px-2 py-1"
+              />
             );
           }}
         />
@@ -788,7 +775,7 @@ export function AnalysisReviewSection({
                   e.preventDefault();
                   acceptAllPiiInTable(tableName);
                 }}
-                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong-strong/40-strong dark:hover:bg-brand-solid-hover/60"
+                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong/60"
               >
                 {t("acceptAll")}
               </button>
@@ -808,11 +795,13 @@ export function AnalysisReviewSection({
                     type: suggestion.kind.kind,
                   })}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-foreground-muted">
                   {Math.round(suggestion.confidence * 100)}% — {suggestion.reason}
                 </p>
                 <div className="mt-1 flex items-center gap-2">
-                  <select
+                  <SettingsSelect
+                    label={t("piiOptionChoose")}
+                    hideLabel
                     value={selectedValue}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -842,7 +831,6 @@ export function AnalysisReviewSection({
                       });
                     }}
                     disabled={excluded}
-                    className={cn(selectClassName, "!py-1 !text-xs")}
                   >
                     <option value="">{t("piiOptionChoose")}</option>
                     {PII_KIND_VALUES.map((entry) => (
@@ -850,37 +838,34 @@ export function AnalysisReviewSection({
                         {entry.value}
                       </option>
                     ))}
-                  </select>
-                  <label className="flex items-center gap-1 text-xs text-foreground-muted">
-                    <input
-                      type="checkbox"
-                      checked={excluded}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setExcludedColumns((c) => ({
-                            ...c,
-                            [entry.key]: {
-                              table: suggestion.table,
-                              column: suggestion.column,
-                            },
-                          }));
-                          setPiiAnnotations((c) => {
-                            if (!c[entry.key]) return c;
-                            const next = { ...c };
-                            delete next[entry.key];
-                            return next;
-                          });
-                        } else {
-                          setExcludedColumns((c) => {
-                            const next = { ...c };
-                            delete next[entry.key];
-                            return next;
-                          });
-                        }
-                      }}
-                    />
-                    {t("piiOptionExclude")}
-                  </label>
+                  </SettingsSelect>
+                  <Checkbox
+                    checked={excluded}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setExcludedColumns((c) => ({
+                          ...c,
+                          [entry.key]: {
+                            table: suggestion.table,
+                            column: suggestion.column,
+                          },
+                        }));
+                        setPiiAnnotations((c) => {
+                          if (!c[entry.key]) return c;
+                          const next = { ...c };
+                          delete next[entry.key];
+                          return next;
+                        });
+                      } else {
+                        setExcludedColumns((c) => {
+                          const next = { ...c };
+                          delete next[entry.key];
+                          return next;
+                        });
+                      }
+                    }}
+                    label={t("piiOptionExclude")}
+                  />
                 </div>
               </div>
             );
@@ -908,7 +893,7 @@ export function AnalysisReviewSection({
                   e.preventDefault();
                   acceptAllClarInTable(tableName);
                 }}
-                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong-strong/40-strong dark:hover:bg-brand-solid-hover/60"
+                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong/60"
               >
                 {t("acceptAll")}
               </button>
@@ -924,12 +909,12 @@ export function AnalysisReviewSection({
                     column: column.column.column,
                   })}
                 </p>
-                <p className="text-xs text-muted-foreground">{column.clarification_prompt}</p>
+                <p className="text-xs text-foreground-muted">{column.clarification_prompt}</p>
                 {column.repo_hint && (
                   <div className="mt-0.5 flex items-center gap-1.5">
                     <span className="text-xs text-brand-foreground">{column.repo_hint.suggested_values}</span>
                     {!clarifications[entry.key]?.trim() && (
-                      <button
+                      <button type="button"
                         onClick={() =>
                           setClarifications((c) => ({
                             ...c,
@@ -976,7 +961,7 @@ export function AnalysisReviewSection({
                   e.preventDefault();
                   acceptAllExcludedInTable(tableName);
                 }}
-                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong-strong/40-strong dark:hover:bg-brand-solid-hover/60"
+                className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface-strong/60"
               >
                 {t("acceptAll")}
               </button>
@@ -985,25 +970,25 @@ export function AnalysisReviewSection({
           renderItem={(entry) => {
             const s = entry.item as TableExclusionSuggestion;
             return (
-              <label className="flex items-center gap-1.5 rounded border border-divider bg-surface-base px-2 py-1 text-xs/60">
-                <input
-                  type="checkbox"
-                  checked={!!excludedTables[s.table_name]}
-                  onChange={(e) =>
-                    setExcludedTables((c) => ({ ...c, [s.table_name]: e.target.checked }))
-                  }
-                />
-                <span className="text-foreground-muted">
-                  {t("excludedRow", {
-                    table: s.table_name,
-                    reason: s.reason,
-                    rows:
-                      typeof s.row_count === "number"
-                        ? t("excludedRows", { count: s.row_count })
-                        : "",
-                  })}
-                </span>
-              </label>
+              <Checkbox
+                checked={!!excludedTables[s.table_name]}
+                onChange={(e) =>
+                  setExcludedTables((c) => ({ ...c, [s.table_name]: e.target.checked }))
+                }
+                label={
+                  <span className="text-foreground-muted">
+                    {t("excludedRow", {
+                      table: s.table_name,
+                      reason: s.reason,
+                      rows:
+                        typeof s.row_count === "number"
+                          ? t("excludedRows", { count: s.row_count })
+                          : "",
+                    })}
+                  </span>
+                }
+                className="rounded border border-divider bg-surface-base px-2 py-1"
+              />
             );
           }}
         />

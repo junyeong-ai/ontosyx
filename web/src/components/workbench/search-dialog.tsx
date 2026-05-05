@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import FocusTrap from "focus-trap-react";
+import { useTranslations } from "next-intl";
+import { FocusTrap } from "@/components/ui/focus-trap";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { searchGraph } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
+import { SearchInput } from "@/components/ui/form-input";
+import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
 import { cn } from "@/lib/cn";
 import { useAppStore } from "@/lib/store";
 import { useImeAwareInput } from "@/hooks/use-ime-aware-input";
@@ -87,6 +90,7 @@ function searchSchema(
 }
 
 export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useTranslations("workbench.searchDialog");
   const inputRef = useRef<HTMLInputElement>(null);
   // IME-aware input: Hangul composition is only propagated as `query` once
   // the user finishes composing a syllable (so searches don't fire on
@@ -99,7 +103,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
   const [dataSearched, setDataSearched] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  const select = useAppStore((s) => s.select);
+  const selectOne = useAppStore((s) => s.selectOne);
   const ontology = useAppStore((s) => s.ontology);
   const localeChain = useLocaleChain();
 
@@ -126,7 +130,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
   // Reset selected index when results change
   useEffect(() => {
     setSelectedIdx(0);
-  }, [schemaMatches.length, dataHits.length]);
+  }, []);
 
   const runDataSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
@@ -144,15 +148,15 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
 
   const handleSelectSchema = useCallback((match: SchemaMatch) => {
     if (match.kind === "node") {
-      select({ type: "node", nodeId: match.node.id });
+      selectOne({ kind: "node", id: match.node.id });
     } else {
-      select({ type: "edge", edgeId: match.edge.id });
+      selectOne({ kind: "edge", id: match.edge.id });
     }
     if (!useAppStore.getState().isInspectorOpen) {
       useAppStore.getState().toggleInspector();
     }
     onClose();
-  }, [select, onClose]);
+  }, [selectOne, onClose]);
 
   const handleSelectData = useCallback((hit: SearchResultNode) => {
     // Find matching ontology node by label and select it on canvas
@@ -161,14 +165,14 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
       const matchLabel = hit.labels[0];
       const node = arr(ont.node_types).find((n) => n.label === matchLabel);
       if (node) {
-        select({ type: "node", nodeId: node.id });
+        selectOne({ kind: "node", id: node.id });
         if (!useAppStore.getState().isInspectorOpen) {
           useAppStore.getState().toggleInspector();
         }
       }
     }
     onClose();
-  }, [select, onClose]);
+  }, [selectOne, onClose]);
 
   const handleSelectByIndex = useCallback((idx: number) => {
     if (idx < schemaMatches.length) {
@@ -198,24 +202,23 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Search"
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
+      aria-label={t("dialogAria")}
+      className="fixed inset-0 z-modal flex items-start justify-center pt-[15vh]"
     >
-      {/* Backdrop as a real <button> gives mouse + keyboard close behavior
+      {/* Backdrop as a real <button type="button"> gives mouse + keyboard close behavior
           without relying on global keyDown handlers at the document level. */}
       <button
         type="button"
-        aria-label="Close search"
-        className="absolute inset-0 cursor-default bg-black/20 dark:bg-black/40"
+        aria-label={t("closeAria")}
+        className="absolute inset-0 cursor-default bg-surface-scrim-soft"
         onClick={onClose}
       />
       <div
-        className="relative w-full max-w-lg rounded-xl border border-divider bg-surface-base shadow-2xl"
+        className="relative w-full max-w-lg rounded-xl border border-divider bg-surface-base shadow-4"
       >
         {/* Search input */}
-        <div className="flex items-center gap-2 border-b border-divider px-3 py-2.5">
-          <HugeiconsIcon icon={Search01Icon} className="h-4 w-4 text-muted-foreground" size="100%" />
-          <input
+        <div className="border-b border-divider p-2.5">
+          <SearchInput
             ref={inputRef}
             type="search"
             value={searchInput.value}
@@ -244,36 +247,45 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                 }
               }
             }}
-            placeholder="Search schema and data..."
-            className="flex-1 bg-transparent text-sm text-foreground-strong outline-none placeholder:text-foreground-muted-strong"
+            placeholder={t("placeholder")}
+            aria-label={t("placeholder")}
+            leadingIcon={Search01Icon}
+            trailing={
+              <>
+                {loading && <Spinner size="xs" className="text-foreground-muted" />}
+                <button type="button"
+                  onClick={onClose}
+                  className="text-foreground-muted hover:text-foreground"
+                  aria-label={t("closeAria")}
+                >
+                  <HugeiconsIcon icon={Cancel01Icon} className="h-3.5 w-3.5" size="100%" />
+                </button>
+              </>
+            }
           />
-          {loading && <Spinner size="xs" className="text-muted-foreground" />}
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted">
-            <HugeiconsIcon icon={Cancel01Icon} className="h-3.5 w-3.5" size="100%" />
-          </button>
         </div>
 
         {/* Results */}
         <div className="max-h-80 overflow-auto">
           {/* Empty state */}
           {!hasQuery && (
-            <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-              Type to search schema — press Enter to search data
+            <p className="px-4 py-6 text-center text-xs text-foreground-muted">
+              {t("emptyHint")}
             </p>
           )}
 
           {/* Typing hint: has query, no results yet */}
           {hasQuery && !hasSchemaResults && !dataSearched && !loading && (
-            <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-              No schema matches — press Enter to search data
+            <p className="px-4 py-6 text-center text-xs text-foreground-muted">
+              {t("noSchemaMatches")}
             </p>
           )}
 
           {/* Schema results section */}
           {hasSchemaResults && (
             <div>
-              <div className="px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Schema Matches
+              <div className="px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+                {t("schemaMatches")}
               </div>
               {schemaMatches.map((match, i) => {
                 const isSelected = i === selectedIdx;
@@ -281,51 +293,51 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                   const propCount = arr(match.node.properties).length;
                   const constraintCount = match.node.constraints?.length ?? 0;
                   return (
-                    <button
+                    <button type="button"
                       key={`schema-node-${match.node.id}`}
                       onClick={() => handleSelectSchema(match)}
                       onMouseEnter={() => setSelectedIdx(i)}
                       className={cn(
-                        "flex w-full items-center gap-2 px-4 py-1.5 text-left transition-colors",
+                        "flex w-full items-center gap-2 px-4 py-1.5 text-start transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                         isSelected
                           ? "bg-brand-surface"
-                          : "hover:bg-surface-raised dark:hover:bg-surface-base",
+                          : "hover:bg-surface-raised",
                       )}
                     >
                       <span className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-medium text-brand-foreground-strong">
-                        Node
+                        {t("nodeBadge")}
                       </span>
                       <span className="flex-1 truncate text-xs font-medium text-foreground-strong">
                         {match.node.label}
                       </span>
-                      <span className="text-2xs text-muted-foreground">
-                        {propCount} prop{propCount !== 1 ? "s" : ""}
-                        {constraintCount > 0 && `, ${constraintCount} constraint${constraintCount !== 1 ? "s" : ""}`}
+                      <span className="text-2xs text-foreground-muted">
+                        {t("propCount", { count: propCount })}
+                        {constraintCount > 0 && t("constraintExtra", { count: constraintCount })}
                       </span>
                     </button>
                   );
                 } else {
                   return (
-                    <button
+                    <button type="button"
                       key={`schema-edge-${match.edge.id}`}
                       onClick={() => handleSelectSchema(match)}
                       onMouseEnter={() => setSelectedIdx(i)}
                       className={cn(
-                        "flex w-full items-center gap-2 px-4 py-1.5 text-left transition-colors",
+                        "flex w-full items-center gap-2 px-4 py-1.5 text-start transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                         isSelected
                           ? "bg-brand-surface"
-                          : "hover:bg-surface-raised dark:hover:bg-surface-base",
+                          : "hover:bg-surface-raised",
                       )}
                     >
                       <span className="rounded bg-info-surface px-1.5 py-0.5 text-2xs font-medium text-info-foreground">
-                        Edge
+                        {t("edgeBadge")}
                       </span>
                       <span className="flex-1 truncate text-xs text-foreground-strong">
-                        <span className="text-muted-foreground">{match.sourceLabel}</span>
+                        <span className="text-foreground-muted">{match.sourceLabel}</span>
                         {" → "}
                         <span className="font-medium">{match.edge.label}</span>
                         {" → "}
-                        <span className="text-muted-foreground">{match.targetLabel}</span>
+                        <span className="text-foreground-muted">{match.targetLabel}</span>
                       </span>
                     </button>
                   );
@@ -336,43 +348,43 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
 
           {/* Data search hint — shown when schema results exist but data not yet searched */}
           {hasQuery && hasSchemaResults && !dataSearched && !loading && (
-            <div className="border-t border-divider-soft px-4 py-2 text-center text-2xs text-muted-foreground">
-              Press Enter to also search Neo4j data
+            <div className="border-t border-divider-soft px-4 py-2 text-center text-2xs text-foreground-muted">
+              {t("pressEnterForData")}
             </div>
           )}
 
           {/* Data results section */}
           {dataSearched && (
             <div className={cn(hasSchemaResults && "border-t border-divider-soft")}>
-              <div className="px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Data Matches
-                {loading && <Spinner size="xs" className="ml-1 inline-block text-muted-foreground" />}
+              <div className="px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+                {t("dataMatches")}
+                {loading && <Spinner size="xs" className="ms-1 inline-block text-foreground-muted" />}
               </div>
               {!loading && !hasDataResults && (
-                <p className="px-4 py-3 text-center text-2xs text-muted-foreground">
-                  No data results for &ldquo;{query}&rdquo;
+                <p className="px-4 py-3 text-center text-2xs text-foreground-muted">
+                  {t("noDataResults", { query })}
                 </p>
               )}
               {dataHits.map((hit, i) => {
                 const globalIdx = schemaMatches.length + i;
                 const isSelected = globalIdx === selectedIdx;
                 return (
-                  <button
+                  <button type="button"
                     key={hit.elementId || `data-${i}`}
                     onClick={() => handleSelectData(hit)}
                     onMouseEnter={() => setSelectedIdx(globalIdx)}
                     className={cn(
-                      "flex w-full items-start gap-3 px-4 py-2 text-left transition-colors",
+                      "flex w-full items-start gap-3 px-4 py-2 text-start transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
                       isSelected
                         ? "bg-brand-surface"
-                        : "hover:bg-surface-raised dark:hover:bg-surface-base",
+                        : "hover:bg-surface-raised",
                     )}
                   >
                     <div className="flex flex-wrap gap-1 pt-0.5">
                       {hit.labels.map((l) => (
                         <span
                           key={l}
-                          className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-medium text-foreground dark:text-muted-foreground"
+                          className="rounded bg-surface-inset px-1.5 py-0.5 text-2xs font-medium text-foreground"
                         >
                           {l}
                         </span>
@@ -382,7 +394,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                       <p className="truncate text-xs font-medium text-foreground-strong">
                         {resolveDisplayName(hit.props)}
                       </p>
-                      <p className="truncate text-2xs text-muted-foreground">
+                      <p className="truncate text-2xs text-foreground-muted">
                         {resolveSubtitle(hit.props)}
                       </p>
                     </div>
@@ -394,11 +406,11 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
         </div>
 
         {/* Footer hint */}
-        <div className="flex items-center gap-3 border-t border-divider px-3 py-1.5 text-2xs text-muted-foreground">
-          <span><kbd className="rounded border border-divider px-1 dark:border-divider">Enter</kbd> search data</span>
-          <span><kbd className="rounded border border-divider px-1 dark:border-divider">&uarr;&darr;</kbd> navigate</span>
-          <span><kbd className="rounded border border-divider px-1 dark:border-divider">Esc</kbd> close</span>
-          <span className="ml-auto text-foreground-muted">Schema results appear as you type</span>
+        <div className="flex items-center gap-3 border-t border-divider px-3 py-1.5 text-2xs text-foreground-muted">
+          <span><KeyboardShortcut keys="Enter" variant="outline" /> {t("footer.searchData")}</span>
+          <span><KeyboardShortcut glyph="↑↓" variant="outline" /> {t("footer.navigate")}</span>
+          <span><KeyboardShortcut keys="Escape" variant="outline" /> {t("footer.close")}</span>
+          <span className="ms-auto text-foreground-muted">{t("footer.hint")}</span>
         </div>
       </div>
     </div>

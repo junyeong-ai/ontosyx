@@ -14,7 +14,8 @@ import {
   ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "sonner";
+import { FormInput } from "@/components/ui/form-input";
+import { toast } from "@/components/ui/toast";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -260,15 +261,15 @@ export function DashboardAiDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-modal flex justify-end">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/20 dark:bg-black/40"
+        className="absolute inset-0 bg-surface-scrim-soft"
         onClick={onClose}
       />
 
       {/* Slide-over panel */}
-      <div className="relative flex h-full w-full max-w-md flex-col border-l border-divider bg-surface-base shadow-xl">
+      <div className="relative flex h-full w-full max-w-md flex-col border-s border-divider bg-surface-base shadow-4">
         {/* Header */}
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-divider px-4">
           <div className="flex items-center gap-2">
@@ -282,8 +283,9 @@ export function DashboardAiDialog({
             </span>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-surface-inset hover:text-foreground dark:hover:bg-surface-base dark:hover:text-foreground-muted"
+            className="rounded-md p-1 text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset hover:text-foreground-muted"
           >
             <HugeiconsIcon icon={Cancel01Icon} className="h-4 w-4" size="100%" />
           </button>
@@ -338,22 +340,24 @@ export function DashboardAiDialog({
             </p>
           ) : (
             <div className="flex items-center gap-2">
-              <input
+              <FormInput
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={t("placeholder")}
+                aria-label={t("placeholder")}
                 disabled={isStreaming}
-                className="flex-1 rounded-lg border border-divider bg-surface-raised px-3 py-2 text-sm text-foreground-strong placeholder:text-foreground-muted focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none disabled:opacity-50-strong dark:placeholder:text-foreground-muted"
+                className="flex-1 bg-surface-raised"
               />
               <button
+                type="button"
                 onClick={handleSend}
                 disabled={!input.trim() || isStreaming}
-                className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-solid text-white transition-colors hover:bg-brand-solid disabled:opacity-50"
+                className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-solid text-foreground-onbrand transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-solid disabled:opacity-50"
               >
                 {isStreaming ? (
-                  <Spinner size="sm" className="text-white" />
+                  <Spinner size="sm" className="text-foreground-onbrand" />
                 ) : (
                   <HugeiconsIcon
                     icon={ArrowRight01Icon}
@@ -381,6 +385,7 @@ function WidgetPreviewCard({
   preview: WidgetPreview;
   onAdd: () => void;
 }) {
+  const t = useTranslations("workbench.dashboard.aiDialog");
   return (
     <div className="overflow-hidden rounded-lg border border-divider bg-surface-base">
       {/* Card header */}
@@ -413,27 +418,28 @@ function WidgetPreviewCard({
               viewBox="0 0 20 20"
               fill="currentColor"
               className="h-3.5 w-3.5"
-            >
+             aria-hidden="true">
               <path
                 fillRule="evenodd"
                 d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
                 clipRule="evenodd"
               />
             </svg>
-            Added to dashboard
+            {t("addedToDashboard")}
           </span>
         ) : (
           <button
+            type="button"
             onClick={onAdd}
             disabled={preview.isAdding}
-            className="flex w-full items-center justify-center gap-1.5 rounded-md bg-brand-solid px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-solid disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-1.5 rounded-md bg-brand-solid px-3 py-1.5 text-xs font-medium text-foreground-onbrand transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-solid disabled:opacity-50"
           >
             {preview.isAdding ? (
-              <Spinner size="sm" className="text-white" />
+              <Spinner size="sm" className="text-foreground-onbrand" />
             ) : (
               <>
                 <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
-                Add to Dashboard
+                {t("addToDashboard")}
               </>
             )}
           </button>

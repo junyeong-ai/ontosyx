@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
+import { TOAST_WARNING } from "@/lib/toast/durations";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Upload04Icon, Download04Icon, Search01Icon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import type { OntologyIR } from "@/types/api";
 import { normalizeOntology, importOwl, auditGraph } from "@/lib/api";
@@ -63,7 +64,7 @@ function DesignActions() {
       const missing = report.missing_graph_nodes.length + report.missing_graph_edges.length;
       toast.success(t("auditResult", { percentage: report.sync_percentage }), {
         description: t("auditDescription", { matched, orphaned, missing }),
-        duration: 8000,
+        duration: TOAST_WARNING,
       });
     } catch (err) {
       toast.error(t("auditFailed"), {
@@ -166,7 +167,7 @@ function DesignActions() {
             {auditing ? (
               <Spinner size="xs" />
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-3.5 w-3.5">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
               </svg>
             )}
@@ -175,56 +176,64 @@ function DesignActions() {
       )}
       {ontology && (
         <Popover open={exportMenuOpen} onOpenChange={setExportMenuOpen}>
-          <PopoverTrigger aria-label={t("exportAria")} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-inset hover:text-foreground dark:hover:text-foreground-muted">
+          <PopoverTrigger aria-label={t("exportAria")} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset hover:text-foreground-muted">
             <HugeiconsIcon icon={Download04Icon} className="h-3.5 w-3.5" size="100%" />
           </PopoverTrigger>
-          <PopoverContent className="z-50 w-48 rounded-lg border border-divider bg-surface-base p-1 shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all">
+          <PopoverContent className="z-popover w-48 rounded-lg border border-divider bg-surface-base p-1 shadow-3 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]">
             <button
+              type="button"
               onClick={() => handleExportFormat("json")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportJson")}
             </button>
             <button
+              type="button"
               onClick={() => handleExportFormat("cypher")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportCypher")}
             </button>
             <button
+              type="button"
               onClick={() => handleExportFormat("mermaid")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportMermaid")}
             </button>
             <button
+              type="button"
               onClick={() => handleExportFormat("graphql")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportGraphql")}
             </button>
             <button
+              type="button"
               onClick={() => handleExportFormat("owl")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportOwl")}
             </button>
             <button
+              type="button"
               onClick={() => handleExportFormat("shacl")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportShacl")}
             </button>
             <div className="my-1 border-t border-divider-soft" />
             <button
+              type="button"
               onClick={() => handleExportFormat("typescript")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportTypescript")}
             </button>
             <button
+              type="button"
               onClick={() => handleExportFormat("python")}
-              className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-foreground hover:bg-surface-inset-muted"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-foreground hover:bg-surface-inset"
             >
               {t("exportPython")}
             </button>

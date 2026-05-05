@@ -34,7 +34,7 @@ export function HistogramWidget({ spec, data }: HistogramWidgetProps) {
 
     const values = rows
       .map((r) => r[numCol] as number)
-      .filter((v) => v != null && !isNaN(v));
+      .filter((v) => v != null && !Number.isNaN(v));
 
     if (values.length === 0) return [];
 
@@ -62,14 +62,14 @@ export function HistogramWidget({ spec, data }: HistogramWidgetProps) {
   }, [columns, rows]);
 
   if (!binData.length)
-    return <p className="text-xs text-muted-foreground">{t("noNumericData")}</p>;
+    return <p className="text-xs text-foreground-muted">{t("noNumericData")}</p>;
 
   const tick = axisTickStyle(isDark);
 
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground dark:text-muted-foreground">
+        <h4 className="text-xs font-semibold text-foreground">
           {spec.title}
         </h4>
       )}
@@ -91,7 +91,7 @@ export function HistogramWidget({ spec, data }: HistogramWidgetProps) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-2xs text-muted-foreground">{t("binsCount", { count: binData.length })}</p>
+      <p className="text-2xs text-foreground-muted">{t("binsCount", { count: binData.length })}</p>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useAppStore } from "@/lib/store";
 import { useWorkspaceMode } from "@/hooks/use-workspace-mode";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
+import { FormInput } from "@/components/ui/form-input";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   FolderOpenIcon,
@@ -16,7 +17,7 @@ import {
   Message01Icon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import type { OntologyIR } from "@/types/api";
@@ -30,10 +31,10 @@ import { useOntologies } from "@/hooks/api/use-ontologies";
 // ---------------------------------------------------------------------------
 
 const TRIGGER_CLASS =
-  "flex min-w-0 items-center gap-1.5 rounded-md border border-divider bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-inset-muted dark:hover:bg-surface-base";
+  "flex min-w-0 items-center gap-1.5 rounded-md border border-divider bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset";
 
 const POPOVER_CLASS =
-  "z-50 w-80 rounded-lg border border-divider bg-surface-base shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all";
+  "z-popover w-80 rounded-lg border border-divider bg-surface-base shadow-3 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]";
 
 // ---------------------------------------------------------------------------
 // ContextSelector — renders mode-appropriate selector in the header
@@ -100,11 +101,12 @@ function DesignSelector() {
       <PopoverTrigger className={TRIGGER_CLASS}>
         <HugeiconsIcon icon={FolderOpenIcon} className="h-3.5 w-3.5" size="100%" />
         <span className="max-w-[280px] truncate">{label}</span>
-        <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3 text-muted-foreground" size="100%" />
+        <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3 text-foreground-muted" size="100%" />
       </PopoverTrigger>
       <PopoverContent className={POPOVER_CLASS}>
         <div className="max-h-60 overflow-auto p-1">
           <button
+            type="button"
             onClick={async () => {
               if (!(await guardPendingEdits(t("guardNewProject")))) return;
               setOpen(false);
@@ -112,7 +114,7 @@ function DesignSelector() {
               setDesignBottomTab("workflow");
               if (!bottomPanelOpen) toggleBottomPanel();
             }}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-concept-foreground hover:bg-concept-surface dark:text-concept-foreground"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs font-medium text-concept-foreground hover:bg-concept-surface"
           >
             <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
             {t("newProject")}
@@ -120,26 +122,28 @@ function DesignSelector() {
           <div className="my-1 h-px bg-surface-inset" />
           {isFetching ? (
             <div className="flex items-center justify-center py-4">
-              <Spinner size="sm" className="text-muted-foreground" />
+              <Spinner size="sm" className="text-foreground-muted" />
             </div>
           ) : projects.length === 0 ? (
-            <p className="px-3 py-4 text-center text-xs text-muted-foreground">{t("noProjects")}</p>
+            <p className="px-3 py-4 text-center text-xs text-foreground-muted">{t("noProjects")}</p>
           ) : (
             projects.map((p) => (
               <div key={p.id} className="flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={() => handleSelect(p.id)}
-                  className="flex flex-1 items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs hover:bg-surface-raised dark:hover:bg-surface-base"
+                  className="flex flex-1 items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs hover:bg-surface-raised"
                 >
                   <span className="flex-1 truncate text-foreground">
                     {p.title || p.id.slice(0, 8)}
                   </span>
-                  <span className="rounded bg-surface-inset px-1 text-2xs text-muted-foreground">
+                  <span className="rounded bg-surface-inset px-1 text-2xs text-foreground-muted">
                     {p.status}
                   </span>
                 </button>
                 {p.ontology_id && (
                   <button
+                    type="button"
                     title={t("forkTitle")}
                     aria-label={t("forkAria")}
                     onClick={async (e) => {
@@ -162,7 +166,7 @@ function DesignSelector() {
                         });
                       }
                     }}
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-surface-inset hover:text-concept-foreground dark:hover:bg-surface-base dark:hover:text-concept-foreground"
+                    className="shrink-0 rounded p-1 text-foreground-muted hover:bg-surface-inset hover:text-concept-foreground"
                   >
                     <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
                   </button>
@@ -225,7 +229,7 @@ function AnalyzeSelector() {
     return (
       <div className={TRIGGER_CLASS}>
         <Spinner size="xs" />
-        <span className="text-muted-foreground">{t("loadingOntology")}</span>
+        <span className="text-foreground-muted">{t("loadingOntology")}</span>
       </div>
     );
   }
@@ -234,8 +238,8 @@ function AnalyzeSelector() {
     return (
       <div className="flex items-center gap-2">
         <div className={TRIGGER_CLASS}>
-          <HugeiconsIcon icon={Message01Icon} className="h-3.5 w-3.5 text-muted-foreground" size="100%" />
-          <span className="text-muted-foreground">
+          <HugeiconsIcon icon={Message01Icon} className="h-3.5 w-3.5 text-foreground-muted" size="100%" />
+          <span className="text-foreground-muted">
             {error ? t("toast.loadOntologyFailed") : t("noSavedOntology")}
           </span>
         </div>
@@ -301,7 +305,7 @@ function ExploreSelector() {
     return (
       <div className={TRIGGER_CLASS}>
         <Spinner size="xs" />
-        <span className="text-muted-foreground">{t("loadingOntology")}</span>
+        <span className="text-foreground-muted">{t("loadingOntology")}</span>
       </div>
     );
   }
@@ -374,18 +378,18 @@ function DashboardSelector() {
       <PopoverTrigger className={TRIGGER_CLASS}>
         <HugeiconsIcon icon={DashboardSpeed01Icon} className="h-3.5 w-3.5" size="100%" />
         <span className="max-w-[280px] truncate">{label}</span>
-        <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3 text-muted-foreground" size="100%" />
+        <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3 text-foreground-muted" size="100%" />
       </PopoverTrigger>
       <PopoverContent className={POPOVER_CLASS}>
         <div className="max-h-60 overflow-auto p-1">
           {isCreateOpen ? (
             <div className="space-y-2 p-2">
-              <input
+              <FormInput
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 autoFocus
                 placeholder={t("dashboardNamePlaceholder")}
-                className="w-full rounded-md border border-divider bg-surface-base px-2.5 py-1.5 text-xs text-foreground focus:border-brand-border focus:ring-1 focus:ring-brand-foreground/50 focus:outline-none-muted"
+                density="settings"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCreate();
                   if (e.key === "Escape") {
@@ -396,18 +400,20 @@ function DashboardSelector() {
               />
               <div className="flex justify-end gap-1.5">
                 <button
+                  type="button"
                   onClick={() => {
                     setIsCreateOpen(false);
                     setNewName("");
                   }}
-                  className="rounded-md px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-surface-inset dark:hover:bg-surface-base"
+                  className="rounded-md px-2.5 py-1 text-2xs text-foreground-muted hover:bg-surface-inset"
                 >
                   {tCommon("cancel")}
                 </button>
                 <button
+                  type="button"
                   onClick={handleCreate}
                   disabled={!newName.trim()}
-                  className="rounded-md bg-brand-solid px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-solid disabled:opacity-50"
+                  className="rounded-md bg-brand-solid px-2.5 py-1 text-2xs font-medium text-foreground-onbrand hover:bg-brand-solid disabled:opacity-50"
                 >
                   {tCommon("create")}
                 </button>
@@ -416,8 +422,9 @@ function DashboardSelector() {
           ) : (
             <>
               <button
+                type="button"
                 onClick={() => setIsCreateOpen(true)}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-concept-foreground hover:bg-concept-surface dark:text-concept-foreground"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs font-medium text-concept-foreground hover:bg-concept-surface"
               >
                 <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
                 {t("newDashboard")}
@@ -425,16 +432,17 @@ function DashboardSelector() {
               <div className="my-1 h-px bg-surface-inset" />
               {loading ? (
                 <div className="flex items-center justify-center py-4">
-                  <Spinner size="sm" className="text-muted-foreground" />
+                  <Spinner size="sm" className="text-foreground-muted" />
                 </div>
               ) : dashboards.length === 0 ? (
-                <p className="px-3 py-4 text-center text-xs text-muted-foreground">{t("noDashboards")}</p>
+                <p className="px-3 py-4 text-center text-xs text-foreground-muted">{t("noDashboards")}</p>
               ) : (
                 dashboards.map((d) => (
                   <button
+                    type="button"
                     key={d.id}
                     onClick={() => handleSelect(d.id)}
-                    className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs hover:bg-surface-raised dark:hover:bg-surface-base ${
+                    className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs hover:bg-surface-raised ${
                       d.id === activeDashboardId
                         ? "bg-brand-surface text-brand-foreground"
                         : "text-foreground"

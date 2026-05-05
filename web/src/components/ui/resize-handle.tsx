@@ -12,15 +12,20 @@ export function ResizeHandle({ orientation = "horizontal" }: ResizeHandleProps) 
   return (
     <Separator
       className={cn(
-        "group relative flex items-center justify-center transition-colors",
-        "hover:bg-emerald-50 dark:hover:bg-emerald-950/20",
+        "group relative flex items-center justify-center transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+        "hover:bg-brand-surface",
         isVertical ? "h-2 cursor-row-resize" : "w-2 cursor-col-resize",
       )}
     >
-      <div className={cn("flex items-center justify-center gap-px", isVertical ? "flex-row" : "flex-col")}>
-        <div className="h-1 w-1 rounded-full bg-zinc-300 transition-colors group-hover:bg-emerald-400 dark:bg-zinc-600" />
-        <div className="h-1 w-1 rounded-full bg-zinc-300 transition-colors group-hover:bg-emerald-400 dark:bg-zinc-600" />
-        <div className="h-1 w-1 rounded-full bg-zinc-300 transition-colors group-hover:bg-emerald-400 dark:bg-zinc-600" />
+      <div
+        className={cn(
+          "flex items-center justify-center gap-px",
+          isVertical ? "flex-row" : "flex-col",
+        )}
+      >
+        <div className="h-1 w-1 rounded-full bg-divider transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] group-hover:bg-brand-foreground" />
+        <div className="h-1 w-1 rounded-full bg-divider transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] group-hover:bg-brand-foreground" />
+        <div className="h-1 w-1 rounded-full bg-divider transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] group-hover:bg-brand-foreground" />
       </div>
     </Separator>
   );

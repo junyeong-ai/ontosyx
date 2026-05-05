@@ -4,7 +4,7 @@ import { Select as BaseSelect } from "@base-ui/react/select";
 import { cn } from "@/lib/cn";
 
 // ---------------------------------------------------------------------------
-// Select — Base UI Select wrapper with zinc/emerald styling
+// Select — Base UI Select wrapper, tokenised
 // ---------------------------------------------------------------------------
 
 interface SelectProps {
@@ -47,15 +47,14 @@ export function Select({
     >
       <BaseSelect.Trigger
         className={cn(
-          "inline-flex w-full items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs transition-colors",
-          "focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50",
-          "dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-emerald-400 dark:focus:ring-emerald-400/50",
+          "inline-flex w-full items-center justify-between rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs text-foreground-strong transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+          "outline-none focus-visible:border-brand-foreground focus-visible:ring-2 focus-visible:ring-brand-foreground/40",
           disabled && "cursor-not-allowed opacity-50",
           className,
         )}
       >
         <BaseSelect.Value placeholder={placeholder} />
-        <BaseSelect.Icon className="ml-2 shrink-0">
+        <BaseSelect.Icon className="ms-2 shrink-0">
           <ChevronIcon />
         </BaseSelect.Icon>
       </BaseSelect.Trigger>
@@ -68,11 +67,14 @@ export function Select({
         >
           <BaseSelect.Popup
             className={cn(
-              "z-50 max-h-60 overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-lg outline-none",
-              "dark:border-zinc-700 dark:bg-zinc-900",
+              // Popup container is non-interactive itself — focus is on
+              // its `<Item>` children. `outline-none` here just hides
+              // the browser's default focus ring on the listbox; the
+              // ring lives on each item.
+              "z-popover max-h-60 overflow-y-auto rounded-lg border border-divider bg-surface-base py-1 shadow-3 outline-none focus-visible:ring-0",
               "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
               "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
-              "transition-all",
+              "transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
             )}
           >
             {children}
@@ -109,11 +111,11 @@ export function SelectOption({
       value={value}
       disabled={disabled}
       className={cn(
-        "flex cursor-default items-center px-3 py-1.5 text-xs outline-none select-none",
+        "flex cursor-default items-center px-3 py-1.5 text-xs select-none",
         "text-foreground",
-        "data-[highlighted]:bg-zinc-50 dark:data-[highlighted]:bg-zinc-800",
-        "data-[selected]:bg-emerald-50 data-[selected]:text-emerald-700",
-        "dark:data-[selected]:bg-emerald-950/30 dark:data-[selected]:text-emerald-400",
+        "outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40",
+        "data-[highlighted]:bg-surface-inset",
+        "data-[selected]:bg-brand-surface data-[selected]:text-brand-foreground",
         disabled && "opacity-40",
         className,
       )}
@@ -135,7 +137,7 @@ function ChevronIcon() {
       viewBox="0 0 10 10"
       fill="none"
       className="text-foreground-muted"
-    >
+     aria-hidden="true">
       <path
         d="M2.5 3.75L5 6.25L7.5 3.75"
         stroke="currentColor"

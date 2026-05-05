@@ -2,7 +2,12 @@
 
 import { useTranslations } from "next-intl";
 
-import { JsonEntityCrudPage } from "@/components/vocabulary/json-entity-crud-page";
+import { codeSystemSchema } from "@/components/forms/schemas/code-system.schema";
+import { MasterDetailEntityPage } from "@/components/vocabulary/master-detail-entity-page";
+import {
+  VocabularyUsageMap,
+  collectCodeSystemUsages,
+} from "@/components/vocabulary/usage-map";
 import type { CodeSystemDef } from "@/lib/api/edit-ops";
 
 const CODE_SYSTEM_HINT = `{
@@ -21,8 +26,9 @@ export function CodeSystemsTab() {
   const t = useTranslations("settings.vocabulary.codeSystems");
   const tCommon = useTranslations("common");
   return (
-    <JsonEntityCrudPage<CodeSystemDef>
+    <MasterDetailEntityPage<CodeSystemDef>
       schemaHint={CODE_SYSTEM_HINT}
+      schema={codeSystemSchema}
       selectItems={(ir) =>
         ((ir as unknown as { code_systems?: CodeSystemDef[] }).code_systems ?? [])
       }
@@ -30,25 +36,26 @@ export function CodeSystemsTab() {
       buildCreateOp={(def) => ({ op: "create_code_system", def })}
       buildUpdateOp={(id, def) => ({ op: "update_code_system", id, def })}
       buildDeleteOp={(id) => ({ op: "delete_code_system", id })}
+      renderUsage={(cs, ir) => (
+        <VocabularyUsageMap entries={collectCodeSystemUsages(ir, cs.id)} />
+      )}
       renderRow={(cs) => (
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-medium text-foreground-strong">
-              {cs.id}
-            </span>
-            <span className="text-xs text-foreground-muted">
-              · {cs.name} · v{cs.version} · {cs.kind}
-            </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-mono text-xs font-medium">
+            {cs.id}
           </div>
-          <p className="mt-1 text-2xs text-foreground-subtle">
+          <div className="mt-0.5 truncate text-2xs text-foreground-muted">
+            {t("rowSummary", { name: cs.name, version: cs.version })}
+            {" · "}
             {t("codeCount", { count: cs.codes?.length ?? 0 })}
-          </p>
+          </div>
         </div>
       )}
       labels={{
         title: t("pageTitle"),
         subtitle: t("pageSubtitle"),
         noOntology: t("noOntology"),
+        listHeading: (count) => t("listHeading", { count }),
         createButton: t("createButton"),
         editButton: t("editButton"),
         deleteButton: t("deleteButton"),

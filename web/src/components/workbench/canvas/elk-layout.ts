@@ -68,7 +68,6 @@ function resolvePreset(options: ComputeElkOptions | undefined): ResolvedPreset {
   switch (preset) {
     case "stress":
       return { layoutOptions: { ...STRESS_OPTIONS }, withPorts: false };
-    case "layered":
     default:
       return {
         layoutOptions: options?.uiConfig ? buildElkOptions(options.uiConfig) : { ...ELK_OPTIONS },

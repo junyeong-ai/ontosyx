@@ -5,7 +5,7 @@ import messages from "../../../messages/en.json";
 import { ResolutionModal } from "@/components/ambiguity/resolution-modal";
 import type { AmbiguityContext } from "@/lib/api/ambiguity";
 
-vi.mock("sonner", () => ({
+vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

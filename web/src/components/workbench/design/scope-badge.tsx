@@ -4,13 +4,15 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Database01Icon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { FormInput } from "@/components/ui/form-input";
+import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
 import {
   useDeferScopeTables,
@@ -35,11 +37,11 @@ export function ScopeBadge() {
 
   return (
     <Popover>
-      <PopoverTrigger className="inline-flex items-center gap-1 rounded-md border border-brand-border bg-surface-base px-2 py-1 text-2xs text-brand-foreground shadow-sm hover:bg-brand-surface-strong">
+      <PopoverTrigger className="inline-flex items-center gap-1 rounded-md border border-brand-border bg-surface-base px-2 py-1 text-2xs text-brand-foreground shadow-1 hover:bg-brand-surface-strong">
         <HugeiconsIcon icon={Database01Icon} className="h-3 w-3" size="100%" />
         {summary}
       </PopoverTrigger>
-      <PopoverContent className="z-50 w-inspector rounded-lg border border-divider bg-surface-base p-3 shadow-xl outline-none">
+      <PopoverContent className="z-popover w-inspector rounded-lg border border-divider bg-surface-base p-3 shadow-4 outline-none focus-visible:ring-0">
         <ScopePanel
           projectId={project.id}
           revision={project.revision}
@@ -116,7 +118,7 @@ function ScopePanel({
         <section>
           <h3 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-brand-foreground-strong">
             {t("includedLabel")}
-            <span className="ml-1 font-mono text-muted-foreground">
+            <span className="ms-1 font-mono text-foreground-muted">
               ({included.length})
             </span>
           </h3>
@@ -126,7 +128,7 @@ function ScopePanel({
                 key={table}
                 className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-surface-raised"
               >
-                <span className="flex-1 truncate font-mono text-[11px]">
+                <span className="flex-1 truncate font-mono text-2xs">
                   {table}
                 </span>
                 {deferTarget === table ? (
@@ -145,7 +147,7 @@ function ScopePanel({
                     type="button"
                     onClick={() => setDeferTarget(table)}
                     disabled={busy}
-                    className="rounded px-1.5 py-0.5 text-2xs font-medium text-warning-foreground hover:bg-warning-surface disabled:opacity-50 dark:hover:bg-warning-surface/40"
+                    className="rounded px-1.5 py-0.5 text-2xs font-medium text-warning-foreground hover:bg-warning-surface disabled:opacity-50"
                   >
                     {t("actions.defer")}
                   </button>
@@ -160,7 +162,7 @@ function ScopePanel({
         <section>
           <h3 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-warning-foreground">
             {t("deferredLabel")}
-            <span className="ml-1 font-mono text-muted-foreground">
+            <span className="ms-1 font-mono text-foreground-muted">
               ({deferred.length})
             </span>
           </h3>
@@ -171,8 +173,8 @@ function ScopePanel({
                 className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-surface-raised"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-[11px]">{d.table}</p>
-                  <p className="truncate text-2xs italic text-muted-foreground">
+                  <p className="truncate font-mono text-2xs">{d.table}</p>
+                  <p className="truncate text-2xs italic text-foreground-muted">
                     {d.reason}
                   </p>
                 </div>
@@ -180,7 +182,7 @@ function ScopePanel({
                   type="button"
                   onClick={() => handlePromote(d.table)}
                   disabled={busy}
-                  className="rounded px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface disabled:opacity-50-strong dark:hover:bg-brand-surface/40"
+                  className="rounded px-1.5 py-0.5 text-2xs font-medium text-brand-foreground hover:bg-brand-surface disabled:opacity-50-strong"
                 >
                   {t("actions.promote")}
                 </button>
@@ -209,8 +211,9 @@ function DeferReasonInline({
   const t = useTranslations("workbench.design.scope");
   return (
     <div className="flex items-center gap-1">
-      <input
+      <FormInput
         autoFocus
+        density="compact"
         value={reason}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
@@ -218,25 +221,29 @@ function DeferReasonInline({
           else if (e.key === "Escape") onCancel();
         }}
         placeholder={t("deferReasonPlaceholder")}
-        className="w-32 rounded border border-warning-border bg-surface-base px-1.5 py-0.5 text-2xs focus:border-warning-border focus:outline-none"
+        aria-label={t("deferReasonPlaceholder")}
+        className="w-32 border-warning-border"
       />
-      <button
-        type="button"
+      <Button
+        variant="primary"
+        size="xs"
         onClick={onConfirm}
-        disabled={busy || reason.trim() === ""}
-        className="rounded bg-warning-foreground px-1.5 py-0.5 text-2xs font-medium text-white hover:bg-warning-foreground disabled:opacity-50"
+        disabled={reason.trim() === ""}
+        loading={busy}
+        className="bg-warning-foreground hover:bg-warning-foreground"
       >
         {t("actions.deferConfirm")}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="xs"
         onClick={onCancel}
         disabled={busy}
-        className="rounded px-1 py-0.5 text-2xs text-muted-foreground hover:bg-surface-inset"
         aria-label={t("actions.cancel")}
       >
         ✕
-      </button>
+      </Button>
     </div>
   );
 }

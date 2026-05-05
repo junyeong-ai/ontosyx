@@ -46,7 +46,7 @@ export function DiffPanel({
           <h4 className="font-semibold text-foreground">
             {t("noChanges")}
           </h4>
-          <button
+          <button type="button"
             onClick={onDismiss}
             className="text-foreground-muted hover:text-foreground"
           >
@@ -67,7 +67,7 @@ export function DiffPanel({
         <h4 className="font-semibold text-foreground">
           {t("heading", { baseLabel, targetLabel })}
         </h4>
-        <button
+        <button type="button"
           onClick={onDismiss}
           className="text-foreground-muted hover:text-foreground"
         >
@@ -196,10 +196,10 @@ function DiffSection({
         color === "amber" && "border-warning-border/60",
       )}
     >
-      <button
+      <button type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          "flex w-full items-center gap-1 text-left text-[11px] font-semibold",
+          "flex w-full items-center gap-1 text-start text-2xs font-semibold",
           color === "emerald" && "text-brand-foreground",
           color === "red" && "text-danger-foreground",
           color === "amber" && "text-warning-foreground",
@@ -220,7 +220,7 @@ function AddedNodeItem({ node, t }: { node: NodeTypeDef; t: DiffTranslator }) {
         + {node.label}
       </span>
       {arr(node.properties).length > 0 && (
-        <span className="ml-1.5 text-muted-foreground">
+        <span className="ms-1.5 text-foreground-muted">
           {t("propertiesCount", { count: arr(node.properties).length })}
         </span>
       )}
@@ -235,7 +235,7 @@ function RemovedNodeItem({ node, t }: { node: NodeTypeDef; t: DiffTranslator }) 
         - {node.label}
       </span>
       {arr(node.properties).length > 0 && (
-        <span className="ml-1.5 text-muted-foreground">
+        <span className="ms-1.5 text-foreground-muted">
           {t("propertiesCount", { count: arr(node.properties).length })}
         </span>
       )}
@@ -256,20 +256,20 @@ function ModifiedNodeItem({
 
   return (
     <div className="rounded bg-warning-surface px-2 py-1">
-      <button
+      <button type="button"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex w-full items-center gap-1 text-left"
+        className="flex w-full items-center gap-1 text-start"
       >
-        <span className="select-none text-muted-foreground">{isExpanded ? "\u25BE" : "\u25B8"}</span>
+        <span className="select-none text-foreground-muted">{isExpanded ? "\u25BE" : "\u25B8"}</span>
         <span className="font-medium text-warning-foreground">
           ~ {node.label}
         </span>
-        <span className="ml-1 text-muted-foreground">
+        <span className="ms-1 text-foreground-muted">
           {t("changes", { count: node.changes.length })}
         </span>
       </button>
       {isExpanded && (
-        <div className="mt-1 ml-3 space-y-0.5">
+        <div className="mt-1 ms-3 space-y-0.5">
           {node.changes.map((change, i) => (
             <NodeChangeItem key={i} change={change} t={t} chain={chain} />
           ))}
@@ -323,7 +323,7 @@ function NodeChangeItem({
           <span className="text-warning-foreground">
             ~ {t("propertyLabel")}: <span className="font-medium">{change.property_name}</span>
           </span>
-          <div className="ml-3 space-y-0.5">
+          <div className="ms-3 space-y-0.5">
             {change.changes.map((pc, i) => (
               <PropertyChangeItem key={i} change={pc} t={t} chain={chain} />
             ))}
@@ -351,7 +351,7 @@ function AddedEdgeItem({ edge }: { edge: EdgeTypeDef }) {
       <span className="font-medium text-brand-foreground-strong">
         + {edge.label}
       </span>
-      <span className="ml-1.5 text-muted-foreground">
+      <span className="ms-1.5 text-foreground-muted">
         ({edge.source_node_id} &rarr; {edge.target_node_id})
       </span>
     </div>
@@ -364,7 +364,7 @@ function RemovedEdgeItem({ edge }: { edge: EdgeTypeDef }) {
       <span className="font-medium text-danger-foreground">
         - {edge.label}
       </span>
-      <span className="ml-1.5 text-muted-foreground">
+      <span className="ms-1.5 text-foreground-muted">
         ({edge.source_node_id} &rarr; {edge.target_node_id})
       </span>
     </div>
@@ -384,20 +384,20 @@ function ModifiedEdgeItem({
 
   return (
     <div className="rounded bg-warning-surface px-2 py-1">
-      <button
+      <button type="button"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex w-full items-center gap-1 text-left"
+        className="flex w-full items-center gap-1 text-start"
       >
-        <span className="select-none text-muted-foreground">{isExpanded ? "\u25BE" : "\u25B8"}</span>
+        <span className="select-none text-foreground-muted">{isExpanded ? "\u25BE" : "\u25B8"}</span>
         <span className="font-medium text-warning-foreground">
           ~ {edge.label}
         </span>
-        <span className="ml-1 text-muted-foreground">
+        <span className="ms-1 text-foreground-muted">
           {t("changes", { count: edge.changes.length })}
         </span>
       </button>
       {isExpanded && (
-        <div className="mt-1 ml-3 space-y-0.5">
+        <div className="mt-1 ms-3 space-y-0.5">
           {edge.changes.map((change, i) => (
             <EdgeChangeItem key={i} change={change} t={t} chain={chain} />
           ))}
@@ -451,7 +451,7 @@ function EdgeChangeItem({
           <span className="text-warning-foreground">
             ~ {t("propertyLabel")}: <span className="font-medium">{change.property_name}</span>
           </span>
-          <div className="ml-3 space-y-0.5">
+          <div className="ms-3 space-y-0.5">
             {change.changes.map((pc, i) => (
               <PropertyChangeItem key={i} change={pc} t={t} chain={chain} />
             ))}
@@ -510,10 +510,10 @@ function ChangeRow({
   new_val: string;
 }) {
   return (
-    <div className="flex items-baseline gap-1 text-foreground dark:text-muted-foreground">
-      <span className="font-medium text-muted-foreground">{label}:</span>
+    <div className="flex items-baseline gap-1 text-foreground">
+      <span className="font-medium text-foreground-muted">{label}:</span>
       <span className="line-through text-danger-foreground/70">{old}</span>
-      <span className="text-muted-foreground">&rarr;</span>
+      <span className="text-foreground-muted">&rarr;</span>
       <span className="text-brand-foreground">{new_val}</span>
     </div>
   );

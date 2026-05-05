@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useTranslations } from "next-intl";
@@ -36,17 +37,25 @@ export function UserMenu() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className="flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-surface-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground">
         <Avatar src={user.picture} name={user.name} size="xs" />
-        <span className="max-w-[120px] truncate text-xs text-muted-foreground">
+        <span className="max-w-[120px] truncate text-xs text-foreground-muted">
           {user.name}
         </span>
       </PopoverTrigger>
-      <PopoverContent className="z-50 w-56 rounded-lg border border-divider bg-surface-base p-1 shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all">
+      <PopoverContent className="z-popover w-56 rounded-lg border border-divider bg-surface-base p-1 shadow-3 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]">
         <div className="px-3 py-2 text-xs text-foreground-muted">
           <div className="font-medium text-foreground-strong">
             {user.name}
           </div>
           <div className="mt-0.5 truncate">{user.email}</div>
         </div>
+        <div className="my-1 h-px bg-surface-inset" />
+        <Link
+          href="/account/profile"
+          onClick={() => setOpen(false)}
+          className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-foreground hover:bg-surface-inset"
+        >
+          {t("myAccount")}
+        </Link>
         <div className="my-1 h-px bg-surface-inset" />
         <LocaleSwitcher />
         {showSignOut && (
@@ -55,7 +64,7 @@ export function UserMenu() {
             <form action="/auth/logout" method="POST">
               <button
                 type="submit"
-                className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-danger-foreground hover:bg-danger-surface"
+                className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-danger-foreground hover:bg-danger-surface"
                 onClick={() => {
                   // Tear the collaboration WS down before the cookie
                   // is wiped — once the form submits, the open socket

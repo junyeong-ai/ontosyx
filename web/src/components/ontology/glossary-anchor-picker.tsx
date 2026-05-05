@@ -13,6 +13,7 @@ import {
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
 import { localizePresent } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/hooks/use-locale-chain";
+import { SearchInput } from "@/components/ui/form-input";
 
 export interface GlossaryAnchorPickerProps {
   /** Currently-selected term ids. */
@@ -89,7 +90,7 @@ export function GlossaryAnchorPicker({
   return (
     <div ref={rootRef} className="space-y-2">
       {value.length === 0 && readOnly && (
-        <p className="text-[11px] italic text-muted-foreground">
+        <p className="text-2xs italic text-foreground-muted">
           {t("emptyReadOnly")}
         </p>
       )}
@@ -140,7 +141,7 @@ export function GlossaryAnchorPicker({
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-[11px] text-muted-foreground hover:border-concept-border hover:text-concept-foreground dark:hover:border-concept-border dark:hover:text-concept-foreground"
+              className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-2xs text-foreground-muted hover:border-concept-border hover:text-concept-foreground"
             >
               <HugeiconsIcon
                 icon={PlusSignIcon}
@@ -172,11 +173,11 @@ function AnchorChip({
   removeLabel: string;
 }) {
   const baseColor = missing
-    ? "bg-danger-surface text-danger-foreground dark:text-danger-foreground"
+    ? "bg-danger-surface text-danger-foreground"
     : "bg-concept-surface text-concept-foreground";
   return (
     <li
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${baseColor}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs ${baseColor}`}
     >
       {missing && (
         <span title={missingLabel}>
@@ -194,7 +195,7 @@ function AnchorChip({
           type="button"
           onClick={onRemove}
           aria-label={removeLabel}
-          className="rounded-full p-0.5 hover:bg-concept-surface dark:hover:bg-concept-surface/60"
+          className="rounded-full p-0.5 hover:bg-concept-surface"
         >
           <HugeiconsIcon icon={Cancel01Icon} className="h-2.5 w-2.5" size="100%" />
         </button>
@@ -223,14 +224,9 @@ function SearchPopover({
   labelSearch: string;
 }) {
   return (
-    <div className="rounded-md border border-divider bg-surface-base p-2 shadow-sm">
-      <div className="flex items-center gap-1.5 border-b border-divider-soft pb-1.5">
-        <HugeiconsIcon
-          icon={Search01Icon}
-          className="h-3 w-3 text-muted-foreground"
-          size="100%"
-        />
-        <input
+    <div className="rounded-md border border-divider bg-surface-base p-2 shadow-1">
+      <div className="border-b border-divider-soft pb-1.5">
+        <SearchInput
           autoFocus
           type="text"
           value={query}
@@ -240,12 +236,14 @@ function SearchPopover({
             if (e.key === "Enter" && candidates[0]) onPick(candidates[0].id);
           }}
           placeholder={labelSearch}
-          className="flex-1 bg-transparent text-[11px] outline-none placeholder:text-muted-foreground"
+          aria-label={labelSearch}
+          density="compact"
+          leadingIcon={Search01Icon}
         />
       </div>
       <ul className="mt-1 max-h-60 space-y-0.5 overflow-y-auto">
         {candidates.length === 0 ? (
-          <li className="px-1.5 py-1 text-[11px] italic text-muted-foreground">
+          <li className="px-1.5 py-1 text-2xs italic text-foreground-muted">
             {labelEmpty}
           </li>
         ) : (
@@ -260,18 +258,18 @@ function SearchPopover({
                 <button
                   type="button"
                   onClick={() => onPick(term.id)}
-                  className="flex w-full flex-col rounded px-1.5 py-1 text-left hover:bg-concept-surface dark:hover:bg-concept-surface/30"
+                  className="flex w-full flex-col rounded px-1.5 py-1 text-start hover:bg-concept-surface"
                 >
-                  <span className="flex items-baseline gap-2 text-[11px]">
-                    <span className="font-medium text-foreground-strong-strong">
+                  <span className="flex items-baseline gap-2 text-2xs">
+                    <span className="font-medium text-foreground-strong">
                       {label}
                     </span>
-                    <span className="font-mono text-2xs text-muted-foreground">
+                    <span className="font-mono text-2xs text-foreground-muted">
                       {term.id}
                     </span>
                   </span>
                   {description && (
-                    <span className="text-2xs text-muted-foreground line-clamp-1">
+                    <span className="text-2xs text-foreground-muted line-clamp-1">
                       {description}
                     </span>
                   )}

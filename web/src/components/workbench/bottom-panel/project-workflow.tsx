@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError, getProject } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
 import type { DesignProject} from "@/types/api";import { AnalysisReviewSection } from "./analysis-review-section";
 import { useAppStore } from "@/lib/store";
 import { WorkflowActions } from "./workflow-actions";
@@ -41,7 +42,7 @@ export function ProjectWorkflow({
 
   // Shared error handler
   async function handleApiError(err: unknown, label: string): Promise<boolean> {
-    if (err instanceof ApiError && err.type === "conflict") {
+    if (err instanceof ApiError && err.code === "conflict") {
       toast.error(tActions("conflictTitle"), {
         description: tActions("conflictDescription"),
       });
@@ -58,8 +59,8 @@ export function ProjectWorkflow({
     // the raw JSON into a toast. The freshly-fetched project carries
     // the same `design_gates` vector the FE renders, so the
     // checklist updates the moment we reload.
-    if (err instanceof ApiError && err.type === "design_gates_unmet") {
-      const unmet = extractUnmetIds(err.details);
+    if (err instanceof ApiError && err.code === "design_gates_unmet") {
+      const unmet = extractUnmetIds(err.params.details);
       toast.error(tActions("toast.designGatesUnmetTitle"), {
         description: tActions("toast.designGatesUnmetDescription", {
           count: unmet.length,
@@ -111,7 +112,7 @@ export function ProjectWorkflow({
             <p className="text-xs font-medium text-warning-foreground">
               {t("staleReportTitle")}
             </p>
-            <p className="mt-0.5 text-[11px] text-warning-foreground">
+            <p className="mt-0.5 text-2xs text-warning-foreground">
               {t("staleReportHint")}
             </p>
           </div>
@@ -119,23 +120,19 @@ export function ProjectWorkflow({
 
         {/* Contextual status guide */}
         {project.status === "analyzed" && (
-          <p className="px-2 text-xs text-muted-foreground">
+          <p className="px-2 text-xs text-foreground-muted">
             {t("analyzedGuidance")}
           </p>
         )}
         {project.status === "designed" && (
-          <p className="px-2 text-xs text-muted-foreground">
+          <p className="px-2 text-xs text-foreground-muted">
             {t.rich("designedGuidance", {
-              kbd: (chunks) => (
-                <kbd className="rounded bg-surface-inset px-1 py-0.5 font-mono text-2xs">
-                  {chunks}
-                </kbd>
-              ),
+              kbd: () => <KeyboardShortcut keys="mod+k" />,
             })}
           </p>
         )}
         {project.status === "completed" && (
-          <p className="px-2 text-xs text-muted-foreground">
+          <p className="px-2 text-xs text-foreground-muted">
             {t("completedGuidance")}
           </p>
         )}
@@ -160,14 +157,14 @@ export function ProjectWorkflow({
         {project.quality_report && (
           <div className="rounded-lg border border-divider bg-surface-raised p-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
                 {t("qualityHeader")}
               </h4>
               <span
                 className={cn(
                   "rounded-full px-1.5 py-0.5 text-2xs font-medium uppercase",
                   project.quality_report.confidence === "high"
-                    ? "bg-brand-surface-strong text-brand-foreground-strong-strong"
+                    ? "bg-brand-surface-strong text-brand-foreground-strong"
                     : project.quality_report.confidence === "medium"
                       ? "bg-warning-surface text-warning-foreground"
                       : "bg-danger-surface text-danger-foreground",
@@ -191,19 +188,19 @@ export function ProjectWorkflow({
                   <>
                     {high > 0 && <span className="rounded-full bg-danger-surface px-1.5 py-0.5 text-xs font-medium text-danger-foreground">{t("highSeverity", { count: high })}</span>}
                     {medium > 0 && <span className="rounded-full bg-warning-surface px-1.5 py-0.5 text-xs font-medium text-warning-foreground">{t("mediumSeverity", { count: medium })}</span>}
-                    {low > 0 && <span className="rounded-full bg-surface-inset px-1.5 py-0.5 text-xs font-medium text-foreground dark:text-muted-foreground">{t("lowSeverity", { count: low })}</span>}
+                    {low > 0 && <span className="rounded-full bg-surface-inset px-1.5 py-0.5 text-xs font-medium text-foreground">{t("lowSeverity", { count: low })}</span>}
                   </>
                 );
               })()}
             </div>
             {/* Guidance */}
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="mt-2 text-xs text-foreground-muted">
               {project.quality_report.confidence === "high" && t("guidanceHigh")}
               {project.quality_report.confidence === "medium" && t("guidanceMedium")}
               {project.quality_report.confidence === "low" && t("guidanceLow")}
             </p>
             {/* Link to Quality tab */}
-            <button
+            <button type="button"
               onClick={() => useAppStore.getState().setDesignBottomTab("quality")}
               className="mt-1.5 text-xs font-medium text-brand-foreground hover:text-brand-foreground"
             >
@@ -226,9 +223,9 @@ export function ProjectWorkflow({
         {/* Analysis review */}
         {report && !isCompleted && (
           <details ref={analysisRef} open={!isDesigned}>
-            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted">
+            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-foreground-muted hover:text-foreground-muted">
               {t("analysisReview")}
-              <span className="ml-2 text-xs font-normal normal-case text-muted-foreground">
+              <span className="ms-2 text-xs font-normal normal-case text-foreground-muted">
                 {decisions.unresolvedClarificationCount > 0
                   ? t("unresolved", {
                       count: decisions.unresolvedClarificationCount,

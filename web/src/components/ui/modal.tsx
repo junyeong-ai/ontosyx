@@ -1,7 +1,7 @@
 "use client";
 
 import { Dialog } from "@base-ui/react/dialog";
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 type ModalSize = "sm" | "md" | "lg" | "xl";
@@ -37,14 +37,14 @@ export function Modal({
       <Dialog.Portal>
         <Dialog.Backdrop
           className={cn(
-            "fixed inset-0 z-50 bg-[var(--color-surface-overlay)] backdrop-blur-sm",
+            "fixed inset-0 z-overlay bg-[var(--color-surface-overlay)] backdrop-blur-sm",
             "transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)]",
             "data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
           )}
         />
         <Dialog.Popup
           className={cn(
-            "fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2",
+            "fixed left-1/2 top-1/2 z-modal w-full -translate-x-1/2 -translate-y-1/2",
             "overflow-y-auto rounded-xl border border-divider bg-surface-base shadow-3",
             "transition-[opacity,transform] duration-[var(--duration-base)] ease-[var(--ease-out)]",
             "data-[starting-style]:scale-[0.96] data-[starting-style]:opacity-0",

@@ -47,9 +47,9 @@ export function navigateToGap(gap: QualityGap): boolean {
 
   const state = useAppStore.getState();
   if (entity.type === "node") {
-    state.select({ type: "node", nodeId: entity.id });
+    state.selectOne({ kind: "node", id: entity.id });
   } else {
-    state.select({ type: "edge", edgeId: entity.id });
+    state.selectOne({ kind: "edge", id: entity.id });
   }
   if (!state.isInspectorOpen) {
     state.toggleInspector();

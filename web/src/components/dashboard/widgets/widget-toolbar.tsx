@@ -58,12 +58,13 @@ export function WidgetToolbar({ spec, data }: WidgetWithToolbarProps) {
             return (
               <Tooltip key={type} content={label}>
                 <button
+                  type="button"
                   onClick={() => setActiveType(type)}
                   className={cn(
-                    "flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-all",
+                    "flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
                     activeType === type
-                      ? "bg-surface-base text-foreground-strong shadow-sm-strong"
-                      : "text-foreground-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground-strong",
+                      ? "bg-surface-base text-foreground-strong shadow-1-strong"
+                      : "text-foreground-muted hover:text-foreground-strong",
                   )}
                 >
                   <HugeiconsIcon icon={icon} className="h-3.5 w-3.5" size="100%" />

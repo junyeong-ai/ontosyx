@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { useAppStore } from "@/lib/store";
 import { NodeConstraintBuilder } from "@/components/ontology/node-constraint-builder";

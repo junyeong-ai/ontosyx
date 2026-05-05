@@ -3,7 +3,9 @@
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
+import { FormInput } from "@/components/ui/form-input";
 import type { GraphOverview } from "@/lib/api/queries";
+import { useFormatters } from "@/hooks/use-formatters";
 
 export interface ExploreFacetProps {
   overview: GraphOverview | null;
@@ -27,6 +29,7 @@ export function ExploreFacetSidebar({
   onSaveSegment,
 }: ExploreFacetProps) {
   const t = useTranslations("workbench.explore.facet");
+  const fmt = useFormatters();
   const selectedSet = useMemo(
     () => new Set(selectedLabels),
     [selectedLabels],
@@ -49,10 +52,10 @@ export function ExploreFacetSidebar({
   return (
     <aside
       aria-label={t("title")}
-      className="flex h-full w-56 shrink-0 flex-col gap-4 border-r border-divider bg-surface-base p-3"
+      className="flex h-full w-56 shrink-0 flex-col gap-4 border-e border-divider bg-surface-base p-3"
     >
       <section>
-        <h2 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("depth.label")}
         </h2>
         <div
@@ -67,24 +70,24 @@ export function ExploreFacetSidebar({
               role="radio"
               aria-checked={d === expandDepth}
               onClick={() => onChangeDepth(d)}
-              className={`flex-1 rounded border px-2 py-1 text-[11px] font-medium ${
+              className={`flex-1 rounded border px-2 py-1 text-2xs font-medium ${
                 d === expandDepth
                   ? "border-concept-foreground bg-concept-surface text-concept-foreground"
-                  : "border-divider bg-surface-base text-muted-foreground hover:bg-surface-raised"
+                  : "border-divider bg-surface-base text-foreground-muted hover:bg-surface-raised"
               }`}
             >
               {t("depth.hops", { n: d })}
             </button>
           ))}
         </div>
-        <p className="mt-1 text-2xs text-muted-foreground">
+        <p className="mt-1 text-2xs text-foreground-muted">
           {t("depth.cmdHint")}
         </p>
       </section>
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
             {t("types.label")}
           </h2>
           {selectedLabels.length > 0 && (
@@ -99,33 +102,34 @@ export function ExploreFacetSidebar({
         </div>
 
         {!loading && overview && overview.labels.length > 0 && (
-          <input
+          <FormInput
             type="search"
+            density="compact"
             value={labelFilter}
             onChange={(e) => setLabelFilter(e.target.value)}
             placeholder={t("types.searchPlaceholder")}
             aria-label={t("types.searchAria")}
-            className="mb-1 w-full rounded border border-divider bg-surface-base px-1.5 py-1 text-[11px] outline-none focus:border-concept-foreground"
+            className="mb-1"
           />
         )}
 
         {loading && (
-          <p className="py-2 text-[11px] text-muted-foreground">
+          <p className="py-2 text-2xs text-foreground-muted">
             {t("loading")}
           </p>
         )}
         {!loading && overview && overview.labels.length === 0 && (
-          <p className="py-2 text-[11px] text-muted-foreground">
+          <p className="py-2 text-2xs text-foreground-muted">
             {t("types.empty")}
           </p>
         )}
         {!loading && overview && labelFilter.trim() && visibleLabels.length === 0 && (
-          <p className="py-2 text-[11px] text-muted-foreground">
+          <p className="py-2 text-2xs text-foreground-muted">
             {t("types.noMatches", { query: labelFilter.trim() })}
           </p>
         )}
         {!loading && overview && (
-          <ul className="flex flex-1 flex-col gap-0.5 overflow-auto pr-1 text-[11px]">
+          <ul className="flex flex-1 flex-col gap-0.5 overflow-auto pe-1 text-2xs">
             {visibleLabels.map((l) => {
               const selected = selectedSet.has(l.label);
               return (
@@ -141,8 +145,8 @@ export function ExploreFacetSidebar({
                     }`}
                   >
                     <span className="truncate">{l.label}</span>
-                    <span className="shrink-0 font-mono text-2xs tabular-nums text-muted-foreground">
-                      {l.count.toLocaleString()}
+                    <span className="shrink-0 font-mono text-2xs tabular-nums text-foreground-muted">
+                      {fmt.number(l.count)}
                     </span>
                   </button>
                 </li>
@@ -154,10 +158,10 @@ export function ExploreFacetSidebar({
 
       {!loading && overview && overview.relationships.length > 0 && (
         <section className="border-t border-divider pt-3">
-          <h2 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
             {t("relationships.label")}
           </h2>
-          <ul className="flex max-h-40 flex-col gap-0.5 overflow-auto pr-1 text-[11px]">
+          <ul className="flex max-h-40 flex-col gap-0.5 overflow-auto pe-1 text-2xs">
             {overview.relationships.map((r, idx) => (
               <li
                 key={`${r.from_label}-${r.rel_type}-${r.to_label}-${idx}`}
@@ -166,19 +170,19 @@ export function ExploreFacetSidebar({
                 <div className="flex items-center justify-between gap-2">
                   <span className="min-w-0 flex-1 truncate font-mono text-2xs">
                     {r.from_label}
-                    <span className="text-muted-foreground"> ─[</span>
+                    <span className="text-foreground-muted"> ─[</span>
                     <span className="font-medium">{r.rel_type}</span>
-                    <span className="text-muted-foreground">]→ </span>
+                    <span className="text-foreground-muted">]→ </span>
                     {r.to_label}
                   </span>
-                  <span className="shrink-0 font-mono text-2xs tabular-nums text-muted-foreground">
-                    {r.count.toLocaleString()}
+                  <span className="shrink-0 font-mono text-2xs tabular-nums text-foreground-muted">
+                    {fmt.number(r.count)}
                   </span>
                 </div>
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-2xs italic text-muted-foreground">
+          <p className="mt-1 text-2xs italic text-foreground-muted">
             {t("relationships.readOnlyHint")}
           </p>
         </section>
@@ -188,7 +192,7 @@ export function ExploreFacetSidebar({
         <button
           type="button"
           onClick={onSaveSegment}
-          className="rounded bg-brand-solid px-3 py-1.5 text-[11px] font-medium text-white hover:bg-brand-solid"
+          className="rounded bg-brand-solid px-3 py-1.5 text-2xs font-medium text-foreground-onbrand hover:bg-brand-solid"
         >
           {t("saveSegment", { count: selectedLabels.length })}
         </button>

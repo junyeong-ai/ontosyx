@@ -77,9 +77,9 @@ export function SourceHistorySection({ entries }: { entries: SourceHistoryEntry[
   const hasMultiple = entries.length > 1;
   return (
     <details className="text-xs" open={hasMultiple}>
-      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground dark:hover:text-foreground-muted">
+      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-foreground-muted hover:text-foreground-muted">
         {t("sourcesTitle")}
-        <span className="ml-1.5 text-xs font-normal normal-case">
+        <span className="ms-1.5 text-xs font-normal normal-case">
           {t("sourceCount", { count: entries.length })}
         </span>
       </summary>
@@ -89,7 +89,7 @@ export function SourceHistorySection({ entries }: { entries: SourceHistoryEntry[
             key={`${entry.source_type}-${entry.added_at}-${i}`}
             className="rounded border border-divider-soft px-2 py-1.5"
           >
-            <div className="flex items-center gap-2 text-xs text-foreground dark:text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-foreground">
               <span className="inline-flex shrink-0 rounded bg-surface-inset px-1.5 py-0.5 font-medium">
                 {isKnownSourceType(entry.source_type)
                   ? t(`sourceTypes.${entry.source_type}`)
@@ -98,12 +98,12 @@ export function SourceHistorySection({ entries }: { entries: SourceHistoryEntry[
               <span className="min-w-0 truncate font-medium">
                 {entry.schema_name ?? entry.url ?? t("inlineSource")}
               </span>
-              <span className="ml-auto shrink-0 text-muted-foreground">
+              <span className="ms-auto shrink-0 text-foreground-muted">
                 {new Date(entry.added_at).toLocaleDateString()}
               </span>
             </div>
             {entry.fingerprint && (
-              <p className="mt-0.5 truncate pl-0.5 text-2xs font-mono text-muted-foreground">
+              <p className="mt-0.5 truncate ps-0.5 text-2xs font-mono text-foreground-muted">
                 {entry.fingerprint}
               </p>
             )}

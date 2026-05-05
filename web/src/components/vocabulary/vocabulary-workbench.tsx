@@ -54,8 +54,9 @@ export function VocabularyWorkbench() {
       tabs={tabItems}
       activeTab={tab}
       onTabChange={setTab}
+      fillBleed
     >
-      <div className="px-4 py-4">
+      <div className="h-full min-h-0">
         {tab === "code-systems" && <CodeSystemsTab />}
         {tab === "value-sets" && <ValueSetsTab />}
         {tab === "concept-maps" && <ConceptMapsTab />}

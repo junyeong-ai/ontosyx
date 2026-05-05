@@ -1,59 +1,19 @@
-/**
- * User-friendly error messages mapped by backend error.type codes.
- *
- * Backend returns: { "error": { "type": "quality_gate", "message": "..." } }
- * Frontend ApiError captures: error.type, error.message, error.details
- *
- * This mapping provides stable, user-friendly messages by error code.
- * Falls back to original message if no mapping found.
- */
-
-const ERROR_TYPE_MESSAGES: Record<string, string> = {
-  // Auth & access
-  unauthorized: "Authentication required. Please sign in.",
-  forbidden: "You don't have permission for this action.",
-  rate_limited: "Too many requests. Please wait a moment and try again.",
-
-  // Resources
-  not_found: "The requested resource was not found.",
-
-  // Validation
-  bad_request: "Invalid request. Please check your input.",
-  validation_error: "Validation failed. Please check the form fields.",
-  quality_gate: "Quality check failed. Review and resolve quality gaps before proceeding.",
-
-  // Processing
-  ontology_error: "Ontology processing error. The schema may have structural issues.",
-  compilation_error: "Query compilation failed. Check your query syntax.",
-  conflict: "This resource was modified elsewhere. Please refresh and try again.",
-  serialization_error: "Data format error. Please try again.",
-
-  // Infrastructure
-  timeout: "Request timed out. This operation may take longer for large schemas.",
-  service_unavailable: "Service temporarily unavailable. Please try again shortly.",
-  internal_error: "An unexpected error occurred. Please try again or contact support.",
-};
-
-/**
- * Get a user-friendly error message from an error type code.
- * Falls back to stripping "Runtime error: " prefix from raw message.
- */
-export function errorMessage(errorType: string | undefined, rawMessage: string): string {
-  if (errorType && errorType in ERROR_TYPE_MESSAGES) {
-    return ERROR_TYPE_MESSAGES[errorType];
-  }
-  // Fallback: strip common prefixes
-  return rawMessage.replace(/^Runtime error:\s*/i, "");
-}
-
-// ---------------------------------------------------------------------------
-// Tool error patterns → user-friendly messages
-// ---------------------------------------------------------------------------
+// Tool-error pattern matcher — translates raw chat-tool stderr into
+// progressive-disclosure messages. Distinct from the typed
+// `ApiError.localize(t)` path: tool output is unstructured stdout
+// from agent-driven shell processes, so the localisation has to
+// pattern-match on substrings rather than read a typed code.
+//
+// HTTP errors live on `ApiError.localize(t)` reading the
+// `errors.<code>` i18n catalog — see `lib/api/client.ts` and the
+// `ApiErrorCode` enum on the backend. Don't add new entries here for
+// HTTP errors.
 
 const TOOL_ERROR_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
   {
     pattern: /API error \(HTTP 400\)/i,
-    message: "The ontology is too large for this query. Try asking about specific entities.",
+    message:
+      "The ontology is too large for this query. Try asking about specific entities.",
   },
   {
     pattern: /token limit|too long|max_tokens/i,
@@ -73,13 +33,17 @@ const TOOL_ERROR_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
   },
   {
     pattern: /Query translation failed/i,
-    message: "Could not translate your question to a graph query. Try rephrasing with specific entity names.",
+    message:
+      "Could not translate your question to a graph query. Try rephrasing with specific entity names.",
   },
 ];
 
 /**
  * Convert a raw tool error output to a user-friendly message.
- * Returns { userMessage, technicalDetail } for progressive disclosure.
+ * Returns `{ userMessage, technicalDetail }` for progressive
+ * disclosure — the message is the chat bubble copy, the detail is
+ * the developer-tools-style raw output that lives behind a "show
+ * details" toggle.
  */
 export function toolErrorMessage(rawOutput: string): {
   userMessage: string;
@@ -95,7 +59,8 @@ export function toolErrorMessage(rawOutput: string): {
     .replace(/^execution failed:\s*/i, "")
     .replace(/^Runtime error:\s*/i, "");
   return {
-    userMessage: cleaned.length > 120 ? cleaned.slice(0, 120) + "..." : cleaned,
+    userMessage:
+      cleaned.length > 120 ? `${cleaned.slice(0, 120)}...` : cleaned,
     technicalDetail: rawOutput,
   };
 }

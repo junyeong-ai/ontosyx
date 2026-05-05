@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { useAppStore } from "@/lib/store";
 import { useIsDarkMode } from "@/hooks/use-dark-mode";
+import { useFormatters } from "@/hooks/use-formatters";
 import {
   PALETTE_PRIMARY,
   CATEGORY_THRESHOLD,
@@ -33,6 +34,7 @@ interface PieChartWidgetProps {
 export function PieChartWidget({ spec, data }: PieChartWidgetProps) {
   const t = useTranslations("widget.pieChart");
   const isDark = useIsDarkMode();
+  const fmt = useFormatters();
   const labelField = resolveLabelField(spec, data);
   const valueField = resolveValueField(spec, data);
 
@@ -50,7 +52,7 @@ export function PieChartWidget({ spec, data }: PieChartWidgetProps) {
   );
 
   if (!labelField || !valueField || chartData.length === 0) {
-    return <p className="text-xs text-muted-foreground">{t("insufficient")}</p>;
+    return <p className="text-xs text-foreground-muted">{t("insufficient")}</p>;
   }
 
   const labelFill = pieLabelFill(isDark);
@@ -59,7 +61,7 @@ export function PieChartWidget({ spec, data }: PieChartWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground dark:text-muted-foreground">
+        <h4 className="text-xs font-semibold text-foreground">
           {spec.title}
         </h4>
       )}
@@ -109,7 +111,7 @@ export function PieChartWidget({ spec, data }: PieChartWidgetProps) {
               formatter={(value: unknown) => {
                 const v = Number(value ?? 0);
                 return [
-                  `${v.toLocaleString()} (${((v / total) * 100).toFixed(1)}%)`,
+                  `${fmt.number(v)} (${((v / total) * 100).toFixed(1)}%)`,
                 ];
               }}
               contentStyle={tooltipStyle(isDark)}

@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useTranslations } from "next-intl";
+import { FormInput, FormSelect } from "@/components/ui/form-input";
 import type { PropertyDef } from "@/types/api";
 import type { PatternFilter, FilterOperator } from "./ir-builder";
 
@@ -56,70 +57,73 @@ export function FilterEditor({ properties, filters, onChange }: FilterEditorProp
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
           {t("heading")}
         </span>
-        <button
+        <button type="button"
           onClick={addFilter}
           disabled={properties.length === 0}
-          className="rounded px-2 py-0.5 text-2xs font-medium text-brand-foreground transition-colors hover:bg-brand-surface disabled:opacity-40 dark:hover:bg-brand-surface"
+          className="rounded px-2 py-0.5 text-2xs font-medium text-brand-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-surface disabled:opacity-40"
         >
           {t("add")}
         </button>
       </div>
 
       {filters.length === 0 && (
-        <p className="text-[11px] text-muted-foreground">{t("empty")}</p>
+        <p className="text-2xs text-foreground-muted">{t("empty")}</p>
       )}
 
       {filters.map((filter) => (
         <div key={filter.id} className="flex items-center gap-1.5">
           {/* Property */}
-          <select
+          <FormSelect
             value={filter.property}
             onChange={(e) => updateFilter(filter.id, { property: e.target.value })}
-            className="h-7 w-28 rounded border border-divider bg-surface-base px-1.5 text-xs text-foreground-muted"
+            density="compact"
+            className="w-28"
           >
             {properties.map((p) => (
               <option key={p.id} value={p.name}>
                 {p.name}
               </option>
             ))}
-          </select>
+          </FormSelect>
 
           {/* Operator */}
-          <select
+          <FormSelect
             value={filter.operator}
             onChange={(e) =>
               updateFilter(filter.id, {
                 operator: e.target.value as FilterOperator,
               })
             }
-            className="h-7 w-20 rounded border border-divider bg-surface-base px-1.5 text-xs text-foreground-muted"
+            density="compact"
+            className="w-20"
           >
             {OPERATORS.map((op) => (
               <option key={op.value} value={op.value}>
                 {op.label}
               </option>
             ))}
-          </select>
+          </FormSelect>
 
           {/* Value */}
-          <input
+          <FormInput
             type="text"
             value={filter.value}
             onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
             placeholder={t("valuePlaceholder")}
-            className="h-7 min-w-0 flex-1 rounded border border-divider bg-surface-base px-2 text-xs text-foreground-muted"
+            density="compact"
+            className="min-w-0 flex-1"
           />
 
           {/* Remove */}
-          <button
+          <button type="button"
             onClick={() => removeFilter(filter.id)}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-danger-surface hover:text-danger-foreground dark:hover:bg-danger-surface"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-danger-surface hover:text-danger-foreground"
             title={t("removeTitle")}
           >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
               <path d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>

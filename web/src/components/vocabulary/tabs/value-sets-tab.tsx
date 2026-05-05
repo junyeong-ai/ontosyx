@@ -2,7 +2,12 @@
 
 import { useTranslations } from "next-intl";
 
-import { JsonEntityCrudPage } from "@/components/vocabulary/json-entity-crud-page";
+import { valueSetSchema } from "@/components/forms/schemas/value-set.schema";
+import { MasterDetailEntityPage } from "@/components/vocabulary/master-detail-entity-page";
+import {
+  VocabularyUsageMap,
+  collectValueSetUsages,
+} from "@/components/vocabulary/usage-map";
 import type { ValueSetDef } from "@/lib/api/edit-ops";
 
 const VALUE_SET_HINT = `{
@@ -23,8 +28,9 @@ export function ValueSetsTab() {
   const tCommon = useTranslations("common");
 
   return (
-    <JsonEntityCrudPage<ValueSetDef>
+    <MasterDetailEntityPage<ValueSetDef>
       schemaHint={VALUE_SET_HINT}
+      schema={valueSetSchema}
       selectItems={(ir) =>
         ((ir as unknown as { value_sets?: ValueSetDef[] }).value_sets ?? [])
       }
@@ -32,25 +38,26 @@ export function ValueSetsTab() {
       buildCreateOp={(def) => ({ op: "create_value_set", def })}
       buildUpdateOp={(id, def) => ({ op: "update_value_set", id, def })}
       buildDeleteOp={(id) => ({ op: "delete_value_set", id })}
+      renderUsage={(vs, ir) => (
+        <VocabularyUsageMap entries={collectValueSetUsages(ir, vs.id)} />
+      )}
       renderRow={(vs) => (
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-sm font-medium text-foreground-strong">
-              {vs.id}
-            </span>
-            <span className="text-xs text-foreground-muted">
-              · {vs.name} · v{vs.version}
-            </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-mono text-xs font-medium">
+            {vs.id}
           </div>
-          <p className="mt-1 text-2xs text-foreground-subtle">
+          <div className="mt-0.5 truncate text-2xs text-foreground-muted">
+            {t("rowSummary", { name: vs.name, version: vs.version })}
+            {" · "}
             {t("includeCount", { count: vs.composition?.length ?? 0 })}
-          </p>
+          </div>
         </div>
       )}
       labels={{
         title: t("pageTitle"),
         subtitle: t("pageSubtitle"),
         noOntology: t("noOntology"),
+        listHeading: (count) => t("listHeading", { count }),
         createButton: t("createButton"),
         editButton: t("editButton"),
         deleteButton: t("deleteButton"),

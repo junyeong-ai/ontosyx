@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
+import { RouteHeading } from "@/components/layout/route-heading";
 import { useAppStore, type BottomPanelMode } from "@/lib/store";
+import { useShortcut } from "@/lib/shortcuts";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
+import { useSelectionUrlSync } from "@/hooks/use-selection-url-sync";
+import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
 import { OntologyCanvas } from "./canvas/ontology-canvas";
 import { ExplorerPanel } from "./explorer/explorer-panel";
 import { InspectorPanel } from "./inspector/inspector-panel";
@@ -25,6 +31,7 @@ import { ScopeBadge } from "./design/scope-badge";
 // ---------------------------------------------------------------------------
 
 export function DesignLayout() {
+  const t = useTranslations("workbench.canvas.toolbar");
   const explorerOpen = useAppStore((s) => s.isExplorerOpen);
   const inspectorOpen = useAppStore((s) => s.isInspectorOpen);
   const toggleExplorer = useAppStore((s) => s.toggleExplorer);
@@ -64,37 +71,48 @@ export function DesignLayout() {
     applyProjectSnapshot(activeProject);
   }, [activeProject, applyProjectSnapshot]);
 
-  // Cmd+K / Ctrl+K to open search; Cmd+\ cycles bottom-panel snap;
-  // Cmd+Shift+\ jumps straight to fullscreen; Esc exits fullscreen.
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const meta = e.metaKey || e.ctrlKey;
-      if (meta && e.key === "k") {
-        e.preventDefault();
-        const store = useAppStore.getState();
-        store.setSearchOpen(!store.isSearchOpen);
-        return;
-      }
-      if (meta && e.key === "\\") {
-        e.preventDefault();
-        const store = useAppStore.getState();
-        if (e.shiftKey) {
-          store.setBottomPanelMode("fullscreen");
-        } else {
-          store.cycleBottomPanelMode();
-        }
-        return;
-      }
-      if (
-        e.key === "Escape" &&
-        useAppStore.getState().bottomPanelMode === "fullscreen"
-      ) {
-        useAppStore.getState().setBottomPanelMode("default");
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
+  useShortcut({
+    id: "design.search",
+    keys: ["mod+k"],
+    group: "keyboardShortcuts.sections.workbench",
+    description: "keyboardShortcuts.shortcuts.openCommandBar",
+    handler: (e) => {
+      e.preventDefault();
+      const store = useAppStore.getState();
+      store.setSearchOpen(!store.isSearchOpen);
+    },
+  });
+  useShortcut({
+    id: "design.cycleBottomPanel",
+    keys: ["mod+\\"],
+    group: "keyboardShortcuts.sections.workbench",
+    description: "keyboardShortcuts.shortcuts.cycleBottomPanel",
+    handler: (e) => {
+      e.preventDefault();
+      useAppStore.getState().cycleBottomPanelMode();
+    },
+  });
+  useShortcut({
+    id: "design.bottomPanelFullscreen",
+    keys: ["mod+shift+\\"],
+    group: "keyboardShortcuts.sections.workbench",
+    description: "keyboardShortcuts.shortcuts.bottomPanelFullscreen",
+    handler: (e) => {
+      e.preventDefault();
+      useAppStore.getState().setBottomPanelMode("fullscreen");
+    },
+  });
+  useShortcut({
+    id: "design.exitFullscreen",
+    keys: ["Escape"],
+    group: "keyboardShortcuts.sections.workbench",
+    description: "keyboardShortcuts.shortcuts.exitFullscreen",
+    priority: 10,
+    enabled: () => useAppStore.getState().bottomPanelMode === "fullscreen",
+    handler: () => {
+      useAppStore.getState().setBottomPanelMode("default");
+    },
+  });
 
   useEffect(() => {
     if (initialTabSetRef.current) return;
@@ -104,15 +122,8 @@ export function DesignLayout() {
     }
   }, [ontology, activeProject]);
 
-  useEffect(() => {
-    if (!hasUnsavedEdits) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "You have unsaved changes";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [hasUnsavedEdits]);
+  useUnsavedChangesGuard(hasUnsavedEdits);
+  useSelectionUrlSync();
 
   const gaps: QualityGap[] = activeProject?.quality_report?.gaps ?? [];
   const hasContent = !!ontology;
@@ -138,7 +149,9 @@ export function DesignLayout() {
   );
 
   return (
-    <Group orientation="vertical" className="h-full">
+    <>
+      <RouteHeading route="design" />
+      <Group orientation="vertical" className="h-full">
       {!isFullscreen && (
       <Panel defaultSize={topSize}>
         {showCanvas ? (
@@ -146,12 +159,12 @@ export function DesignLayout() {
           {explorerOpen && hasContent && (
             <>
               <Panel defaultSize="18%" minSize="10%" maxSize="35%">
-                <div className="flex h-full flex-col border-r border-divider">
+                <div className="flex h-full flex-col border-e border-divider">
                   <div className="flex h-7 items-center justify-between border-b border-divider px-2">
-                    <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Explorer
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+                      {t("paneExplorer")}
                     </span>
-                    <button onClick={toggleExplorer} className="text-muted-foreground hover:text-foreground">
+                    <button type="button" onClick={toggleExplorer} className="text-foreground-muted hover:text-foreground">
                       <HugeiconsIcon icon={PanelLeftIcon} className="h-3 w-3" size="100%" />
                     </button>
                   </div>
@@ -169,53 +182,51 @@ export function DesignLayout() {
           <Panel minSize="30%">
             <div className="relative flex h-full flex-col overflow-hidden">
               {!explorerOpen && hasContent && (
-                <button
+                <button type="button"
                   onClick={toggleExplorer}
-                  className="absolute left-2 top-2 z-10 rounded-md border border-divider bg-surface-base p-1 shadow-sm hover:bg-surface-raised"
-                  aria-label="Show Explorer"
+                  className="absolute start-2 top-2 z-canvas rounded-md border border-divider bg-surface-base p-1 shadow-1 hover:bg-surface-raised"
+                  aria-label={t("showExplorer")}
                 >
-                  <HugeiconsIcon icon={PanelLeftIcon} className="h-3.5 w-3.5 text-muted-foreground" size="100%" />
+                  <HugeiconsIcon icon={PanelLeftIcon} className="h-3.5 w-3.5 text-foreground-muted" size="100%" />
                 </button>
               )}
               {hasContent && (
-                <button
+                <button type="button"
                   onClick={() => setSearchOpen(true)}
-                  className="absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-md border border-divider bg-surface-base px-2 py-1 shadow-sm hover:bg-surface-raised"
-                  aria-label="Search graph entities"
+                  className="absolute start-1/2 top-2 z-canvas flex -translate-x-1/2 items-center gap-1.5 rounded-md border border-divider bg-surface-base px-2 py-1 shadow-1 hover:bg-surface-raised"
+                  aria-label={t("searchAria")}
                 >
-                  <HugeiconsIcon icon={Search01Icon} className="h-3 w-3 text-muted-foreground" size="100%" />
-                  <span className="text-2xs font-medium text-muted-foreground">Search...</span>
-                  <kbd className="ml-1 rounded border border-divider px-1 text-2xs text-muted-foreground">
-                    {typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "\u2318" : "Ctrl+"}K
-                  </kbd>
+                  <HugeiconsIcon icon={Search01Icon} className="h-3 w-3 text-foreground-muted" size="100%" />
+                  <span className="text-2xs font-medium text-foreground-muted">{t("searchPlaceholder")}</span>
+                  <KeyboardShortcut keys="mod+k" variant="outline" className="ms-1" />
                 </button>
               )}
               {hasContent && activeProject && (
-                <div className="absolute right-12 top-2 z-10 flex items-center gap-1.5">
+                <div className="absolute end-12 top-2 z-canvas flex items-center gap-1.5">
                   <ScopeBadge />
-                  <button
+                  <button type="button"
                     onClick={() => {
                       const store = useAppStore.getState();
                       store.setDesignBottomTab("workflow");
                       if (!store.isBottomPanelOpen) store.toggleBottomPanel();
                       store.requestExtendSource();
                     }}
-                    className="flex items-center gap-1 rounded-md border border-brand-border bg-brand-surface px-2 py-1 text-2xs font-medium text-brand-foreground shadow-sm hover:bg-brand-surface-strong/40-strong dark:hover:bg-brand-surface/60"
-                    aria-label="Extend with new source"
-                    title="Extend with new source"
+                    className="flex items-center gap-1 rounded-md border border-brand-border bg-brand-surface px-2 py-1 text-2xs font-medium text-brand-foreground shadow-1 hover:bg-brand-surface-strong/40"
+                    aria-label={t("extendSourceAria")}
+                    title={t("extendSourceAria")}
                   >
                     <HugeiconsIcon icon={Add01Icon} className="h-3 w-3" size="100%" />
-                    Extend source
+                    {t("extendSourceLabel")}
                   </button>
                 </div>
               )}
               {!inspectorOpen && hasContent && (
-                <button
+                <button type="button"
                   onClick={toggleInspector}
-                  className="absolute right-2 top-2 z-10 rounded-md border border-divider bg-surface-base p-1 shadow-sm hover:bg-surface-raised"
-                  aria-label="Show Inspector"
+                  className="absolute end-2 top-2 z-canvas rounded-md border border-divider bg-surface-base p-1 shadow-1 hover:bg-surface-raised"
+                  aria-label={t("showInspector")}
                 >
-                  <HugeiconsIcon icon={PanelRightIcon} className="h-3.5 w-3.5 text-muted-foreground" size="100%" />
+                  <HugeiconsIcon icon={PanelRightIcon} className="h-3.5 w-3.5 text-foreground-muted" size="100%" />
                 </button>
               )}
               <ErrorBoundary name="Canvas">
@@ -228,12 +239,12 @@ export function DesignLayout() {
             <>
               <ResizeHandle />
               <Panel defaultSize="22%" minSize="15%" maxSize="40%">
-                <div className="flex h-full flex-col border-l border-divider">
+                <div className="flex h-full flex-col border-s border-divider">
                   <div className="flex h-7 items-center justify-between border-b border-divider px-2">
-                    <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Inspector
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+                      {t("paneInspector")}
                     </span>
-                    <button onClick={toggleInspector} className="text-muted-foreground hover:text-foreground">
+                    <button type="button" onClick={toggleInspector} className="text-foreground-muted hover:text-foreground">
                       <HugeiconsIcon icon={PanelRightIcon} className="h-3 w-3" size="100%" />
                     </button>
                   </div>
@@ -275,6 +286,7 @@ export function DesignLayout() {
 
       <SearchDialog open={searchOpen} onClose={closeSearch} />
     </Group>
+    </>
   );
 }
 

@@ -12,7 +12,7 @@ import {
   PlusSignIcon,
   Settings01Icon,
 } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   getWorkspaceId,
   getWorkspaceName,
@@ -27,10 +27,10 @@ import { useWorkspaces } from "@/hooks/api/use-workspaces";
 // ---------------------------------------------------------------------------
 
 const TRIGGER_CLASS =
-  "flex min-w-0 items-center gap-1.5 rounded-md border border-divider bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-inset-muted dark:hover:bg-surface-base";
+  "flex min-w-0 items-center gap-1.5 rounded-md border border-divider bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset";
 
 const POPOVER_CLASS =
-  "z-50 w-72 rounded-lg border border-divider bg-surface-base shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all";
+  "z-popover w-72 rounded-lg border border-divider bg-surface-base shadow-3 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]";
 
 // ---------------------------------------------------------------------------
 
@@ -38,11 +38,11 @@ const ROLE_COLORS: Record<string, string> = {
   owner:
     "bg-warning-surface text-warning-foreground",
   admin:
-    "bg-concept-surface text-concept-foreground dark:bg-concept-foreground/50 dark:text-concept-foreground",
+    "bg-concept-surface text-concept-foreground",
   member:
-    "bg-surface-inset text-foreground dark:text-muted-foreground",
+    "bg-surface-inset text-foreground",
   viewer:
-    "bg-surface-inset text-muted-foreground",
+    "bg-surface-inset text-foreground-muted",
 };
 
 export function WorkspaceSwitcher() {
@@ -95,7 +95,7 @@ export function WorkspaceSwitcher() {
           <span className="max-w-[140px] truncate">{label}</span>
           <HugeiconsIcon
             icon={ArrowDown01Icon}
-            className="h-3 w-3 text-muted-foreground"
+            className="h-3 w-3 text-foreground-muted"
             size="100%"
           />
         </PopoverTrigger>
@@ -103,18 +103,19 @@ export function WorkspaceSwitcher() {
           <div className="max-h-60 overflow-auto p-1">
             {isFetching ? (
               <div className="flex items-center justify-center py-4">
-                <Spinner size="sm" className="text-muted-foreground" />
+                <Spinner size="sm" className="text-foreground-muted" />
               </div>
             ) : workspaces.length === 0 ? (
-              <p className="px-3 py-4 text-center text-xs text-muted-foreground">
+              <p className="px-3 py-4 text-center text-xs text-foreground-muted">
                 {t("noWorkspaces")}
               </p>
             ) : (
               workspaces.map((ws) => (
                 <button
+                  type="button"
                   key={ws.id}
                   onClick={() => handleSwitch(ws)}
-                  className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs hover:bg-surface-raised dark:hover:bg-surface-base ${
+                  className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs hover:bg-surface-raised ${
                     ws.id === currentId
                       ? "bg-brand-surface text-brand-foreground"
                       : "text-foreground"
@@ -131,19 +132,20 @@ export function WorkspaceSwitcher() {
             )}
             <div className="my-1 h-px bg-surface-inset" />
             <button
+              type="button"
               onClick={() => {
                 setOpen(false);
                 setDialogOpen(true);
               }}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-concept-foreground hover:bg-concept-surface dark:text-concept-foreground"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs font-medium text-concept-foreground hover:bg-concept-surface"
             >
               <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
               {t("newWorkspace")}
             </button>
             <Link
-              href="/settings/workspace"
+              href="/settings/workspace/general"
               onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs text-foreground-muted hover:bg-surface-raised dark:text-muted-foreground dark:hover:bg-surface-base"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs text-foreground-muted hover:bg-surface-raised"
             >
               <HugeiconsIcon icon={Settings01Icon} className="h-3 w-3" size="100%" />
               {t("workspaceSettings")}

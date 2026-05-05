@@ -26,7 +26,7 @@ function findColumn(columns: string[], patterns: string[]): string | undefined {
 function formatDate(value: unknown): string {
   if (value == null) return "\u2014";
   const d = new Date(String(value));
-  if (isNaN(d.getTime())) return String(value);
+  if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
@@ -69,20 +69,20 @@ export function TimelineWidget({ spec, data }: TimelineWidgetProps) {
   }, [rows, dateCol, labelCol, descCol]);
 
   if (!dateCol || !labelCol || events.length === 0) {
-    return <p className="text-xs text-muted-foreground">{t("needColumns")}</p>;
+    return <p className="text-xs text-foreground-muted">{t("needColumns")}</p>;
   }
 
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground dark:text-muted-foreground">
+        <h4 className="text-xs font-semibold text-foreground">
           {spec.title}
         </h4>
       )}
-      <div className="max-h-80 overflow-y-auto pl-4">
-        <div className="relative border-l-2 border-divider dark:border-zinc-600">
+      <div className="max-h-80 overflow-y-auto ps-4">
+        <div className="relative border-s-2 border-divider">
           {events.map((evt, i) => (
-            <div key={i} className="relative mb-4 ml-4 last:mb-0">
+            <div key={i} className="relative mb-4 ms-4 last:mb-0">
               {/* Dot */}
               <div
                 className={cn(
@@ -91,7 +91,7 @@ export function TimelineWidget({ spec, data }: TimelineWidgetProps) {
                 )}
               />
               {/* Date */}
-              <p className="text-2xs font-medium text-muted-foreground">
+              <p className="text-2xs font-medium text-foreground-muted">
                 {formatDate(evt.date)}
               </p>
               {/* Label */}
@@ -100,7 +100,7 @@ export function TimelineWidget({ spec, data }: TimelineWidgetProps) {
               </p>
               {/* Description */}
               {evt.description && (
-                <p className="mt-0.5 text-[11px] text-foreground-muted">
+                <p className="mt-0.5 text-2xs text-foreground-muted">
                   {evt.description}
                 </p>
               )}
@@ -108,7 +108,7 @@ export function TimelineWidget({ spec, data }: TimelineWidgetProps) {
           ))}
         </div>
       </div>
-      <p className="text-2xs text-muted-foreground">{t("eventsCount", { count: events.length })}</p>
+      <p className="text-2xs text-foreground-muted">{t("eventsCount", { count: events.length })}</p>
     </div>
   );
 }

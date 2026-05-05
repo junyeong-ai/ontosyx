@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { usePrompt } from "@/components/providers/prompt-provider";
+import { useFormatters } from "@/hooks/use-formatters";
 import {
   createSavedPattern,
   deleteSavedPattern,
@@ -71,6 +72,7 @@ export function SavedPatternsMenu({
 }: SavedPatternsMenuProps) {
   const t = useTranslations("workbench.queryBuilder.savedPatterns");
   const tCommon = useTranslations("common");
+  const fmt = useFormatters();
   const [isOpen, setIsOpen] = useState(false);
   const confirm = useConfirm();
   const prompt = usePrompt();
@@ -217,10 +219,10 @@ export function SavedPatternsMenu({
 
   return (
     <>
-      <button
+      <button type="button"
         onClick={handleSave}
         disabled={disabled || noOntology}
-        className="flex items-center gap-1 rounded px-2 py-0.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-surface-inset disabled:opacity-40"
+        className="flex items-center gap-1 rounded px-2 py-0.5 text-2xs font-medium text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset disabled:opacity-40"
         title={
           currentId
             ? isDirty
@@ -237,26 +239,26 @@ export function SavedPatternsMenu({
           />
         )}
       </button>
-      <button
+      <button type="button"
         onClick={handleSaveAs}
         disabled={disabled || noOntology}
-        className="rounded px-2 py-0.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-surface-inset disabled:opacity-40"
+        className="rounded px-2 py-0.5 text-2xs font-medium text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset disabled:opacity-40"
         title={t("saveAsTitle")}
       >
         {t("saveAs")}
       </button>
 
       <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <PopoverTrigger className="cursor-pointer rounded px-2 py-0.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-surface-inset disabled:opacity-40">
+        <PopoverTrigger className="cursor-pointer rounded px-2 py-0.5 text-2xs font-medium text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset disabled:opacity-40">
           {t("library")}
         </PopoverTrigger>
-        <PopoverContent className="z-50 max-h-[70vh] w-72 overflow-auto rounded-lg border border-divider bg-surface-base p-2 shadow-lg">
+        <PopoverContent className="z-popover max-h-[70vh] w-72 overflow-auto rounded-lg border border-divider bg-surface-base p-2 shadow-3">
           <div className="flex items-center justify-between px-1 pb-2">
-            <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
               {t("listTitle")}
             </span>
             <div className="flex items-center gap-1">
-              <button
+              <button type="button"
                 onClick={() => {
                   onNewPattern();
                   setIsOpen(false);
@@ -266,7 +268,7 @@ export function SavedPatternsMenu({
               >
                 {t("newPattern")}
               </button>
-              <button
+              <button type="button"
                 onClick={() => {
                   setIsOpen(false);
                   void handleSaveAs();
@@ -281,13 +283,13 @@ export function SavedPatternsMenu({
           </div>
 
           {noOntology ? (
-            <div className="p-2 text-xs text-muted-foreground">
+            <div className="p-2 text-xs text-foreground-muted">
               {t("loadOntologyHint")}
             </div>
           ) : loading ? (
-            <div className="p-2 text-xs text-muted-foreground">{tCommon("loading")}</div>
+            <div className="p-2 text-xs text-foreground-muted">{tCommon("loading")}</div>
           ) : items.length === 0 ? (
-            <div className="p-2 text-xs text-muted-foreground">
+            <div className="p-2 text-xs text-foreground-muted">
               {t("empty")}
             </div>
           ) : (
@@ -297,7 +299,7 @@ export function SavedPatternsMenu({
                   key={p.id}
                   className={`group flex items-center justify-between rounded px-2 py-1.5 text-xs ${
                     p.id === currentId
-                      ? "bg-brand-surface text-brand-foreground-strong-strong"
+                      ? "bg-brand-surface text-brand-foreground-strong"
                       : "hover:bg-surface-inset"
                   }`}
                 >
@@ -307,12 +309,12 @@ export function SavedPatternsMenu({
                       onLoad(p);
                       setIsOpen(false);
                     }}
-                    className="flex flex-1 flex-col text-left"
+                    className="flex flex-1 flex-col text-start"
                     title={t("loadTitle", { name: p.name })}
                   >
                     <span className="truncate font-medium">{p.name}</span>
-                    <span className="text-2xs text-muted-foreground">
-                      {new Date(p.updated_at).toLocaleString()}
+                    <span className="text-2xs text-foreground-muted">
+                      {fmt.date(p.updated_at)}
                     </span>
                   </button>
                   <button
@@ -321,7 +323,7 @@ export function SavedPatternsMenu({
                       e.stopPropagation();
                       void handleDelete(p);
                     }}
-                    className="ml-2 rounded px-1.5 py-0.5 text-2xs text-muted-foreground opacity-0 transition-opacity hover:bg-danger-surface hover:text-danger-foreground group-hover:opacity-100 dark:hover:bg-danger-surface dark:hover:text-danger-foreground"
+                    className="ms-2 rounded px-1.5 py-0.5 text-2xs text-foreground-muted opacity-0 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-danger-surface hover:text-danger-foreground group-hover:opacity-100"
                     title={t("deleteTitle")}
                   >
                     {t("deleteTitle")}

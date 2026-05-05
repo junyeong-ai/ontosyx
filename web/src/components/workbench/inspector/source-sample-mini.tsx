@@ -18,6 +18,7 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
 import { useAppStore } from "@/lib/store";
+import { useFormatters } from "@/hooks/use-formatters";
 import type { ColumnStats, SourceProfile, TableProfile } from "@/types/api";
 
 interface Props {
@@ -58,6 +59,7 @@ function buildSampleRows(stats: ColumnStats[]): string[][] {
 
 export function SourceSampleMini({ tableName }: Props) {
   const t = useTranslations("inspector.sourceSample");
+  const fmt = useFormatters();
   const project = useAppStore((s) => s.activeProject);
   const profile = (project?.source_profile ?? null) as SourceProfile | null;
   const tableProfile = useMemo(
@@ -78,15 +80,15 @@ export function SourceSampleMini({ tableName }: Props) {
       className="rounded border border-divider bg-surface-base text-xs"
       open
     >
-      <summary className="cursor-pointer select-none border-b border-divider-soft px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <summary className="cursor-pointer select-none border-b border-divider-soft px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
         {t("title", {
           table: tableName,
-          rowCount: rowCount.toLocaleString(),
+          rowCount: fmt.number(rowCount),
         })}
       </summary>
 
       {rows.length === 0 ? (
-        <p className="px-2 py-2 text-2xs text-muted-foreground">
+        <p className="px-2 py-2 text-2xs text-foreground-muted">
           {t("noSamples")}
         </p>
       ) : (
@@ -97,7 +99,7 @@ export function SourceSampleMini({ tableName }: Props) {
                 {stats.map((c) => (
                   <th
                     key={c.column_name}
-                    className="border-b border-divider px-2 py-1 text-left font-mono font-medium text-foreground-muted"
+                    className="border-b border-divider px-2 py-1 text-start font-mono font-medium text-foreground-muted"
                   >
                     {c.column_name}
                   </th>
@@ -106,7 +108,7 @@ export function SourceSampleMini({ tableName }: Props) {
             </thead>
             <tbody>
               {rows.map((row, i) => (
-                <tr key={i} className="even:bg-surface-raised dark:even:bg-surface-base/50">
+                <tr key={i} className="even:bg-surface-raised:bg-surface-base/50">
                   {row.map((cell, j) => (
                     <td
                       key={j}
@@ -141,7 +143,7 @@ export function SourceSampleMini({ tableName }: Props) {
             </span>
             {c.pii_redacted ? (
               <span
-                className="rounded bg-danger-surface px-1.5 py-0.5 font-medium text-danger-foreground dark:text-danger-foreground"
+                className="rounded bg-danger-surface px-1.5 py-0.5 font-medium text-danger-foreground"
                 title={t("piiRedactedTooltip")}
               >
                 {t("piiRedactedBadge", {
@@ -149,10 +151,10 @@ export function SourceSampleMini({ tableName }: Props) {
                 })}
               </span>
             ) : (
-              <span className="text-muted-foreground">
+              <span className="text-foreground-muted">
                 {t("distribution", {
-                  distinct: c.distinct_count.toLocaleString(),
-                  nulls: c.null_count.toLocaleString(),
+                  distinct: fmt.number(c.distinct_count),
+                  nulls: fmt.number(c.null_count),
                 })}
               </span>
             )}

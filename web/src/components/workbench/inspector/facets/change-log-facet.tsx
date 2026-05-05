@@ -40,18 +40,18 @@ export function ChangeLogFacet({ ontology, entity, kind }: ChangeLogFacetProps) 
     .filter((row): row is ChangeRow => row !== null);
 
   if (audit.isLoading && records.length === 0) {
-    return <p className="text-[11px] italic text-muted-foreground">{t("loading")}</p>;
+    return <p className="text-2xs italic text-foreground-muted">{t("loading")}</p>;
   }
   if (audit.isError) {
     return (
-      <p className="text-[11px] text-danger-foreground dark:text-danger-foreground">
+      <p className="text-2xs text-danger-foreground">
         {t("loadError")}
       </p>
     );
   }
   if (records.length === 0) {
     return (
-      <p className="text-[11px] italic text-muted-foreground">
+      <p className="text-2xs italic text-foreground-muted">
         {t("emptyState")}
       </p>
     );
@@ -64,14 +64,14 @@ export function ChangeLogFacet({ ontology, entity, kind }: ChangeLogFacetProps) 
           key={`${row.at_time}-${idx}`}
           className="flex items-start gap-3 rounded border border-divider-soft bg-surface-raised px-3 py-2"
         >
-          <span className="shrink-0 font-mono text-2xs text-muted-foreground">
+          <span className="shrink-0 font-mono text-2xs text-foreground-muted">
             {formatRelative(row.at_time)}
           </span>
           <span className="flex flex-1 flex-col gap-0.5">
-            <span className="text-[11px] text-foreground-strong">
+            <span className="text-2xs text-foreground-strong">
               {row.summary}
             </span>
-            <span className="text-2xs text-muted-foreground">
+            <span className="text-2xs text-foreground-muted">
               {row.agent}
             </span>
           </span>
@@ -83,7 +83,7 @@ export function ChangeLogFacet({ ontology, entity, kind }: ChangeLogFacetProps) 
             type="button"
             onClick={() => audit.fetchNextPage()}
             disabled={audit.isFetchingNextPage}
-            className="text-[11px] text-concept-foreground hover:underline disabled:opacity-50"
+            className="text-2xs text-concept-foreground hover:underline disabled:opacity-50"
           >
             {audit.isFetchingNextPage ? t("loadingMore") : t("loadMore")}
           </button>

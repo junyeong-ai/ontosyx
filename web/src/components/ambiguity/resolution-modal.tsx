@@ -8,15 +8,24 @@
 // about persistence — the parent fires `useResolveAmbiguity` with
 // the finalised payload.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { FormInput } from "@/components/ui/form-input";
+import { useFormWithSchema } from "@/hooks/use-form-with-schema";
 import type {
   AmbiguityContext,
   AmbiguityMapping,
   AmbiguityResolution,
 } from "@/lib/api/ambiguity";
+
+import {
+  AmbiguityMappingFormSchema,
+  toAmbiguityMapping,
+  type ValidatedAmbiguityMapping,
+} from "./ambiguity-mapping-schema";
 
 type Mode = "value_map" | "code_system_ref" | "glossary_ref";
 
@@ -38,7 +47,7 @@ export function ResolutionModal({
   onCancel,
   busy,
 }: ResolutionModalProps) {
-  const t = useTranslations("settings.ambiguity.modal");
+  const t = useTranslations("settings.quality.ambiguity.modal");
 
   // Derive the initial mode from the active resolution's mapping, if
   // any; default to ValueMap (the most common / flexible shape).
@@ -87,48 +96,47 @@ export function ResolutionModal({
     setEntries(initialEntries);
   }, [initialEntries]);
 
+  const onValid = useCallback(
+    (validated: ValidatedAmbiguityMapping) => {
+      onSubmit(toAmbiguityMapping(validated));
+    },
+    [onSubmit],
+  );
+
+  const { errors, submit, clearErrors } = useFormWithSchema({
+    schema: AmbiguityMappingFormSchema,
+    onValid,
+  });
+
   const handleSubmit = () => {
     if (mode === "value_map") {
-      const filtered = entries.filter(
-        (e) => e.value.trim() !== "" && e.display.trim() !== "",
-      );
-      if (filtered.length === 0) {
-        toast.error(t("errors.valueMapEmpty"));
-        return;
-      }
-      onSubmit({
-        kind: "value_map",
-        entries: filtered.map((e) => ({
-          value: e.value,
-          display: e.display,
-          definition: e.definition.trim() ? e.definition : undefined,
-        })),
-      });
+      void submit({ kind: "value_map", entries });
       return;
     }
     if (mode === "code_system_ref") {
-      if (!codeSystemId.trim()) {
-        toast.error(t("errors.codeSystemRequired"));
-        return;
-      }
-      onSubmit({ kind: "code_system_ref", code_system_id: codeSystemId.trim() });
+      void submit({ kind: "code_system_ref", code_system_id: codeSystemId });
       return;
     }
-    if (!termId.trim()) {
-      toast.error(t("errors.termRequired"));
-      return;
-    }
-    onSubmit({ kind: "glossary_ref", term_id: termId.trim() });
+    void submit({ kind: "glossary_ref", term_id: termId });
   };
+
+  const localizeError = (key: string | undefined) =>
+    key ? t(key) : undefined;
+  const valueMapError = localizeError(errors.entries ?? errors._form);
+  const codeSystemError = localizeError(errors.code_system_id);
+  const termError = localizeError(errors.term_id);
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="ambiguity-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-surface-base/40 p-4 backdrop-blur-sm"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onCancel();
+      }}
+      className="fixed inset-0 z-modal flex items-center justify-center bg-[var(--color-surface-overlay)] p-4 backdrop-blur-sm"
     >
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-divider bg-surface-base shadow-xl">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-divider bg-surface-base shadow-4">
         {/* Header */}
         <header className="border-b border-divider px-5 py-3">
           <h2
@@ -140,7 +148,7 @@ export function ResolutionModal({
               column: context.column.column,
             })}
           </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-foreground-muted">
             {context.clarification_prompt}
           </p>
         </header>
@@ -150,69 +158,80 @@ export function ResolutionModal({
           {/* Mode switcher */}
           <fieldset className="mb-4 flex gap-2" aria-label={t("modeLabel")}>
             {(["value_map", "code_system_ref", "glossary_ref"] as const).map((m) => (
-              <label
+              <button
                 key={m}
-                className={`cursor-pointer rounded border px-3 py-1.5 ${
+                type="button"
+                role="radio"
+                aria-checked={mode === m}
+                onClick={() => {
+                  setMode(m);
+                  clearErrors();
+                }}
+                className={`cursor-pointer rounded border px-3 py-1.5 text-start ${
                   mode === m
                     ? "border-concept-foreground bg-concept-surface text-concept-foreground"
-                    : "border-divider bg-surface-base text-muted-foreground hover:bg-surface-raised dark:hover:bg-surface-base"
+                    : "border-divider bg-surface-base text-foreground-muted hover:bg-surface-raised"
                 }`}
               >
-                <input
-                  type="radio"
-                  name="mode"
-                  value={m}
-                  checked={mode === m}
-                  onChange={() => setMode(m)}
-                  className="sr-only"
-                />
                 {t(`mode.${m}`)}
-              </label>
+              </button>
             ))}
           </fieldset>
 
           {mode === "value_map" && (
-            <ValueMapEditor entries={entries} onChange={setEntries} />
+            <>
+              <ValueMapEditor
+                entries={entries}
+                onChange={(next) => {
+                  setEntries(next);
+                  clearErrors();
+                }}
+              />
+              {valueMapError && (
+                <p
+                  role="alert"
+                  className="mt-2 text-2xs text-danger-foreground"
+                >
+                  {valueMapError}
+                </p>
+              )}
+            </>
           )}
           {mode === "code_system_ref" && (
-            <div className="space-y-1">
-              <label
-                htmlFor="code-system-id"
-                className="block text-[11px] font-medium text-foreground"
-              >
-                {t("codeSystemIdLabel")}
-              </label>
-              <input
-                id="code-system-id"
+            <FormField
+              label={t("codeSystemIdLabel")}
+              error={codeSystemError}
+              hint={t("codeSystemHint")}
+            >
+              <FormInput
                 value={codeSystemId}
-                onChange={(e) => setCodeSystemId(e.target.value)}
+                onChange={(e) => {
+                  setCodeSystemId(e.target.value);
+                  clearErrors("code_system_id");
+                }}
+                // i18n-audit-ignore — code-system slug example, language-neutral identifier
                 placeholder="cs-order-status"
-                className="w-full rounded border border-divider bg-surface-base px-2 py-1.5 text-xs dark:border-divider"
+                error={!!codeSystemError}
               />
-              <p className="mt-1 text-2xs text-muted-foreground">
-                {t("codeSystemHint")}
-              </p>
-            </div>
+            </FormField>
           )}
           {mode === "glossary_ref" && (
-            <div className="space-y-1">
-              <label
-                htmlFor="term-id"
-                className="block text-[11px] font-medium text-foreground"
-              >
-                {t("termIdLabel")}
-              </label>
-              <input
-                id="term-id"
+            <FormField
+              label={t("termIdLabel")}
+              error={termError}
+              hint={t("termHint")}
+            >
+              <FormInput
                 value={termId}
-                onChange={(e) => setTermId(e.target.value)}
+                onChange={(e) => {
+                  setTermId(e.target.value);
+                  clearErrors("term_id");
+                }}
+                // i18n-audit-ignore — glossary-term slug example, language-neutral identifier
                 placeholder="g-vip-tier"
-                className="w-full rounded border border-divider bg-surface-base px-2 py-1.5 text-xs dark:border-divider"
+                error={!!termError}
               />
-              <p className="mt-1 text-2xs text-muted-foreground">
-                {t("termHint")}
-              </p>
-            </div>
+            </FormField>
           )}
 
           {context.repo_hint && (
@@ -220,7 +239,7 @@ export function ResolutionModal({
               <p className="font-medium text-warning-foreground">
                 {t("repoHintLabel")}
               </p>
-              <p className="mt-0.5 text-muted-foreground">
+              <p className="mt-0.5 text-foreground-muted">
                 {context.repo_hint.source_file}
               </p>
               <pre className="mt-1 whitespace-pre-wrap font-mono text-2xs">
@@ -232,21 +251,18 @@ export function ResolutionModal({
 
         {/* Footer */}
         <footer className="flex items-center justify-end gap-2 border-t border-divider px-5 py-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-surface-inset dark:hover:bg-surface-base"
-          >
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
             {t("cancel")}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="primary"
+            size="sm"
             onClick={handleSubmit}
-            disabled={busy}
-            className="rounded bg-concept-foreground px-3 py-1.5 text-xs font-medium text-white hover:bg-concept-foreground disabled:opacity-50"
+            loading={busy}
           >
-            {busy ? t("saving") : t("save")}
-          </button>
+            {t("save")}
+          </Button>
         </footer>
       </div>
     </div>
@@ -260,10 +276,10 @@ function ValueMapEditor({
   entries: Array<{ value: string; display: string; definition: string }>;
   onChange: (next: typeof entries) => void;
 }) {
-  const t = useTranslations("settings.ambiguity.modal");
+  const t = useTranslations("settings.quality.ambiguity.modal");
   return (
     <div className="space-y-1.5">
-      <div className="grid grid-cols-[1fr_1fr_2fr_24px] gap-2 text-2xs font-medium text-muted-foreground">
+      <div className="grid grid-cols-[1fr_1fr_2fr_24px] gap-2 text-2xs font-medium text-foreground-muted">
         <span>{t("valueHeader")}</span>
         <span>{t("displayHeader")}</span>
         <span>{t("definitionHeader")}</span>
@@ -274,7 +290,7 @@ function ValueMapEditor({
           key={idx}
           className="grid grid-cols-[1fr_1fr_2fr_24px] gap-2"
         >
-          <input
+          <FormInput
             aria-label={t("valueInput", { index: idx + 1 })}
             value={e.value}
             onChange={(ev) => {
@@ -282,9 +298,9 @@ function ValueMapEditor({
               next[idx] = { ...e, value: ev.target.value };
               onChange(next);
             }}
-            className="rounded border border-divider bg-surface-base px-1.5 py-1 dark:border-divider"
+            className="px-1.5 py-1"
           />
-          <input
+          <FormInput
             aria-label={t("displayInput", { index: idx + 1 })}
             value={e.display}
             onChange={(ev) => {
@@ -292,9 +308,9 @@ function ValueMapEditor({
               next[idx] = { ...e, display: ev.target.value };
               onChange(next);
             }}
-            className="rounded border border-divider bg-surface-base px-1.5 py-1 dark:border-divider"
+            className="px-1.5 py-1"
           />
-          <input
+          <FormInput
             aria-label={t("definitionInput", { index: idx + 1 })}
             value={e.definition}
             onChange={(ev) => {
@@ -302,13 +318,13 @@ function ValueMapEditor({
               next[idx] = { ...e, definition: ev.target.value };
               onChange(next);
             }}
-            className="rounded border border-divider bg-surface-base px-1.5 py-1 dark:border-divider"
+            className="px-1.5 py-1"
           />
           <button
             type="button"
             onClick={() => onChange(entries.filter((_, i) => i !== idx))}
             aria-label={t("removeRow", { index: idx + 1 })}
-            className="rounded text-muted-foreground hover:text-danger-foreground"
+            className="rounded text-foreground-muted hover:text-danger-foreground"
           >
             ×
           </button>

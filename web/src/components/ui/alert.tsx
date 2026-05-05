@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Alert01Icon,
@@ -13,20 +14,22 @@ type AlertVariant = "info" | "success" | "warning" | "error";
 
 const variantStyles: Record<AlertVariant, { container: string; icon: string }> = {
   info: {
-    container: "border-info-border bg-info-surface text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
-    icon: "text-sky-500",
+    container: "border-info-border bg-info-surface text-info-foreground",
+    icon: "text-info-foreground",
   },
   success: {
-    container: "border-brand-border bg-brand-surface text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
-    icon: "text-emerald-500",
+    container:
+      "border-brand-border bg-brand-surface text-brand-foreground-strong",
+    icon: "text-brand-foreground",
   },
   warning: {
-    container: "border-warning-border bg-warning-surface text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
-    icon: "text-amber-500",
+    container:
+      "border-warning-border bg-warning-surface text-warning-foreground",
+    icon: "text-warning-foreground",
   },
   error: {
-    container: "border-danger-border bg-danger-surface text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300",
-    icon: "text-red-500",
+    container: "border-danger-border bg-danger-surface text-danger-foreground",
+    icon: "text-danger-foreground",
   },
 };
 
@@ -45,7 +48,14 @@ interface AlertProps {
   onDismiss?: () => void;
 }
 
-export function Alert({ variant = "info", title, children, className, onDismiss }: AlertProps) {
+export function Alert({
+  variant = "info",
+  title,
+  children,
+  className,
+  onDismiss,
+}: AlertProps) {
+  const t = useTranslations("common.alert");
   const styles = variantStyles[variant];
   const Icon = variantIcons[variant];
 
@@ -58,16 +68,21 @@ export function Alert({ variant = "info", title, children, className, onDismiss 
         className,
       )}
     >
-      <HugeiconsIcon icon={Icon} className={cn("mt-0.5 h-4 w-4 shrink-0", styles.icon)} size="100%" />
+      <HugeiconsIcon
+        icon={Icon}
+        className={cn("mt-0.5 h-4 w-4 shrink-0", styles.icon)}
+        size="100%"
+      />
       <div className="min-w-0 flex-1">
         {title && <p className="mb-0.5 font-semibold">{title}</p>}
         <div className="text-xs leading-relaxed">{children}</div>
       </div>
       {onDismiss && (
         <button
+          type="button"
           onClick={onDismiss}
-          className="shrink-0 rounded p-0.5 opacity-60 transition-opacity hover:opacity-100"
-          aria-label="Dismiss"
+          className="shrink-0 rounded p-0.5 opacity-60 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:opacity-100"
+          aria-label={t("dismiss")}
         >
           <HugeiconsIcon icon={Cancel01Icon} className="h-3.5 w-3.5" size="100%" />
         </button>

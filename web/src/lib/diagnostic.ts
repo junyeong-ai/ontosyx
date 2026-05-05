@@ -93,13 +93,17 @@ export function useDiagnosticResolver(
         diagnostic.params ?? {},
         localeChain,
       );
-      // `next-intl` types the key as a literal union derived from
-      // the catalogue tree; diagnostic codes are stringly-typed by
-      // design (open extension point for new BE diagnostics) so we
-      // widen here. The `catalogueHasKey` check above guarantees
-      // the lookup will succeed.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return t(diagnostic.code as any, resolvedParams as any);
+      // `next-intl`'s `t` is over-typed for the diagnostic catalogue —
+      // its key parameter is a literal-union derived from the static
+      // tree, while diagnostic codes are runtime strings (the catalogue
+      // is the open extension point for new BE diagnostics). Cast `t`
+      // once at the boundary into a string-keyed dispatcher; the
+      // `catalogueHasKey` guard above ensures the lookup succeeds.
+      const tDynamic = t as unknown as (
+        key: string,
+        params?: Record<string, unknown>,
+      ) => string;
+      return tDynamic(diagnostic.code, resolvedParams);
     },
     [t, messages, localeChain],
   );
@@ -121,7 +125,7 @@ function pickShMessage(
     const value = params[`sh_message_${tag}`];
     if (typeof value === "string" && value.length > 0) return value;
   }
-  const fallback = params["sh_message_default"];
+  const fallback = params.sh_message_default;
   return typeof fallback === "string" && fallback.length > 0 ? fallback : null;
 }
 

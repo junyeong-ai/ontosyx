@@ -1,9 +1,9 @@
+"use client";
+
 // `useEntityLock` — read-only view of an entity's current lock
 // state for a given project. Surfaces a discriminated union so
 // inspectors / cards can branch on `unlocked`, `locked-by-me`, or
 // `locked-by-other` without reaching into the raw store value.
-
-"use client";
 
 import { useMemo } from "react";
 

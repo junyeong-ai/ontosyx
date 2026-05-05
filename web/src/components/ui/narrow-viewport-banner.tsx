@@ -41,11 +41,11 @@ export function NarrowViewportBanner() {
   return (
     <div
       role="status"
-      className="fixed inset-x-3 bottom-3 z-40 flex items-start gap-3 rounded-lg border border-warning-border bg-warning-surface px-4 py-3 text-xs shadow-lg lg:hidden"
+      className="fixed inset-x-3 bottom-3 z-banner flex items-start gap-3 rounded-lg border border-warning-border bg-warning-surface px-4 py-3 text-xs shadow-3 lg:hidden"
     >
       <div className="flex-1">
         <p className="font-medium text-warning-foreground">{t("title")}</p>
-        <p className="mt-0.5 text-warning-foreground/80">{t("description")}</p>
+        <p className="mt-0.5 text-warning-foreground">{t("description")}</p>
       </div>
       <button
         type="button"

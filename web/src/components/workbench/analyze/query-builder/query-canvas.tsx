@@ -80,14 +80,14 @@ function QueryNodeRenderer({ data }: NodeProps & { data: QueryNodeData }) {
   const borderClass = data.hasError
     ? "border-danger-border bg-danger-surface/30"
     : data.selected
-      ? "border-brand-foreground bg-brand-surface dark:border-brand-foreground"
-      : "border-divider hover:border-brand-border dark:hover:border-brand-border";
+      ? "border-brand-foreground bg-brand-surface"
+      : "border-divider hover:border-brand-border";
 
   return (
     <div
-      className={`group/node relative cursor-pointer rounded-xl border-2 bg-surface-base px-4 py-3 text-left shadow-sm transition-all ${borderClass} ${
+      className={`group/node relative cursor-pointer rounded-xl border-2 bg-surface-base px-4 py-3 text-start shadow-1 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] ${borderClass} ${
         data.hasError && data.selected
-          ? "ring-2 ring-brand-foreground/60 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900"
+          ? "ring-2 ring-brand-foreground/60 ring-offset-1 ring-offset-white"
           : ""
       }`}
       aria-invalid={data.hasError || undefined}
@@ -101,21 +101,21 @@ function QueryNodeRenderer({ data }: NodeProps & { data: QueryNodeData }) {
           data.onRemove();
         }}
         aria-label={data.i18n.removeAria}
-        className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-danger-solid text-2xs text-white shadow-sm group-hover/node:flex"
+        className="absolute -end-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-danger-solid text-2xs text-foreground-on-accent shadow-1 group-hover/node:flex"
         title={data.i18n.removeTitle}
       >
         &times;
       </button>
       <div className="flex items-center gap-2">
-        <div className="h-3 w-3 shrink-0 rounded-full bg-info-foreground dark:bg-info-foreground" />
+        <div className="h-3 w-3 shrink-0 rounded-full bg-info-foreground" />
         <span className="text-xs font-semibold text-foreground-strong">
           {data.label}
         </span>
       </div>
-      <div className="mt-1 text-2xs text-muted-foreground">
+      <div className="mt-1 text-2xs text-foreground-muted">
         {data.i18n.meta}
         {data.filterCount > 0 && (
-          <span className="ml-1 text-warning-foreground">{data.i18n.filters}</span>
+          <span className="ms-1 text-warning-foreground">{data.i18n.filters}</span>
         )}
       </div>
     </div>
@@ -170,12 +170,12 @@ function QueryEdgeRenderer(props: EdgeProps) {
         <div
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           aria-invalid={hasError || undefined}
-          className={`group/edge pointer-events-auto absolute flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium transition-colors ${
+          className={`group/edge pointer-events-auto absolute flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
             hasError
               ? "border-danger-border bg-danger-surface text-danger-foreground"
               : selected
                 ? "border-warning-border bg-warning-surface text-warning-foreground"
-                : "border-divider bg-surface-base text-foreground-muted hover:border-warning-border dark:border-divider dark:text-muted-foreground"
+                : "border-divider bg-surface-base text-foreground-muted hover:border-warning-border"
           }`}
         >
           <span>{data?.relType}</span>
@@ -189,7 +189,7 @@ function QueryEdgeRenderer(props: EdgeProps) {
               data?.onRemove();
             }}
             aria-label={data?.i18n.removeAria ?? ""}
-            className="ml-0.5 hidden text-muted-foreground hover:text-danger-foreground group-hover/edge:inline dark:hover:text-danger-foreground"
+            className="ms-0.5 hidden text-foreground-muted hover:text-danger-foreground group-hover/edge:inline"
             title={data?.i18n.removeTitle ?? ""}
           >
             &times;
@@ -516,19 +516,19 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-inset">
           <svg
-            className="h-5 w-5 text-muted-foreground"
+            className="h-5 w-5 text-foreground-muted"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
             strokeWidth={1.5}
-          >
+           aria-hidden="true">
             <path d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
         </div>
-        <p className="text-sm font-medium text-foreground dark:text-muted-foreground">
+        <p className="text-sm font-medium text-foreground">
           {t("emptyTitle")}
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-foreground-muted">
           {t("emptyHint")}
         </p>
       </div>

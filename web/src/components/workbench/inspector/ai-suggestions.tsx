@@ -11,7 +11,7 @@ import {
   Cancel01Icon,
   MagicWand01Icon,
 } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import type { OntologyCommand } from "@/types/api";
@@ -30,6 +30,7 @@ export function AiSuggestionRow({
   onAccept: () => void;
   onReject: () => void;
 }) {
+  const tCommon = useTranslations("common");
   const label = (() => {
     switch (cmd.op) {
       case "add_property":
@@ -57,20 +58,20 @@ export function AiSuggestionRow({
       <span className="min-w-0 flex-1 truncate text-concept-foreground">
         {label}
       </span>
-      <Tooltip content="Accept">
-        <button
+      <Tooltip content={tCommon("accept")}>
+        <button type="button"
           onClick={onAccept}
-          aria-label="Accept"
-          className="rounded p-0.5 text-brand-foreground hover:bg-brand-surface hover:text-brand-foreground dark:hover:bg-brand-surface"
+          aria-label={tCommon("accept")}
+          className="rounded p-0.5 text-brand-foreground hover:bg-brand-surface hover:text-brand-foreground"
         >
           <HugeiconsIcon icon={Tick01Icon} className="h-3 w-3" size="100%" />
         </button>
       </Tooltip>
-      <Tooltip content="Reject">
-        <button
+      <Tooltip content={tCommon("reject")}>
+        <button type="button"
           onClick={onReject}
-          aria-label="Reject"
-          className="rounded p-0.5 text-muted-foreground hover:bg-surface-inset hover:text-foreground"
+          aria-label={tCommon("reject")}
+          className="rounded p-0.5 text-foreground-muted hover:bg-surface-inset hover:text-foreground"
         >
           <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
         </button>
@@ -93,6 +94,7 @@ export function AiSuggestionList({
   onDismiss: () => void;
 }) {
   const t = useTranslations("inspector.toast");
+  const tList = useTranslations("inspector.aiSuggestions");
   const applyCommand = useAppStore((s) => s.applyCommand);
   const [remaining, setRemaining] = useState(commands);
 
@@ -115,7 +117,7 @@ export function AiSuggestionList({
     for (const cmd of remaining) {
       applyCommand(cmd);
     }
-    toast.success(`${remaining.length} suggestion(s) applied`);
+    toast.success(tList("appliedToast", { count: remaining.length }));
     onDismiss();
   };
 
@@ -138,17 +140,17 @@ export function AiSuggestionList({
       ))}
       {remaining.length > 1 && (
         <div className="flex items-center gap-1.5 px-3 py-1">
-          <button
+          <button type="button"
             onClick={handleAcceptAll}
-            className="rounded bg-concept-foreground px-2 py-0.5 text-2xs font-medium text-white hover:bg-concept-foreground"
+            className="rounded bg-concept-foreground px-2 py-0.5 text-2xs font-medium text-foreground-onbrand hover:bg-concept-foreground"
           >
-            Accept All ({remaining.length})
+            {tList("acceptAll", { count: remaining.length })}
           </button>
-          <button
+          <button type="button"
             onClick={onDismiss}
-            className="rounded px-2 py-0.5 text-2xs text-muted-foreground hover:bg-surface-inset"
+            className="rounded px-2 py-0.5 text-2xs text-foreground-muted hover:bg-surface-inset"
           >
-            Dismiss
+            {tList("dismiss")}
           </button>
         </div>
       )}
@@ -219,11 +221,11 @@ export function AiAssistButton({
 }) {
   return (
     <Tooltip content={tooltip}>
-      <button
+      <button type="button"
         onClick={onClick}
         disabled={loading}
         aria-label={tooltip}
-        className="rounded p-0.5 text-concept-foreground hover:bg-concept-surface hover:text-concept-foreground disabled:opacity-50 dark:hover:bg-concept-surface"
+        className="rounded p-0.5 text-concept-foreground hover:bg-concept-surface hover:text-concept-foreground disabled:opacity-50"
       >
         {loading ? (
           <Spinner size="xs" />

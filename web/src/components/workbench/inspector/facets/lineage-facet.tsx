@@ -64,7 +64,7 @@ export function LineageFacet({
 
   if (isLoading) {
     return (
-      <p className="text-[11px] italic text-muted-foreground">
+      <p className="text-2xs italic text-foreground-muted">
         {t("loading")}
       </p>
     );
@@ -75,7 +75,7 @@ export function LineageFacet({
       {showOutbound && (
         <div className="space-y-1">
           {direction === undefined && (
-            <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
               {t("outboundHeader")}
             </h3>
           )}
@@ -89,7 +89,7 @@ export function LineageFacet({
       {showInbound && (
         <div className="space-y-1">
           {direction === undefined && (
-            <h3 className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
               {t("inboundHeader")}
             </h3>
           )}

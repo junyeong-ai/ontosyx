@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { emptyImportValue, type SourceImportValue } from "@/components/workbench/source-import-panel";
 import type { DesignSource, LoadPlan } from "@/types/api";
@@ -52,10 +52,16 @@ export function useWorkflowFormState(projectId: string | undefined, projectTitle
     emptyImportValue(),
   );
 
-  // ---------------------------------------------------------------------------
-  // Reset transient state when switching projects
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
+  // Reset transient state when switching projects via the
+  // tracked-key idiom — conditional setState during render is the
+  // React-19-blessed alternative to a setState-in-effect ladder.
+  // Reads the prior key from state, compares to the current
+  // `projectId`, and on mismatch updates the tracker plus every
+  // dependent slice in one render pass. Subsequent renders see
+  // matched ids and skip the reset.
+  const [trackedProjectId, setTrackedProjectId] = useState(projectId);
+  if (trackedProjectId !== projectId) {
+    setTrackedProjectId(projectId);
     setDeployPreview(null);
     setDeployOnComplete(false);
     setLoadPlan(null);
@@ -64,8 +70,7 @@ export function useWorkflowFormState(projectId: string | undefined, projectTitle
     setReanalyzeModeledOnly(false);
     setShowExtend(false);
     setExtendImport(emptyImportValue());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+  }
 
   return {
     design: { designContext, setDesignContext },

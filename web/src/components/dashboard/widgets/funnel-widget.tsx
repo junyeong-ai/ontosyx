@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { PALETTE_PRIMARY } from "./chart-utils";
+import { useFormatters } from "@/hooks/use-formatters";
 
 interface FunnelWidgetProps {
   spec: WidgetSpec;
@@ -30,6 +31,7 @@ function findColumn(columns: string[], patterns: string[], rows: QueryResult["ro
 
 export function FunnelWidget({ spec, data }: FunnelWidgetProps) {
   const t = useTranslations("widget.funnel");
+  const fmt = useFormatters();
   const { columns, rows } = data;
 
   const stageCol = useMemo(
@@ -50,7 +52,7 @@ export function FunnelWidget({ spec, data }: FunnelWidgetProps) {
   }, [rows, stageCol, valueCol]);
 
   if (!stageCol || !valueCol || stages.length === 0) {
-    return <p className="text-xs text-muted-foreground">{t("needColumns")}</p>;
+    return <p className="text-xs text-foreground-muted">{t("needColumns")}</p>;
   }
 
   const maxValue = Math.max(...stages.map((s) => s.value), 1);
@@ -58,7 +60,7 @@ export function FunnelWidget({ spec, data }: FunnelWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-foreground dark:text-muted-foreground">
+        <h4 className="text-xs font-semibold text-foreground">
           {spec.title}
         </h4>
       )}
@@ -77,35 +79,35 @@ export function FunnelWidget({ spec, data }: FunnelWidgetProps) {
               <div className="flex flex-1 flex-col items-center">
                 {/* Conversion arrow */}
                 {conversionRate && (
-                  <div className="mb-0.5 text-2xs font-medium text-muted-foreground">
+                  <div className="mb-0.5 text-2xs font-medium text-foreground-muted">
                     {conversionRate}%
                   </div>
                 )}
                 {/* Bar */}
                 <div
-                  className="mx-auto flex items-center justify-center rounded-md py-2 transition-all"
+                  className="mx-auto flex items-center justify-center rounded-md py-2 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]"
                   style={{
                     width: `${widthPct}%`,
                     backgroundColor: color,
                     minHeight: 32,
                   }}
                 >
-                  <span className="truncate px-2 text-[11px] font-semibold text-white">
+                  <span className="truncate px-2 text-2xs font-semibold text-foreground-onbrand">
                     {stage.name}
                   </span>
                 </div>
               </div>
               {/* Value label */}
-              <div className="w-16 shrink-0 text-right">
+              <div className="w-16 shrink-0 text-end">
                 <span className="text-xs font-medium text-foreground">
-                  {stage.value.toLocaleString()}
+                  {fmt.number(stage.value)}
                 </span>
               </div>
             </div>
           );
         })}
       </div>
-      <p className="text-2xs text-muted-foreground">{t("stagesCount", { count: stages.length })}</p>
+      <p className="text-2xs text-foreground-muted">{t("stagesCount", { count: stages.length })}</p>
     </div>
   );
 }

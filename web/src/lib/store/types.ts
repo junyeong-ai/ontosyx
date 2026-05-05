@@ -66,6 +66,11 @@ export interface ChatMessage {
 // Workspace mode — top-level layout orchestrator
 // ---------------------------------------------------------------------------
 
+// `WorkspaceMode` is the id of a top-level workbench surface. The
+// seven defaults below ship pre-registered with the workbench-mode
+// registry; plugin extensions can register additional ids — the
+// `(string & {})` widening keeps editor autocomplete on the literal
+// defaults while accepting any extension-supplied id.
 export type WorkspaceMode =
   | "design"
   | "analyze"
@@ -73,7 +78,8 @@ export type WorkspaceMode =
   | "dashboard"
   | "glossary"
   | "vocabulary"
-  | "recipes";
+  | "recipes"
+  | (string & {});
 
 // ---------------------------------------------------------------------------
 // Design mode sub-tabs (bottom panel within Design workspace)
@@ -98,11 +104,27 @@ export type AnalyzeRightTab = "results" | "query" | "history" | "insights" | "kn
 // Unified selection model
 // ---------------------------------------------------------------------------
 
-export type Selection =
-  | { type: "none" }
-  | { type: "node"; nodeId: string }
-  | { type: "edge"; edgeId: string }
-  | { type: "widget"; widgetId: string };
+export type SelectionKind = "node" | "edge" | "widget";
+
+export interface SelectionRef {
+  kind: SelectionKind;
+  id: string;
+}
+
+/**
+ * Multi-entity selection. `refs` is in click order: the *last* entry
+ * is the "primary" — the inspector focuses on it, the canvas pans
+ * to it, and shift-extension uses it as the anchor. Empty `refs`
+ * means nothing is selected.
+ *
+ * The model is intentionally unbounded — graph workflows often
+ * involve "select these 12 NodeTypes and bulk-tag them" — so there
+ * is no hard cap. Consumers wanting "is X selected?" use the
+ * `selectionContains` helper.
+ */
+export interface Selection {
+  refs: SelectionRef[];
+}
 
 // ---------------------------------------------------------------------------
 // Command stack entry (for undo/redo)
@@ -245,6 +267,27 @@ export interface ChromeSlice {
   bottomPanelMode: BottomPanelMode;
   setBottomPanelMode: (mode: BottomPanelMode) => void;
   cycleBottomPanelMode: () => void;
+  /**
+   * Sidebar layout density. `rail` (default) is the icon-only
+   * 48px-wide column; `expanded` widens the sidebar to show
+   * labels next to each icon — the trade is screen real-estate
+   * vs. discoverability for keyboard-light users. Toggled with
+   * `[`; persisted across sessions.
+   */
+  sidebarMode: "rail" | "expanded";
+  toggleSidebarMode: () => void;
+
+  /**
+   * Inspector tab memory keyed by entity kind (`node_type`,
+   * `edge_type`, …). Switching between two NodeTypes preserves the
+   * active tab — if you opened Quality on one node, the next node
+   * opens at Quality too. NodeType ↔ EdgeType crosses kinds and reads
+   * each kind's own memory. Defaults to `"definition"` the first time
+   * a kind is opened. Persisted across sessions so a power-user
+   * workflow ("always review Quality") survives a reload.
+   */
+  inspectorTabByKind: Record<string, string>;
+  setInspectorTab: (kind: string, tab: string) => void;
 
   // Analyze mode
   analyzeRightTab: AnalyzeRightTab;
@@ -261,7 +304,26 @@ export interface ChromeSlice {
 
 export interface SelectionSlice {
   selection: Selection;
-  select: (selection: Selection) => void;
+  /**
+   * Replace the selection with a single ref (single-click). Pass
+   * `null` to clear. This is the right call for the common case;
+   * the toggle / extend variants exist for modifier-click flows.
+   */
+  selectOne: (ref: SelectionRef | null) => void;
+  /**
+   * Toggle a ref in the selection (cmd / ctrl-click). The ref
+   * either drops out (if already selected) or is appended; either
+   * way the visible primary updates predictably.
+   */
+  toggleSelection: (ref: SelectionRef) => void;
+  /**
+   * Append refs to the selection without disturbing existing ones
+   * (rubber-band drag, "select all of this kind"). Refs already
+   * in the selection are skipped — order is preserved.
+   */
+  extendSelection: (refs: readonly SelectionRef[]) => void;
+  /** Replace the selection wholesale with the supplied list. */
+  selectMany: (refs: readonly SelectionRef[]) => void;
   clearSelection: () => void;
   neighborhoodFocus: NeighborhoodFocus | null;
   setNeighborhoodFocus: (focus: NeighborhoodFocus | null) => void;

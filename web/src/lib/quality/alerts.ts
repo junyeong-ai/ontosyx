@@ -36,7 +36,7 @@ export interface ThresholdSpec {
 
 /**
  * Default thresholds — tuned against the Wilson lower-bound display
- * on `/settings/quality/signals`. A metric that spends more than one
+ * on `/settings/quality?tab=signals`. A metric that spends more than one
  * daily-cron window below the warning band should be banner-worthy;
  * critical is roughly "user-visible quality problem, act today".
  *

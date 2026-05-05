@@ -35,7 +35,7 @@ export function ContextBadge() {
       );
     case "dashboard":
       return (
-        <span className="rounded-full bg-info-surface px-2 py-0.5 text-2xs font-medium text-info-foreground dark:bg-info-foreground/50 dark:text-info-foreground">
+        <span className="rounded-full bg-info-surface px-2 py-0.5 text-2xs font-medium text-info-foreground">
           {t("widgetCount", { count: widgets?.length ?? 0 })}
         </span>
       );

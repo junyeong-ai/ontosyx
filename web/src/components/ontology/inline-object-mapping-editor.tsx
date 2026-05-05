@@ -16,7 +16,7 @@ import type {
   SourceRelationKind,
 } from "@/lib/api/edit-ops";
 import type { PropertyDef } from "@/types/ontology";
-import { cn } from "@/lib/cn";
+import { FormInput, FormSelect } from "@/components/ui/form-input";
 
 export interface InlineObjectMappingEditorProps {
   /** Current state of the mapping. Pass a skeleton (empty `relation`,
@@ -48,7 +48,7 @@ const RELATION_KINDS: readonly SourceRelationKind[] = [
  * The Domain Context page's Mappings section embeds this for
  * single-mapping editing — the common case where one NodeType
  * binds to one physical relation. Multi-mapping flows stay on
- * `/settings/mappings` where the JSON dual-mode editor handles
+ * `/settings/knowledge/mappings` where the JSON dual-mode editor handles
  * the long tail.
  *
  * Stays purely controlled — caller owns the persistence boundary
@@ -87,17 +87,18 @@ export function InlineObjectMappingEditor({
     <div className="space-y-3">
       <FormGrid>
         <Field label={t("relationLabel")} required>
-          <input
+          <FormInput
             type="text"
+            density="compact"
             value={value.relation ?? ""}
             onChange={(e) => update({ relation: e.target.value })}
             disabled={readOnly}
             placeholder={t("relationPlaceholder")}
-            className={inputClass}
           />
         </Field>
         <Field label={t("relationKindLabel")}>
-          <select
+          <FormSelect
+            density="compact"
             value={value.relation_kind ?? "table"}
             onChange={(e) =>
               update({
@@ -105,14 +106,13 @@ export function InlineObjectMappingEditor({
               })
             }
             disabled={readOnly}
-            className={inputClass}
           >
             {RELATION_KINDS.map((kind) => (
               <option key={kind} value={kind}>
                 {t(`relationKind.${kind}`)}
               </option>
             ))}
-          </select>
+          </FormSelect>
         </Field>
       </FormGrid>
 
@@ -148,26 +148,27 @@ export function InlineObjectMappingEditor({
         open={advancedOpen}
         onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
       >
-        <summary className="cursor-pointer px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <summary className="cursor-pointer px-2 py-1 text-2xs font-medium uppercase tracking-wider text-foreground-muted">
           {t("advancedToggle")}
         </summary>
         <div className="space-y-2 px-2 py-2">
           <Field label={t("rowFilterLabel")}>
-            <input
+            <FormInput
               type="text"
+              density="compact"
               value={value.row_filter ?? ""}
               onChange={(e) =>
                 update({ row_filter: e.target.value || null })
               }
               disabled={readOnly}
               placeholder={t("rowFilterPlaceholder")}
-              className={inputClass}
             />
           </Field>
           <FormGrid>
             <Field label={t("precedenceLabel")}>
-              <input
+              <FormInput
                 type="number"
+                density="compact"
                 value={value.precedence ?? 0}
                 onChange={(e) =>
                   update({
@@ -177,7 +178,6 @@ export function InlineObjectMappingEditor({
                   })
                 }
                 disabled={readOnly}
-                className={inputClass}
               />
             </Field>
           </FormGrid>
@@ -210,7 +210,7 @@ function PropertyMappingTable({
 
   if (properties.length === 0) {
     return (
-      <p className="text-[11px] italic text-muted-foreground">
+      <p className="text-2xs italic text-foreground-muted">
         {t("noProperties")}
       </p>
     );
@@ -218,7 +218,7 @@ function PropertyMappingTable({
 
   return (
     <div>
-      <h3 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <h3 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
         {t("propertiesHeader")}
       </h3>
       <ul className="divide-y divide-divider-soft rounded border border-divider-soft">
@@ -286,21 +286,22 @@ function PropertyMappingRow({
   return (
     <li className="flex items-center gap-3 px-2 py-1.5">
       <span className="flex w-32 shrink-0 flex-col">
-        <span className="truncate text-[11px] font-medium text-foreground-strong">
+        <span className="truncate text-2xs font-medium text-foreground-strong">
           {property.name}
         </span>
-        <span className="truncate text-2xs font-mono text-muted-foreground">
+        <span className="truncate text-2xs font-mono text-foreground-muted">
           {property.id}
         </span>
       </span>
-      <input
+      <FormInput
         type="text"
+        density="compact"
         value={column}
         onChange={(e) => handleColumnChange(e.target.value)}
         disabled={readOnly}
         placeholder={t("columnPlaceholder")}
         list={availableColumns ? datalistId : undefined}
-        className={cn(inputClass, "flex-1")}
+        className="flex-1"
       />
       {availableColumns && (
         <datalist id={datalistId}>
@@ -363,7 +364,7 @@ function ColumnChipInput({
               type="button"
               onClick={() => remove(column)}
               aria-label={removeAriaTemplate(column)}
-              className="rounded p-0.5 hover:bg-surface-inset dark:hover:bg-surface-base"
+              className="rounded p-0.5 hover:bg-surface-inset"
             >
               <HugeiconsIcon
                 icon={Cancel01Icon}
@@ -376,8 +377,9 @@ function ColumnChipInput({
       ))}
       {!readOnly && (
         <span className="inline-flex items-center gap-1">
-          <input
+          <FormInput
             type="text"
+            density="compact"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -388,7 +390,7 @@ function ColumnChipInput({
             }}
             placeholder={addLabel}
             list={availableColumns ? datalistId : undefined}
-            className="w-24 rounded border border-dashed border-divider bg-transparent px-1.5 py-0.5 text-2xs outline-none focus:border-concept-border"
+            className="w-24 border-dashed bg-transparent"
           />
           {availableColumns && (
             <datalist id={datalistId}>
@@ -401,7 +403,7 @@ function ColumnChipInput({
             type="button"
             onClick={() => commit(draft)}
             disabled={!draft.trim()}
-            className="rounded p-0.5 text-muted-foreground hover:bg-surface-inset hover:text-concept-foreground disabled:opacity-50 dark:hover:bg-surface-base"
+            className="rounded p-0.5 text-foreground-muted hover:bg-surface-inset hover:text-concept-foreground disabled:opacity-50"
           >
             <HugeiconsIcon
               icon={PlusSignIcon}
@@ -419,9 +421,6 @@ function ColumnChipInput({
 // Layout helpers
 // ---------------------------------------------------------------------------
 
-const inputClass =
-  "rounded border border-divider bg-transparent px-2 py-1 text-[11px] outline-none focus:border-concept-border disabled:opacity-60";
-
 function Field({
   label,
   required,
@@ -433,9 +432,9 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
         {label}
-        {required && <span className="ml-0.5 text-danger-foreground">*</span>}
+        {required && <span className="ms-0.5 text-danger-foreground">*</span>}
       </span>
       {children}
     </label>

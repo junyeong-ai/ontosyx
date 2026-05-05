@@ -2,7 +2,12 @@
 
 import { useTranslations } from "next-intl";
 
-import { JsonEntityCrudPage } from "@/components/vocabulary/json-entity-crud-page";
+import { notationPatternSchema } from "@/components/forms/schemas/notation-pattern.schema";
+import { MasterDetailEntityPage } from "@/components/vocabulary/master-detail-entity-page";
+import {
+  VocabularyUsageMap,
+  collectNotationPatternUsages,
+} from "@/components/vocabulary/usage-map";
 import type { NotationPatternDef } from "@/lib/api/edit-ops";
 
 const NOTATION_PATTERN_HINT = `{
@@ -21,8 +26,9 @@ export function NotationPatternsTab() {
   const t = useTranslations("settings.vocabulary.notationPatterns");
   const tCommon = useTranslations("common");
   return (
-    <JsonEntityCrudPage<NotationPatternDef>
+    <MasterDetailEntityPage<NotationPatternDef>
       schemaHint={NOTATION_PATTERN_HINT}
+      schema={notationPatternSchema}
       selectItems={(ir) =>
         ((ir as unknown as { notation_patterns?: NotationPatternDef[] })
           .notation_patterns ?? [])
@@ -35,30 +41,25 @@ export function NotationPatternsTab() {
         def,
       })}
       buildDeleteOp={(id) => ({ op: "delete_notation_pattern", id })}
+      renderUsage={(np, ir) => (
+        <VocabularyUsageMap entries={collectNotationPatternUsages(ir, np.id)} />
+      )}
       renderRow={(np) => (
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-sm font-medium text-foreground-strong">
-              {np.id}
-            </span>
-            <span className="text-xs text-foreground-muted">
-              · {np.name}
-            </span>
-            {np.template && (
-              <span className="rounded bg-surface-inset px-2 py-0.5 font-mono text-2xs text-foreground-muted">
-                {np.template}
-              </span>
-            )}
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-mono text-xs font-medium">
+            {np.id}
           </div>
-          <p className="mt-1 text-2xs text-foreground-subtle">
+          <div className="mt-0.5 truncate text-2xs text-foreground-muted">
+            {np.name} ·{" "}
             {t("componentCount", { count: np.components?.length ?? 0 })}
-          </p>
+          </div>
         </div>
       )}
       labels={{
         title: t("pageTitle"),
         subtitle: t("pageSubtitle"),
         noOntology: t("noOntology"),
+        listHeading: (count) => t("listHeading", { count }),
         createButton: t("createButton"),
         editButton: t("editButton"),
         deleteButton: t("deleteButton"),

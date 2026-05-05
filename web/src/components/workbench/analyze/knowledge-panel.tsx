@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { listKnowledge } from "@/lib/api/knowledge";
 import type { KnowledgeEntry } from "@/types/api";
@@ -9,12 +10,13 @@ import { cn } from "@/lib/cn";
 
 const STATUS_DOT: Record<string, string> = {
   approved: "bg-brand-solid",
-  draft: "bg-muted-foreground",
+  draft: "bg-foreground-muted",
   stale: "bg-warning-foreground",
   deprecated: "bg-surface-raised",
 };
 
 export function KnowledgePanel() {
+  const t = useTranslations("workbench.analyze.knowledgePanel");
   const ontology = useAppStore((s) => s.ontology);
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,8 +43,8 @@ export function KnowledgePanel() {
 
   if (!ontologyName) {
     return (
-      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-        Load an ontology to view knowledge
+      <div className="flex h-full items-center justify-center text-xs text-foreground-muted">
+        {t("loadHint")}
       </div>
     );
   }
@@ -57,10 +59,10 @@ export function KnowledgePanel() {
 
   if (entries.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
-        <p>No knowledge entries for this ontology.</p>
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-foreground-muted">
+        <p>{t("empty.title")}</p>
         <p className="text-2xs">
-          Entries are auto-created when query translation fails, or manually via Settings &gt; Knowledge.
+          {t("empty.description")}
         </p>
       </div>
     );
@@ -70,20 +72,20 @@ export function KnowledgePanel() {
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto divide-y divide-divider-soft">
         {entries.map((entry) => (
-          <button
+          <button type="button"
             key={entry.id}
             onClick={() => setSelectedId(selectedId === entry.id ? null : entry.id)}
             className={cn(
-              "w-full px-3 py-2 text-left transition-colors",
+              "w-full px-3 py-2 text-start transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
               selectedId === entry.id
                 ? "bg-brand-surface/20"
-                : "hover:bg-surface-raised dark:hover:bg-surface-base/50",
+                : "hover:bg-surface-raised",
             )}
           >
             <div className="flex items-center gap-2">
               <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[entry.status] ?? STATUS_DOT.draft)} />
-              <span className="text-2xs font-medium text-muted-foreground uppercase">{entry.kind}</span>
-              <span className="ml-auto text-2xs tabular-nums text-muted-foreground">
+              <span className="text-2xs font-medium text-foreground-muted uppercase">{entry.kind}</span>
+              <span className="ms-auto text-2xs tabular-nums text-foreground-muted">
                 {(entry.confidence * 100).toFixed(0)}%
               </span>
             </div>
@@ -91,15 +93,15 @@ export function KnowledgePanel() {
               {entry.title}
             </p>
             {selectedId === entry.id && (
-              <div className="mt-2 rounded border border-divider bg-surface-raised p-2 text-[11px] text-foreground dark:text-muted-foreground">
+              <div className="mt-2 rounded border border-divider bg-surface-raised p-2 text-2xs text-foreground">
                 {entry.content}
               </div>
             )}
           </button>
         ))}
       </div>
-      <div className="shrink-0 border-t border-divider px-3 py-1.5 text-2xs text-muted-foreground">
-        {entries.length} entries · {ontologyName}
+      <div className="shrink-0 border-t border-divider px-3 py-1.5 text-2xs text-foreground-muted">
+        {t("footer", { count: entries.length, ontologyName })}
       </div>
     </div>
   );

@@ -69,14 +69,14 @@ export function ContextMenu({ state, items, onClose }: ContextMenuProps) {
     <div
       ref={menuRef}
       role="menu"
-      className="fixed z-50 min-w-[180px] rounded-lg border border-divider bg-surface-base py-1 shadow-xl"
+      className="fixed z-popover min-w-[180px] rounded-lg border border-divider bg-surface-base py-1 shadow-4"
       style={{ left: state.x, top: state.y }}
     >
       {items.map((item) =>
         item.submenu ? (
           <SubmenuItem key={item.label} item={item} onClose={onClose} />
         ) : (
-          <button
+          <button type="button"
             role="menuitem"
             key={item.label}
             onClick={() => {
@@ -87,17 +87,17 @@ export function ContextMenu({ state, items, onClose }: ContextMenuProps) {
             }}
             disabled={item.disabled}
             className={cn(
-              "flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors",
+              "flex w-full items-center justify-between px-3 py-1.5 text-start text-xs transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
               item.disabled
                 ? "cursor-not-allowed text-foreground-muted"
                 : item.danger
-                  ? "text-danger-foreground hover:bg-danger-surface dark:hover:bg-danger-surface/30"
-                  : "text-foreground hover:bg-surface-inset-muted",
+                  ? "text-danger-foreground hover:bg-danger-surface"
+                  : "text-foreground hover:bg-surface-inset",
             )}
           >
             <span>{item.label}</span>
             {item.shortcut && (
-              <span className="ml-4 text-2xs text-muted-foreground">{item.shortcut}</span>
+              <span className="ms-4 text-2xs text-foreground-muted">{item.shortcut}</span>
             )}
           </button>
         ),
@@ -119,20 +119,19 @@ function SubmenuItem({
 }) {
   return (
     <div className="group relative">
-      <button
+      <button type="button"
         role="menuitem"
         aria-haspopup="true"
         className={cn(
-          "flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-surface-inset",
-          "dark:text-foreground-muted",
+          "flex w-full items-center justify-between px-3 py-1.5 text-start text-xs text-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset",
         )}
       >
         <span>{item.label}</span>
-        <span className="text-muted-foreground">&#9656;</span>
+        <span className="text-foreground-muted">&#9656;</span>
       </button>
-      <div role="menu" className="absolute left-full top-0 hidden min-w-[160px] rounded-lg border border-divider bg-surface-base py-1 shadow-lg group-hover:block">
+      <div role="menu" className="absolute left-full top-0 hidden min-w-[160px] rounded-lg border border-divider bg-surface-base py-1 shadow-3 group-hover:block">
         {item.submenu?.map((sub, j) => (
-          <button
+          <button type="button"
             role="menuitem"
             key={j}
             onClick={() => {
@@ -140,8 +139,7 @@ function SubmenuItem({
               onClose();
             }}
             className={cn(
-              "flex w-full items-center px-3 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-surface-inset",
-              "dark:text-foreground-muted",
+              "flex w-full items-center px-3 py-1.5 text-start text-xs text-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset",
             )}
           >
             {sub.label}

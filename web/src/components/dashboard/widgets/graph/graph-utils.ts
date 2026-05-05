@@ -77,13 +77,14 @@ export function escapeHtml(str: string): string {
 export function buildTooltipHtml(
   node: GraphNodeData,
   tooltipFields: string[] | undefined,
+  chain: readonly string[],
 ): string {
   const fields = tooltipFields?.length ? tooltipFields : Object.keys(node.properties);
   if (!fields.length) return `<b>${escapeHtml(node.label)}</b>`;
 
   const lines = fields
     .filter((f) => node.properties[f] != null)
-    .map((f) => `<b>${escapeHtml(f)}</b>: ${escapeHtml(formatValue(node.properties[f]))}`)
+    .map((f) => `<b>${escapeHtml(f)}</b>: ${escapeHtml(formatValue(node.properties[f], chain))}`)
     .join("<br/>");
 
   return `<div style="font-size:11px;line-height:1.5;max-width:280px">

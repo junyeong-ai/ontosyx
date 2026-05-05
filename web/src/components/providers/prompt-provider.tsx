@@ -2,7 +2,10 @@
 
 import { useState, useCallback, useEffect, useRef, createContext, useContext } from "react";
 import { Dialog } from "@base-ui/react/dialog";
+import { useTranslations } from "next-intl";
+
 import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/button";
 
 interface PromptOptions {
   title: string;
@@ -24,15 +27,21 @@ export function usePrompt(): PromptFn {
 }
 
 export function PromptProvider({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("common");
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<PromptOptions>({ title: "" });
   const [value, setValue] = useState("");
   const resolveRef = useRef<((value: string | null) => void) | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   const prompt = useCallback((opts: PromptOptions) => {
     resolveRef.current?.(null);
     resolveRef.current = null;
+    triggerRef.current =
+      typeof document !== "undefined"
+        ? (document.activeElement as HTMLElement | null)
+        : null;
     setOptions(opts);
     setValue(opts.defaultValue ?? "");
     setOpen(true);
@@ -48,6 +57,16 @@ export function PromptProvider({ children }: { children: React.ReactNode }) {
         inputRef.current?.select();
       });
     }
+  }, [open]);
+
+  // Restore focus to the trigger element after the dialog closes.
+  useEffect(() => {
+    if (open) return;
+    const target = triggerRef.current;
+    triggerRef.current = null;
+    if (!target || !document.contains(target)) return;
+    const handle = requestAnimationFrame(() => target.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(handle);
   }, [open]);
 
   const handleConfirm = () => {
@@ -69,14 +88,14 @@ export function PromptProvider({ children }: { children: React.ReactNode }) {
         <Dialog.Portal>
           <Dialog.Backdrop
             className={cn(
-              "fixed inset-0 z-50 bg-[var(--surface-overlay)] backdrop-blur-sm",
+              "fixed inset-0 z-overlay bg-surface-overlay backdrop-blur-sm",
               "transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)]",
               "data-[starting-style]:opacity-0 data-[ending-style]:opacity-0",
             )}
           />
           <Dialog.Popup
             className={cn(
-              "fixed left-1/2 top-1 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2",
+              "fixed left-1/2 top-1 z-modal w-full max-w-md -translate-x-1/2 -translate-y-1/2",
               "rounded-xl border border-divider bg-surface-base p-6 shadow-3",
               "transition-[opacity,transform] duration-[var(--duration-base)] ease-[var(--ease-out)]",
               "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
@@ -103,6 +122,7 @@ export function PromptProvider({ children }: { children: React.ReactNode }) {
                 }
               }}
               placeholder={options.placeholder}
+              aria-label={options.title}
               className={cn(
                 "mt-4 w-full rounded-md border border-divider bg-surface-base px-3 py-2",
                 "text-sm text-foreground-strong outline-none",
@@ -111,18 +131,12 @@ export function PromptProvider({ children }: { children: React.ReactNode }) {
               )}
             />
             <div className="mt-6 flex justify-end gap-2">
-              <Dialog.Close
-                className="rounded-md px-4 py-2 text-sm font-medium text-foreground-muted transition-colors hover:bg-surface-inset"
-                onClick={handleCancel}
-              >
-                {options.cancelLabel ?? "Cancel"}
+              <Dialog.Close render={<Button variant="ghost" size="md" />}>
+                {options.cancelLabel ?? t("cancel")}
               </Dialog.Close>
-              <button
-                onClick={handleConfirm}
-                className="rounded-md bg-brand-solid px-4 py-2 text-sm font-medium text-foreground-onbrand transition-colors hover:bg-brand-solid-hover"
-              >
-                {options.confirmLabel ?? "OK"}
-              </button>
+              <Button variant="primary" size="md" onClick={handleConfirm}>
+                {options.confirmLabel ?? t("confirm")}
+              </Button>
             </div>
           </Dialog.Popup>
         </Dialog.Portal>

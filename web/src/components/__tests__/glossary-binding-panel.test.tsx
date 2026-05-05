@@ -9,7 +9,7 @@ import { GlossaryBindingPanel } from "@/components/glossary/glossary-binding-pan
 import * as bindingApi from "@/lib/api/binding-suggestions";
 import * as editOps from "@/lib/api/edit-ops";
 
-vi.mock("sonner", () => ({
+vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
