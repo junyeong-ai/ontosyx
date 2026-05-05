@@ -152,6 +152,104 @@ describe("useDiagnosticResolver", () => {
     expect(rendered).toBe("이름 authored at depth 3");
   });
 
+  // ---- ICU select fan-out for ontology subject_kind --------------------
+  //
+  // The 4 new ontology diagnostics (`unknown_set_property`,
+  // `unknown_remove_property`, `unknown_read_property`,
+  // `unknown_relationship_property`) emit `subject_kind` ∈ {"node",
+  // "relationship"} so the catalogue can render "label `Foo`" or
+  // "relationship type `BAR`" in the active locale. The resolver
+  // must hand `subject_kind` through to ICU select untouched — these
+  // tests pin the contract so a future param-name churn cannot
+  // silently break locale-aware rendering across both surfaces.
+  it("renders unknown_set_property with node subject_kind via ICU select", () => {
+    const ontologyMessages = {
+      diagnostics: {
+        runtime: {
+          cypher: {
+            ontology: {
+              unknown_set_property:
+                "{subject_kind, select, node {SET label `{subject_name}` prop `{property}`} relationship {SET relationship type `{subject_name}` prop `{property}`} other {SET `{subject_name}` prop `{property}`}}",
+            },
+          },
+        },
+      },
+    } as const;
+    const { result } = renderHook(() => useDiagnosticResolver(), {
+      wrapper: ({ children }) => withProvider(children, ontologyMessages),
+    });
+    const rendered = result.current({
+      code: "runtime.cypher.ontology.unknown_set_property",
+      message: "fallback",
+      params: {
+        property: "emial",
+        variable: "p",
+        subject_kind: "node",
+        subject_name: "Person",
+      },
+    });
+    expect(rendered).toBe("SET label `Person` prop `emial`");
+  });
+
+  it("renders unknown_set_property with relationship subject_kind via ICU select", () => {
+    const ontologyMessages = {
+      diagnostics: {
+        runtime: {
+          cypher: {
+            ontology: {
+              unknown_set_property:
+                "{subject_kind, select, node {SET label `{subject_name}` prop `{property}`} relationship {SET relationship type `{subject_name}` prop `{property}`} other {SET `{subject_name}` prop `{property}`}}",
+            },
+          },
+        },
+      },
+    } as const;
+    const { result } = renderHook(() => useDiagnosticResolver(), {
+      wrapper: ({ children }) => withProvider(children, ontologyMessages),
+    });
+    const rendered = result.current({
+      code: "runtime.cypher.ontology.unknown_set_property",
+      message: "fallback",
+      params: {
+        property: "sicne",
+        variable: "r",
+        subject_kind: "relationship",
+        subject_name: "WORKS_AT",
+      },
+    });
+    expect(rendered).toBe("SET relationship type `WORKS_AT` prop `sicne`");
+  });
+
+  it("renders unknown_read_property with the clause name interpolated", () => {
+    const ontologyMessages = {
+      diagnostics: {
+        runtime: {
+          cypher: {
+            ontology: {
+              unknown_read_property:
+                "{subject_kind, select, node {{clause} label `{subject_name}` prop `{property}`} relationship {{clause} relationship type `{subject_name}` prop `{property}`} other {{clause} `{subject_name}` prop `{property}`}}",
+            },
+          },
+        },
+      },
+    } as const;
+    const { result } = renderHook(() => useDiagnosticResolver(), {
+      wrapper: ({ children }) => withProvider(children, ontologyMessages),
+    });
+    const rendered = result.current({
+      code: "runtime.cypher.ontology.unknown_read_property",
+      message: "fallback",
+      params: {
+        clause: "RETURN",
+        property: "emial",
+        variable: "p",
+        subject_kind: "node",
+        subject_name: "Person",
+      },
+    });
+    expect(rendered).toBe("RETURN label `Person` prop `emial`");
+  });
+
   it("does not misclassify a plain object that happens to have a `default` key", () => {
     const messages2 = {
       diagnostics: {
