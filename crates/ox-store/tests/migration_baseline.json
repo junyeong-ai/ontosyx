@@ -4,5 +4,6 @@
   "0003_analysis_scope.sql": "73f8b3b339deb8a48d550be40b5bf01191e040e17b657d365e40cc58b253e901",
   "0004_workspace_isolation.sql": "44f06b792167812af1fb8e11c2f878cff7a9dcfa53bfb2a670aac690ace00569",
   "0005_design_project_parent_version.sql": "75e551f31962ddeb704fb62674cd44c6e718ebe231eb2128049c056f91a230f7",
-  "0006_workspace_ontology_singleton.sql": "dda78a9b14da5fab90b532c4214af0cc639f6b836aa03f1b075a816360419c22"
+  "0006_workspace_ontology_singleton.sql": "dda78a9b14da5fab90b532c4214af0cc639f6b836aa03f1b075a816360419c22",
+  "0007_evaluation.sql": "c8e2a029c9d82c3c2a0743c2d07371b535a269fdd436309c6cd793035be6d09d"
 }

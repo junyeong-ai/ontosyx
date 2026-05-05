@@ -9,6 +9,7 @@
 )]
 
 pub mod advisory_lock;
+pub mod evaluation;
 pub mod models;
 pub mod navigation;
 pub mod postgres;
@@ -16,6 +17,9 @@ pub mod quality_signal;
 pub mod secret_token;
 pub mod store;
 
+pub use evaluation::{
+    parse_run_status, EvaluationCase, EvaluationMetric, EvaluationRun, EvaluationRunStatus,
+};
 pub use models::*;
 pub use navigation::{
     BlendWeights, EntityRef, EntitySearchHit, EntryPointSearchOptions, FacetFilter,
@@ -37,9 +41,9 @@ pub use store::{
     AclStore, AgentSessionStore, AmbiguityStore, AnalysisResultStore, AnalysisSnapshot,
     ApiKeyStore, ApprovalCommentStore, ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter,
     AuditTrailStore, ChangeRoutingStore, ConfigStore, CursorPage, CursorParams, DashboardStore,
-    DataSourceStore, DraftClusterCheckpointStore, EmbeddingRetryStore, ExtendResult, HealthStore,
-    IdempotencyStore, InsightStore, JwtRevocationStore, KnowledgeStore, LineageStore,
-    LoadCheckpointStore, MeteringStore, ModelConfigStore, NotificationStore,
+    DataSourceStore, DraftClusterCheckpointStore, EmbeddingRetryStore, EvaluationStore,
+    ExtendResult, HealthStore, IdempotencyStore, InsightStore, JwtRevocationStore, KnowledgeStore,
+    LineageStore, LoadCheckpointStore, MeteringStore, ModelConfigStore, NotificationStore,
     OntologyNavigationStore, OntologyVersionStore, PatternStore, PerspectiveStore, PinStore,
     OntologyDraftStore, PromptTemplateStore, QualityBaselineStore, QualitySignalStore, QualityStore,
     QueryStore, RecipeStore, ReportStore, ScheduledTaskStore, SourceMappingArtifactStore,

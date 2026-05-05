@@ -404,6 +404,7 @@ mod dashboard;
 mod data_source;
 mod draft_cluster_checkpoint;
 mod embedding_retry;
+mod evaluation;
 mod health;
 mod idempotency;
 mod insight;
