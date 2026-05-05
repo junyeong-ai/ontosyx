@@ -5295,7 +5295,7 @@ dependencies = [
  "ox-core",
  "ox-ontology",
  "ox-query-ir",
- "rand 0.8.5",
+ "rand 0.10.1",
  "serde",
  "serde_json",
  "sha2",

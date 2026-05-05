@@ -2,10 +2,10 @@
 //!
 //! Used for share tokens (dashboards, in the future report links) and
 //! API key plaintexts. Centralised so every secret on the wire goes
-//! through the same `OsRng` source — no UUID-concatenation tricks, no
-//! `rand::thread_rng()` weak-seed risk.
+//! through one OS-seeded RNG entry — no UUID-concatenation tricks,
+//! no deterministically-seeded path.
 
-use rand::RngCore;
+use rand::RngExt;
 
 /// Generate a hex-encoded token containing `bytes` bytes of CSPRNG
 /// material (so the returned string is `2 * bytes` characters long).
@@ -15,7 +15,7 @@ use rand::RngCore;
 /// is shown to the operator exactly once.
 pub fn generate_hex(bytes: usize) -> String {
     let mut buf = vec![0u8; bytes];
-    rand::rngs::OsRng.fill_bytes(&mut buf);
+    rand::rng().fill(&mut buf[..]);
     use std::fmt::Write;
     buf.iter()
         .fold(String::with_capacity(bytes * 2), |mut s, b| {

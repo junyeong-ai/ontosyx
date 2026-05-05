@@ -148,6 +148,10 @@ mockall = "0.13"
 subtle = "2"
 jsonwebtoken = "9"
 sha2 = "0.10"
+# CSPRNG seed source — `rand::rngs::OsRng` for share-token / api-key
+# plaintexts. Hoisted to the workspace so every crate inherits the
+# same major and `OsRng`'s `getrandom` backend stays aligned.
+rand = "0.10"
 
 # Pattern matching (used for transient-error classification, etc.)
 regex = "1"
