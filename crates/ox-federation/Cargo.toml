@@ -33,3 +33,6 @@ chrono = { workspace = true }
 [dev-dependencies]
 ox-source = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

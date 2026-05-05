@@ -409,9 +409,11 @@ async fn build_union_scan<R: AdapterResolver + ?Sized>(
     scope: Option<WorkspaceScope<'_>>,
 ) -> FederationResult<LogicalPlan> {
     let mut iter = entries.iter();
-    let first = iter
-        .next()
-        .expect("caller guarantees at least two entries");
+    let first = iter.next().ok_or_else(|| {
+        FederationError::internal(
+            "build_union_scan called with fewer than one entry — caller must dispatch single-mapping scans through build_single_scan",
+        )
+    })?;
     let mut combined = build_table_scan(scan, first, adapters, scope).await?;
     for entry in iter {
         let next = build_table_scan(scan, entry, adapters, scope).await?;
@@ -1774,7 +1776,11 @@ fn apply_filters(
     match conj.as_slice() {
         [] => Ok(base),
         _ => {
-            let combined = conj.into_iter().reduce(|a, b| a.and(b)).expect("non-empty");
+            let combined = conj.into_iter().reduce(|a, b| a.and(b)).ok_or_else(|| {
+                FederationError::internal(
+                    "filter conjunction reduce produced None on a non-empty slice",
+                )
+            })?;
             DfLogicalPlanBuilder::from(base)
                 .filter(combined)
                 .map_err(FederationError::from)?

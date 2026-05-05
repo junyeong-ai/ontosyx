@@ -152,8 +152,10 @@ fn property_value_to_scalar(value: &PropertyValue) -> FederationResult<ScalarVal
         PropertyValue::Float(f) => Ok(ScalarValue::Float64(Some(*f))),
         PropertyValue::String(s) => Ok(ScalarValue::Utf8(Some(s.clone()))),
         PropertyValue::Date(d) => {
-            // `NaiveDate` → days since epoch.
-            let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).expect("valid epoch");
+            // `NaiveDate` → days since epoch. Derived from `chrono`'s
+            // const UNIX_EPOCH so we don't reach for `from_ymd_opt`
+            // and an unwrap of a value that's known at the type level.
+            let epoch = chrono::DateTime::<chrono::Utc>::UNIX_EPOCH.date_naive();
             let days = (*d - epoch).num_days() as i32;
             Ok(ScalarValue::Date32(Some(days)))
         }

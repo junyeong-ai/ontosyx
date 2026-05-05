@@ -39,6 +39,14 @@ pub enum FederationError {
     /// fallback options.
     #[error("{0}")]
     Unsupported(String),
+
+    /// Invariant violation inside the federation engine — a contract
+    /// the planner upholds was breached at runtime. These are
+    /// programmer errors, not user input errors; they propagate as
+    /// `Result` instead of panicking so the API layer can return a
+    /// 5xx with a request-id rather than tearing down the worker.
+    #[error("internal: {0}")]
+    Internal(String),
 }
 
 impl FederationError {
@@ -47,5 +55,13 @@ impl FederationError {
     /// `Unsupported` variant stays distinguishable downstream.
     pub fn unsupported(message: impl Into<String>) -> Self {
         FederationError::Unsupported(message.into())
+    }
+
+    /// Construct an internal invariant-violation error. Use only
+    /// where a planner contract documents the precondition; the
+    /// message should name the contract (e.g. "build_union_scan
+    /// called with fewer than two entries").
+    pub fn internal(message: impl Into<String>) -> Self {
+        FederationError::Internal(message.into())
     }
 }
