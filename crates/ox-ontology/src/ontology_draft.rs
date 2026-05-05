@@ -65,7 +65,7 @@ pub enum SourceTypeKind {
     Mongodb,
     /// Snowflake data warehouse (account + database + schema).
     Snowflake,
-    /// Google BigQuery dataset (project_id + dataset).
+    /// Google BigQuery dataset (ontology_draft_id + dataset).
     Bigquery,
     /// DuckDB in-process file analysis (Parquet, CSV, JSON).
     DuckDb,

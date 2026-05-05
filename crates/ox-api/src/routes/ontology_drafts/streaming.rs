@@ -22,7 +22,7 @@ use uuid::Uuid;
 /// actually consumes.
 async fn persist_cluster_checkpoint<S>(
     store: &S,
-    project_id: Uuid,
+    ontology_draft_id: Uuid,
     source_id: &str,
     signature: ox_ontology::cluster_checkpoint::ClusterSignature,
     cluster_id: usize,
@@ -31,7 +31,7 @@ async fn persist_cluster_checkpoint<S>(
     S: ox_store::DraftClusterCheckpointStore + ?Sized,
 {
     let checkpoint = ox_ontology::cluster_checkpoint::DraftClusterCheckpoint::draft(
-        project_id,
+        ontology_draft_id,
         source_id.to_string(),
         signature,
         cluster_id,
@@ -39,7 +39,7 @@ async fn persist_cluster_checkpoint<S>(
     );
     if let Err(e) = store.upsert_draft_cluster_checkpoint(&checkpoint).await {
         warn!(
-            project_id = %project_id,
+            ontology_draft_id = %ontology_draft_id,
             cluster = cluster_id,
             error = %e,
             "Cluster checkpoint persist failed"
@@ -70,8 +70,8 @@ use super::helpers::{
     load_project_in_status, merge_input_irs, reload_project,
 };
 use super::types::{
-    DesignProjectRequest, DesignProjectResponse, ProjectView, RefineProjectRequest,
-    RefineProjectResponse,
+    DesignOntologyDraftRequest, DesignOntologyDraftResponse, ProjectView, RefineOntologyDraftRequest,
+    RefineOntologyDraftResponse,
 };
 
 // ---------------------------------------------------------------------------
@@ -103,14 +103,14 @@ fn sse_result<T: Serialize>(data: &T) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/design/stream — SSE streaming design
+// POST /api/ontology-drafts/:id/design/stream — SSE streaming design
 //
 // SSE event flow:
 //   phase   → { phase: "validating" }
 //   phase   → { phase: "designing", detail: "..." }
 //   phase   → { phase: "assessing_quality" }
 //   phase   → { phase: "persisting" }
-//   result  → DesignProjectResponse
+//   result  → DesignOntologyDraftResponse
 //   error   → { error: { type, message } }
 //
 // Each cluster's `InputOntologyDef` is cached in
@@ -125,9 +125,9 @@ fn sse_result<T: Serialize>(data: &T) -> String {
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/design/stream",
+    path = "/api/ontology-drafts/{id}/design/stream",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = DesignProjectRequest,
+    request_body = DesignOntologyDraftRequest,
     responses(
         (status = 200, description = "SSE stream: phase* -> result events", content_type = "text/event-stream"),
         (status = 400, description = "Invalid input", body = inline(crate::openapi::ErrorResponse)),
@@ -136,12 +136,12 @@ fn sse_result<T: Serialize>(data: &T) -> String {
     security(("api_key" = [])),
     tag = "Projects",
 )]
-#[tracing::instrument(skip(state, principal, req), fields(project_id = %id))]
+#[tracing::instrument(skip(state, principal, req), fields(ontology_draft_id = %id))]
 pub(crate) async fn design_ontology_draft_stream(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<DesignProjectRequest>,
+    Json(req): Json<DesignOntologyDraftRequest>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
     principal.require_designer()?;
     // Validate eagerly before entering stream (allows ? error propagation)
@@ -214,7 +214,7 @@ pub(crate) async fn design_ontology_draft_stream(
     let stream = async_stream::stream! {
         yield Ok(Event::default().event("phase").data(sse_phase("validating", None)));
 
-        info!(project_id = %id, total_tables, use_batch, "Designing ontology (stream) from stored snapshot");
+        info!(ontology_draft_id = %id, total_tables, use_batch, "Designing ontology (stream) from stored snapshot");
 
         let timeout = std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
         let design_started = Instant::now();
@@ -261,7 +261,7 @@ pub(crate) async fn design_ontology_draft_stream(
                 Ok(result) => result,
                 Err(_) => {
                     warn!(
-                        project_id = %id,
+                        ontology_draft_id = %id,
                         elapsed_ms = design_started.elapsed().as_millis() as u64,
                         "Design LLM call timed out (stream)"
                     );
@@ -405,7 +405,7 @@ pub(crate) async fn design_ontology_draft_stream(
             };
 
             info!(
-                project_id = %id,
+                ontology_draft_id = %id,
                 cluster_count = plan.clusters.len(),
                 parallel_levels = plan.levels.len(),
                 cross_fk_count = all_cross_fks.len(),
@@ -449,7 +449,7 @@ pub(crate) async fn design_ontology_draft_stream(
                         Ok(None) => None,
                         Err(e) => {
                             warn!(
-                                project_id = %id,
+                                ontology_draft_id = %id,
                                 cluster = cluster_id,
                                 error = %e,
                                 "Checkpoint lookup failed; rerunning LLM"
@@ -459,7 +459,7 @@ pub(crate) async fn design_ontology_draft_stream(
                     };
 
                     if let Some(ir) = cached {
-                        info!(project_id = %id, cluster = cluster_id, "Cluster checkpoint cache hit");
+                        info!(ontology_draft_id = %id, cluster = cluster_id, "Cluster checkpoint cache hit");
                         yield Ok(Event::default().event("phase").data(
                             sse_phase("designing", Some(&format!("{} (cached)", detail)))
                         ));
@@ -486,7 +486,7 @@ pub(crate) async fn design_ontology_draft_stream(
                             state.brain.design_ontology_batch(&batch_input, &effective_context, &existing, &cross),
                         ).await {
                             Ok(Ok(ir)) => {
-                                info!(project_id = %id, cluster = cluster_id, nodes = ir.node_types.len(), "Batch completed");
+                                info!(ontology_draft_id = %id, cluster = cluster_id, nodes = ir.node_types.len(), "Batch completed");
                                 persist_cluster_checkpoint(
                                     state.store.as_ref(),
                                     id,
@@ -553,7 +553,7 @@ pub(crate) async fn design_ontology_draft_stream(
                             Ok(None) => None,
                             Err(e) => {
                                 warn!(
-                                    project_id = %id,
+                                    ontology_draft_id = %id,
                                     cluster = cluster_id,
                                     error = %e,
                                     "Checkpoint lookup failed; rerunning LLM"
@@ -562,7 +562,7 @@ pub(crate) async fn design_ontology_draft_stream(
                             }
                         };
                         if let Some(ir) = cached {
-                            info!(project_id = %id, cluster = cluster_id, "Cluster checkpoint cache hit");
+                            info!(ontology_draft_id = %id, cluster = cluster_id, "Cluster checkpoint cache hit");
                             level_results.push((cluster_id, ir));
                             continue;
                         }
@@ -615,7 +615,7 @@ pub(crate) async fn design_ontology_draft_stream(
                             let signature = miss_tasks[idx].1.clone();
                             match result {
                                 Ok(Ok(ir)) => {
-                                    info!(project_id = %id, cluster = cluster_id, nodes = ir.node_types.len(), "Parallel batch completed");
+                                    info!(ontology_draft_id = %id, cluster = cluster_id, nodes = ir.node_types.len(), "Parallel batch completed");
                                     persist_cluster_checkpoint(
                                         state.store.as_ref(),
                                         id,
@@ -666,7 +666,7 @@ pub(crate) async fn design_ontology_draft_stream(
             );
 
             info!(
-                project_id = %id,
+                ontology_draft_id = %id,
                 merged_nodes = merged.node_types.len(),
                 merged_edges = merged.edge_types.len(),
                 "InputIR merge complete"
@@ -695,20 +695,20 @@ pub(crate) async fn design_ontology_draft_stream(
                 {
                     Ok(Ok(extra_edges)) => {
                         info!(
-                            project_id = %id,
+                            ontology_draft_id = %id,
                             resolved_edges = extra_edges.len(),
                             "Cross-domain edge resolution complete"
                         );
                         merged.edge_types.extend(extra_edges);
                     }
                     Ok(Err(e)) => {
-                        warn!(project_id = %id, error = %e, "Edge resolution failed — continuing with existing edges");
+                        warn!(ontology_draft_id = %id, error = %e, "Edge resolution failed — continuing with existing edges");
                         yield Ok(Event::default().event("phase").data(
                             sse_phase("resolving_edges", Some("Edge resolution failed — some cross-domain edges may be missing"))
                         ));
                     }
                     Err(_) => {
-                        warn!(project_id = %id, "Edge resolution timed out — continuing with existing edges");
+                        warn!(ontology_draft_id = %id, "Edge resolution timed out — continuing with existing edges");
                         yield Ok(Event::default().event("phase").data(
                             sse_phase("resolving_edges", Some("Edge resolution timed out — some cross-domain edges may be missing"))
                         ));
@@ -762,7 +762,7 @@ pub(crate) async fn design_ontology_draft_stream(
         };
 
         let design_ms = design_started.elapsed().as_millis() as u64;
-        info!(project_id = %id, design_ms, "LLM design completed (stream)");
+        info!(ontology_draft_id = %id, design_ms, "LLM design completed (stream)");
 
         // Push operator-confirmed PII annotations into the resulting
         // ontology — sets `pii_kind` and `classification` on every
@@ -776,7 +776,7 @@ pub(crate) async fn design_ontology_draft_stream(
             );
             if classified > 0 {
                 info!(
-                    project_id = %id,
+                    ontology_draft_id = %id,
                     classified,
                     "Applied PII annotations to ontology properties"
                 );
@@ -867,7 +867,7 @@ pub(crate) async fn design_ontology_draft_stream(
             .await
         {
             warn!(
-                project_id = %id,
+                ontology_draft_id = %id,
                 error = %e,
                 "Failed to drop draft cluster checkpoints after design completion"
             );
@@ -884,7 +884,7 @@ pub(crate) async fn design_ontology_draft_stream(
         };
 
         yield Ok(Event::default().event("result").data(
-            sse_result(&DesignProjectResponse {
+            sse_result(&DesignOntologyDraftResponse {
                 project: ProjectView::from_project(updated),
             })
         ));
@@ -895,7 +895,7 @@ pub(crate) async fn design_ontology_draft_stream(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/refine/stream — SSE streaming refinement
+// POST /api/ontology-drafts/:id/refine/stream — SSE streaming refinement
 //
 // SSE event flow:
 //   phase              → { phase: "validating" }
@@ -905,16 +905,16 @@ pub(crate) async fn design_ontology_draft_stream(
 //   phase              → { phase: "reconciling" }
 //   phase              → { phase: "assessing_quality" }
 //   phase              → { phase: "persisting" }
-//   result             → RefineProjectResponse
+//   result             → RefineOntologyDraftResponse
 //   uncertain_reconcile → { report, reconciled_ontology }
 //   error              → { error: { type, message } }
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/refine/stream",
+    path = "/api/ontology-drafts/{id}/refine/stream",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = RefineProjectRequest,
+    request_body = RefineOntologyDraftRequest,
     responses(
         (status = 200, description = "SSE stream: phase* -> result/uncertain_reconcile events", content_type = "text/event-stream"),
         (status = 400, description = "No runtime or context", body = inline(crate::openapi::ErrorResponse)),
@@ -923,12 +923,12 @@ pub(crate) async fn design_ontology_draft_stream(
     security(("api_key" = [])),
     tag = "Projects",
 )]
-#[tracing::instrument(skip(state, principal, req), fields(project_id = %id))]
-pub(crate) async fn refine_project_stream(
+#[tracing::instrument(skip(state, principal, req), fields(ontology_draft_id = %id))]
+pub(crate) async fn refine_ontology_draft_stream(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<RefineProjectRequest>,
+    Json(req): Json<RefineOntologyDraftRequest>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
     principal.require_designer()?;
     // Validate eagerly
@@ -1002,7 +1002,7 @@ pub(crate) async fn refine_project_stream(
             {
                 Ok(Ok(profile)) => {
                     let profiling_ms = profile_started.elapsed().as_millis() as u64;
-                    info!(project_id = %id, profiling_ms, "Graph profiling succeeded (stream)");
+                    info!(ontology_draft_id = %id, profiling_ms, "Graph profiling succeeded (stream)");
 
                     let n = profile.node_profiles.len();
                     let e = profile.edge_profiles.len();
@@ -1107,7 +1107,7 @@ pub(crate) async fn refine_project_stream(
             Err(_) => {
                 let total = refine_started.elapsed();
                 warn!(
-                    project_id = %id,
+                    ontology_draft_id = %id,
                     total_elapsed_ms = total.as_millis() as u64,
                     llm_elapsed_ms = llm_started.elapsed().as_millis() as u64,
                     "Refinement LLM call timed out (stream)"
@@ -1123,7 +1123,7 @@ pub(crate) async fn refine_project_stream(
         };
 
         let llm_ms = llm_started.elapsed().as_millis() as u64;
-        info!(project_id = %id, llm_ms, "LLM refinement completed (stream)");
+        info!(ontology_draft_id = %id, llm_ms, "LLM refinement completed (stream)");
 
         yield Ok(Event::default().event("phase").data(
             sse_phase("reconciling", None)
@@ -1231,10 +1231,10 @@ pub(crate) async fn refine_project_stream(
         };
 
         let total_ms = refine_started.elapsed().as_millis() as u64;
-        info!(project_id = %id, total_ms, "Refine completed (stream)");
+        info!(ontology_draft_id = %id, total_ms, "Refine completed (stream)");
 
         yield Ok(Event::default().event("result").data(
-            sse_result(&RefineProjectResponse {
+            sse_result(&RefineOntologyDraftResponse {
                 project: ProjectView::from_project(updated),
                 profile_summary,
                 reconcile_report: reconciled.report,

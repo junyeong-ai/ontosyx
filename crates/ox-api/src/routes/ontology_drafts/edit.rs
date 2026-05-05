@@ -19,12 +19,12 @@ use super::helpers::{
 use super::types::{EditProjectRequest, EditProjectResponse, ProjectView};
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/edit
+// POST /api/ontology-drafts/:id/edit
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/edit",
+    path = "/api/ontology-drafts/{id}/edit",
     params(("id" = Uuid, Path, description = "Project ID")),
     request_body = EditProjectRequest,
     responses(
@@ -37,7 +37,7 @@ use super::types::{EditProjectRequest, EditProjectResponse, ProjectView};
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn edit_project(
+pub(crate) async fn edit_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
@@ -62,7 +62,7 @@ pub(crate) async fn edit_project(
     let timeout =
         std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
     let edit_started = Instant::now();
-    info!(project_id = %id, "Generating edit commands");
+    info!(ontology_draft_id = %id, "Generating edit commands");
 
     let edit_output = tokio::time::timeout(
         timeout,
@@ -73,7 +73,7 @@ pub(crate) async fn edit_project(
     .await
     .map_err(|_| {
         warn!(
-            project_id = %id,
+            ontology_draft_id = %id,
             elapsed_ms = edit_started.elapsed().as_millis() as u64,
             timeout_secs = timeout.as_secs(),
             "Edit command generation timed out"
@@ -87,7 +87,7 @@ pub(crate) async fn edit_project(
 
     let edit_duration_ms = edit_started.elapsed().as_millis() as i64;
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         edit_ms = edit_duration_ms,
         command_count = edit_output.commands.len(),
         "Edit commands generated"
@@ -159,7 +159,7 @@ pub(crate) async fn edit_project(
             )
             .await
     {
-        warn!(project_id = %id, error = %e, "Failed to save ontology snapshot");
+        warn!(ontology_draft_id = %id, error = %e, "Failed to save ontology snapshot");
     }
 
     // Apply: save updated ontology with quality re-assessment
@@ -188,7 +188,7 @@ pub(crate) async fn edit_project(
     let updated = reload_project(&state, id).await?;
 
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         total_ms = edit_started.elapsed().as_millis() as u64,
         "Edit completed"
     );

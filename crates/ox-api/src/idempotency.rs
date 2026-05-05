@@ -310,15 +310,15 @@ mod tests {
 
     #[test]
     fn is_streaming_path_matches_documented_routes() {
-        assert!(is_streaming_path("/api/projects/abc/design/stream"));
-        assert!(is_streaming_path("/api/projects/abc/refine/stream"));
+        assert!(is_streaming_path("/api/ontology-drafts/abc/design/stream"));
+        assert!(is_streaming_path("/api/ontology-drafts/abc/refine/stream"));
         assert!(is_streaming_path("/api/chat/stream"));
     }
 
     #[test]
     fn is_streaming_path_rejects_non_streaming_routes() {
-        assert!(!is_streaming_path("/api/projects/abc/design"));
-        assert!(!is_streaming_path("/api/projects/abc/refine"));
+        assert!(!is_streaming_path("/api/ontology-drafts/abc/design"));
+        assert!(!is_streaming_path("/api/ontology-drafts/abc/refine"));
         assert!(!is_streaming_path("/api/streaming-config"));
         assert!(!is_streaming_path("/api/chat"));
     }

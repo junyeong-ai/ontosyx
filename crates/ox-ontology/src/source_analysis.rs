@@ -470,7 +470,7 @@ pub struct RepoAnalysisSummary {
 // ---------------------------------------------------------------------------
 
 /// Operator-confirmed inputs that override or supplement automatic
-/// analysis. Submitted via `PATCH /api/projects/:id/decisions` after
+/// analysis. Submitted via `PATCH /api/ontology-drafts/:id/decisions` after
 /// reviewing [`SourceAnalysisReport`].
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DesignOptions {

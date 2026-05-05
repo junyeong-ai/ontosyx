@@ -78,7 +78,7 @@ pub enum ApiErrorCode {
     /// `params.expected` + `params.current` give the FE the precise
     /// numbers for the message.
     OntologyVersionConflict,
-    /// `complete_project` refused because the project's draft was
+    /// `complete_ontology_draft` refused because the project's draft was
     /// branched from an older canonical version than the current
     /// head. Another commit landed during the project's flight, so
     /// merging the local copy would silently overwrite those
@@ -673,7 +673,7 @@ impl AppError {
             .with_param("current", current)
     }
 
-    /// `complete_project` refused — project's draft branched from an
+    /// `complete_ontology_draft` refused — project's draft branched from an
     /// older canonical version than the current head. The FE
     /// interpolates a "rebase onto v{current_version} before
     /// retrying" message. Both version tags are short strings (the

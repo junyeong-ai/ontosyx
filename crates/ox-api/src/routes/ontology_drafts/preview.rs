@@ -1,8 +1,8 @@
-//! `POST /api/projects/source-preview`
+//! `POST /api/ontology-drafts/source-preview`
 //!
 //! Cheap table listing for an arbitrary [`ProjectSource`] — no
 //! introspection, no profiling, no persistence. Designers call this
-//! before [`super::lifecycle::create_project`] so they can pick a
+//! before [`super::lifecycle::create_ontology_draft`] so they can pick a
 //! subset of tables to feed into the design flow.
 //!
 //! The route mirrors the admin-side
@@ -25,7 +25,7 @@ use super::types::ProjectSource;
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct PreviewSourceRequest {
     /// Connection details for the source — same shape used by
-    /// `CreateProjectRequest::origin::Source { source }`.
+    /// `CreateOntologyDraftRequest::origin::Source { source }`.
     #[serde(flatten)]
     #[schema(value_type = Object)]
     pub source: ProjectSource,
@@ -53,7 +53,7 @@ pub struct PreviewTableSummary {
 
 #[utoipa::path(
     post,
-    path = "/api/projects/source-preview",
+    path = "/api/ontology-drafts/source-preview",
     request_body = PreviewSourceRequest,
     responses(
         (status = 200, description = "Cheap table listing for the source",

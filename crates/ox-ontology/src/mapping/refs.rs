@@ -46,7 +46,7 @@ impl SourceId {
     /// This is the ONE place that encodes the identity rule so
     /// callers across the workspace agree on the format. Helpers
     /// that previously built ids inline (e.g. the ambiguity path
-    /// in `ox-api::routes::projects::helpers::source`) go through
+    /// in `ox-api::routes::ontology_drafts::helpers::source`) go through
     /// this method.
     pub fn from_source_config(config: &crate::ontology_draft::SourceConfig) -> Self {
         match &config.source_fingerprint {

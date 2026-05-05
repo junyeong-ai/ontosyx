@@ -7,7 +7,7 @@
 
 //! Realtime collaboration — presence, cursor sharing, entity locks.
 //!
-//! Each project has a "room" identified by `project_id`. WebSocket
+//! Each project has a "room" identified by `ontology_draft_id`. WebSocket
 //! clients join rooms, broadcast cursor positions and lock state
 //! changes, and receive a presence snapshot on entry.
 //!
@@ -30,7 +30,7 @@
 //! (`max_sessions_per_user`), and replies with
 //! `ServerMessage::Authenticated`. Workspace context is bound for
 //! the rest of the connection — every subsequent `Join` runs
-//! through RLS and rejects cross-workspace `project_id`s.
+//! through RLS and rejects cross-workspace `ontology_draft_id`s.
 //!
 //! ## Self-echo
 //!
@@ -70,17 +70,17 @@ pub enum ClientMessage {
     /// [`ServerMessage::Presence`] (unicast snapshot) and broadcasts
     /// [`ServerMessage::UserJoined`] to existing members.
     Join {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
     },
     /// Leave a room — releases every lock the caller holds in it.
     Leave {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
     },
     /// Update cursor position. Throttled per
     /// `collaboration.cursor_throttle_ms`; events inside the window
     /// are silently dropped.
     MoveCursor {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         x: f64,
         y: f64,
         selected_element: Option<String>,
@@ -88,12 +88,12 @@ pub enum ClientMessage {
     /// Request exclusive lock on an entity. Idempotent for the
     /// caller — repeated acquires by the same user refresh the TTL.
     AcquireLock {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         entity_id: String,
     },
     /// Release a lock the caller holds. No-op for foreign locks.
     ReleaseLock {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         entity_id: String,
     },
 }
@@ -115,14 +115,14 @@ pub enum ServerMessage {
     /// waiting for the next broadcast frame. Existing members
     /// receive [`ServerMessage::UserJoined`] instead.
     Presence {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         users: Vec<PresenceInfo>,
         locks: Vec<LockSnapshot>,
     },
     /// Another member's cursor moved. Broadcast to all members
     /// including the originator (clients filter own user_id).
     RemoteCursor {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         user_id: String,
         user_name: String,
         x: f64,
@@ -134,7 +134,7 @@ pub enum ServerMessage {
     /// holder renders its own affordances. `expires_at` is the
     /// TTL deadline; clients should renew or release before then.
     LockGranted {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         entity_id: String,
         held_by: String,
         expires_at: DateTime<Utc>,
@@ -142,23 +142,23 @@ pub enum ServerMessage {
     /// Lock denied — `held_by` is the current owner. Unicast to the
     /// requester only; other members don't see denials.
     LockDenied {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         entity_id: String,
         held_by: String,
     },
     /// Lock released — by the holder, by leave, or by TTL expiry.
     LockReleased {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         entity_id: String,
     },
     /// Member joined the room.
     UserJoined {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         user: PresenceInfo,
     },
     /// Member left the room.
     UserLeft {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         user_id: String,
     },
     /// Another member committed ontology commands to the project.
@@ -173,7 +173,7 @@ pub enum ServerMessage {
     /// landed; `commands` is the exact ordered op list the author
     /// applied (oldest first).
     EntityUpdated {
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         author_user_id: String,
         author_user_name: String,
         base_revision: i32,
@@ -214,7 +214,7 @@ pub enum ErrorCode {
     /// `workspace_id` claimed at auth doesn't match the principal's
     /// memberships.
     UnauthorizedWorkspace,
-    /// `project_id` doesn't belong to the bound workspace.
+    /// `ontology_draft_id` doesn't belong to the bound workspace.
     UnauthorizedProject,
     /// Per-user concurrent connection cap reached.
     TooManyConnections,
@@ -247,7 +247,7 @@ pub struct CursorPosition {
 
 /// One element of the lock snapshot a freshly joined client
 /// receives. Mirrors [`ServerMessage::LockGranted`] minus the
-/// `project_id` (the surrounding `Presence` frame already carries
+/// `ontology_draft_id` (the surrounding `Presence` frame already carries
 /// it).
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct LockSnapshot {
@@ -352,7 +352,7 @@ pub struct JoinOutcome {
 
 /// Hub-wide gauges surfaced through the Prometheus `/metrics`
 /// endpoint. Per-room cardinality is intentionally omitted —
-/// `project_id` would explode the label space and cripple the
+/// `ontology_draft_id` would explode the label space and cripple the
 /// scrape. Operators wanting per-room visibility can pull it from
 /// the structured tracing logs.
 #[derive(Debug, Clone, Copy)]
@@ -409,14 +409,14 @@ pub trait CollaborationHub: Send + Sync {
     /// joining socket.
     async fn join(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         user_id: &str,
         user_name: &str,
     ) -> JoinOutcome;
 
     /// Leave a project room. Releases every lock held by `user_id`
     /// and broadcasts `UserLeft` plus per-lock `LockReleased`.
-    async fn leave(&self, project_id: Uuid, user_id: &str);
+    async fn leave(&self, ontology_draft_id: Uuid, user_id: &str);
 
     /// Broadcast a cursor move. Throttled per `cursor_throttle`;
     /// calls inside the throttle window or for unknown users /
@@ -425,7 +425,7 @@ pub trait CollaborationHub: Send + Sync {
     /// `RoomMember`, so callers don't pass it on every frame.
     async fn move_cursor(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         user_id: &str,
         x: f64,
         y: f64,
@@ -440,7 +440,7 @@ pub trait CollaborationHub: Send + Sync {
     /// idempotent refreshes.
     async fn acquire_lock(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         user_id: &str,
         entity_id: &str,
     ) -> ServerMessage;
@@ -450,7 +450,7 @@ pub trait CollaborationHub: Send + Sync {
     /// `Some(Error { NotJoined })` when the caller hasn't joined.
     async fn release_lock(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         user_id: &str,
         entity_id: &str,
     ) -> Option<ServerMessage>;
@@ -470,7 +470,7 @@ pub trait CollaborationHub: Send + Sync {
     /// surface, the HTTP response remains the authoritative path.
     async fn broadcast_entity_updated(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         author_user_id: &str,
         author_user_name: &str,
         base_revision: i32,
@@ -518,14 +518,14 @@ impl InProcessCollaborationHub {
 
     /// Borrow (or create) the room arc. Two-phase locking keeps
     /// the common case (room exists) on the read path.
-    async fn room(&self, project_id: Uuid) -> Arc<Mutex<Room>> {
-        if let Some(room) = self.rooms.read().await.get(&project_id) {
+    async fn room(&self, ontology_draft_id: Uuid) -> Arc<Mutex<Room>> {
+        if let Some(room) = self.rooms.read().await.get(&ontology_draft_id) {
             return Arc::clone(room);
         }
         let mut rooms = self.rooms.write().await;
         Arc::clone(
             rooms
-                .entry(project_id)
+                .entry(ontology_draft_id)
                 .or_insert_with(|| Arc::new(Mutex::new(Room::new(self.limits.broadcast_buffer)))),
         )
     }
@@ -555,11 +555,11 @@ impl CollaborationHub for InProcessCollaborationHub {
 
     async fn join(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         user_id: &str,
         user_name: &str,
     ) -> JoinOutcome {
-        let room_arc = self.room(project_id).await;
+        let room_arc = self.room(ontology_draft_id).await;
         let mut room = room_arc.lock().await;
 
         let now = Utc::now();
@@ -583,7 +583,7 @@ impl CollaborationHub for InProcessCollaborationHub {
         // `JoinOutcome`, so the duplicate is harmless).
         let receiver = room.broadcast.subscribe();
         let _ = room.broadcast.send(ServerMessage::UserJoined {
-            project_id,
+            ontology_draft_id,
             user: PresenceInfo {
                 user_id: user_id.to_string(),
                 user_name: user_name.to_string(),
@@ -601,8 +601,8 @@ impl CollaborationHub for InProcessCollaborationHub {
 
     /// Leave a room. Releases every lock held by `user_id` and
     /// broadcasts `UserLeft` plus per-lock `LockReleased`.
-    async fn leave(&self, project_id: Uuid, user_id: &str) {
-        let room_arc = match self.rooms.read().await.get(&project_id) {
+    async fn leave(&self, ontology_draft_id: Uuid, user_id: &str) {
+        let room_arc = match self.rooms.read().await.get(&ontology_draft_id) {
             Some(arc) => Arc::clone(arc),
             None => return,
         };
@@ -618,12 +618,12 @@ impl CollaborationHub for InProcessCollaborationHub {
         for entity_id in &released {
             room.locks.remove(entity_id);
             let _ = room.broadcast.send(ServerMessage::LockReleased {
-                project_id,
+                ontology_draft_id,
                 entity_id: entity_id.clone(),
             });
         }
         let _ = room.broadcast.send(ServerMessage::UserLeft {
-            project_id,
+            ontology_draft_id,
             user_id: user_id.to_string(),
         });
 
@@ -639,10 +639,10 @@ impl CollaborationHub for InProcessCollaborationHub {
             // re-joined the room between our `drop(room)` and here,
             // and `Arc::strong_count` lets us detect that without
             // double-locking the inner mutex.
-            if let Some(arc) = rooms.get(&project_id)
+            if let Some(arc) = rooms.get(&ontology_draft_id)
                 && Arc::strong_count(arc) == 1
             {
-                rooms.remove(&project_id);
+                rooms.remove(&ontology_draft_id);
             }
         }
     }
@@ -654,13 +654,13 @@ impl CollaborationHub for InProcessCollaborationHub {
     /// only pass `user_id`.
     async fn move_cursor(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         user_id: &str,
         x: f64,
         y: f64,
         selected_element: Option<String>,
     ) {
-        let room_arc = match self.rooms.read().await.get(&project_id) {
+        let room_arc = match self.rooms.read().await.get(&ontology_draft_id) {
             Some(arc) => Arc::clone(arc),
             None => return,
         };
@@ -688,7 +688,7 @@ impl CollaborationHub for InProcessCollaborationHub {
         let user_name = member.user_name.clone();
 
         let _ = room.broadcast.send(ServerMessage::RemoteCursor {
-            project_id,
+            ontology_draft_id,
             user_id: user_id.to_string(),
             user_name,
             x,
@@ -710,11 +710,11 @@ impl CollaborationHub for InProcessCollaborationHub {
     ///   the room. Indicates a client bug; unicast to the caller.
     async fn acquire_lock(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         user_id: &str,
         entity_id: &str,
     ) -> ServerMessage {
-        let room_arc = self.room(project_id).await;
+        let room_arc = self.room(ontology_draft_id).await;
         let mut room = room_arc.lock().await;
 
         if let Some(member) = room.members.get_mut(user_id) {
@@ -747,7 +747,7 @@ impl CollaborationHub for InProcessCollaborationHub {
                     lock.expires_at = expires_at;
                 }
                 return ServerMessage::LockGranted {
-                    project_id,
+                    ontology_draft_id,
                     entity_id: entity_id.to_string(),
                     held_by: user_id.to_string(),
                     expires_at,
@@ -756,7 +756,7 @@ impl CollaborationHub for InProcessCollaborationHub {
             if exp > now {
                 // Still held — deny without broadcast.
                 return ServerMessage::LockDenied {
-                    project_id,
+                    ontology_draft_id,
                     entity_id: entity_id.to_string(),
                     held_by,
                 };
@@ -772,7 +772,7 @@ impl CollaborationHub for InProcessCollaborationHub {
             },
         );
         let msg = ServerMessage::LockGranted {
-            project_id,
+            ontology_draft_id,
             entity_id: entity_id.to_string(),
             held_by: user_id.to_string(),
             expires_at,
@@ -790,11 +790,11 @@ impl CollaborationHub for InProcessCollaborationHub {
     /// WS handler unicasts back to the requester.
     async fn release_lock(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         user_id: &str,
         entity_id: &str,
     ) -> Option<ServerMessage> {
-        let room_arc = self.rooms.read().await.get(&project_id).cloned()?;
+        let room_arc = self.rooms.read().await.get(&ontology_draft_id).cloned()?;
         let mut room = room_arc.lock().await;
 
         if let Some(member) = room.members.get_mut(user_id) {
@@ -812,7 +812,7 @@ impl CollaborationHub for InProcessCollaborationHub {
         }
         room.locks.remove(entity_id);
         let _ = room.broadcast.send(ServerMessage::LockReleased {
-            project_id,
+            ontology_draft_id,
             entity_id: entity_id.to_string(),
         });
         None
@@ -847,7 +847,7 @@ impl CollaborationHub for InProcessCollaborationHub {
         let mut victims: Vec<(Uuid, Vec<String>)> = Vec::new();
         {
             let rooms = self.rooms.read().await;
-            for (project_id, arc) in rooms.iter() {
+            for (ontology_draft_id, arc) in rooms.iter() {
                 let room = arc.lock().await;
                 let mut idle: Vec<String> = Vec::new();
                 for (user_id, member) in room.members.iter() {
@@ -856,41 +856,41 @@ impl CollaborationHub for InProcessCollaborationHub {
                     }
                 }
                 if !idle.is_empty() {
-                    victims.push((*project_id, idle));
+                    victims.push((*ontology_draft_id, idle));
                 }
             }
         }
 
         let mut total = 0usize;
-        for (project_id, users) in victims {
+        for (ontology_draft_id, users) in victims {
             for user_id in users {
-                self.leave(project_id, &user_id).await;
+                self.leave(ontology_draft_id, &user_id).await;
                 total += 1;
             }
         }
         total
     }
 
-    /// Broadcast `EntityUpdated` to every subscriber of `project_id`.
+    /// Broadcast `EntityUpdated` to every subscriber of `ontology_draft_id`.
     /// Drops silently when the room hasn't been opened yet (no
     /// active subscribers) — collaboration broadcasts are
     /// fire-and-forget by design; the HTTP response remains the
     /// authoritative path for the author's own UI.
     async fn broadcast_entity_updated(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         author_user_id: &str,
         author_user_name: &str,
         base_revision: i32,
         new_revision: i32,
         commands: Vec<OntologyCommand>,
     ) {
-        let Some(room_arc) = self.rooms.read().await.get(&project_id).cloned() else {
+        let Some(room_arc) = self.rooms.read().await.get(&ontology_draft_id).cloned() else {
             return;
         };
         let room = room_arc.lock().await;
         let _ = room.broadcast.send(ServerMessage::EntityUpdated {
-            project_id,
+            ontology_draft_id,
             author_user_id: author_user_id.to_string(),
             author_user_name: author_user_name.to_string(),
             base_revision,

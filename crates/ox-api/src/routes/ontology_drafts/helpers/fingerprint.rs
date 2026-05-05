@@ -169,9 +169,9 @@ pub(super) fn snowflake_fingerprint(account: &str, database: &str, schema: &str)
 }
 
 /// Compute a stable fingerprint for a BigQuery source from its identity fields.
-/// Uses project_id and dataset to form the identity (credentials are excluded).
-pub(super) fn bigquery_fingerprint(project_id: &str, dataset: &str) -> String {
-    let identity = format!("{project_id}/{dataset}");
+/// Uses ontology_draft_id and dataset to form the identity (credentials are excluded).
+pub(super) fn bigquery_fingerprint(ontology_draft_id: &str, dataset: &str) -> String {
+    let identity = format!("{ontology_draft_id}/{dataset}");
     format!("{:016x}", fnv1a(identity.as_bytes()))
 }
 

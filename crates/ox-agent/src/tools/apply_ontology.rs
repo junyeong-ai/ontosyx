@@ -38,7 +38,7 @@ impl SchemaTool for ApplyOntologyTool {
             Some(o) => o,
             None => return ToolResult::error("No ontology loaded"),
         };
-        let project_id = match self.domain.project_id {
+        let ontology_draft_id = match self.domain.ontology_draft_id {
             Some(id) => id,
             None => {
                 return ToolResult::error(
@@ -72,7 +72,7 @@ impl SchemaTool for ApplyOntologyTool {
         }
 
         info!(
-            project_id = %project_id,
+            ontology_draft_id = %ontology_draft_id,
             command_count = edit_result.commands.len(),
             "Applying ontology edit commands"
         );
@@ -110,7 +110,7 @@ impl SchemaTool for ApplyOntologyTool {
             .domain
             .store
             .update_design_result(
-                project_id,
+                ontology_draft_id,
                 &ontology_json,
                 None, // quality_report will be recomputed
                 revision,
@@ -126,7 +126,7 @@ impl SchemaTool for ApplyOntologyTool {
                 self.domain.replace_ontology(updated.clone());
 
                 info!(
-                    project_id = %project_id,
+                    ontology_draft_id = %ontology_draft_id,
                     applied = applied_count,
                     errors = errors.len(),
                     "Ontology edit applied and saved"

@@ -404,7 +404,7 @@ pub struct DesignProjectSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct OntologySnapshot {
     pub id: Uuid,
-    pub project_id: Uuid,
+    pub ontology_draft_id: Uuid,
     pub workspace_id: Uuid,
     pub revision: i32,
     /// OntologyIR JSON — includes canonical `object_mappings`.
@@ -450,7 +450,7 @@ pub struct WorkbenchPerspective {
     pub workspace_id: Uuid,
     pub lineage_id: String,
     pub topology_signature: String,
-    pub project_id: Option<Uuid>,
+    pub ontology_draft_id: Option<Uuid>,
     pub name: String,
     pub positions: serde_json::Value,
     pub viewport: serde_json::Value,
@@ -895,7 +895,7 @@ pub struct QualityDashboardEntry {
 pub struct LineageEntry {
     pub id: Uuid,
     pub workspace_id: Uuid,
-    pub project_id: Option<Uuid>,
+    pub ontology_draft_id: Option<Uuid>,
     pub graph_label: String,
     pub graph_element_type: String,
     pub source_type: String,
@@ -1061,7 +1061,7 @@ pub struct LoadCheckpoint {
     pub id: Option<Uuid>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<Uuid>,
-    pub project_id: Uuid,
+    pub ontology_draft_id: Uuid,
     pub source_table: String,
     pub graph_label: String,
     pub watermark_column: String,
@@ -1074,7 +1074,7 @@ impl LoadCheckpoint {
     /// Author a fresh checkpoint with the persistence-side fields
     /// (`id`, `workspace_id`) left for the store to populate.
     pub fn draft(
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         source_table: String,
         graph_label: String,
         watermark_column: String,
@@ -1084,7 +1084,7 @@ impl LoadCheckpoint {
         Self {
             id: None,
             workspace_id: None,
-            project_id,
+            ontology_draft_id,
             source_table,
             graph_label,
             watermark_column,

@@ -18,9 +18,9 @@
 //!
 //! The adapter therefore takes:
 //!
-//! - `project_id` — the data project, used in fully-qualified
-//!   identifiers (`{project_id}.{dataset}.INFORMATION_SCHEMA.X`).
-//! - `billing_project_id` — optional, defaults to `project_id`. Used as
+//! - `ontology_draft_id` — the data project, used in fully-qualified
+//!   identifiers (`{ontology_draft_id}.{dataset}.INFORMATION_SCHEMA.X`).
+//! - `billing_project_id` — optional, defaults to `ontology_draft_id`. Used as
 //!   the `projectId` argument when submitting jobs.
 //!
 //! ## Authentication
@@ -68,17 +68,17 @@ const DEFINITE_ENUM_CARDINALITY: i64 = 30;
 
 pub struct BigQueryAdapter {
     client: Arc<Client>,
-    project_id: String,
+    ontology_draft_id: String,
     dataset: String,
     /// Project that pays for and runs the BQ jobs. Defaults to
-    /// `project_id` when the caller does not split billing from data.
+    /// `ontology_draft_id` when the caller does not split billing from data.
     billing_project_id: String,
 }
 
 impl std::fmt::Debug for BigQueryAdapter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BigQueryAdapter")
-            .field("project_id", &self.project_id)
+            .field("ontology_draft_id", &self.ontology_draft_id)
             .field("dataset", &self.dataset)
             .field("billing_project_id", &self.billing_project_id)
             .finish_non_exhaustive()
@@ -93,7 +93,7 @@ impl BigQueryAdapter {
     /// `bigquery://PROJECT_ID/DATASET[?billing_project_id=BILLING][&credentials_path=PATH]`
     pub async fn connect(connection_string: &str) -> OxResult<Self> {
         let parsed = parse_bigquery_uri(connection_string)?;
-        validate_project_or_dataset("project_id", &parsed.project_id)?;
+        validate_project_or_dataset("ontology_draft_id", &parsed.ontology_draft_id)?;
         validate_project_or_dataset("dataset", &parsed.dataset)?;
         if let Some(b) = &parsed.billing_project_id {
             validate_project_or_dataset("billing_project_id", b)?;
@@ -111,10 +111,10 @@ impl BigQueryAdapter {
         let billing_project_id = parsed
             .billing_project_id
             .clone()
-            .unwrap_or_else(|| parsed.project_id.clone());
+            .unwrap_or_else(|| parsed.ontology_draft_id.clone());
 
         info!(
-            project_id = %parsed.project_id,
+            ontology_draft_id = %parsed.ontology_draft_id,
             dataset = %parsed.dataset,
             billing_project_id = %billing_project_id,
             credential = %credential_kind_label(&credential),
@@ -123,7 +123,7 @@ impl BigQueryAdapter {
 
         Ok(Self {
             client: Arc::new(client),
-            project_id: parsed.project_id,
+            ontology_draft_id: parsed.ontology_draft_id,
             dataset: parsed.dataset,
             billing_project_id,
         })
@@ -285,7 +285,7 @@ impl DataSourceAdapter for BigQueryAdapter {
         let sql = format!(
             "SELECT table_name FROM `{project}.{dataset}.INFORMATION_SCHEMA.TABLES` \
              ORDER BY table_name",
-            project = self.project_id,
+            project = self.ontology_draft_id,
             dataset = self.dataset,
         );
         let mut rs = self.run_query(&sql).await?;
@@ -320,7 +320,7 @@ impl DataSourceAdapter for BigQueryAdapter {
                     t.last_modified_time \
              FROM `{project}.{dataset}.__TABLES__` t \
              ORDER BY t.table_id",
-            project = self.project_id,
+            project = self.ontology_draft_id,
             dataset = self.dataset,
         );
         let mut rs = self.run_query(&sql).await?;
@@ -359,7 +359,7 @@ impl DataSourceAdapter for BigQueryAdapter {
              FROM `{project}.{dataset}.INFORMATION_SCHEMA.COLUMNS` \
              WHERE table_name = {table} \
              ORDER BY ordinal_position",
-            project = self.project_id,
+            project = self.ontology_draft_id,
             dataset = self.dataset,
             table = quote_literal(table),
         );
@@ -408,7 +408,7 @@ impl DataSourceAdapter for BigQueryAdapter {
         let meta_sql = format!(
             "SELECT row_count FROM `{project}.{dataset}.__TABLES__` \
              WHERE table_id = {table}",
-            project = self.project_id,
+            project = self.ontology_draft_id,
             dataset = self.dataset,
             table = quote_literal(table),
         );
@@ -425,7 +425,7 @@ impl DataSourceAdapter for BigQueryAdapter {
         // (free tier) so this is cheap.
         let count_sql = format!(
             "SELECT COUNT(*) AS cnt FROM `{project}.{dataset}.{table}`",
-            project = self.project_id,
+            project = self.ontology_draft_id,
             dataset = self.dataset,
             table = table,
         );
@@ -454,7 +454,7 @@ impl DataSourceAdapter for BigQueryAdapter {
                 MIN(CAST({qc} AS STRING)) AS min_val, \
                 MAX(CAST({qc} AS STRING)) AS max_val \
              FROM `{project}.{dataset}.{table}`",
-            project = self.project_id,
+            project = self.ontology_draft_id,
             dataset = self.dataset,
             table = table,
         );
@@ -490,7 +490,7 @@ impl DataSourceAdapter for BigQueryAdapter {
                  FROM (SELECT CAST({qc} AS STRING) AS val \
                        FROM `{project}.{dataset}.{table}` \
                        WHERE {qc} IS NOT NULL LIMIT 1000)",
-                project = self.project_id,
+                project = self.ontology_draft_id,
                 dataset = self.dataset,
                 table = table,
             );
@@ -517,7 +517,7 @@ impl DataSourceAdapter for BigQueryAdapter {
                  WHERE {qc} IS NOT NULL \
                  ORDER BY val \
                  LIMIT {sample_limit}",
-                project = self.project_id,
+                project = self.ontology_draft_id,
                 dataset = self.dataset,
                 table = table,
             );
@@ -560,7 +560,7 @@ impl DataSourceAdapter for BigQueryAdapter {
                ON rc.unique_constraint_name = ccu.constraint_name \
                AND kcu.ordinal_position = ccu.ordinal_position \
              ORDER BY rc.constraint_name",
-            project = self.project_id,
+            project = self.ontology_draft_id,
             dataset = self.dataset,
         );
 
@@ -646,7 +646,7 @@ impl DataSourceAdapter for BigQueryAdapter {
             .unwrap_or_default();
         let sql = format!(
             "SELECT {select_list} FROM `{project}.{dataset}.{table}`{limit}",
-            project = self.project_id,
+            project = self.ontology_draft_id,
             dataset = self.dataset,
             table = table,
             limit = limit_clause,
@@ -698,7 +698,7 @@ impl BigQueryAdapter {
              WHERE tc.table_name = {table} \
                AND tc.constraint_type = 'PRIMARY KEY' \
              ORDER BY kcu.ordinal_position",
-            project = self.project_id,
+            project = self.ontology_draft_id,
             dataset = self.dataset,
             table = quote_literal(table),
         );
@@ -725,7 +725,7 @@ fn bq_row_err(e: gcp_bigquery_client::error::BQError) -> OxError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct BigQueryUri {
-    project_id: String,
+    ontology_draft_id: String,
     dataset: String,
     billing_project_id: Option<String>,
     credentials_path: Option<String>,
@@ -751,11 +751,11 @@ fn parse_bigquery_uri(uri: &str) -> OxResult<BigQueryUri> {
         message: format!("Invalid BigQuery URI: {e}"),
     })?;
 
-    let project_id = url.host_str().unwrap_or("").to_string();
-    if project_id.is_empty() {
+    let ontology_draft_id = url.host_str().unwrap_or("").to_string();
+    if ontology_draft_id.is_empty() {
         return Err(OxError::Validation {
             field: "connection_string".to_string(),
-            message: "BigQuery URI missing project_id (expected bigquery://PROJECT_ID/DATASET)"
+            message: "BigQuery URI missing ontology_draft_id (expected bigquery://PROJECT_ID/DATASET)"
                 .to_string(),
         });
     }
@@ -785,7 +785,7 @@ fn parse_bigquery_uri(uri: &str) -> OxResult<BigQueryUri> {
     }
 
     Ok(BigQueryUri {
-        project_id,
+        ontology_draft_id,
         dataset,
         billing_project_id,
         credentials_path,
@@ -877,7 +877,7 @@ mod tests {
     #[test]
     fn parse_basic_uri() {
         let parsed = parse_bigquery_uri("bigquery://my-gcp-project/analytics_prod").unwrap();
-        assert_eq!(parsed.project_id, "my-gcp-project");
+        assert_eq!(parsed.ontology_draft_id, "my-gcp-project");
         assert_eq!(parsed.dataset, "analytics_prod");
         assert!(parsed.billing_project_id.is_none());
         assert!(parsed.credentials_path.is_none());
@@ -888,7 +888,7 @@ mod tests {
         let parsed =
             parse_bigquery_uri("bigquery://my-project/my_dataset?credentials_path=/etc/sa.json")
                 .unwrap();
-        assert_eq!(parsed.project_id, "my-project");
+        assert_eq!(parsed.ontology_draft_id, "my-project");
         assert_eq!(parsed.dataset, "my_dataset");
         assert_eq!(parsed.credentials_path.as_deref(), Some("/etc/sa.json"));
     }
@@ -899,7 +899,7 @@ mod tests {
             "bigquery://oydp-public-dw/dim?billing_project_id=oy-dwusers",
         )
         .unwrap();
-        assert_eq!(parsed.project_id, "oydp-public-dw");
+        assert_eq!(parsed.ontology_draft_id, "oydp-public-dw");
         assert_eq!(parsed.dataset, "dim");
         assert_eq!(parsed.billing_project_id.as_deref(), Some("oy-dwusers"));
     }
@@ -940,14 +940,14 @@ mod tests {
 
     #[test]
     fn validate_identifier_rejects_injection() {
-        assert!(validate_project_or_dataset("project_id", "proj';DROP").is_err());
+        assert!(validate_project_or_dataset("ontology_draft_id", "proj';DROP").is_err());
         assert!(validate_project_or_dataset("dataset", "data.set").is_err());
-        assert!(validate_project_or_dataset("project_id", "").is_err());
+        assert!(validate_project_or_dataset("ontology_draft_id", "").is_err());
     }
 
     #[test]
     fn validate_identifier_accepts_common_shapes() {
-        assert!(validate_project_or_dataset("project_id", "my-gcp-project-123").is_ok());
+        assert!(validate_project_or_dataset("ontology_draft_id", "my-gcp-project-123").is_ok());
         assert!(validate_project_or_dataset("dataset", "analytics_prod").is_ok());
     }
 

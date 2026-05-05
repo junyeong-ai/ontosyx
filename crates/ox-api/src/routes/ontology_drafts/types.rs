@@ -84,7 +84,7 @@ fn derive_gate_state(
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
-pub struct CreateProjectRequest {
+pub struct CreateOntologyDraftRequest {
     pub title: Option<String>,
     /// Project origin: source analysis or base ontology.
     #[serde(flatten)]
@@ -162,11 +162,11 @@ pub enum ProjectSource {
     Bigquery {
         /// Data project — the GCP project that owns the dataset. Used
         /// to fully-qualify identifiers in `INFORMATION_SCHEMA` queries.
-        project_id: String,
+        ontology_draft_id: String,
         /// BigQuery dataset name.
         dataset: String,
         /// Project that runs and is billed for the BigQuery jobs.
-        /// Defaults to `project_id`. Required when the caller has
+        /// Defaults to `ontology_draft_id`. Required when the caller has
         /// `bigquery.tables.list` on the data project but lacks
         /// `bigquery.jobs.create` there (typical for shared data
         /// projects), or when a VPC Service Controls perimeter forces
@@ -201,7 +201,7 @@ fn default_snowflake_schema() -> String {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct UpdateProjectDecisionsRequest {
+pub struct UpdateOntologyDraftDecisionsRequest {
     /// User design decisions.
     #[schema(value_type = Object)]
     pub design_options: DesignOptions,
@@ -209,7 +209,7 @@ pub struct UpdateProjectDecisionsRequest {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct DesignProjectRequest {
+pub struct DesignOntologyDraftRequest {
     pub revision: i32,
     /// Domain hints for the LLM.
     #[serde(default)]
@@ -217,13 +217,13 @@ pub struct DesignProjectRequest {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct DesignProjectResponse {
+pub struct DesignOntologyDraftResponse {
     #[schema(value_type = Object)]
     pub project: ProjectView,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ReanalyzeProjectRequest {
+pub struct ReanalyzeOntologyDraftRequest {
     /// Data source to re-analyze (must match original source type).
     pub source: ProjectSource,
     pub revision: i32,
@@ -239,7 +239,7 @@ pub struct ReanalyzeProjectRequest {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct ReanalyzeProjectResponse {
+pub struct ReanalyzeOntologyDraftResponse {
     #[schema(value_type = Object)]
     pub project: ProjectView,
     /// Design decisions that were invalidated by the schema change.
@@ -248,14 +248,14 @@ pub struct ReanalyzeProjectResponse {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct RefineProjectRequest {
+pub struct RefineOntologyDraftRequest {
     pub revision: i32,
     /// Additional context for the LLM refinement.
     pub additional_context: Option<String>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct RefineProjectResponse {
+pub struct RefineOntologyDraftResponse {
     #[schema(value_type = Object)]
     pub project: ProjectView,
     /// Summary of graph profiling results.
@@ -266,7 +266,7 @@ pub struct RefineProjectResponse {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ReconcileProjectRequest {
+pub struct ReconcileOntologyDraftRequest {
     pub revision: i32,
     /// Reconciled ontology with user decisions applied.
     #[schema(value_type = Object)]
@@ -280,7 +280,7 @@ pub struct ReconcileProjectRequest {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ExtendProjectRequest {
+pub struct ExtendOntologyDraftRequest {
     pub revision: i32,
     /// New data source to merge into the project.
     pub source: ProjectSource,
@@ -293,7 +293,7 @@ pub struct ExtendProjectRequest {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct ExtendProjectResponse {
+pub struct ExtendOntologyDraftResponse {
     #[schema(value_type = Object)]
     pub project: ProjectView,
     /// Report on ID reconciliation between existing and new ontology entities.

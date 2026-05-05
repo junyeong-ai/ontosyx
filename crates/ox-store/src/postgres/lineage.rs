@@ -9,13 +9,13 @@ impl LineageStore for PostgresStore {
         super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO data_lineage
-             (id, project_id, graph_label, graph_element_type, source_type,
+             (id, ontology_draft_id, graph_label, graph_element_type, source_type,
               source_name, source_table, source_columns, load_plan_hash,
               property_mappings, record_count, loaded_by, started_at, status)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
         )
         .bind(e.id)
-        .bind(e.project_id)
+        .bind(e.ontology_draft_id)
         .bind(&e.graph_label)
         .bind(&e.graph_element_type)
         .bind(&e.source_type)
@@ -68,9 +68,9 @@ impl LineageStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn list_lineage_for_project(&self, project_id: Uuid) -> OxResult<Vec<LineageEntry>> {
-        sqlx::query_as("SELECT * FROM data_lineage WHERE project_id = $1 ORDER BY started_at DESC")
-            .bind(project_id)
+    async fn list_lineage_for_project(&self, ontology_draft_id: Uuid) -> OxResult<Vec<LineageEntry>> {
+        sqlx::query_as("SELECT * FROM data_lineage WHERE ontology_draft_id = $1 ORDER BY started_at DESC")
+            .bind(ontology_draft_id)
             .fetch_all(&self.pool)
             .await
             .map_err(to_ox_error)

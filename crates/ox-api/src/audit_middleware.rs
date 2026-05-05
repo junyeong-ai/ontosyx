@@ -107,7 +107,11 @@ fn extract_resource_type(path: &str) -> String {
 }
 
 /// Naive English singularization for resource path segments.
+/// Resource paths use hyphens for compound nouns (`ontology-drafts`)
+/// per REST convention; the audit log normalises to snake_case for
+/// downstream consumers, so the helper converts on the way through.
 fn singularize(word: &str) -> String {
+    let word = &word.replace('-', "_");
     if let Some(stem) = word.strip_suffix("ies") {
         // policies → policy, entries → entry
         format!("{stem}y")
@@ -147,6 +151,6 @@ mod tests {
         );
         assert_eq!(extract_resource_type("/api/quality/rules"), "quality.rule");
         assert_eq!(extract_resource_type("/api/acl/policies"), "acl.policy");
-        assert_eq!(extract_resource_type("/api/projects"), "project");
+        assert_eq!(extract_resource_type("/api/ontology-drafts"), "ontology_draft");
     }
 }

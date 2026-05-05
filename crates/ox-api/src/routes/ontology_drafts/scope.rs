@@ -37,7 +37,7 @@ pub struct ScopeUpdateResponse {
 /// Promote tables from deferred (or first-time) into included.
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/scope/include",
+    path = "/api/ontology-drafts/{id}/scope/include",
     params(("id" = Uuid, Path, description = "Project ID")),
     request_body = IncludeScopeTablesRequest,
     responses(
@@ -87,7 +87,7 @@ pub(crate) async fn include_scope_tables(
 /// table — the caller must retract those nodes first.
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/scope/defer",
+    path = "/api/ontology-drafts/{id}/scope/defer",
     params(("id" = Uuid, Path, description = "Project ID")),
     request_body = DeferScopeTablesRequest,
     responses(

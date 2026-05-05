@@ -10,17 +10,17 @@ use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::helpers::validate_decisions;
-use super::types::{ProjectView, UpdateProjectDecisionsRequest};
+use super::types::{ProjectView, UpdateOntologyDraftDecisionsRequest};
 
 // ---------------------------------------------------------------------------
-// PATCH /api/projects/:id/decisions
+// PATCH /api/ontology-drafts/:id/decisions
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     patch,
-    path = "/api/projects/{id}/decisions",
+    path = "/api/ontology-drafts/{id}/decisions",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = UpdateProjectDecisionsRequest,
+    request_body = UpdateOntologyDraftDecisionsRequest,
     responses(
         (status = 200, description = "Decisions updated", body = Object),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
@@ -33,7 +33,7 @@ pub(crate) async fn update_decisions(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<UpdateProjectDecisionsRequest>,
+    Json(req): Json<UpdateOntologyDraftDecisionsRequest>,
 ) -> Result<Json<ApiResponse<ProjectView>>, AppError> {
     principal.require_designer()?;
     let project = state

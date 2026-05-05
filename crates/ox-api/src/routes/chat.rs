@@ -36,7 +36,7 @@ pub struct ChatStreamRequest {
     #[serde(default)]
     pub ontology_id: Option<Uuid>,
     #[serde(default)]
-    pub project_id: Option<Uuid>,
+    pub ontology_draft_id: Option<Uuid>,
     #[serde(default)]
     pub project_revision: Option<i32>,
     #[serde(default)]
@@ -114,8 +114,8 @@ pub(crate) async fn chat_stream(
     let model_id = state.brain.default_model_info().model.clone();
 
     // Load source schema + repo insights from project (deserialize JSONB → typed structs)
-    let (source_schema, source_profile, repo_insights) = if let Some(project_id) = req.project_id {
-        match state.store.get_ontology_draft(project_id).await {
+    let (source_schema, source_profile, repo_insights) = if let Some(ontology_draft_id) = req.ontology_draft_id {
+        match state.store.get_ontology_draft(ontology_draft_id).await {
             Ok(Some(project)) => {
                 let schema = project
                     .source_schema
@@ -147,7 +147,7 @@ pub(crate) async fn chat_stream(
         user_id: user_id.clone(),
         workspace_id: ws.workspace_id,
         ontology_id: req.ontology_id,
-        project_id: req.project_id,
+        ontology_draft_id: req.ontology_draft_id,
         project_revision: req.project_revision,
         source_schema,
         source_profile,

@@ -11,7 +11,7 @@ use super::*;
 struct LoadCheckpointRow {
     id: Uuid,
     workspace_id: Uuid,
-    project_id: Uuid,
+    ontology_draft_id: Uuid,
     source_table: String,
     graph_label: String,
     watermark_column: String,
@@ -25,7 +25,7 @@ impl LoadCheckpointRow {
         LoadCheckpoint {
             id: Some(self.id),
             workspace_id: Some(self.workspace_id),
-            project_id: self.project_id,
+            ontology_draft_id: self.ontology_draft_id,
             source_table: self.source_table,
             graph_label: self.graph_label,
             watermark_column: self.watermark_column,
@@ -41,17 +41,17 @@ impl LoadCheckpointStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn get_load_checkpoint(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         source_table: &str,
         graph_label: &str,
     ) -> OxResult<Option<LoadCheckpoint>> {
         let row: Option<LoadCheckpointRow> = sqlx::query_as(
-            "SELECT id, workspace_id, project_id, source_table, graph_label,
+            "SELECT id, workspace_id, ontology_draft_id, source_table, graph_label,
                     watermark_column, watermark_value, record_count, loaded_at
              FROM load_checkpoints
-             WHERE project_id = $1 AND source_table = $2 AND graph_label = $3",
+             WHERE ontology_draft_id = $1 AND source_table = $2 AND graph_label = $3",
         )
-        .bind(project_id)
+        .bind(ontology_draft_id)
         .bind(source_table)
         .bind(graph_label)
         .fetch_optional(&self.pool)
@@ -70,10 +70,10 @@ impl LoadCheckpointStore for PostgresStore {
         let workspace_id = super::bound_workspace_id_for_dml()?;
         sqlx::query(
             "INSERT INTO load_checkpoints
-             (workspace_id, project_id, source_table, graph_label,
+             (workspace_id, ontology_draft_id, source_table, graph_label,
               watermark_column, watermark_value, record_count, loaded_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             ON CONFLICT (workspace_id, project_id, source_table, graph_label)
+             ON CONFLICT (workspace_id, ontology_draft_id, source_table, graph_label)
              DO UPDATE SET
                 watermark_column = EXCLUDED.watermark_column,
                 watermark_value = EXCLUDED.watermark_value,
@@ -81,7 +81,7 @@ impl LoadCheckpointStore for PostgresStore {
                 loaded_at = EXCLUDED.loaded_at",
         )
         .bind(workspace_id)
-        .bind(c.project_id)
+        .bind(c.ontology_draft_id)
         .bind(&c.source_table)
         .bind(&c.graph_label)
         .bind(&c.watermark_column)
@@ -95,15 +95,15 @@ impl LoadCheckpointStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn list_load_checkpoints(&self, project_id: Uuid) -> OxResult<Vec<LoadCheckpoint>> {
+    async fn list_load_checkpoints(&self, ontology_draft_id: Uuid) -> OxResult<Vec<LoadCheckpoint>> {
         let rows: Vec<LoadCheckpointRow> = sqlx::query_as(
-            "SELECT id, workspace_id, project_id, source_table, graph_label,
+            "SELECT id, workspace_id, ontology_draft_id, source_table, graph_label,
                     watermark_column, watermark_value, record_count, loaded_at
              FROM load_checkpoints
-             WHERE project_id = $1
+             WHERE ontology_draft_id = $1
              ORDER BY loaded_at DESC",
         )
-        .bind(project_id)
+        .bind(ontology_draft_id)
         .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)?;

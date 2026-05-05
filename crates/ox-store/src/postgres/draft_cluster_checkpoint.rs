@@ -22,7 +22,7 @@ use super::*;
 struct DraftClusterCheckpointRow {
     id: Uuid,
     workspace_id: Uuid,
-    project_id: Uuid,
+    ontology_draft_id: Uuid,
     source_id: String,
     signature: String,
     cluster_id: i32,
@@ -44,7 +44,7 @@ impl DraftClusterCheckpointRow {
         Ok(DraftClusterCheckpoint {
             id: Some(self.id),
             workspace_id: Some(self.workspace_id),
-            project_id: self.project_id,
+            ontology_draft_id: self.ontology_draft_id,
             source_id: self.source_id,
             signature,
             cluster_id: self.cluster_id as usize,
@@ -77,10 +77,10 @@ impl DraftClusterCheckpointStore for PostgresStore {
         })?;
         sqlx::query(
             "INSERT INTO draft_cluster_checkpoints
-                (workspace_id, project_id, source_id, signature,
+                (workspace_id, ontology_draft_id, source_id, signature,
                  cluster_id, output, created_at, expires_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             ON CONFLICT (workspace_id, project_id, source_id, signature)
+             ON CONFLICT (workspace_id, ontology_draft_id, source_id, signature)
              DO UPDATE SET
                 cluster_id = EXCLUDED.cluster_id,
                 output = EXCLUDED.output,
@@ -88,7 +88,7 @@ impl DraftClusterCheckpointStore for PostgresStore {
                 expires_at = EXCLUDED.expires_at",
         )
         .bind(workspace_id)
-        .bind(c.project_id)
+        .bind(c.ontology_draft_id)
         .bind(&c.source_id)
         .bind(c.signature.as_str())
         .bind(cluster_id)
@@ -104,18 +104,18 @@ impl DraftClusterCheckpointStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn find_draft_cluster_checkpoint_by_signature(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         source_id: &str,
         signature: &str,
     ) -> OxResult<Option<DraftClusterCheckpoint>> {
         super::require_workspace_context()?;
         let row: Option<DraftClusterCheckpointRow> = sqlx::query_as(
-            "SELECT id, workspace_id, project_id, source_id, signature,
+            "SELECT id, workspace_id, ontology_draft_id, source_id, signature,
                     cluster_id, output, created_at, expires_at
              FROM draft_cluster_checkpoints
-             WHERE project_id = $1 AND source_id = $2 AND signature = $3",
+             WHERE ontology_draft_id = $1 AND source_id = $2 AND signature = $3",
         )
-        .bind(project_id)
+        .bind(ontology_draft_id)
         .bind(source_id)
         .bind(signature)
         .fetch_optional(&self.pool)
@@ -127,17 +127,17 @@ impl DraftClusterCheckpointStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn list_draft_cluster_checkpoints_by_project(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
     ) -> OxResult<Vec<DraftClusterCheckpoint>> {
         super::require_workspace_context()?;
         let rows: Vec<DraftClusterCheckpointRow> = sqlx::query_as(
-            "SELECT id, workspace_id, project_id, source_id, signature,
+            "SELECT id, workspace_id, ontology_draft_id, source_id, signature,
                     cluster_id, output, created_at, expires_at
              FROM draft_cluster_checkpoints
-             WHERE project_id = $1
+             WHERE ontology_draft_id = $1
              ORDER BY created_at DESC",
         )
-        .bind(project_id)
+        .bind(ontology_draft_id)
         .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)?;
@@ -163,13 +163,13 @@ impl DraftClusterCheckpointStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_draft_cluster_checkpoints_by_project(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
     ) -> OxResult<u64> {
         super::require_workspace_context()?;
         let result = sqlx::query(
-            "DELETE FROM draft_cluster_checkpoints WHERE project_id = $1",
+            "DELETE FROM draft_cluster_checkpoints WHERE ontology_draft_id = $1",
         )
-        .bind(project_id)
+        .bind(ontology_draft_id)
         .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;

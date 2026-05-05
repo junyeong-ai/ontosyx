@@ -257,7 +257,7 @@ mod tests {
             "sa.json",
             r#"{
                 "type": "service_account",
-                "project_id": "demo",
+                "ontology_draft_id": "demo",
                 "private_key_id": "k",
                 "private_key": "-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----",
                 "client_email": "demo@demo.iam.gserviceaccount.com",

@@ -10,16 +10,16 @@ use ox_store::{OntologySnapshot, OntologySnapshotSummary};
 use crate::error::AppError;
 use crate::principal::Principal;
 use crate::response::ApiResponse;
-use crate::routes::projects::helpers::{load_mutable_project, reload_project};
+use crate::routes::ontology_drafts::helpers::{load_mutable_project, reload_project};
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
-// GET /api/projects/:id/revisions — list ontology revision history
+// GET /api/ontology-drafts/:id/revisions — list ontology revision history
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     get,
-    path = "/api/projects/{id}/revisions",
+    path = "/api/ontology-drafts/{id}/revisions",
     params(("id" = Uuid, Path, description = "Project ID")),
     responses(
         (status = 200, description = "List of ontology revision snapshots", body = Object),
@@ -50,12 +50,12 @@ pub(crate) async fn list_revisions(
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/projects/:id/revisions/:rev — get a specific revision snapshot
+// GET /api/ontology-drafts/:id/revisions/:rev — get a specific revision snapshot
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     get,
-    path = "/api/projects/{id}/revisions/{rev}",
+    path = "/api/ontology-drafts/{id}/revisions/{rev}",
     params(
         ("id" = Uuid, Path, description = "Project ID"),
         ("rev" = i32, Path, description = "Revision number"),
@@ -82,24 +82,24 @@ pub(crate) async fn get_revision(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/revisions/:rev/restore — restore a previous revision
+// POST /api/ontology-drafts/:id/revisions/:rev/restore — restore a previous revision
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct RestoreProjectRevisionResponse {
+pub struct RestoreOntologyDraftRevisionResponse {
     #[schema(value_type = Object)]
     pub project: super::types::ProjectView,
 }
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/revisions/{rev}/restore",
+    path = "/api/ontology-drafts/{id}/revisions/{rev}/restore",
     params(
         ("id" = Uuid, Path, description = "Project ID"),
         ("rev" = i32, Path, description = "Revision number to restore"),
     ),
     responses(
-        (status = 200, description = "Revision restored", body = RestoreProjectRevisionResponse),
+        (status = 200, description = "Revision restored", body = RestoreOntologyDraftRevisionResponse),
         (status = 404, description = "Project or revision not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
@@ -109,7 +109,7 @@ pub(crate) async fn restore_revision(
     State(state): State<AppState>,
     principal: Principal,
     Path((id, rev)): Path<(Uuid, i32)>,
-) -> Result<Json<ApiResponse<RestoreProjectRevisionResponse>>, AppError> {
+) -> Result<Json<ApiResponse<RestoreOntologyDraftRevisionResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_mutable_project(&state, id).await?;
 
@@ -125,7 +125,7 @@ pub(crate) async fn restore_revision(
             )
             .await
     {
-        warn!(project_id = %id, error = %e, "Failed to save ontology snapshot before restore");
+        warn!(ontology_draft_id = %id, error = %e, "Failed to save ontology snapshot before restore");
     }
 
     let snapshot = state
@@ -148,18 +148,18 @@ pub(crate) async fn restore_revision(
 
     let updated = reload_project(&state, id).await?;
 
-    Ok(ApiResponse::of(RestoreProjectRevisionResponse {
+    Ok(ApiResponse::of(RestoreOntologyDraftRevisionResponse {
         project: super::types::ProjectView::from_project(updated),
     }))
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/projects/:id/revisions/:rev1/diff/:rev2 — diff between two revisions
+// GET /api/ontology-drafts/:id/revisions/:rev1/diff/:rev2 — diff between two revisions
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     get,
-    path = "/api/projects/{id}/revisions/{rev1}/diff/{rev2}",
+    path = "/api/ontology-drafts/{id}/revisions/{rev1}/diff/{rev2}",
     params(
         ("id" = Uuid, Path, description = "Project ID"),
         ("rev1" = i32, Path, description = "Base revision number"),
@@ -201,12 +201,12 @@ pub(crate) async fn diff_revisions(
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/projects/:id/diff/current — diff current ontology vs latest snapshot
+// GET /api/ontology-drafts/:id/diff/current — diff current ontology vs latest snapshot
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     get,
-    path = "/api/projects/{id}/diff/current",
+    path = "/api/ontology-drafts/{id}/diff/current",
     params(("id" = Uuid, Path, description = "Project ID")),
     responses(
         (status = 200, description = "Diff between current ontology and latest snapshot", body = Object),
@@ -255,7 +255,7 @@ pub(crate) async fn diff_current(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/revisions/:rev/migrate — migrate schema between revisions
+// POST /api/ontology-drafts/:id/revisions/:rev/migrate — migrate schema between revisions
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
@@ -281,7 +281,7 @@ pub struct MigrateProjectSchemaResponse {
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/revisions/{rev}/migrate",
+    path = "/api/ontology-drafts/{id}/revisions/{rev}/migrate",
     params(
         ("id" = Uuid, Path, description = "Project ID"),
         ("rev" = i32, Path, description = "Base revision (deployed state) — migration goes FROM this revision TO current ontology"),
@@ -379,7 +379,7 @@ pub(crate) async fn migrate_schema(
         .map_err(AppError::from)?;
 
     tracing::info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         from_revision = rev,
         statements = plan.up.len(),
         "Schema migration executed"

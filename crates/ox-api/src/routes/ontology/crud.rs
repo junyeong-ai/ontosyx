@@ -12,10 +12,10 @@ use ox_ontology::ir::OntologyIR;
 use crate::error::AppError;
 use crate::principal::Principal;
 use crate::response::ApiResponse;
-use crate::routes::projects::helpers::{
+use crate::routes::ontology_drafts::helpers::{
     assess_quality_from_project, get_design_options, load_mutable_project, reload_project,
 };
-use crate::routes::projects::types::ProjectView;
+use crate::routes::ontology_drafts::types::ProjectView;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -110,11 +110,11 @@ pub(crate) async fn get_workspace_ontology_detail(
 }
 
 // ---------------------------------------------------------------------------
-// PATCH /api/projects/{id}/ontology — apply batch of OntologyCommand
+// PATCH /api/ontology-drafts/{id}/ontology — apply batch of OntologyCommand
 //
 // Project-mediated edit path: command batch lands on the project's
 // in-flight `ontology` JSONB, not the canonical. Governance gate
-// fires at the canonical-commit boundary (`complete_project`),
+// fires at the canonical-commit boundary (`complete_ontology_draft`),
 // where the parent_version_id check refuses stale commits.
 // ---------------------------------------------------------------------------
 
@@ -133,7 +133,7 @@ pub struct ApplyOntologyCommandsResponse {
 
 #[utoipa::path(
     patch,
-    path = "/api/projects/{id}/ontology",
+    path = "/api/ontology-drafts/{id}/ontology",
     params(
         ("id" = Uuid, Path, description = "Design project ID"),
     ),
@@ -172,7 +172,7 @@ pub(crate) async fn apply_ontology_commands(
             )
             .await
     {
-        warn!(project_id = %id, error = %e, "Failed to save ontology snapshot");
+        warn!(ontology_draft_id = %id, error = %e, "Failed to save ontology snapshot");
     }
 
     let mut ontology: OntologyIR = match project.ontology.as_ref() {

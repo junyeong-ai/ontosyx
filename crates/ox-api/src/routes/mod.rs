@@ -27,7 +27,7 @@ pub mod notifications;
 pub mod ontology;
 pub mod perspectives;
 pub mod pins;
-pub mod projects;
+pub mod ontology_drafts;
 pub mod prompts_admin;
 pub mod quality;
 pub mod query;
@@ -67,87 +67,87 @@ pub fn router(state: AppState) -> Router {
         // Auth: revoke caller's current JWT
         .route("/auth/logout", post(auth::logout))
         // Design projects — ontology design lifecycle
-        .route("/projects", post(projects::create_project))
-        .route("/projects", get(projects::list_projects))
+        .route("/ontology-drafts", post(ontology_drafts::create_ontology_draft))
+        .route("/ontology-drafts", get(ontology_drafts::list_ontology_drafts))
         .route(
-            "/projects/source-preview",
-            post(projects::preview_source),
+            "/ontology-drafts/source-preview",
+            post(ontology_drafts::preview_source),
         )
-        .route("/projects/{id}", get(projects::get_project))
-        .route("/projects/{id}", delete(projects::delete_project))
+        .route("/ontology-drafts/{id}", get(ontology_drafts::get_ontology_draft))
+        .route("/ontology-drafts/{id}", delete(ontology_drafts::delete_ontology_draft))
         .route(
-            "/projects/{id}/decisions",
-            patch(projects::update_decisions),
+            "/ontology-drafts/{id}/decisions",
+            patch(ontology_drafts::update_decisions),
         )
-        .route("/projects/{id}/design", post(projects::ontology_draft))
+        .route("/ontology-drafts/{id}/design", post(ontology_drafts::ontology_draft))
         .route(
-            "/projects/{id}/design/stream",
-            post(projects::design_ontology_draft_stream),
-        )
-        .route(
-            "/projects/{id}/reanalyze",
-            post(projects::reanalyze_project),
+            "/ontology-drafts/{id}/design/stream",
+            post(ontology_drafts::design_ontology_draft_stream),
         )
         .route(
-            "/projects/{id}/reanalyze-modeled",
-            post(projects::reanalyze_modeled_project),
+            "/ontology-drafts/{id}/reanalyze",
+            post(ontology_drafts::reanalyze_ontology_draft),
         )
         .route(
-            "/projects/{id}/scope/include",
-            post(projects::include_scope_tables),
+            "/ontology-drafts/{id}/reanalyze-modeled",
+            post(ontology_drafts::reanalyze_modeled_ontology_draft),
         )
         .route(
-            "/projects/{id}/scope/defer",
-            post(projects::defer_scope_tables),
-        )
-        .route("/projects/{id}/refine", post(projects::refine_project))
-        .route(
-            "/projects/{id}/refine/stream",
-            post(projects::refine_project_stream),
+            "/ontology-drafts/{id}/scope/include",
+            post(ontology_drafts::include_scope_tables),
         )
         .route(
-            "/projects/{id}/apply-reconcile",
-            post(projects::apply_reconcile),
+            "/ontology-drafts/{id}/scope/defer",
+            post(ontology_drafts::defer_scope_tables),
         )
-        .route("/projects/{id}/edit", post(projects::edit_project))
-        .route("/projects/{id}/extend", post(projects::extend_project))
-        .route("/projects/{id}/complete", post(projects::complete_project))
+        .route("/ontology-drafts/{id}/refine", post(ontology_drafts::refine_ontology_draft))
         .route(
-            "/projects/{id}/deploy-schema",
-            post(projects::deploy_schema),
+            "/ontology-drafts/{id}/refine/stream",
+            post(ontology_drafts::refine_ontology_draft_stream),
         )
         .route(
-            "/projects/{id}/load-plan",
-            post(projects::generate_load_plan),
+            "/ontology-drafts/{id}/apply-reconcile",
+            post(ontology_drafts::apply_reconcile),
         )
-        .route("/projects/{id}/load/compile", post(projects::compile_load))
+        .route("/ontology-drafts/{id}/edit", post(ontology_drafts::edit_ontology_draft))
+        .route("/ontology-drafts/{id}/extend", post(ontology_drafts::extend_ontology_draft))
+        .route("/ontology-drafts/{id}/complete", post(ontology_drafts::complete_ontology_draft))
         .route(
-            "/projects/{id}/load/execute",
-            post(projects::execute_load_from_source),
+            "/ontology-drafts/{id}/deploy-schema",
+            post(ontology_drafts::deploy_schema),
         )
         .route(
-            "/projects/{id}/ontology",
+            "/ontology-drafts/{id}/load-plan",
+            post(ontology_drafts::generate_load_plan),
+        )
+        .route("/ontology-drafts/{id}/load/compile", post(ontology_drafts::compile_load))
+        .route(
+            "/ontology-drafts/{id}/load/execute",
+            post(ontology_drafts::execute_load_from_source),
+        )
+        .route(
+            "/ontology-drafts/{id}/ontology",
             patch(ontology::apply_ontology_commands),
         )
         // Ontology revision history
-        .route("/projects/{id}/revisions", get(projects::list_revisions))
+        .route("/ontology-drafts/{id}/revisions", get(ontology_drafts::list_revisions))
         .route(
-            "/projects/{id}/revisions/{rev}",
-            get(projects::get_revision),
+            "/ontology-drafts/{id}/revisions/{rev}",
+            get(ontology_drafts::get_revision),
         )
         .route(
-            "/projects/{id}/revisions/{rev}/restore",
-            post(projects::restore_revision),
+            "/ontology-drafts/{id}/revisions/{rev}/restore",
+            post(ontology_drafts::restore_revision),
         )
         // Ontology revision diff
         .route(
-            "/projects/{id}/revisions/{rev1}/diff/{rev2}",
-            get(projects::diff_revisions),
+            "/ontology-drafts/{id}/revisions/{rev1}/diff/{rev2}",
+            get(ontology_drafts::diff_revisions),
         )
-        .route("/projects/{id}/diff/current", get(projects::diff_current))
+        .route("/ontology-drafts/{id}/diff/current", get(ontology_drafts::diff_current))
         .route(
-            "/projects/{id}/revisions/{rev}/migrate",
-            post(projects::migrate_schema),
+            "/ontology-drafts/{id}/revisions/{rev}/migrate",
+            post(ontology_drafts::migrate_schema),
         )
         // Ontology management — workspace × ontology is 1:1, so the
         // singular path with no `{id}` segment is the canonical

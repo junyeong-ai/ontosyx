@@ -64,7 +64,7 @@ pub struct DomainContext {
     /// `ontologies.id`). `None` for ad-hoc sessions operating on a draft
     /// IR that has not been committed through `OntologyVersionStore` yet.
     pub ontology_id: Option<uuid::Uuid>,
-    pub project_id: Option<uuid::Uuid>,
+    pub ontology_draft_id: Option<uuid::Uuid>,
     pub project_revision: Option<i32>,
     /// Source schema for introspection (available when project has been analyzed).
     pub source_schema: Option<ox_core::source_schema::SourceSchema>,
@@ -205,7 +205,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             });
 
         // Apply ontology tool requires a project context to save changes
-        if domain.project_id.is_some() && domain.ontology.is_some() {
+        if domain.ontology_draft_id.is_some() && domain.ontology.is_some() {
             builder = builder.tool(ApplyOntologyTool {
                 domain: Arc::clone(domain),
                 brain: Arc::clone(brain),

@@ -25,14 +25,14 @@ impl PerspectiveStore for PostgresStore {
 
         sqlx::query(
             "INSERT INTO workbench_perspectives
-             (id, user_id, lineage_id, topology_signature, project_id,
+             (id, user_id, lineage_id, topology_signature, ontology_draft_id,
               name, positions, viewport, filters, collapsed_groups,
               is_default, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
              ON CONFLICT (user_id, lineage_id, name)
              DO UPDATE SET
                 topology_signature = EXCLUDED.topology_signature,
-                project_id = EXCLUDED.project_id,
+                ontology_draft_id = EXCLUDED.ontology_draft_id,
                 positions = EXCLUDED.positions,
                 viewport = EXCLUDED.viewport,
                 filters = EXCLUDED.filters,
@@ -44,7 +44,7 @@ impl PerspectiveStore for PostgresStore {
         .bind(&p.user_id)
         .bind(&p.lineage_id)
         .bind(&p.topology_signature)
-        .bind(p.project_id)
+        .bind(p.ontology_draft_id)
         .bind(&p.name)
         .bind(&p.positions)
         .bind(&p.viewport)

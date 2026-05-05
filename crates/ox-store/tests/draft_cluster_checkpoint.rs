@@ -7,7 +7,7 @@
 //!    (upsert / find / list / per-project delete).
 //! 2. Round-trip: upsert + find_by_signature returns the same row.
 //! 3. Upsert is idempotent on the natural key
-//!    `(workspace_id, project_id, source_id, signature)` — second
+//!    `(workspace_id, ontology_draft_id, source_id, signature)` — second
 //!    insert with the same key replaces output, never duplicates.
 //! 4. `sweep_expired_draft_cluster_checkpoints` runs under
 //!    `SYSTEM_BYPASS::scope` and only removes rows past `expires_at`.
@@ -75,13 +75,13 @@ async fn cleanup_workspace(store: &PostgresStore, workspace_id: Uuid) {
 }
 
 fn fresh_checkpoint(
-    project_id: Uuid,
+    ontology_draft_id: Uuid,
     source_id: &str,
     signature: ClusterSignature,
     cluster_id: usize,
 ) -> DraftClusterCheckpoint {
     DraftClusterCheckpoint::draft(
-        project_id,
+        ontology_draft_id,
         source_id.to_string(),
         signature,
         cluster_id,
@@ -172,10 +172,10 @@ async fn round_trip_upsert_and_find() {
         return;
     };
     let workspace_id = Uuid::new_v4();
-    let project_id = Uuid::new_v4();
+    let ontology_draft_id = Uuid::new_v4();
     let source_id = "src-rt";
     let signature = signature_from_seed(&format!("rt-{}", Uuid::new_v4()));
-    let checkpoint = fresh_checkpoint(project_id, source_id, signature.clone(), 0);
+    let checkpoint = fresh_checkpoint(ontology_draft_id, source_id, signature.clone(), 0);
 
     PostgresStore::with_workspace(workspace_id, || async {
         store
@@ -183,13 +183,13 @@ async fn round_trip_upsert_and_find() {
             .await
             .expect("upsert");
         let found = store
-            .find_draft_cluster_checkpoint_by_signature(project_id, source_id, signature.as_str())
+            .find_draft_cluster_checkpoint_by_signature(ontology_draft_id, source_id, signature.as_str())
             .await
             .expect("find")
             .expect("checkpoint must round-trip");
         assert_eq!(found.signature, signature);
         assert_eq!(found.workspace_id, Some(workspace_id));
-        assert_eq!(found.project_id, project_id);
+        assert_eq!(found.ontology_draft_id, ontology_draft_id);
         assert_eq!(found.cluster_id, 0);
         assert!(found.id.is_some(), "store must populate id on insert");
     })
@@ -204,11 +204,11 @@ async fn upsert_replaces_on_natural_key_collision() {
         return;
     };
     let workspace_id = Uuid::new_v4();
-    let project_id = Uuid::new_v4();
+    let ontology_draft_id = Uuid::new_v4();
     let source_id = "src-collide";
     let signature = signature_from_seed(&format!("collide-{}", Uuid::new_v4()));
-    let first = fresh_checkpoint(project_id, source_id, signature.clone(), 0);
-    let second = fresh_checkpoint(project_id, source_id, signature.clone(), 1);
+    let first = fresh_checkpoint(ontology_draft_id, source_id, signature.clone(), 0);
+    let second = fresh_checkpoint(ontology_draft_id, source_id, signature.clone(), 1);
 
     PostgresStore::with_workspace(workspace_id, || async {
         store
@@ -220,7 +220,7 @@ async fn upsert_replaces_on_natural_key_collision() {
             .await
             .expect("second upsert");
         let listed = store
-            .list_draft_cluster_checkpoints_by_project(project_id)
+            .list_draft_cluster_checkpoints_by_project(ontology_draft_id)
             .await
             .expect("list");
         // Natural key UNIQUE constraint = exactly one row for
@@ -286,12 +286,12 @@ async fn sweep_expired_under_system_bypass() {
         return;
     };
     let workspace_id = Uuid::new_v4();
-    let project_id = Uuid::new_v4();
+    let ontology_draft_id = Uuid::new_v4();
     let sig_fresh = signature_from_seed(&format!("fresh-{}", Uuid::new_v4()));
     let sig_expired = signature_from_seed(&format!("expired-{}", Uuid::new_v4()));
 
-    let fresh = fresh_checkpoint(project_id, "src", sig_fresh.clone(), 0);
-    let mut expired = fresh_checkpoint(project_id, "src", sig_expired.clone(), 1);
+    let fresh = fresh_checkpoint(ontology_draft_id, "src", sig_fresh.clone(), 0);
+    let mut expired = fresh_checkpoint(ontology_draft_id, "src", sig_expired.clone(), 1);
     expired.expires_at = Utc::now() - ChronoDuration::hours(1);
 
     PostgresStore::with_workspace(workspace_id, || async {
@@ -323,13 +323,13 @@ async fn sweep_expired_under_system_bypass() {
     // Fresh row survives — verify under workspace scope.
     PostgresStore::with_workspace(workspace_id, || async {
         let still_fresh = store
-            .find_draft_cluster_checkpoint_by_signature(project_id, "src", sig_fresh.as_str())
+            .find_draft_cluster_checkpoint_by_signature(ontology_draft_id, "src", sig_fresh.as_str())
             .await
             .expect("find fresh");
         assert!(still_fresh.is_some(), "fresh row must survive sweep");
 
         let gone = store
-            .find_draft_cluster_checkpoint_by_signature(project_id, "src", sig_expired.as_str())
+            .find_draft_cluster_checkpoint_by_signature(ontology_draft_id, "src", sig_expired.as_str())
             .await
             .expect("find expired");
         assert!(gone.is_none(), "expired row must be gone after sweep");

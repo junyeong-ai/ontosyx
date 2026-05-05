@@ -18,31 +18,31 @@ use super::helpers::{
     analyze_code_repository, analyze_source, get_design_options, load_mutable_project,
     prune_decisions, reload_project, run_repo_enrichment, skipped_repo_summary,
 };
-use super::types::{ProjectSource, ProjectView, ReanalyzeProjectRequest, ReanalyzeProjectResponse};
+use super::types::{ProjectSource, ProjectView, ReanalyzeOntologyDraftRequest, ReanalyzeOntologyDraftResponse};
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/reanalyze
+// POST /api/ontology-drafts/:id/reanalyze
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/reanalyze",
+    path = "/api/ontology-drafts/{id}/reanalyze",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ReanalyzeProjectRequest,
+    request_body = ReanalyzeOntologyDraftRequest,
     responses(
-        (status = 200, description = "Source re-analyzed", body = ReanalyzeProjectResponse),
+        (status = 200, description = "Source re-analyzed", body = ReanalyzeOntologyDraftResponse),
         (status = 400, description = "Source type mismatch", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn reanalyze_project(
+pub(crate) async fn reanalyze_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ReanalyzeProjectRequest>,
-) -> Result<Json<ApiResponse<ReanalyzeProjectResponse>>, AppError> {
+    Json(req): Json<ReanalyzeOntologyDraftRequest>,
+) -> Result<Json<ApiResponse<ReanalyzeOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
     req.selection.validate().map_err(AppError::from)?;
     run_reanalyze(
@@ -62,7 +62,7 @@ pub(crate) async fn reanalyze_project(
 /// `analysis_scope.included`. Rejected with 400 when `included`
 /// is empty.
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ReanalyzeModeledProjectRequest {
+pub struct ReanalyzeModeledOntologyDraftRequest {
     pub source: ProjectSource,
     pub revision: i32,
     /// Optional repository source for enrichment.
@@ -73,23 +73,23 @@ pub struct ReanalyzeModeledProjectRequest {
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/reanalyze-modeled",
+    path = "/api/ontology-drafts/{id}/reanalyze-modeled",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ReanalyzeModeledProjectRequest,
+    request_body = ReanalyzeModeledOntologyDraftRequest,
     responses(
-        (status = 200, description = "Modeled tables re-analyzed", body = ReanalyzeProjectResponse),
+        (status = 200, description = "Modeled tables re-analyzed", body = ReanalyzeOntologyDraftResponse),
         (status = 400, description = "No modeled tables / source type mismatch", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn reanalyze_modeled_project(
+pub(crate) async fn reanalyze_modeled_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ReanalyzeModeledProjectRequest>,
-) -> Result<Json<ApiResponse<ReanalyzeProjectResponse>>, AppError> {
+    Json(req): Json<ReanalyzeModeledOntologyDraftRequest>,
+) -> Result<Json<ApiResponse<ReanalyzeOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
 
     let project = load_mutable_project(&state, id).await?;
@@ -126,7 +126,7 @@ async fn run_reanalyze(
     state: &AppState,
     id: Uuid,
     inputs: ReanalyzeInputs,
-) -> Result<Json<ApiResponse<ReanalyzeProjectResponse>>, AppError> {
+) -> Result<Json<ApiResponse<ReanalyzeOntologyDraftResponse>>, AppError> {
     let project = load_mutable_project(state, id).await?;
 
     let stored_config: SourceConfig = serde_json::from_value(project.source_config.clone())
@@ -203,7 +203,7 @@ async fn run_reanalyze(
         let drift_warnings = ox_ontology::detect_value_set_drift(ontology, profile);
         if !drift_warnings.is_empty() {
             warn!(
-                project_id = %id,
+                ontology_draft_id = %id,
                 drift_count = drift_warnings.len(),
                 "Value-set drift detected — derived rules may silently reject samples"
             );
@@ -266,7 +266,7 @@ async fn run_reanalyze(
         let drift_warnings = prior_scope.detect_drift(&fresh_fingerprints);
         if !drift_warnings.is_empty() {
             warn!(
-                project_id = %id,
+                ontology_draft_id = %id,
                 drift_count = drift_warnings.len(),
                 "Table schema drift detected"
             );
@@ -327,7 +327,7 @@ async fn run_reanalyze(
 
     let updated = reload_project(state, id).await?;
 
-    Ok(ApiResponse::of(ReanalyzeProjectResponse {
+    Ok(ApiResponse::of(ReanalyzeOntologyDraftResponse {
         project: ProjectView::from_project(updated),
         invalidated_decisions: invalidated,
     }))

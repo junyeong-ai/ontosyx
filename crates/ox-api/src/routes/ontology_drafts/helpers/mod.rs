@@ -60,7 +60,7 @@ pub(crate) fn load_analysis_report(
         Ok(report) => Some(report),
         Err(error) => {
             tracing::warn!(
-                project_id = %project.id,
+                ontology_draft_id = %project.id,
                 ?error,
                 "Stored analysis_report does not match the current wire shape — \
                  treating as absent. Re-run analyse to refresh."

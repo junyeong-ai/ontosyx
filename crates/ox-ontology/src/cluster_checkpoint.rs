@@ -8,7 +8,7 @@
 //! `DraftClusterCheckpoint` is the persistence shape that lets the
 //! streaming pass cache one completed cluster output keyed by a
 //! deterministic [`ClusterSignature`]. A re-run with identical
-//! `(project_id, source_id, cluster signature)` finds the cached
+//! `(ontology_draft_id, source_id, cluster signature)` finds the cached
 //! row and skips the LLM call; failed runs only retry the
 //! uncompleted clusters.
 //!
@@ -134,7 +134,7 @@ fn canonicalise_fks(fks: &[ForeignKeyDef], tag: &'static str) -> Vec<String> {
 }
 
 /// One completed cluster's LLM-design output, ready to persist or
-/// replay. The `(project_id, source_id, signature)` triple is the
+/// replay. The `(ontology_draft_id, source_id, signature)` triple is the
 /// natural key the store layer dedups on — the same signature
 /// against the same project + source replays from cache.
 ///
@@ -155,7 +155,7 @@ pub struct DraftClusterCheckpoint {
     /// bound task-local; absent on freshly-authored checkpoints.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<Uuid>,
-    pub project_id: Uuid,
+    pub ontology_draft_id: Uuid,
     pub source_id: String,
     pub signature: ClusterSignature,
     /// Cluster id at the time the checkpoint was written. Useful
@@ -182,7 +182,7 @@ impl DraftClusterCheckpoint {
     /// tests that need a different horizon override the field
     /// directly after construction.
     pub fn draft(
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         source_id: String,
         signature: ClusterSignature,
         cluster_id: usize,
@@ -192,7 +192,7 @@ impl DraftClusterCheckpoint {
         Self {
             id: None,
             workspace_id: None,
-            project_id,
+            ontology_draft_id,
             source_id,
             signature,
             cluster_id,

@@ -20,7 +20,7 @@ use crate::workspace::WorkspaceContext;
 pub struct UpsertPerspectiveRequest {
     pub lineage_id: String,
     pub topology_signature: String,
-    pub project_id: Option<Uuid>,
+    pub ontology_draft_id: Option<Uuid>,
     pub name: String,
     /// Node positions JSON.
     pub positions: serde_json::Value,
@@ -61,7 +61,7 @@ pub(crate) async fn save_perspective(
         workspace_id: ws.workspace_id,
         lineage_id: req.lineage_id.clone(),
         topology_signature: req.topology_signature,
-        project_id: req.project_id,
+        ontology_draft_id: req.ontology_draft_id,
         name: req.name.clone(),
         positions: req.positions,
         viewport: req.viewport,

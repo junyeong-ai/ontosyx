@@ -257,19 +257,19 @@ pub(crate) async fn build_adapter(
         }
 
         ProjectSource::Bigquery {
-            project_id,
+            ontology_draft_id,
             dataset,
             billing_project_id,
             credentials_path,
         } => {
             info!(
-                project_id = %project_id,
+                ontology_draft_id = %ontology_draft_id,
                 dataset = %dataset,
                 billing_project_id = ?billing_project_id,
                 "Connecting to BigQuery source"
             );
-            let fingerprint = bigquery_fingerprint(&project_id, &dataset);
-            let mut connection_string = format!("bigquery://{project_id}/{dataset}");
+            let fingerprint = bigquery_fingerprint(&ontology_draft_id, &dataset);
+            let mut connection_string = format!("bigquery://{ontology_draft_id}/{dataset}");
             let mut params: Vec<(&str, &str)> = Vec::new();
             if let Some(billing) = &billing_project_id {
                 params.push(("billing_project_id", billing));

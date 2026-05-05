@@ -113,7 +113,7 @@ async fn round_trip_recovers_response_for_same_scope_key() {
         workspace_id,
         user.id,
         "POST",
-        "/projects/abc/design",
+        "/ontology-drafts/abc/design",
         "key-1",
         b"hash-1",
         body,
@@ -122,7 +122,7 @@ async fn round_trip_recovers_response_for_same_scope_key() {
     store.create_idempotency_record(&rec).await.unwrap();
 
     let recovered = store
-        .find_idempotency_record(workspace_id, user.id, "POST", "/projects/abc/design", "key-1")
+        .find_idempotency_record(workspace_id, user.id, "POST", "/ontology-drafts/abc/design", "key-1")
         .await
         .unwrap()
         .expect("row exists");
@@ -144,7 +144,7 @@ async fn second_insert_on_same_scope_key_is_no_op() {
         workspace_id,
         user.id,
         "POST",
-        "/projects/abc/design",
+        "/ontology-drafts/abc/design",
         "key-2",
         b"hash-A",
         b"first-body",
@@ -157,7 +157,7 @@ async fn second_insert_on_same_scope_key_is_no_op() {
         workspace_id,
         user.id,
         "POST",
-        "/projects/abc/design",
+        "/ontology-drafts/abc/design",
         "key-2",
         b"hash-B",
         b"second-body",
@@ -166,7 +166,7 @@ async fn second_insert_on_same_scope_key_is_no_op() {
     store.create_idempotency_record(&second).await.unwrap();
 
     let recovered = store
-        .find_idempotency_record(workspace_id, user.id, "POST", "/projects/abc/design", "key-2")
+        .find_idempotency_record(workspace_id, user.id, "POST", "/ontology-drafts/abc/design", "key-2")
         .await
         .unwrap()
         .unwrap();
@@ -187,7 +187,7 @@ async fn different_scope_keys_do_not_collide() {
         workspace_id,
         user.id,
         "POST",
-        "/projects/abc/design",
+        "/ontology-drafts/abc/design",
         "key-3",
         b"h",
         b"a",
@@ -197,7 +197,7 @@ async fn different_scope_keys_do_not_collide() {
         workspace_id,
         user.id,
         "POST",
-        "/projects/abc/refine",
+        "/ontology-drafts/abc/refine",
         "key-3",
         b"h",
         b"b",
@@ -207,12 +207,12 @@ async fn different_scope_keys_do_not_collide() {
     store.create_idempotency_record(&r2).await.unwrap();
 
     let a = store
-        .find_idempotency_record(workspace_id, user.id, "POST", "/projects/abc/design", "key-3")
+        .find_idempotency_record(workspace_id, user.id, "POST", "/ontology-drafts/abc/design", "key-3")
         .await
         .unwrap()
         .unwrap();
     let b = store
-        .find_idempotency_record(workspace_id, user.id, "POST", "/projects/abc/refine", "key-3")
+        .find_idempotency_record(workspace_id, user.id, "POST", "/ontology-drafts/abc/refine", "key-3")
         .await
         .unwrap()
         .unwrap();
@@ -233,7 +233,7 @@ async fn expired_record_surfaces_as_miss_before_cleanup_runs() {
         workspace_id,
         user.id,
         "POST",
-        "/projects/abc/design",
+        "/ontology-drafts/abc/design",
         "key-4",
         b"h",
         b"body",
@@ -242,7 +242,7 @@ async fn expired_record_surfaces_as_miss_before_cleanup_runs() {
     store.create_idempotency_record(&stale).await.unwrap();
 
     let recovered = store
-        .find_idempotency_record(workspace_id, user.id, "POST", "/projects/abc/design", "key-4")
+        .find_idempotency_record(workspace_id, user.id, "POST", "/ontology-drafts/abc/design", "key-4")
         .await
         .unwrap();
     assert!(

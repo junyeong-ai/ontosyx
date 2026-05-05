@@ -23,19 +23,19 @@ use super::helpers::{
     LlmInputContext, analyze_code_repository, analyze_source, build_llm_input, get_design_options,
     load_project_in_status, reload_project,
 };
-use super::types::{ExtendProjectRequest, ExtendProjectResponse, ProjectSource, ProjectView};
+use super::types::{ExtendOntologyDraftRequest, ExtendOntologyDraftResponse, ProjectSource, ProjectView};
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/extend
+// POST /api/ontology-drafts/:id/extend
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/extend",
+    path = "/api/ontology-drafts/{id}/extend",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ExtendProjectRequest,
+    request_body = ExtendOntologyDraftRequest,
     responses(
-        (status = 200, description = "Ontology extended with new source", body = ExtendProjectResponse),
+        (status = 200, description = "Ontology extended with new source", body = ExtendOntologyDraftResponse),
         (status = 400, description = "No ontology or empty source data", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 504, description = "LLM timeout", body = inline(crate::openapi::ErrorResponse)),
@@ -43,12 +43,12 @@ use super::types::{ExtendProjectRequest, ExtendProjectResponse, ProjectSource, P
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn extend_project(
+pub(crate) async fn extend_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ExtendProjectRequest>,
-) -> Result<Json<ApiResponse<ExtendProjectResponse>>, AppError> {
+    Json(req): Json<ExtendOntologyDraftRequest>,
+) -> Result<Json<ApiResponse<ExtendOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
     req.selection.validate().map_err(AppError::from)?;
     let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
@@ -65,7 +65,7 @@ pub(crate) async fn extend_project(
             )
             .await
     {
-        warn!(project_id = %id, error = %e, "Failed to save ontology snapshot");
+        warn!(ontology_draft_id = %id, error = %e, "Failed to save ontology snapshot");
     }
 
     // Existing ontology is required
@@ -122,7 +122,7 @@ pub(crate) async fn extend_project(
             ox_ontology::detect_value_set_drift(&existing_ontology, profile);
         if !drift_warnings.is_empty() {
             warn!(
-                project_id = %id,
+                ontology_draft_id = %id,
                 drift_count = drift_warnings.len(),
                 "Value-set drift detected — derived rules may silently reject samples"
             );
@@ -157,13 +157,13 @@ pub(crate) async fn extend_project(
     if let Some(report) = &new_report {
         if !report.analysis_warnings.is_empty() {
             warn!(
-                project_id = %id,
+                ontology_draft_id = %id,
                 warning_count = report.analysis_warnings.len(),
                 "New source analysis produced warnings"
             );
         }
         if report.is_partial() {
-            warn!(project_id = %id, "New source analysis is partial");
+            warn!(ontology_draft_id = %id, "New source analysis is partial");
         }
     }
 
@@ -191,7 +191,7 @@ pub(crate) async fn extend_project(
     //    Passing `glossary` and `code_systems` slices lets the LLM
     //    reuse canonical terms instead of inventing parallel ones;
     //    `existing_ontology` flips the prompt into extension mode.
-    info!(project_id = %id, "Extending ontology with new source");
+    info!(ontology_draft_id = %id, "Extending ontology with new source");
 
     let timeout =
         std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
@@ -220,7 +220,7 @@ pub(crate) async fn extend_project(
     .await
     .map_err(|_| {
         warn!(
-            project_id = %id,
+            ontology_draft_id = %id,
             elapsed_ms = design_started.elapsed().as_millis() as u64,
             timeout_secs = timeout.as_secs(),
             "Extend LLM call timed out"
@@ -235,7 +235,7 @@ pub(crate) async fn extend_project(
     let ox_brain::DesignOntologyOutput { ontology: new_ontology, provenance } = design_output;
 
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         design_ms = design_started.elapsed().as_millis() as u64,
         new_nodes = new_ontology.node_types().len(),
         new_edges = new_ontology.edge_types().len(),
@@ -386,12 +386,12 @@ pub(crate) async fn extend_project(
     let updated = reload_project(&state, id).await?;
 
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         total_ms = design_started.elapsed().as_millis() as u64,
         "Extend completed"
     );
 
-    Ok(ApiResponse::of(ExtendProjectResponse {
+    Ok(ApiResponse::of(ExtendOntologyDraftResponse {
         project: ProjectView::from_project(updated),
         reconcile_report: reconciled.report,
     }))

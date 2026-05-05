@@ -12,17 +12,17 @@ use crate::routes::{
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
 // structs in the module where #[utoipa::path] is applied, so we must reference
 // the actual defining module, not the re-export.
-use crate::routes::projects::analysis as project_analysis;
-use crate::routes::projects::decisions as project_decisions;
-use crate::routes::projects::edit as project_edit;
-use crate::routes::projects::extend as project_extend;
-use crate::routes::projects::lifecycle as project_lifecycle;
-use crate::routes::projects::preview as project_preview;
-use crate::routes::projects::refinement as project_refinement;
-use crate::routes::projects::revisions as project_revisions;
-use crate::routes::projects::scope as project_scope;
-use crate::routes::projects::streaming as project_streaming;
-use crate::routes::projects::types as project_types;
+use crate::routes::ontology_drafts::analysis as project_analysis;
+use crate::routes::ontology_drafts::decisions as project_decisions;
+use crate::routes::ontology_drafts::edit as project_edit;
+use crate::routes::ontology_drafts::extend as project_extend;
+use crate::routes::ontology_drafts::lifecycle as project_lifecycle;
+use crate::routes::ontology_drafts::preview as project_preview;
+use crate::routes::ontology_drafts::refinement as project_refinement;
+use crate::routes::ontology_drafts::revisions as project_revisions;
+use crate::routes::ontology_drafts::scope as project_scope;
+use crate::routes::ontology_drafts::streaming as project_streaming;
+use crate::routes::ontology_drafts::types as project_types;
 
 // ---------------------------------------------------------------------------
 // ErrorResponse — mirrors the JSON body emitted by AppError::into_response()
@@ -136,24 +136,24 @@ impl Modify for SecurityAddon {
         query::list_executions,
         query::get_execution,
         // Projects — lifecycle
-        project_lifecycle::create_project,
-        project_lifecycle::list_projects,
-        project_lifecycle::get_project,
-        project_lifecycle::delete_project,
-        project_lifecycle::complete_project,
+        project_lifecycle::create_ontology_draft,
+        project_lifecycle::list_ontology_drafts,
+        project_lifecycle::get_ontology_draft,
+        project_lifecycle::delete_ontology_draft,
+        project_lifecycle::complete_ontology_draft,
         project_decisions::update_decisions,
         project_refinement::ontology_draft,
-        project_refinement::refine_project,
+        project_refinement::refine_ontology_draft,
         project_refinement::apply_reconcile,
-        project_analysis::reanalyze_project,
-        project_analysis::reanalyze_modeled_project,
+        project_analysis::reanalyze_ontology_draft,
+        project_analysis::reanalyze_modeled_ontology_draft,
         project_scope::include_scope_tables,
         project_scope::defer_scope_tables,
-        project_edit::edit_project,
-        project_extend::extend_project,
+        project_edit::edit_ontology_draft,
+        project_extend::extend_ontology_draft,
         project_preview::preview_source,
         project_streaming::design_ontology_draft_stream,
-        project_streaming::refine_project_stream,
+        project_streaming::refine_ontology_draft_stream,
         // Projects — revisions
         project_revisions::list_revisions,
         project_revisions::get_revision,
@@ -385,22 +385,22 @@ impl Modify for SecurityAddon {
             ox_ontology::graph_exploration::PropertySchema,
             ox_ontology::graph_exploration::GraphSchemaOverview,
             // Projects
-            project_types::CreateProjectRequest,
+            project_types::CreateOntologyDraftRequest,
             project_types::ProjectOrigin,
             project_types::ProjectSource,
             project_types::ProjectView,
             project_types::AnalysisReportStatus,
-            project_types::UpdateProjectDecisionsRequest,
-            project_types::DesignProjectRequest,
-            project_types::DesignProjectResponse,
-            project_types::ReanalyzeProjectRequest,
-            project_types::ReanalyzeProjectResponse,
-            project_analysis::ReanalyzeModeledProjectRequest,
-            project_types::RefineProjectRequest,
-            project_types::RefineProjectResponse,
-            project_types::ReconcileProjectRequest,
-            project_types::ExtendProjectRequest,
-            project_types::ExtendProjectResponse,
+            project_types::UpdateOntologyDraftDecisionsRequest,
+            project_types::DesignOntologyDraftRequest,
+            project_types::DesignOntologyDraftResponse,
+            project_types::ReanalyzeOntologyDraftRequest,
+            project_types::ReanalyzeOntologyDraftResponse,
+            project_analysis::ReanalyzeModeledOntologyDraftRequest,
+            project_types::RefineOntologyDraftRequest,
+            project_types::RefineOntologyDraftResponse,
+            project_types::ReconcileOntologyDraftRequest,
+            project_types::ExtendOntologyDraftRequest,
+            project_types::ExtendOntologyDraftResponse,
             project_types::CompleteProjectRequest,
             project_types::EditProjectRequest,
             project_types::EditProjectResponse,
@@ -460,7 +460,7 @@ impl Modify for SecurityAddon {
             load::ExecuteLoadResponse,
             load::PromptInfo,
             // Revisions
-            project_revisions::RestoreProjectRevisionResponse,
+            project_revisions::RestoreOntologyDraftRevisionResponse,
             // Admin — prompt templates
             prompts_admin::CreatePromptRequest,
             prompts_admin::UpdatePromptRequest,
@@ -766,7 +766,7 @@ pub struct WorkbenchPerspective {
     pub user_id: String,
     pub lineage_id: String,
     pub topology_signature: String,
-    pub project_id: Option<uuid::Uuid>,
+    pub ontology_draft_id: Option<uuid::Uuid>,
     pub name: String,
     pub positions: serde_json::Value,
     pub viewport: serde_json::Value,
@@ -783,7 +783,7 @@ pub struct WorkbenchPerspective {
 #[allow(dead_code)]
 pub struct OntologySnapshot {
     pub id: uuid::Uuid,
-    pub project_id: uuid::Uuid,
+    pub ontology_draft_id: uuid::Uuid,
     pub revision: i32,
     pub ontology: serde_json::Value,
     pub quality_report: Option<serde_json::Value>,

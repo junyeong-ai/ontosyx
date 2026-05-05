@@ -530,7 +530,7 @@ pub trait OntologyDraftStore: Send + Sync {
     /// rather than clobbering a concurrent update.
     async fn complete_ontology_draft(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         ontology_id: Uuid,
         expected_revision: i32,
     ) -> OxResult<()>;
@@ -553,7 +553,7 @@ pub trait OntologyDraftStore: Send + Sync {
     /// Uses ON CONFLICT DO NOTHING for idempotency.
     async fn create_ontology_snapshot(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         revision: i32,
         ontology: &serde_json::Value,
         quality_report: Option<&serde_json::Value>,
@@ -563,13 +563,13 @@ pub trait OntologyDraftStore: Send + Sync {
     /// Returns lightweight summaries with node/edge counts extracted from JSONB.
     async fn list_ontology_snapshots(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
     ) -> OxResult<Vec<OntologySnapshotSummary>>;
 
-    /// Get a single ontology snapshot by project_id + revision.
+    /// Get a single ontology snapshot by ontology_draft_id + revision.
     async fn get_ontology_snapshot(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         revision: i32,
     ) -> OxResult<Option<OntologySnapshot>>;
 }
@@ -1154,7 +1154,7 @@ pub trait LineageStore: Send + Sync {
     async fn list_lineage_for_label(&self, graph_label: &str) -> OxResult<Vec<LineageEntry>>;
 
     /// Get lineage entries for a project.
-    async fn list_lineage_for_project(&self, project_id: Uuid) -> OxResult<Vec<LineageEntry>>;
+    async fn list_lineage_for_project(&self, ontology_draft_id: Uuid) -> OxResult<Vec<LineageEntry>>;
 
     /// Get a summary of lineage per graph label (for overview).
     async fn lineage_summary(&self) -> OxResult<Vec<LineageSummary>>;
@@ -1475,7 +1475,7 @@ pub trait LoadCheckpointStore: Send + Sync {
     /// Get the latest checkpoint for a specific (project, source_table, graph_label) combination.
     async fn get_load_checkpoint(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         source_table: &str,
         graph_label: &str,
     ) -> OxResult<Option<LoadCheckpoint>>;
@@ -1484,7 +1484,7 @@ pub trait LoadCheckpointStore: Send + Sync {
     async fn upsert_load_checkpoint(&self, checkpoint: &LoadCheckpoint) -> OxResult<()>;
 
     /// List all checkpoints for a project.
-    async fn list_load_checkpoints(&self, project_id: Uuid) -> OxResult<Vec<LoadCheckpoint>>;
+    async fn list_load_checkpoints(&self, ontology_draft_id: Uuid) -> OxResult<Vec<LoadCheckpoint>>;
 
     /// Delete a specific checkpoint (forces a full reload on next run).
     async fn delete_load_checkpoint(&self, id: Uuid) -> OxResult<bool>;
@@ -1497,7 +1497,7 @@ pub trait LoadCheckpointStore: Send + Sync {
 // N clusters per design pass. A transient failure on cluster K
 // previously discarded clusters 0..K's output; this store caches
 // each completed cluster's `InputOntologyDef` keyed by a
-// deterministic `(workspace_id, project_id, source_id, signature)`
+// deterministic `(workspace_id, ontology_draft_id, source_id, signature)`
 // natural key. Replay on retry skips the LLM call when the
 // signature matches.
 // ---------------------------------------------------------------------------
@@ -1505,7 +1505,7 @@ pub trait LoadCheckpointStore: Send + Sync {
 #[async_trait]
 pub trait DraftClusterCheckpointStore: Send + Sync {
     /// Insert or replace one cluster's checkpoint. Replaces on
-    /// `(workspace_id, project_id, source_id, signature)` collision —
+    /// `(workspace_id, ontology_draft_id, source_id, signature)` collision —
     /// the cached output is the most recent successful design for
     /// that signature. The store stamps `id` (DB DEFAULT) and
     /// `workspace_id` (bound from the active task-local) regardless
@@ -1520,7 +1520,7 @@ pub trait DraftClusterCheckpointStore: Send + Sync {
     /// the LLM call).
     async fn find_draft_cluster_checkpoint_by_signature(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         source_id: &str,
         signature: &str,
     ) -> OxResult<Option<ox_ontology::cluster_checkpoint::DraftClusterCheckpoint>>;
@@ -1530,7 +1530,7 @@ pub trait DraftClusterCheckpointStore: Send + Sync {
     /// signature directly.
     async fn list_draft_cluster_checkpoints_by_project(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
     ) -> OxResult<Vec<ox_ontology::cluster_checkpoint::DraftClusterCheckpoint>>;
 
     /// Drop every row whose `expires_at` is in the past. Run by the
@@ -1543,7 +1543,7 @@ pub trait DraftClusterCheckpointStore: Send + Sync {
     /// authoritative once the project rolls forward).
     async fn delete_draft_cluster_checkpoints_by_project(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
     ) -> OxResult<u64>;
 }
 

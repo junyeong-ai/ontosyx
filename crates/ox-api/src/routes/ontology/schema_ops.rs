@@ -46,7 +46,7 @@ async fn load_identity_current_ir(
     Ok((identity, version, ir))
 }
 
-use crate::routes::projects::helpers::next_ontology_version_tag;
+use crate::routes::ontology_drafts::helpers::next_ontology_version_tag;
 
 // ---------------------------------------------------------------------------
 // POST /api/ontology/reindex — re-index schema embeddings

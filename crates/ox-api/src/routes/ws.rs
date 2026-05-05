@@ -314,16 +314,16 @@ async fn handle_client_message(
             // Re-auth mid-session is not supported.
             let _ = send_via(sender, &server_error(ErrorCode::AuthRequired)).await;
         }
-        ClientMessage::Join { project_id } => {
-            if !verify_project(state, project_id, project_cache).await {
+        ClientMessage::Join { ontology_draft_id } => {
+            if !verify_project(state, ontology_draft_id, project_cache).await {
                 let _ = send_via(sender, &server_error(ErrorCode::UnauthorizedProject)).await;
                 return true;
             }
             let outcome = state
                 .collaboration
-                .join(project_id, user_id, user_name)
+                .join(ontology_draft_id, user_id, user_name)
                 .await;
-            joined_rooms.insert(project_id);
+            joined_rooms.insert(ontology_draft_id);
 
             // Unicast the atomic snapshot (presence + active
             // locks) to the joining socket — other members
@@ -331,7 +331,7 @@ async fn handle_client_message(
             let _ = send_via(
                 sender,
                 &ServerMessage::Presence {
-                    project_id,
+                    ontology_draft_id,
                     users: outcome.users,
                     locks: outcome.locks,
                 },
@@ -344,28 +344,28 @@ async fn handle_client_message(
             let sender_for_fwd = Arc::clone(sender);
             crate::spawn_scoped::spawn_scoped(forward_broadcast(outcome.receiver, sender_for_fwd));
         }
-        ClientMessage::Leave { project_id } => {
-            state.collaboration.leave(project_id, user_id).await;
-            joined_rooms.remove(&project_id);
+        ClientMessage::Leave { ontology_draft_id } => {
+            state.collaboration.leave(ontology_draft_id, user_id).await;
+            joined_rooms.remove(&ontology_draft_id);
         }
         ClientMessage::MoveCursor {
-            project_id,
+            ontology_draft_id,
             x,
             y,
             selected_element,
         } => {
             state
                 .collaboration
-                .move_cursor(project_id, user_id, x, y, selected_element)
+                .move_cursor(ontology_draft_id, user_id, x, y, selected_element)
                 .await;
         }
         ClientMessage::AcquireLock {
-            project_id,
+            ontology_draft_id,
             entity_id,
         } => {
             let result = state
                 .collaboration
-                .acquire_lock(project_id, user_id, &entity_id)
+                .acquire_lock(ontology_draft_id, user_id, &entity_id)
                 .await;
             // Always unicast to the requester. New grants are
             // also broadcast to the room (other members need to
@@ -376,12 +376,12 @@ async fn handle_client_message(
             let _ = send_via(sender, &result).await;
         }
         ClientMessage::ReleaseLock {
-            project_id,
+            ontology_draft_id,
             entity_id,
         } => {
             if let Some(err) = state
                 .collaboration
-                .release_lock(project_id, user_id, &entity_id)
+                .release_lock(ontology_draft_id, user_id, &entity_id)
                 .await
             {
                 let _ = send_via(sender, &err).await;
@@ -391,28 +391,28 @@ async fn handle_client_message(
     true
 }
 
-/// Authorise a `project_id` against the bound workspace. RLS
+/// Authorise a `ontology_draft_id` against the bound workspace. RLS
 /// guarantees foreign ids resolve to `None`; the result is cached
 /// for [`PROJECT_CACHE_TTL`] so Leave→Join cycles stay cheap.
 async fn verify_project(
     state: &AppState,
-    project_id: Uuid,
+    ontology_draft_id: Uuid,
     cache: &mut HashMap<Uuid, Instant>,
 ) -> bool {
     let now = Instant::now();
-    if cache.get(&project_id).is_some_and(|&exp| now < exp) {
+    if cache.get(&ontology_draft_id).is_some_and(|&exp| now < exp) {
         return true;
     }
     let authorised = matches!(
-        state.store.get_ontology_draft(project_id).await,
+        state.store.get_ontology_draft(ontology_draft_id).await,
         Ok(Some(_))
     );
     if authorised {
-        cache.insert(project_id, now + PROJECT_CACHE_TTL);
+        cache.insert(ontology_draft_id, now + PROJECT_CACHE_TTL);
     } else {
         // Negative results aren't cached — operator may grant access
         // mid-session and the user shouldn't have to reconnect.
-        cache.remove(&project_id);
+        cache.remove(&ontology_draft_id);
     }
     authorised
 }

@@ -30,17 +30,17 @@ use super::helpers::{
     run_repo_enrichment, skipped_repo_summary,
 };
 use super::types::{
-    CompleteProjectRequest, CreateProjectRequest, ProjectOrigin, ProjectSource, ProjectView,
+    CompleteProjectRequest, CreateOntologyDraftRequest, ProjectOrigin, ProjectSource, ProjectView,
 };
 
 // ---------------------------------------------------------------------------
-// POST /api/projects — create + analyze (or from existing ontology)
+// POST /api/ontology-drafts — create + analyze (or from existing ontology)
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/projects",
-    request_body = CreateProjectRequest,
+    path = "/api/ontology-drafts",
+    request_body = CreateOntologyDraftRequest,
     responses(
         (status = 201, description = "Project created", body = Object),
         (status = 400, description = "Invalid input", body = inline(crate::openapi::ErrorResponse)),
@@ -49,10 +49,10 @@ use super::types::{
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn create_project(
+pub(crate) async fn create_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
-    Json(req): Json<CreateProjectRequest>,
+    Json(req): Json<CreateOntologyDraftRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<ProjectView>>), AppError> {
     principal.require_designer()?;
     if let ProjectOrigin::Source { selection, .. } = &req.origin {
@@ -64,7 +64,7 @@ pub(crate) async fn create_project(
     // Capture the canonical's current head as the project's parent
     // branching point. `None` for greenfield workspaces (no canonical
     // yet); `Some(version_id)` when the workspace already has a
-    // committed ontology, so `complete_project` can detect
+    // committed ontology, so `complete_ontology_draft` can detect
     // intervening canonical writes via the lost-update guard.
     let workspace_parent_version = match state.store.get_workspace_ontology().await {
         Ok(Some(canonical)) => state
@@ -77,7 +77,7 @@ pub(crate) async fn create_project(
         _ => None,
     };
 
-    let CreateProjectRequest { title, origin } = req;
+    let CreateOntologyDraftRequest { title, origin } = req;
 
     let project = match origin {
         ProjectOrigin::BaseOntology => {
@@ -138,7 +138,7 @@ pub(crate) async fn create_project(
                 ontology: Some(ontology_json),
                 quality_report: None,
                 // Project is branched off the canonical version we
-                // just hydrated. complete_project compares this
+                // just hydrated. complete_ontology_draft compares this
                 // against the head at commit time to detect
                 // intervening canonical writes.
                 parent_version_id: Some(version.id),
@@ -203,7 +203,7 @@ pub(crate) async fn create_project(
                     .map_err(AppError::from)?;
 
                 info!(
-                    project_id = %project.id,
+                    ontology_draft_id = %project.id,
                     source_type = "code_repository",
                     "Design project created from code repository"
                 );
@@ -314,7 +314,7 @@ pub(crate) async fn create_project(
         .map_err(AppError::from)?;
 
     info!(
-        project_id = %project.id,
+        ontology_draft_id = %project.id,
         source_type = %source_type,
         "Design project created"
     );
@@ -343,12 +343,12 @@ pub(crate) async fn create_project(
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/projects
+// GET /api/ontology-drafts
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     get,
-    path = "/api/projects",
+    path = "/api/ontology-drafts",
     params(
         ("limit" = Option<u32>, Query, description = "Max items to return (default 50, max 100)"),
         ("cursor" = Option<String>, Query, description = "Opaque cursor from a previous response"),
@@ -359,7 +359,7 @@ pub(crate) async fn create_project(
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn list_projects(
+pub(crate) async fn list_ontology_drafts(
     State(state): State<AppState>,
     axum::extract::Query(pagination): axum::extract::Query<CursorParams>,
 ) -> Result<Json<ApiResponse<Vec<DesignProjectSummary>>>, AppError> {
@@ -372,12 +372,12 @@ pub(crate) async fn list_projects(
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/projects/:id
+// GET /api/ontology-drafts/:id
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     get,
-    path = "/api/projects/{id}",
+    path = "/api/ontology-drafts/{id}",
     params(("id" = Uuid, Path, description = "Project ID")),
     responses(
         (status = 200, description = "Project details", body = Object),
@@ -386,7 +386,7 @@ pub(crate) async fn list_projects(
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn get_project(
+pub(crate) async fn get_ontology_draft(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<ProjectView>>, AppError> {
@@ -395,12 +395,12 @@ pub(crate) async fn get_project(
 }
 
 // ---------------------------------------------------------------------------
-// DELETE /api/projects/:id
+// DELETE /api/ontology-drafts/:id
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     delete,
-    path = "/api/projects/{id}",
+    path = "/api/ontology-drafts/{id}",
     params(("id" = Uuid, Path, description = "Project ID")),
     responses(
         (status = 204, description = "Project deleted"),
@@ -409,7 +409,7 @@ pub(crate) async fn get_project(
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn delete_project(
+pub(crate) async fn delete_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
@@ -479,12 +479,12 @@ pub(crate) async fn delete_project(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/complete
+// POST /api/ontology-drafts/:id/complete
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/complete",
+    path = "/api/ontology-drafts/{id}/complete",
     params(("id" = Uuid, Path, description = "Project ID")),
     request_body = CompleteProjectRequest,
     responses(
@@ -496,7 +496,7 @@ pub(crate) async fn delete_project(
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn complete_project(
+pub(crate) async fn complete_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     _ws: crate::workspace::WorkspaceContext,
@@ -655,7 +655,7 @@ pub(crate) async fn complete_project(
     }
 
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         ontology_id = %identity.id,
         version_id = %snapshot.id,
         version = %next_version_tag,
@@ -716,7 +716,7 @@ pub(crate) async fn complete_project(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/deploy-schema — deploy ontology schema to graph DB
+// POST /api/ontology-drafts/:id/deploy-schema — deploy ontology schema to graph DB
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -736,7 +736,7 @@ pub struct DeployProjectSchemaResponse {
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/deploy-schema",
+    path = "/api/ontology-drafts/{id}/deploy-schema",
     params(("id" = Uuid, Path, description = "Project ID")),
     request_body = DeployProjectSchemaRequest,
     responses(
@@ -805,7 +805,7 @@ pub(crate) async fn deploy_schema(
         .map_err(AppError::from)?;
 
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         statements = statements.len(),
         "Schema deployed to graph database"
     );
@@ -838,7 +838,7 @@ pub(crate) async fn deploy_schema(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/load-plan — generate a LoadPlan for the project
+// POST /api/ontology-drafts/:id/load-plan — generate a LoadPlan for the project
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -850,7 +850,7 @@ pub struct GenerateProjectLoadPlanResponse {
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/load-plan",
+    path = "/api/ontology-drafts/{id}/load-plan",
     params(("id" = Uuid, Path, description = "Project ID")),
     responses(
         (status = 200, description = "Load plan generated", body = GenerateProjectLoadPlanResponse),
@@ -900,7 +900,7 @@ pub(crate) async fn generate_load_plan(
         .map_err(AppError::from)?;
 
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         steps = plan.steps.len(),
         "Load plan generated"
     );
@@ -909,7 +909,7 @@ pub(crate) async fn generate_load_plan(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/load/compile — compile a LoadPlan into target DDL
+// POST /api/ontology-drafts/:id/load/compile — compile a LoadPlan into target DDL
 //
 // Returns the compiled Cypher statements for preview. The statements contain
 // $batch parameter placeholders — actual execution requires the source data
@@ -932,7 +932,7 @@ pub struct CompileProjectLoadPlanResponse {
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/load/compile",
+    path = "/api/ontology-drafts/{id}/load/compile",
     params(("id" = Uuid, Path, description = "Project ID")),
     request_body = CompileProjectLoadPlanRequest,
     responses(
@@ -966,7 +966,7 @@ pub(crate) async fn compile_load(
         .map_err(AppError::from)?;
 
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         statements = statements.len(),
         "Load plan compiled"
     );
@@ -975,7 +975,7 @@ pub(crate) async fn compile_load(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/load/execute — fetch from source + load into graph
+// POST /api/ontology-drafts/:id/load/execute — fetch from source + load into graph
 //
 // Completes the E2E pipeline: source → fetch → compile → execute_load.
 // Requires the source connection string (not stored for security).
@@ -1010,7 +1010,7 @@ pub struct ExecuteProjectLoadResponse {
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/load/execute",
+    path = "/api/ontology-drafts/{id}/load/execute",
     params(("id" = Uuid, Path, description = "Project ID")),
     request_body = ExecuteProjectLoadRequest,
     responses(
@@ -1070,7 +1070,7 @@ pub(crate) async fn execute_load_from_source(
         .map_err(AppError::from)?;
 
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         steps = req.plan.steps.len(),
         compiled = compiled_statements.len(),
         "Starting load execution from source"
@@ -1083,7 +1083,7 @@ pub(crate) async fn execute_load_from_source(
     let lineage_entry = ox_store::LineageEntry {
         id: lineage_id,
         workspace_id: ws.workspace_id,
-        project_id: Some(id),
+        ontology_draft_id: Some(id),
         graph_label: "batch_load".to_string(),
         graph_element_type: "node".to_string(),
         source_type: source_type_str,
@@ -1340,7 +1340,7 @@ pub(crate) async fn execute_load_from_source(
     }
 
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         rows_fetched = total_rows_fetched,
         nodes_created = combined_result.nodes_created,
         edges_created = combined_result.edges_created,
@@ -1378,7 +1378,7 @@ pub(crate) async fn execute_load_from_source(
                 return;
             }
             let next_tag =
-                crate::routes::projects::helpers::next_ontology_version_tag(&current_version.version);
+                crate::routes::ontology_drafts::helpers::next_ontology_version_tag(&current_version.version);
             let message = format!(
                 "Auto-enrichment after data load: {} property description(s) updated",
                 result.changes.len()

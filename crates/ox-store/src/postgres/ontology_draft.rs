@@ -227,7 +227,7 @@ impl OntologyDraftStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn complete_ontology_draft(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         ontology_id: Uuid,
         expected_revision: i32,
     ) -> OxResult<()> {
@@ -243,7 +243,7 @@ impl OntologyDraftStore for PostgresStore {
              WHERE id = $2 AND revision = $3 AND status = 'designed'",
         )
         .bind(ontology_id)
-        .bind(project_id)
+        .bind(ontology_draft_id)
         .bind(expected_revision)
         .execute(&self.pool)
         .await
@@ -315,22 +315,22 @@ impl OntologyDraftStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_ontology_snapshot(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         revision: i32,
         ontology: &serde_json::Value,
         quality_report: Option<&serde_json::Value>,
     ) -> OxResult<()> {
         super::require_workspace_context()?;
-        // idempotent: `(project_id, revision)` uniquely identifies a
+        // idempotent: `(ontology_draft_id, revision)` uniquely identifies a
         // snapshot of a project version — the same revision pinned
         // twice carries the same ontology JSONB, so DO NOTHING is the
         // intended behavior.
         sqlx::query(
-            "INSERT INTO ontology_snapshots (project_id, revision, ontology, quality_report)
+            "INSERT INTO ontology_snapshots (ontology_draft_id, revision, ontology, quality_report)
              VALUES ($1, $2, $3, $4)
-             ON CONFLICT (project_id, revision) DO NOTHING",
+             ON CONFLICT (ontology_draft_id, revision) DO NOTHING",
         )
-        .bind(project_id)
+        .bind(ontology_draft_id)
         .bind(revision)
         .bind(ontology)
         .bind(quality_report)
@@ -343,17 +343,17 @@ impl OntologyDraftStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn list_ontology_snapshots(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
     ) -> OxResult<Vec<OntologySnapshotSummary>> {
         let rows = sqlx::query_as::<_, (Uuid, i32, DateTime<Utc>, Option<i64>, Option<i64>)>(
             "SELECT id, revision, created_at,
                     jsonb_array_length(ontology->'node_types') AS node_count,
                     jsonb_array_length(ontology->'edge_types') AS edge_count
              FROM ontology_snapshots
-             WHERE project_id = $1
+             WHERE ontology_draft_id = $1
              ORDER BY revision DESC",
         )
-        .bind(project_id)
+        .bind(ontology_draft_id)
         .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)?;
@@ -375,14 +375,14 @@ impl OntologyDraftStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn get_ontology_snapshot(
         &self,
-        project_id: Uuid,
+        ontology_draft_id: Uuid,
         revision: i32,
     ) -> OxResult<Option<OntologySnapshot>> {
         sqlx::query_as::<_, OntologySnapshot>(
             "SELECT * FROM ontology_snapshots
-             WHERE project_id = $1 AND revision = $2",
+             WHERE ontology_draft_id = $1 AND revision = $2",
         )
-        .bind(project_id)
+        .bind(ontology_draft_id)
         .bind(revision)
         .fetch_optional(&self.pool)
         .await

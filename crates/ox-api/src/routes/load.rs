@@ -254,7 +254,7 @@ pub(crate) async fn execute_load(
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct CheckpointListQuery {
     /// Project ID to list checkpoints for.
-    pub project_id: uuid::Uuid,
+    pub ontology_draft_id: uuid::Uuid,
 }
 
 #[utoipa::path(
@@ -276,7 +276,7 @@ pub(crate) async fn list_load_checkpoints(
 
     let checkpoints = state
         .store
-        .list_load_checkpoints(query.project_id)
+        .list_load_checkpoints(query.ontology_draft_id)
         .await
         .map_err(AppError::from)?;
 

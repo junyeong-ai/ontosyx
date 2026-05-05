@@ -25,21 +25,21 @@ use super::helpers::{
     reload_project,
 };
 use super::types::{
-    DesignProjectRequest, DesignProjectResponse, ProjectView, ReconcileProjectRequest,
-    RefineProjectRequest, RefineProjectResponse,
+    DesignOntologyDraftRequest, DesignOntologyDraftResponse, ProjectView, ReconcileOntologyDraftRequest,
+    RefineOntologyDraftRequest, RefineOntologyDraftResponse,
 };
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/design
+// POST /api/ontology-drafts/:id/design
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/design",
+    path = "/api/ontology-drafts/{id}/design",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = DesignProjectRequest,
+    request_body = DesignOntologyDraftRequest,
     responses(
-        (status = 200, description = "Ontology designed", body = DesignProjectResponse),
+        (status = 200, description = "Ontology designed", body = DesignOntologyDraftResponse),
         (status = 400, description = "Invalid input or large schema gate", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 504, description = "LLM timeout", body = inline(crate::openapi::ErrorResponse)),
@@ -51,8 +51,8 @@ pub(crate) async fn ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<DesignProjectRequest>,
-) -> Result<Json<ApiResponse<DesignProjectResponse>>, AppError> {
+    Json(req): Json<DesignOntologyDraftRequest>,
+) -> Result<Json<ApiResponse<DesignOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_mutable_project(&state, id).await?;
 
@@ -91,7 +91,7 @@ pub(crate) async fn ontology_draft(
         .and_then(|r| r.repo_summary.as_ref());
     let effective_context = build_design_context(&req.context, &effective_opts, repo_summary);
 
-    info!(project_id = %id, "Designing ontology from stored snapshot");
+    info!(ontology_draft_id = %id, "Designing ontology from stored snapshot");
 
     let timeout =
         std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
@@ -112,7 +112,7 @@ pub(crate) async fn ontology_draft(
     .await
     .map_err(|_| {
         warn!(
-            project_id = %id,
+            ontology_draft_id = %id,
             elapsed_ms = design_started.elapsed().as_millis() as u64,
             timeout_secs = timeout.as_secs(),
             "Design LLM call timed out"
@@ -128,7 +128,7 @@ pub(crate) async fn ontology_draft(
 
     let design_duration_ms = design_started.elapsed().as_millis() as i64;
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         design_ms = design_duration_ms,
         "LLM design completed"
     );
@@ -196,22 +196,22 @@ pub(crate) async fn ontology_draft(
 
     let updated = reload_project(&state, id).await?;
 
-    Ok(ApiResponse::of(DesignProjectResponse {
+    Ok(ApiResponse::of(DesignOntologyDraftResponse {
         project: ProjectView::from_project(updated),
     }))
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/refine
+// POST /api/ontology-drafts/:id/refine
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/refine",
+    path = "/api/ontology-drafts/{id}/refine",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = RefineProjectRequest,
+    request_body = RefineOntologyDraftRequest,
     responses(
-        (status = 200, description = "Ontology refined", body = RefineProjectResponse),
+        (status = 200, description = "Ontology refined", body = RefineOntologyDraftResponse),
         (status = 400, description = "No runtime or additional context", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Uncertain reconcile matches", body = inline(crate::openapi::ErrorResponse)),
@@ -220,12 +220,12 @@ pub(crate) async fn ontology_draft(
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn refine_project(
+pub(crate) async fn refine_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<RefineProjectRequest>,
-) -> Result<Json<ApiResponse<RefineProjectResponse>>, AppError> {
+    Json(req): Json<RefineOntologyDraftRequest>,
+) -> Result<Json<ApiResponse<RefineOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
@@ -258,7 +258,7 @@ pub(crate) async fn refine_project(
     let node_count = ontology.node_types().len();
     let profile_config = profiler::ProfileConfig::for_ontology_size(node_count);
     let graph_profile = if let Some(runtime) = &state.runtime {
-        info!(project_id = %id, "Profiling graph data for refinement");
+        info!(ontology_draft_id = %id, "Profiling graph data for refinement");
         let profile_started = Instant::now();
         match tokio::time::timeout(
             profiling_timeout,
@@ -268,7 +268,7 @@ pub(crate) async fn refine_project(
         {
             Ok(Ok(profile)) => {
                 info!(
-                    project_id = %id,
+                    ontology_draft_id = %id,
                     profiling_ms = profile_started.elapsed().as_millis() as u64,
                     "Graph profiling succeeded"
                 );
@@ -341,7 +341,7 @@ pub(crate) async fn refine_project(
 
     let timeout = std::time::Duration::from_secs(refine_timeout_secs);
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         profiling_elapsed_ms = refine_started.elapsed().as_millis() as u64,
         timeout_secs = timeout.as_secs(),
         "Starting LLM refinement"
@@ -358,7 +358,7 @@ pub(crate) async fn refine_project(
     .map_err(|_| {
         let total = refine_started.elapsed();
         warn!(
-            project_id = %id,
+            ontology_draft_id = %id,
             total_elapsed_ms = total.as_millis() as u64,
             llm_elapsed_ms = llm_started.elapsed().as_millis() as u64,
             timeout_secs = timeout.as_secs(),
@@ -369,7 +369,7 @@ pub(crate) async fn refine_project(
     .map_err(AppError::from)?;
     let refine_duration_ms = llm_started.elapsed().as_millis() as i64;
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         llm_ms = refine_duration_ms,
         "LLM refinement completed"
     );
@@ -435,7 +435,7 @@ pub(crate) async fn refine_project(
                         ox_graph_runtime::enrichment::enrich_descriptions(&reconciled.ontology, &profile);
                     if !enriched.changes.is_empty() {
                         info!(
-                            project_id = %id,
+                            ontology_draft_id = %id,
                             enriched_properties = enriched.changes.len(),
                             "Post-refinement enrichment applied"
                         );
@@ -483,12 +483,12 @@ pub(crate) async fn refine_project(
     let updated = reload_project(&state, id).await?;
 
     info!(
-        project_id = %id,
+        ontology_draft_id = %id,
         total_ms = refine_started.elapsed().as_millis() as u64,
         "Refine completed"
     );
 
-    Ok(ApiResponse::of(RefineProjectResponse {
+    Ok(ApiResponse::of(RefineOntologyDraftResponse {
         project: ProjectView::from_project(updated),
         profile_summary,
         reconcile_report: reconciled.report,
@@ -496,16 +496,16 @@ pub(crate) async fn refine_project(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/projects/:id/apply-reconcile
+// POST /api/ontology-drafts/:id/apply-reconcile
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{id}/apply-reconcile",
+    path = "/api/ontology-drafts/{id}/apply-reconcile",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ReconcileProjectRequest,
+    request_body = ReconcileOntologyDraftRequest,
     responses(
-        (status = 200, description = "Reconcile decisions applied", body = RefineProjectResponse),
+        (status = 200, description = "Reconcile decisions applied", body = RefineOntologyDraftResponse),
         (status = 400, description = "Invalid decisions", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Reconciled ontology invalid", body = inline(crate::openapi::ErrorResponse)),
@@ -517,8 +517,8 @@ pub(crate) async fn apply_reconcile(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ReconcileProjectRequest>,
-) -> Result<Json<ApiResponse<RefineProjectResponse>>, AppError> {
+    Json(req): Json<ReconcileOntologyDraftRequest>,
+) -> Result<Json<ApiResponse<RefineOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
@@ -570,7 +570,7 @@ pub(crate) async fn apply_reconcile(
 
     let updated = reload_project(&state, id).await?;
 
-    Ok(ApiResponse::of(RefineProjectResponse {
+    Ok(ApiResponse::of(RefineOntologyDraftResponse {
         project: ProjectView::from_project(updated),
         profile_summary: "Applied reconcile decisions".to_string(),
         reconcile_report: ox_ontology::ReconcileReport {
