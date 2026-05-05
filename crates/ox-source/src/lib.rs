@@ -229,7 +229,7 @@ impl AnalyzeSelection {
 // AnalysisScope — project-lifecycle scope state
 // ---------------------------------------------------------------------------
 
-/// Project-lifecycle scope: which tables this project has modeled,
+/// Draft-lifecycle scope: which tables this project has modeled,
 /// which are deliberately deferred (with a reason and optional
 /// revisit date), which are auto-excluded by policy, and the schema
 /// fingerprint of the last introspection so drift detection can

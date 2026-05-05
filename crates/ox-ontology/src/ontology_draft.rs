@@ -71,7 +71,7 @@ pub enum SourceTypeKind {
     DuckDb,
     /// Code repository analyzed via LLM to extract ORM models as source schema.
     CodeRepository,
-    /// Project started from an existing saved ontology (no data source).
+    /// Draft started from an existing saved ontology (no data source).
     Ontology,
 }
 

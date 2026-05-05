@@ -6,14 +6,14 @@ import { createChatSlice } from "./chat-slice";
 import { createChromeSlice } from "./chrome-slice";
 import { createSelectionSlice } from "./selection-slice";
 import { createDashboardSlice } from "./dashboard-slice";
-import { createProjectSlice } from "./project-slice";
+import { createOntologyDraftSlice } from "./ontology-draft-slice";
 import { createVerificationSlice } from "./verification-slice";
 
 function createTestStore() {
   return createStore<AppStore>()((...a) => ({
     ...createOntologySlice(...a),
     ...createChatSlice(...a),
-    ...createProjectSlice(...a),
+    ...createOntologyDraftSlice(...a),
     ...createChromeSlice(...a),
     ...createSelectionSlice(...a),
     ...createDashboardSlice(...a),

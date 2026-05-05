@@ -63,7 +63,7 @@ function NodeView({
   const t = useTranslations("workbench.types.detail");
   const applyCommand = useAppStore((s) => s.applyCommand);
   const allGaps = useAppStore(
-    (s) => s.activeProject?.quality_report?.gaps ?? EMPTY_GAPS,
+    (s) => s.activeOntologyDraft?.quality_report?.gaps ?? EMPTY_GAPS,
   );
 
   const propertyCount = arr(node.properties).length;

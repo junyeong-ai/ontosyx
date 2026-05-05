@@ -10,7 +10,7 @@ import { UserMenu } from "@/components/layout/user-menu";
 import { PresenceAvatars } from "@/components/collab/presence-avatars";
 import { ConnectionStatusDot } from "@/components/collab/connection-status-dot";
 import { useAppStore } from "@/lib/store";
-import { selectStateActiveProject } from "@/lib/store/selectors";
+import { selectStateActiveOntologyDraft } from "@/lib/store/selectors";
 import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
@@ -38,7 +38,7 @@ function AppBranding() {
 }
 
 export function Header() {
-  const activeProject = useAppStore(selectStateActiveProject);
+  const activeOntologyDraft = useAppStore(selectStateActiveOntologyDraft);
   const { user } = useAuth();
   return (
     <header className="relative z-chrome flex h-11 shrink-0 items-center justify-between border-b border-divider bg-surface-base px-3">
@@ -54,9 +54,9 @@ export function Header() {
 
       {/* Right: Presence + Status + Actions + User */}
       <div className="flex shrink-0 items-center gap-2 ps-3">
-        {activeProject?.id && (
+        {activeOntologyDraft?.id && (
           <PresenceAvatars
-            ontologyDraftId={activeProject.id}
+            ontologyDraftId={activeOntologyDraft.id}
             excludeUserId={user?.sub}
             className="me-1"
           />

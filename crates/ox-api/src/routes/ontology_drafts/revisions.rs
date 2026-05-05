@@ -11,7 +11,7 @@ use ox_store::{OntologySnapshot, OntologySnapshotSummary};
 use crate::error::AppError;
 use crate::principal::Principal;
 use crate::response::ApiResponse;
-use crate::routes::ontology_drafts::helpers::{load_mutable_project, reload_project};
+use crate::routes::ontology_drafts::helpers::{load_mutable_ontology_draft, reload_ontology_draft};
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -21,13 +21,13 @@ use crate::state::AppState;
 #[utoipa::path(
     get,
     path = "/api/ontology-drafts/{id}/revisions",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     responses(
         (status = 200, description = "List of ontology revision snapshots", body = Object),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn list_revisions(
     State(state): State<AppState>,
@@ -39,7 +39,7 @@ pub(crate) async fn list_revisions(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
     let snapshots = state
         .store
@@ -58,7 +58,7 @@ pub(crate) async fn list_revisions(
     get,
     path = "/api/ontology-drafts/{id}/revisions/{rev}",
     params(
-        ("id" = Uuid, Path, description = "Project ID"),
+        ("id" = Uuid, Path, description = "Ontology draft ID"),
         ("rev" = i32, Path, description = "Revision number"),
     ),
     responses(
@@ -66,7 +66,7 @@ pub(crate) async fn list_revisions(
         (status = 404, description = "Revision not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn get_revision(
     State(state): State<AppState>,
@@ -89,22 +89,22 @@ pub(crate) async fn get_revision(
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct RestoreOntologyDraftRevisionResponse {
     #[schema(value_type = Object)]
-    pub project: super::types::ProjectView,
+    pub project: super::types::OntologyDraftView,
 }
 
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/revisions/{rev}/restore",
     params(
-        ("id" = Uuid, Path, description = "Project ID"),
+        ("id" = Uuid, Path, description = "Ontology draft ID"),
         ("rev" = i32, Path, description = "Revision number to restore"),
     ),
     responses(
         (status = 200, description = "Revision restored", body = RestoreOntologyDraftRevisionResponse),
-        (status = 404, description = "Project or revision not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft or revision not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn restore_revision(
     State(state): State<AppState>,
@@ -112,7 +112,7 @@ pub(crate) async fn restore_revision(
     Path((id, rev)): Path<(Uuid, i32)>,
 ) -> Result<Json<ApiResponse<RestoreOntologyDraftRevisionResponse>>, AppError> {
     principal.require_designer()?;
-    let project = load_mutable_project(&state, id).await?;
+    let project = load_mutable_ontology_draft(&state, id).await?;
 
     // Snapshot current state before restore (best-effort)
     if let Some(ont) = &project.ontology
@@ -147,10 +147,10 @@ pub(crate) async fn restore_revision(
         .await
         .map_err(AppError::from)?;
 
-    let updated = reload_project(&state, id).await?;
+    let updated = reload_ontology_draft(&state, id).await?;
 
     Ok(ApiResponse::of(RestoreOntologyDraftRevisionResponse {
-        project: super::types::ProjectView::from_project(updated),
+        project: super::types::OntologyDraftView::from_ontology_draft(updated),
     }))
 }
 
@@ -162,7 +162,7 @@ pub(crate) async fn restore_revision(
     get,
     path = "/api/ontology-drafts/{id}/revisions/{rev1}/diff/{rev2}",
     params(
-        ("id" = Uuid, Path, description = "Project ID"),
+        ("id" = Uuid, Path, description = "Ontology draft ID"),
         ("rev1" = i32, Path, description = "Base revision number"),
         ("rev2" = i32, Path, description = "Target revision number"),
     ),
@@ -171,7 +171,7 @@ pub(crate) async fn restore_revision(
         (status = 404, description = "Revision not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn diff_revisions(
     State(state): State<AppState>,
@@ -208,14 +208,14 @@ pub(crate) async fn diff_revisions(
 #[utoipa::path(
     get,
     path = "/api/ontology-drafts/{id}/diff/current",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     responses(
         (status = 200, description = "Diff between current ontology and latest snapshot", body = Object),
-        (status = 400, description = "Project has no ontology", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found or no snapshots", body = inline(crate::openapi::ErrorResponse)),
+        (status = 400, description = "Ontology draft has no ontology", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found or no snapshots", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn diff_current(
     State(state): State<AppState>,
@@ -226,7 +226,7 @@ pub(crate) async fn diff_current(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
     let current_ontology_json = project.ontology.ok_or_else(AppError::no_ontology)?;
     let current: OntologyIR = serde_json::from_value(current_ontology_json)
@@ -279,7 +279,7 @@ pub(crate) async fn diff_current(
         (status = 404, description = "Draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn diff_canonical(
     State(state): State<AppState>,
@@ -290,7 +290,7 @@ pub(crate) async fn diff_canonical(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
     let current_ontology_json = project.ontology.ok_or_else(AppError::no_ontology)?;
     let current: OntologyIR = serde_json::from_value(current_ontology_json)
@@ -371,7 +371,7 @@ pub struct RebasePreviewResponse {
         (status = 404, description = "Draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn rebase_preview(
     State(state): State<AppState>,
@@ -382,7 +382,7 @@ pub(crate) async fn rebase_preview(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
     let draft_json = project.ontology.ok_or_else(AppError::no_ontology)?;
     let draft_ir: OntologyIR = serde_json::from_value(draft_json)
         .map_err(|e| AppError::internal(format!("Failed to parse draft ontology: {e}")))?;
@@ -463,7 +463,7 @@ pub(crate) async fn rebase_preview(
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Deserialize, utoipa::ToSchema, Default)]
-pub struct RebaseProjectRequest {
+pub struct RebaseOntologyDraftRequest {
     /// When `true`, the operator has reviewed the rebase preview
     /// and accepts the listed conflicts. The pin still goes
     /// through; the draft's content stays under operator
@@ -476,29 +476,29 @@ pub struct RebaseProjectRequest {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct RebaseProjectResponse {
-    pub project: crate::routes::ontology_drafts::types::ProjectView,
+pub struct RebaseOntologyDraftResponse {
+    pub project: crate::routes::ontology_drafts::types::OntologyDraftView,
 }
 
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/rebase",
     params(("id" = Uuid, Path, description = "Draft ID")),
-    request_body = RebaseProjectRequest,
+    request_body = RebaseOntologyDraftRequest,
     responses(
-        (status = 200, description = "Rebased — parent_version_id pinned to canonical head", body = RebaseProjectResponse),
+        (status = 200, description = "Rebased — parent_version_id pinned to canonical head", body = RebaseOntologyDraftResponse),
         (status = 400, description = "Workspace has no canonical to rebase onto", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 409, description = "Conflicts present — preview first then resubmit with `acknowledge_conflicts: true`", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn rebase_draft(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    body: Option<Json<RebaseProjectRequest>>,
-) -> Result<Json<ApiResponse<RebaseProjectResponse>>, AppError> {
+    body: Option<Json<RebaseOntologyDraftRequest>>,
+) -> Result<Json<ApiResponse<RebaseOntologyDraftResponse>>, AppError> {
     let body = body.map(|b| b.0).unwrap_or_default();
 
     let project = state
@@ -506,7 +506,7 @@ pub(crate) async fn rebase_draft(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
     let identity = state
         .store
@@ -579,11 +579,11 @@ pub(crate) async fn rebase_draft(
         .await
         .map_err(AppError::from)?;
 
-    let refreshed = crate::routes::ontology_drafts::helpers::reload_project(&state, project.id)
+    let refreshed = crate::routes::ontology_drafts::helpers::reload_ontology_draft(&state, project.id)
         .await?;
     let project_view =
-        crate::routes::ontology_drafts::types::ProjectView::from_project(refreshed);
-    Ok(ApiResponse::of(RebaseProjectResponse {
+        crate::routes::ontology_drafts::types::OntologyDraftView::from_ontology_draft(refreshed);
+    Ok(ApiResponse::of(RebaseOntologyDraftResponse {
         project: project_view,
     }))
 }
@@ -593,14 +593,14 @@ pub(crate) async fn rebase_draft(
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
-pub struct MigrateProjectSchemaRequest {
+pub struct MigrateOntologyDraftSchemaRequest {
     /// If true, return migration plan without executing it
     #[serde(default)]
     pub dry_run: bool,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct MigrateProjectSchemaResponse {
+pub struct MigrateOntologyDraftSchemaResponse {
     /// Forward DDL statements
     pub up: Vec<String>,
     /// Rollback DDL statements
@@ -617,25 +617,25 @@ pub struct MigrateProjectSchemaResponse {
     post,
     path = "/api/ontology-drafts/{id}/revisions/{rev}/migrate",
     params(
-        ("id" = Uuid, Path, description = "Project ID"),
+        ("id" = Uuid, Path, description = "Ontology draft ID"),
         ("rev" = i32, Path, description = "Base revision (deployed state) — migration goes FROM this revision TO current ontology"),
     ),
-    request_body = MigrateProjectSchemaRequest,
+    request_body = MigrateOntologyDraftSchemaRequest,
     responses(
-        (status = 200, description = "Migration plan or execution result", body = MigrateProjectSchemaResponse),
+        (status = 200, description = "Migration plan or execution result", body = MigrateOntologyDraftSchemaResponse),
         (status = 400, description = "No ontology in project or revision", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project or revision not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft or revision not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 503, description = "Graph database not connected", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn migrate_schema(
     State(state): State<AppState>,
     principal: Principal,
     Path((id, rev)): Path<(Uuid, i32)>,
-    Json(req): Json<MigrateProjectSchemaRequest>,
-) -> Result<Json<ApiResponse<MigrateProjectSchemaResponse>>, AppError> {
+    Json(req): Json<MigrateOntologyDraftSchemaRequest>,
+) -> Result<Json<ApiResponse<MigrateOntologyDraftSchemaResponse>>, AppError> {
     principal.require_designer()?;
 
     // Load current project ontology
@@ -644,7 +644,7 @@ pub(crate) async fn migrate_schema(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
     let current_ontology_json = project.ontology.ok_or_else(AppError::no_ontology)?;
     let current: OntologyIR = serde_json::from_value(current_ontology_json)
@@ -665,7 +665,7 @@ pub(crate) async fn migrate_schema(
     let diff = compute_diff(&old, &current);
 
     if diff.is_empty() {
-        return Ok(ApiResponse::of(MigrateProjectSchemaResponse {
+        return Ok(ApiResponse::of(MigrateOntologyDraftSchemaResponse {
             up: vec![],
             down: vec![],
             warnings: vec![],
@@ -685,7 +685,7 @@ pub(crate) async fn migrate_schema(
     );
 
     if req.dry_run || !plan.breaking_changes.is_empty() {
-        return Ok(ApiResponse::of(MigrateProjectSchemaResponse {
+        return Ok(ApiResponse::of(MigrateOntologyDraftSchemaResponse {
             up: plan.up,
             down: plan.down,
             warnings: plan.warnings,
@@ -696,7 +696,7 @@ pub(crate) async fn migrate_schema(
 
     // Nothing to execute if up is empty (diff only produced warnings)
     if plan.up.is_empty() {
-        return Ok(ApiResponse::of(MigrateProjectSchemaResponse {
+        return Ok(ApiResponse::of(MigrateOntologyDraftSchemaResponse {
             up: plan.up,
             down: plan.down,
             warnings: plan.warnings,
@@ -719,7 +719,7 @@ pub(crate) async fn migrate_schema(
         "Schema migration executed"
     );
 
-    Ok(ApiResponse::of(MigrateProjectSchemaResponse {
+    Ok(ApiResponse::of(MigrateOntologyDraftSchemaResponse {
         up: plan.up,
         down: plan.down,
         warnings: plan.warnings,

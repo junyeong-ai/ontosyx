@@ -16,7 +16,7 @@ use ox_store::OntologyDraft;
 /// gate-evaluation rules and guarantees the rendering matches what
 /// the design endpoint will accept.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct ProjectView {
+pub struct OntologyDraftView {
     #[serde(flatten)]
     #[schema(value_type = crate::openapi::OntologyDraft)]
     pub project: OntologyDraft,
@@ -44,13 +44,13 @@ pub enum AnalysisReportStatus {
     Stale,
 }
 
-impl ProjectView {
+impl OntologyDraftView {
     /// Wrap a project, computing gates from the persisted
-    /// `analysis_report` + `design_options`. Projects without an
+    /// `analysis_report` + `design_options`. Drafts without an
     /// analysis report (still being analysed, or sourced from an
     /// existing ontology) get an empty gate vector — there is
     /// nothing to gate yet.
-    pub fn from_project(project: OntologyDraft) -> Self {
+    pub fn from_ontology_draft(project: OntologyDraft) -> Self {
         let (gates, analysis_report_status) = derive_gate_state(&project);
         Self {
             project,
@@ -86,10 +86,10 @@ fn derive_gate_state(
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateOntologyDraftRequest {
     pub title: Option<String>,
-    /// Project origin: source analysis or base ontology.
+    /// Ontology draft origin: source analysis or base ontology.
     #[serde(flatten)]
     #[schema(value_type = Object)]
-    pub origin: ProjectOrigin,
+    pub origin: OntologyDraftOrigin,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -97,9 +97,9 @@ pub struct CreateOntologyDraftRequest {
 // One-shot request DTO; the variant-size disparity is irrelevant
 // against a single deserialise per HTTP call.
 #[allow(clippy::large_enum_variant)]
-pub enum ProjectOrigin {
+pub enum OntologyDraftOrigin {
     Source {
-        source: ProjectSource,
+        source: DataSourceSpec,
         #[serde(default)]
         #[schema(value_type = Option<Object>)]
         repo_source: Option<ox_ontology::repo_insights::RepoSource>,
@@ -118,7 +118,7 @@ pub enum ProjectOrigin {
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum ProjectSource {
+pub enum DataSourceSpec {
     Text {
         data: String,
     },
@@ -219,13 +219,13 @@ pub struct DesignOntologyDraftRequest {
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct DesignOntologyDraftResponse {
     #[schema(value_type = Object)]
-    pub project: ProjectView,
+    pub project: OntologyDraftView,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ReanalyzeOntologyDraftRequest {
     /// Data source to re-analyze (must match original source type).
-    pub source: ProjectSource,
+    pub source: DataSourceSpec,
     pub revision: i32,
     /// Optional repository source for enrichment.
     #[serde(default)]
@@ -241,7 +241,7 @@ pub struct ReanalyzeOntologyDraftRequest {
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ReanalyzeOntologyDraftResponse {
     #[schema(value_type = Object)]
-    pub project: ProjectView,
+    pub project: OntologyDraftView,
     /// Design decisions that were invalidated by the schema change.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub invalidated_decisions: Vec<String>,
@@ -257,7 +257,7 @@ pub struct RefineOntologyDraftRequest {
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct RefineOntologyDraftResponse {
     #[schema(value_type = Object)]
-    pub project: ProjectView,
+    pub project: OntologyDraftView,
     /// Summary of graph profiling results.
     pub profile_summary: String,
     /// Report on ID reconciliation between original and refined ontology.
@@ -283,7 +283,7 @@ pub struct ReconcileOntologyDraftRequest {
 pub struct ExtendOntologyDraftRequest {
     pub revision: i32,
     /// New data source to merge into the project.
-    pub source: ProjectSource,
+    pub source: DataSourceSpec,
     /// Which tables of the new source to introspect. Required —
     /// `kind: "all"` to take everything advertised, `kind: "subset"`
     /// for a curated list, `kind: "extend"` to grow the existing
@@ -295,14 +295,14 @@ pub struct ExtendOntologyDraftRequest {
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ExtendOntologyDraftResponse {
     #[schema(value_type = Object)]
-    pub project: ProjectView,
+    pub project: OntologyDraftView,
     /// Report on ID reconciliation between existing and new ontology entities.
     #[schema(value_type = Object)]
     pub reconcile_report: ox_ontology::ReconcileReport,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct CompleteProjectRequest {
+pub struct CompleteOntologyDraftRequest {
     pub revision: i32,
     /// Name for the saved ontology.
     pub name: String,
@@ -315,7 +315,7 @@ pub struct CompleteProjectRequest {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct EditProjectRequest {
+pub struct EditOntologyDraftRequest {
     pub revision: i32,
     /// Natural language description of the desired ontology change.
     pub user_request: String,
@@ -325,11 +325,11 @@ pub struct EditProjectRequest {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct EditProjectResponse {
+pub struct EditOntologyDraftResponse {
     /// Updated project (null in dry_run mode).
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<Object>)]
-    pub project: Option<ProjectView>,
+    pub project: Option<OntologyDraftView>,
     /// Generated ontology mutation commands.
     #[schema(value_type = Vec<Object>)]
     pub commands: Vec<OntologyCommand>,

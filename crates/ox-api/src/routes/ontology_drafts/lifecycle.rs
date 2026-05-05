@@ -26,11 +26,11 @@ use crate::state::AppState;
 use crate::workspace::WorkspaceContext;
 
 use super::helpers::{
-    analyze_code_repository, analyze_source, load_project_in_status, reload_project,
+    analyze_code_repository, analyze_source, load_ontology_draft_in_status, reload_ontology_draft,
     run_repo_enrichment, skipped_repo_summary,
 };
 use super::types::{
-    CompleteProjectRequest, CreateOntologyDraftRequest, ProjectOrigin, ProjectSource, ProjectView,
+    CompleteOntologyDraftRequest, CreateOntologyDraftRequest, OntologyDraftOrigin, DataSourceSpec, OntologyDraftView,
 };
 
 // ---------------------------------------------------------------------------
@@ -42,20 +42,20 @@ use super::types::{
     path = "/api/ontology-drafts",
     request_body = CreateOntologyDraftRequest,
     responses(
-        (status = 201, description = "Project created", body = Object),
+        (status = 201, description = "Ontology draft created", body = Object),
         (status = 400, description = "Invalid input", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Base ontology not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn create_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<CreateOntologyDraftRequest>,
-) -> Result<(StatusCode, Json<ApiResponse<ProjectView>>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<OntologyDraftView>>), AppError> {
     principal.require_designer()?;
-    if let ProjectOrigin::Source { selection, .. } = &req.origin {
+    if let OntologyDraftOrigin::Source { selection, .. } = &req.origin {
         selection.validate().map_err(AppError::from)?;
     }
     let audit_user_id = principal.user_uuid().ok();
@@ -80,7 +80,7 @@ pub(crate) async fn create_ontology_draft(
     let CreateOntologyDraftRequest { title, origin } = req;
 
     let project = match origin {
-        ProjectOrigin::BaseOntology => {
+        OntologyDraftOrigin::BaseOntology => {
             // --- From workspace's canonical ontology ---
             // Resolve identity → current version → hydrate IR. The new
             // project carries the IR JSON so downstream design edits
@@ -137,7 +137,7 @@ pub(crate) async fn create_ontology_draft(
                 analysis_scope: AppError::to_json(&ox_source::AnalysisScope::default())?,
                 ontology: Some(ontology_json),
                 quality_report: None,
-                // Project is branched off the canonical version we
+                // Ontology draft is branched off the canonical version we
                 // just hydrated. complete_ontology_draft compares this
                 // against the head at commit time to detect
                 // intervening canonical writes.
@@ -148,7 +148,7 @@ pub(crate) async fn create_ontology_draft(
                 analyzed_at: None,
             }
         }
-        ProjectOrigin::Source {
+        OntologyDraftOrigin::Source {
             source,
             repo_source,
             selection,
@@ -156,7 +156,7 @@ pub(crate) async fn create_ontology_draft(
             // --- From data source ---
 
             // CodeRepository requires LLM-based analysis — handle separately
-            if let ProjectSource::CodeRepository { ref url } = source {
+            if let DataSourceSpec::CodeRepository { ref url } = source {
                 let (source_config, source_schema, source_profile, report) =
                     analyze_code_repository(&state, url).await?;
 
@@ -227,7 +227,7 @@ pub(crate) async fn create_ontology_draft(
                     });
                 }
 
-                return Ok((StatusCode::CREATED, ApiResponse::of(ProjectView::from_project(project))));
+                return Ok((StatusCode::CREATED, ApiResponse::of(OntologyDraftView::from_ontology_draft(project))));
             }
 
             let analyzed = analyze_source(source, &state.adapter_registry, selection.clone(), None).await?;
@@ -339,7 +339,7 @@ pub(crate) async fn create_ontology_draft(
         });
     }
 
-    Ok((StatusCode::CREATED, ApiResponse::of(ProjectView::from_project(project))))
+    Ok((StatusCode::CREATED, ApiResponse::of(OntologyDraftView::from_ontology_draft(project))))
 }
 
 // ---------------------------------------------------------------------------
@@ -357,7 +357,7 @@ pub(crate) async fn create_ontology_draft(
         (status = 200, description = "Paginated project list", body = Object),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn list_ontology_drafts(
     State(state): State<AppState>,
@@ -378,20 +378,20 @@ pub(crate) async fn list_ontology_drafts(
 #[utoipa::path(
     get,
     path = "/api/ontology-drafts/{id}",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     responses(
-        (status = 200, description = "Project details", body = Object),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 200, description = "Ontology draft details", body = Object),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn get_ontology_draft(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApiResponse<ProjectView>>, AppError> {
-    let project = reload_project(&state, id).await?;
-    Ok(ApiResponse::of(ProjectView::from_project(project)))
+) -> Result<Json<ApiResponse<OntologyDraftView>>, AppError> {
+    let project = reload_ontology_draft(&state, id).await?;
+    Ok(ApiResponse::of(OntologyDraftView::from_ontology_draft(project)))
 }
 
 // ---------------------------------------------------------------------------
@@ -401,13 +401,13 @@ pub(crate) async fn get_ontology_draft(
 #[utoipa::path(
     delete,
     path = "/api/ontology-drafts/{id}",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     responses(
-        (status = 204, description = "Project deleted"),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 204, description = "Ontology draft deleted"),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn delete_ontology_draft(
     State(state): State<AppState>,
@@ -421,7 +421,7 @@ pub(crate) async fn delete_ontology_draft(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
     principal.require_project_owner(&project.user_id)?;
 
@@ -474,7 +474,7 @@ pub(crate) async fn delete_ontology_draft(
         }
         Ok(StatusCode::NO_CONTENT)
     } else {
-        Err(AppError::project_not_found())
+        Err(AppError::ontology_draft_not_found())
     }
 }
 
@@ -485,26 +485,26 @@ pub(crate) async fn delete_ontology_draft(
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/complete",
-    params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = CompleteProjectRequest,
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
+    request_body = CompleteOntologyDraftRequest,
     responses(
-        (status = 200, description = "Project completed, ontology saved", body = Object),
-        (status = 400, description = "Project has no ontology", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 200, description = "Ontology draft completed, ontology saved", body = Object),
+        (status = 400, description = "Ontology draft has no ontology", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Quality gate failed", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn complete_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     _ws: crate::workspace::WorkspaceContext,
     Path(id): Path<Uuid>,
-    Json(req): Json<CompleteProjectRequest>,
-) -> Result<Json<ApiResponse<ProjectView>>, AppError> {
+    Json(req): Json<CompleteOntologyDraftRequest>,
+) -> Result<Json<ApiResponse<OntologyDraftView>>, AppError> {
     principal.require_designer()?;
-    let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
+    let project = load_ontology_draft_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
     // Quality gate: reject completion unless confidence is high or user explicitly acknowledges
     if !req.acknowledge_quality_risks
@@ -573,7 +573,7 @@ pub(crate) async fn complete_ontology_draft(
                     return Err(AppError::ontology_draft_stale_parent(&parent_tag, &head_tag));
                 }
                 (Some(_), None) => {
-                    // Project carries a parent pointer but the
+                    // Ontology draft carries a parent pointer but the
                     // canonical was wiped between draft and commit —
                     // refuse rather than implicitly recreate.
                     return Err(AppError::ontology_draft_stale_parent("?", "0"));
@@ -642,7 +642,7 @@ pub(crate) async fn complete_ontology_draft(
         .await
         .map_err(AppError::from)?;
 
-    let updated = reload_project(&state, id).await?;
+    let updated = reload_ontology_draft(&state, id).await?;
 
     // Invalidate the compile-plan cache: every entry keyed against the
     // previous schema version is now stale (GraphLabel / PropertyKey
@@ -712,7 +712,7 @@ pub(crate) async fn complete_ontology_draft(
         });
     }
 
-    Ok(ApiResponse::of(ProjectView::from_project(updated)))
+    Ok(ApiResponse::of(OntologyDraftView::from_ontology_draft(updated)))
 }
 
 // ---------------------------------------------------------------------------
@@ -720,14 +720,14 @@ pub(crate) async fn complete_ontology_draft(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct DeployProjectSchemaRequest {
+pub struct DeployOntologyDraftSchemaRequest {
     /// If true, return DDL statements without executing them
     #[serde(default)]
     pub dry_run: bool,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct DeployProjectSchemaResponse {
+pub struct DeployOntologyDraftSchemaResponse {
     /// Generated DDL statements
     pub statements: Vec<String>,
     /// Whether the statements were actually executed
@@ -737,24 +737,24 @@ pub struct DeployProjectSchemaResponse {
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/deploy-schema",
-    params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = DeployProjectSchemaRequest,
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
+    request_body = DeployOntologyDraftSchemaRequest,
     responses(
-        (status = 200, description = "Schema deployed or DDL preview returned", body = DeployProjectSchemaResponse),
-        (status = 400, description = "Project has no ontology", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 200, description = "Schema deployed or DDL preview returned", body = DeployOntologyDraftSchemaResponse),
+        (status = 400, description = "Ontology draft has no ontology", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 503, description = "Graph database not connected", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn deploy_schema(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
-    Json(req): Json<DeployProjectSchemaRequest>,
-) -> Result<Json<ApiResponse<DeployProjectSchemaResponse>>, AppError> {
+    Json(req): Json<DeployOntologyDraftSchemaRequest>,
+) -> Result<Json<ApiResponse<DeployOntologyDraftSchemaResponse>>, AppError> {
     principal.require_designer()?;
 
     // Check if workspace has pending approval blocking this deployment
@@ -780,7 +780,7 @@ pub(crate) async fn deploy_schema(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
     let ontology_json = project.ontology.ok_or_else(AppError::no_ontology)?;
     let ontology: ox_ontology::ir::OntologyIR = serde_json::from_value(ontology_json)
@@ -792,7 +792,7 @@ pub(crate) async fn deploy_schema(
         .map_err(AppError::from)?;
 
     if req.dry_run {
-        return Ok(ApiResponse::of(DeployProjectSchemaResponse {
+        return Ok(ApiResponse::of(DeployOntologyDraftSchemaResponse {
             statements,
             executed: false,
         }));
@@ -831,7 +831,7 @@ pub(crate) async fn deploy_schema(
         });
     }
 
-    Ok(ApiResponse::of(DeployProjectSchemaResponse {
+    Ok(ApiResponse::of(DeployOntologyDraftSchemaResponse {
         statements,
         executed: true,
     }))
@@ -842,7 +842,7 @@ pub(crate) async fn deploy_schema(
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct GenerateProjectLoadPlanResponse {
+pub struct GenerateOntologyDraftLoadPlanResponse {
     /// The generated load plan
     #[schema(value_type = Object)]
     pub plan: ox_ontology::load_plan::LoadPlan,
@@ -851,20 +851,20 @@ pub struct GenerateProjectLoadPlanResponse {
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/load-plan",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     responses(
-        (status = 200, description = "Load plan generated", body = GenerateProjectLoadPlanResponse),
-        (status = 400, description = "Project has no ontology or source mapping", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 200, description = "Load plan generated", body = GenerateOntologyDraftLoadPlanResponse),
+        (status = 400, description = "Ontology draft has no ontology or source mapping", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn generate_load_plan(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApiResponse<GenerateProjectLoadPlanResponse>>, AppError> {
+) -> Result<Json<ApiResponse<GenerateOntologyDraftLoadPlanResponse>>, AppError> {
     principal.require_designer()?;
 
     let project = state
@@ -872,7 +872,7 @@ pub(crate) async fn generate_load_plan(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
     let ontology_json = project
         .ontology
@@ -905,7 +905,7 @@ pub(crate) async fn generate_load_plan(
         "Load plan generated"
     );
 
-    Ok(ApiResponse::of(GenerateProjectLoadPlanResponse { plan }))
+    Ok(ApiResponse::of(GenerateOntologyDraftLoadPlanResponse { plan }))
 }
 
 // ---------------------------------------------------------------------------
@@ -918,14 +918,14 @@ pub(crate) async fn generate_load_plan(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct CompileProjectLoadPlanRequest {
+pub struct CompileOntologyDraftLoadPlanRequest {
     /// The load plan to compile
     #[schema(value_type = Object)]
     pub plan: ox_ontology::load_plan::LoadPlan,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct CompileProjectLoadPlanResponse {
+pub struct CompileOntologyDraftLoadPlanResponse {
     /// Compiled load statements (parameterized — $batch must be bound at execution time)
     pub statements: Vec<String>,
 }
@@ -933,21 +933,21 @@ pub struct CompileProjectLoadPlanResponse {
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/load/compile",
-    params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = CompileProjectLoadPlanRequest,
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
+    request_body = CompileOntologyDraftLoadPlanRequest,
     responses(
-        (status = 200, description = "Compiled load statements", body = CompileProjectLoadPlanResponse),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 200, description = "Compiled load statements", body = CompileOntologyDraftLoadPlanResponse),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn compile_load(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<CompileProjectLoadPlanRequest>,
-) -> Result<Json<ApiResponse<CompileProjectLoadPlanResponse>>, AppError> {
+    Json(req): Json<CompileOntologyDraftLoadPlanRequest>,
+) -> Result<Json<ApiResponse<CompileOntologyDraftLoadPlanResponse>>, AppError> {
     principal.require_designer()?;
 
     // Verify project exists. The `?` chain propagates the error; we
@@ -958,7 +958,7 @@ pub(crate) async fn compile_load(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
     let statements = state
         .compiler
@@ -971,7 +971,7 @@ pub(crate) async fn compile_load(
         "Load plan compiled"
     );
 
-    Ok(ApiResponse::of(CompileProjectLoadPlanResponse { statements }))
+    Ok(ApiResponse::of(CompileOntologyDraftLoadPlanResponse { statements }))
 }
 
 // ---------------------------------------------------------------------------
@@ -982,7 +982,7 @@ pub(crate) async fn compile_load(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ExecuteProjectLoadRequest {
+pub struct ExecuteOntologyDraftLoadRequest {
     /// Pre-computed load plan (from generate_load_plan or manual)
     #[schema(value_type = Object)]
     pub plan: ox_ontology::load_plan::LoadPlan,
@@ -998,7 +998,7 @@ fn default_batch_size() -> u64 {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct ExecuteProjectLoadResponse {
+pub struct ExecuteOntologyDraftLoadResponse {
     /// Total rows fetched from source
     pub rows_fetched: u64,
     /// Load execution result
@@ -1011,24 +1011,24 @@ pub struct ExecuteProjectLoadResponse {
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/load/execute",
-    params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ExecuteProjectLoadRequest,
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
+    request_body = ExecuteOntologyDraftLoadRequest,
     responses(
-        (status = 200, description = "Data loaded from source into graph", body = ExecuteProjectLoadResponse),
+        (status = 200, description = "Data loaded from source into graph", body = ExecuteOntologyDraftLoadResponse),
         (status = 400, description = "Missing ontology or source mapping", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 503, description = "Graph runtime not connected", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn execute_load_from_source(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
-    Json(req): Json<ExecuteProjectLoadRequest>,
-) -> Result<Json<ApiResponse<ExecuteProjectLoadResponse>>, AppError> {
+    Json(req): Json<ExecuteOntologyDraftLoadRequest>,
+) -> Result<Json<ApiResponse<ExecuteOntologyDraftLoadResponse>>, AppError> {
     principal.require_designer()?;
 
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
@@ -1038,7 +1038,7 @@ pub(crate) async fn execute_load_from_source(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
     // Parse the project's ontology — object_mappings on the IR are
     // the single source of truth for "which source table supplies this
@@ -1439,7 +1439,7 @@ pub(crate) async fn execute_load_from_source(
         });
     }
 
-    Ok(ApiResponse::of(ExecuteProjectLoadResponse {
+    Ok(ApiResponse::of(ExecuteOntologyDraftLoadResponse {
         rows_fetched: total_rows_fetched,
         result: combined_result,
         steps_executed: req.plan.steps.len(),

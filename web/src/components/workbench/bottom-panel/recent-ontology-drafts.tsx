@@ -10,6 +10,7 @@ import { getOntologyDraft } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import type {
   OntologyDraftSummary,
   OntologyDraftStatus,
@@ -35,7 +36,7 @@ const MAX_DISPLAY = 5;
 export function RecentProjects() {
   const t = useTranslations("workbench.bottomPanel.recentProjects");
   const { data, isLoading } = useOntologyDrafts({ limit: MAX_DISPLAY });
-  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
+  const applyOntologyDraftSnapshot = useAppStore((s) => s.applyOntologyDraftSnapshot);
 
   const items = data?.items ?? [];
   if (isLoading) {
@@ -51,7 +52,7 @@ export function RecentProjects() {
 
   const onResume = async (id: string) => {
     const project = await getOntologyDraft(id);
-    applyProjectSnapshot(project);
+    applyOntologyDraftSnapshot(project);
   };
 
   return (
@@ -62,9 +63,9 @@ export function RecentProjects() {
       aria-label={t("ariaLabel")}
     >
       <Card.Header className="px-3 py-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+        <Eyebrow level={3} size="dense">
           {t("heading")}
-        </h3>
+        </Eyebrow>
         <span className="text-2xs text-foreground-muted">
           {t("count", { count: items.length })}
         </span>
@@ -77,7 +78,7 @@ export function RecentProjects() {
               onClick={() => void onResume(p.id)}
               className="group flex w-full items-center gap-3 px-3 py-2 text-start transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset"
             >
-              <ProjectStatusIcon status={p.status} />
+              <OntologyDraftStatusIcon status={p.status} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-foreground-strong">
                   {p.title ?? t("untitled")}
@@ -94,7 +95,7 @@ export function RecentProjects() {
           </li>
         ))}
       </ul>
-      {/* Link out to the full Project Hub for browsing beyond
+      {/* Link out to the full Ontology Draft Hub for browsing beyond
           the compact 5-row "resume" list. */}
       <Link
         href="/projects"
@@ -113,7 +114,7 @@ const STATUS_VISUAL: Record<OntologyDraftStatus, { icon: typeof TrendingUp; tone
   completed: { icon: CheckCircle2,  tone: "info" },
 };
 
-function ProjectStatusIcon({ status }: { status: OntologyDraftStatus }) {
+function OntologyDraftStatusIcon({ status }: { status: OntologyDraftStatus }) {
   const t = useTranslations("workbench.bottomPanel.recentProjects.status");
   const { icon, tone } = STATUS_VISUAL[status];
   const toneClass =
@@ -153,7 +154,7 @@ function relativeTime(
 }
 
 /** A `<OntologyDraftSummary>` with at least the fields RecentProjects reads. */
-export type RecentProjectSummary = Pick<
+export type RecentOntologyDraftSummary = Pick<
   OntologyDraftSummary,
   "id" | "status" | "title" | "source_config" | "updated_at"
 >;

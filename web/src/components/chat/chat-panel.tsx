@@ -7,6 +7,7 @@ import { useWorkspaceMode } from "@/hooks/use-workspace-mode";
 import { chatStream, fetchSessionMessages, listAgentSessions, rawQuery, suggestInsights, type InsightHint } from "@/lib/api";
 import type { AgentSession } from "@/types/api";
 import { toast } from "@/components/ui/toast";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { Heading } from "@/components/ui/heading";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ChatInput } from "./chat-input";
@@ -30,7 +31,7 @@ export function ChatPanel() {
     messages,
     isLoading,
     ontology,
-    activeProject,
+    activeOntologyDraft,
     addMessage,
     updateMessage,
     setIsLoading,
@@ -214,10 +215,10 @@ export function ChatPanel() {
             message: text,
             ontology,
             ontology_id: isDesignMode
-              ? (activeProject?.ontology_id ?? undefined)
+              ? (activeOntologyDraft?.ontology_id ?? undefined)
               : (ontologyId ?? undefined),
-            ontology_draft_id: isDesignMode ? activeProject?.id : undefined,
-            ontology_draft_revision: isDesignMode ? activeProject?.revision : undefined,
+            ontology_draft_id: isDesignMode ? activeOntologyDraft?.id : undefined,
+            ontology_draft_revision: isDesignMode ? activeOntologyDraft?.revision : undefined,
             session_id: sessionId ?? undefined,
             execution_mode: getState().executionMode,
             model_override: getState().modelOverride ?? undefined,
@@ -381,7 +382,7 @@ export function ChatPanel() {
     },
     [
       ontology, 
-      activeProject, 
+      activeOntologyDraft, 
       addMessage, 
       updateMessage, 
       setIsLoading, 
@@ -455,9 +456,9 @@ export function ChatPanel() {
               )}
               {visibleRecentSessions.length > 0 && (
                 <div className="mt-6 w-full max-w-lg">
-                  <h3 className="mb-2 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+                  <Eyebrow level={3} className="mb-2">
                     {t("recentSessions")}
-                  </h3>
+                  </Eyebrow>
                   <div className="space-y-1">
                     {visibleRecentSessions.map((s) => (
                       <button

@@ -148,7 +148,7 @@ export interface OntologyDiffSummary {
 }
 
 export interface RebaseDraftResponse {
-  /** Refreshed `ProjectView` after the rebase — operator drops it
+  /** Refreshed `OntologyDraftView` after the rebase — operator drops it
    *  back into the local store via the existing snapshot-apply
    *  path. */
   project: unknown;

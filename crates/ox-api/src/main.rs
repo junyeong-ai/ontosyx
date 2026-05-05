@@ -869,9 +869,9 @@ async fn main() -> anyhow::Result<()> {
                             run_step(&maintenance_store, &mut per_ws, "agent_sessions",
                                 maintenance_store.cleanup_old_sessions(session_days)).await;
                             run_step(&maintenance_store, &mut per_ws, "archived_projects",
-                                maintenance_store.archive_stale_projects(wip_archive_days)).await;
+                                maintenance_store.archive_stale_ontology_drafts(wip_archive_days)).await;
                             run_step(&maintenance_store, &mut per_ws, "deleted_projects",
-                                maintenance_store.delete_archived_projects(wip_delete_days)).await;
+                                maintenance_store.delete_archived_ontology_drafts(wip_delete_days)).await;
                             run_step(&maintenance_store, &mut per_ws, "analysis_results",
                                 maintenance_store.cleanup_old_results(session_days)).await;
                             run_step(&maintenance_store, &mut per_ws, "expired_approvals",

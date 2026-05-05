@@ -34,7 +34,7 @@ export interface DesignGate {
   params?: Record<string, string>;
 }
 
-// --- Design Projects ---
+// --- Ontology Drafts ---
 
 export type DesignSource =
   | { type: "text"; data: string }
@@ -48,7 +48,7 @@ export type DesignSource =
   | { type: "duckdb"; file_path: string }
   | { type: "code_repository"; url: string };
 
-// --- Design Projects (project-based ontology lifecycle) ---
+// --- Ontology Draft action wire shapes ---
 
 export type OntologyDraftStatus = "analyzed" | "designed" | "completed";
 
@@ -88,12 +88,12 @@ export interface OntologyDraft {
   design_options: DesignOptions;
   ontology: OntologyIR | null;
   quality_report: OntologyQualityReport | null;
-  /** FK to `ontologies.id` — the committed identity this project was
+  /** FK to `ontologies.id` — the committed identity this draft was
    *  completed into. `null` until completion. */
   ontology_id: string | null;
   source_history: SourceHistoryEntry[];
   /**
-   * Project-lifecycle scope — the union of tables this project has
+   * Draft-lifecycle scope — the union of tables this draft has
    * modeled (`included`), the tables the operator deliberately
    * skipped (`deferred`), the policy-excluded relations the
    * platform never proposes, the per-table schema fingerprints the
@@ -110,7 +110,7 @@ export interface OntologyDraft {
   /**
    * Server-evaluated design-action gates. Empty until the project
    * reaches the `analyzed` status; populated on every endpoint
-   * that returns a project (`ProjectView` wrapper). The FE renders
+   * that returns a project (`OntologyDraftView` wrapper). The FE renders
    * the checklist directly — no client-side gate evaluation.
    */
   design_gates: DesignGate[];
@@ -144,7 +144,7 @@ export interface OntologyDraftSummary {
   analyzed_at: string | null;
 }
 
-export type ProjectSource = DesignSource;
+export type DataSourceSpec = DesignSource;
 
 /**
  * Wire shape for the user's analysis intent on create / extend /
@@ -170,7 +170,7 @@ export type AnalyzeSelection =
   | { kind: "reduce"; tables: string[] };
 
 /**
- * Project-lifecycle scope, mirrors the Rust
+ * Draft-lifecycle scope, mirrors the Rust
  * `ox_source::AnalysisScope`. Accumulates across every analyze /
  * extend / reanalyze pass the project runs.
  */
@@ -193,11 +193,11 @@ export type RepoSource =
   | { type: "local"; path: string }
   | { type: "git_url"; url: string; branch?: string };
 
-export type CreateProjectRequest =
+export type CreateOntologyDraftRequest =
   | {
       title?: string;
       origin_type: "source";
-      source: ProjectSource;
+      source: DataSourceSpec;
       repo_source?: RepoSource;
       selection: AnalyzeSelection;
     }
@@ -207,7 +207,7 @@ export type CreateProjectRequest =
       base_ontology_id: string;
     };
 
-export interface UpdateProjectDecisionsRequest {
+export interface UpdateOntologyDraftDecisionsRequest {
   design_options: DesignOptions;
   revision: number;
 }
@@ -217,37 +217,37 @@ export interface DesignOntologyDraftRequest {
   context?: string;
 }
 
-export interface ReanalyzeProjectRequest {
-  source: ProjectSource;
+export interface ReanalyzeOntologyDraftRequest {
+  source: DataSourceSpec;
   revision: number;
   repo_source?: RepoSource;
   selection: AnalyzeSelection;
 }
 
-export interface RefineProjectRequest {
+export interface RefineOntologyDraftRequest {
   revision: number;
   additional_context?: string;
 }
 
-export interface EditProjectRequest {
+export interface EditOntologyDraftRequest {
   revision: number;
   user_request: string;
   dry_run?: boolean;
 }
 
-export interface EditProjectResponse {
+export interface EditOntologyDraftResponse {
   project: OntologyDraft | null;
   commands: OntologyCommand[];
   explanation: string;
 }
 
-export interface ExtendProjectRequest {
+export interface ExtendOntologyDraftRequest {
   revision: number;
   source: DesignSource;
   selection: AnalyzeSelection;
 }
 
-export interface ExtendProjectResponse {
+export interface ExtendOntologyDraftResponse {
   project: OntologyDraft;
   reconcile_report: ReconcileReport;
 }
@@ -255,7 +255,7 @@ export interface ExtendProjectResponse {
 // --- Source preview (cheap table listing) ---
 
 export interface PreviewSourceRequest {
-  source: ProjectSource;
+  source: DataSourceSpec;
 }
 
 export interface PreviewTableSummary {
@@ -270,7 +270,7 @@ export interface PreviewSourceResponse {
   tables: PreviewTableSummary[];
 }
 
-export interface CompleteProjectRequest {
+export interface CompleteOntologyDraftRequest {
   revision: number;
   name: string;
   description?: string;
@@ -588,22 +588,22 @@ export interface SourceProfile {
 
 // --- Schema Deploy ---
 
-export interface ProjectDeployRequest {
+export interface DeployOntologyDraftSchemaRequest {
   dry_run?: boolean;
 }
 
-export interface ProjectDeployResponse {
+export interface DeployOntologyDraftSchemaResponse {
   statements: string[];
   executed: boolean;
 }
 
 // --- Schema Migration ---
 
-export interface ProjectMigrateRequest {
+export interface MigrateOntologyDraftSchemaRequest {
   dry_run?: boolean;
 }
 
-export interface ProjectMigrateResponse {
+export interface MigrateOntologyDraftSchemaResponse {
   up: string[];
   down: string[];
   warnings: string[];
@@ -613,7 +613,7 @@ export interface ProjectMigrateResponse {
 
 // --- Load Plan ---
 
-export interface ProjectLoadPlanResponse {
+export interface GenerateOntologyDraftLoadPlanResponse {
   plan: LoadPlan;
 }
 
@@ -637,10 +637,10 @@ export interface LoadStep {
   description: string;
 }
 
-export interface ProjectLoadCompileRequest {
+export interface CompileOntologyDraftLoadPlanRequest {
   plan: LoadPlan;
 }
 
-export interface ProjectLoadCompileResponse {
+export interface CompileOntologyDraftLoadPlanResponse {
   statements: string[];
 }

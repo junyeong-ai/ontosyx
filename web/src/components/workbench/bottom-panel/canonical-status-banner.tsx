@@ -8,9 +8,9 @@ import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
  * one-line status row above the create-draft flow. Communicates the
  * draft-branches-off-canonical relationship at a glance:
  *
- * - Greenfield (no canonical) → "이 초안이 워크스페이스의 첫 캐노니컬이
+ * - Greenfield (no canonical) → "이 초안이 워크스페이스의 첫 대표 온톨로지이
  *   됩니다" so the operator knows v1 is what they're about to author.
- * - Existing canonical → "현재 캐노니컬: v{N}" so the operator knows
+ * - Existing canonical → "현재 대표 온톨로지: v{N}" so the operator knows
  *   the next completion lands at v{N+1}.
  *
  * The component is intentionally text-only and pre-translation —

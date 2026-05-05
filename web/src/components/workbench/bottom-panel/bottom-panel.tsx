@@ -20,7 +20,7 @@ import { ListChecks, Maximize2, Minimize2 } from "lucide-react";
 /** Wrapper that reads the active project's quality report from the store. */
 function QualityTab() {
   const t = useTranslations("workbench.bottomPanel.tabs");
-  const report = useAppStore((s) => s.activeProject?.quality_report);
+  const report = useAppStore((s) => s.activeOntologyDraft?.quality_report);
   if (!report) {
     return (
       <EmptyState title={t("noQualityReport")} description={t("designFirst")} />

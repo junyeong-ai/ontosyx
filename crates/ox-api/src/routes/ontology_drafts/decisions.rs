@@ -10,7 +10,7 @@ use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::helpers::validate_decisions;
-use super::types::{ProjectView, UpdateOntologyDraftDecisionsRequest};
+use super::types::{OntologyDraftView, UpdateOntologyDraftDecisionsRequest};
 
 // ---------------------------------------------------------------------------
 // PATCH /api/ontology-drafts/:id/decisions
@@ -19,29 +19,29 @@ use super::types::{ProjectView, UpdateOntologyDraftDecisionsRequest};
 #[utoipa::path(
     patch,
     path = "/api/ontology-drafts/{id}/decisions",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     request_body = UpdateOntologyDraftDecisionsRequest,
     responses(
         (status = 200, description = "Decisions updated", body = Object),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 409, description = "Revision conflict", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn update_decisions(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateOntologyDraftDecisionsRequest>,
-) -> Result<Json<ApiResponse<ProjectView>>, AppError> {
+) -> Result<Json<ApiResponse<OntologyDraftView>>, AppError> {
     principal.require_designer()?;
     let project = state
         .store
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
     // Validate decisions against stored schema (if available)
     if let Some(schema_val) = &project.source_schema {
@@ -64,7 +64,7 @@ pub(crate) async fn update_decisions(
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)?;
+        .ok_or_else(AppError::ontology_draft_not_found)?;
 
-    Ok(ApiResponse::of(ProjectView::from_project(project)))
+    Ok(ApiResponse::of(OntologyDraftView::from_ontology_draft(project)))
 }

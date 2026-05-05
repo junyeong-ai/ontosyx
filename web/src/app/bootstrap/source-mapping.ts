@@ -1,9 +1,9 @@
-import type { ProjectSource } from "@/types/ontology-drafts";
+import type { DataSourceSpec } from "@/types/ontology-drafts";
 
 /**
  * Translate the bootstrap wizard's two-field source description
  * (`sourceKind` + `sourceConnection`) into the canonical
- * `ProjectSource` wire shape consumed by every post-bootstrap API
+ * `DataSourceSpec` wire shape consumed by every post-bootstrap API
  * (preview, create, extend).
  *
  * Returns `null` when the pair can't be materialised — empty
@@ -11,10 +11,10 @@ import type { ProjectSource } from "@/types/ontology-drafts";
  * the wizard hasn't asked for (CodeRepository, Snowflake, etc.).
  * Callers fall back to "all" semantics in that case.
  */
-export function bootstrapSourceToProjectSource(
+export function bootstrapSourceToDataSourceSpec(
   sourceKind: string,
   sourceConnection: string,
-): ProjectSource | null {
+): DataSourceSpec | null {
   const conn = sourceConnection.trim();
   if (!conn) return null;
   switch (sourceKind) {

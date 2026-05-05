@@ -257,14 +257,14 @@ ALTER TABLE ONLY ontology_drafts FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE ontology_snapshots (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    project_id uuid NOT NULL,
+    ontology_draft_id uuid NOT NULL,
     revision integer NOT NULL,
     ontology jsonb NOT NULL,
     quality_report jsonb,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     workspace_id uuid DEFAULT (current_setting('app.workspace_id', true))::uuid NOT NULL,
     CONSTRAINT ontology_snapshots_pkey PRIMARY KEY (id),
-    CONSTRAINT ontology_snapshots_project_id_revision_key UNIQUE (project_id, revision)
+    CONSTRAINT ontology_snapshots_draft_revision_key UNIQUE (ontology_draft_id, revision)
 );
 ALTER TABLE ONLY ontology_snapshots FORCE ROW LEVEL SECURITY;
 
@@ -455,7 +455,7 @@ ALTER TABLE ONLY dashboard_widgets FORCE ROW LEVEL SECURITY;
 CREATE TABLE data_lineage (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workspace_id uuid DEFAULT (current_setting('app.workspace_id', true))::uuid NOT NULL,
-    project_id uuid,
+    ontology_draft_id uuid,
     graph_label text NOT NULL,
     graph_element_type text NOT NULL,
     source_type text NOT NULL,
@@ -479,7 +479,7 @@ ALTER TABLE ONLY data_lineage FORCE ROW LEVEL SECURITY;
 CREATE TABLE load_checkpoints (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workspace_id uuid NOT NULL,
-    project_id uuid NOT NULL,
+    ontology_draft_id uuid NOT NULL,
     source_table VARCHAR(255) NOT NULL,
     graph_label VARCHAR(255) NOT NULL,
     watermark_column VARCHAR(255) NOT NULL,
@@ -487,7 +487,7 @@ CREATE TABLE load_checkpoints (
     record_count bigint DEFAULT 0 NOT NULL,
     loaded_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     CONSTRAINT load_checkpoints_pkey PRIMARY KEY (id),
-    CONSTRAINT load_checkpoints_workspace_id_project_id_source_table_graph_key UNIQUE (workspace_id, project_id, source_table, graph_label)
+    CONSTRAINT load_checkpoints_ws_draft_table_label_key UNIQUE (workspace_id, ontology_draft_id, source_table, graph_label)
 );
 
 -- ============================================================================
@@ -882,7 +882,7 @@ CREATE TABLE workbench_perspectives (
     user_id text NOT NULL,
     lineage_id text NOT NULL,
     topology_signature text NOT NULL,
-    project_id uuid,
+    ontology_draft_id uuid,
     name text DEFAULT 'Default' NOT NULL,
     positions jsonb DEFAULT '{}' NOT NULL,
     viewport jsonb DEFAULT '{"x": 0, "y": 0, "zoom": 1}' NOT NULL,
@@ -980,7 +980,7 @@ CREATE UNIQUE INDEX uq_dashboards_ws_id ON dashboards USING btree (workspace_id,
 -- data_lineage
 -- ============================================================================
 CREATE INDEX idx_lineage_label ON data_lineage USING btree (graph_label, graph_element_type);
-CREATE INDEX idx_lineage_project ON data_lineage USING btree (project_id) WHERE (project_id IS NOT NULL);
+CREATE INDEX idx_lineage_ontology_draft ON data_lineage USING btree (ontology_draft_id) WHERE (ontology_draft_id IS NOT NULL);
 CREATE INDEX idx_lineage_source ON data_lineage USING btree (source_name, source_table);
 CREATE INDEX idx_lineage_workspace ON data_lineage USING btree (workspace_id, started_at DESC);
 
@@ -1040,8 +1040,8 @@ CREATE INDEX idx_notification_log_workspace ON notification_log USING btree (wor
 -- ============================================================================
 -- ontology_snapshots
 -- ============================================================================
-CREATE INDEX idx_ontology_snapshots_project ON ontology_snapshots USING btree (project_id, revision DESC);
-CREATE INDEX idx_ontology_snapshots_ws ON ontology_snapshots USING btree (workspace_id, project_id);
+CREATE INDEX idx_ontology_snapshots_draft ON ontology_snapshots USING btree (ontology_draft_id, revision DESC);
+CREATE INDEX idx_ontology_snapshots_ws ON ontology_snapshots USING btree (workspace_id, ontology_draft_id);
 
 -- ============================================================================
 -- ontology_verifications
@@ -1160,7 +1160,7 @@ ALTER TABLE ONLY ontology_drafts
 ALTER TABLE ONLY ontology_snapshots
     ADD CONSTRAINT ontology_snapshots_workspace_fk FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE ONLY ontology_snapshots
-    ADD CONSTRAINT ontology_snapshots_project_ws_fk FOREIGN KEY (workspace_id, project_id) REFERENCES ontology_drafts(workspace_id, id) ON DELETE CASCADE;
+    ADD CONSTRAINT ontology_snapshots_draft_ws_fk FOREIGN KEY (workspace_id, ontology_draft_id) REFERENCES ontology_drafts(workspace_id, id) ON DELETE CASCADE;
 
 -- ============================================================================
 -- ============================================================================
@@ -1219,7 +1219,7 @@ ALTER TABLE ONLY dashboard_widgets
 ALTER TABLE ONLY data_lineage
     ADD CONSTRAINT data_lineage_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE ONLY data_lineage
-    ADD CONSTRAINT data_lineage_project_ws_fk FOREIGN KEY (workspace_id, project_id) REFERENCES ontology_drafts(workspace_id, id) ON DELETE SET NULL;
+    ADD CONSTRAINT data_lineage_draft_ws_fk FOREIGN KEY (workspace_id, ontology_draft_id) REFERENCES ontology_drafts(workspace_id, id) ON DELETE SET NULL;
 ALTER TABLE ONLY data_lineage
     ADD CONSTRAINT data_lineage_loaded_by_fkey FOREIGN KEY (loaded_by) REFERENCES users(id);
 
@@ -1369,7 +1369,7 @@ ALTER TABLE ONLY saved_reports
 ALTER TABLE ONLY workbench_perspectives
     ADD CONSTRAINT workbench_perspectives_workspace_fk FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE ONLY workbench_perspectives
-    ADD CONSTRAINT workbench_perspectives_project_ws_fk FOREIGN KEY (workspace_id, project_id) REFERENCES ontology_drafts(workspace_id, id) ON DELETE SET NULL;
+    ADD CONSTRAINT workbench_perspectives_draft_ws_fk FOREIGN KEY (workspace_id, ontology_draft_id) REFERENCES ontology_drafts(workspace_id, id) ON DELETE SET NULL;
 
 -- ============================================================================
 -- Row-level security policies

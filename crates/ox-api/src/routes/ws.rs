@@ -315,7 +315,7 @@ async fn handle_client_message(
             let _ = send_via(sender, &server_error(ErrorCode::AuthRequired)).await;
         }
         ClientMessage::Join { ontology_draft_id } => {
-            if !verify_project(state, ontology_draft_id, project_cache).await {
+            if !verify_ontology_draft(state, ontology_draft_id, project_cache).await {
                 let _ = send_via(sender, &server_error(ErrorCode::UnauthorizedOntologyDraft)).await;
                 return true;
             }
@@ -394,7 +394,7 @@ async fn handle_client_message(
 /// Authorise a `ontology_draft_id` against the bound workspace. RLS
 /// guarantees foreign ids resolve to `None`; the result is cached
 /// for [`PROJECT_CACHE_TTL`] so Leave→Join cycles stay cheap.
-async fn verify_project(
+async fn verify_ontology_draft(
     state: &AppState,
     ontology_draft_id: Uuid,
     cache: &mut HashMap<Uuid, Instant>,

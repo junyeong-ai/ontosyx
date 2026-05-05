@@ -1,9 +1,9 @@
 import type { StateCreator } from "zustand";
-import type { AppStore, ProjectSlice } from "./types";
+import type { AppStore, OntologyDraftSlice } from "./types";
 
-export const createProjectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (set) => ({
-  activeProject: null,
-  setActiveProject: (project) => set({ activeProject: project }),
+export const createOntologyDraftSlice: StateCreator<AppStore, [], [], OntologyDraftSlice> = (set) => ({
+  activeOntologyDraft: null,
+  setActiveOntologyDraft: (project) => set({ activeOntologyDraft: project }),
 
   lastReconcileReport: null,
   setLastReconcileReport: (report) => set({ lastReconcileReport: report }),

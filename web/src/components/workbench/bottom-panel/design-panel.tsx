@@ -3,9 +3,9 @@
 import { useAppStore } from "@/lib/store";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import { CanonicalStatusBanner } from "./canonical-status-banner";
-import { CreateProjectForm } from "./create-project-form";
+import { CreateOntologyDraftForm } from "./create-ontology-draft-form";
 import { PhaseStepper } from "./phase-stepper";
-import { ProjectWorkflow } from "./project-workflow";
+import { OntologyDraftWorkflow } from "./ontology-draft-workflow";
 import { RecentProjects } from "./recent-ontology-drafts";
 
 // ---------------------------------------------------------------------------
@@ -13,8 +13,8 @@ import { RecentProjects } from "./recent-ontology-drafts";
 // ---------------------------------------------------------------------------
 
 export function DesignPanel() {
-  const project = useAppStore((s) => s.activeProject);
-  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
+  const project = useAppStore((s) => s.activeOntologyDraft);
+  const applyOntologyDraftSnapshot = useAppStore((s) => s.applyOntologyDraftSnapshot);
   const guardPendingEdits = useGuardPendingEdits();
 
   if (!project) {
@@ -31,9 +31,9 @@ export function DesignPanel() {
         <div className="mx-auto w-full max-w-3xl space-y-6">
           <CanonicalStatusBanner />
           <PhaseStepper currentStepIndex={-1} />
-          <CreateProjectForm
+          <CreateOntologyDraftForm
             guardBeforeCreate={guardPendingEdits}
-            onCreated={(p) => applyProjectSnapshot(p)}
+            onCreated={(p) => applyOntologyDraftSnapshot(p)}
           />
           <RecentProjects />
         </div>
@@ -41,7 +41,7 @@ export function DesignPanel() {
     );
   }
 
-  // Project workflow is a fixed-left + flex-right two-column layout.
+  // Ontology draft workflow is a fixed-left + flex-right two-column layout.
   // Letting it stretch to the full pane width gives the right-hand
   // analysis review breathing room on wide screens — the left column
   // already has its own responsive ceiling
@@ -49,9 +49,9 @@ export function DesignPanel() {
   // the surplus instead of stranding it as dead space.
   return (
     <div className="h-full overflow-auto">
-      <ProjectWorkflow
+      <OntologyDraftWorkflow
         project={project}
-        applyProjectSnapshot={applyProjectSnapshot}
+        applyOntologyDraftSnapshot={applyOntologyDraftSnapshot}
       />
     </div>
   );

@@ -33,7 +33,11 @@ const HEADING_RE = /<h([1-6])\s+className=/g;
 // implementation is permitted to use the raw element via the
 // switch below.
 const SKIP_DIR_RE = /(?:^|\/)(node_modules|\.next|__tests__)\//;
-const SKIP_FILE_RE = /\.(?:test|spec|generated)\.(?:tsx?|js)$|heading\.tsx$/;
+// `heading.tsx` and `eyebrow.tsx` are the typographic primitives the
+// rest of the codebase routes through; their internal switch over
+// h-levels emits the only legitimate raw `<hN className=…>` JSX.
+const SKIP_FILE_RE =
+  /\.(?:test|spec|generated)\.(?:tsx?|js)$|(?:heading|eyebrow)\.tsx$/;
 
 const ALLOWED_CLASSES = new Set([
   // sr-only headings serve a11y-only and don't render visual chrome

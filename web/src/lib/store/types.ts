@@ -145,21 +145,21 @@ export interface CommandEntry {
 export interface OntologySlice {
   /**
    * Display-side cache of the current ontology under edit. Tracks
-   * `activeProject.ontology` plus any pending unsaved `commandStack`
+   * `activeOntologyDraft.ontology` plus any pending unsaved `commandStack`
    * edits when in project mode, or a standalone IR when loaded
    * via `loadStandaloneOntology` (import / query-result viewer).
    *
    * Two mutating entry points, no overlap:
-   * - `applyProjectSnapshot(project | null)` — project mode. Updates
-   *   `activeProject` and the ontology cache atomically. Same-project
+   * - `applyOntologyDraftSnapshot(project | null)` — project mode. Updates
+   *   `activeOntologyDraft` and the ontology cache atomically. Same-project
    *   refetches replay the unsaved `commandStack` so in-flight edits
    *   survive cache invalidation; project switches drop the stack.
    *   Pass `null` to leave project mode.
    * - `loadStandaloneOntology(ir)` — non-project mode. Clears
-   *   `activeProject` and replaces `ontology` with the supplied IR.
+   *   `activeOntologyDraft` and replaces `ontology` with the supplied IR.
    *   The two-half invariant ("project mode XOR standalone") is
    *   enforced inside the action so callers cannot leave a stale
-   *   `activeProject` paired with a fresh standalone IR.
+   *   `activeOntologyDraft` paired with a fresh standalone IR.
    *
    * Direct mutation of `ontology` is forbidden — there are no
    * setOntology / resetOntology accessors. Either route through
@@ -172,7 +172,7 @@ export interface OntologySlice {
   undo: () => void;
   redo: () => void;
   clearCommandStack: () => void;
-  applyProjectSnapshot: (project: OntologyDraft | null) => void;
+  applyOntologyDraftSnapshot: (project: OntologyDraft | null) => void;
   loadStandaloneOntology: (ontology: OntologyIR) => void;
   nodeGroups: Record<string, NodeGroup>;
   restoreNodeGroups: (groups: Record<string, NodeGroup>) => void;
@@ -205,9 +205,9 @@ export interface ChatSlice {
   setModelOverride: (model: string | null) => void;
 }
 
-export interface ProjectSlice {
-  activeProject: OntologyDraft | null;
-  setActiveProject: (project: OntologyDraft | null) => void;
+export interface OntologyDraftSlice {
+  activeOntologyDraft: OntologyDraft | null;
+  setActiveOntologyDraft: (project: OntologyDraft | null) => void;
   lastReconcileReport: ReconcileReport | null;
   setLastReconcileReport: (report: ReconcileReport | null) => void;
   pendingReconcile: PendingReconcile | null;
@@ -370,7 +370,7 @@ export interface VerificationSlice {
 // Combined store type
 export type AppStore = OntologySlice &
   ChatSlice &
-  ProjectSlice &
+  OntologyDraftSlice &
   ChromeSlice &
   SelectionSlice &
   DashboardSlice &

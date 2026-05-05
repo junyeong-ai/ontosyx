@@ -1,6 +1,6 @@
 //! `POST /api/ontology-drafts/source-preview`
 //!
-//! Cheap table listing for an arbitrary [`ProjectSource`] — no
+//! Cheap table listing for an arbitrary [`DataSourceSpec`] — no
 //! introspection, no profiling, no persistence. Designers call this
 //! before [`super::lifecycle::create_ontology_draft`] so they can pick a
 //! subset of tables to feed into the design flow.
@@ -20,7 +20,7 @@ use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::helpers::build_adapter;
-use super::types::ProjectSource;
+use super::types::DataSourceSpec;
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct PreviewSourceRequest {
@@ -28,7 +28,7 @@ pub struct PreviewSourceRequest {
     /// `CreateOntologyDraftRequest::origin::Source { source }`.
     #[serde(flatten)]
     #[schema(value_type = Object)]
-    pub source: ProjectSource,
+    pub source: DataSourceSpec,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -64,7 +64,7 @@ pub struct PreviewTableSummary {
             body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 #[tracing::instrument(skip(state, principal, req))]
 pub(crate) async fn preview_source(

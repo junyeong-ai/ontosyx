@@ -23,7 +23,7 @@ pub(crate) struct LlmInputContext<'a> {
 
 impl<'a> LlmInputContext<'a> {
     /// Extract context from a stored `OntologyDraft`.
-    pub fn from_project(project: &'a OntologyDraft) -> Self {
+    pub fn from_ontology_draft(project: &'a OntologyDraft) -> Self {
         Self {
             source_data: project.source_data.as_deref(),
             source_schema: project.source_schema.as_ref(),
@@ -58,14 +58,14 @@ pub(crate) fn build_llm_input(
             // Structured: format from stored schema + profile
             let schema: SourceSchema = ctx
                 .source_schema
-                .ok_or_else(|| AppError::internal("Project has no source schema"))
+                .ok_or_else(|| AppError::internal("Ontology draft has no source schema"))
                 .and_then(|v| {
                     serde_json::from_value(v.clone())
                         .map_err(|e| AppError::internal(format!("deserialize source_schema: {e}")))
                 })?;
             let profile: SourceProfile = ctx
                 .source_profile
-                .ok_or_else(|| AppError::internal("Project has no source profile"))
+                .ok_or_else(|| AppError::internal("Ontology draft has no source profile"))
                 .and_then(|v| {
                     serde_json::from_value(v.clone())
                         .map_err(|e| AppError::internal(format!("deserialize source_profile: {e}")))

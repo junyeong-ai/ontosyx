@@ -554,12 +554,12 @@ pub trait OntologyDraftStore: Send + Sync {
     /// Archive WIP projects that haven't been updated within `max_age_days`.
     /// Returns per-workspace counts so the maintenance loop can record one
     /// audit row per affected workspace.
-    async fn archive_stale_projects(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>>;
+    async fn archive_stale_ontology_drafts(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>>;
 
     /// Permanently delete projects that have been archived for longer than `max_archive_days`.
     /// Returns per-workspace counts so the maintenance loop can record one
     /// audit row per affected workspace.
-    async fn delete_archived_projects(&self, max_archive_days: i64) -> OxResult<Vec<(Uuid, u64)>>;
+    async fn delete_archived_ontology_drafts(&self, max_archive_days: i64) -> OxResult<Vec<(Uuid, u64)>>;
 
     // --- Ontology Snapshots ---
 
@@ -1168,7 +1168,7 @@ pub trait LineageStore: Send + Sync {
     async fn list_lineage_for_label(&self, graph_label: &str) -> OxResult<Vec<LineageEntry>>;
 
     /// Get lineage entries for a project.
-    async fn list_lineage_for_project(&self, ontology_draft_id: Uuid) -> OxResult<Vec<LineageEntry>>;
+    async fn list_lineage_for_ontology_draft(&self, ontology_draft_id: Uuid) -> OxResult<Vec<LineageEntry>>;
 
     /// Get a summary of lineage per graph label (for overview).
     async fn lineage_summary(&self) -> OxResult<Vec<LineageSummary>>;

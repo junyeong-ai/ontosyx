@@ -30,14 +30,14 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   const t = useTranslations("inspector.toast");
   const tInspector = useTranslations("inspector");
   const ontology = useAppStore((s) => s.ontology);
-  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
+  const applyOntologyDraftSnapshot = useAppStore((s) => s.applyOntologyDraftSnapshot);
   const selectedNodeId = useAppStore(selectStateSelectedNodeId);
   const selectedEdgeId = useAppStore(selectStateSelectedEdgeId);
   const commandStack = useAppStore((s) => s.commandStack);
   const redoStack = useAppStore((s) => s.redoStack);
   const undo = useAppStore((s) => s.undo);
   const redo = useAppStore((s) => s.redo);
-  const activeProject = useAppStore((s) => s.activeProject);
+  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
   const [isSaving, setIsSaving] = useState(false);
 
   // Conflict surface — set when `applyOntologyCommands` returns 409
@@ -76,13 +76,13 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   // room. When the room has multiple collaborators the banner
   // shows "another user" as a generic fallback rather than guess.
   const presence = useCollabStore((s) =>
-    activeProject ? selectStatePresence(activeProject.id)(s) : [],
+    activeOntologyDraft ? selectStatePresence(activeOntologyDraft.id)(s) : [],
   );
   const latestRemoteUpdate = useCollabStore((s) =>
-    activeProject ? selectStateLatestRemoteUpdate(activeProject.id)(s) : undefined,
+    activeOntologyDraft ? selectStateLatestRemoteUpdate(activeOntologyDraft.id)(s) : undefined,
   );
   const ackRemoteUpdate = useCollabStore((s) => s.ackRemoteUpdate);
-  // The current viewer's user id — distinct from `activeProject.user_id`,
+  // The current viewer's user id — distinct from `activeOntologyDraft.user_id`,
   // which is the project *owner*. A collaborator editing someone else's
   // project must filter their own presence row out using their *own* id,
   // not the project owner's, so the lone-remote heuristic and the
@@ -106,25 +106,25 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   // read-only mode and the guard stays inert so we don't fire
   // doomed `acquire_lock` frames every render.
   const lockedEntityId = selectedNodeId ?? selectedEdgeId ?? undefined;
-  const liveLock = useEntityLock(activeProject?.id, lockedEntityId);
+  const liveLock = useEntityLock(activeOntologyDraft?.id, lockedEntityId);
   useEntityLockGuard(
-    activeProject?.id,
+    activeOntologyDraft?.id,
     lockedEntityId,
     liveLock.kind !== "locked-by-other",
   );
 
   const handleSave = useCallback(async () => {
-    if (!activeProject || commandStack.length === 0) return;
+    if (!activeOntologyDraft || commandStack.length === 0) return;
     setIsSaving(true);
     try {
       const commands = commandStack.map((e) => e.command);
-      const resp = await applyOntologyCommands(activeProject.id, {
-        revision: activeProject.revision,
+      const resp = await applyOntologyCommands(activeOntologyDraft.id, {
+        revision: activeOntologyDraft.revision,
         commands,
       });
       // Server canonical replaces local state + clears command stack
       // atomically — both halves can never drift.
-      applyProjectSnapshot(resp.project);
+      applyOntologyDraftSnapshot(resp.project);
       setConflict(null);
       toast.success(t("saved"));
     } catch (err) {
@@ -161,8 +161,8 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
           others.length === 1 ? others[0].user_name : t("conflictUnknownActor");
         setConflict({
           remoteAuthorName,
-          baseRevision: activeProject.revision,
-          remoteRevision: activeProject.revision + 1,
+          baseRevision: activeOntologyDraft.revision,
+          remoteRevision: activeOntologyDraft.revision + 1,
         });
         return;
       }
@@ -171,9 +171,9 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
       setIsSaving(false);
     }
   }, [
-    activeProject,
+    activeOntologyDraft,
     commandStack,
-    applyProjectSnapshot,
+    applyOntologyDraftSnapshot,
     latestRemoteUpdate,
     presence,
     currentUserId,
@@ -185,36 +185,36 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   // next save will use the fresher revision and either succeed or
   // surface a tighter conflict.
   const handleKeepLocal = useCallback(async () => {
-    if (!activeProject) return;
+    if (!activeOntologyDraft) return;
     try {
       const { getOntologyDraft } = await import("@/lib/api/ontology-drafts");
-      const fresh = await getOntologyDraft(activeProject.id);
-      // `applyProjectSnapshot` replays the local commandStack atop
+      const fresh = await getOntologyDraft(activeOntologyDraft.id);
+      // `applyOntologyDraftSnapshot` replays the local commandStack atop
       // the new server snapshot — see ontology-slice for the
       // invariant.
-      applyProjectSnapshot(fresh);
+      applyOntologyDraftSnapshot(fresh);
       setConflict(null);
-      ackRemoteUpdate(activeProject.id);
+      ackRemoteUpdate(activeOntologyDraft.id);
       void handleSave();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("saveFailed"));
     }
-  }, [activeProject, applyProjectSnapshot, ackRemoteUpdate, handleSave, t]);
+  }, [activeOntologyDraft, applyOntologyDraftSnapshot, ackRemoteUpdate, handleSave, t]);
 
   // Drop the local stack and accept the server canonical verbatim.
   const handleAcceptRemote = useCallback(async () => {
-    if (!activeProject) return;
+    if (!activeOntologyDraft) return;
     try {
       const { getOntologyDraft } = await import("@/lib/api/ontology-drafts");
-      const fresh = await getOntologyDraft(activeProject.id);
+      const fresh = await getOntologyDraft(activeOntologyDraft.id);
       useAppStore.getState().clearCommandStack();
-      applyProjectSnapshot(fresh);
+      applyOntologyDraftSnapshot(fresh);
       setConflict(null);
-      ackRemoteUpdate(activeProject.id);
+      ackRemoteUpdate(activeOntologyDraft.id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("saveFailed"));
     }
-  }, [activeProject, applyProjectSnapshot, ackRemoteUpdate, t]);
+  }, [activeOntologyDraft, applyOntologyDraftSnapshot, ackRemoteUpdate, t]);
 
 
   // The body switches between "no ontology yet", "select something",
@@ -303,13 +303,13 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
           <>
             <span className="ms-auto text-2xs text-foreground-muted">
               {tInspector("toolbar.changes", { count: commandStack.length })}
-              {!activeProject && (
+              {!activeOntologyDraft && (
                 <span className="ms-1 text-warning-foreground" title={tInspector("toolbar.unsaveableHint")}>
                   {tInspector("toolbar.unsaveable")}
                 </span>
               )}
             </span>
-            {activeProject && (
+            {activeOntologyDraft && (
               <Tooltip content={tInspector("toolbar.saveTooltip")}>
                 <button type="button"
                   onClick={handleSave}

@@ -11,6 +11,7 @@ import { toast } from "@/components/ui/toast";
 import { Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Heading } from "@/components/ui/heading";
 import { SkeletonCard, SkeletonList } from "@/components/ui/skeleton";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
@@ -244,7 +245,9 @@ export default function FederationAdaptersPage() {
       {health && (
         <section className="rounded-lg border border-divider-soft bg-surface-base p-4 text-sm">
           <div className="flex items-center justify-between">
-            <h2 className="font-medium">{t("health.title")}</h2>
+            <Heading level={2} size={6} className="font-medium">
+              {t("health.title")}
+            </Heading>
             <Button size="sm" variant="outline" onClick={handleRefresh}>
               {t("health.refresh")}
             </Button>
@@ -290,7 +293,9 @@ export default function FederationAdaptersPage() {
       )}
 
       <section>
-        <h2 className="mb-3 text-lg font-medium">{t("register.title")}</h2>
+        <Heading level={2} size={4} className="mb-3 font-medium">
+          {t("register.title")}
+        </Heading>
         <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-divider-soft bg-surface-base p-4">
           <SettingsInput
             label={t("register.sourceId")}
@@ -370,9 +375,9 @@ export default function FederationAdaptersPage() {
           <div className="mt-4 rounded-lg border border-brand-border bg-brand-surface p-4 text-sm">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium">
+                <Heading level={3} size={6} className="font-medium">
                   {t("preview.title", { sourceType: preview.source_type })}
-                </h3>
+                </Heading>
                 <p className="mt-0.5 text-xs text-foreground-muted">
                   {t("preview.summary", {
                     tables: preview.tables.length,

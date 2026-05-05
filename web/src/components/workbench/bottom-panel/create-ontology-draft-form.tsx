@@ -9,6 +9,7 @@ import { toast } from "@/components/ui/toast";
 import { createOntologyDraft } from "@/lib/api";
 import { isGitUrl } from "@/lib/git-url";
 import { Button } from "@/components/ui/button";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { FormInput, FormTextarea, SecretInput } from "@/components/ui/form-input";
 import { Select, SelectOption } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
@@ -50,7 +51,7 @@ const DB_SOURCE_TYPES = new Set<GenerateSourceType>([
   "bigquery",
 ]);
 
-export function CreateProjectForm({
+export function CreateOntologyDraftForm({
   guardBeforeCreate,
   onCreated,
 }: {
@@ -350,9 +351,9 @@ export function CreateProjectForm({
   if (phase === "select_tables" && previewedSource) {
     return (
       <div>
-        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+        <Eyebrow level={2} size="dense" className="mb-1">
           {t("selectTablesHeading")}
-        </h2>
+        </Eyebrow>
         <p className="mb-3 text-xs text-foreground-muted">
           {t("selectTablesIntro")}
         </p>
@@ -426,9 +427,9 @@ export function CreateProjectForm({
 
   return (
     <div>
-      <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+      <Eyebrow level={2} size="dense" className="mb-1">
         {t("heading")}
-      </h2>
+      </Eyebrow>
       <p className="mb-3 text-xs text-foreground-muted">
         {t.rich("intro", {
           asterisk: (chunks) => <span className="text-danger-foreground">{chunks}</span>,

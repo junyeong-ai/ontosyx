@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { AlertCircle, Home, RefreshCw } from "lucide-react";
 import { Button, buttonStyles } from "@/components/ui/button";
+import { Heading } from "@/components/ui/heading";
 
 interface RootErrorProps {
   error: Error & { digest?: string };
@@ -41,9 +42,9 @@ export default function RootError({ error, reset }: RootErrorProps) {
               <AlertCircle className="h-5 w-5 text-danger-foreground" />
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-base font-semibold text-foreground-strong">
+              <Heading level={1} size={5}>
                 {t("title")}
-              </h1>
+              </Heading>
               <p className="mt-1 text-sm text-foreground">
                 {t("description")}
               </p>

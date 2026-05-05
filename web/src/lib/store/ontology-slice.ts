@@ -592,13 +592,13 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
     });
   },
   clearCommandStack: () => { capWarningShown = false; set({ commandStack: [], redoStack: [] }); },
-  applyProjectSnapshot: (project) => set((state) => {
+  applyOntologyDraftSnapshot: (project) => set((state) => {
     capWarningShown = false;
     invalidateIndex();
 
     if (!project) {
       return {
-        activeProject: null,
+        activeOntologyDraft: null,
         ontology: null,
         commandStack: [],
         redoStack: [],
@@ -606,14 +606,14 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
     }
 
     const baseOntology = (project.ontology ?? null) as OntologyIR | null;
-    const switchingProjects = state.activeProject?.id !== project.id;
+    const switchingDrafts = state.activeOntologyDraft?.id !== project.id;
 
     // Same-project refetch (e.g. cache invalidation after save):
     // replay unsaved commands on the new server snapshot so the
     // user's in-flight edits survive. Switching projects clears
     // the stack — the edits belong to the previous project.
     if (
-      !switchingProjects
+      !switchingDrafts
       && state.commandStack.length > 0
       && baseOntology
     ) {
@@ -626,7 +626,7 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
       }
       ensureIndex(working);
       return {
-        activeProject: project,
+        activeOntologyDraft: project,
         ontology: working,
         commandStack: replayed,
       };
@@ -634,7 +634,7 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
 
     if (baseOntology) ensureIndex(baseOntology);
     return {
-      activeProject: project,
+      activeOntologyDraft: project,
       ontology: baseOntology,
       commandStack: [],
       redoStack: [],
@@ -646,7 +646,7 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
     ensureIndex(ontology);
     set({
       // Standalone-mode invariant: never paired with a project.
-      activeProject: null,
+      activeOntologyDraft: null,
       ontology,
       commandStack: [],
       redoStack: [],

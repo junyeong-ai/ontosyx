@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AlertTriangle, Wand2 } from "lucide-react";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { FormInput, SettingsSelect } from "@/components/ui/form-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/cn";
@@ -158,9 +159,9 @@ function GroupedSection({
     const totalItems = Array.from(groups.values()).reduce((acc, list) => acc + list.length, 0);
     return (
       <div>
-        <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+        <Eyebrow level={4} size="dense" className="mb-1">
           {title}
-        </h4>
+        </Eyebrow>
         <p className="rounded border border-brand-border bg-brand-surface px-2 py-1.5 text-xs text-brand-foreground-strong">
           {t("sectionAllResolved", { count: totalItems })}
         </p>

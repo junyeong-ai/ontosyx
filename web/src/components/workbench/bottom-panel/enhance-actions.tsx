@@ -11,7 +11,7 @@ import { toAnalyzeSelection } from "@/components/workbench/source-import-panel";
 import { useAppStore } from "@/lib/store";
 import {
   extendOntologyDraft,
-  reanalyzeModeledProject,
+  reanalyzeModeledOntologyDraft,
   reanalyzeOntologyDraft,
 } from "@/lib/api";
 import { isGitUrl } from "@/lib/git-url";
@@ -39,9 +39,9 @@ export interface EnhanceActionsProps {
   setLoading: (v: boolean) => void;
   /**
    * Atomic project + ontology cache update — see
-   * `OntologySlice.applyProjectSnapshot`.
+   * `OntologySlice.applyOntologyDraftSnapshot`.
    */
-  applyProjectSnapshot: (project: OntologyDraft | null) => void;
+  applyOntologyDraftSnapshot: (project: OntologyDraft | null) => void;
   onApiError: (err: unknown, label: string) => Promise<boolean>;
   onRedesign: () => Promise<void>;
   analysisRef: React.RefObject<HTMLDetailsElement | null>;
@@ -53,7 +53,7 @@ export function EnhanceActions({
   project,
   loading,
   setLoading,
-  applyProjectSnapshot,
+  applyOntologyDraftSnapshot,
   onApiError,
   onRedesign,
   analysisRef,
@@ -98,7 +98,7 @@ export function EnhanceActions({
           // tables.
           selection: toAnalyzeSelection(extend.importValue, "extend"),
         });
-        applyProjectSnapshot(resp.project);
+        applyOntologyDraftSnapshot(resp.project);
         setLastReconcileReport(resp.reconcile_report);
         extend.setShowExtend(false);
         toast.success(t("extendSuccess"));
@@ -142,7 +142,7 @@ export function EnhanceActions({
           : undefined;
         const source = toDesignSource(validated);
         const resp = reanalyze.modeledOnly
-          ? await reanalyzeModeledProject(project.id, {
+          ? await reanalyzeModeledOntologyDraft(project.id, {
               source,
               revision: project.revision,
               repo_source,
@@ -153,7 +153,7 @@ export function EnhanceActions({
               repo_source,
               selection: { kind: "all" },
             });
-        applyProjectSnapshot(resp.project);
+        applyOntologyDraftSnapshot(resp.project);
         reanalyze.setShowReanalyze(false);
         toast.success(t("reanalyzed"), {
           description: resp.invalidated_decisions?.length

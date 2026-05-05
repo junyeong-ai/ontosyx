@@ -26,7 +26,7 @@ export function MappingsFacet({
 }) {
   const t = useTranslations("workbench.entityFacets.mappings");
   const applyCommand = useAppStore((s) => s.applyCommand);
-  const project = useAppStore((s) => s.activeProject);
+  const project = useAppStore((s) => s.activeOntologyDraft);
 
   const mappings = arr(ontology.object_mappings).filter(
     (m) => m.node_type_id === node.id,

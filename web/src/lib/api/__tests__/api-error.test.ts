@@ -60,14 +60,14 @@ describe("ApiError.localize", () => {
     const err = new ApiError({
       status: 404,
       code: "not_found",
-      params: { entity: "Project" },
+      params: { entity: "OntologyDraft" },
     });
     const captured: Array<[string, unknown]> = [];
     const t = (key: string, values?: Record<string, unknown>) => {
       captured.push([key, values]);
       return `${key}:${JSON.stringify(values)}`;
     };
-    expect(err.localize(t)).toBe("not_found:{\"entity\":\"Project\"}");
+    expect(err.localize(t)).toBe("not_found:{\"entity\":\"OntologyDraft\"}");
     expect(captured[0]?.[0]).toBe("not_found");
   });
 

@@ -1,6 +1,6 @@
 import type {
   OntologyDiff,
-  RestoreProjectRevisionResponse,
+  RestoreOntologyDraftRevisionResponse,
   RevisionSummary,
   UpsertPerspectiveRequest,
   WorkbenchPerspective,
@@ -56,7 +56,7 @@ export async function listRevisions(
 export async function restoreRevision(
   ontologyDraftId: string,
   revision: number,
-): Promise<RestoreProjectRevisionResponse> {
+): Promise<RestoreOntologyDraftRevisionResponse> {
   return request(
     `/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/revisions/${revision}/restore`,
     { method: "POST" },

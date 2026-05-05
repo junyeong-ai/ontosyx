@@ -88,8 +88,8 @@ type Phase =
 export function CommandBar() {
   const t = useTranslations("workbench.canvas.commandBar");
   const tCommon = useTranslations("common");
-  const activeProject = useAppStore((s) => s.activeProject);
-  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
+  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
+  const applyOntologyDraftSnapshot = useAppStore((s) => s.applyOntologyDraftSnapshot);
   const setLastReconcileReport = useAppStore((s) => s.setLastReconcileReport);
   const applyCommand = useAppStore((s) => s.applyCommand);
   const commandStack = useAppStore((s) => s.commandStack);
@@ -106,7 +106,7 @@ export function CommandBar() {
 
   const hasOntology = !!ontology;
   const canRefine =
-    (activeProject?.status === "designed" || activeProject?.status === "completed") && commandStack.length === 0;
+    (activeOntologyDraft?.status === "designed" || activeOntologyDraft?.status === "completed") && commandStack.length === 0;
   const canEdit = hasOntology;
 
   // Auto-open from external triggers (Quality Panel "Ask AI", etc.)
@@ -159,12 +159,12 @@ export function CommandBar() {
   // ---------------------------------------------------------------------------
 
   const handleEditSubmit = useCallback(async () => {
-    if (!activeProject || !input.trim()) return;
+    if (!activeOntologyDraft || !input.trim()) return;
 
     setPhase({ type: "loading", message: t("loadingAnalyzing") });
     try {
-      const resp = await editOntologyDraft(activeProject.id, {
-        revision: activeProject.revision,
+      const resp = await editOntologyDraft(activeOntologyDraft.id, {
+        revision: activeOntologyDraft.revision,
         user_request: input.trim(),
         dry_run: true,
       });
@@ -188,7 +188,7 @@ export function CommandBar() {
       });
       setPhase({ type: "input" });
     }
-  }, [activeProject, input, t]);
+  }, [activeOntologyDraft, input, t]);
 
   // Render-phase ref sync — global keybindings invoke this without
   // a hook dep array. Switch to `useEffectEvent` when it leaves
@@ -214,7 +214,7 @@ export function CommandBar() {
   // ---------------------------------------------------------------------------
 
   const handleRefineSubmit = useCallback(async () => {
-    if (!activeProject || !input.trim()) return;
+    if (!activeOntologyDraft || !input.trim()) return;
 
     const confirmed = await confirmDialog({
       title: t("refineConfirmTitle"),
@@ -226,11 +226,11 @@ export function CommandBar() {
 
     setPhase({ type: "loading", message: t("loadingRefining") });
     try {
-      const resp = await refineOntologyDraft(activeProject.id, {
-        revision: activeProject.revision,
+      const resp = await refineOntologyDraft(activeOntologyDraft.id, {
+        revision: activeOntologyDraft.revision,
         additional_context: input.trim(),
       });
-      applyProjectSnapshot(resp.project);
+      applyOntologyDraftSnapshot(resp.project);
       if (resp.reconcile_report) {
         setLastReconcileReport(resp.reconcile_report);
       }
@@ -263,10 +263,10 @@ export function CommandBar() {
       setPhase({ type: "input" });
     }
   }, [
-    activeProject,
+    activeOntologyDraft,
     input,
     confirmDialog,
-    applyProjectSnapshot,
+    applyOntologyDraftSnapshot,
     setLastReconcileReport,
     t,
   ]);

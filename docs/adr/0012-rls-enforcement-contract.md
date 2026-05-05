@@ -103,7 +103,7 @@ Background tasks wrap their entry point:
 
 ```rust
 PostgresStore::with_workspace(workspace_id, || async {
-    store.create_design_project(&project).await
+    store.create_ontology_draft(&draft).await
 }).await
 ```
 

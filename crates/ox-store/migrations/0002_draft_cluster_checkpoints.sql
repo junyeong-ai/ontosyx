@@ -6,7 +6,7 @@
 -- previously discarded clusters 0..K's output and forced the caller
 -- to start from scratch — every prior LLM call wasted. This table
 -- caches one completed cluster output keyed by a deterministic
--- `(workspace_id, project_id, source_id, signature)` natural key
+-- `(workspace_id, ontology_draft_id, source_id, signature)` natural key
 -- (signature = SHA-256 from `ClusterSignature::from_cluster`,
 -- folding tables + FKs + prompt template hash). A re-run with the
 -- same signature replays from cache and skips the LLM call;
@@ -17,14 +17,14 @@
 CREATE TABLE draft_cluster_checkpoints (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id uuid NOT NULL,
-    project_id uuid NOT NULL,
+    ontology_draft_id uuid NOT NULL,
     source_id text NOT NULL,
     signature text NOT NULL,
     cluster_id integer NOT NULL,
     output jsonb NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at TIMESTAMPTZ NOT NULL,
-    UNIQUE (workspace_id, project_id, source_id, signature)
+    UNIQUE (workspace_id, ontology_draft_id, source_id, signature)
 );
 
 ALTER TABLE draft_cluster_checkpoints ENABLE ROW LEVEL SECURITY;
@@ -47,4 +47,4 @@ CREATE INDEX idx_draft_cluster_checkpoints_expired
 -- constraint already covers signature-keyed lookups, so this index
 -- targets the "show me all checkpoints for project X" path.
 CREATE INDEX idx_draft_cluster_checkpoints_project
-    ON draft_cluster_checkpoints (project_id, created_at DESC);
+    ON draft_cluster_checkpoints (ontology_draft_id, created_at DESC);

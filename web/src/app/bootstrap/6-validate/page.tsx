@@ -25,12 +25,12 @@ import {
 import { createOntologyDraft } from "@/lib/api/ontology-drafts";
 import type {
   AnalyzeSelection,
-  CreateProjectRequest,
+  CreateOntologyDraftRequest,
   OntologyDetail,
 } from "@/types/api";
 
 import { useBootstrap } from "../bootstrap-state";
-import { bootstrapSourceToProjectSource } from "../source-mapping";
+import { bootstrapSourceToDataSourceSpec } from "../source-mapping";
 import { StepShell } from "../step-shell";
 import {
   ExistingPilotDialog,
@@ -63,7 +63,7 @@ function glossaryDraftToCreateOp(draft: GlossaryTermDraft): OntologyEditOp {
 
 /**
  * Map a wizard source kind + connection string + the step-2b table
- * picker state to a `CreateProjectRequest`, or `null` when the pair
+ * picker state to a `CreateOntologyDraftRequest`, or `null` when the pair
  * can't be materialised without extra user input.
  *
  * `analyzeMode = "subset"` lowers to `selection: { kind: "subset",
@@ -77,9 +77,9 @@ function buildCreateRequest(
   sourceConnection: string,
   analyzeMode: "all" | "subset" | "staged",
   selectedTables: string[],
-): CreateProjectRequest | null {
+): CreateOntologyDraftRequest | null {
   const title = pilotName.trim() || undefined;
-  const source = bootstrapSourceToProjectSource(sourceKind, sourceConnection);
+  const source = bootstrapSourceToDataSourceSpec(sourceKind, sourceConnection);
   if (!source) return null;
   const selection: AnalyzeSelection =
     analyzeMode === "subset"
@@ -176,7 +176,7 @@ export default function ValidateStep() {
     toast.success(
       t("toast.created", { name: state.pilotName || t("summary.unnamed") }),
     );
-    // Project ownership transferred to the server — the operator's
+    // Ontology draft ownership transferred to the server — the operator's
     // wizard state has done its job. Drop the localStorage entry so
     // returning to /bootstrap shows a clean slate instead of replaying
     // the previous session's pilot configuration.

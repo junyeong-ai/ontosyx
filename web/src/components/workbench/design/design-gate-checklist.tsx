@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { AlertCircle, X } from "lucide-react";
 import { CheckCircle } from "lucide-react";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { cn } from "@/lib/cn";
 import type { DesignGate, GateId } from "@/types/ontology-drafts";
 
@@ -67,9 +68,9 @@ export function DesignGateChecklist({
       )}
     >
       <header className="mb-2 flex items-baseline justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground-strong">
+        <Eyebrow level={3} size="dense" tone="strong">
           {t("heading")}
-        </h3>
+        </Eyebrow>
         <span
           className={cn(
             "text-xs font-medium",

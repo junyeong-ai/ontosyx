@@ -32,8 +32,8 @@ export function DesignLayout() {
   const toggleExplorer = useAppStore((s) => s.toggleExplorer);
   const toggleInspector = useAppStore((s) => s.toggleInspector);
   const ontology = useAppStore((s) => s.ontology);
-  const activeProject = useAppStore((s) => s.activeProject);
-  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
+  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
+  const applyOntologyDraftSnapshot = useAppStore((s) => s.applyOntologyDraftSnapshot);
   const hasUnsavedEdits = useAppStore((s) => s.commandStack.length > 0);
   const isBottomPanelOpen = useAppStore((s) => s.isBottomPanelOpen);
   const bottomPanelRef = usePanelRef();
@@ -57,14 +57,14 @@ export function DesignLayout() {
   }, [isBottomPanelOpen, bottomPanelRef]);
 
   // Sync the ontology cache to the active project on mount and on
-  // any subsequent activeProject change (e.g. cache invalidation
-  // after save, post-refetch). `applyProjectSnapshot` replays the
+  // any subsequent activeOntologyDraft change (e.g. cache invalidation
+  // after save, post-refetch). `applyOntologyDraftSnapshot` replays the
   // commandStack on top of the new server snapshot when the project
   // id is unchanged so unsaved edits survive a refetch; switching
   // projects clears the stack atomically.
   useEffect(() => {
-    applyProjectSnapshot(activeProject);
-  }, [activeProject, applyProjectSnapshot]);
+    applyOntologyDraftSnapshot(activeOntologyDraft);
+  }, [activeOntologyDraft, applyOntologyDraftSnapshot]);
 
   useShortcut({
     id: "design.search",
@@ -111,16 +111,16 @@ export function DesignLayout() {
 
   useEffect(() => {
     if (initialTabSetRef.current) return;
-    if (ontology === null && activeProject === null) {
+    if (ontology === null && activeOntologyDraft === null) {
       useAppStore.getState().setDesignBottomTab("workflow");
       initialTabSetRef.current = true;
     }
-  }, [ontology, activeProject]);
+  }, [ontology, activeOntologyDraft]);
 
   useUnsavedChangesGuard(hasUnsavedEdits);
   useSelectionUrlSync();
 
-  const gaps: QualityGap[] = activeProject?.quality_report?.gaps ?? [];
+  const gaps: QualityGap[] = activeOntologyDraft?.quality_report?.gaps ?? [];
   const hasContent = !!ontology;
   // Phase-aware top panel: when there is no ontology yet (analyse
   // phase, or no project at all) the canvas placeholder is just dead
@@ -196,7 +196,7 @@ export function DesignLayout() {
                   <KeyboardShortcut keys="mod+k" variant="outline" className="ms-1 shrink-0" />
                 </button>
               )}
-              {hasContent && activeProject && (
+              {hasContent && activeOntologyDraft && (
                 <div className="absolute end-12 top-2 z-canvas flex items-center gap-1.5">
                   <ScopeBadge />
                   <button type="button"
@@ -254,7 +254,7 @@ export function DesignLayout() {
           )}
         </Group>
         ) : (
-          <ErrorBoundary name="ProjectReview">
+          <ErrorBoundary name="OntologyDraftReview">
             <DesignPanel />
           </ErrorBoundary>
         )}

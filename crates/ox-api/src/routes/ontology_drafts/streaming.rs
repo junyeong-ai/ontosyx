@@ -62,15 +62,15 @@ use ox_source::analyzer::build_design_context;
 use crate::spawn_scoped::{WsScope, scope_stream};
 use super::helpers::artifact::persist_design_artifact;
 use super::helpers::{
-    LlmInputContext, assess_quality_from_project, assess_quality_from_project_with_mapping,
+    LlmInputContext, assess_quality_from_ontology_draft, assess_quality_from_ontology_draft_with_mapping,
     build_batch_llm_input, build_llm_input, build_refinement_context, build_source_schema_summary,
     enforce_design_gates, find_uncovered_cross_fks, format_cross_fks,
     format_existing_edges_for_resolution, format_existing_nodes, format_node_labels_for_resolution,
-    format_uncovered_fks, get_design_options, load_analysis_report, load_mutable_project,
-    load_project_in_status, merge_input_irs, reload_project,
+    format_uncovered_fks, get_design_options, load_analysis_report, load_mutable_ontology_draft,
+    load_ontology_draft_in_status, merge_input_irs, reload_ontology_draft,
 };
 use super::types::{
-    DesignOntologyDraftRequest, DesignOntologyDraftResponse, ProjectView, RefineOntologyDraftRequest,
+    DesignOntologyDraftRequest, DesignOntologyDraftResponse, OntologyDraftView, RefineOntologyDraftRequest,
     RefineOntologyDraftResponse,
 };
 
@@ -126,15 +126,15 @@ fn sse_result<T: Serialize>(data: &T) -> String {
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/design/stream",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     request_body = DesignOntologyDraftRequest,
     responses(
         (status = 200, description = "SSE stream: phase* -> result events", content_type = "text/event-stream"),
         (status = 400, description = "Invalid input", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 #[tracing::instrument(skip(state, principal, req), fields(ontology_draft_id = %id))]
 pub(crate) async fn design_ontology_draft_stream(
@@ -145,7 +145,7 @@ pub(crate) async fn design_ontology_draft_stream(
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
     principal.require_designer()?;
     // Validate eagerly before entering stream (allows ? error propagation)
-    let project = load_mutable_project(&state, id).await?;
+    let project = load_mutable_ontology_draft(&state, id).await?;
 
     let source_config: SourceConfig = serde_json::from_value(project.source_config.clone())
         .map_err(|e| AppError::internal(format!("deserialize source_config: {e}")))?;
@@ -226,7 +226,7 @@ pub(crate) async fn design_ontology_draft_stream(
         let design_result: Result<DesignOntologyOutput, ox_core::OxError> = if !use_batch {
             // === Text source path (no schema to cluster) ===
             let sample_data = {
-                let ctx = LlmInputContext::from_project(&project);
+                let ctx = LlmInputContext::from_ontology_draft(&project);
                 match build_llm_input(&ctx, &source_config, &effective_opts, &sys_config_snapshot) {
                     Ok(data) if !data.trim().is_empty() => data,
                     Ok(_) => {
@@ -808,7 +808,7 @@ pub(crate) async fn design_ontology_draft_stream(
             sse_phase("assessing_quality", None)
         ));
 
-        let quality_report = match assess_quality_from_project_with_mapping(
+        let quality_report = match assess_quality_from_ontology_draft_with_mapping(
             &project,
             &ontology,
             &effective_opts.excluded_tables,
@@ -873,7 +873,7 @@ pub(crate) async fn design_ontology_draft_stream(
             );
         }
 
-        let updated = match reload_project(&state, id).await {
+        let updated = match reload_ontology_draft(&state, id).await {
             Ok(p) => p,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
@@ -885,7 +885,7 @@ pub(crate) async fn design_ontology_draft_stream(
 
         yield Ok(Event::default().event("result").data(
             sse_result(&DesignOntologyDraftResponse {
-                project: ProjectView::from_project(updated),
+                project: OntologyDraftView::from_ontology_draft(updated),
             })
         ));
     };
@@ -913,15 +913,15 @@ pub(crate) async fn design_ontology_draft_stream(
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/refine/stream",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     request_body = RefineOntologyDraftRequest,
     responses(
         (status = 200, description = "SSE stream: phase* -> result/uncertain_reconcile events", content_type = "text/event-stream"),
         (status = 400, description = "No runtime or context", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 #[tracing::instrument(skip(state, principal, req), fields(ontology_draft_id = %id))]
 pub(crate) async fn refine_ontology_draft_stream(
@@ -932,7 +932,7 @@ pub(crate) async fn refine_ontology_draft_stream(
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
     principal.require_designer()?;
     // Validate eagerly
-    let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
+    let project = load_ontology_draft_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
     let ontology: OntologyIR = project
         .ontology
@@ -1169,7 +1169,7 @@ pub(crate) async fn refine_ontology_draft_stream(
         };
 
         let opts = get_design_options(&project);
-        let quality_report = match assess_quality_from_project(
+        let quality_report = match assess_quality_from_ontology_draft(
             &project, &refined, &opts.excluded_tables, &opts.column_clarifications,
         ) {
             Ok(qr) => qr,
@@ -1220,7 +1220,7 @@ pub(crate) async fn refine_ontology_draft_stream(
             return;
         }
 
-        let updated = match reload_project(&state, id).await {
+        let updated = match reload_ontology_draft(&state, id).await {
             Ok(p) => p,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
@@ -1235,7 +1235,7 @@ pub(crate) async fn refine_ontology_draft_stream(
 
         yield Ok(Event::default().event("result").data(
             sse_result(&RefineOntologyDraftResponse {
-                project: ProjectView::from_project(updated),
+                project: OntologyDraftView::from_ontology_draft(updated),
                 profile_summary,
                 reconcile_report: reconciled.report,
             })

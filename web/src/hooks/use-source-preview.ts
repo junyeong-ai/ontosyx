@@ -2,14 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 
 import { request } from "@/lib/api/client";
 import type {
-  ProjectSource,
+  DataSourceSpec,
   PreviewSourceResponse,
 } from "@/types/ontology-drafts";
 
 const PREVIEW_PATH = "/ontology-drafts/source-preview";
 
 /**
- * Fetch the cheap table listing for an arbitrary `ProjectSource`.
+ * Fetch the cheap table listing for an arbitrary `DataSourceSpec`.
  *
  * Calls `POST /api/ontology-drafts/source-preview` (designer-role).
  * Returns `null` data while `source` is `null` (lets callers gate
@@ -17,12 +17,12 @@ const PREVIEW_PATH = "/ontology-drafts/source-preview";
  * payload so two sources that differ only in `schema` produce
  * separate caches.
  */
-export function useSourcePreview(source: ProjectSource | null) {
+export function useSourcePreview(source: DataSourceSpec | null) {
   return useQuery<PreviewSourceResponse | null>({
     queryKey: ["projects", "source-preview", source],
     queryFn: async () => {
       if (!source) return null;
-      // The wire shape is `#[serde(flatten)] source: ProjectSource`,
+      // The wire shape is `#[serde(flatten)] source: DataSourceSpec`,
       // so the source's discriminator + fields sit at the top level
       // rather than nested under a `source` key.
       return request<PreviewSourceResponse>(PREVIEW_PATH, {

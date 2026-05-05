@@ -104,9 +104,9 @@ export function DashboardPanel() {
               className="flex items-center justify-between rounded-lg border border-divider bg-surface-base px-4 py-3"
             >
               <div>
-                <h3 className="text-sm font-medium text-foreground-strong">
+                <Heading level={3} size={6} className="font-medium">
                   {d.name}
-                </h3>
+                </Heading>
                 {d.description && (
                   <p className="mt-0.5 text-xs text-foreground-muted">{d.description}</p>
                 )}

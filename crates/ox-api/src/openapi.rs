@@ -12,17 +12,17 @@ use crate::routes::{
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
 // structs in the module where #[utoipa::path] is applied, so we must reference
 // the actual defining module, not the re-export.
-use crate::routes::ontology_drafts::analysis as project_analysis;
-use crate::routes::ontology_drafts::decisions as project_decisions;
-use crate::routes::ontology_drafts::edit as project_edit;
-use crate::routes::ontology_drafts::extend as project_extend;
-use crate::routes::ontology_drafts::lifecycle as project_lifecycle;
-use crate::routes::ontology_drafts::preview as project_preview;
-use crate::routes::ontology_drafts::refinement as project_refinement;
+use crate::routes::ontology_drafts::analysis;
+use crate::routes::ontology_drafts::decisions;
+use crate::routes::ontology_drafts::edit;
+use crate::routes::ontology_drafts::extend;
+use crate::routes::ontology_drafts::lifecycle;
+use crate::routes::ontology_drafts::preview;
+use crate::routes::ontology_drafts::refinement;
 use crate::routes::ontology_drafts::revisions as ontology_draft_revisions;
-use crate::routes::ontology_drafts::scope as project_scope;
-use crate::routes::ontology_drafts::streaming as project_streaming;
-use crate::routes::ontology_drafts::types as project_types;
+use crate::routes::ontology_drafts::scope;
+use crate::routes::ontology_drafts::streaming;
+use crate::routes::ontology_drafts::types;
 
 // ---------------------------------------------------------------------------
 // ErrorResponse — mirrors the JSON body emitted by AppError::into_response()
@@ -92,7 +92,7 @@ impl Modify for SecurityAddon {
         (name = "Users", description = "User directory + role administration"),
         (name = "Chat", description = "Natural language query pipeline"),
         (name = "Query", description = "Raw query execution and history"),
-        (name = "Projects", description = "Design project lifecycle management"),
+        (name = "Ontology Drafts", description = "Ontology draft lifecycle management"),
         (name = "Ontologies", description = "Ontology management and export"),
         (name = "Workspaces", description = "Multi-tenant workspace + membership"),
         (name = "Dashboards", description = "Dashboard + widget composition"),
@@ -135,26 +135,26 @@ impl Modify for SecurityAddon {
         query::delete_saved_pattern,
         query::list_executions,
         query::get_execution,
-        // Projects — lifecycle
-        project_lifecycle::create_ontology_draft,
-        project_lifecycle::list_ontology_drafts,
-        project_lifecycle::get_ontology_draft,
-        project_lifecycle::delete_ontology_draft,
-        project_lifecycle::complete_ontology_draft,
-        project_decisions::update_decisions,
-        project_refinement::design_ontology_draft,
-        project_refinement::refine_ontology_draft,
-        project_refinement::apply_reconcile,
-        project_analysis::reanalyze_ontology_draft,
-        project_analysis::reanalyze_modeled_ontology_draft,
-        project_scope::include_scope_tables,
-        project_scope::defer_scope_tables,
-        project_edit::edit_ontology_draft,
-        project_extend::extend_ontology_draft,
-        project_preview::preview_source,
-        project_streaming::design_ontology_draft_stream,
-        project_streaming::refine_ontology_draft_stream,
-        // Projects — revisions
+        // Ontology drafts — lifecycle
+        lifecycle::create_ontology_draft,
+        lifecycle::list_ontology_drafts,
+        lifecycle::get_ontology_draft,
+        lifecycle::delete_ontology_draft,
+        lifecycle::complete_ontology_draft,
+        decisions::update_decisions,
+        refinement::design_ontology_draft,
+        refinement::refine_ontology_draft,
+        refinement::apply_reconcile,
+        analysis::reanalyze_ontology_draft,
+        analysis::reanalyze_modeled_ontology_draft,
+        scope::include_scope_tables,
+        scope::defer_scope_tables,
+        edit::edit_ontology_draft,
+        extend::extend_ontology_draft,
+        preview::preview_source,
+        streaming::design_ontology_draft_stream,
+        streaming::refine_ontology_draft_stream,
+        // Ontology drafts — revisions
         ontology_draft_revisions::list_revisions,
         ontology_draft_revisions::get_revision,
         ontology_draft_revisions::restore_revision,
@@ -384,32 +384,32 @@ impl Modify for SecurityAddon {
             ox_ontology::graph_exploration::RelationshipPattern,
             ox_ontology::graph_exploration::PropertySchema,
             ox_ontology::graph_exploration::GraphSchemaOverview,
-            // Projects
-            project_types::CreateOntologyDraftRequest,
-            project_types::ProjectOrigin,
-            project_types::ProjectSource,
-            project_types::ProjectView,
-            project_types::AnalysisReportStatus,
-            project_types::UpdateOntologyDraftDecisionsRequest,
-            project_types::DesignOntologyDraftRequest,
-            project_types::DesignOntologyDraftResponse,
-            project_types::ReanalyzeOntologyDraftRequest,
-            project_types::ReanalyzeOntologyDraftResponse,
-            project_analysis::ReanalyzeModeledOntologyDraftRequest,
-            project_types::RefineOntologyDraftRequest,
-            project_types::RefineOntologyDraftResponse,
-            project_types::ReconcileOntologyDraftRequest,
-            project_types::ExtendOntologyDraftRequest,
-            project_types::ExtendOntologyDraftResponse,
-            project_types::CompleteProjectRequest,
-            project_types::EditProjectRequest,
-            project_types::EditProjectResponse,
-            project_preview::PreviewSourceRequest,
-            project_preview::PreviewSourceResponse,
-            project_preview::PreviewTableSummary,
-            project_scope::IncludeScopeTablesRequest,
-            project_scope::DeferScopeTablesRequest,
-            project_scope::ScopeUpdateResponse,
+            // Ontology drafts
+            types::CreateOntologyDraftRequest,
+            types::OntologyDraftOrigin,
+            types::DataSourceSpec,
+            types::OntologyDraftView,
+            types::AnalysisReportStatus,
+            types::UpdateOntologyDraftDecisionsRequest,
+            types::DesignOntologyDraftRequest,
+            types::DesignOntologyDraftResponse,
+            types::ReanalyzeOntologyDraftRequest,
+            types::ReanalyzeOntologyDraftResponse,
+            analysis::ReanalyzeModeledOntologyDraftRequest,
+            types::RefineOntologyDraftRequest,
+            types::RefineOntologyDraftResponse,
+            types::ReconcileOntologyDraftRequest,
+            types::ExtendOntologyDraftRequest,
+            types::ExtendOntologyDraftResponse,
+            types::CompleteOntologyDraftRequest,
+            types::EditOntologyDraftRequest,
+            types::EditOntologyDraftResponse,
+            preview::PreviewSourceRequest,
+            preview::PreviewSourceResponse,
+            preview::PreviewTableSummary,
+            scope::IncludeScopeTablesRequest,
+            scope::DeferScopeTablesRequest,
+            scope::ScopeUpdateResponse,
             // Ontology
             ontology::CreateOntologyRequest,
             ontology::CreateOntologyResponse,

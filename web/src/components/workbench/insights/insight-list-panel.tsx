@@ -21,6 +21,7 @@ import { BarChart3, Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 import { Button } from "@/components/ui/button";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useConfirm } from "@/components/providers/confirm-provider";
@@ -95,9 +96,9 @@ export function InsightListPanel({ onOpen }: Props) {
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-divider px-3 py-2">
         <BarChart3 className="h-3.5 w-3.5 text-brand-foreground" />
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground-strong">
+        <Eyebrow level={2} size="dense" tone="strong">
           {t("panelTitle")}
-        </h2>
+        </Eyebrow>
         <span className="ms-auto text-2xs text-foreground-muted">
           {t("countSummary", { count: items.length })}
         </span>

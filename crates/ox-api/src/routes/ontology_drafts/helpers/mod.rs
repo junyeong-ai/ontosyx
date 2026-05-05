@@ -25,7 +25,7 @@ pub(crate) use self::llm::{
     format_node_labels_for_resolution, format_uncovered_fks, merge_input_irs,
 };
 pub(crate) use self::quality::{
-    assess_quality_from_project, assess_quality_from_project_with_mapping,
+    assess_quality_from_ontology_draft, assess_quality_from_ontology_draft_with_mapping,
 };
 pub(crate) use self::repo::{analyze_code_repository, run_repo_enrichment, skipped_repo_summary};
 pub(crate) use self::source::{analyze_source, build_adapter};
@@ -72,20 +72,20 @@ pub(crate) fn load_analysis_report(
 
 /// Load a project for mutation. Completed projects are allowed — editing
 /// a completed project will revert it to "designed" status (unpublish).
-pub(crate) async fn load_mutable_project(
+pub(crate) async fn load_mutable_ontology_draft(
     state: &AppState,
     id: Uuid,
 ) -> Result<OntologyDraft, AppError> {
-    reload_project(state, id).await
+    reload_ontology_draft(state, id).await
 }
 
 /// Load a project that must be in a specific status.
-pub(crate) async fn load_project_in_status(
+pub(crate) async fn load_ontology_draft_in_status(
     state: &AppState,
     id: Uuid,
     required: OntologyDraftStatus,
 ) -> Result<OntologyDraft, AppError> {
-    let project = load_mutable_project(state, id).await?;
+    let project = load_mutable_ontology_draft(state, id).await?;
 
     if project.status.parse::<OntologyDraftStatus>().ok() != Some(required) {
         return Err(AppError::ontology_draft_status_mismatch(
@@ -98,13 +98,13 @@ pub(crate) async fn load_project_in_status(
 }
 
 /// Reload a project from the store (typically after a mutation).
-pub(crate) async fn reload_project(state: &AppState, id: Uuid) -> Result<OntologyDraft, AppError> {
+pub(crate) async fn reload_ontology_draft(state: &AppState, id: Uuid) -> Result<OntologyDraft, AppError> {
     state
         .store
         .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(AppError::project_not_found)
+        .ok_or_else(AppError::ontology_draft_not_found)
 }
 
 /// Pick the next ontology version tag after `previous`. Integer-only

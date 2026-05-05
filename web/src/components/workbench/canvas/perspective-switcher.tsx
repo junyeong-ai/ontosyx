@@ -36,7 +36,7 @@ export function PerspectiveSwitcher({
   const t = useTranslations("workbench.canvas.perspective");
   const tCommon = useTranslations("common");
   const ontology = useAppStore((s) => s.ontology);
-  const activeProject = useAppStore((s) => s.activeProject);
+  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
   const restoreNodeGroups = useAppStore((s) => s.restoreNodeGroups);
 
   const { getViewport, setViewport } = useReactFlow();
@@ -52,7 +52,7 @@ export function PerspectiveSwitcher({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const lineageId = ontology?.id;
-  const activeProjectId = activeProject?.id;
+  const activeProjectId = activeOntologyDraft?.id;
 
   // Load perspectives when dropdown opens
   const loadPerspectives = useCallback(async () => {

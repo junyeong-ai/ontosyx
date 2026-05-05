@@ -48,7 +48,7 @@ export function AnalyzeLayout() {
   const pinnedOntologyId = useAppStore((s) => s.ontologyId);
   const setOntologyId = useAppStore((s) => s.setOntologyId);
   const activeProjectOntologyId = useAppStore(
-    (s) => s.activeProject?.ontology?.id ?? null,
+    (s) => s.activeOntologyDraft?.ontology?.id ?? null,
   );
   const analyzeTabs = ANALYZE_TAB_ICONS.map((row) => ({
     ...row,

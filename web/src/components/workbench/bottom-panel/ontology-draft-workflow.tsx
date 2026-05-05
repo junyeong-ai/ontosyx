@@ -14,23 +14,23 @@ import { RevisionHistoryPanel } from "./revision-history-panel";
 import { useDesignDecisions } from "./use-design-decisions";
 
 // ---------------------------------------------------------------------------
-// Project Workflow — orchestrator
+// Ontology Draft Workflow — orchestrator
 // ---------------------------------------------------------------------------
 
 const STATUS_STEPS = ["analyzed", "designed", "completed"] as const;
 
-export function ProjectWorkflow({
+export function OntologyDraftWorkflow({
   project,
-  applyProjectSnapshot,
+  applyOntologyDraftSnapshot,
 }: {
   project: OntologyDraft;
   /**
    * Atomic project + ontology cache update — see
-   * `OntologySlice.applyProjectSnapshot`. Workflow actions land
+   * `OntologySlice.applyOntologyDraftSnapshot`. Workflow actions land
    * their server response through this single entry point so
-   * `activeProject` and the ontology cache cannot drift.
+   * `activeOntologyDraft` and the ontology cache cannot drift.
    */
-  applyProjectSnapshot: (project: OntologyDraft | null) => void;
+  applyOntologyDraftSnapshot: (project: OntologyDraft | null) => void;
 }) {
   const t = useTranslations("workbench.bottomPanel.workflow");
   const tActions = useTranslations("workbench.bottomPanel.workflowActions");
@@ -48,7 +48,7 @@ export function ProjectWorkflow({
       });
       try {
         const fresh = await getOntologyDraft(project.id);
-        applyProjectSnapshot(fresh);
+        applyOntologyDraftSnapshot(fresh);
       } catch {
         /* ignore reload failure */
       }
@@ -68,7 +68,7 @@ export function ProjectWorkflow({
       });
       try {
         const fresh = await getOntologyDraft(project.id);
-        applyProjectSnapshot(fresh);
+        applyOntologyDraftSnapshot(fresh);
       } catch {
         /* ignore reload failure */
       }
@@ -199,7 +199,7 @@ export function ProjectWorkflow({
         project={project}
         loading={loading}
         setLoading={setLoading}
-        applyProjectSnapshot={applyProjectSnapshot}
+        applyOntologyDraftSnapshot={applyOntologyDraftSnapshot}
         onApiError={handleApiError}
         analysisRef={analysisRef}
         {...decisions}
@@ -211,7 +211,7 @@ export function ProjectWorkflow({
           project={project}
           loading={loading}
           setLoading={setLoading}
-          applyProjectSnapshot={applyProjectSnapshot}
+          applyOntologyDraftSnapshot={applyOntologyDraftSnapshot}
           onApiError={handleApiError}
         />
       )}

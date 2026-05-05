@@ -253,7 +253,7 @@ pub(crate) async fn execute_load(
 
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct CheckpointListQuery {
-    /// Project ID to list checkpoints for.
+    /// Ontology draft ID to list checkpoints for.
     pub ontology_draft_id: uuid::Uuid,
 }
 

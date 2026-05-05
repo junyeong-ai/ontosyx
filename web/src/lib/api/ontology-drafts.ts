@@ -1,31 +1,31 @@
 import type {
-  ReconcileProjectRequest,
-  CompleteProjectRequest,
-  CreateProjectRequest,
+  ReconcileOntologyDraftRequest,
+  CompleteOntologyDraftRequest,
+  CreateOntologyDraftRequest,
   CursorPage,
-  ProjectDeployRequest,
-  ProjectDeployResponse,
+  DeployOntologyDraftSchemaRequest,
+  DeployOntologyDraftSchemaResponse,
   OntologyDraft,
   DesignOntologyDraftRequest,
   OntologyDraftSummary,
   DesignOntologyDraftResponse,
-  EditProjectRequest,
-  EditProjectResponse,
-  ProjectLoadCompileRequest,
-  ProjectLoadCompileResponse,
-  ExtendProjectRequest,
-  ExtendProjectResponse,
-  ProjectLoadPlanResponse,
-  ProjectMigrateRequest,
-  ProjectMigrateResponse,
+  EditOntologyDraftRequest,
+  EditOntologyDraftResponse,
+  CompileOntologyDraftLoadPlanRequest,
+  CompileOntologyDraftLoadPlanResponse,
+  ExtendOntologyDraftRequest,
+  ExtendOntologyDraftResponse,
+  GenerateOntologyDraftLoadPlanResponse,
+  MigrateOntologyDraftSchemaRequest,
+  MigrateOntologyDraftSchemaResponse,
   OntologyCommand,
   PendingReconcile,
-  ReanalyzeProjectRequest,
-  RefineProjectRequest,
-  RefineProjectResponse,
-  UpdateProjectDecisionsRequest,
+  ReanalyzeOntologyDraftRequest,
+  RefineOntologyDraftRequest,
+  RefineOntologyDraftResponse,
+  UpdateOntologyDraftDecisionsRequest,
 } from "@/types/api";
-import type { ProjectSource } from "@/types/ontology-drafts";
+import type { DataSourceSpec } from "@/types/ontology-drafts";
 import { getPrincipalId } from "@/lib/principal";
 import { getWorkspaceId } from "@/lib/workspace";
 import { fetchWithTimeout, PROXY_BASE, DESIGN_TIMEOUT, request } from "./client";
@@ -37,11 +37,11 @@ import {
 } from "@/lib/validation";
 
 // ---------------------------------------------------------------------------
-// Project CRUD
+// Ontology Draft CRUD
 // ---------------------------------------------------------------------------
 
 export async function createOntologyDraft(
-  req: CreateProjectRequest,
+  req: CreateOntologyDraftRequest,
 ): Promise<OntologyDraft> {
   return request("/projects", {
     method: "POST",
@@ -60,7 +60,7 @@ export async function listOntologyDrafts(params?: {
   const data = await request(`/projects${query ? `?${query}` : ""}`);
   const result = CursorPageSchema(OntologyDraftSummarySchema).safeParse(data);
   if (!result.success) {
-    console.warn("Project list validation failed:", result.error.issues);
+    console.warn("Ontology draft list validation failed:", result.error.issues);
     return data as ReturnType<typeof CursorPageSchema<typeof OntologyDraftSummarySchema>>["_output"];
   }
   return result.data;
@@ -70,7 +70,7 @@ export async function getOntologyDraft(id: string): Promise<OntologyDraft> {
   const data = await request(`/ontology-drafts/${encodeURIComponent(id)}`);
   const result = OntologyDraftSchema.safeParse(data);
   if (!result.success) {
-    console.warn("Project validation failed:", result.error.issues);
+    console.warn("Ontology draft validation failed:", result.error.issues);
     return data as OntologyDraft;
   }
   return result.data;
@@ -83,12 +83,12 @@ export async function deleteOntologyDraft(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Project mutations
+// Ontology Draft mutations
 // ---------------------------------------------------------------------------
 
 export async function updateDecisions(
   id: string,
-  req: UpdateProjectDecisionsRequest,
+  req: UpdateOntologyDraftDecisionsRequest,
 ): Promise<OntologyDraft> {
   return request(`/ontology-drafts/${encodeURIComponent(id)}/decisions`, {
     method: "PATCH",
@@ -98,7 +98,7 @@ export async function updateDecisions(
 
 export async function reanalyzeOntologyDraft(
   id: string,
-  req: ReanalyzeProjectRequest,
+  req: ReanalyzeOntologyDraftRequest,
 ): Promise<{ project: OntologyDraft; invalidated_decisions?: string[] }> {
   return request(`/ontology-drafts/${encodeURIComponent(id)}/reanalyze`, {
     method: "POST",
@@ -107,12 +107,12 @@ export async function reanalyzeOntologyDraft(
 }
 
 interface ReanalyzeModeledProjectRequest {
-  source: ProjectSource;
+  source: DataSourceSpec;
   revision: number;
-  repo_source?: ReanalyzeProjectRequest["repo_source"];
+  repo_source?: ReanalyzeOntologyDraftRequest["repo_source"];
 }
 
-export async function reanalyzeModeledProject(
+export async function reanalyzeModeledOntologyDraft(
   id: string,
   req: ReanalyzeModeledProjectRequest,
 ): Promise<{ project: OntologyDraft; invalidated_decisions?: string[] }> {
@@ -124,8 +124,8 @@ export async function reanalyzeModeledProject(
 
 export async function refineOntologyDraft(
   id: string,
-  req: RefineProjectRequest,
-): Promise<RefineProjectResponse> {
+  req: RefineOntologyDraftRequest,
+): Promise<RefineOntologyDraftResponse> {
   return request(`/ontology-drafts/${encodeURIComponent(id)}/refine`, {
     method: "POST",
     body: JSON.stringify(req),
@@ -134,8 +134,8 @@ export async function refineOntologyDraft(
 
 export async function editOntologyDraft(
   ontologyDraftId: string,
-  req: EditProjectRequest,
-): Promise<EditProjectResponse> {
+  req: EditOntologyDraftRequest,
+): Promise<EditOntologyDraftResponse> {
   return request(`/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/edit`, {
     method: "POST",
     body: JSON.stringify(req),
@@ -144,8 +144,8 @@ export async function editOntologyDraft(
 
 export async function applyReconcile(
   ontologyDraftId: string,
-  req: ReconcileProjectRequest,
-): Promise<RefineProjectResponse> {
+  req: ReconcileOntologyDraftRequest,
+): Promise<RefineOntologyDraftResponse> {
   return request(`/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/apply-reconcile`, {
     method: "POST",
     body: JSON.stringify(req),
@@ -154,8 +154,8 @@ export async function applyReconcile(
 
 export async function extendOntologyDraft(
   id: string,
-  req: ExtendProjectRequest,
-): Promise<ExtendProjectResponse> {
+  req: ExtendOntologyDraftRequest,
+): Promise<ExtendOntologyDraftResponse> {
   return request(`/ontology-drafts/${encodeURIComponent(id)}/extend`, {
     method: "POST",
     body: JSON.stringify(req),
@@ -164,7 +164,7 @@ export async function extendOntologyDraft(
 
 export async function completeOntologyDraft(
   id: string,
-  req: CompleteProjectRequest,
+  req: CompleteOntologyDraftRequest,
 ): Promise<OntologyDraft> {
   return request(`/ontology-drafts/${encodeURIComponent(id)}/complete`, {
     method: "POST",
@@ -227,8 +227,8 @@ export async function applyOntologyCommands(
 
 export async function deploySchema(
   id: string,
-  req: ProjectDeployRequest,
-): Promise<ProjectDeployResponse> {
+  req: DeployOntologyDraftSchemaRequest,
+): Promise<DeployOntologyDraftSchemaResponse> {
   return request(`/ontology-drafts/${encodeURIComponent(id)}/deploy-schema`, {
     method: "POST",
     body: JSON.stringify(req),
@@ -242,8 +242,8 @@ export async function deploySchema(
 export async function migrateSchema(
   ontologyDraftId: string,
   revision: number,
-  req: ProjectMigrateRequest,
-): Promise<ProjectMigrateResponse> {
+  req: MigrateOntologyDraftSchemaRequest,
+): Promise<MigrateOntologyDraftSchemaResponse> {
   return request(
     `/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/revisions/${revision}/migrate`,
     {
@@ -259,7 +259,7 @@ export async function migrateSchema(
 
 export async function generateLoadPlan(
   id: string,
-): Promise<ProjectLoadPlanResponse> {
+): Promise<GenerateOntologyDraftLoadPlanResponse> {
   return request(`/ontology-drafts/${encodeURIComponent(id)}/load-plan`, {
     method: "POST",
   });
@@ -267,8 +267,8 @@ export async function generateLoadPlan(
 
 export async function compileLoad(
   id: string,
-  req: ProjectLoadCompileRequest,
-): Promise<ProjectLoadCompileResponse> {
+  req: CompileOntologyDraftLoadPlanRequest,
+): Promise<CompileOntologyDraftLoadPlanResponse> {
   return request(`/ontology-drafts/${encodeURIComponent(id)}/load/compile`, {
     method: "POST",
     body: JSON.stringify(req),
@@ -287,7 +287,7 @@ export interface DesignStreamCallbacks {
 
 export interface RefineStreamCallbacks {
   onPhase?: (phase: string, detail?: string) => void;
-  onResult?: (result: RefineProjectResponse) => void;
+  onResult?: (result: RefineOntologyDraftResponse) => void;
   onUncertainReconcile?: (data: PendingReconcile) => void;
   onError?: (errorType: string, message: string) => void;
 }
@@ -366,7 +366,7 @@ export async function designOntologyDraftStream(
 
 export async function refineOntologyDraftStream(
   id: string,
-  req: RefineProjectRequest,
+  req: RefineOntologyDraftRequest,
   callbacks: RefineStreamCallbacks,
 ): Promise<void> {
   return consumeProjectStream(
@@ -375,7 +375,7 @@ export async function refineOntologyDraftStream(
     {
       onPhase: callbacks.onPhase,
       onResult: (data) =>
-        callbacks.onResult?.(data as RefineProjectResponse),
+        callbacks.onResult?.(data as RefineOntologyDraftResponse),
       onUncertainReconcile: (data) =>
         callbacks.onUncertainReconcile?.(
           data as PendingReconcile,

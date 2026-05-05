@@ -337,7 +337,7 @@ where
 pub(crate) fn check_cas_result(rows_affected: u64) -> OxResult<()> {
     if rows_affected == 0 {
         Err(OxError::Conflict {
-            message: "Project was modified by another session (revision mismatch) or is in an invalid state for this operation".to_string(),
+            message: "Ontology draft was modified by another session (revision mismatch) or is in an invalid state for this operation".to_string(),
         })
     } else {
         Ok(())

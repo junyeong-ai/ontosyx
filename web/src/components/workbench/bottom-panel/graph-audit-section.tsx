@@ -6,6 +6,7 @@ import { RefreshCw, Wand2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 import { Button } from "@/components/ui/button";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { Spinner } from "@/components/ui/spinner";
 import { useAppStore } from "@/lib/store";
 import { ApiError, adoptGraph, auditGraph } from "@/lib/api";
@@ -60,9 +61,9 @@ export function GraphAuditSection() {
 
   return (
     <div className="space-y-2 rounded-lg border border-success-border bg-success-surface/50 p-3">
-      <h4 className="text-xs font-semibold text-success-foreground">
+      <Eyebrow level={4} size="dense" tone="success" caps="none">
         {t("graphSync")}
-      </h4>
+      </Eyebrow>
 
       {!report ? (
         <div className="space-y-2">

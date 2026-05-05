@@ -23,7 +23,7 @@ import type {
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 /**
- * Project Hub — card grid of every design project the operator
+ * Ontology Draft Hub — card grid of every ontology draft the operator
  * can see.
  *
  * Three surfaces:
@@ -35,7 +35,7 @@ import { DynamicIcon } from "@/components/ui/dynamic-icon";
  *   that toggle a multi-select. Default is "all", reading the
  *   filter chips as muted; an active selection saturates them.
  * - **Card click**: hydrates the full `OntologyDraft` and pushes
- *   it through `applyProjectSnapshot` (the canonical project-mode
+ *   it through `applyOntologyDraftSnapshot` (the canonical project-mode
  *   entry point), then routes to `/design`. The transition keeps
  *   the active-project / ontology-cache invariant intact — same
  *   contract the recent-list `onResume` uses.
@@ -44,13 +44,13 @@ import { DynamicIcon } from "@/components/ui/dynamic-icon";
  * to serve "resume the project I just left." This page answers
  * "browse / pick across the whole workspace."
  */
-export function ProjectHub() {
+export function OntologyDraftHub() {
   const t = useTranslations("workbench.projects.hub");
   const tCommon = useTranslations("common");
   const router = useRouter();
   const projectsQuery = useOntologyDrafts({ limit: 100 });
   const { data, isLoading, isError, refetch } = projectsQuery;
-  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
+  const applyOntologyDraftSnapshot = useAppStore((s) => s.applyOntologyDraftSnapshot);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Set<OntologyDraftStatus>>(
@@ -72,7 +72,7 @@ export function ProjectHub() {
 
   const onOpen = async (id: string) => {
     const project = await getOntologyDraft(id);
-    applyProjectSnapshot(project);
+    applyOntologyDraftSnapshot(project);
     router.push("/design");
   };
 

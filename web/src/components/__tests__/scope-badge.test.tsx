@@ -14,7 +14,7 @@ vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-function fixtureProject(): OntologyDraft {
+function fixtureOntologyDraft(): OntologyDraft {
   return {
     id: "proj-1",
     revision: 7,
@@ -51,7 +51,7 @@ function renderBadge() {
 describe("ScopeBadge", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    useAppStore.getState().applyProjectSnapshot(fixtureProject());
+    useAppStore.getState().applyOntologyDraftSnapshot(fixtureOntologyDraft());
   });
 
   it("renders summary with included + deferred counts", () => {
@@ -75,7 +75,7 @@ describe("ScopeBadge", () => {
     const includeSpy = vi
       .spyOn(projectsApi, "includeScopeTables")
       .mockResolvedValue({
-        project: fixtureProject(),
+        project: fixtureOntologyDraft(),
       });
 
     renderBadge();
@@ -94,7 +94,7 @@ describe("ScopeBadge", () => {
     const deferSpy = vi
       .spyOn(projectsApi, "deferScopeTables")
       .mockResolvedValue({
-        project: fixtureProject(),
+        project: fixtureOntologyDraft(),
       });
 
     renderBadge();
@@ -122,7 +122,7 @@ describe("ScopeBadge", () => {
   });
 
   it("returns null when there is no active project", () => {
-    useAppStore.getState().applyProjectSnapshot(null);
+    useAppStore.getState().applyOntologyDraftSnapshot(null);
     const { container } = renderBadge();
     expect(container.textContent).toBe("");
   });

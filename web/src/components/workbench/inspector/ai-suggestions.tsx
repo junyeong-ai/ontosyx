@@ -159,7 +159,7 @@ export function AiSuggestionList({
 
 export function useAiEdit() {
   const t = useTranslations("inspector.toast");
-  const activeProject = useAppStore((s) => s.activeProject);
+  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
   const ontology = useAppStore((s) => s.ontology);
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<{
@@ -167,15 +167,15 @@ export function useAiEdit() {
     explanation: string;
   } | null>(null);
 
-  const canEdit = !!activeProject && !!ontology;
+  const canEdit = !!activeOntologyDraft && !!ontology;
 
   const requestEdit = useCallback(
     async (userRequest: string) => {
-      if (!activeProject) return;
+      if (!activeOntologyDraft) return;
       setLoading(true);
       try {
-        const resp = await editOntologyDraft(activeProject.id, {
-          revision: activeProject.revision,
+        const resp = await editOntologyDraft(activeOntologyDraft.id, {
+          revision: activeOntologyDraft.revision,
           user_request: userRequest,
           dry_run: true,
         });
@@ -193,7 +193,7 @@ export function useAiEdit() {
         setLoading(false);
       }
     },
-    [activeProject, t],
+    [activeOntologyDraft, t],
   );
 
   const dismiss = useCallback(() => setSuggestions(null), []);

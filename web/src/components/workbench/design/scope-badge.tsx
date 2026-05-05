@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Database } from "lucide-react";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { toast } from "@/components/ui/toast";
 
 import {
@@ -21,7 +22,7 @@ import type { DeferredTable } from "@/types/ontology-drafts";
 
 export function ScopeBadge() {
   const t = useTranslations("workbench.design.scope");
-  const project = useAppStore((s) => s.activeProject);
+  const project = useAppStore((s) => s.activeOntologyDraft);
   const scope = project?.analysis_scope;
   if (!project || !scope) return null;
 
@@ -115,12 +116,12 @@ function ScopePanel({
     <div className="flex max-h-[420px] flex-col gap-3 overflow-y-auto text-xs">
       {included.length > 0 && (
         <section>
-          <h3 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-brand-foreground-strong">
+          <Eyebrow level={3} tone="brand" className="mb-1">
             {t("includedLabel")}
             <span className="ms-1 font-mono text-foreground-muted">
               ({included.length})
             </span>
-          </h3>
+          </Eyebrow>
           <ul className="space-y-0.5">
             {included.map((table) => (
               <li
@@ -159,12 +160,12 @@ function ScopePanel({
 
       {deferred.length > 0 && (
         <section>
-          <h3 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-warning-foreground">
+          <Eyebrow level={3} tone="warning" className="mb-1">
             {t("deferredLabel")}
             <span className="ms-1 font-mono text-foreground-muted">
               ({deferred.length})
             </span>
-          </h3>
+          </Eyebrow>
           <ul className="space-y-0.5">
             {deferred.map((d) => (
               <li

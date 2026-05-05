@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Plus, Search } from "lucide-react";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { SearchInput } from "@/components/ui/form-input";
 
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
@@ -104,9 +105,9 @@ export function TermTree({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-divider px-3 py-2">
-        <h2 className="flex-1 text-xs font-semibold text-foreground-strong">
+        <Eyebrow level={2} size="dense" tone="strong" caps="none" className="flex-1">
           {t("heading", { count: terms.length })}
-        </h2>
+        </Eyebrow>
         <button
           type="button"
           onClick={onCreate}

@@ -85,7 +85,7 @@ export interface OntologySnapshot {
   created_at: string;
 }
 
-export interface RestoreProjectRevisionResponse {
+export interface RestoreOntologyDraftRevisionResponse {
   project: OntologyDraft;
 }
 
@@ -270,14 +270,14 @@ export interface PendingReconcile {
   reconciled_ontology: OntologyIR;
 }
 
-export interface ReconcileProjectRequest {
+export interface ReconcileOntologyDraftRequest {
   revision: number;
   reconciled_ontology: OntologyIR;
   decisions: MatchDecision[];
   uncertain_matches: UncertainMatch[];
 }
 
-export interface RefineProjectResponse {
+export interface RefineOntologyDraftResponse {
   project: OntologyDraft;
   profile_summary: string;
   reconcile_report: ReconcileReport;

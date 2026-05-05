@@ -18,7 +18,7 @@ import {
   type ScopeUpdateResponse,
 } from "@/lib/api/ontology-drafts";
 import type {
-  CreateProjectRequest,
+  CreateOntologyDraftRequest,
   CursorPage,
   OntologyDraft,
   OntologyDraftSummary,
@@ -85,7 +85,7 @@ export function useOntologyDraft(
 export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: CreateProjectRequest) => createOntologyDraft(req),
+    mutationFn: (req: CreateOntologyDraftRequest) => createOntologyDraft(req),
     onSuccess: (project) => {
       qc.invalidateQueries({ queryKey: ontologyDraftsKeys.lists() });
       // Seed detail cache so immediate navigation to /projects/:id doesn't

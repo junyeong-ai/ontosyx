@@ -26,12 +26,12 @@
     "missing_context": "서버 구성 오류입니다. x-request-id 와 함께 지원 팀에 문의해 주세요.",
     "edit_operations_empty": "변경할 항목을 하나 이상 선택해 주세요.",
     "ontology_version_conflict": "다른 사용자가 스키마를 수정했습니다 (예상 v{expected}, 현재 v{current}). 새로 고침 후 다시 시도해 주세요.",
-    "ontology_draft_stale_parent": "이 프로젝트는 v{parent_version} 에서 분기되었지만 정식 스키마가 v{current_version} 으로 진행되었습니다. 완료 전 새 head 로 rebase 하세요 — 지금 커밋하면 그동안의 변경 사항이 모르게 덮어쓰여집니다.",
+    "ontology_draft_stale_parent": "이 초안는 v{parent_version} 에서 분기되었지만 정식 스키마가 v{current_version} 으로 진행되었습니다. 완료 전 새 head 로 rebase 하세요 — 지금 커밋하면 그동안의 변경 사항이 모르게 덮어쓰여집니다.",
     "ontology_invariant_violation": "온톨로지 무결성 검증 실패. 아래 항목을 해결한 뒤 다시 시도하세요.",
     "edit_operation_rejected": "편집 작업이 거부되었습니다. {detail}",
     "ontology_not_committed": "온톨로지 '{lineage_id}' 가 아직 커밋되지 않았습니다. 먼저 저장한 뒤 다시 시도하세요.",
     "deploy_pending_approval": "스키마 배포가 관리자 승인 대기 중입니다. 검토 후 다시 시도해 주세요.",
-    "ontology_draft_missing_source_schema": "프로젝트에 소스 스키마가 없습니다. {detail}",
+    "ontology_draft_missing_source_schema": "초안에 소스 스키마가 없습니다. {detail}",
     "query_text_empty": "검색어를 입력하세요.",
     "temporal_query_requires_ontology": "시간 여행 쿼리(`as_of`)는 추적할 온톨로지를 지정해야 합니다.",
     "temporal_snapshot_missing": "{lineage_id} 온톨로지의 {as_of} 시점 버전을 찾을 수 없습니다. 가장 오래된 버전이 그 이후에 커밋되었거나 해당 버전이 제거되었습니다.",
@@ -60,14 +60,14 @@
     "refinement_missing_inputs": "정제(Refinement)를 시작하려면 그래프 데이터, 추가 컨텍스트, 또는 소스 스키마 중 최소 하나가 필요합니다.",
     "refinement_decision_unknown_id": "정제 결정이 알 수 없는 ID '{original_id}'을(를) 참조하고 있습니다. 페이지를 새로고침한 후 다시 시도하세요.",
     "reanalyze_no_modeled_tables": "모델링된 테이블이 없습니다. 보류된 테이블을 먼저 활성화하거나 일반 재분석 엔드포인트를 사용하세요.",
-    "source_type_mismatch": "이 프로젝트는 '{expected}' 소스로 생성되었지만 '{got}' 소스로 재분석을 시도했습니다. 동일한 소스 타입을 사용하세요.",
+    "source_type_mismatch": "이 초안는 '{expected}' 소스로 생성되었지만 '{got}' 소스로 재분석을 시도했습니다. 동일한 소스 타입을 사용하세요.",
     "decision_invalid_schema_refs": "결정 항목이 더 이상 존재하지 않는 스키마 요소를 참조하고 있습니다. 분석 결과를 다시 확인하세요.",
-    "ontology_draft_status_mismatch": "이 작업은 프로젝트가 '{required}' 상태일 때만 가능합니다. (현재: {actual}) 페이지를 새로고침하세요.",
+    "ontology_draft_status_mismatch": "이 작업은 초안가 '{required}' 상태일 때만 가능합니다. (현재: {actual}) 페이지를 새로고침하세요.",
     "source_connection_failed": "{source_type, select, postgresql {PostgreSQL} mysql {MySQL} mongodb {MongoDB} snowflake {Snowflake} bigquery {BigQuery} duckdb {DuckDB} other {{source_type}}} 데이터 소스에 연결하지 못했습니다. {detail}",
     "edit_queued_for_approval": "이 변경은 자동 승인 대상이 아닙니다. 승인 대기열로 이동하여 검토를 요청하세요.",
     "query_ir_invalid": "쿼리 정의(query_ir)가 올바르지 않습니다. {detail}",
     "cron_expression_invalid": "Cron 표현식 '{value}'을(를) 해석할 수 없습니다. (예: `0 9 * * MON`)",
-    "resource_not_owned": "{resource, select, session {다른 사용자의 세션입니다.} project {다른 사용자의 프로젝트입니다.} dashboard {다른 사용자의 대시보드입니다.} other {다른 사용자의 {resource}입니다.}} 본인이 만든 항목만 변경할 수 있습니다.",
+    "resource_not_owned": "{resource, select, session {다른 사용자의 세션입니다.} project {다른 사용자의 초안입니다.} dashboard {다른 사용자의 대시보드입니다.} other {다른 사용자의 {resource}입니다.}} 본인이 만든 항목만 변경할 수 있습니다.",
     "workspace_header_invalid": "{reason, select, missing {워크스페이스를 지정해야 합니다. 먼저 GET /workspaces 로 목록을 조회하세요.} parse_failed {X-Workspace-Id 헤더 값을 읽을 수 없습니다.} not_uuid {X-Workspace-Id 헤더는 UUID 형식이어야 합니다.} not_a_member {접근 가능한 워크스페이스가 없습니다. 워크스페이스를 먼저 생성하세요.} other {워크스페이스 헤더가 올바르지 않습니다.}}",
     "analysis_baseline_required": "확장/축소 분석은 기존 분석 결과가 필요합니다. 기본 분석을 먼저 실행하세요.",
     "idempotency_streaming_unsupported": "스트리밍 엔드포인트({path})는 Idempotency-Key를 사용할 수 없습니다. 헤더를 제거하고 클라이언트에서 재시도를 처리하세요.",
@@ -111,8 +111,8 @@
         "description": "이 워크스페이스의 구성원이 아닙니다. 관리자에게 초대를 요청하세요."
       },
       "unauthorized_ontology_draft": {
-        "title": "프로젝트 접근 권한이 없습니다",
-        "description": "이 프로젝트에 접근할 권한이 없습니다."
+        "title": "초안 접근 권한이 없습니다",
+        "description": "이 초안에 접근할 권한이 없습니다."
       },
       "too_many_connections": {
         "title": "동시 세션 한도를 초과했습니다",
@@ -150,7 +150,7 @@
   },
   "errorBoundary": {
     "title": "문제가 발생했습니다",
-    "description": "페이지를 새로 고치거나 다시 시도해 보세요. 계속 발생한다면 프로젝트를 재분석하거나 다른 프로젝트를 열어 보세요.",
+    "description": "페이지를 새로 고치거나 다시 시도해 보세요. 계속 발생한다면 초안를 재분석하거나 다른 초안를 열어 보세요.",
     "retry": "다시 시도"
   },
   "commandPalette": {
@@ -565,15 +565,15 @@
         "rulesLabel": "규칙 라인",
         "notSet": "미설정",
         "count": "{n}",
-        "nextStepHint": "디자인 에이전트가 프로젝트를 생성하고 소스를 인트로스펙션하며 ObjectMapping + LinkMapping을 제안합니다. 워크벤치에서 확정하세요."
+        "nextStepHint": "디자인 에이전트가 초안를 생성하고 소스를 인트로스펙션하며 ObjectMapping + LinkMapping을 제안합니다. 워크벤치에서 확정하세요."
       },
       "restart": "처음부터 다시",
       "toast": {
         "finished": "파일럿 \"{name}\" 준비 완료 — 디자인 워크벤치를 엽니다",
-        "created": "프로젝트 \"{name}\" 생성 완료 — 디자인 워크벤치를 엽니다",
+        "created": "초안 \"{name}\" 생성 완료 — 디자인 워크벤치를 엽니다",
         "skippedCreate": "연결 기반 소스가 아닙니다 — 디자인 워크벤치에서 파일 업로드로 이어주세요.",
-        "createFailed": "프로젝트 생성 실패: {message}",
-        "createFailedUnknown": "프로젝트 생성 실패 (알 수 없는 오류).",
+        "createFailed": "초안 생성 실패: {message}",
+        "createFailedUnknown": "초안 생성 실패 (알 수 없는 오류).",
         "glossarySeeded": "용어집 온톨로지에 {count}개 용어가 저장되었습니다",
         "glossarySeedFailed": "용어집 저장 실패: {message}",
         "glossarySeedFailedUnknown": "용어집 저장 실패 (알 수 없는 오류)."
@@ -645,7 +645,7 @@
       "saveTooltip": "서버에 저장 (⌘S)",
       "changes": "{count, plural, =0 {변경 없음} other {#개 변경}}",
       "unsaveable": "(저장 불가)",
-      "unsaveableHint": "프로젝트가 없어 변경사항이 로컬에만 유지됩니다. 프로젝트를 열어 저장을 활성화하세요."
+      "unsaveableHint": "초안가 없어 변경사항이 로컬에만 유지됩니다. 초안를 열어 저장을 활성화하세요."
     },
     "aiSuggestions": {
       "acceptAll": "모두 수락",
@@ -1013,15 +1013,15 @@
       "widgetCount": "위젯 {count}개"
     },
     "contextSelector": {
-      "newProject": "새 프로젝트",
-      "noProjects": "프로젝트가 없습니다",
-      "noProject": "프로젝트 없음",
-      "guardSwitchProject": "프로젝트 전환",
-      "guardNewProject": "새 프로젝트",
-      "guardForkProject": "프로젝트 포크",
+      "newOntologyDraft": "새 초안",
+      "noOntologyDrafts": "초안가 없습니다",
+      "noOntologyDraft": "초안 없음",
+      "guardSwitchOntologyDraft": "초안 전환",
+      "guardNewOntologyDraft": "새 초안",
+      "guardForkOntologyDraft": "초안 포크",
       "guardImportOntology": "온톨로지 가져오기",
-      "forkTitle": "포크 -- 이 온톨로지로 새 프로젝트 생성",
-      "forkAria": "프로젝트 포크",
+      "forkTitle": "포크 -- 이 온톨로지로 새 초안 생성",
+      "forkAria": "초안 포크",
       "forkedDescription": "출처: {title}",
       "loadingOntology": "온톨로지를 불러오는 중...",
       "noSavedOntology": "저장된 온톨로지가 없습니다",
@@ -1031,17 +1031,17 @@
       "newDashboard": "새 대시보드",
       "dashboardNamePlaceholder": "대시보드 이름",
       "publicBadge": "공개",
-      "untitledProject": "제목 없음",
+      "untitledOntologyDraft": "제목 없음",
       "toast": {
         "forkFailed": "포크에 실패했습니다",
         "unknownError": "알 수 없는 오류",
-        "loadProjectsFailed": "프로젝트를 불러오지 못했습니다",
-        "loadProjectFailed": "프로젝트를 불러오지 못했습니다",
+        "loadOntologyDraftsFailed": "초안를 불러오지 못했습니다",
+        "loadOntologyDraftFailed": "초안를 불러오지 못했습니다",
         "loadDashboardsFailed": "대시보드를 불러오지 못했습니다",
         "loadOntologyFailed": "온톨로지를 불러오지 못했습니다",
         "dashboardCreated": "대시보드를 생성했습니다",
         "dashboardCreateFailed": "대시보드를 생성하지 못했습니다",
-        "forked": "프로젝트를 포크했습니다"
+        "forked": "초안를 포크했습니다"
       }
     },
     "modeActions": {
@@ -2351,7 +2351,7 @@
         "you": "나",
         "roleDescriptions": {
           "admin": "시스템 구성·사용자 관리를 포함한 모든 기능에 대한 전체 권한",
-          "designer": "온톨로지 설계 생성·편집, 쿼리 실행, 프로젝트 관리",
+          "designer": "온톨로지 설계 생성·편집, 쿼리 실행, 초안 관리",
           "viewer": "온톨로지 보기, 채팅 쿼리 실행, 쿼리 이력 탐색"
         },
         "column": {
@@ -2552,7 +2552,7 @@
         "deleteAction": "워크스페이스 삭제",
         "deleted": "워크스페이스를 삭제했어요",
         "deleteFailed": "워크스페이스를 삭제하지 못했어요",
-        "deleteHint": "모든 프로젝트, 온톨로지, 감사 기록을 삭제해요. 되돌릴 수 없어요.",
+        "deleteHint": "모든 초안, 온톨로지, 감사 기록을 삭제해요. 되돌릴 수 없어요.",
         "deleteTitle": "이 워크스페이스 삭제",
         "description": "여기 작업은 영구적이며 워크스페이스의 모든 멤버에게 영향을 줘요.",
         "heading": "위험 영역"
@@ -2716,7 +2716,7 @@
           },
           "lifecycle": {
             "label": "수명 주기",
-            "description": "WIP 프로젝트 보관 및 정리 설정"
+            "description": "WIP 초안 보관 및 정리 설정"
           }
         },
         "toast": {
@@ -2745,7 +2745,7 @@
         },
         "postgres": {
           "title": "PostgreSQL",
-          "description": "애플리케이션 상태 데이터베이스 (프로젝트, 온톨로지, 쿼리 이력)"
+          "description": "애플리케이션 상태 데이터베이스 (초안, 온톨로지, 쿼리 이력)"
         },
         "graph": {
           "title": "그래프 데이터베이스",
@@ -3354,7 +3354,7 @@
       "draftsLabel": "초안",
       "untitledDraft": "(이름 없는 초안)",
       "emptyTitle": "초안과 커밋이 없습니다",
-      "emptyDescription": "프로젝트 페이지에서 초안을 만들면 — 대표 버전에서 분기된 시점에 (또는 첫 커밋 전에는 그린필드 브랜치로) 여기 표시됩니다.",
+      "emptyDescription": "초안 페이지에서 초안을 만들면 — 대표 버전에서 분기된 시점에 (또는 첫 커밋 전에는 그린필드 브랜치로) 여기 표시됩니다.",
       "diffSummary": "{added} 추가 · {removed} 제거 · {modified} 변경",
       "diffNoChanges": "대표와 차이 없음",
       "diffLabel": "차이",
@@ -3573,14 +3573,14 @@
     },
     "projects": {
       "hub": {
-        "heading": "프로젝트",
-        "subheading": "{count, plural, =0 {아직 프로젝트 없음} other {프로젝트 #개}}",
-        "createButton": "새 프로젝트",
-        "searchLabel": "프로젝트 검색",
+        "heading": "초안",
+        "subheading": "{count, plural, =0 {아직 초안 없음} other {초안 #개}}",
+        "createButton": "새 초안",
+        "searchLabel": "초안 검색",
         "searchPlaceholder": "제목으로 검색…",
         "statusFilterLabel": "상태로 필터",
-        "loading": "프로젝트 로딩 중…",
-        "untitled": "제목 없는 프로젝트",
+        "loading": "초안 로딩 중…",
+        "untitled": "제목 없는 초안",
         "cardMeta": "{source} · {updated}",
         "relativeJustNow": "방금",
         "relativeMinutes": "{count, plural, other {#분 전}}",
@@ -3592,13 +3592,13 @@
           "completed": "완료"
         },
         "empty": {
-          "heading": "조건에 맞는 프로젝트 없음",
-          "subheading": "필터를 해제하거나 새 프로젝트를 시작하세요.",
-          "cta": "프로젝트 시작"
+          "heading": "조건에 맞는 초안 없음",
+          "subheading": "필터를 해제하거나 새 초안를 시작하세요.",
+          "cta": "초안 시작"
         },
         "filteredEmpty": {
           "clearFilters": "필터 지우기",
-          "heading": "일치하는 프로젝트가 없어요",
+          "heading": "일치하는 초안가 없어요",
           "subheading": "다른 검색어를 시도하거나 필터를 지워보세요."
         }
       }
@@ -3606,7 +3606,7 @@
     "design": {
       "scope": {
         "summary": "모델링 {modeled} · 보류 {deferred}",
-        "tooltipTitle": "프로젝트 범위: 모델링 {modeled}, 보류 {deferred}",
+        "tooltipTitle": "초안 범위: 모델링 {modeled}, 보류 {deferred}",
         "includedLabel": "포함된 테이블",
         "deferredLabel": "보류된 테이블",
         "more": "+{n}개 더",
@@ -3630,7 +3630,7 @@
       "detail": {
         "backToCanvas": "캔버스로 돌아가기",
         "validateCompleteness": "완전성 검증",
-        "noOntology": "활성 온톨로지가 없습니다. 디자인 모드로 들어가 프로젝트를 선택하세요.",
+        "noOntology": "활성 온톨로지가 없습니다. 디자인 모드로 들어가 초안를 선택하세요.",
         "nodeNotFound": "ID `{id}` 에 해당하는 노드 타입을 찾을 수 없습니다.",
         "definition": {
           "descriptionLabel": "설명",
@@ -3654,7 +3654,7 @@
         "mappings": {
           "emptyState": "이 노드 타입은 아직 물리 관계와 매핑되지 않았습니다.",
           "createAction": "+ 기본 매핑 생성",
-          "createBlockedNoSource": "프로젝트에 원천 소스가 연결되어 있지 않아 매핑을 만들 수 없습니다.",
+          "createBlockedNoSource": "초안에 원천 소스가 연결되어 있지 않아 매핑을 만들 수 없습니다.",
           "createdToast": "매핑이 생성되었습니다",
           "deletedToast": "매핑이 제거되었습니다",
           "deleteTooltip": "매핑 삭제",
@@ -3744,7 +3744,7 @@
         "removedToast": "제약 제거됨"
       },
       "mappings": {
-        "createBlockedNoSource": "프로젝트에 데이터 소스가 없습니다 — 먼저 소스를 연결하세요.",
+        "createBlockedNoSource": "초안에 데이터 소스가 없습니다 — 먼저 소스를 연결하세요.",
         "createdToast": "매핑 생성됨",
         "deletedToast": "매핑 삭제됨",
         "primaryLabel": "기본 매핑 · {id}",
@@ -3801,7 +3801,7 @@
         "schemaHint": "스키마 · 노드를 클릭하여 확장"
       },
       "empty": {
-        "description": "프로젝트를 불러오면 그래프 전체의 관계를 발견할 수 있어요.",
+        "description": "초안를 불러오면 그래프 전체의 관계를 발견할 수 있어요.",
         "switchToDesign": "설계로 전환",
         "title": "탐색할 데이터가 없어요"
       },
@@ -3843,7 +3843,7 @@
           "title": "지식이 아직 없어요"
         },
         "footer": "분석 중 자동 저장된 지식",
-        "loadHint": "프로젝트를 불러오면 관련 지식이 보여요"
+        "loadHint": "초안를 불러오면 관련 지식이 보여요"
       },
       "sessionBar": {
         "label": "세션",
@@ -4089,8 +4089,8 @@
         "readyHint": "아래 워크플로 패널에서 분석 결과를 검토한 뒤, <bold>온톨로지 설계</bold>를 눌러 지식 그래프 스키마를 생성하세요.",
         "openWorkflow": "워크플로 패널 열기",
         "startTitle": "설계 시작",
-        "startHint": "데이터 소스에서 프로젝트를 만들거나, 기존 온톨로지를 가져와 지식 그래프 설계를 시작하세요.",
-        "createOntologyDraft": "프로젝트 만들기",
+        "startHint": "데이터 소스에서 초안를 만들거나, 기존 온톨로지를 가져와 지식 그래프 설계를 시작하세요.",
+        "createOntologyDraft": "초안 만들기",
         "createOntologyDraftHint": "데이터베이스, CSV, JSON, 코드 저장소",
         "or": "또는",
         "importOntology": "온톨로지 가져오기",
@@ -4297,7 +4297,7 @@
         "enterFullscreen": "패널 전체화면 (⌘⇧\\)",
         "exitFullscreen": "전체화면 종료 (Esc)",
         "noQualityReport": "품질 보고서가 없습니다",
-        "designFirst": "먼저 프로젝트를 설계하세요."
+        "designFirst": "먼저 초안를 설계하세요."
       },
       "canonicalStatus": {
         "withVersion": "현재 대표 버전: v{version} — 이 초안이 완료되면 다음 대표 버전이 됩니다.",
@@ -4366,7 +4366,7 @@
       },
       "createOntologyDraft": {
         "progress": {
-          "heading": "{count, plural, =0 {프로젝트 생성 중...} other {프로젝트 생성 중 — {count}개 테이블 분석 ({elapsed}s)}}",
+          "heading": "{count, plural, =0 {초안 생성 중...} other {초안 생성 중 — {count}개 테이블 분석 ({elapsed}s)}}",
           "hintGeneric": "스키마 분석과 컬럼 샘플링이 백엔드에서 진행 중입니다. 보통 몇 초 안에 완료됩니다.",
           "hintUsageBilled": "BigQuery / Snowflake 분석은 INFORMATION_SCHEMA 조회 + 컬럼 샘플 쿼리를 실행합니다. 데이터셋 크기에 따라 5~30초 정도 소요될 수 있습니다."
         },
@@ -4417,16 +4417,16 @@
         "sfSchemaLabel": "스키마",
         "sfSchemaHint": "기본값: PUBLIC",
         "sfSchemaPlaceholder": "PUBLIC",
-        "bqProjectIdLabel": "GCP 프로젝트 ID",
-        "bqProjectIdRequired": "프로젝트 ID를 입력하세요",
+        "bqProjectIdLabel": "GCP 초안 ID",
+        "bqProjectIdRequired": "초안 ID를 입력하세요",
         "bqProjectIdHint": "예: my-gcp-project-123",
         "bqProjectIdPlaceholder": "my-gcp-project",
         "bqDatasetLabel": "데이터셋",
         "bqDatasetRequired": "데이터셋을 입력하세요",
         "bqDatasetHint": "BigQuery 데이터셋 이름",
         "bqDatasetPlaceholder": "analytics_prod",
-        "bqBillingProjectIdLabel": "잡 실행 프로젝트 ID",
-        "bqBillingProjectIdHint": "선택 입력. 데이터 프로젝트와 다른 프로젝트에서 BigQuery 잡을 실행하고 싶을 때만 입력합니다 (예: 공유 데이터셋에 jobs.create 권한이 없는 경우, VPC SC 경계가 잡 실행 프로젝트를 강제하는 경우).",
+        "bqBillingProjectIdLabel": "잡 실행 초안 ID",
+        "bqBillingProjectIdHint": "선택 입력. 데이터 초안와 다른 초안에서 BigQuery 잡을 실행하고 싶을 때만 입력합니다 (예: 공유 데이터셋에 jobs.create 권한이 없는 경우, VPC SC 경계가 잡 실행 초안를 강제하는 경우).",
         "bqBillingProjectIdPlaceholder": "my-billing-project",
         "bqCredentialsLabel": "자격 증명 파일 경로",
         "bqCredentialsHint": "선택 입력. 서비스 계정 JSON 또는 gcloud authorized-user 시크릿 모두 허용됩니다. 비워두면 ADC 체인(`GOOGLE_APPLICATION_CREDENTIALS` → gcloud 기본 파일 → 메타데이터 서버)을 사용합니다.",
@@ -4463,7 +4463,7 @@
         },
         "previewTablesButton": "테이블 미리보기",
         "previewTablesDisabledHint": "위 필수 항목을 채워야 미리보기가 가능합니다.",
-        "createDisabledHint": "위 필수 항목을 채워야 프로젝트를 만들 수 있습니다.",
+        "createDisabledHint": "위 필수 항목을 채워야 초안를 만들 수 있습니다.",
         "previewLoading": "테이블 목록 조회 중...",
         "previewSucceeded": "{count}개 테이블 발견",
         "previewFailed": "테이블 미리보기에 실패했습니다",
@@ -4471,12 +4471,12 @@
         "selectTablesIntro": "분석에 포함할 테이블을 골라 주세요. 비용이 발생하는 백엔드(BigQuery, Snowflake)에서는 선택한 테이블에 대해서만 INFORMATION_SCHEMA 조회와 샘플링이 실행됩니다.",
         "noTablesSelected": "테이블을 1개 이상 선택해야 합니다",
         "backToConnection": "← 연결 정보로 돌아가기",
-        "createButton": "프로젝트 생성",
+        "createButton": "초안 생성",
         "creating": "생성 중...",
-        "createSuccess": "프로젝트를 생성했습니다",
+        "createSuccess": "초안를 생성했습니다",
         "createSuccessDescription": "상태: {status} (rev {revision})",
         "toast": {
-          "createFailed": "프로젝트 생성에 실패했습니다",
+          "createFailed": "초안 생성에 실패했습니다",
           "unknownError": "알 수 없는 오류"
         }
       },
@@ -4560,10 +4560,10 @@
         "analysisReview": "분석 검토",
         "unresolved": "미해결 {count}",
         "allResolved": "모두 해결됨",
-        "phaseAria": "프로젝트 단계"
+        "phaseAria": "초안 단계"
       },
       "workflowActions": {
-        "untitledProject": "이름 없는 프로젝트",
+        "untitledOntologyDraft": "이름 없는 초안",
         "designGatesUnmetTitle": "설계 진행이 차단되었습니다",
         "designGatesUnmetDescription": "{count}개 항목 미충족 — 우측의 체크리스트를 확인하세요",
         "revMeta": "{source} · 리비전 {revision}",
@@ -4580,26 +4580,26 @@
         "redesign": "소스에서 재설계",
         "reanalyzeSource": "소스 재분석",
         "advanced": "고급",
-        "finalize": "프로젝트 마무리",
+        "finalize": "초안 마무리",
         "ontologyNamePlaceholder": "온톨로지 이름",
         "deployOnComplete": "완료 시 Neo4j로 스키마 배포",
         "complete": "완료 및 저장",
         "completeDesignedDescription": "노드 {nodeCount}개, 엣지 {edgeCount}개",
         "ontologyDesigned": "온톨로지를 설계했습니다",
         "designFailed": "설계에 실패했습니다",
-        "completeWithDeploy": "프로젝트를 완료하고 온톨로지 저장 및 스키마 배포를 마쳤습니다",
-        "deployFailedPartial": "프로젝트 완료. 단, 스키마 배포에 실패했습니다: {error}",
-        "completeSuccess": "프로젝트를 완료하고 온톨로지를 저장했습니다",
+        "completeWithDeploy": "초안를 완료하고 온톨로지 저장 및 스키마 배포를 마쳤습니다",
+        "deployFailedPartial": "초안 완료. 단, 스키마 배포에 실패했습니다: {error}",
+        "completeSuccess": "초안를 완료하고 온톨로지를 저장했습니다",
         "qualityGateWarningTitle": "품질 게이트 경고",
-        "qualityGateWarningDescription": "{message}\n\n그래도 프로젝트를 완료하시겠어요?",
+        "qualityGateWarningDescription": "{message}\n\n그래도 초안를 완료하시겠어요?",
         "qualityGateConfirmLabel": "그래도 완료",
         "completeFailed": "완료에 실패했습니다",
-        "completeNameRequired": "프로젝트를 완료하려면 이름이 필요합니다",
-        "deleteProjectTitle": "프로젝트 삭제",
-        "deleteProjectDescription": "이 설계 프로젝트를 삭제할까요? 이 동작은 영구적이며 되돌릴 수 없습니다.",
+        "completeNameRequired": "초안를 완료하려면 이름이 필요합니다",
+        "deleteProjectTitle": "초안 삭제",
+        "deleteProjectDescription": "이 설계 초안를 삭제할까요? 이 동작은 영구적이며 되돌릴 수 없습니다.",
         "deleteProjectConfirm": "삭제",
-        "projectDeleted": "프로젝트를 삭제했습니다",
-        "deleteProjectFailed": "프로젝트 삭제에 실패했습니다",
+        "projectDeleted": "초안를 삭제했습니다",
+        "deleteProjectFailed": "초안 삭제에 실패했습니다",
         "reanalyzeFailed": "재분석에 실패했습니다",
         "reanalyzed": "소스를 재분석했습니다",
         "reanalyzedDescription": "결정 {count}건이 무효화되었습니다",
@@ -4612,11 +4612,11 @@
         "bigqueryExtendUnsupported": "BigQuery 확장은 이 폼에서 지원하지 않습니다",
         "extendFailed": "확장에 실패했습니다",
         "extendSuccess": "소스를 추가했습니다 — 새 테이블의 열 명확화를 검토하세요",
-        "conflictTitle": "충돌: 프로젝트가 다른 곳에서 수정되었습니다",
+        "conflictTitle": "충돌: 초안가 다른 곳에서 수정되었습니다",
         "conflictDescription": "최신 버전을 다시 불러옵니다.",
         "savedHeader": "온톨로지 저장 완료",
-        "savedDescription": "온톨로지를 완료하고 저장했습니다. 분석 모드로 질의하거나, 프로젝트 선택기에서 포크해 새 버전을 만들 수 있습니다.",
-        "completedDescription": "프로젝트가 완료되었습니다.",
+        "savedDescription": "온톨로지를 완료하고 저장했습니다. 분석 모드로 질의하거나, 초안 선택기에서 포크해 새 버전을 만들 수 있습니다.",
+        "completedDescription": "초안가 완료되었습니다.",
         "schemaDeployment": "스키마 배포",
         "ddlStatements": "실행할 DDL 문 {count}개:",
         "ddlStatementsPlural": "",
@@ -4659,14 +4659,14 @@
           "complete": "완료",
           "reanalyze": "재분석",
           "extend": "확장",
-          "closeProject": "프로젝트 닫기"
+          "closeProject": "초안 닫기"
         },
         "toast": {
           "unknownError": "알 수 없는 오류",
           "designGatesUnmetTitle": "디자인 게이트 미충족",
           "designGatesUnmetDescription": "디자인을 시작하기 전에 디자인 게이트 {count}개를 해결해야 합니다."
         },
-        "deleteProjectTypeLabel": "확인을 위해 프로젝트 이름을 입력하세요"
+        "deleteProjectTypeLabel": "확인을 위해 초안 이름을 입력하세요"
       },
       "workflowForms": {
         "reanalyze": "재분석",

@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioCard } from "@/components/ui/radio";
 import { Spinner } from "@/components/ui/spinner";
 import { useSourcePreview } from "@/hooks/use-source-preview";
-import type { AnalyzeSelection, ProjectSource } from "@/types/ontology-drafts";
+import type { AnalyzeSelection, DataSourceSpec } from "@/types/ontology-drafts";
 
 type SourceImportMode = "all" | "subset" | "staged";
 
@@ -42,7 +42,7 @@ export function toAnalyzeSelection(
 }
 
 interface Props {
-  source: ProjectSource | null;
+  source: DataSourceSpec | null;
   value: SourceImportValue;
   onChange: (next: SourceImportValue) => void;
 }

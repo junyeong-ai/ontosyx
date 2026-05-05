@@ -5,7 +5,7 @@ import { persist } from "zustand/middleware";
 import type { AppStore } from "./types";
 import { createOntologySlice } from "./ontology-slice";
 import { createChatSlice } from "./chat-slice";
-import { createProjectSlice } from "./project-slice";
+import { createOntologyDraftSlice } from "./ontology-draft-slice";
 import { createChromeSlice } from "./chrome-slice";
 import { createSelectionSlice } from "./selection-slice";
 import { createDashboardSlice } from "./dashboard-slice";
@@ -28,7 +28,7 @@ export type {
   CommandEntry,
   OntologySlice,
   ChatSlice,
-  ProjectSlice,
+  OntologyDraftSlice,
   ChromeSlice,
   SelectionSlice,
   DashboardSlice,
@@ -54,7 +54,7 @@ export const useAppStore = create<AppStore>()(
     (...a) => ({
       ...createOntologySlice(...a),
       ...createChatSlice(...a),
-      ...createProjectSlice(...a),
+      ...createOntologyDraftSlice(...a),
       ...createChromeSlice(...a),
       ...createSelectionSlice(...a),
       ...createDashboardSlice(...a),

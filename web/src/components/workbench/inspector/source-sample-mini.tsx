@@ -60,7 +60,7 @@ function buildSampleRows(stats: ColumnStats[]): string[][] {
 export function SourceSampleMini({ tableName }: Props) {
   const t = useTranslations("inspector.sourceSample");
   const fmt = useFormatters();
-  const project = useAppStore((s) => s.activeProject);
+  const project = useAppStore((s) => s.activeOntologyDraft);
   const profile = (project?.source_profile ?? null) as SourceProfile | null;
   const tableProfile = useMemo(
     () => resolveTableProfile(profile, tableName),

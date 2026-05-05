@@ -190,7 +190,7 @@ fn batch_execute_and_inverse() {
         commands: vec![
             OntologyCommand::AddNode {
                 id: "n3".into(),
-                label: gl("Project"),
+                label: gl("Customer"),
                 description: LocalizedText::default(),
             },
             OntologyCommand::AddEdge {

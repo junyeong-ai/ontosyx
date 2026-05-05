@@ -290,7 +290,7 @@ impl OntologyDraftStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn archive_stale_projects(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
+    async fn archive_stale_ontology_drafts(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
         super::require_workspace_context()?;
         // RETURNING the workspace_id of each affected row, then GROUP
         // BY in SQL — keeps the per-workspace breakdown server-side
@@ -316,7 +316,7 @@ impl OntologyDraftStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn delete_archived_projects(&self, max_archive_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
+    async fn delete_archived_ontology_drafts(&self, max_archive_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
         super::require_workspace_context()?;
         let rows: Vec<(Uuid, i64)> = sqlx::query_as(
             "WITH affected AS (

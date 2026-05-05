@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check, Trash2, Wand2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { Heading } from "@/components/ui/heading";
 
 import { Spinner } from "@/components/ui/spinner";
@@ -46,11 +47,11 @@ export interface WorkflowActionsProps extends DesignDecisions {
   setLoading: (v: boolean) => void;
   /**
    * Atomic project + ontology cache update — see
-   * `OntologySlice.applyProjectSnapshot`. Every analyse / design /
+   * `OntologySlice.applyOntologyDraftSnapshot`. Every analyse / design /
    * complete / extend / refine action lands its server response
    * through this single entry point.
    */
-  applyProjectSnapshot: (project: OntologyDraft | null) => void;
+  applyOntologyDraftSnapshot: (project: OntologyDraft | null) => void;
   onApiError: (err: unknown, label: string) => Promise<boolean>;
   /** Ref to the analysis review <details> element in the right panel */
   analysisRef: React.RefObject<HTMLDetailsElement | null>;
@@ -60,7 +61,7 @@ export function WorkflowActions({
   project,
   loading,
   setLoading,
-  applyProjectSnapshot,
+  applyOntologyDraftSnapshot,
   onApiError,
   analysisRef,
   confirmedRelationships,
@@ -141,7 +142,7 @@ export function WorkflowActions({
         design_options: buildDesignOptions(),
         revision: project.revision,
       });
-      applyProjectSnapshot(updated);
+      applyOntologyDraftSnapshot(updated);
       toast.success(t("decisionsSaved"));
     } catch (err) {
       if (await onApiError(err, t("decisionsSaveFailed"))) return;
@@ -173,7 +174,7 @@ export function WorkflowActions({
           setProgressDetail(detail ?? null);
         },
         onResult: (resp) => {
-          applyProjectSnapshot(resp.project);
+          applyOntologyDraftSnapshot(resp.project);
           toast.success(t("ontologyDesigned"), {
             description: resp.project.ontology
               ? t("completeDesignedDescription", {
@@ -220,7 +221,7 @@ export function WorkflowActions({
         name: form.complete.completeName.trim(),
         acknowledge_quality_risks: acknowledgeRisks || undefined,
       });
-      applyProjectSnapshot(completed);
+      applyOntologyDraftSnapshot(completed);
       if (form.complete.deployOnComplete) {
         try {
           await deploySchema(project.id, { dry_run: false });
@@ -277,7 +278,7 @@ export function WorkflowActions({
     setLoading(true);
     try {
       await deleteOntologyDraft(project.id);
-      applyProjectSnapshot(null);
+      applyOntologyDraftSnapshot(null);
       toast.success(t("projectDeleted"));
     } catch (err) {
       if (await onApiError(err, t("deleteProjectFailed"))) return;
@@ -291,7 +292,7 @@ export function WorkflowActions({
       <div className="flex items-start justify-between gap-2">
         <div>
           <Heading level={3} size={6}>
-            {project.title ?? t("untitledProject")}
+            {project.title ?? t("untitledOntologyDraft")}
           </Heading>
           <p className="mt-0.5 text-xs text-foreground-muted">
             {t("revMeta", {
@@ -306,8 +307,8 @@ export function WorkflowActions({
             variant="ghost"
             size="sm"
             onClick={async () => {
-              if (!(await guardPendingEdits(t("guardActions.closeProject")))) return;
-              applyProjectSnapshot(null);
+              if (!(await guardPendingEdits(t("guardActions.closeOntologyDraft")))) return;
+              applyOntologyDraftSnapshot(null);
             }}
             className="text-xs"
           >
@@ -400,7 +401,7 @@ export function WorkflowActions({
           project={project}
           loading={loading}
           setLoading={setLoading}
-          applyProjectSnapshot={applyProjectSnapshot}
+          applyOntologyDraftSnapshot={applyOntologyDraftSnapshot}
           onApiError={onApiError}
           onRedesign={handleDesign}
           analysisRef={analysisRef}
@@ -412,9 +413,9 @@ export function WorkflowActions({
       {/* Designed: bridge to completed */}
       {isDesigned && !isCompleted && (
         <div className="space-y-2 rounded-lg border border-brand-border bg-brand-surface p-3">
-          <h4 className="text-xs font-semibold text-brand-foreground-strong">
+          <Eyebrow level={4} size="dense" tone="brand" caps="none">
             {t("finalize")}
-          </h4>
+          </Eyebrow>
           <FormInput
             type="text"
             placeholder={t("ontologyNamePlaceholder")}
@@ -447,9 +448,9 @@ export function WorkflowActions({
         <div className="space-y-2 rounded-lg border border-brand-border bg-brand-surface p-3">
           <div className="flex items-center gap-2">
             <Check className="h-4 w-4 text-brand-foreground" />
-            <h4 className="text-xs font-semibold text-brand-foreground-strong">
+            <Eyebrow level={4} size="dense" tone="brand" caps="none">
               {t("savedHeader")}
-            </h4>
+            </Eyebrow>
           </div>
           <p className="text-xs text-brand-foreground">
             {project.ontology_id ? t("savedDescription") : t("completedDescription")}

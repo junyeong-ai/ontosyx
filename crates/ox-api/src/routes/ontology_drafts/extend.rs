@@ -21,9 +21,9 @@ use crate::state::AppState;
 
 use super::helpers::{
     LlmInputContext, analyze_code_repository, analyze_source, build_llm_input, get_design_options,
-    load_project_in_status, reload_project,
+    load_ontology_draft_in_status, reload_ontology_draft,
 };
-use super::types::{ExtendOntologyDraftRequest, ExtendOntologyDraftResponse, ProjectSource, ProjectView};
+use super::types::{ExtendOntologyDraftRequest, ExtendOntologyDraftResponse, DataSourceSpec, OntologyDraftView};
 
 // ---------------------------------------------------------------------------
 // POST /api/ontology-drafts/:id/extend
@@ -32,16 +32,16 @@ use super::types::{ExtendOntologyDraftRequest, ExtendOntologyDraftResponse, Proj
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/extend",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     request_body = ExtendOntologyDraftRequest,
     responses(
         (status = 200, description = "Ontology extended with new source", body = ExtendOntologyDraftResponse),
         (status = 400, description = "No ontology or empty source data", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 504, description = "LLM timeout", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn extend_ontology_draft(
     State(state): State<AppState>,
@@ -51,7 +51,7 @@ pub(crate) async fn extend_ontology_draft(
 ) -> Result<Json<ApiResponse<ExtendOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
     req.selection.validate().map_err(AppError::from)?;
-    let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
+    let project = load_ontology_draft_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
     // Snapshot current state before mutation (best-effort)
     if let Some(ont) = &project.ontology
@@ -86,7 +86,7 @@ pub(crate) async fn extend_ontology_draft(
     // Customer FK even though only Order is in the new scope).
     // Code-Repository / Text sources skip the baseline.
     let source_url = match &req.source {
-        ProjectSource::CodeRepository { url } => Some(url.clone()),
+        DataSourceSpec::CodeRepository { url } => Some(url.clone()),
         _ => None,
     };
     let baseline = build_extend_baseline(&project);
@@ -383,7 +383,7 @@ pub(crate) async fn extend_ontology_draft(
         .await
         .map_err(AppError::from)?;
 
-    let updated = reload_project(&state, id).await?;
+    let updated = reload_ontology_draft(&state, id).await?;
 
     info!(
         ontology_draft_id = %id,
@@ -392,7 +392,7 @@ pub(crate) async fn extend_ontology_draft(
     );
 
     Ok(ApiResponse::of(ExtendOntologyDraftResponse {
-        project: ProjectView::from_project(updated),
+        project: OntologyDraftView::from_ontology_draft(updated),
         reconcile_report: reconciled.report,
     }))
 }

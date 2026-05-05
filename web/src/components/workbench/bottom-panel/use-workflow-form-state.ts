@@ -59,9 +59,9 @@ export function useWorkflowFormState(ontologyDraftId: string | undefined, projec
   // `ontologyDraftId`, and on mismatch updates the tracker plus every
   // dependent slice in one render pass. Subsequent renders see
   // matched ids and skip the reset.
-  const [trackedProjectId, setTrackedProjectId] = useState(ontologyDraftId);
-  if (trackedProjectId !== ontologyDraftId) {
-    setTrackedProjectId(ontologyDraftId);
+  const [trackedOntologyDraftId, setTrackedOntologyDraftId] = useState(ontologyDraftId);
+  if (trackedOntologyDraftId !== ontologyDraftId) {
+    setTrackedOntologyDraftId(ontologyDraftId);
     setDeployPreview(null);
     setDeployOnComplete(false);
     setLoadPlan(null);

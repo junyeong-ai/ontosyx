@@ -156,18 +156,18 @@ export function useOntologyContextMenu(
     const connectedEdges = arr(ontology.edge_types).filter(
       (e) => e.source_node_id === nodeId || e.target_node_id === nodeId,
     );
-    const activeProject = useAppStore.getState().activeProject;
+    const activeOntologyDraft = useAppStore.getState().activeOntologyDraft;
     return [
       { label: t("inspect"), onClick: () => { selectOne({ kind: "node", id: nodeId }); if (!useAppStore.getState().isInspectorOpen) toggleInspector(); } },
       { label: t("focusNeighborhood"), onClick: () => setNeighborhoodFocus({ nodeId, depth: 1 }) },
       {
         label: t("improveWithAi"),
-        disabled: !activeProject,
+        disabled: !activeOntologyDraft,
         onClick: async () => {
-          if (!activeProject) return;
+          if (!activeOntologyDraft) return;
           selectOne({ kind: "node", id: nodeId });
           if (!useAppStore.getState().isInspectorOpen) toggleInspector();
-          await improveWithAi("node", nodeDef.label, activeProject.id, activeProject.revision, applyCommand, aiCopy);
+          await improveWithAi("node", nodeDef.label, activeOntologyDraft.id, activeOntologyDraft.revision, applyCommand, aiCopy);
         },
       },
       { label: t("addProperty"), onClick: () => { selectOne({ kind: "node", id: nodeId }); if (!useAppStore.getState().isInspectorOpen) toggleInspector(); } },
@@ -211,7 +211,7 @@ export function useOntologyContextMenu(
     const edgeId = target.id;
     const edgeDef = arr(ontology.edge_types).find((e) => e.id === edgeId);
     if (!edgeDef) return [];
-    const project = useAppStore.getState().activeProject;
+    const project = useAppStore.getState().activeOntologyDraft;
     const cardinalityLabel = (c: "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many") => {
       const camel = c.split("_").map((p, i) => i === 0 ? p : p[0].toUpperCase() + p.slice(1)).join("") as
         "oneToOne" | "oneToMany" | "manyToOne" | "manyToMany";

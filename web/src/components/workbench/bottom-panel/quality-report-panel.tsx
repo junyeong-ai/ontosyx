@@ -159,8 +159,8 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
   const [acknowledgingIndex, setAcknowledgingIndex] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const activeProject = useAppStore((s) => s.activeProject);
-  const setActiveProject = useAppStore((s) => s.setActiveProject);
+  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
+  const setActiveOntologyDraft = useAppStore((s) => s.setActiveOntologyDraft);
   const setCommandBarInput = useAppStore((s) => s.setCommandBarInput);
   const setDesignBottomTab = useAppStore((s) => s.setDesignBottomTab);
 
@@ -175,7 +175,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
 
   const acknowledgeGap = useCallback(
     async (gap: QualityGap, index: number) => {
-      if (!activeProject) return;
+      if (!activeOntologyDraft) return;
 
       const sourceLoc = extractSourceLocation(gap);
       if (!sourceLoc) {
@@ -196,7 +196,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
       setAcknowledgingIndex(index);
       try {
         const hint = buildAcknowledgmentHint(gap, t, tGap);
-        const existingClarifications = activeProject.design_options.column_clarifications ?? [];
+        const existingClarifications = activeOntologyDraft.design_options.column_clarifications ?? [];
 
         // Check if a clarification already exists for this column
         const alreadyExists = existingClarifications.some(
@@ -221,14 +221,14 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
           ];
         }
 
-        const updatedProject = await updateDecisions(activeProject.id, {
+        const updatedDraft = await updateDecisions(activeOntologyDraft.id, {
           design_options: {
-            ...activeProject.design_options,
+            ...activeOntologyDraft.design_options,
             column_clarifications: newClarifications,
           },
-          revision: activeProject.revision,
+          revision: activeOntologyDraft.revision,
         });
-        setActiveProject(updatedProject);
+        setActiveOntologyDraft(updatedDraft);
         toast.success(t("gapAcknowledged"), {
           description: t("clarificationAdded", { table: sourceLoc.table, column: sourceLoc.column }),
         });
@@ -238,8 +238,8 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
         });
         // Try to reload project in case of conflict
         try {
-          const fresh = await getOntologyDraft(activeProject.id);
-          setActiveProject(fresh);
+          const fresh = await getOntologyDraft(activeOntologyDraft.id);
+          setActiveOntologyDraft(fresh);
         } catch {
           /* ignore reload failure */
         }
@@ -247,7 +247,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
         setAcknowledgingIndex(null);
       }
     },
-    [activeProject, setActiveProject, confirmDialog, t, tGap],
+    [activeOntologyDraft, setActiveOntologyDraft, confirmDialog, t, tGap],
   );
 
   const navigateToClarification = useCallback(
@@ -392,7 +392,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
           ) : null,
         )}
 
-        {activeProject && aiFixableCount > 0 && (
+        {activeOntologyDraft && aiFixableCount > 0 && (
           <button
             type="button"
             onClick={fixAll}
@@ -452,7 +452,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
                       gap={gap}
                       gapIndex={gapIndex}
                       isAcknowledging={acknowledgingIndex === gapIndex}
-                      hasActiveProject={!!activeProject}
+                      hasActiveOntologyDraft={!!activeOntologyDraft}
                       onFix={fixGap}
                       onAcknowledge={acknowledgeGap}
                       onNavigateToClarification={navigateToClarification}

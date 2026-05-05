@@ -10,13 +10,13 @@ use crate::error::AppError;
 /// the canonical object_mappings carried inside the ontology itself.
 /// For sources without schema/profile (e.g. text), ontology-level
 /// checks (missing descriptions, etc.) still run.
-pub(crate) fn assess_quality_from_project(
+pub(crate) fn assess_quality_from_ontology_draft(
     project: &OntologyDraft,
     ontology: &OntologyIR,
     excluded_tables: &[String],
     column_clarifications: &[ColumnClarification],
 ) -> Result<OntologyQualityReport, AppError> {
-    assess_quality_from_project_with_mapping(
+    assess_quality_from_ontology_draft_with_mapping(
         project,
         ontology,
         excluded_tables,
@@ -27,8 +27,8 @@ pub(crate) fn assess_quality_from_project(
 /// The `_with_mapping` suffix is a historical name kept so existing
 /// call sites don't churn — mapping now travels on the ontology IR,
 /// not through a separate parameter. New call sites should prefer
-/// `assess_quality_from_project`; the two are identical.
-pub(crate) fn assess_quality_from_project_with_mapping(
+/// `assess_quality_from_ontology_draft`; the two are identical.
+pub(crate) fn assess_quality_from_ontology_draft_with_mapping(
     project: &OntologyDraft,
     ontology: &OntologyIR,
     excluded_tables: &[String],

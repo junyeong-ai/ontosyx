@@ -19,13 +19,13 @@ use ox_source::analyzer::build_design_context;
 
 use super::helpers::artifact::persist_design_artifact;
 use super::helpers::{
-    LlmInputContext, assess_quality_from_project, assess_quality_from_project_with_mapping,
+    LlmInputContext, assess_quality_from_ontology_draft, assess_quality_from_ontology_draft_with_mapping,
     build_llm_input, build_refinement_context, build_source_schema_summary, enforce_design_gates,
-    get_design_options, load_analysis_report, load_mutable_project, load_project_in_status,
-    reload_project,
+    get_design_options, load_analysis_report, load_mutable_ontology_draft, load_ontology_draft_in_status,
+    reload_ontology_draft,
 };
 use super::types::{
-    DesignOntologyDraftRequest, DesignOntologyDraftResponse, ProjectView, ReconcileOntologyDraftRequest,
+    DesignOntologyDraftRequest, DesignOntologyDraftResponse, OntologyDraftView, ReconcileOntologyDraftRequest,
     RefineOntologyDraftRequest, RefineOntologyDraftResponse,
 };
 
@@ -36,16 +36,16 @@ use super::types::{
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/design",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     request_body = DesignOntologyDraftRequest,
     responses(
         (status = 200, description = "Ontology designed", body = DesignOntologyDraftResponse),
         (status = 400, description = "Invalid input or large schema gate", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 504, description = "LLM timeout", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn design_ontology_draft(
     State(state): State<AppState>,
@@ -54,7 +54,7 @@ pub(crate) async fn design_ontology_draft(
     Json(req): Json<DesignOntologyDraftRequest>,
 ) -> Result<Json<ApiResponse<DesignOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
-    let project = load_mutable_project(&state, id).await?;
+    let project = load_mutable_ontology_draft(&state, id).await?;
 
     // Deserialize stored data
     let source_config: SourceConfig = serde_json::from_value(project.source_config.clone())
@@ -66,7 +66,7 @@ pub(crate) async fn design_ontology_draft(
     // Read runtime-tunable config (scoped guard — released before async operations)
     let sample_data = {
         let sys_config = state.system_config.read().await;
-        let ctx = LlmInputContext::from_project(&project);
+        let ctx = LlmInputContext::from_ontology_draft(&project);
         build_llm_input(&ctx, &source_config, &effective_opts, &sys_config)?
     };
 
@@ -178,7 +178,7 @@ pub(crate) async fn design_ontology_draft(
     // Quality reads mapping state directly off the canonical IR
     // (`ontology.object_mappings()`), so there's no separate
     // mapping handle threaded through.
-    let quality_report = assess_quality_from_project_with_mapping(
+    let quality_report = assess_quality_from_ontology_draft_with_mapping(
         &project,
         &ontology,
         &effective_opts.excluded_tables,
@@ -194,10 +194,10 @@ pub(crate) async fn design_ontology_draft(
         .await
         .map_err(AppError::from)?;
 
-    let updated = reload_project(&state, id).await?;
+    let updated = reload_ontology_draft(&state, id).await?;
 
     Ok(ApiResponse::of(DesignOntologyDraftResponse {
-        project: ProjectView::from_project(updated),
+        project: OntologyDraftView::from_ontology_draft(updated),
     }))
 }
 
@@ -208,17 +208,17 @@ pub(crate) async fn design_ontology_draft(
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/refine",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     request_body = RefineOntologyDraftRequest,
     responses(
         (status = 200, description = "Ontology refined", body = RefineOntologyDraftResponse),
         (status = 400, description = "No runtime or additional context", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Uncertain reconcile matches", body = inline(crate::openapi::ErrorResponse)),
         (status = 504, description = "LLM timeout", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn refine_ontology_draft(
     State(state): State<AppState>,
@@ -227,7 +227,7 @@ pub(crate) async fn refine_ontology_draft(
     Json(req): Json<RefineOntologyDraftRequest>,
 ) -> Result<Json<ApiResponse<RefineOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
-    let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
+    let project = load_ontology_draft_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
     let ontology: OntologyIR = project
         .ontology
@@ -465,7 +465,7 @@ pub(crate) async fn refine_ontology_draft(
 
     // Re-assess quality after refinement
     let opts = get_design_options(&project);
-    let quality_report = assess_quality_from_project(
+    let quality_report = assess_quality_from_ontology_draft(
         &project,
         &refined,
         &opts.excluded_tables,
@@ -480,7 +480,7 @@ pub(crate) async fn refine_ontology_draft(
         .await
         .map_err(AppError::from)?;
 
-    let updated = reload_project(&state, id).await?;
+    let updated = reload_ontology_draft(&state, id).await?;
 
     info!(
         ontology_draft_id = %id,
@@ -489,7 +489,7 @@ pub(crate) async fn refine_ontology_draft(
     );
 
     Ok(ApiResponse::of(RefineOntologyDraftResponse {
-        project: ProjectView::from_project(updated),
+        project: OntologyDraftView::from_ontology_draft(updated),
         profile_summary,
         reconcile_report: reconciled.report,
     }))
@@ -502,16 +502,16 @@ pub(crate) async fn refine_ontology_draft(
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/apply-reconcile",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     request_body = ReconcileOntologyDraftRequest,
     responses(
         (status = 200, description = "Reconcile decisions applied", body = RefineOntologyDraftResponse),
         (status = 400, description = "Invalid decisions", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Reconciled ontology invalid", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn apply_reconcile(
     State(state): State<AppState>,
@@ -520,7 +520,7 @@ pub(crate) async fn apply_reconcile(
     Json(req): Json<ReconcileOntologyDraftRequest>,
 ) -> Result<Json<ApiResponse<RefineOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
-    let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
+    let project = load_ontology_draft_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
     // Validate all decisions reference valid uncertain matches
     for decision in &req.decisions {
@@ -553,7 +553,7 @@ pub(crate) async fn apply_reconcile(
 
     // Quality assessment
     let opts = get_design_options(&project);
-    let quality_report = assess_quality_from_project(
+    let quality_report = assess_quality_from_ontology_draft(
         &project,
         &finalized,
         &opts.excluded_tables,
@@ -568,10 +568,10 @@ pub(crate) async fn apply_reconcile(
         .await
         .map_err(AppError::from)?;
 
-    let updated = reload_project(&state, id).await?;
+    let updated = reload_ontology_draft(&state, id).await?;
 
     Ok(ApiResponse::of(RefineOntologyDraftResponse {
-        project: ProjectView::from_project(updated),
+        project: OntologyDraftView::from_ontology_draft(updated),
         profile_summary: "Applied reconcile decisions".to_string(),
         reconcile_report: ox_ontology::ReconcileReport {
             preserved_ids: vec![],

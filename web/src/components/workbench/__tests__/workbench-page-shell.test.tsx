@@ -10,7 +10,7 @@ const messages = {} as Record<string, unknown>;
 function shell(props: Partial<React.ComponentProps<typeof WorkbenchPageShell>>) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <WorkbenchPageShell title="Projects" {...props}>
+      <WorkbenchPageShell title="Ontology Drafts" {...props}>
         <div data-testid="body">body</div>
       </WorkbenchPageShell>
     </NextIntlClientProvider>,

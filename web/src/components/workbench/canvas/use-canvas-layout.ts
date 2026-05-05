@@ -146,11 +146,11 @@ export function useCanvasLayout(
       }
       const vp = getViewport();
       const groups = useAppStore.getState().nodeGroups;
-      const currentProject = useAppStore.getState().activeProject;
+      const currentDraft = useAppStore.getState().activeOntologyDraft;
       savePerspective({
         lineage_id: currentOntology.id,
         topology_signature: topologySignature,
-        ontology_draft_id: currentProject?.id,
+        ontology_draft_id: currentDraft?.id,
         name: "Default",
         positions,
         viewport: { x: vp.x, y: vp.y, zoom: vp.zoom },

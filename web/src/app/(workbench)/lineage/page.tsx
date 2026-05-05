@@ -12,6 +12,7 @@ import { SkeletonTable } from "@/components/ui/skeleton";
 import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
+import { Heading } from "@/components/ui/heading";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import { useFormatters } from "@/hooks/use-formatters";
 import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
@@ -368,9 +369,9 @@ export default function LineageSettingsPage() {
 
             {mappingGroups.length > 0 && (
               <div className="mt-8">
-                <h2 className="text-sm font-semibold text-foreground mb-3">
+                <Heading level={2} size={6} className="mb-3 text-foreground">
                   {t("columnMappings")}
-                </h2>
+                </Heading>
                 <p className="text-xs text-foreground-muted mb-4">
                   {t("columnMappingsHint")}
                 </p>
@@ -395,9 +396,9 @@ export default function LineageSettingsPage() {
             )}
 
             <div className="mt-8">
-              <h2 className="text-sm font-semibold text-foreground mb-3">
+              <Heading level={2} size={6} className="mb-3 text-foreground">
                 {t("loadHistory")}
-              </h2>
+              </Heading>
               <div className="overflow-x-auto rounded-lg border border-divider">
                 <table className="w-full text-sm">
                   <thead>

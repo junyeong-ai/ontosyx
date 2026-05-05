@@ -51,13 +51,13 @@ export function ContextSelector() {
 }
 
 // ---------------------------------------------------------------------------
-// Design mode: Project selector
+// Design mode: Ontology draft selector
 // ---------------------------------------------------------------------------
 
 function DesignSelector() {
   const t = useTranslations("chrome.contextSelector");
-  const activeProject = useAppStore((s) => s.activeProject);
-  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
+  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
+  const applyOntologyDraftSnapshot = useAppStore((s) => s.applyOntologyDraftSnapshot);
   const setDesignBottomTab = useAppStore((s) => s.setDesignBottomTab);
   const bottomPanelOpen = useAppStore((s) => s.isBottomPanelOpen);
   const toggleBottomPanel = useAppStore((s) => s.toggleBottomPanel);
@@ -71,23 +71,23 @@ function DesignSelector() {
   const projects = data?.items ?? [];
 
   useEffect(() => {
-    if (isError) toast.error(t("toast.loadProjectsFailed"));
+    if (isError) toast.error(t("toast.loadOntologyDraftsFailed"));
   }, [isError, t]);
 
   const handleSelect = async (id: string) => {
-    if (!(await guardPendingEdits(t("guardSwitchProject")))) return;
+    if (!(await guardPendingEdits(t("guardSwitchOntologyDraft")))) return;
     setOpen(false);
     try {
       const project = await getOntologyDraft(id);
-      applyProjectSnapshot(project);
+      applyOntologyDraftSnapshot(project);
     } catch (err) {
       console.error("Failed to load project:", err);
-      toast.error(t("toast.loadProjectFailed"));
+      toast.error(t("toast.loadOntologyDraftFailed"));
     }
   };
 
   // Design mode: show project title only (not standalone ontology name)
-  const label = activeProject?.title || t("noProject");
+  const label = activeOntologyDraft?.title || t("noOntologyDraft");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -101,16 +101,16 @@ function DesignSelector() {
           <button
             type="button"
             onClick={async () => {
-              if (!(await guardPendingEdits(t("guardNewProject")))) return;
+              if (!(await guardPendingEdits(t("guardNewOntologyDraft")))) return;
               setOpen(false);
-              applyProjectSnapshot(null);
+              applyOntologyDraftSnapshot(null);
               setDesignBottomTab("workflow");
               if (!bottomPanelOpen) toggleBottomPanel();
             }}
             className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs font-medium text-concept-foreground hover:bg-concept-surface"
           >
             <Plus className="h-3 w-3" />
-            {t("newProject")}
+            {t("newOntologyDraft")}
           </button>
           <div className="my-1 h-px bg-surface-inset" />
           {isFetching ? (
@@ -118,7 +118,7 @@ function DesignSelector() {
               <Spinner size="sm" className="text-foreground-muted" />
             </div>
           ) : projects.length === 0 ? (
-            <p className="px-3 py-4 text-center text-xs text-foreground-muted">{t("noProjects")}</p>
+            <p className="px-3 py-4 text-center text-xs text-foreground-muted">{t("noOntologyDrafts")}</p>
           ) : (
             projects.map((p) => (
               <div key={p.id} className="flex items-center gap-1">

@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 //     "error": {
 //       "code":  "not_found",          // typed ApiErrorCode (snake_case)
 //       "class": "client_error",       // 4xx vs 5xx category
-//       "params": { "entity": "Project" }
+//       "params": { "entity": "OntologyDraft" }
 //     }
 //   }
 //
@@ -106,7 +106,7 @@ pub enum ApiErrorCode {
     /// is still pending. The FE renders a "wait for admin review"
     /// state — no params needed; the message is invariant.
     DeployPendingApproval,
-    /// Project has no source schema attached — fired when an
+    /// Ontology draft has no source schema attached — fired when an
     /// action that needs the schema (deploy, complete, design)
     /// runs before analyse / introspect populated it.
     OntologyDraftMissingSourceSchema,
@@ -222,7 +222,7 @@ pub enum ApiErrorCode {
     /// JWT). `params.feature` names the missing capability so the
     /// FE can route the user to the right configuration page.
     FeatureNotConfigured,
-    /// Project scope-defer rejected because one or more named
+    /// Ontology draft scope-defer rejected because one or more named
     /// tables are still bound by the project's ontology.
     /// `params.tables` is a comma-joined list of the offending
     /// tables so the FE can highlight them in the scope editor
@@ -265,7 +265,7 @@ pub enum ApiErrorCode {
     /// `params.refs` is the structured list so the FE can render
     /// each row with its own remove-or-update button.
     DecisionInvalidSchemaRefs,
-    /// Project status didn't match the precondition for the
+    /// Ontology draft status didn't match the precondition for the
     /// requested action. `params.required` is the expected status
     /// (`analyzed`, `designed`, …); `params.actual` is the
     /// project's current status so the FE can refresh and route
@@ -614,7 +614,7 @@ impl AppError {
     // while emitting typed codes that FE i18n catalogs key on.
     // -----------------------------------------------------------------------
 
-    pub fn project_not_found() -> Self {
+    pub fn ontology_draft_not_found() -> Self {
         Self::not_found("Design project")
     }
 
@@ -639,7 +639,7 @@ impl AppError {
     }
 
     pub fn no_ontology() -> Self {
-        Self::bad_request("Project has no ontology")
+        Self::bad_request("Ontology draft has no ontology")
     }
 
     pub fn no_runtime() -> Self {
@@ -730,7 +730,7 @@ impl AppError {
         Self::new(StatusCode::CONFLICT, ApiErrorCode::DeployPendingApproval)
     }
 
-    /// Project missing the source schema. `detail` is the
+    /// Ontology draft missing the source schema. `detail` is the
     /// operator-facing hint about what to run next (analyse /
     /// introspect / re-import).
     pub fn ontology_draft_missing_source_schema(detail: impl Into<String>) -> Self {
@@ -1043,7 +1043,7 @@ impl AppError {
         .with_param_json("refs", refs)
     }
 
-    /// Project status didn't match the requested action's
+    /// Ontology draft status didn't match the requested action's
     /// precondition.
     pub fn ontology_draft_status_mismatch(
         required: impl Into<String>,
@@ -1389,9 +1389,9 @@ mod redaction_tests {
 
     #[test]
     fn not_found_carries_entity_param() {
-        let err = AppError::not_found("Project");
+        let err = AppError::not_found("OntologyDraft");
         assert_eq!(err.code, ApiErrorCode::NotFound);
-        assert_eq!(err.params.get("entity"), Some(&Value::from("Project")));
+        assert_eq!(err.params.get("entity"), Some(&Value::from("OntologyDraft")));
     }
 
     #[test]

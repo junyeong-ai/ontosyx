@@ -36,7 +36,7 @@ import type { CommandEntry } from "@/lib/store";
 export interface CommandStackDiffDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Project ontology in its server-canonical (pre-rebase) shape. */
+  /** Draft ontology in its server-canonical (pre-rebase) shape. */
   ontology: OntologyIR | null;
   /** Server revision number that the local stack was authored against. */
   baseRevision: number;

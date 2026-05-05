@@ -88,7 +88,7 @@ export interface QualityGapCardProps {
   gap: QualityGap;
   gapIndex: number;
   isAcknowledging: boolean;
-  hasActiveProject: boolean;
+  hasActiveOntologyDraft: boolean;
   onFix: (gap: QualityGap) => void;
   onAcknowledge: (gap: QualityGap, index: number) => void;
   onNavigateToClarification: (gap: QualityGap) => void;
@@ -98,7 +98,7 @@ export function QualityGapCard({
   gap,
   gapIndex,
   isAcknowledging,
-  hasActiveProject,
+  hasActiveOntologyDraft,
   onFix,
   onAcknowledge,
   onNavigateToClarification,
@@ -136,7 +136,7 @@ export function QualityGapCard({
           {formatGapLocation(gap.location)}
         </span>
         <span className="ms-auto flex items-center gap-1.5">
-          {hasActiveProject && actionType === "ai_fix" && (
+          {hasActiveOntologyDraft && actionType === "ai_fix" && (
             <button
               type="button"
 
@@ -154,7 +154,7 @@ export function QualityGapCard({
               {t("categoryFix")}
             </button>
           )}
-          {hasActiveProject && actionType === "user_decision" && (
+          {hasActiveOntologyDraft && actionType === "user_decision" && (
             <>
             <button
               type="button"
@@ -190,7 +190,7 @@ export function QualityGapCard({
             </button>
             </>
           )}
-          {hasActiveProject && actionType === "clarification_needed" && (
+          {hasActiveOntologyDraft && actionType === "clarification_needed" && (
             <button
               type="button"
               onClick={(e) => {

@@ -13,9 +13,9 @@ import { useAppStore } from "@/lib/store";
  */
 export function CanvasEmptyState() {
   const t = useTranslations("workbench.canvas.empty");
-  const hasProject = useAppStore((s) => s.activeProject !== null);
+  const hasDraft = useAppStore((s) => s.activeOntologyDraft !== null);
 
-  if (hasProject) {
+  if (hasDraft) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-surface">

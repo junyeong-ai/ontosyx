@@ -12,7 +12,7 @@ use ox_source::{AnalysisResult, AnalyzeSelection, DataSourceAdapter, Introspecti
 
 use crate::error::AppError;
 
-use super::super::types::ProjectSource;
+use super::super::types::DataSourceSpec;
 use super::fingerprint::{
     bigquery_fingerprint, mongodb_fingerprint, mysql_fingerprint, pg_fingerprint,
     schema_fingerprint, snowflake_fingerprint,
@@ -29,7 +29,7 @@ pub(crate) struct AnalyzedSource {
     pub report: Option<SourceAnalysisReport>,
 }
 
-/// Adapter built from a [`ProjectSource`], paired with the partial
+/// Adapter built from a [`DataSourceSpec`], paired with the partial
 /// [`SourceConfig`] derived from the connection (fingerprint resolved
 /// later by [`finalize_config`] once schema is known for inline kinds).
 pub(crate) struct PreparedAdapter {
@@ -59,7 +59,7 @@ fn ambiguity_source_handle(kind: &SourceTypeKind, fingerprint: &str) -> (SourceI
     (SourceId::from_source_config(&config), fingerprint.to_string())
 }
 
-/// Build a live adapter for a `ProjectSource` without performing any
+/// Build a live adapter for a `DataSourceSpec` without performing any
 /// introspection. Used by both the preview endpoint (cheap table
 /// listing) and the full analysis flow ([`analyze_source`]).
 ///
@@ -67,19 +67,19 @@ fn ambiguity_source_handle(kind: &SourceTypeKind, fingerprint: &str) -> (SourceI
 /// adapter and are rejected here — the lifecycle handler routes
 /// them through their own paths.
 pub(crate) async fn build_adapter(
-    source: ProjectSource,
+    source: DataSourceSpec,
     registry: &AdapterRegistry,
 ) -> Result<PreparedAdapter, AppError> {
     match source {
-        ProjectSource::Text { .. } => Err(AppError::internal(
+        DataSourceSpec::Text { .. } => Err(AppError::internal(
             "build_adapter called with Text source — Text routes through the project lifecycle path",
         )),
-        ProjectSource::CodeRepository { .. } => Err(AppError::internal(
+        DataSourceSpec::CodeRepository { .. } => Err(AppError::internal(
             "build_adapter called with CodeRepository source — \
              CodeRepository routes through the project lifecycle path",
         )),
 
-        ProjectSource::Csv { data } => {
+        DataSourceSpec::Csv { data } => {
             if data.trim().is_empty() {
                 return Err(AppError::empty_source_data());
             }
@@ -106,7 +106,7 @@ pub(crate) async fn build_adapter(
             })
         }
 
-        ProjectSource::Json { data } => {
+        DataSourceSpec::Json { data } => {
             if data.trim().is_empty() {
                 return Err(AppError::empty_source_data());
             }
@@ -133,7 +133,7 @@ pub(crate) async fn build_adapter(
             })
         }
 
-        ProjectSource::Postgresql {
+        DataSourceSpec::Postgresql {
             connection_string,
             schema,
         } => {
@@ -162,7 +162,7 @@ pub(crate) async fn build_adapter(
             })
         }
 
-        ProjectSource::Mysql {
+        DataSourceSpec::Mysql {
             connection_string,
             schema,
         } => {
@@ -191,7 +191,7 @@ pub(crate) async fn build_adapter(
             })
         }
 
-        ProjectSource::Mongodb {
+        DataSourceSpec::Mongodb {
             connection_string,
             database,
         } => {
@@ -220,7 +220,7 @@ pub(crate) async fn build_adapter(
             })
         }
 
-        ProjectSource::Snowflake {
+        DataSourceSpec::Snowflake {
             account,
             user,
             password,
@@ -256,7 +256,7 @@ pub(crate) async fn build_adapter(
             })
         }
 
-        ProjectSource::Bigquery {
+        DataSourceSpec::Bigquery {
             project_id,
             dataset,
             billing_project_id,
@@ -309,7 +309,7 @@ pub(crate) async fn build_adapter(
             })
         }
 
-        ProjectSource::Duckdb { file_path } => {
+        DataSourceSpec::Duckdb { file_path } => {
             info!(file_path = %file_path, "Connecting to DuckDB file source");
             let adapter = registry
                 .create(
@@ -348,12 +348,12 @@ pub(crate) async fn build_adapter(
 /// previously stored `AnalysisResult` so extension dedupes against
 /// it.
 pub(crate) async fn analyze_source(
-    source: ProjectSource,
+    source: DataSourceSpec,
     registry: &AdapterRegistry,
     selection: AnalyzeSelection,
     baseline: Option<&AnalysisResult>,
 ) -> Result<AnalyzedSource, AppError> {
-    if let ProjectSource::Text { data } = &source {
+    if let DataSourceSpec::Text { data } = &source {
         if data.trim().is_empty() {
             return Err(AppError::empty_source_data());
         }

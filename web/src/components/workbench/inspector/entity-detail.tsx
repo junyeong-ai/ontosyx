@@ -130,7 +130,7 @@ function EntityHeader({
 }) {
   const t = useTranslations("inspector.entity");
   const tAria = useTranslations("inspector.aria");
-  const activeProject = useAppStore((s) => s.activeProject);
+  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
   const isEdge = kind === "edge";
   const edge = isEdge ? (entity as EdgeTypeDef) : null;
   const src = isEdge
@@ -167,7 +167,7 @@ function EntityHeader({
           }}
         />
         <LockIndicator
-          ontologyDraftId={activeProject?.id}
+          ontologyDraftId={activeOntologyDraft?.id}
           entityId={entity.id}
           className="ms-auto"
         />
@@ -263,7 +263,7 @@ export function EntityDetail({
 }) {
   const applyCommand = useAppStore((s) => s.applyCommand);
   const clearSelection = useAppStore((s) => s.clearSelection);
-  const activeProject = useAppStore((s) => s.activeProject);
+  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
   const tab = useAppStore(
     (s) => (s.inspectorTabByKind.node_type ?? "definition") as InspectorFacetId,
   );
@@ -278,7 +278,7 @@ export function EntityDetail({
   const tCommon = useTranslations("common");
   const ref = useEntityRef("node_type", node.id);
   const { inbound, outbound } = useEntityDependencies(ontology.id, ref);
-  const lock = useEntityLock(activeProject?.id, node.id);
+  const lock = useEntityLock(activeOntologyDraft?.id, node.id);
   const lockedByOther = lock.kind === "locked-by-other";
 
   const facetCtx: InspectorFacetContext = useMemo(
@@ -361,9 +361,9 @@ export function EntityDetail({
         onDelete={handleDeleteNode}
       />
 
-      {lockedByOther && activeProject?.id && (
+      {lockedByOther && activeOntologyDraft?.id && (
         <LockedByOtherBanner
-          ontologyDraftId={activeProject.id}
+          ontologyDraftId={activeOntologyDraft.id}
           heldBy={lock.heldBy}
         />
       )}
@@ -408,7 +408,7 @@ export function EdgeDetail({
 }) {
   const applyCommand = useAppStore((s) => s.applyCommand);
   const clearSelection = useAppStore((s) => s.clearSelection);
-  const activeProject = useAppStore((s) => s.activeProject);
+  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
   const tab = useAppStore(
     (s) => (s.inspectorTabByKind.edge_type ?? "definition") as InspectorFacetId,
   );
@@ -423,7 +423,7 @@ export function EdgeDetail({
   const tCommon = useTranslations("common");
   const ref = useEntityRef("edge_type", edge.id);
   const { inbound, outbound } = useEntityDependencies(ontology.id, ref);
-  const lock = useEntityLock(activeProject?.id, edge.id);
+  const lock = useEntityLock(activeOntologyDraft?.id, edge.id);
   const lockedByOther = lock.kind === "locked-by-other";
 
   const facetCtx: InspectorFacetContext = useMemo(
@@ -510,9 +510,9 @@ export function EdgeDetail({
         onDelete={handleDeleteEdge}
       />
 
-      {lockedByOther && activeProject?.id && (
+      {lockedByOther && activeOntologyDraft?.id && (
         <LockedByOtherBanner
-          ontologyDraftId={activeProject.id}
+          ontologyDraftId={activeOntologyDraft.id}
           heldBy={lock.heldBy}
         />
       )}

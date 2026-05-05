@@ -22,6 +22,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { HelpCircle, Home, Search } from "lucide-react";
 import { buttonStyles } from "@/components/ui/button";
+import { Heading } from "@/components/ui/heading";
 import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
 
 export default function NotFound() {
@@ -37,9 +38,9 @@ export default function NotFound() {
         <p className="text-xs font-semibold uppercase tracking-widest text-brand-foreground">
           {t("code")}
         </p>
-        <h1 className="mt-2 text-2xl font-semibold text-foreground-strong">
+        <Heading level={1} size={2} className="mt-2">
           {t("title")}
-        </h1>
+        </Heading>
         <p className="mt-2 text-sm text-foreground">
           {t("description")}
         </p>

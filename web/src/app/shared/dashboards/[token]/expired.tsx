@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Home, Link2 } from "lucide-react";
+import { Heading } from "@/components/ui/heading";
 export default function Expired() {
   const t = useTranslations("page.sharedDashboard");
   return (
@@ -11,9 +12,9 @@ export default function Expired() {
         <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-warning-surface/30">
           <Link2 className="h-5 w-5 text-warning-foreground" />
         </div>
-        <h1 className="mt-4 text-base font-semibold text-foreground-strong">
+        <Heading level={1} size={5} className="mt-4">
           {t("expiredTitle")}
-        </h1>
+        </Heading>
         <p className="mt-1 text-xs text-foreground-muted">
           {t("expiredSubtitle")}
         </p>

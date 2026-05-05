@@ -8,6 +8,7 @@ import { getWorkspaceOntology } from "@/lib/api";
 import { WidgetToolbar } from "@/components/dashboard/widgets/widget-toolbar";
 import { ResponseBasis } from "@/components/dashboard/widgets/response-basis";
 import { Button } from "@/components/ui/button";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { useFormatters } from "@/hooks/use-formatters";
 import { TOAST_WARNING } from "@/lib/toast/durations";
 import { ArrowLeft, Play } from "lucide-react";
@@ -49,9 +50,9 @@ export interface SectionProps {
 export function Section({ title, children }: SectionProps) {
   return (
     <div>
-      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+      <Eyebrow level={3} size="dense" className="mb-1.5">
         {title}
-      </h3>
+      </Eyebrow>
       {children}
     </div>
   );
@@ -82,7 +83,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
       return;
     }
     // Loaded snapshot is standalone — `loadStandaloneOntology`
-    // detaches `activeProject` and replaces the ontology atomically.
+    // detaches `activeOntologyDraft` and replaces the ontology atomically.
     loadStandaloneOntology(ir);
     clearMessages();
 

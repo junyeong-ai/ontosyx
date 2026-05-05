@@ -45,27 +45,27 @@ export function useCanvasCommands(options: CanvasCommandsOptions): CanvasCommand
   const ontology = useAppStore((s) => s.ontology);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const applyCommand = useAppStore((s) => s.applyCommand);
-  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
+  const applyOntologyDraftSnapshot = useAppStore((s) => s.applyOntologyDraftSnapshot);
   const setHighlightedBindings = useAppStore((s) => s.setHighlightedBindings);
   const setNeighborhoodFocus = useAppStore((s) => s.setNeighborhoodFocus);
 
   const handleSave = useCallback(async () => {
     const store = useAppStore.getState();
-    if (!store.activeProject || store.commandStack.length === 0) return;
+    if (!store.activeOntologyDraft || store.commandStack.length === 0) return;
     try {
       const commands = store.commandStack.map((e) => e.command);
-      const resp = await applyOntologyCommands(store.activeProject.id, {
-        revision: store.activeProject.revision,
+      const resp = await applyOntologyCommands(store.activeOntologyDraft.id, {
+        revision: store.activeOntologyDraft.revision,
         commands,
       });
       // Server canonical replaces local state + clears command stack
-      // atomically through `applyProjectSnapshot`.
-      applyProjectSnapshot(resp.project);
+      // atomically through `applyOntologyDraftSnapshot`.
+      applyOntologyDraftSnapshot(resp.project);
       toast.success(toastCopy.saved);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : toastCopy.saveFailed);
     }
-  }, [applyProjectSnapshot, toastCopy]);
+  }, [applyOntologyDraftSnapshot, toastCopy]);
 
   const deleteSelected = useCallback(() => {
     const store = useAppStore.getState();

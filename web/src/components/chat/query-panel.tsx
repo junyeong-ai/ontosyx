@@ -8,6 +8,7 @@ import { CodeEditor } from "@/components/ui/code-editor";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Heading } from "@/components/ui/heading";
 import { WidgetToolbar } from "@/components/dashboard/widgets/widget-toolbar";
 import { ResponseBasis } from "@/components/dashboard/widgets/response-basis";
 import { rawQuery } from "@/lib/api";
@@ -44,7 +45,9 @@ export function QueryPanel() {
           <div className="flex items-center justify-between pb-3">
             <div className="flex items-center gap-2">
               <Terminal className="h-4 w-4 text-foreground-muted" />
-              <h2 className="text-sm font-semibold">{t("title")}</h2>
+              <Heading level={2} size={6}>
+                {t("title")}
+              </Heading>
             </div>
             <Button
               size="sm"

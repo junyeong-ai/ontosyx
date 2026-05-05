@@ -8,14 +8,14 @@ import {
 } from "@/components/workbench/source-import-panel";
 
 import { useBootstrap } from "../bootstrap-state";
-import { bootstrapSourceToProjectSource } from "../source-mapping";
+import { bootstrapSourceToDataSourceSpec } from "../source-mapping";
 import { StepShell } from "../step-shell";
 
 export default function SelectTablesStep() {
   const t = useTranslations("bootstrap.step2b");
   const { state, update } = useBootstrap();
 
-  const source = bootstrapSourceToProjectSource(
+  const source = bootstrapSourceToDataSourceSpec(
     state.sourceKind,
     state.sourceConnection,
   );

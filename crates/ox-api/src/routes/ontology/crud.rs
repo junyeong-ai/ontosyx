@@ -13,9 +13,9 @@ use crate::error::AppError;
 use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::routes::ontology_drafts::helpers::{
-    assess_quality_from_project, get_design_options, load_mutable_project, reload_project,
+    assess_quality_from_ontology_draft, get_design_options, load_mutable_ontology_draft, reload_ontology_draft,
 };
-use crate::routes::ontology_drafts::types::ProjectView;
+use crate::routes::ontology_drafts::types::OntologyDraftView;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -204,7 +204,7 @@ pub(crate) async fn list_canonical_versions(
 // ---------------------------------------------------------------------------
 // PATCH /api/ontology-drafts/{id}/ontology — apply batch of OntologyCommand
 //
-// Project-mediated edit path: command batch lands on the project's
+// Draft-mediated edit path: command batch lands on the project's
 // in-flight `ontology` JSONB, not the canonical. Governance gate
 // fires at the canonical-commit boundary (`complete_ontology_draft`),
 // where the parent_version_id check refuses stale commits.
@@ -220,7 +220,7 @@ pub struct ApplyOntologyCommandsRequest {
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ApplyOntologyCommandsResponse {
-    pub project: ProjectView,
+    pub project: OntologyDraftView,
 }
 
 #[utoipa::path(
@@ -233,11 +233,11 @@ pub struct ApplyOntologyCommandsResponse {
     responses(
         (status = 200, description = "Commands applied", body = ApplyOntologyCommandsResponse),
         (status = 400, description = "Empty commands or invalid ontology", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Command execution or validation failed", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn apply_ontology_commands(
     State(state): State<AppState>,
@@ -250,7 +250,7 @@ pub(crate) async fn apply_ontology_commands(
         return Err(AppError::required_field_empty("commands"));
     }
 
-    let project = load_mutable_project(&state, id).await?;
+    let project = load_mutable_ontology_draft(&state, id).await?;
 
     // Snapshot current state before mutation (best-effort)
     if let Some(ont) = &project.ontology
@@ -298,7 +298,7 @@ pub(crate) async fn apply_ontology_commands(
     }
 
     let opts = get_design_options(&project);
-    let quality_report = assess_quality_from_project(
+    let quality_report = assess_quality_from_ontology_draft(
         &project,
         &ontology,
         &opts.excluded_tables,
@@ -319,7 +319,7 @@ pub(crate) async fn apply_ontology_commands(
         .await
         .map_err(AppError::from)?;
 
-    let updated = reload_project(&state, id).await?;
+    let updated = reload_ontology_draft(&state, id).await?;
 
     // Broadcast the commit to every collaborator subscribed to the
     // project room so their `commandStack` baselines advance and any
@@ -343,7 +343,7 @@ pub(crate) async fn apply_ontology_commands(
     Ok((
         StatusCode::OK,
         ApiResponse::of(ApplyOntologyCommandsResponse {
-            project: ProjectView::from_project(updated),
+            project: OntologyDraftView::from_ontology_draft(updated),
         }),
     ))
 }

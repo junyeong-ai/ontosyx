@@ -6,11 +6,12 @@ import { Plus, RefreshCw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { SourceImportPanel } from "@/components/workbench/source-import-panel";
 import type { FieldErrors } from "@/hooks/use-form-with-schema";
 import { cn } from "@/lib/cn";
-import type { DesignSource, ProjectSource } from "@/types/api";
+import type { DesignSource, DataSourceSpec } from "@/types/api";
 
 // ---------------------------------------------------------------------------
 // Inline error helpers
@@ -237,7 +238,7 @@ interface ExtendFormSnapshot {
 }
 
 /**
- * Translate the extend form's flat fields into the `ProjectSource`
+ * Translate the extend form's flat fields into the `DataSourceSpec`
  * wire shape, or `null` when the inputs aren't yet sufficient to
  * call the source-preview endpoint. Single source of truth for both
  * the panel preview (workflow-forms) and the submit path
@@ -245,7 +246,7 @@ interface ExtendFormSnapshot {
  */
 export function extendSourceFromForm(
   s: ExtendFormSnapshot,
-): ProjectSource | null {
+): DataSourceSpec | null {
   const conn = s.connectionString.trim();
   switch (s.sourceType) {
     case "postgresql":
@@ -354,9 +355,9 @@ export function ExtendSourceForm({
 
   return (
     <div className="space-y-2 rounded-lg border border-info-border bg-info-surface/50 p-3">
-      <h4 className="text-xs font-semibold text-info-foreground">
+      <Eyebrow level={4} size="dense" tone="info" caps="none">
         {t("newSource")}
-      </h4>
+      </Eyebrow>
 
       {/* Source type selector */}
       <div className="flex gap-1">

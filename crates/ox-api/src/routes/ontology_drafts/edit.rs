@@ -14,9 +14,9 @@ use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::helpers::{
-    assess_quality_from_project, get_design_options, load_mutable_project, reload_project,
+    assess_quality_from_ontology_draft, get_design_options, load_mutable_ontology_draft, reload_ontology_draft,
 };
-use super::types::{EditProjectRequest, EditProjectResponse, ProjectView};
+use super::types::{EditOntologyDraftRequest, EditOntologyDraftResponse, OntologyDraftView};
 
 // ---------------------------------------------------------------------------
 // POST /api/ontology-drafts/:id/edit
@@ -25,33 +25,33 @@ use super::types::{EditProjectRequest, EditProjectResponse, ProjectView};
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/edit",
-    params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = EditProjectRequest,
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
+    request_body = EditOntologyDraftRequest,
     responses(
-        (status = 200, description = "Edit commands generated and optionally applied", body = EditProjectResponse),
+        (status = 200, description = "Edit commands generated and optionally applied", body = EditOntologyDraftResponse),
         (status = 400, description = "Empty request or no ontology", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Command validation failed", body = inline(crate::openapi::ErrorResponse)),
         (status = 504, description = "LLM timeout", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn edit_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<EditProjectRequest>,
-) -> Result<Json<ApiResponse<EditProjectResponse>>, AppError> {
+    Json(req): Json<EditOntologyDraftRequest>,
+) -> Result<Json<ApiResponse<EditOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
     // Validate input
     if req.user_request.trim().is_empty() {
         return Err(AppError::required_field_empty("user_request"));
     }
 
-    let project = load_mutable_project(&state, id).await?;
+    let project = load_mutable_ontology_draft(&state, id).await?;
 
-    // Project must have an ontology (status "designed", or "analyzed" with ontology)
+    // Ontology draft must have an ontology (status "designed", or "analyzed" with ontology)
     let ontology: OntologyIR = match project.ontology.as_ref() {
         None => return Err(AppError::no_ontology()),
         Some(v) => serde_json::from_value(v.clone())
@@ -118,8 +118,8 @@ pub(crate) async fn edit_ontology_draft(
     }
 
     if edit_output.commands.is_empty() {
-        return Ok(ApiResponse::of(EditProjectResponse {
-            project: Some(ProjectView::from_project(project)),
+        return Ok(ApiResponse::of(EditOntologyDraftResponse {
+            project: Some(OntologyDraftView::from_ontology_draft(project)),
             commands: vec![],
             explanation: edit_output.explanation,
         }));
@@ -140,7 +140,7 @@ pub(crate) async fn edit_ontology_draft(
     }
 
     if req.dry_run {
-        return Ok(ApiResponse::of(EditProjectResponse {
+        return Ok(ApiResponse::of(EditOntologyDraftResponse {
             project: None,
             commands: edit_output.commands,
             explanation: edit_output.explanation,
@@ -164,7 +164,7 @@ pub(crate) async fn edit_ontology_draft(
 
     // Apply: save updated ontology with quality re-assessment
     let opts = get_design_options(&project);
-    let quality_report = assess_quality_from_project(
+    let quality_report = assess_quality_from_ontology_draft(
         &project,
         &validated_ontology,
         &opts.excluded_tables,
@@ -185,7 +185,7 @@ pub(crate) async fn edit_ontology_draft(
         .await
         .map_err(AppError::from)?;
 
-    let updated = reload_project(&state, id).await?;
+    let updated = reload_ontology_draft(&state, id).await?;
 
     info!(
         ontology_draft_id = %id,
@@ -193,8 +193,8 @@ pub(crate) async fn edit_ontology_draft(
         "Edit completed"
     );
 
-    Ok(ApiResponse::of(EditProjectResponse {
-        project: Some(ProjectView::from_project(updated)),
+    Ok(ApiResponse::of(EditOntologyDraftResponse {
+        project: Some(OntologyDraftView::from_ontology_draft(updated)),
         commands: edit_output.commands,
         explanation: edit_output.explanation,
     }))

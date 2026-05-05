@@ -27,8 +27,8 @@ export function DiffOverlayBar() {
   const setReport = useAppStore((s) => s.setLastReconcileReport);
   const pending = useAppStore((s) => s.pendingReconcile);
   const setPending = useAppStore((s) => s.setPendingReconcile);
-  const activeProject = useAppStore((s) => s.activeProject);
-  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
+  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
+  const applyOntologyDraftSnapshot = useAppStore((s) => s.applyOntologyDraftSnapshot);
 
   const [decisions, setDecisions] = useState<Record<string, boolean>>({});
   const [applying, setApplying] = useState(false);
@@ -65,7 +65,7 @@ export function DiffOverlayBar() {
   };
 
   const handleApplyDecisions = async () => {
-    if (!pending || !activeProject) return;
+    if (!pending || !activeOntologyDraft) return;
     setApplying(true);
     try {
       const matchDecisions: MatchDecision[] =
@@ -73,13 +73,13 @@ export function DiffOverlayBar() {
           original_id: m.original_id,
           accept: decisions[m.original_id] ?? true,
         }));
-      const resp = await applyReconcile(activeProject.id, {
-        revision: activeProject.revision,
+      const resp = await applyReconcile(activeOntologyDraft.id, {
+        revision: activeOntologyDraft.revision,
         reconciled_ontology: pending.reconciled_ontology,
         decisions: matchDecisions,
         uncertain_matches: pending.report.uncertain_matches,
       });
-      applyProjectSnapshot(resp.project);
+      applyOntologyDraftSnapshot(resp.project);
       setReport(resp.reconcile_report);
       setPending(null);
       toast.success(t("applySuccess"));

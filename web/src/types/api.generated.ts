@@ -2678,7 +2678,7 @@ export interface components {
             revision: number;
         };
         ApplyOntologyCommandsResponse: {
-            project: components["schemas"]["ProjectView"];
+            project: components["schemas"]["OntologyDraftView"];
         };
         /**
          * @description One entry in the comment thread attached to an approval. The
@@ -3034,10 +3034,10 @@ export interface components {
             ontology: Record<string, never>;
             /** Format: uuid */
             ontology_draft_id?: string | null;
+            /** Format: int32 */
+            ontology_draft_revision?: number | null;
             /** Format: uuid */
             ontology_id?: string | null;
-            /** Format: int32 */
-            project_revision?: number | null;
             session_id?: string | null;
         };
         /**
@@ -3314,7 +3314,7 @@ export interface components {
             /** @description The lowered QueryIR, ready to execute via `/api/query/from-ir`. */
             query_ir: Record<string, never>;
         };
-        CompleteProjectRequest: {
+        CompleteOntologyDraftRequest: {
             /**
              * @description Must be set to true if the quality report has low confidence or high-severity gaps.
              *     Prevents accidental promotion of low-quality ontologies.
@@ -3939,6 +3939,87 @@ export interface components {
             node_type_id: components["schemas"]["NodeTypeId"];
             property_id: components["schemas"]["PropertyId"];
         };
+        DataSourceSpec: {
+            data: string;
+            /** @enum {string} */
+            type: "text";
+        } | {
+            data: string;
+            /** @enum {string} */
+            type: "csv";
+        } | {
+            data: string;
+            /** @enum {string} */
+            type: "json";
+        } | {
+            connection_string: string;
+            schema?: string;
+            /** @enum {string} */
+            type: "postgresql";
+        } | {
+            connection_string: string;
+            /** @description MySQL "schema" is the database name */
+            schema: string;
+            /** @enum {string} */
+            type: "mysql";
+        } | {
+            connection_string: string;
+            /** @description MongoDB database name */
+            database: string;
+            /** @enum {string} */
+            type: "mongodb";
+        } | {
+            /** @description Snowflake account identifier (e.g., `xy12345.us-east-1`) */
+            account: string;
+            /** @description Target database */
+            database: string;
+            /** @description Login password */
+            password: string;
+            /** @description Target schema within the database */
+            schema?: string;
+            /** @enum {string} */
+            type: "snowflake";
+            /** @description Login username */
+            user: string;
+            /** @description Compute warehouse name */
+            warehouse?: string;
+        } | {
+            /**
+             * @description Project that runs and is billed for the BigQuery jobs.
+             *     Defaults to `project_id`. Required when the caller has
+             *     `bigquery.tables.list` on the data project but lacks
+             *     `bigquery.jobs.create` there (typical for shared data
+             *     projects), or when a VPC Service Controls perimeter forces
+             *     jobs to run from a specific project.
+             */
+            billing_project_id?: string | null;
+            /**
+             * @description Optional path to a credentials file. Accepts either a
+             *     service-account JSON key or an authorized-user secret
+             *     (the file `gcloud auth application-default login` writes).
+             *     Falls back to ADC chain (`GOOGLE_APPLICATION_CREDENTIALS`,
+             *     gcloud default file, workload-identity metadata server)
+             *     when omitted.
+             */
+            credentials_path?: string | null;
+            /** @description BigQuery dataset name. */
+            dataset: string;
+            /**
+             * @description Data project — the GCP project that owns the dataset. Used
+             *     to fully-qualify identifiers in `INFORMATION_SCHEMA` queries.
+             */
+            project_id: string;
+            /** @enum {string} */
+            type: "bigquery";
+        } | {
+            file_path: string;
+            /** @enum {string} */
+            type: "duckdb";
+        } | {
+            /** @enum {string} */
+            type: "code_repository";
+            url: string;
+        };
         DecideStaleProposalRequest: {
             /**
              * @description `"approved"` or `"dismissed"`. `"pending"` is rejected —
@@ -4168,7 +4249,7 @@ export interface components {
         };
         /** @description Type-safe identifier for edge types in an ontology. */
         EdgeTypeId: string;
-        EditProjectRequest: {
+        EditOntologyDraftRequest: {
             /** @description If true, returns generated commands without applying them. */
             dry_run?: boolean;
             /** Format: int32 */
@@ -4176,7 +4257,7 @@ export interface components {
             /** @description Natural language description of the desired ontology change. */
             user_request: string;
         };
-        EditProjectResponse: {
+        EditOntologyDraftResponse: {
             /** @description Generated ontology mutation commands. */
             commands: Record<string, never>[];
             /** @description LLM explanation of what was changed and why. */
@@ -4372,7 +4453,7 @@ export interface components {
              */
             selection: Record<string, never>;
             /** @description New data source to merge into the project. */
-            source: components["schemas"]["ProjectSource"];
+            source: components["schemas"]["DataSourceSpec"];
         };
         ExtendOntologyDraftResponse: {
             project: Record<string, never>;
@@ -5353,6 +5434,21 @@ export interface components {
             updated_at: string;
             user_id: string;
         };
+        OntologyDraftOrigin: {
+            /** @enum {string} */
+            origin_type: "source";
+            repo_source?: Record<string, never> | null;
+            /**
+             * @description Which tables of the source to introspect. The caller picks
+             *     `{"kind": "all"}` deliberately or names a `subset` /
+             *     `extend` list — there is no implicit full-warehouse sweep.
+             */
+            selection: Record<string, never>;
+            source: components["schemas"]["DataSourceSpec"];
+        } | {
+            /** @enum {string} */
+            origin_type: "base_ontology";
+        };
         /** @description Design project summary (lightweight, for list endpoints). */
         OntologyDraftSummary: {
             /** Format: date-time */
@@ -5371,6 +5467,27 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
             user_id: string;
+        };
+        /**
+         * @description Wire shape for any endpoint that returns a project. Carries the
+         *     underlying [`OntologyDraft`] flattened (so existing fields stay
+         *     at the top level) plus the server-evaluated [`Vec<DesignGate>`]
+         *     the FE renders alongside the disabled-design-button checklist.
+         *
+         *     Computing gates server-side keeps the FE from reimplementing the
+         *     gate-evaluation rules and guarantees the rendering matches what
+         *     the design endpoint will accept.
+         */
+        OntologyDraftView: components["schemas"]["OntologyDraft"] & {
+            /**
+             * @description Status of the persisted `analysis_report` blob against the
+             *     current wire shape. The FE renders a soft banner when
+             *     `Stale` so the operator knows gate enforcement was skipped
+             *     even though design proceeded — re-running analyse refreshes
+             *     the report and the gates start enforcing again.
+             */
+            analysis_report_status: components["schemas"]["AnalysisReportStatus"];
+            design_gates: components["schemas"]["DesignGate"][];
         };
         OntologyIR: {
             actions?: components["schemas"]["ActionDef"][];
@@ -5796,123 +5913,6 @@ export interface components {
              */
             last_modified?: string | null;
             name: string;
-        };
-        ProjectOrigin: {
-            /** @enum {string} */
-            origin_type: "source";
-            repo_source?: Record<string, never> | null;
-            /**
-             * @description Which tables of the source to introspect. The caller picks
-             *     `{"kind": "all"}` deliberately or names a `subset` /
-             *     `extend` list — there is no implicit full-warehouse sweep.
-             */
-            selection: Record<string, never>;
-            source: components["schemas"]["ProjectSource"];
-        } | {
-            /** @enum {string} */
-            origin_type: "base_ontology";
-        };
-        ProjectSource: {
-            data: string;
-            /** @enum {string} */
-            type: "text";
-        } | {
-            data: string;
-            /** @enum {string} */
-            type: "csv";
-        } | {
-            data: string;
-            /** @enum {string} */
-            type: "json";
-        } | {
-            connection_string: string;
-            schema?: string;
-            /** @enum {string} */
-            type: "postgresql";
-        } | {
-            connection_string: string;
-            /** @description MySQL "schema" is the database name */
-            schema: string;
-            /** @enum {string} */
-            type: "mysql";
-        } | {
-            connection_string: string;
-            /** @description MongoDB database name */
-            database: string;
-            /** @enum {string} */
-            type: "mongodb";
-        } | {
-            /** @description Snowflake account identifier (e.g., `xy12345.us-east-1`) */
-            account: string;
-            /** @description Target database */
-            database: string;
-            /** @description Login password */
-            password: string;
-            /** @description Target schema within the database */
-            schema?: string;
-            /** @enum {string} */
-            type: "snowflake";
-            /** @description Login username */
-            user: string;
-            /** @description Compute warehouse name */
-            warehouse?: string;
-        } | {
-            /**
-             * @description Project that runs and is billed for the BigQuery jobs.
-             *     Defaults to `project_id`. Required when the caller has
-             *     `bigquery.tables.list` on the data project but lacks
-             *     `bigquery.jobs.create` there (typical for shared data
-             *     projects), or when a VPC Service Controls perimeter forces
-             *     jobs to run from a specific project.
-             */
-            billing_project_id?: string | null;
-            /**
-             * @description Optional path to a credentials file. Accepts either a
-             *     service-account JSON key or an authorized-user secret
-             *     (the file `gcloud auth application-default login` writes).
-             *     Falls back to ADC chain (`GOOGLE_APPLICATION_CREDENTIALS`,
-             *     gcloud default file, workload-identity metadata server)
-             *     when omitted.
-             */
-            credentials_path?: string | null;
-            /** @description BigQuery dataset name. */
-            dataset: string;
-            /**
-             * @description Data project — the GCP project that owns the dataset. Used
-             *     to fully-qualify identifiers in `INFORMATION_SCHEMA` queries.
-             */
-            project_id: string;
-            /** @enum {string} */
-            type: "bigquery";
-        } | {
-            file_path: string;
-            /** @enum {string} */
-            type: "duckdb";
-        } | {
-            /** @enum {string} */
-            type: "code_repository";
-            url: string;
-        };
-        /**
-         * @description Wire shape for any endpoint that returns a project. Carries the
-         *     underlying [`OntologyDraft`] flattened (so existing fields stay
-         *     at the top level) plus the server-evaluated [`Vec<DesignGate>`]
-         *     the FE renders alongside the disabled-design-button checklist.
-         *
-         *     Computing gates server-side keeps the FE from reimplementing the
-         *     gate-evaluation rules and guarantees the rendering matches what
-         *     the design endpoint will accept.
-         */
-        ProjectView: components["schemas"]["OntologyDraft"] & {
-            /**
-             * @description Status of the persisted `analysis_report` blob against the
-             *     current wire shape. The FE renders a soft banner when
-             *     `Stale` so the operator knows gate enforcement was skipped
-             *     even though design proceeded — re-running analyse refreshes
-             *     the report and the gates start enforcing again.
-             */
-            analysis_report_status: components["schemas"]["AnalysisReportStatus"];
-            design_gates: components["schemas"]["DesignGate"][];
         };
         PromptInfo: {
             name: string;
@@ -6390,7 +6390,7 @@ export interface components {
             repo_source?: Record<string, never> | null;
             /** Format: int32 */
             revision: number;
-            source: components["schemas"]["ProjectSource"];
+            source: components["schemas"]["DataSourceSpec"];
         };
         ReanalyzeOntologyDraftRequest: {
             /** @description Optional repository source for enrichment. */
@@ -6404,7 +6404,7 @@ export interface components {
              */
             selection: Record<string, never>;
             /** @description Data source to re-analyze (must match original source type). */
-            source: components["schemas"]["ProjectSource"];
+            source: components["schemas"]["DataSourceSpec"];
         };
         ReanalyzeOntologyDraftResponse: {
             /** @description Design decisions that were invalidated by the schema change. */
@@ -6880,7 +6880,7 @@ export interface components {
          */
         ScopeKind: "code_count";
         ScopeUpdateResponse: {
-            project: components["schemas"]["ProjectView"];
+            project: components["schemas"]["OntologyDraftView"];
         };
         SearchGraphRequest: {
             /** @description Optional label filter — only match nodes with these labels. */
@@ -10090,7 +10090,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -10958,7 +10958,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Project created */
+            /** @description Ontology draft created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -11042,14 +11042,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Project details */
+            /** @description Ontology draft details */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11058,7 +11058,7 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11076,21 +11076,21 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Project deleted */
+            /** @description Ontology draft deleted */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11108,7 +11108,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11139,7 +11139,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11168,18 +11168,18 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CompleteProjectRequest"];
+                "application/json": components["schemas"]["CompleteOntologyDraftRequest"];
             };
         };
         responses: {
-            /** @description Project completed, ontology saved */
+            /** @description Ontology draft completed, ontology saved */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11188,7 +11188,7 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
-            /** @description Project has no ontology */
+            /** @description Ontology draft has no ontology */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11199,7 +11199,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11228,7 +11228,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11248,7 +11248,7 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11277,7 +11277,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11308,7 +11308,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11337,7 +11337,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11368,7 +11368,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11386,14 +11386,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["EditProjectRequest"];
+                "application/json": components["schemas"]["EditOntologyDraftRequest"];
             };
         };
         responses: {
@@ -11403,7 +11403,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EditProjectResponse"];
+                    "application/json": components["schemas"]["EditOntologyDraftResponse"];
                 };
             };
             /** @description Empty request or no ontology */
@@ -11417,7 +11417,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11457,7 +11457,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11488,7 +11488,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11548,7 +11548,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11577,7 +11577,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11608,7 +11608,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11626,7 +11626,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11657,7 +11657,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11675,7 +11675,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11706,7 +11706,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11746,7 +11746,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11777,7 +11777,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11795,7 +11795,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11811,7 +11811,7 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11829,7 +11829,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
                 /** @description Revision number */
                 rev: number;
@@ -11865,7 +11865,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
                 /** @description Revision number to restore */
                 rev: number;
@@ -11883,7 +11883,7 @@ export interface operations {
                     "application/json": components["schemas"]["RestoreOntologyDraftRevisionResponse"];
                 };
             };
-            /** @description Project or revision not found */
+            /** @description Ontology draft or revision not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11901,7 +11901,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11932,7 +11932,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11961,7 +11961,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Project ID */
+                /** @description Ontology draft ID */
                 id: string;
             };
             cookie?: never;
@@ -11992,7 +11992,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Project not found */
+            /** @description Ontology draft not found */
             404: {
                 headers: {
                     [name: string]: unknown;

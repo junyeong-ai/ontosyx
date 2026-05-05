@@ -11,6 +11,7 @@ import type {
   SourceRelationKind,
 } from "@/lib/api/edit-ops";
 import type { PropertyDef } from "@/types/ontology";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { FormInput, FormSelect } from "@/components/ui/form-input";
 
 export interface InlineObjectMappingEditorProps {
@@ -213,9 +214,9 @@ function PropertyMappingTable({
 
   return (
     <div>
-      <h3 className="mb-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+      <Eyebrow level={3} className="mb-1">
         {t("propertiesHeader")}
-      </h3>
+      </Eyebrow>
       <ul className="divide-y divide-divider-soft rounded border border-divider-soft">
         {properties.map((property) => (
           <PropertyMappingRow

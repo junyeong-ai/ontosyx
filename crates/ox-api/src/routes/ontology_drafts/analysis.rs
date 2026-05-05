@@ -15,10 +15,10 @@ use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::helpers::{
-    analyze_code_repository, analyze_source, get_design_options, load_mutable_project,
-    prune_decisions, reload_project, run_repo_enrichment, skipped_repo_summary,
+    analyze_code_repository, analyze_source, get_design_options, load_mutable_ontology_draft,
+    prune_decisions, reload_ontology_draft, run_repo_enrichment, skipped_repo_summary,
 };
-use super::types::{ProjectSource, ProjectView, ReanalyzeOntologyDraftRequest, ReanalyzeOntologyDraftResponse};
+use super::types::{DataSourceSpec, OntologyDraftView, ReanalyzeOntologyDraftRequest, ReanalyzeOntologyDraftResponse};
 
 // ---------------------------------------------------------------------------
 // POST /api/ontology-drafts/:id/reanalyze
@@ -27,15 +27,15 @@ use super::types::{ProjectSource, ProjectView, ReanalyzeOntologyDraftRequest, Re
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/reanalyze",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     request_body = ReanalyzeOntologyDraftRequest,
     responses(
         (status = 200, description = "Source re-analyzed", body = ReanalyzeOntologyDraftResponse),
         (status = 400, description = "Source type mismatch", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn reanalyze_ontology_draft(
     State(state): State<AppState>,
@@ -63,7 +63,7 @@ pub(crate) async fn reanalyze_ontology_draft(
 /// is empty.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ReanalyzeModeledOntologyDraftRequest {
-    pub source: ProjectSource,
+    pub source: DataSourceSpec,
     pub revision: i32,
     /// Optional repository source for enrichment.
     #[serde(default)]
@@ -74,15 +74,15 @@ pub struct ReanalyzeModeledOntologyDraftRequest {
 #[utoipa::path(
     post,
     path = "/api/ontology-drafts/{id}/reanalyze-modeled",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     request_body = ReanalyzeModeledOntologyDraftRequest,
     responses(
         (status = 200, description = "Modeled tables re-analyzed", body = ReanalyzeOntologyDraftResponse),
         (status = 400, description = "No modeled tables / source type mismatch", body = inline(crate::openapi::ErrorResponse)),
-        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Projects",
+    tag = "Ontology Drafts",
 )]
 pub(crate) async fn reanalyze_modeled_ontology_draft(
     State(state): State<AppState>,
@@ -92,7 +92,7 @@ pub(crate) async fn reanalyze_modeled_ontology_draft(
 ) -> Result<Json<ApiResponse<ReanalyzeOntologyDraftResponse>>, AppError> {
     principal.require_designer()?;
 
-    let project = load_mutable_project(&state, id).await?;
+    let project = load_mutable_ontology_draft(&state, id).await?;
     let scope: ox_source::AnalysisScope =
         serde_json::from_value(project.analysis_scope.clone()).unwrap_or_default();
     if scope.included.is_empty() {
@@ -116,7 +116,7 @@ pub(crate) async fn reanalyze_modeled_ontology_draft(
 }
 
 struct ReanalyzeInputs {
-    source: ProjectSource,
+    source: DataSourceSpec,
     repo_source: Option<ox_ontology::repo_insights::RepoSource>,
     selection: AnalyzeSelection,
     expected_revision: i32,
@@ -127,23 +127,23 @@ async fn run_reanalyze(
     id: Uuid,
     inputs: ReanalyzeInputs,
 ) -> Result<Json<ApiResponse<ReanalyzeOntologyDraftResponse>>, AppError> {
-    let project = load_mutable_project(state, id).await?;
+    let project = load_mutable_ontology_draft(state, id).await?;
 
     let stored_config: SourceConfig = serde_json::from_value(project.source_config.clone())
         .map_err(|e| AppError::internal(format!("deserialize source_config: {e}")))?;
 
     // Validate source type matches
     let new_source_type = match &inputs.source {
-        ProjectSource::Text { .. } => SourceTypeKind::Text,
-        ProjectSource::Csv { .. } => SourceTypeKind::Csv,
-        ProjectSource::Json { .. } => SourceTypeKind::Json,
-        ProjectSource::Postgresql { .. } => SourceTypeKind::Postgresql,
-        ProjectSource::Mysql { .. } => SourceTypeKind::Mysql,
-        ProjectSource::Mongodb { .. } => SourceTypeKind::Mongodb,
-        ProjectSource::Snowflake { .. } => SourceTypeKind::Snowflake,
-        ProjectSource::Bigquery { .. } => SourceTypeKind::Bigquery,
-        ProjectSource::Duckdb { .. } => SourceTypeKind::DuckDb,
-        ProjectSource::CodeRepository { .. } => SourceTypeKind::CodeRepository,
+        DataSourceSpec::Text { .. } => SourceTypeKind::Text,
+        DataSourceSpec::Csv { .. } => SourceTypeKind::Csv,
+        DataSourceSpec::Json { .. } => SourceTypeKind::Json,
+        DataSourceSpec::Postgresql { .. } => SourceTypeKind::Postgresql,
+        DataSourceSpec::Mysql { .. } => SourceTypeKind::Mysql,
+        DataSourceSpec::Mongodb { .. } => SourceTypeKind::Mongodb,
+        DataSourceSpec::Snowflake { .. } => SourceTypeKind::Snowflake,
+        DataSourceSpec::Bigquery { .. } => SourceTypeKind::Bigquery,
+        DataSourceSpec::Duckdb { .. } => SourceTypeKind::DuckDb,
+        DataSourceSpec::CodeRepository { .. } => SourceTypeKind::CodeRepository,
     };
 
     if new_source_type != stored_config.source_type {
@@ -155,7 +155,7 @@ async fn run_reanalyze(
 
     // Re-analyze (CodeRepository has a separate path requiring LLM calls)
     let (source_config, source_data, source_schema, source_profile, mut report) =
-        if let ProjectSource::CodeRepository { url } = inputs.source {
+        if let DataSourceSpec::CodeRepository { url } = inputs.source {
             let (config, schema, profile, report) = analyze_code_repository(state, &url).await?;
             (config, None, Some(schema), Some(profile), Some(report))
         } else {
@@ -325,10 +325,10 @@ async fn run_reanalyze(
         .await
         .map_err(AppError::from)?;
 
-    let updated = reload_project(state, id).await?;
+    let updated = reload_ontology_draft(state, id).await?;
 
     Ok(ApiResponse::of(ReanalyzeOntologyDraftResponse {
-        project: ProjectView::from_project(updated),
+        project: OntologyDraftView::from_ontology_draft(updated),
         invalidated_decisions: invalidated,
     }))
 }

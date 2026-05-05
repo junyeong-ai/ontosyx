@@ -352,7 +352,7 @@ pub struct OntologyDraft {
     pub analysis_report: Option<serde_json::Value>,
     /// User decisions (DesignOptions)
     pub design_options: serde_json::Value,
-    /// Project-lifecycle [`ox_source::AnalysisScope`] — included
+    /// Draft-lifecycle [`ox_source::AnalysisScope`] — included
     /// tables, deferred tables (with reason + revisit), policy-
     /// excluded tables, per-table fingerprints, and the timestamp of
     /// the last introspection. Accumulates across every analyze /

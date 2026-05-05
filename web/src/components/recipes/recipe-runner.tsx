@@ -7,6 +7,7 @@ import type { AnalysisRecipe } from "@/types/api";
 import { chatStream } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import { Spinner } from "@/components/ui/spinner";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { Heading } from "@/components/ui/heading";
 import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -173,9 +174,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           {/* Parameters */}
           {paramEntries.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
-                {t("parameters")}
-              </h3>
+              <Eyebrow level={3}>{t("parameters")}</Eyebrow>
               {paramEntries.map(([name, def]) => (
                 <ParamField
                   key={name}
@@ -190,9 +189,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
 
           {/* Data Source */}
           <div className="space-y-2">
-            <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
-              {t("dataSource")}
-            </h3>
+            <Eyebrow level={3}>{t("dataSource")}</Eyebrow>
             <Checkbox
               checked={useLastResult}
               onChange={(e) => setUseLastResult(e.target.checked)}
@@ -212,9 +209,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           {/* Result */}
           {resultText && (
             <div>
-              <h3 className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
-                {t("result")}
-              </h3>
+              <Eyebrow level={3}>{t("result")}</Eyebrow>
               <pre className="mt-1 max-h-60 overflow-auto rounded-md bg-surface-raised p-3 text-xs text-foreground-muted">
                 {resultText}
               </pre>

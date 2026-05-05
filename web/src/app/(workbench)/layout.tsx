@@ -25,7 +25,7 @@ import {
   useVisibilityAwareness,
 } from "@/lib/collab";
 import { CollaborationErrorToaster } from "@/components/collab/collaboration-error-toaster";
-import { selectStateActiveProject } from "@/lib/store/selectors";
+import { selectStateActiveOntologyDraft } from "@/lib/store/selectors";
 
 // `NEXT_PUBLIC_WS_URL` lets ops point the workbench at a different
 // host than the HTTP API (e.g. a dedicated WS-fanout pod). The dev
@@ -83,8 +83,8 @@ export default function WorkbenchLayout({
   useVisibilityAwareness();
   // Auto-join the active project's collab room. Switching
   // projects re-joins; clearing the active project leaves.
-  const activeProjectForCollab = useAppStore(selectStateActiveProject);
-  useCollabRoom(activeProjectForCollab?.id);
+  const activeOntologyDraftForCollab = useAppStore(selectStateActiveOntologyDraft);
+  useCollabRoom(activeOntologyDraftForCollab?.id);
   useNavigationShortcuts();
 
   // Initialize workspace after Zustand hydration — same bootstrap the

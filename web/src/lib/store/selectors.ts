@@ -59,10 +59,10 @@ export const selectStateExecutionMode = (s: AppStore) => s.executionMode;
 export const selectStateModelOverride = (s: AppStore) => s.modelOverride;
 
 // ---------------------------------------------------------------------------
-// ProjectSlice
+// OntologyDraftSlice
 // ---------------------------------------------------------------------------
 
-export const selectStateActiveProject = (s: AppStore) => s.activeProject;
+export const selectStateActiveOntologyDraft = (s: AppStore) => s.activeOntologyDraft;
 export const selectStateLastReconcileReport = (s: AppStore) =>
   s.lastReconcileReport;
 export const selectStatePendingReconcile = (s: AppStore) => s.pendingReconcile;

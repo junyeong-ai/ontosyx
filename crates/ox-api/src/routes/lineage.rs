@@ -77,7 +77,7 @@ pub(crate) async fn list_lineage_for_label(
 #[utoipa::path(
     get,
     path = "/api/lineage/project/{id}",
-    params(("id" = Uuid, Path, description = "Project ID")),
+    params(("id" = Uuid, Path, description = "Ontology draft ID")),
     responses((status = 200, description = "Lineage entries for the project", body = Vec<Object>)),
     security(("api_key" = [])),
     tag = "Lineage",
@@ -90,7 +90,7 @@ pub(crate) async fn get_lineage_for_project(
     principal.require_designer()?;
     let entries = state
         .store
-        .list_lineage_for_project(id)
+        .list_lineage_for_ontology_draft(id)
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(entries))

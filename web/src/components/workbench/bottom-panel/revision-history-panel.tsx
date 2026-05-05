@@ -16,7 +16,7 @@ import {
 } from "@/lib/api";
 import type {
   OntologyDraft,
-  ProjectMigrateResponse,
+  MigrateOntologyDraftSchemaResponse,
   OntologyDiff,
   RevisionSummary,
 } from "@/types/api";
@@ -33,11 +33,11 @@ export interface RevisionHistoryPanelProps {
   setLoading: (v: boolean) => void;
   /**
    * Atomic project + ontology cache update — see
-   * `OntologySlice.applyProjectSnapshot`. Restore / migrate / fork
+   * `OntologySlice.applyOntologyDraftSnapshot`. Restore / migrate / fork
    * actions land their result through this single entry point so
-   * `activeProject` and the ontology cache cannot drift.
+   * `activeOntologyDraft` and the ontology cache cannot drift.
    */
-  applyProjectSnapshot: (project: OntologyDraft | null) => void;
+  applyOntologyDraftSnapshot: (project: OntologyDraft | null) => void;
   onApiError: (err: unknown, label: string) => Promise<boolean>;
 }
 
@@ -49,7 +49,7 @@ export function RevisionHistoryPanel({
   project,
   loading,
   setLoading,
-  applyProjectSnapshot,
+  applyOntologyDraftSnapshot,
   onApiError,
 }: RevisionHistoryPanelProps) {
   const t = useTranslations("workbench.bottomPanel.revision");
@@ -63,7 +63,7 @@ export function RevisionHistoryPanel({
   const [revisionsLoading, setRevisionsLoading] = useState(false);
 
   // Migration
-  const [migrationResult, setMigrationResult] = useState<ProjectMigrateResponse | null>(null);
+  const [migrationResult, setMigrationResult] = useState<MigrateOntologyDraftSchemaResponse | null>(null);
   const [migrationTargetRev, setMigrationTargetRev] = useState<number | null>(null);
 
   // Diff comparison
@@ -133,7 +133,7 @@ export function RevisionHistoryPanel({
     setLoading(true);
     try {
       const resp = await restoreRevision(project.id, rev);
-      applyProjectSnapshot(resp.project);
+      applyOntologyDraftSnapshot(resp.project);
       loadRevisions();
       toast.success(t("toast.restored", { revision: rev }));
     } catch (err) {

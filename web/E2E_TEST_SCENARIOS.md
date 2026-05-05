@@ -428,7 +428,7 @@ cd web && npm run dev
 | 3 | 네트워크 타임아웃 | "Request timed out" 토스트 |
 | 4 | 0개 commands preview | "No structural changes needed" 메시지 |
 | 5 | Graph DB 미연결 시 Deploy | "Graph database not connected" 503 에러 |
-| 6 | Ontology 없는 프로젝트에서 Deploy | "Project has no ontology" 400 에러 |
+| 6 | Ontology 없는 프로젝트에서 Deploy | "Ontology draft has no ontology" 400 에러 |
 | 7 | Deploy-on-complete 실패 시 | "Project completed but schema deploy failed: {reason}" warning |
 | 8 | Migration breaking changes 시 | Execute 버튼 숨김, breaking changes 목록 표시 |
 | 9 | 빈 diff (동일 리비전 비교) | "No schema changes between revisions" info 토스트 |

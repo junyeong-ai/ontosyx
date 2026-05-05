@@ -17,7 +17,7 @@ import { GraphCanvas } from "./graph-canvas";
 import { EdgeKindMarkers } from "./edge-kind-markers";
 import { RemoteCursorLayer } from "@/components/collab/remote-cursor-layer";
 import { useAppStore } from "@/lib/store";
-import { selectStateActiveProject } from "@/lib/store/selectors";
+import { selectStateActiveOntologyDraft } from "@/lib/store/selectors";
 import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ interface CanvasFlowProps {
  * quality-layer minimap coloring.
  */
 export function CanvasFlow(props: CanvasFlowProps) {
-  const activeProject = useAppStore(selectStateActiveProject);
+  const activeOntologyDraft = useAppStore(selectStateActiveOntologyDraft);
   const { user } = useAuth();
   return (
     <>
@@ -77,9 +77,9 @@ export function CanvasFlow(props: CanvasFlowProps) {
         className="bg-surface-raised"
         minimap={{ nodeColor: ontologyMiniMapColor }}
       >
-        {activeProject?.id && (
+        {activeOntologyDraft?.id && (
           <RemoteCursorLayer
-            ontologyDraftId={activeProject.id}
+            ontologyDraftId={activeOntologyDraft.id}
             currentUserId={user?.sub}
           />
         )}

@@ -1058,15 +1058,6 @@ impl OntologyIR {
         // A glossary term whose `realisation` is `Some(_)` is a
         // workspace-canonical business concept. The realisation must
         // resolve to a real Segment / Function on this same IR.
-        // NodeType / EdgeType back-references
-        // (`node.concept_id`, `edge.concept_id`) must point
-        // at a declared term — drift here would strand the federation
-        // planner's reverse-index lookup.
-        let known_glossary_terms: std::collections::HashSet<&str> = self
-            .glossary
-            .iter()
-            .map(|t| t.id.as_str())
-            .collect();
         let known_segments: std::collections::HashSet<&str> = self
             .segments
             .iter()
