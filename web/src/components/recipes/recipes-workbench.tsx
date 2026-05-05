@@ -173,7 +173,7 @@ export function RecipesWorkbench() {
         </div>
       }
     >
-      <div className="px-4 py-4">
+      <div>
         {createOpen && (
           <RecipeCreateForm
             onSubmit={handleCreate}
