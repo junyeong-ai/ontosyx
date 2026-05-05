@@ -14,6 +14,7 @@ import {
   type CreateRecipeRequest,
 } from "@/lib/api/admin";
 import type { AnalysisRecipe, CursorPage, RecipeStatus } from "@/types/api";
+import { useOptimisticMutation } from "@/hooks/api/use-optimistic-mutation";
 
 // ---------------------------------------------------------------------------
 // Query keys
@@ -56,19 +57,51 @@ export function useCreateRecipe() {
   });
 }
 
-export function useDeleteRecipe() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => deleteRecipe(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: recipesKeys.lists() }),
+/**
+ * Delete a recipe with optimistic update — drops the row from the
+ * caller's list snapshot immediately, rolls back on server error.
+ * `params` must match the `useRecipes(params)` call backing the
+ * surface so the optimistic delta lands on the same cache key;
+ * the post-settle `recipesKeys.lists()` invalidation still
+ * refreshes any sibling list view (e.g. the insights panel's
+ * `limit: 50` snapshot).
+ */
+export function useDeleteRecipe(params?: { limit?: number }) {
+  return useOptimisticMutation<string, void>({
+    mutationFn: (id) => deleteRecipe(id),
+    queryKeys: [recipesKeys.list(params)],
+    optimisticUpdate: (prev, id) => {
+      if (!isRecipePage(prev)) return prev;
+      return { ...prev, items: prev.items.filter((r) => r.id !== id) };
+    },
   });
 }
 
-export function useUpdateRecipeStatus() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: RecipeStatus }) =>
-      updateRecipeStatus(id, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: recipesKeys.lists() }),
+/**
+ * Update a recipe's lifecycle status (`draft` / `approved` /
+ * `deprecated`) with optimistic feedback — the status pill flips
+ * immediately, rolls back on error.
+ */
+export function useUpdateRecipeStatus(params?: { limit?: number }) {
+  type Vars = { id: string; status: RecipeStatus };
+  return useOptimisticMutation<Vars, void>({
+    mutationFn: ({ id, status }) => updateRecipeStatus(id, status),
+    queryKeys: [recipesKeys.list(params)],
+    optimisticUpdate: (prev, { id, status }) => {
+      if (!isRecipePage(prev)) return prev;
+      return {
+        ...prev,
+        items: prev.items.map((r) => (r.id === id ? { ...r, status } : r)),
+      };
+    },
   });
+}
+
+function isRecipePage(value: unknown): value is CursorPage<AnalysisRecipe> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "items" in value &&
+    Array.isArray((value as { items: unknown }).items)
+  );
 }
