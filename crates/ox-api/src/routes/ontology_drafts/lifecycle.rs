@@ -217,7 +217,7 @@ pub(crate) async fn create_ontology_draft(
                             .record_audit(
                                 audit_user_id,
                                 "project.create",
-                                "project",
+                                "ontology_draft",
                                 Some(&audit_project_id),
                                 serde_json::json!({"source_type": "code_repository"}),
                             )
@@ -329,7 +329,7 @@ pub(crate) async fn create_ontology_draft(
                 .record_audit(
                     audit_user_id,
                     "project.create",
-                    "project",
+                    "ontology_draft",
                     Some(&audit_project_id),
                     serde_json::json!({"source_type": audit_source_type}),
                 )
@@ -442,7 +442,7 @@ pub(crate) async fn delete_ontology_draft(
                     .record_audit(
                         audit_user_id,
                         "project.delete",
-                        "project",
+                        "ontology_draft",
                         Some(&audit_project_id),
                         serde_json::json!({}),
                     )
@@ -573,10 +573,7 @@ pub(crate) async fn complete_ontology_draft(
                     return Err(AppError::ontology_draft_stale_parent(&parent_tag, &head_tag));
                 }
                 (Some(_), None) => {
-                    // Ontology draft carries a parent pointer but the
-                    // canonical was wiped between draft and commit —
-                    // refuse rather than implicitly recreate.
-                    return Err(AppError::ontology_draft_stale_parent("?", "0"));
+                    return Err(AppError::ontology_draft_stale_parent_canonical_wiped());
                 }
                 _ => {}
             }
@@ -765,7 +762,7 @@ pub(crate) async fn deploy_schema(
         .map_err(|e| AppError::internal(format!("Failed to check approvals: {e}")))?;
 
     let blocked_by_approval = pending.iter().any(|a| {
-        a.resource_type == "project"
+        a.resource_type == "ontology_draft"
             && a.resource_id == id.to_string()
             && a.action_type == "deploy_schema"
             && a.status == "pending"
@@ -810,7 +807,30 @@ pub(crate) async fn deploy_schema(
         "Schema deployed to graph database"
     );
 
-    // Fire-and-forget audit
+    let now = Utc::now();
+    let lineage_entry = ox_store::LineageEntry {
+        id: Uuid::new_v4(),
+        workspace_id: ws.workspace_id,
+        ontology_draft_id: Some(id),
+        graph_label: "schema_deploy".to_string(),
+        graph_element_type: "schema".to_string(),
+        source_type: "ontology_ir".to_string(),
+        source_name: project.title.clone().unwrap_or_default(),
+        source_table: None,
+        source_columns: None,
+        load_plan_hash: None,
+        property_mappings: None,
+        record_count: statements.len() as i64,
+        loaded_by: principal.user_uuid().ok(),
+        started_at: now,
+        completed_at: Some(now),
+        status: "succeeded".to_string(),
+        error_message: None,
+    };
+    if let Err(error) = state.store.create_lineage_entry(&lineage_entry).await {
+        tracing::warn!(?error, "lineage entry create failed for schema deploy");
+    }
+
     {
         let audit_store = Arc::clone(&state.store);
         let audit_user_id = principal.user_uuid().ok();
@@ -821,7 +841,7 @@ pub(crate) async fn deploy_schema(
                 .record_audit(
                     audit_user_id,
                     "schema.deploy",
-                    "project",
+                    "ontology_draft",
                     Some(&audit_project_id),
                     serde_json::json!({"statements_count": stmt_count}),
                 )

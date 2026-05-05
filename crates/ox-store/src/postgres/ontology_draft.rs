@@ -229,25 +229,22 @@ impl OntologyDraftStore for PostgresStore {
         &self,
         ontology_draft_id: Uuid,
         head_id: Uuid,
+        expected_revision: i32,
     ) -> OxResult<()> {
         super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE ontology_drafts
              SET parent_version_id = $1, updated_at = NOW(),
                  revision = revision + 1
-             WHERE id = $2",
+             WHERE id = $2 AND revision = $3",
         )
         .bind(head_id)
         .bind(ontology_draft_id)
+        .bind(expected_revision)
         .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;
-        if result.rows_affected() == 0 {
-            return Err(OxError::NotFound {
-                entity: format!("ontology_drafts id={ontology_draft_id}"),
-            });
-        }
-        Ok(())
+        check_cas_result(result.rows_affected())
     }
 
     #[tracing::instrument(level = "debug", skip_all)]

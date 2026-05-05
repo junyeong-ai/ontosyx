@@ -575,7 +575,7 @@ pub(crate) async fn rebase_draft(
 
     state
         .store
-        .update_draft_parent_version(project.id, head.id)
+        .update_draft_parent_version(project.id, head.id, project.revision)
         .await
         .map_err(AppError::from)?;
 

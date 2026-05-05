@@ -86,6 +86,15 @@ pub enum ApiErrorCode {
     /// short tag) and `params.current_version` (canonical's head,
     /// short tag) give the FE the rebase context.
     OntologyDraftStaleParent,
+    /// `complete_ontology_draft` refused because the workspace's
+    /// canonical was wiped between draft creation and commit. The
+    /// draft's `parent_version_id` points at a version that no
+    /// longer exists, so the lost-update guard cannot validate
+    /// against the new head. The operator must reset the draft
+    /// (delete + reseed from the new canonical's first version)
+    /// rather than rebase. No params — the catalog template
+    /// explains the recovery flow.
+    OntologyDraftStaleParentCanonicalWiped,
     /// Whole-IR validation failed during commit — the apply phase
     /// produced an IR that broke a referential-integrity invariant.
     /// `params.errors` (array of strings) carries the validation
@@ -405,6 +414,7 @@ impl ApiErrorCode {
             EditOperationsEmpty => "edit_operations_empty",
             OntologyVersionConflict => "ontology_version_conflict",
             OntologyDraftStaleParent => "ontology_draft_stale_parent",
+            OntologyDraftStaleParentCanonicalWiped => "ontology_draft_stale_parent_canonical_wiped",
             OntologyInvariantViolation => "ontology_invariant_violation",
             EditOperationRejected => "edit_operation_rejected",
             OntologyNotCommitted => "ontology_not_committed",
@@ -682,6 +692,19 @@ impl AppError {
         Self::new(StatusCode::CONFLICT, ApiErrorCode::OntologyDraftStaleParent)
             .with_param("parent_version", parent_version)
             .with_param("current_version", current_version)
+    }
+
+    /// `complete_ontology_draft` refused because the canonical was
+    /// wiped between draft creation and commit. The lost-update
+    /// guard cannot validate against a head that no longer exists,
+    /// so the operator must reset the draft from the new canonical
+    /// rather than rebase. No params — the catalog template explains
+    /// the recovery flow.
+    pub fn ontology_draft_stale_parent_canonical_wiped() -> Self {
+        Self::new(
+            StatusCode::CONFLICT,
+            ApiErrorCode::OntologyDraftStaleParentCanonicalWiped,
+        )
     }
 
     /// Whole-IR validation failed during commit — `errors` is the
@@ -1459,6 +1482,7 @@ mod redaction_tests {
             EditOperationsEmpty,
             OntologyVersionConflict,
             OntologyDraftStaleParent,
+            OntologyDraftStaleParentCanonicalWiped,
             OntologyInvariantViolation,
             EditOperationRejected,
             OntologyNotCommitted,

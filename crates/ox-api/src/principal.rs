@@ -172,7 +172,7 @@ impl Principal {
         if self.role.can_design() && self.id == project_user_id {
             return Ok(());
         }
-        Err(AppError::resource_not_owned("project"))
+        Err(AppError::resource_not_owned("ontology_draft"))
     }
 
     /// Verify the current principal owns a resource, or is admin.
