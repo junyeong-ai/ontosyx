@@ -169,9 +169,7 @@ export default function ApprovalsSettingsPage() {
             <div className="flex items-center gap-2 text-xs text-foreground-muted">
               <Checkbox
                 checked={allVisibleSelected}
-                ref={(el) => {
-                  if (el) el.indeterminate = someVisibleSelected;
-                }}
+                indeterminate={someVisibleSelected}
                 onChange={toggleSelectAll}
                 aria-label={t("selectAll")}
               />

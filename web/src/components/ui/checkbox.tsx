@@ -1,6 +1,11 @@
 "use client";
 
-import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
+import {
+  forwardRef,
+  useCallback,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from "react";
 import { cn } from "@/lib/cn";
 
 interface CheckboxProps
@@ -11,6 +16,13 @@ interface CheckboxProps
   hint?: ReactNode;
   /** Aligns the input with the first line when label wraps to multiple rows. */
   align?: "center" | "start";
+  /**
+   * Tri-state visual: true overlays the indeterminate dash on the
+   * input. The DOM property is imperative-only on `HTMLInputElement`,
+   * so the primitive owns the ref-callback bridge — call sites just
+   * pass the boolean.
+   */
+  indeterminate?: boolean;
 }
 
 /**
@@ -19,10 +31,27 @@ interface CheckboxProps
  * when wrapping a control inside an existing label/fieldset.
  */
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
-  ({ className, label, hint, align = "center", ...props }, ref) => {
+  (
+    { className, label, hint, align = "center", indeterminate, ...props },
+    forwardedRef,
+  ) => {
+    const setRefs = useCallback(
+      (el: HTMLInputElement | null) => {
+        if (el) {
+          el.indeterminate = !!indeterminate;
+        }
+        if (typeof forwardedRef === "function") {
+          forwardedRef(el);
+        } else if (forwardedRef) {
+          forwardedRef.current = el;
+        }
+      },
+      [forwardedRef, indeterminate],
+    );
+
     const input = (
       <input
-        ref={ref}
+        ref={setRefs}
         type="checkbox"
         className={cn(
           "h-3.5 w-3.5 shrink-0 cursor-pointer rounded accent-brand-foreground",

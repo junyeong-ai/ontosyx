@@ -98,11 +98,7 @@ export function TableSelector({
       <div className="flex items-center gap-3 text-xs">
         <Checkbox
           checked={allFilteredSelected}
-          ref={(el) => {
-            if (el)
-              el.indeterminate =
-                !allFilteredSelected && someFilteredSelected;
-          }}
+          indeterminate={!allFilteredSelected && someFilteredSelected}
           onChange={toggleFilteredAll}
           disabled={disabled || filtered.length === 0}
           label={

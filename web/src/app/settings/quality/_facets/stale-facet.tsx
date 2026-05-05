@@ -235,9 +235,7 @@ export function StaleFacet() {
                 <th className="w-8 py-2 pe-2">
                   <Checkbox
                     checked={allVisibleSelected}
-                    ref={(el) => {
-                      if (el) el.indeterminate = someVisibleSelected;
-                    }}
+                    indeterminate={someVisibleSelected}
                     onChange={toggleSelectAll}
                     aria-label={t("selectAll")}
                   />

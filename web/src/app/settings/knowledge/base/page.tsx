@@ -267,11 +267,7 @@ export default function KnowledgePage() {
               <div className="flex items-center gap-2 pb-2 ps-4 text-xs text-foreground-muted">
                 <Checkbox
                   checked={allVisibleSelected}
-                  ref={(el) => {
-                    // tri-state visual: indeterminate when some
-                    // (but not all) visible rows are selected.
-                    if (el) el.indeterminate = someVisibleSelected;
-                  }}
+                  indeterminate={someVisibleSelected}
                   onChange={toggleSelectAll}
                   aria-label={t("selectAll")}
                 />
