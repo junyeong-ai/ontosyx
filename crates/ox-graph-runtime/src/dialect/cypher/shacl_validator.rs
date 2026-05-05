@@ -519,6 +519,45 @@ impl ShaclValidator {
                 let Some(raw) = value else {
                     return;
                 };
+                // List-typed expectation walks each element against
+                // the inner type. The classifier rejects bracket-
+                // led tokens for the scalar path, so without this
+                // arm a `SET tags = ['a', 1]` slipped through a
+                // `List { element: String }` declaration silently.
+                if let PropertyType::List { element } = expected {
+                    let Some(items) = parse_list_literal(raw) else {
+                        return;
+                    };
+                    for (idx, item) in items.iter().enumerate() {
+                        let Some(item_type) = classify_literal_type(item) else {
+                            // Param / function / ident inside the
+                            // list — driver takes it.
+                            continue;
+                        };
+                        if type_assignable(&item_type, element) {
+                            continue;
+                        }
+                        let rn = rule_label(rule);
+                        let expected_label = property_type_label(element);
+                        let observed_label = property_type_label(&item_type);
+                        issues.push(build_issue(
+                            rule,
+                            diag("runtime.cypher.shacl.list_element_datatype_mismatch")
+                                .with("property", key)
+                                .with("rule_id", rule.id.as_str())
+                                .with("rule_name", &rule.name)
+                                .with("expected_type", expected_label)
+                                .with("observed_type", observed_label)
+                                .with("element_value", item.clone())
+                                .with("element_index", idx as u64)
+                                .message(format!(
+                                    "list element [{idx}] of property `{key}` = {item} violates rule `{rn}` — expected {expected_label}, got {observed_label}"
+                                )),
+                            Some(node.span),
+                        ));
+                    }
+                    return;
+                }
                 let Some(literal_type) = classify_literal_type(raw) else {
                     // Parameter, function call, identifier reference,
                     // null, opaque list/map — cannot decide at AST
@@ -715,13 +754,49 @@ impl ShaclValidator {
                     Some(node.span),
                 ));
             }
-            // Constraint kinds the MVP recognises but doesn't enforce at
-            // the Cypher AST layer yet (see module docs for rationale).
-            // `MaxCount` is intentionally absent — counting an instance
-            // property's multiplicity needs the graph state, not the
-            // AST; the validator only sees one write at a time and
-            // would race with concurrent writers.
-            ShaclConstraint::MaxCount { .. } => {}
+            ShaclConstraint::MaxCount { target, max } => {
+                // The AST-decidable axis: when the SET / inline
+                // value is a list literal, we can count its
+                // elements directly. The single-value case
+                // (`SET p.tags = 'one'`, `SET p.score = 42`)
+                // implies count=1 and only fails MaxCount=0,
+                // which is itself an authoring error — leaving
+                // it to the runtime is fine. Cross-write
+                // multiplicity (`MATCH (p) WITH p UNION
+                // MATCH (q) WITH q SET p.tag = 'a'…`) cannot be
+                // decided here either; the dispatcher's final
+                // arm documents the deliberate gap, and a
+                // future runtime-side companion check belongs
+                // in the bolt driver.
+                if !target_matches_property(target, prop) {
+                    return;
+                }
+                let Some(raw) = value else {
+                    return;
+                };
+                let Some(items) = parse_list_literal(raw) else {
+                    return;
+                };
+                if items.len() <= *max as usize {
+                    return;
+                }
+                let rn = rule_label(rule);
+                issues.push(build_issue(
+                    rule,
+                    diag("runtime.cypher.shacl.max_count_violation")
+                        .with("property", key)
+                        .with("rule_id", rule.id.as_str())
+                        .with("rule_name", &rule.name)
+                        .with("max", *max)
+                        .with("observed", items.len() as u64)
+                        .with("value", raw)
+                        .message(format!(
+                            "property `{key}` = {raw} violates rule `{rn}` — list length must be ≤ {max} (got {})",
+                            items.len()
+                        )),
+                    Some(node.span),
+                ));
+            }
         }
     }
 
@@ -1141,6 +1216,77 @@ pub(crate) fn property_type_label(ty: &PropertyType) -> &'static str {
         PropertyType::List { .. } => "list",
         PropertyType::Map => "map",
     }
+}
+
+/// Parse a SET / inline literal as a Cypher list literal — `[]`,
+/// `[1, 2, 3]`, `['a, b', 'c']`, `[[1, 2], [3, 4]]` — and return
+/// each top-level element's raw text. Returns `None` for anything
+/// that isn't a bracketed list (single value, parameter, function
+/// call, etc.).
+///
+/// The split is brackets-aware: commas inside a quoted string,
+/// nested list, map literal, or function call do not separate
+/// elements. Escape sequences inside string literals (`\'`, `\\`)
+/// are preserved verbatim — this helper is for *splitting*, not
+/// *unescaping*; downstream callers feed each element back through
+/// the existing `parse_string_literal` / `classify_literal_type`
+/// helpers when they need the unwrapped value.
+///
+/// Iteration walks byte-by-byte, but every character that affects
+/// nesting (`[`, `]`, `(`, `)`, `{`, `}`, `'`, `"`, `,`, `\`) is
+/// ASCII, so the byte/char boundary alignment is safe even when
+/// the string contains multi-byte UTF-8 (e.g. `['한글']`).
+pub(crate) fn parse_list_literal(raw: &str) -> Option<Vec<String>> {
+    let t = raw.trim();
+    if !t.starts_with('[') || !t.ends_with(']') {
+        return None;
+    }
+    let inner = &t[1..t.len() - 1];
+    if inner.trim().is_empty() {
+        return Some(Vec::new());
+    }
+    let mut elements = Vec::new();
+    let bytes = inner.as_bytes();
+    let mut depth_paren: i32 = 0;
+    let mut depth_bracket: i32 = 0;
+    let mut depth_brace: i32 = 0;
+    let mut in_squote = false;
+    let mut in_dquote = false;
+    let mut start = 0usize;
+    let mut prev: u8 = 0;
+    for (i, &c) in bytes.iter().enumerate() {
+        let escaped = prev == b'\\';
+        match c {
+            b'\'' if !in_dquote && !escaped => in_squote = !in_squote,
+            b'"' if !in_squote && !escaped => in_dquote = !in_dquote,
+            b'(' if !in_squote && !in_dquote => depth_paren += 1,
+            b')' if !in_squote && !in_dquote => depth_paren -= 1,
+            b'[' if !in_squote && !in_dquote => depth_bracket += 1,
+            b']' if !in_squote && !in_dquote => depth_bracket -= 1,
+            b'{' if !in_squote && !in_dquote => depth_brace += 1,
+            b'}' if !in_squote && !in_dquote => depth_brace -= 1,
+            b',' if !in_squote
+                && !in_dquote
+                && depth_paren == 0
+                && depth_bracket == 0
+                && depth_brace == 0 =>
+            {
+                elements.push(inner[start..i].trim().to_string());
+                start = i + 1;
+            }
+            _ => {}
+        }
+        prev = c;
+    }
+    if depth_paren != 0 || depth_bracket != 0 || depth_brace != 0 || in_squote || in_dquote {
+        // Malformed — an unclosed bracket or string. Report
+        // nothing rather than an arbitrary partial split; the
+        // matching Datatype rule (or the parser's own error
+        // path) will catch the structural problem first.
+        return None;
+    }
+    elements.push(inner[start..].trim().to_string());
+    Some(elements)
 }
 
 /// Parse a SET / inline literal as a numeric value for the
@@ -3077,6 +3223,202 @@ mod tests {
                 && i.message.code == "runtime.cypher.shacl.has_value_violation"),
             "expected has_value violation on inline CREATE: {issues:?}"
         );
+    }
+
+    // ---- MaxCount enforcement ------------------------------------------
+
+    fn tags_prop() -> PropertyDef {
+        PropertyDef {
+            id: PropertyId::new("prop-tags"),
+            name: PropertyKey::new("tags").unwrap(),
+            property_type: PropertyType::List {
+                element: Box::new(PropertyType::String),
+            },
+            ..Default::default()
+        }
+    }
+
+    fn max_count_rule(target_property_id: &str, max: u32) -> RuleDef {
+        RuleDef {
+            id: RuleId::new(format!("r-maxc-{target_property_id}")),
+            name: format!("{target_property_id}_maxcount").into(),
+            description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
+            kind: RuleKind::PropertyShape {
+                target_node_type_id: NodeTypeId::new("nt-user"),
+                target_property_id: PropertyId::new(target_property_id),
+            },
+            severity: Severity::Violation,
+            enforcement: EnforcementKind::Write,
+            activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
+            constraints: vec![ShaclConstraint::MaxCount {
+                target: ConstraintTarget::Inherit,
+                max,
+            }],
+            valid_from: None,
+            valid_to: None,
+            sh_message: None,
+        }
+    }
+
+    #[test]
+    fn max_count_blocks_oversized_list_literal() {
+        let prop = tags_prop();
+        let rule = max_count_rule("prop-tags", 3);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(
+            onto,
+            "MATCH (u:User) SET u.tags = ['a', 'b', 'c', 'd'] RETURN u",
+        );
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.max_count_violation"
+                && i.message.params.get("observed")
+                    == Some(&serde_json::Value::from(4u64))),
+            "expected max_count_violation with observed=4: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn max_count_passes_at_boundary() {
+        let prop = tags_prop();
+        let rule = max_count_rule("prop-tags", 3);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.tags = ['a', 'b', 'c'] RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "boundary count must pass: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn max_count_passes_empty_list() {
+        let prop = tags_prop();
+        let rule = max_count_rule("prop-tags", 3);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.tags = [] RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "empty list must pass: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn max_count_skips_non_list_literal() {
+        // Single-value SET — the AST cannot decide cross-write
+        // multiplicity, and the matching Datatype rule (if any)
+        // catches the type-axis mismatch instead.
+        let prop = tags_prop();
+        let rule = max_count_rule("prop-tags", 3);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.tags = $tags RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "$param must not raise max_count: {issues:?}"
+        );
+    }
+
+    // ---- Datatype List element-wise enforcement ------------------------
+
+    fn datatype_list_string_rule() -> RuleDef {
+        RuleDef {
+            id: RuleId::new("r-tags-datatype-list-string"),
+            name: "tags_list_of_string".into(),
+            description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
+            kind: RuleKind::PropertyShape {
+                target_node_type_id: NodeTypeId::new("nt-user"),
+                target_property_id: PropertyId::new("prop-tags"),
+            },
+            severity: Severity::Violation,
+            enforcement: EnforcementKind::Write,
+            activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
+            constraints: vec![ShaclConstraint::Datatype {
+                target: ConstraintTarget::Inherit,
+                expected: PropertyType::List {
+                    element: Box::new(PropertyType::String),
+                },
+            }],
+            valid_from: None,
+            valid_to: None,
+            sh_message: None,
+        }
+    }
+
+    #[test]
+    fn datatype_list_blocks_mismatched_element_type() {
+        let prop = tags_prop();
+        let rule = datatype_list_string_rule();
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(
+            onto,
+            "MATCH (u:User) SET u.tags = ['a', 1, 'c'] RETURN u",
+        );
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.list_element_datatype_mismatch"
+                && i.message.params.get("element_index")
+                    == Some(&serde_json::Value::from(1u64))
+                && i.message.params.get("expected_type")
+                    == Some(&serde_json::Value::from("string"))
+                && i.message.params.get("observed_type")
+                    == Some(&serde_json::Value::from("int"))),
+            "expected list_element_datatype_mismatch on Int element: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn datatype_list_passes_uniform_string_elements() {
+        let prop = tags_prop();
+        let rule = datatype_list_string_rule();
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.tags = ['a', 'b', 'c'] RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "uniform string list must pass: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn datatype_list_emits_one_issue_per_offending_element() {
+        let prop = tags_prop();
+        let rule = datatype_list_string_rule();
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(
+            onto,
+            "MATCH (u:User) SET u.tags = ['a', 1, 'b', 2] RETURN u",
+        );
+        let count = issues
+            .iter()
+            .filter(|i| {
+                i.level == IssueLevel::Error
+                    && i.message.code == "runtime.cypher.shacl.list_element_datatype_mismatch"
+            })
+            .count();
+        assert_eq!(count, 2, "expected one issue per non-string element: {issues:?}");
+    }
+
+    #[test]
+    fn parse_list_literal_handles_nested_and_quoted_commas() {
+        assert_eq!(parse_list_literal("[]"), Some(Vec::<String>::new()));
+        assert_eq!(
+            parse_list_literal("[1, 2, 3]"),
+            Some(vec!["1".to_string(), "2".to_string(), "3".to_string()])
+        );
+        assert_eq!(
+            parse_list_literal("['a, b', 'c']"),
+            Some(vec!["'a, b'".to_string(), "'c'".to_string()])
+        );
+        assert_eq!(
+            parse_list_literal("[[1, 2], [3, 4]]"),
+            Some(vec!["[1, 2]".to_string(), "[3, 4]".to_string()])
+        );
+        assert_eq!(parse_list_literal("[1]"), Some(vec!["1".to_string()]));
+        assert_eq!(parse_list_literal("'foo'"), None);
+        assert_eq!(parse_list_literal("[unclosed"), None);
+        assert_eq!(parse_list_literal("[1, 'unclosed]"), None);
     }
 
     #[test]
