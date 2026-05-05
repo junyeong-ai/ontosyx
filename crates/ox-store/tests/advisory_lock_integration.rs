@@ -140,10 +140,16 @@ async fn try_advisory_lock_skips_when_contended() {
     );
 }
 
-/// Cron-singleton pattern: many concurrent `try_advisory_lock`
-/// callers on the same key — exactly one runs the body, the rest
-/// silently skip. Models the "every replica ticks at the same
-/// minute" production case.
+/// Cron-singleton pattern: a holder takes the lock, then N
+/// parallel `try_advisory_lock` callers race against it — every
+/// contender returns `Ok(None)`, the holder body runs exactly
+/// once. Models the "every replica ticks at the same minute"
+/// production case.
+///
+/// Determinism: the holder uses `tokio::sync::Notify` to gate its
+/// release, so the contention probes land while the lock is
+/// provably held. A naive "spawn N and hope timing works out"
+/// pattern would be flaky on slow CI hosts.
 #[tokio::test]
 #[ignore]
 async fn try_advisory_lock_singleton_under_concurrent_callers() {
@@ -154,9 +160,34 @@ async fn try_advisory_lock_singleton_under_concurrent_callers() {
     let key = advisory_lock_key("test.advisory_lock.singleton");
     let runs = Arc::new(AtomicU32::new(0));
 
-    // Spawn N parallel callers. Without the lock every caller
-    // would increment the counter; with the lock exactly one wins
-    // the race per tick.
+    let acquired_signal = Arc::new(tokio::sync::Notify::new());
+    let release_signal = Arc::new(tokio::sync::Notify::new());
+
+    // Holder: acquire, signal "I have the lock", then wait for
+    // the test to release before returning. Body counter
+    // increments exactly once.
+    let holder = {
+        let pool = store.pool().clone();
+        let counter = Arc::clone(&runs);
+        let acquired_writer = Arc::clone(&acquired_signal);
+        let release_reader = Arc::clone(&release_signal);
+        tokio::spawn(async move {
+            let outcome = try_advisory_lock(&pool, key, || async {
+                counter.fetch_add(1, Ordering::Relaxed);
+                acquired_writer.notify_one();
+                release_reader.notified().await;
+                Ok(())
+            })
+            .await
+            .expect("holder result");
+            assert!(outcome.is_some(), "holder failed to acquire");
+        })
+    };
+
+    // Wait for the holder to confirm it has the lock — every
+    // contender below provably races against an active holder.
+    acquired_signal.notified().await;
+
     const N: usize = 6;
     let mut handles = Vec::with_capacity(N);
     for _ in 0..N {
@@ -165,26 +196,28 @@ async fn try_advisory_lock_singleton_under_concurrent_callers() {
         handles.push(tokio::spawn(async move {
             try_advisory_lock(&pool, key, || async {
                 counter.fetch_add(1, Ordering::Relaxed);
-                // Hold the lock long enough that every other
-                // caller in the cohort sees the contended state.
-                tokio::time::sleep(Duration::from_millis(150)).await;
                 Ok(())
             })
             .await
-            .expect("caller result")
+            .expect("contender result")
         }));
     }
-
-    let outcomes = futures::future::join_all(handles).await;
-    let acquired = outcomes
+    let contender_outcomes = futures::future::join_all(handles).await;
+    let contender_acquired = contender_outcomes
         .into_iter()
         .map(|r| r.expect("task join"))
         .filter(|o| o.is_some())
         .count();
     assert_eq!(
-        acquired, 1,
-        "expected exactly one caller to acquire; got {acquired}",
+        contender_acquired, 0,
+        "every contender must skip while holder holds the lock; got {contender_acquired}",
     );
+
+    // Release the holder; counter still 1 because no contender
+    // ran the body.
+    release_signal.notify_one();
+    holder.await.expect("holder task");
+
     assert_eq!(
         runs.load(Ordering::Relaxed),
         1,

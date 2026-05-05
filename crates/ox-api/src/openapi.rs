@@ -354,6 +354,7 @@ impl Modify for SecurityAddon {
         quality::list_stale_types,
         quality::list_stale_proposals,
         quality::decide_stale_proposal,
+        quality::bulk_decide_stale_proposals,
     ),
     components(
         schemas(
@@ -585,6 +586,8 @@ impl Modify for SecurityAddon {
             quality::CreateRuleRequest,
             quality::UpdateRuleRequest,
             quality::DecideStaleProposalRequest,
+            quality::BulkDecideStaleProposalsRequest,
+            quality::BulkDecideStaleProposalsResponse,
         ),
     ),
     modifiers(&SecurityAddon),

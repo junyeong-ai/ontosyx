@@ -171,4 +171,37 @@ impl StaleConceptProposalStore for PostgresStore {
             message: format!("stale_concept_proposal {id} not found"),
         })
     }
+
+    async fn record_stale_proposal_decisions(
+        &self,
+        ids: &[Uuid],
+        decision: crate::quality_signal::StaleProposalDecision,
+        decided_by_user_id: Option<Uuid>,
+        reason: Option<String>,
+    ) -> OxResult<u64> {
+        super::require_workspace_context()?;
+        if ids.is_empty() {
+            return Ok(0);
+        }
+        // Same `decision = 'pending'` guard as the single-id path
+        // — the audit trail of "pending → terminal" is sacred,
+        // double-clicks across the cohort silently no-op rather
+        // than rewriting the decision metadata.
+        let result = sqlx::query(
+            "UPDATE stale_concept_proposals \
+             SET decision = $2, \
+                 decided_at = now(), \
+                 decided_by_user_id = $3, \
+                 reason = $4 \
+             WHERE id = ANY($1) AND decision = 'pending'",
+        )
+        .bind(ids)
+        .bind(decision.as_str())
+        .bind(decided_by_user_id)
+        .bind(reason.as_deref())
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(result.rows_affected())
+    }
 }

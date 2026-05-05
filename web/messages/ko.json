@@ -3133,6 +3133,12 @@
         "actions": {
           "review": "검토"
         },
+        "selectAll": "모두 선택",
+        "selectRow": "{id} 행 선택",
+        "bulkSelectedCount": "{count}개 선택됨",
+        "bulkBarLabel": "다중 선택 작업",
+        "bulkClear": "선택 해제",
+        "bulkDismiss": "선택 기각",
         "decisionLabel": {
           "approved": "승인됨",
           "dismissed": "기각됨",
@@ -3141,6 +3147,7 @@
         "toast": {
           "approved": "승인되었습니다 — 사용 중단 의사가 기록됨",
           "dismissed": "기각되었습니다",
+          "bulkDismissed": "{count}개 기각됨",
           "failed": "결정 기록에 실패했습니다",
           "deprecated": "{ontology}에서 타입을 사용 중단 처리했습니다",
           "emitFailed": "승인됨 — 사용 중단 편집을 적용하지 못했습니다",

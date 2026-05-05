@@ -94,6 +94,20 @@ export async function decideStaleProposal(
   );
 }
 
+export async function bulkDecideStaleProposals(
+  ids: string[],
+  decision: "approved" | "dismissed",
+  reason?: string,
+): Promise<{ decided: number }> {
+  return request<{ decided: number }>(
+    "/quality/stale-proposals/bulk-decide",
+    {
+      method: "POST",
+      body: JSON.stringify({ ids, decision, reason }),
+    },
+  );
+}
+
 // Given a stale type proposal, find which ontologies in the
 // workspace carry that type. Drives the approval UI's
 // auto-deprecate dispatch / target-picker.

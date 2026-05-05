@@ -482,6 +482,10 @@ pub fn router(state: AppState) -> Router {
             "/quality/stale-proposals/{id}",
             patch(quality::decide_stale_proposal),
         )
+        .route(
+            "/quality/stale-proposals/bulk-decide",
+            post(quality::bulk_decide_stale_proposals),
+        )
         .route("/quality/rules/{id}/results", get(quality::rule_results))
         .route("/quality/rules/{id}/execute", post(quality::execute_rule))
         .route("/quality/execute-all", post(quality::execute_all_rules))

@@ -7299,6 +7299,45 @@
         ]
       }
     },
+    "/api/quality/stale-proposals/bulk-decide": {
+      "post": {
+        "tags": [
+          "Quality"
+        ],
+        "summary": "`POST /api/quality/stale-proposals/bulk-decide` — apply the\nsame decision to many proposals in one round-trip. Same\nadmin-only gate as the single-id variant.",
+        "operationId": "bulk_decide_stale_proposals",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDecideStaleProposalsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Decision applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkDecideStaleProposalsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid decision value or empty / oversized ids list"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/quality/stale-proposals/{id}": {
       "patch": {
         "tags": [
@@ -11040,6 +11079,48 @@
           "extensible",
           "example"
         ]
+      },
+      "BulkDecideStaleProposalsRequest": {
+        "type": "object",
+        "required": [
+          "ids",
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "description": "`\"approved\"` or `\"dismissed\"`. Same enum the single-id\nPATCH accepts; rejected with `invalid_enum_value` for\nanything else."
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Proposal ids to decide. Capped at 100 per call by the\n`bulk_limit_exceeded` typed gate; clients split into\nmultiple calls when the cohort is larger."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional admin comment recorded against every transitioned\nrow. Surfaces in the audit log + each proposal's row\ndetail."
+          }
+        }
+      },
+      "BulkDecideStaleProposalsResponse": {
+        "type": "object",
+        "required": [
+          "decided"
+        ],
+        "properties": {
+          "decided": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Count of rows that actually transitioned. Rows already in\na terminal state are silently skipped (same semantics as\nthe single-id PATCH), so `decided` may be less than\n`ids.len()` when the cohort overlaps a previous decision\nrun — that's a normal \"double-click safe\" outcome, not an\nerror.",
+            "minimum": 0
+          }
+        }
       },
       "BulkReviewApprovalsRequest": {
         "type": "object",

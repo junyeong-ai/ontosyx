@@ -7,6 +7,7 @@ import {
   type UseMutationOptions,
 } from "@tanstack/react-query";
 import {
+  bulkDecideStaleProposals,
   decideStaleProposal,
   getQualityBaseline,
   getQualityMetrics,
@@ -157,4 +158,38 @@ export function useDecideStaleProposal(
 
 function isProposalList(value: unknown): value is StaleConceptProposal[] {
   return Array.isArray(value);
+}
+
+/**
+ * Bulk-decide many stale-concept proposals in one round-trip.
+ * Set-based optimistic transform drops every selected id from
+ * the pending list immediately; the include-decided list (and
+ * any future variants) gets invalidated post-settle so the
+ * server-truth replaces the optimistic delta on the next render.
+ *
+ * BE caps the cohort at 100 ids per call (`bulk_limit_exceeded`
+ * typed gate); FE callers split larger selections.
+ */
+export function useBulkDecideStaleProposals() {
+  const queryClient = useQueryClient();
+  type Vars = {
+    ids: string[];
+    decision: "approved" | "dismissed";
+    reason?: string;
+  };
+  return useOptimisticMutation<Vars, { decided: number }>({
+    mutationFn: ({ ids, decision, reason }) =>
+      bulkDecideStaleProposals(ids, decision, reason),
+    queryKeys: [qualityKeys.staleProposals(false)],
+    optimisticUpdate: (prev, { ids }) => {
+      if (!isProposalList(prev)) return prev;
+      const idSet = new Set(ids);
+      return prev.filter((p) => !idSet.has(p.id));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [...qualityKeys.all, "stale-proposals"],
+      });
+    },
+  });
 }

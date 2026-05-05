@@ -4,7 +4,7 @@ use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use chrono::Utc;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -882,4 +882,83 @@ pub(crate) async fn decide_stale_proposal(
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(row))
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct BulkDecideStaleProposalsRequest {
+    /// Proposal ids to decide. Capped at 100 per call by the
+    /// `bulk_limit_exceeded` typed gate; clients split into
+    /// multiple calls when the cohort is larger.
+    pub ids: Vec<Uuid>,
+    /// `"approved"` or `"dismissed"`. Same enum the single-id
+    /// PATCH accepts; rejected with `invalid_enum_value` for
+    /// anything else.
+    pub decision: String,
+    /// Optional admin comment recorded against every transitioned
+    /// row. Surfaces in the audit log + each proposal's row
+    /// detail.
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct BulkDecideStaleProposalsResponse {
+    /// Count of rows that actually transitioned. Rows already in
+    /// a terminal state are silently skipped (same semantics as
+    /// the single-id PATCH), so `decided` may be less than
+    /// `ids.len()` when the cohort overlaps a previous decision
+    /// run — that's a normal "double-click safe" outcome, not an
+    /// error.
+    pub decided: u64,
+}
+
+/// `POST /api/quality/stale-proposals/bulk-decide` — apply the
+/// same decision to many proposals in one round-trip. Same
+/// admin-only gate as the single-id variant.
+#[utoipa::path(
+    post,
+    path = "/api/quality/stale-proposals/bulk-decide",
+    request_body = BulkDecideStaleProposalsRequest,
+    responses(
+        (status = 200, description = "Decision applied", body = BulkDecideStaleProposalsResponse),
+        (status = 400, description = "Invalid decision value or empty / oversized ids list"),
+    ),
+    security(("api_key" = [])),
+    tag = "Quality",
+)]
+pub(crate) async fn bulk_decide_stale_proposals(
+    State(state): State<AppState>,
+    principal: Principal,
+    _ws: WorkspaceContext,
+    Json(req): Json<BulkDecideStaleProposalsRequest>,
+) -> Result<Json<ApiResponse<BulkDecideStaleProposalsResponse>>, AppError> {
+    principal.require_designer()?;
+    if req.ids.is_empty() {
+        return Err(AppError::required_field_empty("ids"));
+    }
+    if req.ids.len() > 100 {
+        return Err(AppError::bulk_limit_exceeded(100));
+    }
+    let decision = match req.decision.as_str() {
+        "approved" => StaleProposalDecision::Approved,
+        "dismissed" => StaleProposalDecision::Dismissed,
+        other => {
+            return Err(AppError::invalid_enum_value(
+                "decision",
+                other.to_string(),
+                &["approved", "dismissed"],
+            ));
+        }
+    };
+    let decided = state
+        .store
+        .record_stale_proposal_decisions(
+            &req.ids,
+            decision,
+            principal.user_uuid().ok(),
+            req.reason,
+        )
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(BulkDecideStaleProposalsResponse { decided }))
 }

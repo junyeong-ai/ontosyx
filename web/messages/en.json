@@ -3133,6 +3133,12 @@
         "actions": {
           "review": "Review"
         },
+        "selectAll": "Select all",
+        "selectRow": "Select row {id}",
+        "bulkSelectedCount": "{count} selected",
+        "bulkBarLabel": "Bulk action bar",
+        "bulkClear": "Clear",
+        "bulkDismiss": "Dismiss selected",
         "decisionLabel": {
           "approved": "Approved",
           "dismissed": "Dismissed",
@@ -3141,6 +3147,7 @@
         "toast": {
           "approved": "Proposal approved — deprecation intent recorded",
           "dismissed": "Proposal dismissed",
+          "bulkDismissed": "{count} dismissed",
           "failed": "Failed to record decision",
           "deprecated": "Type deprecated in {ontology}",
           "emitFailed": "Approved — failed to apply the deprecation edit",

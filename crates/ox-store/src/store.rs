@@ -1790,6 +1790,19 @@ pub trait StaleConceptProposalStore: Send + Sync {
         decided_by_user_id: Option<uuid::Uuid>,
         reason: Option<String>,
     ) -> OxResult<crate::quality_signal::StaleConceptProposal>;
+
+    /// Bulk variant — apply the same decision to every pending
+    /// proposal whose id is in `ids`. Returns the count of rows
+    /// actually transitioned (rows already in a terminal state
+    /// are silently skipped, mirroring the single-id semantics).
+    /// One round-trip regardless of `ids.len()`.
+    async fn record_stale_proposal_decisions(
+        &self,
+        ids: &[uuid::Uuid],
+        decision: crate::quality_signal::StaleProposalDecision,
+        decided_by_user_id: Option<uuid::Uuid>,
+        reason: Option<String>,
+    ) -> OxResult<u64>;
 }
 
 /// Change-type routing rules — one per `(workspace_id?, change_type)`.

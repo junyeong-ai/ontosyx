@@ -1,14 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { FormTextarea } from "@/components/ui/form-input";
 import { SkeletonTable } from "@/components/ui/skeleton";
+import { cn } from "@/lib/cn";
 
 import {
+  useBulkDecideStaleProposals,
   useDecideStaleProposal,
   useStaleProposals,
 } from "@/hooks/api/use-quality";
@@ -39,6 +43,58 @@ export function StaleFacet() {
     () => (all.data ?? []).filter((r) => r.decision !== "pending"),
     [all.data],
   );
+
+  // Bulk-dismiss selection (pending tab only — bulk-approve would
+  // need a per-row candidate picker, which is single-row workflow).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Tab change resets selection — pending and decided are
+  // distinct cohorts, a leftover selection would silently target
+  // ids from the other tab.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [tab]);
+
+  const pendingRows = pending.data ?? [];
+  const selectedVisible = useMemo(
+    () => pendingRows.filter((r) => selectedIds.has(r.id)),
+    [pendingRows, selectedIds],
+  );
+  const allVisibleSelected =
+    pendingRows.length > 0 && selectedVisible.length === pendingRows.length;
+  const someVisibleSelected =
+    selectedVisible.length > 0 && !allVisibleSelected;
+  const toggleSelected = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const clearSelection = () => setSelectedIds(new Set());
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      clearSelection();
+    } else {
+      setSelectedIds(new Set(pendingRows.map((r) => r.id)));
+    }
+  };
+
+  const bulkDismiss = useBulkDecideStaleProposals();
+  const handleBulkDismiss = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    bulkDismiss.mutate(
+      { ids, decision: "dismissed" },
+      {
+        onSuccess: ({ decided }) => {
+          clearSelection();
+          toast.success(t("toast.bulkDismissed", { count: decided }));
+        },
+        onError: (err) =>
+          toast.error(err instanceof Error ? err.message : t("toast.failed")),
+      },
+    );
+  };
 
   const emitDeprecate = async (
     proposal: StaleConceptProposal,
@@ -174,6 +230,18 @@ export function StaleFacet() {
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="border-b border-divider text-start text-2xs uppercase tracking-wider text-foreground-muted">
+              {tab === "pending" && (
+                <th className="w-8 py-2 pe-2">
+                  <Checkbox
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someVisibleSelected;
+                    }}
+                    onChange={toggleSelectAll}
+                    aria-label={t("selectAll")}
+                  />
+                </th>
+              )}
               <th className="py-2 pe-4 font-medium">{t("columns.type")}</th>
               <th className="py-2 pe-4 font-medium">{t("columns.kind")}</th>
               <th className="py-2 pe-4 font-medium">{t("columns.daysSince")}</th>
@@ -195,8 +263,22 @@ export function StaleFacet() {
             {active.map((row) => (
               <tr
                 key={row.id}
-                className="border-b border-divider-soft"
+                className={cn(
+                  "border-b border-divider-soft",
+                  tab === "pending" &&
+                    selectedIds.has(row.id) &&
+                    "bg-brand-surface/30",
+                )}
               >
+                {tab === "pending" && (
+                  <td className="py-2 pe-2">
+                    <Checkbox
+                      checked={selectedIds.has(row.id)}
+                      onChange={() => toggleSelected(row.id)}
+                      aria-label={t("selectRow", { id: row.type_id })}
+                    />
+                  </td>
+                )}
                 <td className="py-2 pe-4 font-mono">{row.type_id}</td>
                 <td className="py-2 pe-4 text-foreground-muted">
                   {row.type_kind}
@@ -232,6 +314,15 @@ export function StaleFacet() {
         </table>
       )}
 
+      {tab === "pending" && (
+        <BulkDismissBar
+          count={selectedIds.size}
+          onDismiss={handleBulkDismiss}
+          onClear={clearSelection}
+          pending={bulkDismiss.isPending}
+        />
+      )}
+
       {editing && (
         <DecisionModal
           proposal={editing}
@@ -255,6 +346,59 @@ export function StaleFacet() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function BulkDismissBar({
+  count,
+  onDismiss,
+  onClear,
+  pending,
+}: {
+  count: number;
+  onDismiss: () => void;
+  onClear: () => void;
+  pending: boolean;
+}) {
+  const t = useTranslations("settings.quality.stale");
+  const visible = count > 0;
+  return (
+    <div
+      className={cn(
+        "pointer-events-none fixed inset-x-0 bottom-6 z-30 mx-auto flex max-w-2xl",
+        "items-center justify-between gap-3 rounded-xl border border-divider",
+        "bg-surface-overlay px-4 py-3 shadow-2",
+        "transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
+        visible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
+      )}
+      role="region"
+      aria-label={t("bulkBarLabel")}
+      aria-hidden={!visible}
+    >
+      <span className="text-sm font-medium text-foreground-strong">
+        {t("bulkSelectedCount", { count })}
+      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onClear}
+          disabled={pending}
+          className="pointer-events-auto"
+        >
+          {t("bulkClear")}
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={onDismiss}
+          disabled={pending}
+          className="pointer-events-auto"
+        >
+          {t("bulkDismiss")}
+        </Button>
+      </div>
     </div>
   );
 }
