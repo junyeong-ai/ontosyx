@@ -79,7 +79,7 @@ export function CanvasFlow(props: CanvasFlowProps) {
       >
         {activeProject?.id && (
           <RemoteCursorLayer
-            projectId={activeProject.id}
+            ontologyDraftId={activeProject.id}
             currentUserId={user?.sub}
           />
         )}

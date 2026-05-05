@@ -21,9 +21,9 @@ export interface ChatStreamRequest {
    *  ad-hoc sessions against a draft IR that hasn't been committed yet. */
   ontology_id?: string;
   /** Active project ID for edit operations */
-  project_id?: string;
+  ontology_draft_id?: string;
   /** Current project revision (required for edit operations) */
-  project_revision?: number;
+  ontology_draft_revision?: number;
   /** Resume an existing session for multi-turn conversation */
   session_id?: string;
   /** Agent execution mode: auto runs tools immediately, supervised requires approval */

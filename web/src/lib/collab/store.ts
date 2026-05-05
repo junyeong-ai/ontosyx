@@ -84,7 +84,7 @@ export interface CollabState {
   clientReady: boolean;
   /** Last `Error` frame, kept until cleared or replaced. */
   lastError: { code: string; params: Record<string, string> } | null;
-  /** project_id → room state */
+  /** ontology_draft_id → room state */
   rooms: Map<string, RoomState>;
   /**
    * `true` when the tab is hidden. Cursor-emitting components
@@ -101,7 +101,7 @@ export interface CollabState {
   /** Clear `latestRemoteUpdate` for a project — called after the
    *  conflict resolution flow consumes it (Keep mine / Take theirs)
    *  so the next 409 starts from a clean slate. */
-  ackRemoteUpdate(projectId: string): void;
+  ackRemoteUpdate(ontologyDraftId: string): void;
   reset(): void;
 }
 
@@ -128,12 +128,12 @@ export const useCollabStore = create<CollabState>((set) => ({
     set((s) => applyServerMessage(s, msg));
   },
 
-  ackRemoteUpdate(projectId) {
+  ackRemoteUpdate(ontologyDraftId) {
     set((s) => {
-      const room = s.rooms.get(projectId);
+      const room = s.rooms.get(ontologyDraftId);
       if (!room?.latestRemoteUpdate) return {};
       const rooms = new Map(s.rooms);
-      rooms.set(projectId, {
+      rooms.set(ontologyDraftId, {
         presence: room.presence,
         cursors: room.cursors,
         locks: room.locks,
@@ -169,7 +169,7 @@ export function applyServerMessage(
 
     case "presence": {
       const rooms = new Map(state.rooms);
-      const room = rooms.get(msg.project_id) ?? emptyRoom();
+      const room = rooms.get(msg.ontology_draft_id) ?? emptyRoom();
       // Snapshot is atomic — presence + locks come from the
       // server's authoritative view of the room. Cursors are
       // ephemeral (no server-side store) and survive so a
@@ -182,7 +182,7 @@ export function applyServerMessage(
           expiresAt: lock.expires_at,
         });
       }
-      rooms.set(msg.project_id, {
+      rooms.set(msg.ontology_draft_id, {
         ...room,
         presence: msg.users,
         locks,
@@ -192,20 +192,20 @@ export function applyServerMessage(
 
     case "user_joined": {
       const rooms = new Map(state.rooms);
-      const room = rooms.get(msg.project_id) ?? emptyRoom();
+      const room = rooms.get(msg.ontology_draft_id) ?? emptyRoom();
       // `user_joined` is broadcast — the joining socket also sees
       // its own join, so dedupe by user_id rather than appending.
       const presence = room.presence.filter(
         (p) => p.user_id !== msg.user.user_id,
       );
       presence.push(msg.user);
-      rooms.set(msg.project_id, { ...room, presence });
+      rooms.set(msg.ontology_draft_id, { ...room, presence });
       return { rooms };
     }
 
     case "user_left": {
       const rooms = new Map(state.rooms);
-      const room = rooms.get(msg.project_id);
+      const room = rooms.get(msg.ontology_draft_id);
       if (!room) return {};
       const presence = room.presence.filter((p) => p.user_id !== msg.user_id);
       const cursors = new Map(room.cursors);
@@ -213,13 +213,13 @@ export function applyServerMessage(
       // Locks the leaver held are released by separate
       // `lock_released` frames — don't reap here, lest we drop a
       // lock the server hasn't yet broadcast the release for.
-      rooms.set(msg.project_id, { ...room, presence, cursors });
+      rooms.set(msg.ontology_draft_id, { ...room, presence, cursors });
       return { rooms };
     }
 
     case "remote_cursor": {
       const rooms = new Map(state.rooms);
-      const room = rooms.get(msg.project_id) ?? emptyRoom();
+      const room = rooms.get(msg.ontology_draft_id) ?? emptyRoom();
       const cursors = new Map(room.cursors);
       cursors.set(msg.user_id, {
         x: msg.x,
@@ -227,29 +227,29 @@ export function applyServerMessage(
         selected_element: msg.selected_element,
         lastUpdateAt: Date.now(),
       });
-      rooms.set(msg.project_id, { ...room, cursors });
+      rooms.set(msg.ontology_draft_id, { ...room, cursors });
       return { rooms };
     }
 
     case "lock_granted": {
       const rooms = new Map(state.rooms);
-      const room = rooms.get(msg.project_id) ?? emptyRoom();
+      const room = rooms.get(msg.ontology_draft_id) ?? emptyRoom();
       const locks = new Map(room.locks);
       locks.set(msg.entity_id, {
         heldBy: msg.held_by,
         expiresAt: msg.expires_at,
       });
-      rooms.set(msg.project_id, { ...room, locks });
+      rooms.set(msg.ontology_draft_id, { ...room, locks });
       return { rooms };
     }
 
     case "lock_released": {
       const rooms = new Map(state.rooms);
-      const room = rooms.get(msg.project_id);
+      const room = rooms.get(msg.ontology_draft_id);
       if (!room) return {};
       const locks = new Map(room.locks);
       locks.delete(msg.entity_id);
-      rooms.set(msg.project_id, { ...room, locks });
+      rooms.set(msg.ontology_draft_id, { ...room, locks });
       return { rooms };
     }
 
@@ -262,7 +262,7 @@ export function applyServerMessage(
 
     case "entity_updated": {
       const rooms = new Map(state.rooms);
-      const room = rooms.get(msg.project_id) ?? emptyRoom();
+      const room = rooms.get(msg.ontology_draft_id) ?? emptyRoom();
       // The OpenAPI surface types `commands` as
       // `Record<string, never>[]` because `OntologyCommand` is an
       // internally-tagged union utoipa can't derive a static schema
@@ -270,7 +270,7 @@ export function applyServerMessage(
       // it through `unknown` at the single wire boundary so downstream
       // consumers see the typed union.
       const commands = msg.commands as unknown as readonly OntologyCommand[];
-      rooms.set(msg.project_id, {
+      rooms.set(msg.ontology_draft_id, {
         ...room,
         latestRemoteUpdate: {
           authorUserId: msg.author_user_id,
@@ -297,29 +297,29 @@ export function applyServerMessage(
 // ---------------------------------------------------------------------------
 
 export const selectStatePresence =
-  (projectId: string) =>
+  (ontologyDraftId: string) =>
   (state: CollabState): readonly PresenceInfo[] =>
-    state.rooms.get(projectId)?.presence ?? EMPTY_PRESENCE;
+    state.rooms.get(ontologyDraftId)?.presence ?? EMPTY_PRESENCE;
 
 export const selectStateCursors =
-  (projectId: string) =>
+  (ontologyDraftId: string) =>
   (state: CollabState): ReadonlyMap<string, CursorEntry> =>
-    state.rooms.get(projectId)?.cursors ?? EMPTY_CURSORS;
+    state.rooms.get(ontologyDraftId)?.cursors ?? EMPTY_CURSORS;
 
 export const selectStateLocks =
-  (projectId: string) =>
+  (ontologyDraftId: string) =>
   (state: CollabState): ReadonlyMap<string, LockState> =>
-    state.rooms.get(projectId)?.locks ?? EMPTY_LOCKS;
+    state.rooms.get(ontologyDraftId)?.locks ?? EMPTY_LOCKS;
 
 export const selectStateLockFor =
-  (projectId: string, entityId: string) =>
+  (ontologyDraftId: string, entityId: string) =>
   (state: CollabState): LockState | undefined =>
-    state.rooms.get(projectId)?.locks.get(entityId);
+    state.rooms.get(ontologyDraftId)?.locks.get(entityId);
 
 export const selectStateLatestRemoteUpdate =
-  (projectId: string) =>
+  (ontologyDraftId: string) =>
   (state: CollabState): RemoteUpdateSnapshot | undefined =>
-    state.rooms.get(projectId)?.latestRemoteUpdate;
+    state.rooms.get(ontologyDraftId)?.latestRemoteUpdate;
 
 export const selectStateConnectionState = (
   state: CollabState,

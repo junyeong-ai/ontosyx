@@ -16,15 +16,15 @@ export type EntityLockStatus =
   | { kind: "locked-by-other"; heldBy: string; expiresAt: string };
 
 export function useEntityLock(
-  projectId: string | undefined,
+  ontologyDraftId: string | undefined,
   entityId: string | undefined,
 ): EntityLockStatus {
   const { user } = useAuth();
   const lock = useCollabStore(
-    selectStateLockFor(projectId ?? "", entityId ?? ""),
+    selectStateLockFor(ontologyDraftId ?? "", entityId ?? ""),
   );
   return useMemo<EntityLockStatus>(() => {
-    if (!projectId || !entityId || !lock) return { kind: "unlocked" };
+    if (!ontologyDraftId || !entityId || !lock) return { kind: "unlocked" };
     if (user?.sub && lock.heldBy === user.sub) {
       return { kind: "locked-by-me", expiresAt: lock.expiresAt };
     }
@@ -33,5 +33,5 @@ export function useEntityLock(
       heldBy: lock.heldBy,
       expiresAt: lock.expiresAt,
     };
-  }, [projectId, entityId, lock, user?.sub]);
+  }, [ontologyDraftId, entityId, lock, user?.sub]);
 }

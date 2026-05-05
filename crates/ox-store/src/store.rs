@@ -478,7 +478,7 @@ pub trait OntologyDraftStore: Send + Sync {
     async fn list_ontology_drafts(
         &self,
         pagination: &CursorParams,
-    ) -> OxResult<CursorPage<DesignProjectSummary>>;
+    ) -> OxResult<CursorPage<OntologyDraftSummary>>;
 
     async fn update_design_options(
         &self,

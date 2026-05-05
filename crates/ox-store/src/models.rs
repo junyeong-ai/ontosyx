@@ -390,7 +390,7 @@ pub struct OntologyDraft {
 /// without per-row hydration — every list endpoint that returns
 /// drafts already carries enough to draw the tree.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct DesignProjectSummary {
+pub struct OntologyDraftSummary {
     pub id: Uuid,
     pub status: String,
     pub revision: i32,

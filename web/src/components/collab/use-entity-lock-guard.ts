@@ -23,23 +23,23 @@ import { useCollabClient } from "./use-collab-client";
 const RENEWAL_INTERVAL_MS = 120_000;
 
 export function useEntityLockGuard(
-  projectId: string | undefined,
+  ontologyDraftId: string | undefined,
   entityId: string | undefined,
   enabled: boolean = true,
 ): void {
   const client = useCollabClient();
 
   useEffect(() => {
-    if (!enabled || !client || !projectId || !entityId) return;
+    if (!enabled || !client || !ontologyDraftId || !entityId) return;
 
-    client.acquireLock(projectId, entityId);
+    client.acquireLock(ontologyDraftId, entityId);
     const timer = setInterval(() => {
-      client.acquireLock(projectId, entityId);
+      client.acquireLock(ontologyDraftId, entityId);
     }, RENEWAL_INTERVAL_MS);
 
     return () => {
       clearInterval(timer);
-      client.releaseLock(projectId, entityId);
+      client.releaseLock(ontologyDraftId, entityId);
     };
-  }, [client, projectId, entityId, enabled]);
+  }, [client, ontologyDraftId, entityId, enabled]);
 }

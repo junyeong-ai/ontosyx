@@ -46,19 +46,19 @@ export async function deletePerspective(id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function listRevisions(
-  projectId: string,
+  ontologyDraftId: string,
 ): Promise<RevisionSummary[]> {
   return request(
-    `/ontology-drafts/${encodeURIComponent(projectId)}/revisions`,
+    `/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/revisions`,
   );
 }
 
 export async function restoreRevision(
-  projectId: string,
+  ontologyDraftId: string,
   revision: number,
 ): Promise<RestoreProjectRevisionResponse> {
   return request(
-    `/ontology-drafts/${encodeURIComponent(projectId)}/revisions/${revision}/restore`,
+    `/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/revisions/${revision}/restore`,
     { method: "POST" },
   );
 }
@@ -68,11 +68,11 @@ export async function restoreRevision(
 // ---------------------------------------------------------------------------
 
 export async function getRevisionDiff(
-  projectId: string,
+  ontologyDraftId: string,
   rev1: number,
   rev2: number,
 ): Promise<OntologyDiff> {
   return request(
-    `/ontology-drafts/${encodeURIComponent(projectId)}/revisions/${rev1}/diff/${rev2}`,
+    `/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/revisions/${rev1}/diff/${rev2}`,
   );
 }

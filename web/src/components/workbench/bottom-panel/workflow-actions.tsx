@@ -460,7 +460,7 @@ export function WorkflowActions({
       {/* Completed: deployment + load + graph audit */}
       {isCompleted && project.ontology && (
         <DeploymentActions
-          projectId={project.id}
+          ontologyDraftId={project.id}
           loading={loading}
           setLoading={setLoading}
           onApiError={onApiError}

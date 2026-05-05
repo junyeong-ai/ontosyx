@@ -23,7 +23,7 @@ describe("applyServerMessage", () => {
   it("seeds the room from a Presence snapshot", () => {
     const msg: ServerMessage = {
       type: "presence",
-      project_id: projectA,
+      ontology_draft_id: projectA,
       users: [
         {
           user_id: "u1",
@@ -41,7 +41,7 @@ describe("applyServerMessage", () => {
   it("seeds active locks from a Presence snapshot", () => {
     const msg: ServerMessage = {
       type: "presence",
-      project_id: projectA,
+      ontology_draft_id: projectA,
       users: [],
       locks: [
         {
@@ -80,7 +80,7 @@ describe("applyServerMessage", () => {
     };
     const msg: ServerMessage = {
       type: "user_joined",
-      project_id: projectA,
+      ontology_draft_id: projectA,
       user: {
         user_id: "u1",
         user_name: "Alice",
@@ -123,7 +123,7 @@ describe("applyServerMessage", () => {
     };
     const msg: ServerMessage = {
       type: "user_left",
-      project_id: projectA,
+      ontology_draft_id: projectA,
       user_id: "u1",
     };
     const next = applyServerMessage(seeded, msg);
@@ -135,7 +135,7 @@ describe("applyServerMessage", () => {
   it("stores LockGranted with held_by + expires_at", () => {
     const msg: ServerMessage = {
       type: "lock_granted",
-      project_id: projectA,
+      ontology_draft_id: projectA,
       entity_id: "ent-1",
       held_by: "u1",
       expires_at: "2026-05-02T00:05:00Z",
@@ -164,7 +164,7 @@ describe("applyServerMessage", () => {
     };
     const msg: ServerMessage = {
       type: "lock_released",
-      project_id: projectA,
+      ontology_draft_id: projectA,
       entity_id: "ent-1",
     };
     const next = applyServerMessage(seeded, msg);
@@ -174,7 +174,7 @@ describe("applyServerMessage", () => {
   it("records cursor position with selected_element + idle timestamp", () => {
     const msg: ServerMessage = {
       type: "remote_cursor",
-      project_id: projectA,
+      ontology_draft_id: projectA,
       user_id: "u1",
       user_name: "Alice",
       x: 10,
@@ -208,7 +208,7 @@ describe("applyServerMessage", () => {
     // the literal through `unknown` to satisfy the typed wire shape.
     const msg = {
       type: "entity_updated",
-      project_id: projectA,
+      ontology_draft_id: projectA,
       author_user_id: "u-bob",
       author_user_name: "Bob",
       base_revision: 5,

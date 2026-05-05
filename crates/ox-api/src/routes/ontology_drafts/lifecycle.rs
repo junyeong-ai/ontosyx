@@ -15,7 +15,7 @@ use ox_ontology::mapping::SourceId;
 use ox_ontology::quality::OntologyQualityReport;
 use ox_ontology::source_analysis::DesignOptions;
 use ox_store::store::CursorParams;
-use ox_store::{OntologyDraft, DesignProjectSummary};
+use ox_store::{OntologyDraft, OntologyDraftSummary};
 
 use ox_source::fetcher::DataSourceFetcher;
 
@@ -362,7 +362,7 @@ pub(crate) async fn create_ontology_draft(
 pub(crate) async fn list_ontology_drafts(
     State(state): State<AppState>,
     axum::extract::Query(pagination): axum::extract::Query<CursorParams>,
-) -> Result<Json<ApiResponse<Vec<DesignProjectSummary>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<OntologyDraftSummary>>>, AppError> {
     let page = state
         .store
         .list_ontology_drafts(&pagination)
@@ -570,13 +570,13 @@ pub(crate) async fn complete_ontology_draft(
                         .as_ref()
                         .map(|v| v.version.clone())
                         .unwrap_or_else(|| "?".to_string());
-                    return Err(AppError::project_stale_parent(&parent_tag, &head_tag));
+                    return Err(AppError::ontology_draft_stale_parent(&parent_tag, &head_tag));
                 }
                 (Some(_), None) => {
                     // Project carries a parent pointer but the
                     // canonical was wiped between draft and commit —
                     // refuse rather than implicitly recreate.
-                    return Err(AppError::project_stale_parent("?", "0"));
+                    return Err(AppError::ontology_draft_stale_parent("?", "0"));
                 }
                 _ => {}
             }
@@ -885,7 +885,7 @@ pub(crate) async fn generate_load_plan(
         .source_schema
         .as_ref()
         .ok_or_else(|| {
-            AppError::project_missing_source_schema(
+            AppError::ontology_draft_missing_source_schema(
                 "Run analyze + introspect first to populate the source schema.",
             )
         })?;

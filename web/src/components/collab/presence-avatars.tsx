@@ -21,7 +21,7 @@ import type { WorkspaceMember } from "@/types/workspace";
 import { cn } from "@/lib/cn";
 
 interface PresenceAvatarsProps {
-  projectId: string;
+  ontologyDraftId: string;
   /** Avatars beyond this count collapse into a `+N` chip. */
   maxVisible?: number;
   /**
@@ -34,12 +34,12 @@ interface PresenceAvatarsProps {
 }
 
 export function PresenceAvatars({
-  projectId,
+  ontologyDraftId,
   maxVisible = 4,
   excludeUserId,
   className,
 }: PresenceAvatarsProps) {
-  const presence = useCollabStore(selectStatePresence(projectId));
+  const presence = useCollabStore(selectStatePresence(ontologyDraftId));
   const workspaceId = useAppStore((s) => s.workspaceId);
   const { data: members } = useWorkspaceMembers(workspaceId);
 

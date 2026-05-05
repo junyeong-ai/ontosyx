@@ -133,20 +133,20 @@ export async function refineOntologyDraft(
 }
 
 export async function editOntologyDraft(
-  projectId: string,
+  ontologyDraftId: string,
   req: EditProjectRequest,
 ): Promise<EditProjectResponse> {
-  return request(`/ontology-drafts/${encodeURIComponent(projectId)}/edit`, {
+  return request(`/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/edit`, {
     method: "POST",
     body: JSON.stringify(req),
   });
 }
 
 export async function applyReconcile(
-  projectId: string,
+  ontologyDraftId: string,
   req: ReconcileProjectRequest,
 ): Promise<RefineProjectResponse> {
-  return request(`/ontology-drafts/${encodeURIComponent(projectId)}/apply-reconcile`, {
+  return request(`/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/apply-reconcile`, {
     method: "POST",
     body: JSON.stringify(req),
   });
@@ -212,10 +212,10 @@ export async function deferScopeTables(
 // ---------------------------------------------------------------------------
 
 export async function applyOntologyCommands(
-  projectId: string,
+  ontologyDraftId: string,
   req: { revision: number; commands: OntologyCommand[] },
 ): Promise<{ project: OntologyDraft }> {
-  return request(`/ontology-drafts/${encodeURIComponent(projectId)}/ontology`, {
+  return request(`/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/ontology`, {
     method: "PATCH",
     body: JSON.stringify(req),
   });
@@ -240,12 +240,12 @@ export async function deploySchema(
 // ---------------------------------------------------------------------------
 
 export async function migrateSchema(
-  projectId: string,
+  ontologyDraftId: string,
   revision: number,
   req: ProjectMigrateRequest,
 ): Promise<ProjectMigrateResponse> {
   return request(
-    `/ontology-drafts/${encodeURIComponent(projectId)}/revisions/${revision}/migrate`,
+    `/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/revisions/${revision}/migrate`,
     {
       method: "POST",
       body: JSON.stringify(req),

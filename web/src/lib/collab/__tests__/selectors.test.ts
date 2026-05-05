@@ -26,24 +26,24 @@ const empty: CollabState = {
   setHidden: () => {},
 };
 
-const projectId = "00000000-0000-0000-0000-0000000000aa";
+const ontologyDraftId = "00000000-0000-0000-0000-0000000000aa";
 
 describe("collab selectors return stable empties", () => {
   it("selectStatePresence returns the same array reference for an unseeded room", () => {
-    const a = selectStatePresence(projectId)(empty);
-    const b = selectStatePresence(projectId)(empty);
+    const a = selectStatePresence(ontologyDraftId)(empty);
+    const b = selectStatePresence(ontologyDraftId)(empty);
     expect(a).toBe(b);
   });
 
   it("selectStateCursors returns the same map reference for an unseeded room", () => {
-    const a = selectStateCursors(projectId)(empty);
-    const b = selectStateCursors(projectId)(empty);
+    const a = selectStateCursors(ontologyDraftId)(empty);
+    const b = selectStateCursors(ontologyDraftId)(empty);
     expect(a).toBe(b);
   });
 
   it("selectStateLocks returns the same map reference for an unseeded room", () => {
-    const a = selectStateLocks(projectId)(empty);
-    const b = selectStateLocks(projectId)(empty);
+    const a = selectStateLocks(ontologyDraftId)(empty);
+    const b = selectStateLocks(ontologyDraftId)(empty);
     expect(a).toBe(b);
   });
 });

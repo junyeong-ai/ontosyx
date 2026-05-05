@@ -133,8 +133,8 @@ export class CollaborationClient {
 
       // Re-join every room we were in before the disconnect, then
       // flush queued client messages in arrival order.
-      for (const projectId of this.rejoinSet) {
-        this.rawSend({ type: "join", project_id: projectId });
+      for (const ontologyDraftId of this.rejoinSet) {
+        this.rawSend({ type: "join", ontology_draft_id: ontologyDraftId });
       }
       const queued = this.outbox.splice(0);
       for (const m of queued) this.rawSend(m);
@@ -195,43 +195,43 @@ export class CollaborationClient {
   }
 
   /** Convenience — record the room so reconnect re-joins it. */
-  join(projectId: string): void {
-    this.rejoinSet.add(projectId);
-    this.send({ type: "join", project_id: projectId });
+  join(ontologyDraftId: string): void {
+    this.rejoinSet.add(ontologyDraftId);
+    this.send({ type: "join", ontology_draft_id: ontologyDraftId });
   }
 
-  leave(projectId: string): void {
-    this.rejoinSet.delete(projectId);
-    this.send({ type: "leave", project_id: projectId });
+  leave(ontologyDraftId: string): void {
+    this.rejoinSet.delete(ontologyDraftId);
+    this.send({ type: "leave", ontology_draft_id: ontologyDraftId });
   }
 
   moveCursor(
-    projectId: string,
+    ontologyDraftId: string,
     x: number,
     y: number,
     selectedElement: string | null,
   ): void {
     this.send({
       type: "move_cursor",
-      project_id: projectId,
+      ontology_draft_id: ontologyDraftId,
       x,
       y,
       selected_element: selectedElement,
     });
   }
 
-  acquireLock(projectId: string, entityId: string): void {
+  acquireLock(ontologyDraftId: string, entityId: string): void {
     this.send({
       type: "acquire_lock",
-      project_id: projectId,
+      ontology_draft_id: ontologyDraftId,
       entity_id: entityId,
     });
   }
 
-  releaseLock(projectId: string, entityId: string): void {
+  releaseLock(ontologyDraftId: string, entityId: string): void {
     this.send({
       type: "release_lock",
-      project_id: projectId,
+      ontology_draft_id: ontologyDraftId,
       entity_id: entityId,
     });
   }

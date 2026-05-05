@@ -167,7 +167,7 @@ function EntityHeader({
           }}
         />
         <LockIndicator
-          projectId={activeProject?.id}
+          ontologyDraftId={activeProject?.id}
           entityId={entity.id}
           className="ms-auto"
         />
@@ -218,14 +218,14 @@ function EntityHeader({
 // ---------------------------------------------------------------------------
 
 function LockedByOtherBanner({
-  projectId,
+  ontologyDraftId,
   heldBy,
 }: {
-  projectId: string;
+  ontologyDraftId: string;
   heldBy: string;
 }) {
   const t = useTranslations("collaboration.lock");
-  const presence = useCollabStore(selectStatePresence(projectId));
+  const presence = useCollabStore(selectStatePresence(ontologyDraftId));
   const holderName =
     presence.find((p) => p.user_id === heldBy)?.user_name ?? heldBy;
   const color = colorFor(heldBy);
@@ -363,7 +363,7 @@ export function EntityDetail({
 
       {lockedByOther && activeProject?.id && (
         <LockedByOtherBanner
-          projectId={activeProject.id}
+          ontologyDraftId={activeProject.id}
           heldBy={lock.heldBy}
         />
       )}
@@ -512,7 +512,7 @@ export function EdgeDetail({
 
       {lockedByOther && activeProject?.id && (
         <LockedByOtherBanner
-          projectId={activeProject.id}
+          ontologyDraftId={activeProject.id}
           heldBy={lock.heldBy}
         />
       )}

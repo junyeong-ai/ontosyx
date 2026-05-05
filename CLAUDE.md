@@ -38,7 +38,7 @@ Use `./scripts/dev.sh start` to launch everything (Docker + backend + frontend).
   - `update_X(...)` — modify, returns updated row. **Never `set_*`.**
   - `upsert_X(...)` — insert-or-update on a natural key (unique constraint + `ON CONFLICT`). Only when the operation is semantically "ensure this row exists".
   - `delete_X(id)` — remove by PK.
-  - **Domain verbs** (`commit_*` / `complete_*` / `archive_*` / `expire_*` / `revoke_*` / `record_*` / `aggregate_*` / `bulk_*`) are allowed when the operation has a domain meaning a CRUD verb cannot carry — `commit_version` (publishes a version), `complete_project` (finalizes a draft), `archive_stale_proposals` (cron sweep), `bulk_revoke_active_ambiguity_resolutions` (multi-row revoke). The audit trail / fan-out / lifecycle semantics live in the verb. **Don't** invent a domain verb when the operation is a plain CRUD-equivalent — `insert_X` / `save_X` / `mark_X_*` collapse back to `create_X` / `update_X`.
+  - **Domain verbs** (`commit_*` / `complete_*` / `archive_*` / `expire_*` / `revoke_*` / `record_*` / `aggregate_*` / `bulk_*`) are allowed when the operation has a domain meaning a CRUD verb cannot carry — `commit_version` (publishes a version), `complete_ontology_draft` (finalizes a draft), `archive_stale_proposals` (cron sweep), `bulk_revoke_active_ambiguity_resolutions` (multi-row revoke). The audit trail / fan-out / lifecycle semantics live in the verb. **Don't** invent a domain verb when the operation is a plain CRUD-equivalent — `insert_X` / `save_X` / `mark_X_*` collapse back to `create_X` / `update_X`.
 - **Builders**: `with_X(...)`, `add_X(...)`, `remove_X(...)`, terminal `build() -> Result<T, _>`.
 - All LLM calls go through branchforge (crates.io). Never call provider APIs directly.
 - Errors propagate via `OxResult<T>`. No `unwrap()` / `expect()` / `panic!()` in library code.
@@ -79,7 +79,7 @@ Use `./scripts/dev.sh start` to launch everything (Docker + backend + frontend).
 - DB model configs (`model_configs` + `model_routing_rules`) are the source of truth for model selection at runtime.
 - Workspace isolation: PostgreSQL RLS via task-local `WORKSPACE_ID`. Every workspace-scoped query respects this.
 - **Workspace × Ontology cardinality is 1:1** — `UNIQUE (workspace_id)` on `ontologies`. The workspace IS the ontology context. Reach the singleton via `OntologyVersionStore::get_workspace_ontology()` (BE) / `useWorkspaceOntology()` (FE); multi-ontology-per-workspace is not a supported topology. URL surface is `/api/ontology/*` (singular, no `{id}` segment).
-- **Project drafts track `parent_version_id`** so `complete_project` detects intervening canonical commits (typed `ApiErrorCode::ProjectStaleParent` 409). Don't write a project commit path that bypasses this guard — it's the lost-update lock against concurrent admin direct edits.
+- **Ontology drafts track `parent_version_id`** so `complete_ontology_draft` detects intervening canonical commits (typed `ApiErrorCode::OntologyDraftStaleParent` 409). Don't write a draft-commit path that bypasses this guard — it's the lost-update lock against concurrent admin direct edits.
 
 ## Testing
 

@@ -50,7 +50,7 @@ Read the displayable string through `localize()` / `localizePresent()` / `locali
 - **`applyProjectSnapshot(project | null)`** — atomic project + cache update. Same-project refetches replay the unsaved `commandStack` on the new server snapshot so in-flight edits survive cache invalidation; project switches discard the stack. Pass `null` to leave project mode.
 - **`loadStandaloneOntology(ir)`** — non-project mode (import / query-result viewer). Clears `activeProject` and replaces the cache atomically; the "project mode XOR standalone" invariant is enforced inside the action.
 
-Every server-response handler that returned a `DesignProject` (handleSave, refine, restore, extend, reanalyze, complete, fork, delete) now lands its result through `applyProjectSnapshot`. Drift between `activeProject.ontology` and the slice cache is structurally impossible.
+Every server-response handler that returned an `OntologyDraft` (handleSave, refine, restore, extend, reanalyze, complete, fork, delete) now lands its result through `applyProjectSnapshot`. Drift between `activeProject.ontology` and the slice cache is structurally impossible.
 
 ## Header actions: "Extend source" 1st-class
 

@@ -9,7 +9,7 @@ import { compileLoad, deploySchema, generateLoadPlan } from "@/lib/api";
 import type { LoadPlan } from "@/types/api";
 
 export interface DeploymentActionsProps {
-  projectId: string;
+  ontologyDraftId: string;
   loading: boolean;
   setLoading: (v: boolean) => void;
   onApiError: (err: unknown, label: string) => Promise<boolean>;
@@ -20,7 +20,7 @@ export interface DeploymentActionsProps {
 }
 
 export function DeploymentActions({
-  projectId,
+  ontologyDraftId,
   loading,
   setLoading,
   onApiError,
@@ -36,7 +36,7 @@ export function DeploymentActions({
   async function handleDeployPreview() {
     setLoading(true);
     try {
-      const resp = await deploySchema(projectId, { dry_run: true });
+      const resp = await deploySchema(ontologyDraftId, { dry_run: true });
       setDeployPreview(resp.statements);
     } catch (err) {
       if (await onApiError(err, t("deployPreviewFailed"))) return;
@@ -57,7 +57,7 @@ export function DeploymentActions({
     }
     setLoading(true);
     try {
-      const resp = await deploySchema(projectId, { dry_run: false });
+      const resp = await deploySchema(ontologyDraftId, { dry_run: false });
       setDeployPreview(null);
       toast.success(t("schemaDeployed", { count: resp.statements.length }));
     } catch (err) {
@@ -70,7 +70,7 @@ export function DeploymentActions({
   async function handleGenerateLoadPlan() {
     setLoading(true);
     try {
-      const resp = await generateLoadPlan(projectId);
+      const resp = await generateLoadPlan(ontologyDraftId);
       setLoadPlan(resp.plan);
     } catch (err) {
       if (await onApiError(err, t("loadPlanFailed"))) return;
@@ -83,7 +83,7 @@ export function DeploymentActions({
     if (!loadPlan) return;
     setLoading(true);
     try {
-      const resp = await compileLoad(projectId, { plan: loadPlan });
+      const resp = await compileLoad(ontologyDraftId, { plan: loadPlan });
       toast.success(t("loadCompiled", { count: resp.statements.length }));
     } catch (err) {
       if (await onApiError(err, t("loadCompileFailed"))) return;

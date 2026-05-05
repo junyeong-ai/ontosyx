@@ -115,21 +115,21 @@ export function clearCollabClient(): void {
 }
 
 /**
- * Auto-join `projectId` while mounted, leave on unmount or when
- * `projectId` changes. Gated on `clientReady` so the call queues
+ * Auto-join `ontologyDraftId` while mounted, leave on unmount or when
+ * `ontologyDraftId` changes. Gated on `clientReady` so the call queues
  * inside the client only after the singleton exists; the rejoin
  * set inside `CollaborationClient` then carries the room across
  * reconnects without further work from the caller.
  */
-export function useCollabRoom(projectId: string | null | undefined): void {
+export function useCollabRoom(ontologyDraftId: string | null | undefined): void {
   const clientReady = useCollabStore((s) => s.clientReady);
 
   useEffect(() => {
-    if (!clientReady || !projectId || !activeClient) return;
+    if (!clientReady || !ontologyDraftId || !activeClient) return;
     const client = activeClient;
-    client.join(projectId);
+    client.join(ontologyDraftId);
     return () => {
-      client.leave(projectId);
+      client.leave(ontologyDraftId);
     };
-  }, [clientReady, projectId]);
+  }, [clientReady, ontologyDraftId]);
 }

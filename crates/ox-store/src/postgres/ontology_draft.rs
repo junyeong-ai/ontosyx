@@ -53,12 +53,12 @@ impl OntologyDraftStore for PostgresStore {
     async fn list_ontology_drafts(
         &self,
         pagination: &CursorParams,
-    ) -> OxResult<CursorPage<DesignProjectSummary>> {
+    ) -> OxResult<CursorPage<OntologyDraftSummary>> {
         let limit = pagination.effective_limit();
         let fetch_limit = limit + 1;
 
         let rows = match pagination.cursor_parts() {
-            Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, DesignProjectSummary>(
+            Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, OntologyDraftSummary>(
                 "SELECT id, status, revision, user_id, title, source_config, parent_version_id,
                         created_at, updated_at, analyzed_at
                  FROM ontology_drafts
@@ -72,7 +72,7 @@ impl OntologyDraftStore for PostgresStore {
             .fetch_all(&self.pool)
             .await
             .map_err(to_ox_error)?,
-            None => sqlx::query_as::<_, DesignProjectSummary>(
+            None => sqlx::query_as::<_, OntologyDraftSummary>(
                 "SELECT id, status, revision, user_id, title, source_config, parent_version_id,
                         created_at, updated_at, analyzed_at
                  FROM ontology_drafts

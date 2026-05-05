@@ -112,8 +112,8 @@ describe("ScopeBadge", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
 
     await waitFor(() => expect(deferSpy).toHaveBeenCalled());
-    const [projectId, payload] = deferSpy.mock.calls[0] ?? [];
-    expect(projectId).toBe("proj-1");
+    const [ontologyDraftId, payload] = deferSpy.mock.calls[0] ?? [];
+    expect(ontologyDraftId).toBe("proj-1");
     expect(payload).toEqual({
       tables: ["customers"],
       reason: "out of scope",

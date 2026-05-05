@@ -19,7 +19,7 @@ use crate::routes::ontology_drafts::extend as project_extend;
 use crate::routes::ontology_drafts::lifecycle as project_lifecycle;
 use crate::routes::ontology_drafts::preview as project_preview;
 use crate::routes::ontology_drafts::refinement as project_refinement;
-use crate::routes::ontology_drafts::revisions as project_revisions;
+use crate::routes::ontology_drafts::revisions as ontology_draft_revisions;
 use crate::routes::ontology_drafts::scope as project_scope;
 use crate::routes::ontology_drafts::streaming as project_streaming;
 use crate::routes::ontology_drafts::types as project_types;
@@ -142,7 +142,7 @@ impl Modify for SecurityAddon {
         project_lifecycle::delete_ontology_draft,
         project_lifecycle::complete_ontology_draft,
         project_decisions::update_decisions,
-        project_refinement::ontology_draft,
+        project_refinement::design_ontology_draft,
         project_refinement::refine_ontology_draft,
         project_refinement::apply_reconcile,
         project_analysis::reanalyze_ontology_draft,
@@ -155,9 +155,9 @@ impl Modify for SecurityAddon {
         project_streaming::design_ontology_draft_stream,
         project_streaming::refine_ontology_draft_stream,
         // Projects — revisions
-        project_revisions::list_revisions,
-        project_revisions::get_revision,
-        project_revisions::restore_revision,
+        ontology_draft_revisions::list_revisions,
+        ontology_draft_revisions::get_revision,
+        ontology_draft_revisions::restore_revision,
         // Ontology
         ontology::create_ontology,
         ontology::get_workspace_ontology_detail,
@@ -460,7 +460,7 @@ impl Modify for SecurityAddon {
             load::ExecuteLoadResponse,
             load::PromptInfo,
             // Revisions
-            project_revisions::RestoreOntologyDraftRevisionResponse,
+            ontology_draft_revisions::RestoreOntologyDraftRevisionResponse,
             // Admin — prompt templates
             prompts_admin::CreatePromptRequest,
             prompts_admin::UpdatePromptRequest,
@@ -482,7 +482,7 @@ impl Modify for SecurityAddon {
             // Store models
             CursorParams,
             OntologyDraft,
-            DesignProjectSummary,
+            OntologyDraftSummary,
             ontology::OntologyDetail,
             ontology::CurrentVersionSummary,
             ontology::WorkspaceOntologyResponse,
@@ -646,9 +646,9 @@ pub struct OntologyDraft {
 
 /// Design project summary (lightweight, for list endpoints).
 #[derive(ToSchema)]
-#[schema(as = DesignProjectSummary)]
+#[schema(as = OntologyDraftSummary)]
 #[allow(dead_code)]
-pub struct DesignProjectSummary {
+pub struct OntologyDraftSummary {
     pub id: uuid::Uuid,
     pub status: String,
     pub revision: i32,

@@ -17,7 +17,7 @@ const SURFACE_BY_CODE: Record<ErrorCode, ErrorSurface> = {
   auth_timeout: "reauth",
   session_revoked: "reauth",
   unauthorized_workspace: "reauth",
-  unauthorized_project: "recoverable",
+  unauthorized_ontology_draft: "recoverable",
   auth_unavailable: "recoverable",
   malformed_frame: "recoverable",
   too_many_connections: "recoverable",

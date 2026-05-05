@@ -94,7 +94,7 @@ id newtype + struct + builder + validation entry-points.
 - `insight.rs`, `repo_insights.rs`, `source_analysis.rs` — design-time
   recommendations.
 - `graph_exploration.rs`, `table_clustering.rs`,
-  `widget_spec.rs`, `load_plan.rs`, `design_project.rs` — per-surface
+  `widget_spec.rs`, `load_plan.rs`, `ontology_draft.rs` — per-surface
   DTOs the ox-api routes return. These do not roll into `OntologyIR`;
   they describe projects / plans / explorations over it.
 

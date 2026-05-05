@@ -47,7 +47,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   //
   // BE contract for `remoteCommands`: the `EntityUpdated` WebSocket
   // event broadcast by the collaboration room when another client
-  // commits ops carries `{ project_id, base_revision, remote_revision,
+  // commits ops carries `{ ontology_draft_id, base_revision, remote_revision,
   // commands }`. The room subscriber populates `remoteCommands` here
   // so the diff dialog can render the symmetric inventory. Until the
   // BE event lands, the field stays `undefined` and the dialog falls

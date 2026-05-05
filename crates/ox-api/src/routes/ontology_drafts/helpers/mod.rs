@@ -88,7 +88,7 @@ pub(crate) async fn load_project_in_status(
     let project = load_mutable_project(state, id).await?;
 
     if project.status.parse::<OntologyDraftStatus>().ok() != Some(required) {
-        return Err(AppError::project_status_mismatch(
+        return Err(AppError::ontology_draft_status_mismatch(
             required.to_string(),
             project.status.clone(),
         ));

@@ -58,7 +58,7 @@ const AI_IMPROVE_PROMPTS = {
 async function improveWithAi(
   entityType: "node" | "edge",
   entityLabel: string,
-  projectId: string,
+  ontologyDraftId: string,
   revision: number,
   applyCommand: (cmd: OntologyCommand) => void,
   copy: ImproveWithAiCopy,
@@ -69,7 +69,7 @@ async function improveWithAi(
       "{label}",
       entityLabel,
     );
-    const resp = await editOntologyDraft(projectId, {
+    const resp = await editOntologyDraft(ontologyDraftId, {
       revision,
       user_request: userRequest,
       dry_run: true,

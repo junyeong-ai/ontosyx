@@ -130,7 +130,7 @@ export function PerspectiveSwitcher({
       await savePerspective({
         lineage_id: lineageId,
         topology_signature: topologySignature,
-        project_id: activeProjectId,
+        ontology_draft_id: activeProjectId,
         name: newName.trim(),
         positions,
         viewport: { x: vp.x, y: vp.y, zoom: vp.zoom },

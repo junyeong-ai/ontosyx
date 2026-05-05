@@ -47,7 +47,7 @@ use super::types::{
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn ontology_draft(
+pub(crate) async fn design_ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,

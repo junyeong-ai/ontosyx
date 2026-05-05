@@ -26,12 +26,12 @@
     "missing_context": "Server configuration error. Contact support with the x-request-id header.",
     "edit_operations_empty": "Select at least one change to apply.",
     "ontology_version_conflict": "Another user changed the schema (expected v{expected}, current v{current}). Refresh and retry.",
-    "project_stale_parent": "This project branched from v{parent_version}, but the canonical schema has advanced to v{current_version}. Rebase onto the new head before completing — committing now would silently overwrite intervening changes.",
+    "ontology_draft_stale_parent": "This project branched from v{parent_version}, but the canonical schema has advanced to v{current_version}. Rebase onto the new head before completing — committing now would silently overwrite intervening changes.",
     "ontology_invariant_violation": "Ontology integrity check failed. Resolve the items below and retry.",
     "edit_operation_rejected": "An edit operation was rejected. {detail}",
     "ontology_not_committed": "Ontology '{lineage_id}' has no committed version yet. Save it first and retry.",
     "deploy_pending_approval": "Schema deployment is awaiting admin approval. Retry after the review completes.",
-    "project_missing_source_schema": "The project has no source schema. {detail}",
+    "ontology_draft_missing_source_schema": "The project has no source schema. {detail}",
     "query_text_empty": "Type something to search.",
     "temporal_query_requires_ontology": "Temporal queries (`as_of`) need an ontology id so the server can resolve the lineage to walk back through.",
     "temporal_snapshot_missing": "No version was live at {as_of} for lineage '{lineage_id}'. The earliest committed version came after that timestamp, or the version was removed.",
@@ -62,7 +62,7 @@
     "reanalyze_no_modeled_tables": "No modeled tables. Promote at least one deferred table or use the regular reanalyze endpoint.",
     "source_type_mismatch": "This project was created with '{expected}' but reanalyze got '{got}'. Use the same source type.",
     "decision_invalid_schema_refs": "Some decisions reference schema elements that no longer exist. Re-check the analysis report.",
-    "project_status_mismatch": "This action requires project status '{required}', but the project is currently '{actual}'. Refresh the page.",
+    "ontology_draft_status_mismatch": "This action requires project status '{required}', but the project is currently '{actual}'. Refresh the page.",
     "source_connection_failed": "Couldn't connect to the {source_type, select, postgresql {PostgreSQL} mysql {MySQL} mongodb {MongoDB} snowflake {Snowflake} bigquery {BigQuery} duckdb {DuckDB} other {{source_type}}} source. {detail}",
     "edit_queued_for_approval": "Automation policy gates this change. Open the approvals queue to request review.",
     "query_ir_invalid": "The query definition (query_ir) is malformed. {detail}",
@@ -110,7 +110,7 @@
         "title": "Workspace access denied",
         "description": "You are not a member of this workspace. Ask an administrator for an invite."
       },
-      "unauthorized_project": {
+      "unauthorized_ontology_draft": {
         "title": "Project access denied",
         "description": "You do not have access to this project."
       },

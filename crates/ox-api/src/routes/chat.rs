@@ -38,7 +38,7 @@ pub struct ChatStreamRequest {
     #[serde(default)]
     pub ontology_draft_id: Option<Uuid>,
     #[serde(default)]
-    pub project_revision: Option<i32>,
+    pub ontology_draft_revision: Option<i32>,
     #[serde(default)]
     pub session_id: Option<String>,
     #[serde(default)]
@@ -148,7 +148,7 @@ pub(crate) async fn chat_stream(
         workspace_id: ws.workspace_id,
         ontology_id: req.ontology_id,
         ontology_draft_id: req.ontology_draft_id,
-        project_revision: req.project_revision,
+        ontology_draft_revision: req.ontology_draft_revision,
         source_schema,
         source_profile,
         repo_insights,

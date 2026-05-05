@@ -114,12 +114,12 @@ export function useDeleteProject() {
  * the staged-bootstrap flow's deferred entries land here for
  * one-click promotion.
  */
-export function useIncludeScopeTables(projectId: string) {
+export function useIncludeScopeTables(ontologyDraftId: string) {
   const qc = useQueryClient();
   return useMutation<ScopeUpdateResponse, Error, IncludeScopeTablesRequest>({
-    mutationFn: (req) => includeScopeTables(projectId, req),
+    mutationFn: (req) => includeScopeTables(ontologyDraftId, req),
     onSuccess: (data) => {
-      qc.setQueryData(ontologyDraftsKeys.detail(projectId), data.project);
+      qc.setQueryData(ontologyDraftsKeys.detail(ontologyDraftId), data.project);
       qc.invalidateQueries({ queryKey: ontologyDraftsKeys.lists() });
     },
   });
@@ -131,12 +131,12 @@ export function useIncludeScopeTables(projectId: string) {
  * the project's ontology still binds a NodeType to one of the
  * tables — the caller must retract those nodes first.
  */
-export function useDeferScopeTables(projectId: string) {
+export function useDeferScopeTables(ontologyDraftId: string) {
   const qc = useQueryClient();
   return useMutation<ScopeUpdateResponse, Error, DeferScopeTablesRequest>({
-    mutationFn: (req) => deferScopeTables(projectId, req),
+    mutationFn: (req) => deferScopeTables(ontologyDraftId, req),
     onSuccess: (data) => {
-      qc.setQueryData(ontologyDraftsKeys.detail(projectId), data.project);
+      qc.setQueryData(ontologyDraftsKeys.detail(ontologyDraftId), data.project);
       qc.invalidateQueries({ queryKey: ontologyDraftsKeys.lists() });
     },
   });

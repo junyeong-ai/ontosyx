@@ -56,7 +56,7 @@ export function Header() {
       <div className="flex shrink-0 items-center gap-2 ps-3">
         {activeProject?.id && (
           <PresenceAvatars
-            projectId={activeProject.id}
+            ontologyDraftId={activeProject.id}
             excludeUserId={user?.sub}
             className="me-1"
           />

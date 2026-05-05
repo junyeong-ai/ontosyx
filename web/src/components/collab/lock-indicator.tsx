@@ -14,18 +14,18 @@ import { useEntityLock } from "./use-entity-lock";
 import { cn } from "@/lib/cn";
 
 interface LockIndicatorProps {
-  projectId: string | undefined;
+  ontologyDraftId: string | undefined;
   entityId: string | undefined;
   className?: string;
 }
 
 export function LockIndicator({
-  projectId,
+  ontologyDraftId,
   entityId,
   className,
 }: LockIndicatorProps) {
-  const lock = useEntityLock(projectId, entityId);
-  const presence = useCollabStore(selectStatePresence(projectId ?? ""));
+  const lock = useEntityLock(ontologyDraftId, entityId);
+  const presence = useCollabStore(selectStatePresence(ontologyDraftId ?? ""));
   const t = useTranslations("collaboration.lock");
 
   if (lock.kind === "unlocked") return null;

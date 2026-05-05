@@ -18,7 +18,7 @@ const ERROR_CODES = [
   "auth_timeout",
   "malformed_frame",
   "unauthorized_workspace",
-  "unauthorized_project",
+  "unauthorized_ontology_draft",
   "too_many_connections",
   "broadcast_lagged",
   "not_joined",

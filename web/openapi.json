@@ -3698,97 +3698,6 @@
         ]
       }
     },
-    "/api/ontologies": {
-      "get": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "list_ontologies",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Max items to return (default 50, max 100)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "minimum": 0
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "description": "Opaque cursor from a previous response",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "name_eq",
-            "in": "query",
-            "description": "Return only the ontology whose workspace-scoped name matches exactly (0 or 1 items). When set, pagination is ignored.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated list of ontology identities",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "create_ontology",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateOntologyRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Ontology created — returns identity + first version"
-          },
-          "400": {
-            "description": "Missing name or other client-side input error"
-          },
-          "409": {
-            "description": "Initial operation would queue for approval — split and use /edits"
-          },
-          "422": {
-            "description": "Initial operation or post-batch validation rejected the IR"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/api/ontologies/export": {
       "post": {
         "tags": [
@@ -4156,50 +4065,57 @@
         ]
       }
     },
-    "/api/ontologies/type-candidates": {
+    "/api/ontology": {
       "get": {
         "tags": [
-          "Ontologies"
+          "Ontology"
         ],
-        "summary": "Enumerate every ontology in the workspace whose current version\ncontains a node/edge type with the given logical id.",
-        "description": "Iterative scan — O(n) ontologies × O(m) types per version. For\nthe expected workspace scale (dozens of ontologies, each with\nlow-hundreds of types) this is well under 100ms. If scan cost\nbecomes a concern, swap to a direct query on\n`ontology_version_entities` keyed on `(kind, logical_id)`.",
-        "operationId": "list_type_candidates",
-        "parameters": [
-          {
-            "name": "logical_id",
-            "in": "query",
-            "description": "Stable id string. For types that were created via auto-uuid,\nthis is the UUID rendered as a string; for authored ids, the\nauthor-assigned value. Match is exact.",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "kind",
-            "in": "query",
-            "description": "`\"node\"` or `\"edge\"`. Also accept the typed signal form\n(`\"NodeType\"` / `\"EdgeType\"`) so the FE can forward\n`StaleConceptProposal.type_kind` unchanged.",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "operationId": "get_workspace_ontology_detail",
         "responses": {
           "200": {
-            "description": "Ontologies that own the logical id",
+            "description": "Workspace ontology singleton — `ontology` is null in the greenfield phase",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TypeCandidate"
-                  }
+                  "$ref": "#/components/schemas/WorkspaceOntologyResponse"
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Ontology"
+        ],
+        "operationId": "create_ontology",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOntologyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Ontology created — returns identity + first version"
           },
           "400": {
-            "description": "Invalid kind"
+            "description": "Missing name or other client-side input error"
+          },
+          "409": {
+            "description": "Workspace already has an ontology, or initial operation would queue for approval"
+          },
+          "422": {
+            "description": "Initial operation or post-batch validation rejected the IR"
           }
         },
         "security": [
@@ -4209,37 +4125,98 @@
         ]
       }
     },
-    "/api/ontologies/{id}": {
+    "/api/ontology-drafts": {
       "get": {
         "tags": [
-          "Ontologies"
+          "Projects"
         ],
-        "operationId": "get_ontology_detail",
+        "operationId": "list_ontology_drafts",
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "description": "Ontology identity ID",
-            "required": true,
+            "name": "limit",
+            "in": "query",
+            "description": "Max items to return (default 50, max 100)",
+            "required": false,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from a previous response",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Ontology detail with hydrated IR",
+            "description": "Paginated project list",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OntologyDetail"
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "create_ontology_draft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOntologyDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Project created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
                 }
               }
             }
           },
           "404": {
-            "description": "Ontology not found",
+            "description": "Base ontology not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -4264,17 +4241,88 @@
         ]
       }
     },
-    "/api/ontologies/{id}/dependencies": {
+    "/api/ontology-drafts/source-preview": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "preview_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewSourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cheap table listing for the source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewSourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Source kind not previewable or empty data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Designer role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}": {
       "get": {
         "tags": [
-          "Ontologies"
+          "Projects"
         ],
-        "operationId": "get_ontology_dependencies",
+        "operationId": "get_ontology_draft",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Ontology identity id",
+            "description": "Project ID",
             "required": true,
             "schema": {
               "type": "string",
@@ -4282,6 +4330,1634 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Project details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "delete_ontology_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Project deleted"
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/apply-reconcile": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "apply_reconcile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReconcileOntologyDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reconcile decisions applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefineOntologyDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid decisions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reconciled ontology invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/complete": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "complete_ontology_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Project completed, ontology saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Project has no ontology",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Quality gate failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/decisions": {
+      "patch": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "update_decisions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOntologyDraftDecisionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Decisions updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/design": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "design_ontology_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignOntologyDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Ontology designed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignOntologyDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or large schema gate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "LLM timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/design/stream": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "design_ontology_draft_stream",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignOntologyDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream: phase* -> result events",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/edit": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "edit_ontology_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Edit commands generated and optionally applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditProjectResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty request or no ontology",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Command validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "LLM timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/extend": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "extend_ontology_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendOntologyDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Ontology extended with new source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendOntologyDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No ontology or empty source data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "LLM timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/ontology": {
+      "patch": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "apply_ontology_commands",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Design project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyOntologyCommandsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Commands applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyOntologyCommandsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty commands or invalid ontology",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Command execution or validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/reanalyze": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "reanalyze_ontology_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReanalyzeOntologyDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Source re-analyzed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReanalyzeOntologyDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Source type mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/reanalyze-modeled": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "reanalyze_modeled_ontology_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReanalyzeModeledOntologyDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Modeled tables re-analyzed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReanalyzeOntologyDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No modeled tables / source type mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/refine": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "refine_ontology_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefineOntologyDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Ontology refined",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefineOntologyDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No runtime or additional context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Uncertain reconcile matches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "LLM timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/refine/stream": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "refine_ontology_draft_stream",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefineOntologyDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream: phase* -> result/uncertain_reconcile events",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "400": {
+            "description": "No runtime or context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/revisions": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "list_revisions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ontology revision snapshots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/revisions/{rev}": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "get_revision",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "rev",
+            "in": "path",
+            "description": "Revision number",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ontology revision snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Revision not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/revisions/{rev}/restore": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "restore_revision",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "rev",
+            "in": "path",
+            "description": "Revision number to restore",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revision restored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreOntologyDraftRevisionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or revision not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/scope/defer": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Move tables from included to deferred. Rejected with 409 when\nthe project's ontology already binds a NodeType to a target\ntable — the caller must retract those nodes first.",
+        "operationId": "defer_scope_tables",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeferScopeTablesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Scope updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopeUpdateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tables list / empty reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Table is currently modeled / revision mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology-drafts/{id}/scope/include": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Promote tables from deferred (or first-time) into included.",
+        "operationId": "include_scope_tables",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncludeScopeTablesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Scope updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopeUpdateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tables list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/dependencies": {
+      "get": {
+        "tags": [
+          "Ontology"
+        ],
+        "operationId": "get_ontology_dependencies",
         "responses": {
           "200": {
             "description": "Schema dependency graph",
@@ -4294,7 +5970,7 @@
             }
           },
           "404": {
-            "description": "Ontology not found or has no committed version"
+            "description": "Workspace has no ontology, or ontology has no committed version"
           }
         },
         "security": [
@@ -4304,24 +5980,12 @@
         ]
       }
     },
-    "/api/ontologies/{id}/glossary/suggest-bindings": {
+    "/api/ontology/glossary/suggest-bindings": {
       "post": {
         "tags": [
-          "Ontologies"
+          "Ontology"
         ],
         "operationId": "suggest_glossary_bindings",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Ontology identity ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4351,24 +6015,12 @@
         ]
       }
     },
-    "/api/ontologies/{id}/notation-patterns/propose": {
+    "/api/ontology/notation-patterns/propose": {
       "post": {
         "tags": [
-          "Ontologies"
+          "Ontology"
         ],
         "operationId": "propose_ontology_notation_patterns",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Ontology identity ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4398,23 +6050,13 @@
         ]
       }
     },
-    "/api/ontologies/{id}/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms": {
+    "/api/ontology/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms": {
       "post": {
         "tags": [
-          "Ontologies"
+          "Ontology"
         ],
         "operationId": "suggest_glossary_terms_for_property",
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Ontology identity ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
           {
             "name": "owner_kind",
             "in": "path",
@@ -4472,24 +6114,64 @@
         ]
       }
     },
-    "/api/ontologies/{id}/validate": {
+    "/api/ontology/type-candidates": {
       "get": {
         "tags": [
-          "Ontologies"
+          "Ontology"
         ],
-        "operationId": "get_ontology_validate",
+        "summary": "Check whether the workspace's canonical ontology contains a\nnode/edge type with the given logical id. Returns 0 or 1\ncandidate (workspace × ontology is 1:1, so the historical\n\"candidates\" plural is now structurally bounded).",
+        "operationId": "list_type_candidates",
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "description": "Ontology identity id",
+            "name": "logical_id",
+            "in": "query",
+            "description": "Stable id string. For types that were created via auto-uuid,\nthis is the UUID rendered as a string; for authored ids, the\nauthor-assigned value. Match is exact.",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "`\"node\"` or `\"edge\"`. Also accept the typed signal form\n(`\"NodeType\"` / `\"EdgeType\"`) so the FE can forward\n`StaleConceptProposal.type_kind` unchanged.",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Workspace ontology entries matching the logical id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TypeCandidate"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid kind"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/validate": {
+      "get": {
+        "tags": [
+          "Ontology"
+        ],
+        "operationId": "get_ontology_validate",
         "responses": {
           "200": {
             "description": "Structural validation diagnostics for the current IR",
@@ -4505,7 +6187,7 @@
             }
           },
           "404": {
-            "description": "Ontology not found or has no committed version"
+            "description": "Workspace has no ontology, or the ontology has no committed version"
           }
         },
         "security": [
@@ -4515,24 +6197,12 @@
         ]
       }
     },
-    "/api/ontologies/{id}/value-sets/propose": {
+    "/api/ontology/value-sets/propose": {
       "post": {
         "tags": [
-          "Ontologies"
+          "Ontology"
         ],
         "operationId": "propose_ontology_value_sets",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Ontology identity ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4562,24 +6232,13 @@
         ]
       }
     },
-    "/api/ontologies/{id}/verifications": {
+    "/api/ontology/verifications": {
       "get": {
         "tags": [
-          "Ontologies"
+          "Ontology"
         ],
-        "summary": "GET /api/ontologies/{id}/verifications — list active verifications",
+        "summary": "GET /api/ontology/verifications — list active verifications",
         "operationId": "list_verifications",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Ontology lineage ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Active verifications",
@@ -4603,21 +6262,10 @@
       },
       "post": {
         "tags": [
-          "Ontologies"
+          "Ontology"
         ],
-        "summary": "POST /api/ontologies/{id}/verifications — mark an element as verified",
+        "summary": "POST /api/ontology/verifications — mark an element as verified",
         "operationId": "verify_element",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Ontology lineage ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4650,23 +6298,14 @@
         ]
       }
     },
-    "/api/ontologies/{id}/verifications/{element_id}": {
+    "/api/ontology/verifications/{element_id}": {
       "delete": {
         "tags": [
-          "Ontologies"
+          "Ontology"
         ],
-        "summary": "DELETE /api/ontologies/{id}/verifications/{element_id} — revoke verification",
+        "summary": "DELETE /api/ontology/verifications/{element_id} — revoke verification",
         "operationId": "delete_verification",
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Ontology lineage ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "element_id",
             "in": "path",
@@ -4983,1833 +6622,6 @@
             }
           }
         }
-      }
-    },
-    "/api/projects": {
-      "get": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "list_projects",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Max items to return (default 50, max 100)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "minimum": 0
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "description": "Opaque cursor from a previous response",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated project list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "create_project",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateProjectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Project created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Base ontology not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/source-preview": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "preview_source",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PreviewSourceRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Cheap table listing for the source",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PreviewSourceResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Source kind not previewable or empty data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Designer role required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}": {
-      "get": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "get_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Project details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      },
-      "delete": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "delete_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Project deleted"
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/apply-reconcile": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "apply_reconcile",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReconcileProjectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Reconcile decisions applied",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RefineProjectResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid decisions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Reconciled ontology invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/complete": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "complete_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompleteProjectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Project completed, ontology saved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Project has no ontology",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Quality gate failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/decisions": {
-      "patch": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "update_decisions",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateProjectDecisionsRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Decisions updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Revision conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/design": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "design_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DesignProjectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Ontology designed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DesignProjectResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input or large schema gate",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "LLM timeout",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/design/stream": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "design_project_stream",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DesignProjectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "SSE stream: phase* -> result events",
-            "content": {
-              "text/event-stream": {}
-            }
-          },
-          "400": {
-            "description": "Invalid input",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/edit": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "edit_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditProjectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Edit commands generated and optionally applied",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EditProjectResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Empty request or no ontology",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Command validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "LLM timeout",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/extend": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "extend_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExtendProjectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Ontology extended with new source",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExtendProjectResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "No ontology or empty source data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "LLM timeout",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/ontology": {
-      "patch": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "apply_ontology_commands",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Design project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApplyOntologyCommandsRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Commands applied",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApplyOntologyCommandsResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Empty commands or invalid ontology",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Command execution or validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/reanalyze": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "reanalyze_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReanalyzeProjectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Source re-analyzed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReanalyzeProjectResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Source type mismatch",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/reanalyze-modeled": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "reanalyze_modeled_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReanalyzeModeledProjectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Modeled tables re-analyzed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReanalyzeProjectResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "No modeled tables / source type mismatch",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/refine": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "refine_project",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RefineProjectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Ontology refined",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RefineProjectResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "No runtime or additional context",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Uncertain reconcile matches",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "LLM timeout",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/refine/stream": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "refine_project_stream",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RefineProjectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "SSE stream: phase* -> result/uncertain_reconcile events",
-            "content": {
-              "text/event-stream": {}
-            }
-          },
-          "400": {
-            "description": "No runtime or context",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/revisions": {
-      "get": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "list_revisions",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of ontology revision snapshots",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/revisions/{rev}": {
-      "get": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "get_revision",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "rev",
-            "in": "path",
-            "description": "Revision number",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Ontology revision snapshot",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Revision not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/revisions/{rev}/restore": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "operationId": "restore_revision",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "rev",
-            "in": "path",
-            "description": "Revision number to restore",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Revision restored",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RestoreProjectRevisionResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project or revision not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/scope/defer": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "summary": "Move tables from included to deferred. Rejected with 409 when\nthe project's ontology already binds a NodeType to a target\ntable — the caller must retract those nodes first.",
-        "operationId": "defer_scope_tables",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DeferScopeTablesRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Scope updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ScopeUpdateResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Empty tables list / empty reason",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Table is currently modeled / revision mismatch",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{id}/scope/include": {
-      "post": {
-        "tags": [
-          "Projects"
-        ],
-        "summary": "Promote tables from deferred (or first-time) into included.",
-        "operationId": "include_scope_tables",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IncludeScopeTablesRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Scope updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ScopeUpdateResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Empty tables list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Revision mismatch",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
       }
     },
     "/api/prompts": {
@@ -11351,14 +11163,14 @@
           "ontology": {
             "type": "object"
           },
-          "ontology_id": {
+          "ontology_draft_id": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
           },
-          "project_id": {
+          "ontology_id": {
             "type": [
               "string",
               "null"
@@ -11410,11 +11222,11 @@
             "type": "object",
             "description": "Join a project room. The server responds with\n[`ServerMessage::Presence`] (unicast snapshot) and broadcasts\n[`ServerMessage::UserJoined`] to existing members.",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "type"
             ],
             "properties": {
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -11430,11 +11242,11 @@
             "type": "object",
             "description": "Leave a room — releases every lock the caller holds in it.",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "type"
             ],
             "properties": {
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -11450,13 +11262,13 @@
             "type": "object",
             "description": "Update cursor position. Throttled per\n`collaboration.cursor_throttle_ms`; events inside the window\nare silently dropped.",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "x",
               "y",
               "type"
             ],
             "properties": {
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -11486,7 +11298,7 @@
             "type": "object",
             "description": "Request exclusive lock on an entity. Idempotent for the\ncaller — repeated acquires by the same user refresh the TTL.",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "entity_id",
               "type"
             ],
@@ -11494,7 +11306,7 @@
               "entity_id": {
                 "type": "string"
               },
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -11510,7 +11322,7 @@
             "type": "object",
             "description": "Release a lock the caller holds. No-op for foreign locks.",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "entity_id",
               "type"
             ],
@@ -11518,7 +11330,7 @@
               "entity_id": {
                 "type": "string"
               },
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -11906,6 +11718,131 @@
             "format": "int32"
           }
         }
+      },
+      "ConceptDef": {
+        "type": "object",
+        "description": "Workspace-canonical business concept — the identity layer above\nany lexicalization the glossary records.\n\nImplementer pin: `NodeTypeDef.concept_id` /\n`EdgeTypeDef.concept_id` reference exactly one `ConceptDef`. The\ncanonical pre-label lives on the referenced `GlossaryTermDef` (via\n`canonical_term_id`); aliases fan out across `alias_term_ids` so a\nmultilingual deployment can ship the Korean and English term\nrecords side-by-side without inventing a second concept.",
+        "required": [
+          "id",
+          "canonical_term_id"
+        ],
+        "properties": {
+          "alias_term_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GlossaryTermId"
+            },
+            "description": "Alternative lexicalizations — synonyms, abbreviations,\nper-locale variants. Each entry resolves to a\n`GlossaryTermDef.id` whose role is `Alias` for this concept.\nEmpty when the concept has no alias terms registered yet."
+          },
+          "broader": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConceptId",
+                "description": "SKOS-aligned hierarchy parent. `Some(parent_id)` declares\nthis concept as a `skos:narrower` of `parent_id`; `None`\nmakes it a top-of-tree entry inside its workspace."
+              }
+            ]
+          },
+          "canonical_term_id": {
+            "$ref": "#/components/schemas/GlossaryTermId",
+            "description": "The canonical prefLabel realisation. Points at a\n`GlossaryTermDef.id` whose role is `Canonical` for this\nconcept. The GlossaryTerm itself owns the localised text."
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Author-supplied category (`\"business_concept\"`, `\"measure\"`,\n`\"dimension\"`). Free-form; the platform never imposes a fixed\ntaxonomy here."
+          },
+          "description": {
+            "$ref": "#/components/schemas/LocalizedText",
+            "description": "Domain definition. Localised so a bilingual deployment ships\nEnglish + Korean text without duplicating the concept."
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocalizedText"
+            },
+            "description": "Illustrative examples that disambiguate abstract definitions\n— sentence-shaped and locale-aware. SKOS `skos:example`."
+          },
+          "governance": {
+            "$ref": "#/components/schemas/ConceptGovernance",
+            "description": "Authorship and editorial trail. Mirrors the term's\n`governance` shape so downstream consumers reach for the\nsame fields regardless of which entity they're inspecting."
+          },
+          "id": {
+            "$ref": "#/components/schemas/ConceptId",
+            "description": "Stable identity. Survives prefLabel rewrites, locale flips,\nand source-merge reconciliation. NodeType / EdgeType implementers\npin this id, not the term id, so lexical churn stays local."
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/TermLifecycle",
+            "description": "Lifecycle state. Drives UI affordances (deprecation\nstrikethrough, retired filter) and downstream resolvers\n(NL-to-Cypher should route a deprecated concept through\nits `replaced_by` automatically)."
+          },
+          "realisation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TermRealisation",
+                "description": "Optional executable spec for \"what does it mean for a row\nto belong to this concept?\" — segment membership,\nfunction-derived value, cross-entity predicate. The\nrealisation lives on the concept (not on each\nlexicalization) so a translated alias term can never\ndeclare a different membership rule."
+              }
+            ]
+          },
+          "replaced_by": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConceptId",
+                "description": "Pointer to the successor concept when this one is deprecated.\nLets the resolver chain forward without touching individual\nterm records."
+              }
+            ]
+          },
+          "valid_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Inclusive lower bound on the concept's validity window.\n`None` means \"valid since the beginning of the ontology lineage\"."
+          },
+          "valid_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Exclusive upper bound on the concept's validity window.\n`None` means open-ended; a retired concept keeps `valid_to`\nset so historical queries can still reference it as it was."
+          }
+        }
+      },
+      "ConceptGovernance": {
+        "type": "object",
+        "description": "Editorial trail for a concept. Names the operator and the time\nof the last edit so the audit dashboard can attribute a\ndefinition rewrite without joining a side table.",
+        "properties": {
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stable subject of the human or system actor that authored\nthe concept. Matches `glossary` governance shape so audit\nqueries can union across both."
+          },
+          "last_edited_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "ISO-8601 last-edited timestamp."
+          }
+        }
+      },
+      "ConceptId": {
+        "type": "string",
+        "description": "Stable identifier for a [`ConceptDef`]. Workspace-unique;\nformatted lower-snake-case (`concept_customer`, `concept_order`)\nper the IR's id-grammar convention."
       },
       "ConceptMapDef": {
         "type": "object",
@@ -12297,6 +12234,25 @@
           }
         }
       },
+      "CreateOntologyDraftRequest": {
+        "allOf": [
+          {
+            "type": "object",
+            "description": "Project origin: source analysis or base ontology."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
       "CreateOntologyRequest": {
         "type": "object",
         "description": "Request body for `POST /api/ontologies`.\n\n`initial_operations` is optional — callers that only need the\nshell (empty ontology with a pilot name) can omit it. When\npresent, the ops apply atomically: an error on any op or on the\npost-batch `validate()` aborts the whole creation with nothing\npersisted.",
@@ -12454,25 +12410,6 @@
             "type": "string"
           }
         }
-      },
-      "CreateProjectRequest": {
-        "allOf": [
-          {
-            "type": "object",
-            "description": "Project origin: source analysis or base ontology."
-          },
-          {
-            "type": "object",
-            "properties": {
-              "title": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            }
-          }
-        ]
       },
       "CreatePromptRequest": {
         "type": "object",
@@ -13412,85 +13349,7 @@
           }
         }
       },
-      "DesignProject": {
-        "type": "object",
-        "description": "Design project — ontology design lifecycle.",
-        "required": [
-          "id",
-          "status",
-          "revision",
-          "user_id",
-          "source_config",
-          "source_id",
-          "design_options",
-          "source_history",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "analysis_report": {},
-          "analyzed_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "design_options": {},
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "ontology": {},
-          "ontology_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "quality_report": {},
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "source_config": {},
-          "source_data": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "source_history": {},
-          "source_id": {
-            "type": "string",
-            "description": "Canonical source identity (`{source_type}:{fingerprint}`)\nderived from `source_config` at project creation / reanalysis."
-          },
-          "source_profile": {},
-          "source_schema": {},
-          "status": {
-            "type": "string"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "user_id": {
-            "type": "string"
-          }
-        }
-      },
-      "DesignProjectRequest": {
+      "DesignOntologyDraftRequest": {
         "type": "object",
         "required": [
           "revision"
@@ -13506,7 +13365,7 @@
           }
         }
       },
-      "DesignProjectResponse": {
+      "DesignOntologyDraftResponse": {
         "type": "object",
         "required": [
           "project"
@@ -13514,64 +13373,6 @@
         "properties": {
           "project": {
             "type": "object"
-          }
-        }
-      },
-      "DesignProjectSummary": {
-        "type": "object",
-        "description": "Design project summary (lightweight, for list endpoints).",
-        "required": [
-          "id",
-          "status",
-          "revision",
-          "user_id",
-          "source_config",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "analyzed_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "ontology_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "source_config": {},
-          "status": {
-            "type": "string"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "user_id": {
-            "type": "string"
           }
         }
       },
@@ -13623,14 +13424,14 @@
             "$ref": "#/components/schemas/Cardinality",
             "description": "Cardinality constraint."
           },
-          "concept_term_id": {
+          "concept_id": {
             "oneOf": [
               {
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/GlossaryTermId",
-                "description": "Workspace-canonical concept this EdgeType realises. Mirrors\n[`NodeTypeDef::concept_term_id`]; multiple EdgeTypes from\ndifferent sources can share a `concept_term_id` to declare\n\"these are the same business relationship\". The reverse index\n[`super::OntologyIR::glossary_term_realised_by_edge_types`]\nresolves a term to its implementing edges in O(1)."
+                "$ref": "#/components/schemas/ConceptId",
+                "description": "Workspace-canonical concept this EdgeType realises. Mirrors\n[`NodeTypeDef::concept_id`]; multiple EdgeTypes from\ndifferent sources can share a `concept_id` to declare\n\"these are the same business relationship\". The reverse index\n[`super::OntologyIR::concept_realised_by_edge_types`]\nresolves a concept to its implementing edges in O(1)."
               }
             ]
           },
@@ -13993,7 +13794,7 @@
           "auth_timeout",
           "malformed_frame",
           "unauthorized_workspace",
-          "unauthorized_project",
+          "unauthorized_ontology_draft",
           "too_many_connections",
           "broadcast_lagged",
           "not_joined",
@@ -14246,7 +14047,7 @@
           }
         }
       },
-      "ExtendProjectRequest": {
+      "ExtendOntologyDraftRequest": {
         "type": "object",
         "required": [
           "revision",
@@ -14268,7 +14069,7 @@
           }
         }
       },
-      "ExtendProjectResponse": {
+      "ExtendOntologyDraftResponse": {
         "type": "object",
         "required": [
           "project",
@@ -14597,6 +14398,17 @@
             ],
             "description": "Author-supplied category (e.g. `\"business_concept\"`,\n`\"measure\"`, `\"dimension\"`). No fixed taxonomy — categories\nare tenant-defined so the glossary doesn't force an upstream\nontology."
           },
+          "concept_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConceptId",
+                "description": "Concept this term lexicalizes — `Some(concept_id)` declares\nthe term as a `prefLabel` / `altLabel` of a registered\n[`crate::concept::ConceptDef`]. The concept owns the\nexecutable realisation (segment / function / cross-entity\npredicate); terms with no `concept_id` are pure lexicon\nentries (definitions, alias spellings) that the catalogue\nhasn't yet promoted into the concept layer. The IR\nvalidator rejects an anchor that doesn't resolve."
+              }
+            ]
+          },
           "description": {
             "$ref": "#/components/schemas/LocalizedText",
             "description": "Domain definition. Longer than the term, localised so a\nbilingual deployment can ship English + Korean text without\ninventing a second glossary store."
@@ -14622,17 +14434,6 @@
           "lifecycle": {
             "$ref": "#/components/schemas/TermLifecycle",
             "description": "Lifecycle state. Drives UI affordances (deprecation strikethrough,\nretired filter) and downstream resolvers (NL-to-Cypher should\nroute a deprecated term through its `replaced_by` automatically)."
-          },
-          "realisation": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/TermRealisation",
-                "description": "Optional executable spec for \"what does it mean for a row to\nbelong to this term's concept?\" — segment membership,\nfunction-derived value, cross-entity predicate. Terms with a\nrealisation are workspace-canonical business concepts that\n`NodeTypeDef.concept_term_id` / `EdgeTypeDef.concept_term_id`\npin as their primary anchor (1:1 from each implementing type\nto its term); terms without a realisation are pure\nvocabulary entries — labels, definitions, glossary anchors —\nthat the implementing types still describe structurally."
-              }
-            ]
           },
           "related_terms": {
             "type": "array",
@@ -15410,7 +15211,7 @@
       },
       "LockSnapshot": {
         "type": "object",
-        "description": "One element of the lock snapshot a freshly joined client\nreceives. Mirrors [`ServerMessage::LockGranted`] minus the\n`project_id` (the surrounding `Presence` frame already carries\nit).",
+        "description": "One element of the lock snapshot a freshly joined client\nreceives. Mirrors [`ServerMessage::LockGranted`] minus the\n`ontology_draft_id` (the surrounding `Presence` frame already carries\nit).",
         "required": [
           "entity_id",
           "held_by",
@@ -15724,14 +15525,14 @@
             },
             "description": "Actions (writes / mutations) that apply to this node type.\nActions stay owned by the top-level `actions` collection; the\nnode type just points at the ones it supports."
           },
-          "concept_term_id": {
+          "concept_id": {
             "oneOf": [
               {
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/GlossaryTermId",
-                "description": "Workspace-canonical concept this NodeType implements,\nexpressed as the [`crate::glossary::GlossaryTermId`] of a\nterm whose `realisation` field names the executable spec.\nMultiple NodeTypes may share a `concept_term_id` (CRM and ERP\neach contributing their own Customer NodeType, both realising\nthe workspace's Customer concept); the federation planner\nwalks the reverse\n[`super::OntologyIR::glossary_term_realised_by_node_types`]\nindex to enumerate implementers when a query names the\nconcept rather than a specific NodeType. `None` is the\nstructural-only case where the node carries no concept-level\nidentity."
+                "$ref": "#/components/schemas/ConceptId",
+                "description": "Workspace-canonical concept this NodeType implements,\nexpressed as the stable [`crate::concept::ConceptId`].\nMultiple NodeTypes may share a `concept_id` (CRM and ERP\neach contributing their own Customer NodeType, both realising\nthe workspace's Customer concept); the federation planner\nwalks the reverse\n[`super::OntologyIR::concept_realised_by_node_types`]\nindex to enumerate implementers when a query names the\nconcept rather than a specific NodeType. `None` is the\nstructural-only case where the node carries no concept-level\nidentity."
               }
             ]
           },
@@ -16243,13 +16044,149 @@
               },
               {
                 "$ref": "#/components/schemas/OntologyIR",
-                "description": "Fully hydrated `OntologyIR` at the current version. `None` when the\nidentity exists but has no committed version yet — the caller\nshould treat it as an empty ontology (fresh project seed)."
+                "description": "Fully hydrated `OntologyIR` at the current version. `None`\nwhen the identity exists but has no committed version yet —\nthe caller should treat it as an empty ontology (fresh\nproject seed)."
               }
             ]
           },
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "OntologyDraft": {
+        "type": "object",
+        "description": "Design project — ontology design lifecycle.",
+        "required": [
+          "id",
+          "status",
+          "revision",
+          "user_id",
+          "source_config",
+          "source_id",
+          "design_options",
+          "source_history",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "analysis_report": {},
+          "analyzed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "design_options": {},
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ontology": {},
+          "ontology_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "quality_report": {},
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "source_config": {},
+          "source_data": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_history": {},
+          "source_id": {
+            "type": "string",
+            "description": "Canonical source identity (`{source_type}:{fingerprint}`)\nderived from `source_config` at project creation / reanalysis."
+          },
+          "source_profile": {},
+          "source_schema": {},
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
+      "OntologyDraftSummary": {
+        "type": "object",
+        "description": "Design project summary (lightweight, for list endpoints).",
+        "required": [
+          "id",
+          "status",
+          "revision",
+          "user_id",
+          "source_config",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "analyzed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ontology_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "source_config": {},
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_id": {
+            "type": "string"
           }
         }
       },
@@ -16288,6 +16225,13 @@
               "$ref": "#/components/schemas/ConceptMapDef"
             },
             "description": "Ω-5: concept maps — declarative code↔code translations\nbetween two [`crate::code_system::CodeSystemDef`]s."
+          },
+          "concepts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConceptDef"
+            },
+            "description": "Workspace-canonical business concepts — the identity layer\nabove the glossary's lexical instances. SKOS / ISO 1087-1 /\nFIBO all distinguish a concept (the conceptual entity) from\nits lexicalizations (`prefLabel` / `altLabel`); this collection\nis the typed home for that distinction. NodeType / EdgeType\nimplementers point at one concept; the concept owns its\ncanonical-term anchor and any alias terms registered against\nit. See `crate::concept` for the full rationale."
           },
           "data_quality": {
             "type": "array",
@@ -16435,58 +16379,12 @@
           }
         }
       },
-      "OntologyListItem": {
-        "type": "object",
-        "required": [
-          "id",
-          "lineage_id",
-          "name",
-          "description",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "current_version": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/CurrentVersionSummary",
-                "description": "`None` iff the identity has no committed version yet — an ontology\ncan exist with no commits during multi-step create flows."
-              }
-            ]
-          },
-          "description": {
-            "type": "object",
-            "description": "LocalizedText JSONB — `{default, translations}` shape."
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "lineage_id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
       "OntologySnapshot": {
         "type": "object",
         "description": "Ontology revision snapshot.",
         "required": [
           "id",
-          "project_id",
+          "ontology_draft_id",
           "revision",
           "ontology",
           "created_at"
@@ -16501,7 +16399,7 @@
             "format": "uuid"
           },
           "ontology": {},
-          "project_id": {
+          "ontology_draft_id": {
             "type": "string",
             "format": "uuid"
           },
@@ -16582,6 +16480,62 @@
               "null"
             ],
             "format": "date-time"
+          }
+        }
+      },
+      "OntologyVersionEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "committed_by",
+          "commit_message",
+          "created_at",
+          "is_current"
+        ],
+        "properties": {
+          "commit_message": {
+            "type": "string"
+          },
+          "committed_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_current": {
+            "type": "boolean",
+            "description": "`true` when this is the current canonical head — the row\nwhose `valid_to` is null."
+          },
+          "parent_version_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Parent version this commit was branched from. `None` for\nthe very first version of the canonical lineage."
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "OntologyVersionsResponse": {
+        "type": "object",
+        "required": [
+          "versions"
+        ],
+        "properties": {
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OntologyVersionEntry"
+            }
           }
         }
       },
@@ -17188,7 +17142,7 @@
         "allOf": [
           {
             "type": "object",
-            "description": "Connection details for the source — same shape used by\n`CreateProjectRequest::origin::Source { source }`."
+            "description": "Connection details for the source — same shape used by\n`CreateOntologyDraftRequest::origin::Source { source }`."
           }
         ]
       },
@@ -17297,16 +17251,11 @@
           },
           {
             "type": "object",
+            "description": "Seed the project from the workspace's canonical ontology.\nWorkspace × ontology is 1:1 — no id needed. The server\nresolves the current version and hydrates its IR into the\nnew project.",
             "required": [
-              "base_ontology_id",
               "origin_type"
             ],
             "properties": {
-              "base_ontology_id": {
-                "type": "string",
-                "format": "uuid",
-                "description": "Identity of the ontology to seed the project from —\nmatches `ontologies.id`. The server resolves the current\nversion and hydrates its IR into the new project."
-              },
               "origin_type": {
                 "type": "string",
                 "enum": [
@@ -17562,7 +17511,7 @@
       "ProjectView": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/DesignProject"
+            "$ref": "#/components/schemas/OntologyDraft"
           },
           {
             "type": "object",
@@ -17584,7 +17533,7 @@
             }
           }
         ],
-        "description": "Wire shape for any endpoint that returns a project. Carries the\nunderlying [`DesignProject`] flattened (so existing fields stay\nat the top level) plus the server-evaluated [`Vec<DesignGate>`]\nthe FE renders alongside the disabled-design-button checklist.\n\nComputing gates server-side keeps the FE from reimplementing the\ngate-evaluation rules and guarantees the rendering matches what\nthe design endpoint will accept."
+        "description": "Wire shape for any endpoint that returns a project. Carries the\nunderlying [`OntologyDraft`] flattened (so existing fields stay\nat the top level) plus the server-evaluated [`Vec<DesignGate>`]\nthe FE renders alongside the disabled-design-button checklist.\n\nComputing gates server-side keeps the FE from reimplementing the\ngate-evaluation rules and guarantees the rendering matches what\nthe design endpoint will accept."
       },
       "PromptInfo": {
         "type": "object",
@@ -18906,7 +18855,7 @@
           }
         }
       },
-      "ReanalyzeModeledProjectRequest": {
+      "ReanalyzeModeledOntologyDraftRequest": {
         "type": "object",
         "description": "Modeled-only reanalyze: selection is derived from\n`analysis_scope.included`. Rejected with 400 when `included`\nis empty.",
         "required": [
@@ -18930,7 +18879,7 @@
           }
         }
       },
-      "ReanalyzeProjectRequest": {
+      "ReanalyzeOntologyDraftRequest": {
         "type": "object",
         "required": [
           "source",
@@ -18959,7 +18908,7 @@
           }
         }
       },
-      "ReanalyzeProjectResponse": {
+      "ReanalyzeOntologyDraftResponse": {
         "type": "object",
         "required": [
           "project"
@@ -18988,7 +18937,7 @@
           }
         }
       },
-      "ReconcileProjectRequest": {
+      "ReconcileOntologyDraftRequest": {
         "type": "object",
         "required": [
           "revision",
@@ -19021,7 +18970,7 @@
           }
         }
       },
-      "RefineProjectRequest": {
+      "RefineOntologyDraftRequest": {
         "type": "object",
         "required": [
           "revision"
@@ -19040,7 +18989,7 @@
           }
         }
       },
-      "RefineProjectResponse": {
+      "RefineOntologyDraftResponse": {
         "type": "object",
         "required": [
           "project",
@@ -19324,7 +19273,7 @@
           }
         }
       },
-      "RestoreProjectRevisionResponse": {
+      "RestoreOntologyDraftRevisionResponse": {
         "type": "object",
         "required": [
           "project"
@@ -19837,7 +19786,7 @@
             }
           }
         ],
-        "description": "Where a `RuleDef` came from. Authored rules are first-class user\ninput the admin UI lets people edit; derived rules are synthesised\nby the platform from another piece of the IR (typically a\n`Required`-strength `PropertyBinding` via\n[`crate::derived_rules::derive_binding_rules`]) and must be\nregenerated rather than edited.\n\nConsumers gate behaviour on this field:\n- **Editors** disable controls for `DerivedFromBinding` rules and\n  redirect the user to the source binding instead.\n- **Exporters** (OWL/Turtle, SHACL, etc.) skip derived rules to\n  avoid double-emitting the constraint that the binding will\n  re-derive on import.\n- **LLM context builders** strip derived rules to keep the prompt\n  focused on user intent."
+        "description": "Where a `RuleDef` came from. Authored rules are first-class user\ninput the admin UI lets people edit; derived rules are synthesised\nby the platform from another piece of the IR (typically a\n`Required`-strength `PropertyBinding` via\n[`crate::derived_rules::OntologyIR::derive_implicit_rules`]) and must be\nregenerated rather than edited.\n\nConsumers gate behaviour on this field:\n- **Editors** disable controls for `DerivedFromBinding` rules and\n  redirect the user to the source binding instead.\n- **Exporters** (OWL/Turtle, SHACL, etc.) skip derived rules to\n  avoid double-emitting the constraint that the binding will\n  re-derive on import.\n- **LLM context builders** strip derived rules to keep the prompt\n  focused on user intent."
       },
       "SavedPatternResponse": {
         "type": "object",
@@ -20907,7 +20856,7 @@
             "type": "object",
             "description": "Atomic snapshot of the room — unicast to a freshly joined\nclient so it can render presence and current locks without\nwaiting for the next broadcast frame. Existing members\nreceive [`ServerMessage::UserJoined`] instead.",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "users",
               "locks",
               "type"
@@ -20919,7 +20868,7 @@
                   "$ref": "#/components/schemas/LockSnapshot"
                 }
               },
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -20941,7 +20890,7 @@
             "type": "object",
             "description": "Another member's cursor moved. Broadcast to all members\nincluding the originator (clients filter own user_id).",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "user_id",
               "user_name",
               "x",
@@ -20949,7 +20898,7 @@
               "type"
             ],
             "properties": {
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -20985,7 +20934,7 @@
             "type": "object",
             "description": "Lock granted. `held_by` is the user who now owns the lock —\nother members render the entity as locked-by-them, the\nholder renders its own affordances. `expires_at` is the\nTTL deadline; clients should renew or release before then.",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "entity_id",
               "held_by",
               "expires_at",
@@ -21002,7 +20951,7 @@
               "held_by": {
                 "type": "string"
               },
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -21018,7 +20967,7 @@
             "type": "object",
             "description": "Lock denied — `held_by` is the current owner. Unicast to the\nrequester only; other members don't see denials.",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "entity_id",
               "held_by",
               "type"
@@ -21030,7 +20979,7 @@
               "held_by": {
                 "type": "string"
               },
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -21046,7 +20995,7 @@
             "type": "object",
             "description": "Lock released — by the holder, by leave, or by TTL expiry.",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "entity_id",
               "type"
             ],
@@ -21054,7 +21003,7 @@
               "entity_id": {
                 "type": "string"
               },
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -21070,12 +21019,12 @@
             "type": "object",
             "description": "Member joined the room.",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "user",
               "type"
             ],
             "properties": {
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -21094,12 +21043,12 @@
             "type": "object",
             "description": "Member left the room.",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "user_id",
               "type"
             ],
             "properties": {
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -21118,7 +21067,7 @@
             "type": "object",
             "description": "Another member committed ontology commands to the project.\nBroadcast after a successful `apply_ontology_commands` save so\nevery collaborator's command-stack baseline can advance,\nsurfacing the merge surface (`MergeBanner` →\n`CommandStackDiffDialog`) with a fully-rendered remote-ops\ninventory instead of the opaque \"remote arrived\" fallback.\n\n`base_revision` is the revision the commit was authored\nagainst; `new_revision` is the revision after the commit\nlanded; `commands` is the exact ordered op list the author\napplied (oldest first).",
             "required": [
-              "project_id",
+              "ontology_draft_id",
               "author_user_id",
               "author_user_name",
               "base_revision",
@@ -21148,7 +21097,7 @@
                 "type": "integer",
                 "format": "int32"
               },
-              "project_id": {
+              "ontology_draft_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -22643,6 +22592,23 @@
           }
         }
       },
+      "UpdateOntologyDraftDecisionsRequest": {
+        "type": "object",
+        "required": [
+          "design_options",
+          "revision"
+        ],
+        "properties": {
+          "design_options": {
+            "type": "object",
+            "description": "User design decisions."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "UpdatePolicyRequest": {
         "type": "object",
         "properties": {
@@ -22685,23 +22651,6 @@
             "items": {
               "type": "string"
             }
-          }
-        }
-      },
-      "UpdateProjectDecisionsRequest": {
-        "type": "object",
-        "required": [
-          "design_options",
-          "revision"
-        ],
-        "properties": {
-          "design_options": {
-            "type": "object",
-            "description": "User design decisions."
-          },
-          "revision": {
-            "type": "integer",
-            "format": "int32"
           }
         }
       },
@@ -22899,15 +22848,15 @@
           "name": {
             "type": "string"
           },
-          "positions": {
-            "description": "Node positions JSON."
-          },
-          "project_id": {
+          "ontology_draft_id": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
+          },
+          "positions": {
+            "description": "Node positions JSON."
           },
           "topology_signature": {
             "type": "string"
@@ -23357,14 +23306,14 @@
           "name": {
             "type": "string"
           },
-          "positions": {},
-          "project_id": {
+          "ontology_draft_id": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
           },
+          "positions": {},
           "topology_signature": {
             "type": "string"
           },
@@ -23421,6 +23370,22 @@
           },
           "slug": {
             "type": "string"
+          }
+        }
+      },
+      "WorkspaceOntologyResponse": {
+        "type": "object",
+        "description": "Workspace ontology singleton response. Workspace × ontology\nis 1:1 — at most one canonical row exists, and the\npre-canonical (greenfield) phase is a normal lifecycle state,\nnot a missing resource. `ontology` is `None` during that\nphase; `404` is reserved for genuine missing-resource lookups\n(`/api/ontology-drafts/{id}` for a non-existent draft).",
+        "properties": {
+          "ontology": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OntologyDetail"
+              }
+            ]
           }
         }
       },

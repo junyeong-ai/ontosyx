@@ -215,7 +215,7 @@ pub enum ErrorCode {
     /// memberships.
     UnauthorizedWorkspace,
     /// `ontology_draft_id` doesn't belong to the bound workspace.
-    UnauthorizedProject,
+    UnauthorizedOntologyDraft,
     /// Per-user concurrent connection cap reached.
     TooManyConnections,
     /// Broadcast channel lagged — the receiver couldn't keep up.

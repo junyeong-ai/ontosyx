@@ -61,20 +61,20 @@ function getSsrClock(): number {
 }
 
 interface RemoteCursorLayerProps {
-  projectId: string;
+  ontologyDraftId: string;
   /** The current viewer's user id — suppress their own cursor
    *  (the OS already renders it natively). */
   currentUserId: string | undefined;
 }
 
 export function RemoteCursorLayer({
-  projectId,
+  ontologyDraftId,
   currentUserId,
 }: RemoteCursorLayerProps) {
   return (
     <>
-      <CursorEmitter projectId={projectId} />
-      <CursorRenderer projectId={projectId} currentUserId={currentUserId} />
+      <CursorEmitter ontologyDraftId={ontologyDraftId} />
+      <CursorRenderer ontologyDraftId={ontologyDraftId} currentUserId={currentUserId} />
     </>
   );
 }
@@ -83,7 +83,7 @@ export function RemoteCursorLayer({
 // Send side — throttled mousemove → world coords → client.moveCursor
 // ---------------------------------------------------------------------------
 
-function CursorEmitter({ projectId }: { projectId: string }) {
+function CursorEmitter({ ontologyDraftId }: { ontologyDraftId: string }) {
   const { screenToFlowPosition } = useReactFlow();
   const client = useCollabClient();
   const hidden = useCollabStore(selectStateHidden);
@@ -96,11 +96,11 @@ function CursorEmitter({ projectId }: { projectId: string }) {
       if (now - lastSentRef.current < CURSOR_SEND_INTERVAL_MS) return;
       lastSentRef.current = now;
       const flow = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      client.moveCursor(projectId, flow.x, flow.y, null);
+      client.moveCursor(ontologyDraftId, flow.x, flow.y, null);
     };
     window.addEventListener("mousemove", handler);
     return () => window.removeEventListener("mousemove", handler);
-  }, [projectId, screenToFlowPosition, client, hidden]);
+  }, [ontologyDraftId, screenToFlowPosition, client, hidden]);
 
   return null;
 }
@@ -132,14 +132,14 @@ function idleOpacity(lastUpdateAt: number, now: number): number {
 }
 
 function CursorRenderer({
-  projectId,
+  ontologyDraftId,
   currentUserId,
 }: {
-  projectId: string;
+  ontologyDraftId: string;
   currentUserId: string | undefined;
 }) {
-  const cursors = useCollabStore(selectStateCursors(projectId));
-  const presence = useCollabStore(selectStatePresence(projectId));
+  const cursors = useCollabStore(selectStateCursors(ontologyDraftId));
+  const presence = useCollabStore(selectStatePresence(ontologyDraftId));
   const { flowToScreenPosition } = useReactFlow();
 
   // Idle-fade tick — `useSyncExternalStore` models the wall

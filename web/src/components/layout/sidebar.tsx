@@ -131,7 +131,7 @@ export function Sidebar() {
   // workspace is greenfield. Surfaces like /mappings + /lineage only
   // render an empty-state pointing at Design mode without a canonical,
   // so the sidebar entry is noise. Visibility re-flips automatically
-  // once `complete_project` writes the first canonical version — no
+  // once `complete_ontology_draft` writes the first canonical version — no
   // page reload needed (TanStack invalidation re-renders the rail).
   const ontologyQuery = useWorkspaceOntology();
   const hasCanonical = !!ontologyQuery.data;

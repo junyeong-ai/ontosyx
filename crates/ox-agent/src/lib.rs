@@ -65,7 +65,7 @@ pub struct DomainContext {
     /// IR that has not been committed through `OntologyVersionStore` yet.
     pub ontology_id: Option<uuid::Uuid>,
     pub ontology_draft_id: Option<uuid::Uuid>,
-    pub project_revision: Option<i32>,
+    pub ontology_draft_revision: Option<i32>,
     /// Source schema for introspection (available when project has been analyzed).
     pub source_schema: Option<ox_core::source_schema::SourceSchema>,
     /// Source profile (column statistics) for introspection.

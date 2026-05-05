@@ -150,7 +150,7 @@ export function useCanvasLayout(
       savePerspective({
         lineage_id: currentOntology.id,
         topology_signature: topologySignature,
-        project_id: currentProject?.id,
+        ontology_draft_id: currentProject?.id,
         name: "Default",
         positions,
         viewport: { x: vp.x, y: vp.y, zoom: vp.zoom },

@@ -162,11 +162,11 @@ pub enum ProjectSource {
     Bigquery {
         /// Data project — the GCP project that owns the dataset. Used
         /// to fully-qualify identifiers in `INFORMATION_SCHEMA` queries.
-        ontology_draft_id: String,
+        project_id: String,
         /// BigQuery dataset name.
         dataset: String,
         /// Project that runs and is billed for the BigQuery jobs.
-        /// Defaults to `ontology_draft_id`. Required when the caller has
+        /// Defaults to `project_id`. Required when the caller has
         /// `bigquery.tables.list` on the data project but lacks
         /// `bigquery.jobs.create` there (typical for shared data
         /// projects), or when a VPC Service Controls perimeter forces

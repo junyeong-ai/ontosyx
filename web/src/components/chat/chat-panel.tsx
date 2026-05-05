@@ -216,8 +216,8 @@ export function ChatPanel() {
             ontology_id: isDesignMode
               ? (activeProject?.ontology_id ?? undefined)
               : (ontologyId ?? undefined),
-            project_id: isDesignMode ? activeProject?.id : undefined,
-            project_revision: isDesignMode ? activeProject?.revision : undefined,
+            ontology_draft_id: isDesignMode ? activeProject?.id : undefined,
+            ontology_draft_revision: isDesignMode ? activeProject?.revision : undefined,
             session_id: sessionId ?? undefined,
             execution_mode: getState().executionMode,
             model_override: getState().modelOverride ?? undefined,

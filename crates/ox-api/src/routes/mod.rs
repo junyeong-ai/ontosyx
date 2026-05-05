@@ -80,7 +80,7 @@ pub fn router(state: AppState) -> Router {
             "/ontology-drafts/{id}/decisions",
             patch(ontology_drafts::update_decisions),
         )
-        .route("/ontology-drafts/{id}/design", post(ontology_drafts::ontology_draft))
+        .route("/ontology-drafts/{id}/design", post(ontology_drafts::design_ontology_draft))
         .route(
             "/ontology-drafts/{id}/design/stream",
             post(ontology_drafts::design_ontology_draft_stream),

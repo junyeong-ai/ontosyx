@@ -42,7 +42,7 @@ export function ScopeBadge() {
       </PopoverTrigger>
       <PopoverContent className="z-popover w-inspector rounded-lg border border-divider bg-surface-base p-3 shadow-4 outline-none focus-visible:ring-0">
         <ScopePanel
-          projectId={project.id}
+          ontologyDraftId={project.id}
           revision={project.revision}
           included={included}
           deferred={deferred}
@@ -53,19 +53,19 @@ export function ScopeBadge() {
 }
 
 function ScopePanel({
-  projectId,
+  ontologyDraftId,
   revision,
   included,
   deferred,
 }: {
-  projectId: string;
+  ontologyDraftId: string;
   revision: number;
   included: string[];
   deferred: DeferredTable[];
 }) {
   const t = useTranslations("workbench.design.scope");
-  const include = useIncludeScopeTables(projectId);
-  const defer = useDeferScopeTables(projectId);
+  const include = useIncludeScopeTables(ontologyDraftId);
+  const defer = useDeferScopeTables(ontologyDraftId);
   const busy = include.isPending || defer.isPending;
 
   const [deferTarget, setDeferTarget] = useState<string | null>(null);

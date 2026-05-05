@@ -18,7 +18,7 @@ Action DTOs follow `Verb + Noun + (Request|Response)` — e.g. `CreateProjectReq
 
 The design action is the only LLM-driven entry point that consumes operator review state (column clarifications, partial-analysis acknowledgement, large-schema acknowledgement). Whether it may proceed is decided by a single evaluator, `ox_ontology::design_gate::evaluate_design_gates`. The same vector serves three callers:
 
-- **Backend enforcement** — `design_project` and `design_project_stream` call `enforce_design_gates(report, options)` and reject with a structured 422 (`code: "design_gates_unmet"`) when any blocking gate is unmet. Other ontology actions don't gate: `extend` runs analyze+design as a single call so there is no review checkpoint, `reanalyze` doesn't invoke the LLM, and `refine` / `edit` operate on the already-validated ontology rather than the analysis report.
+- **Backend enforcement** — `design_ontology_draft` and `design_ontology_draft_stream` call `enforce_design_gates(report, options)` and reject with a structured 422 (`code: "design_gates_unmet"`) when any blocking gate is unmet. Other ontology actions don't gate: `extend` runs analyze+design as a single call so there is no review checkpoint, `reanalyze` doesn't invoke the LLM, and `refine` / `edit` operate on the already-validated ontology rather than the analysis report.
 - **API response** — `ProjectView` (the wrapper every project-returning endpoint emits) carries `design_gates: Vec<DesignGate>` so the FE renders the checklist without re-deriving the rules.
 - **FE checklist** — `DesignGateChecklist` renders one row per gate with i18n copy keyed by `gate.id` and parameters interpolated from `gate.params`. Click on an unmet gate scrolls to `gate.anchor`. Adding a new gate = one `GateId` variant + one match arm in `evaluate_design_gates` + one i18n key.
 
@@ -71,7 +71,7 @@ Auth flow:
 1. Client opens `/ws/collab`.
 2. First frame within `AUTH_TIMEOUT` (5s) MUST be `ClientMessage::Authenticate { token, workspace_id }`.
 3. Server validates the JWT, confirms membership in `workspace_id` via RLS-backed `get_workspace`, reserves a session slot (`max_sessions_per_user`), and replies with `ServerMessage::Authenticated`.
-4. The remainder of the connection runs inside `WORKSPACE_ID` + `GRAPH_WORKSPACE_ID` task-locals — every store/graph call rejects cross-workspace identifiers automatically. `Join { project_id }` calls `get_design_project` and a foreign id resolves to `None` → `ErrorCode::UnauthorizedProject`.
+4. The remainder of the connection runs inside `WORKSPACE_ID` + `GRAPH_WORKSPACE_ID` task-locals — every store/graph call rejects cross-workspace identifiers automatically. `Join { ontology_draft_id }` calls `get_ontology_draft` and a foreign id resolves to `None` → `ErrorCode::UnauthorizedOntologyDraft`.
 
 Entity locks have a TTL (`collaboration.lock_ttl_secs`, default 300s). Stale locks are reaped on contention; `LockGranted.expires_at` carries the deadline so clients can renew. `LockGranted` broadcasts to the room (clients filter their own request via `entity_id`); `LockDenied` is unicast to the requester only.
 

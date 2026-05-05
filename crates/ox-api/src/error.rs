@@ -85,7 +85,7 @@ pub enum ApiErrorCode {
     /// changes. `params.parent_version` (project's branching point,
     /// short tag) and `params.current_version` (canonical's head,
     /// short tag) give the FE the rebase context.
-    ProjectStaleParent,
+    OntologyDraftStaleParent,
     /// Whole-IR validation failed during commit — the apply phase
     /// produced an IR that broke a referential-integrity invariant.
     /// `params.errors` (array of strings) carries the validation
@@ -109,7 +109,7 @@ pub enum ApiErrorCode {
     /// Project has no source schema attached — fired when an
     /// action that needs the schema (deploy, complete, design)
     /// runs before analyse / introspect populated it.
-    ProjectMissingSourceSchema,
+    OntologyDraftMissingSourceSchema,
     /// `query.text` / search term is empty after trim. The FE
     /// renders an inline form-validation hint pointing at the
     /// search box.
@@ -270,7 +270,7 @@ pub enum ApiErrorCode {
     /// (`analyzed`, `designed`, …); `params.actual` is the
     /// project's current status so the FE can refresh and route
     /// the user to the right step.
-    ProjectStatusMismatch,
+    OntologyDraftStatusMismatch,
     /// Live connection to a data source failed during a runtime
     /// step (load, refinement profiling, on-demand introspection).
     /// `params.source_type` (`postgresql`, `mysql`, …) selects the
@@ -404,12 +404,12 @@ impl ApiErrorCode {
             RefineError => "refine_error",
             EditOperationsEmpty => "edit_operations_empty",
             OntologyVersionConflict => "ontology_version_conflict",
-            ProjectStaleParent => "project_stale_parent",
+            OntologyDraftStaleParent => "ontology_draft_stale_parent",
             OntologyInvariantViolation => "ontology_invariant_violation",
             EditOperationRejected => "edit_operation_rejected",
             OntologyNotCommitted => "ontology_not_committed",
             DeployPendingApproval => "deploy_pending_approval",
-            ProjectMissingSourceSchema => "project_missing_source_schema",
+            OntologyDraftMissingSourceSchema => "ontology_draft_missing_source_schema",
             QueryTextEmpty => "query_text_empty",
             TemporalQueryRequiresOntology => "temporal_query_requires_ontology",
             TemporalSnapshotMissing => "temporal_snapshot_missing",
@@ -440,7 +440,7 @@ impl ApiErrorCode {
             ReanalyzeNoModeledTables => "reanalyze_no_modeled_tables",
             SourceTypeMismatch => "source_type_mismatch",
             DecisionInvalidSchemaRefs => "decision_invalid_schema_refs",
-            ProjectStatusMismatch => "project_status_mismatch",
+            OntologyDraftStatusMismatch => "ontology_draft_status_mismatch",
             SourceConnectionFailed => "source_connection_failed",
             EditQueuedForApproval => "edit_queued_for_approval",
             QueryIrInvalid => "query_ir_invalid",
@@ -678,8 +678,8 @@ impl AppError {
     /// interpolates a "rebase onto v{current_version} before
     /// retrying" message. Both version tags are short strings (the
     /// `version` column on `ontology_version_snapshots`).
-    pub fn project_stale_parent(parent_version: &str, current_version: &str) -> Self {
-        Self::new(StatusCode::CONFLICT, ApiErrorCode::ProjectStaleParent)
+    pub fn ontology_draft_stale_parent(parent_version: &str, current_version: &str) -> Self {
+        Self::new(StatusCode::CONFLICT, ApiErrorCode::OntologyDraftStaleParent)
             .with_param("parent_version", parent_version)
             .with_param("current_version", current_version)
     }
@@ -733,10 +733,10 @@ impl AppError {
     /// Project missing the source schema. `detail` is the
     /// operator-facing hint about what to run next (analyse /
     /// introspect / re-import).
-    pub fn project_missing_source_schema(detail: impl Into<String>) -> Self {
+    pub fn ontology_draft_missing_source_schema(detail: impl Into<String>) -> Self {
         Self::new(
             StatusCode::BAD_REQUEST,
-            ApiErrorCode::ProjectMissingSourceSchema,
+            ApiErrorCode::OntologyDraftMissingSourceSchema,
         )
         .with_param("detail", detail.into())
     }
@@ -1045,11 +1045,11 @@ impl AppError {
 
     /// Project status didn't match the requested action's
     /// precondition.
-    pub fn project_status_mismatch(
+    pub fn ontology_draft_status_mismatch(
         required: impl Into<String>,
         actual: impl Into<String>,
     ) -> Self {
-        Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::ProjectStatusMismatch)
+        Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::OntologyDraftStatusMismatch)
             .with_param("required", required.into())
             .with_param("actual", actual.into())
     }
@@ -1458,12 +1458,12 @@ mod redaction_tests {
             RefineError,
             EditOperationsEmpty,
             OntologyVersionConflict,
-            ProjectStaleParent,
+            OntologyDraftStaleParent,
             OntologyInvariantViolation,
             EditOperationRejected,
             OntologyNotCommitted,
             DeployPendingApproval,
-            ProjectMissingSourceSchema,
+            OntologyDraftMissingSourceSchema,
             QueryTextEmpty,
             TemporalQueryRequiresOntology,
             TemporalSnapshotMissing,
@@ -1494,7 +1494,7 @@ mod redaction_tests {
             ReanalyzeNoModeledTables,
             SourceTypeMismatch,
             DecisionInvalidSchemaRefs,
-            ProjectStatusMismatch,
+            OntologyDraftStatusMismatch,
             SourceConnectionFailed,
             EditQueuedForApproval,
             QueryIrInvalid,

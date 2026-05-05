@@ -316,7 +316,7 @@ async fn handle_client_message(
         }
         ClientMessage::Join { ontology_draft_id } => {
             if !verify_project(state, ontology_draft_id, project_cache).await {
-                let _ = send_via(sender, &server_error(ErrorCode::UnauthorizedProject)).await;
+                let _ = send_via(sender, &server_error(ErrorCode::UnauthorizedOntologyDraft)).await;
                 return true;
             }
             let outcome = state

@@ -46,7 +46,7 @@ impl SchemaTool for ApplyOntologyTool {
                 );
             }
         };
-        let revision = match self.domain.project_revision {
+        let revision = match self.domain.ontology_draft_revision {
             Some(r) => r,
             None => return ToolResult::error("No project revision"),
         };

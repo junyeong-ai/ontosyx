@@ -78,7 +78,7 @@ export interface RevisionSummary {
 
 export interface OntologySnapshot {
   id: string;
-  project_id: string;
+  ontology_draft_id: string;
   revision: number;
   ontology: OntologyIR;
   quality_report: OntologyQualityReport | null;
@@ -157,7 +157,7 @@ export interface WorkbenchPerspective {
   user_id: string;
   lineage_id: string;
   topology_signature: string;
-  project_id?: string;
+  ontology_draft_id?: string;
   name: string;
   positions: Record<string, { x: number; y: number }>;
   viewport: { x: number; y: number; zoom: number };
@@ -171,7 +171,7 @@ export interface WorkbenchPerspective {
 export interface UpsertPerspectiveRequest {
   lineage_id: string;
   topology_signature: string;
-  project_id?: string;
+  ontology_draft_id?: string;
   name: string;
   positions: Record<string, { x: number; y: number }>;
   viewport: { x: number; y: number; zoom: number };

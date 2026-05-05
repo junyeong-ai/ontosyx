@@ -128,26 +128,26 @@ is workspace-determined. The legacy lookups (`get_ontology(id)`,
 ontology workbench restructure folds them away alongside the URL
 path migration that drops `/{id}/` segments.
 
-## Project drafts pin a `parent_version_id`
+## Ontology drafts pin a `parent_version_id`
 
-`design_projects.parent_version_id` (migration `0005`) records
-which canonical version a project's in-flight `ontology` JSONB
-was branched from. `complete_project` compares this against the
-canonical's current head and refuses commits whose parent has
-been superseded — the lost-update guard against concurrent admin
-direct edits via `/api/ontologies/{id}/edits`.
+`ontology_drafts.parent_version_id` (migration `0005`) records
+which canonical version a draft's in-flight `ontology` JSONB
+was branched from. `complete_ontology_draft` compares this
+against the canonical's current head and refuses commits whose
+parent has been superseded — the lost-update guard against
+concurrent admin direct edits via `/api/ontologies/{id}/edits`.
 
-Capture happens at `create_project`: read
+Capture happens at `create_ontology_draft`: read
 `get_workspace_ontology()` + `get_current_version()` and stamp the
-result onto the new project. Greenfield workspaces (no canonical
-yet) record `None`; `complete_project` then takes the
+result onto the new draft. Greenfield workspaces (no canonical
+yet) record `None`; `complete_ontology_draft` then takes the
 "first-version of new lineage" branch instead of the
 fast-forward / refuse arms.
 
 The typed error on stale parent is
-`ApiErrorCode::ProjectStaleParent` (409) with `params.parent_version`
-+ `params.current_version` so the FE renders a precise rebase
-prompt.
+`ApiErrorCode::OntologyDraftStaleParent` (409) with
+`params.parent_version` + `params.current_version` so the FE
+renders a precise rebase prompt.
 
 ## Pre-scope tables carry the OPPOSITE invariant
 
