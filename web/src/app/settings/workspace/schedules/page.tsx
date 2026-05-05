@@ -3,8 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
-import { Calendar01Icon } from "@hugeicons/core-free-icons";
-
+import { Calendar } from "lucide-react";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
@@ -121,7 +120,7 @@ export default function SchedulesPage() {
       <PageStateView
         state={pageState}
         skeleton={<SkeletonTable rows={5} cols={6} />}
-        empty={{ icon: Calendar01Icon, title: t("empty") }}
+        empty={{ icon: Calendar, title: t("empty") }}
         error={{
           title: tCommon("loadError.title"),
           description: tCommon("loadError.description"),

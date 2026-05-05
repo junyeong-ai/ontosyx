@@ -20,8 +20,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Home01Icon, HelpCircleIcon, Search01Icon } from "@hugeicons/core-free-icons";
+import { HelpCircle, Home, Search } from "lucide-react";
 import { buttonStyles } from "@/components/ui/button";
 import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
 
@@ -52,7 +51,7 @@ export default function NotFound() {
             aria-label={t("homeAria")}
             className={buttonStyles({ variant: "primary", size: "md" })}
           >
-            <HugeiconsIcon icon={Home01Icon} className="h-3.5 w-3.5" size="100%" />
+            <Home className="h-3.5 w-3.5" />
             {t("home")}
           </Link>
           <Link
@@ -60,13 +59,13 @@ export default function NotFound() {
             aria-label={t("getStartedAria")}
             className={buttonStyles({ variant: "outline", size: "md" })}
           >
-            <HugeiconsIcon icon={HelpCircleIcon} className="h-3.5 w-3.5" size="100%" />
+            <HelpCircle className="h-3.5 w-3.5" />
             {t("getStarted")}
           </Link>
         </div>
 
         <p className="mt-8 flex items-center justify-center gap-1.5 text-2xs text-foreground-muted">
-          <HugeiconsIcon icon={Search01Icon} className="h-3 w-3" size="100%" />
+          <Search className="h-3 w-3" />
           <span>
             {t("searchTipPrefix")}
             <KeyboardShortcut keys="mod+k" variant="outline" className="mx-1" />

@@ -4,13 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { RouteHeading } from "@/components/layout/route-heading";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Search01Icon,
-  ArrowRight01Icon,
-  Search02Icon,
-  DatabaseIcon,
-} from "@hugeicons/core-free-icons";
+import { ArrowRight, Database, Search } from "lucide-react";
+import { SearchCheck } from "lucide-react";
 import { z } from "zod";
 import { searchGraph, fetchGraphOverview } from "@/lib/api";
 import type { ExpandNeighbor, GraphOverview } from "@/lib/api/queries";
@@ -357,7 +352,7 @@ export function ExploreLayout() {
             placeholder={t("search.placeholder")}
             aria-label={t("search.placeholder")}
             density="settings"
-            leadingIcon={Search01Icon}
+            leadingIcon={Search}
             trailing={
               loading ? (
                 <Spinner size="xs" className="text-foreground-muted" />
@@ -390,7 +385,7 @@ export function ExploreLayout() {
               {/* Node labels */}
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5">
-                  <HugeiconsIcon icon={DatabaseIcon} className="h-3 w-3 text-foreground-muted" size="100%" />
+                  <Database className="h-3 w-3 text-foreground-muted" />
                   <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
                     {t("overview.nodeLabels")}
                   </span>
@@ -457,7 +452,7 @@ export function ExploreLayout() {
           {!searched && !overviewLoading && (!overview || overview.labels.length === 0) && (
             <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-surface">
-                <HugeiconsIcon icon={Search02Icon} className="h-4 w-4 text-brand-foreground" size="100%" />
+                <SearchCheck className="h-4 w-4 text-brand-foreground" />
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">{t("empty.title")}</p>
@@ -535,11 +530,7 @@ export function ExploreLayout() {
             {breadcrumb.map((entry, i) => (
               <span key={`${entry.elementId}-${i}`} className="flex items-center gap-1">
                 {i > 0 && (
-                  <HugeiconsIcon
-                    icon={ArrowRight01Icon}
-                    className="h-2.5 w-2.5 text-foreground-muted"
-                    size="100%"
-                  />
+                  <ArrowRight className="h-2.5 w-2.5 text-foreground-muted" />
                 )}
                 <button type="button"
                   onClick={() => handleBreadcrumbClick(i)}

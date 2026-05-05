@@ -2,19 +2,14 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowRight01Icon,
-  ChartUpIcon,
-  CheckmarkCircle02Icon,
-  PencilEdit01Icon,
-} from "@hugeicons/core-free-icons";
-
+import { ArrowRight, Pencil } from "lucide-react";
+import { CheckCircle2, TrendingUp } from "lucide-react";
 import { useOntologyDrafts } from "@/hooks/api/use-ontology-drafts";
 import { useAppStore } from "@/lib/store";
 import { getOntologyDraft } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import type {
   OntologyDraftSummary,
   OntologyDraftStatus,
@@ -94,11 +89,7 @@ export function RecentProjects() {
                   })}
                 </p>
               </div>
-              <HugeiconsIcon
-                icon={ArrowRight01Icon}
-                className="h-3 w-3 shrink-0 text-foreground-muted opacity-0 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] group-hover:opacity-100"
-                size="100%"
-              />
+              <ArrowRight className="h-3 w-3 shrink-0 text-foreground-muted opacity-0 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] group-hover:opacity-100" />
             </button>
           </li>
         ))}
@@ -110,16 +101,16 @@ export function RecentProjects() {
         className="flex items-center justify-center gap-1 border-t border-divider px-3 py-2 text-2xs font-medium text-brand-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-surface"
       >
         {t("viewAll")}
-        <HugeiconsIcon icon={ArrowRight01Icon} className="h-3 w-3" size="100%" />
+        <ArrowRight className="h-3 w-3" />
       </Link>
     </Card>
   );
 }
 
-const STATUS_VISUAL: Record<OntologyDraftStatus, { icon: typeof ChartUpIcon; tone: "warning" | "success" | "info" }> = {
-  analyzed:  { icon: ChartUpIcon,            tone: "warning" },
-  designed:  { icon: PencilEdit01Icon,       tone: "success" },
-  completed: { icon: CheckmarkCircle02Icon,  tone: "info" },
+const STATUS_VISUAL: Record<OntologyDraftStatus, { icon: typeof TrendingUp; tone: "warning" | "success" | "info" }> = {
+  analyzed:  { icon: TrendingUp,            tone: "warning" },
+  designed:  { icon: Pencil,       tone: "success" },
+  completed: { icon: CheckCircle2,  tone: "info" },
 };
 
 function ProjectStatusIcon({ status }: { status: OntologyDraftStatus }) {
@@ -135,7 +126,7 @@ function ProjectStatusIcon({ status }: { status: OntologyDraftStatus }) {
       aria-label={t(status)}
       title={t(status)}
     >
-      <HugeiconsIcon icon={icon} className="h-3.5 w-3.5" size="100%" />
+      <DynamicIcon as={icon} className="h-3.5 w-3.5" />
     </span>
   );
 }

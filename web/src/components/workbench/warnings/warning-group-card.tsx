@@ -2,16 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Alert02Icon,
-  ArrowDown01Icon,
-  ArrowUp01Icon,
-  InformationCircleIcon,
-  Cancel01Icon,
-} from "@hugeicons/core-free-icons";
-
+import { AlertOctagon, ArrowDown, ArrowUp, X } from "lucide-react";
+import { Info } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import type { AnalysisWarning, WarningClass, WarningLevel } from "@/types/ontology-drafts";
 
 /**
@@ -95,11 +89,7 @@ function WarningGroupCard({ group }: { group: WarningGroup }) {
         <span className="rounded-full border border-divider bg-surface-base px-1.5 py-0.5 text-2xs font-medium text-foreground-strong">
           {t("affectedCount", { count: group.warnings.length })}
         </span>
-        <HugeiconsIcon
-          icon={open ? ArrowUp01Icon : ArrowDown01Icon}
-          className="h-3 w-3 shrink-0 text-foreground-muted"
-          size="100%"
-        />
+        <DynamicIcon as={open ? ArrowUp : ArrowDown} className="h-3 w-3 shrink-0 text-foreground-muted" />
       </button>
 
       {open && (
@@ -192,27 +182,15 @@ function SeverityIcon({ level }: { level: WarningLevel }) {
   switch (level) {
     case "info":
       return (
-        <HugeiconsIcon
-          icon={InformationCircleIcon}
-          className="h-4 w-4 shrink-0 text-info-foreground"
-          size="100%"
-        />
+        <Info className="h-4 w-4 shrink-0 text-info-foreground" />
       );
     case "warning":
       return (
-        <HugeiconsIcon
-          icon={Alert02Icon}
-          className="h-4 w-4 shrink-0 text-warning-foreground"
-          size="100%"
-        />
+        <AlertOctagon className="h-4 w-4 shrink-0 text-warning-foreground" />
       );
     case "error":
       return (
-        <HugeiconsIcon
-          icon={Cancel01Icon}
-          className="h-4 w-4 shrink-0 text-danger-foreground"
-          size="100%"
-        />
+        <X className="h-4 w-4 shrink-0 text-danger-foreground" />
       );
   }
 }

@@ -17,8 +17,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Delete01Icon, Analytics01Icon } from "@hugeicons/core-free-icons";
+import { BarChart3, Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 import { Button } from "@/components/ui/button";
@@ -95,11 +94,7 @@ export function InsightListPanel({ onOpen }: Props) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-divider px-3 py-2">
-        <HugeiconsIcon
-          icon={Analytics01Icon}
-          className="h-3.5 w-3.5 text-brand-foreground"
-          size="100%"
-        />
+        <BarChart3 className="h-3.5 w-3.5 text-brand-foreground" />
         <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground-strong">
           {t("panelTitle")}
         </h2>
@@ -207,11 +202,7 @@ export function InsightListPanel({ onOpen }: Props) {
                       onClick={() => handleDelete(insight)}
                       disabled={deleteMutation.isPending}
                     >
-                      <HugeiconsIcon
-                        icon={Delete01Icon}
-                        className="h-3 w-3"
-                        size="100%"
-                      />
+                      <Trash2 className="h-3 w-3" />
                     </Button>
                   </Tooltip>
                 </div>

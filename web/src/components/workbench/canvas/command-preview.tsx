@@ -5,13 +5,8 @@ import { useTranslations } from "next-intl";
 import type { OntologyCommand, OntologyIR } from "@/types/api";
 import { formatCommand, commandOpBadge } from "@/lib/command-format";
 import { cn } from "@/lib/cn";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Tick01Icon,
-  Cancel01Icon,
-  CheckListIcon,
-} from "@hugeicons/core-free-icons";
-
+import { Check, X } from "lucide-react";
+import { ListChecks } from "lucide-react";
 interface CommandPreviewProps {
   commands: OntologyCommand[];
   explanation: string;
@@ -86,7 +81,7 @@ export function CommandPreview({
             onClick={onCancel}
             className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-foreground-muted hover:bg-surface-inset"
           >
-            <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
+            <X className="h-3 w-3" />
             {tCommon("close")}
           </button>
         </div>
@@ -114,11 +109,7 @@ export function CommandPreview({
 
       {/* Quick actions */}
       <div className="flex items-center gap-2 border-b border-divider-soft px-4 py-2">
-        <HugeiconsIcon
-          icon={CheckListIcon}
-          className="h-3.5 w-3.5 text-foreground-muted"
-          size="100%"
-        />
+        <ListChecks className="h-3.5 w-3.5 text-foreground-muted" />
         <span className="text-2xs font-medium uppercase tracking-wide text-foreground-muted">
           {t("selectedCount", { selected: selectedCount, total: flatCommands.length })}
         </span>
@@ -190,11 +181,7 @@ export function CommandPreview({
           onClick={onCancel}
           className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-foreground-muted hover:bg-surface-inset"
         >
-          <HugeiconsIcon
-            icon={Cancel01Icon}
-            className="h-3 w-3"
-            size="100%"
-          />
+          <X className="h-3 w-3" />
           {tCommon("cancel")}
         </button>
         <button type="button"
@@ -202,11 +189,7 @@ export function CommandPreview({
           disabled={noneChecked}
           className="flex items-center gap-1 rounded-lg bg-brand-solid px-3 py-1.5 text-xs font-medium text-foreground-onbrand hover:bg-brand-solid-hover disabled:opacity-50"
         >
-          <HugeiconsIcon
-            icon={Tick01Icon}
-            className="h-3 w-3"
-            size="100%"
-          />
+          <Check className="h-3 w-3" />
           {selectedCount === flatCommands.length ? t("applyAll") : t("apply", { count: selectedCount })}
         </button>
       </div>

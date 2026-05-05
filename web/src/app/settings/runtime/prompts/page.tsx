@@ -4,9 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
-import { ArrowDown01Icon, ChatBotIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-
+import { ArrowDown, Bot } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { SettingsSwitch, SettingsSelect, SettingsInput } from "@/components/ui/form-input";
@@ -132,7 +130,7 @@ export default function PromptsPage() {
           {filtered.length === 0 ? (
             <div className="rounded-xl border border-dashed border-divider">
               <EmptyState
-                icon={ChatBotIcon}
+                icon={Bot}
                 title={t("empty")}
                 description={search ? t("emptyHint") : undefined}
               />
@@ -226,14 +224,10 @@ function PromptCard({
         <span className="shrink-0 rounded bg-surface-inset px-1.5 py-0.5 text-2xs tabular-nums text-foreground-muted">
           {t("versions", { count: versions.length })}
         </span>
-        <HugeiconsIcon
-          icon={ArrowDown01Icon}
-          className={cn(
-            "h-4 w-4 shrink-0 text-foreground-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
-            isExpanded && "rotate-180",
-          )}
-          size="100%"
-        />
+        <ArrowDown className={cn(
+ "h-4 w-4 shrink-0 text-foreground-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+ isExpanded && "rotate-180",
+ )} />
       </button>
 
       {isExpanded && (

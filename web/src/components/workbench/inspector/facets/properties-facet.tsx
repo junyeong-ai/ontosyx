@@ -2,8 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { PlusSignIcon } from "@hugeicons/core-free-icons";
+import { Plus } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 import { useAppStore } from "@/lib/store";
@@ -93,7 +92,7 @@ export function PropertiesFacet({
               onClick={() => setAdding(true)}
               className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-2xs text-foreground-muted hover:border-brand-border hover:text-brand-foreground"
             >
-              <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
+              <Plus className="h-3 w-3" />
               {t("addAction")}
             </button>
           </Tooltip>

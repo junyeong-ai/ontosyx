@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Link01Icon, LinkSquare02Icon, UnlinkIcon } from "@hugeicons/core-free-icons";
+import { ExternalLink, Link, Unlink } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 import { Tooltip } from "@/components/ui/tooltip";
@@ -129,11 +128,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
             aria-label={t("unlinkAria", { term: boundTermId })}
             className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs text-concept-foreground hover:bg-concept-surface disabled:opacity-50"
           >
-            <HugeiconsIcon
-              icon={LinkSquare02Icon}
-              className="h-2.5 w-2.5"
-              size="100%"
-            />
+            <ExternalLink className="h-2.5 w-2.5" />
             <span className="max-w-[100px] truncate">{boundTermId}</span>
           </button>
         </Tooltip>
@@ -146,7 +141,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
             aria-expanded={open}
             className="rounded p-0.5 text-foreground-muted opacity-0 hover:bg-surface-inset hover:text-concept-foreground group-hover:opacity-100 group-focus-within:opacity-100"
           >
-            <HugeiconsIcon icon={Link01Icon} className="h-2.5 w-2.5" size="100%" />
+            <Link className="h-2.5 w-2.5" />
           </button>
         </Tooltip>
       )}
@@ -211,11 +206,7 @@ function CandidateRow({
       disabled={disabled}
       className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-start hover:bg-concept-surface disabled:opacity-50"
     >
-      <HugeiconsIcon
-        icon={UnlinkIcon}
-        className="h-2.5 w-2.5 text-foreground-muted"
-        size="100%"
-      />
+      <Unlink className="h-2.5 w-2.5 text-foreground-muted" />
       <span className="min-w-0 flex-1 truncate text-2xs font-medium text-foreground-strong">
         {candidate.term}
       </span>

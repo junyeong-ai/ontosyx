@@ -2,8 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { MagicWand01Icon, Tick01Icon, Alert01Icon } from "@hugeicons/core-free-icons";
+import { AlertTriangle, Check, Wand2 } from "lucide-react";
 import type { QualityGap, QualityGapSeverity, QualityGapCategory } from "@/types/api";
 import { formatGapLocation } from "./design-panel-shared";
 import { localizeQualityGap } from "@/lib/quality-gap-text";
@@ -151,7 +150,7 @@ export function QualityGapCard({
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
-              <HugeiconsIcon icon={MagicWand01Icon} className="h-2.5 w-2.5" size="100%" />
+              <Wand2 className="h-2.5 w-2.5" />
               {t("categoryFix")}
             </button>
           )}
@@ -170,7 +169,7 @@ export function QualityGapCard({
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
-              <HugeiconsIcon icon={MagicWand01Icon} className="h-2.5 w-2.5" size="100%" />
+              <Wand2 className="h-2.5 w-2.5" />
               {t("categoryAskAi")}
             </button>
             <button
@@ -186,7 +185,7 @@ export function QualityGapCard({
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
-              <HugeiconsIcon icon={Tick01Icon} className="h-2.5 w-2.5" size="100%" />
+              <Check className="h-2.5 w-2.5" />
               {isAcknowledging ? t("categorySaving") : t("categoryConfirm")}
             </button>
             </>
@@ -203,7 +202,7 @@ export function QualityGapCard({
                 "bg-warning-surface text-warning-foreground hover:bg-warning-surface",
               )}
             >
-              <HugeiconsIcon icon={Alert01Icon} className="h-2.5 w-2.5" size="100%" />
+              <AlertTriangle className="h-2.5 w-2.5" />
               {t("categoryAddClarification")}
             </button>
           )}

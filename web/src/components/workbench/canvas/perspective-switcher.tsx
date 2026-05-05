@@ -3,11 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useReactFlow, type Node } from "@xyflow/react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowDown01Icon,
-  KanbanIcon,
-} from "@hugeicons/core-free-icons";
+import { ArrowDown } from "lucide-react";
+import { KanbanSquare } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import {
   listPerspectives,
@@ -188,16 +185,12 @@ export function PerspectiveSwitcher({
           "border-divider text-foreground hover:bg-surface-raised",
         )}
       >
-        <HugeiconsIcon icon={KanbanIcon} className="h-3 w-3" size="100%" />
+        <KanbanSquare className="h-3 w-3" />
         {activeName}
-        <HugeiconsIcon
-          icon={ArrowDown01Icon}
-          className={cn(
-            "h-2.5 w-2.5 transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
-            open && "rotate-180",
-          )}
-          size="100%"
-        />
+        <ArrowDown className={cn(
+ "h-2.5 w-2.5 transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+ open && "rotate-180",
+ )} />
       </button>
 
       {/* Dropdown */}

@@ -2,8 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Delete01Icon } from "@hugeicons/core-free-icons";
+import { Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 import { useAppStore } from "@/lib/store";
@@ -178,7 +177,7 @@ function EntityHeader({
             aria-label={isEdge ? tAria("deleteEdge") : tAria("deleteNode")}
             className="rounded p-1 text-foreground-muted hover:bg-danger-surface hover:text-danger-foreground"
           >
-            <HugeiconsIcon icon={Delete01Icon} className="h-3 w-3" size="100%" />
+            <Trash2 className="h-3 w-3" />
           </button>
         </Tooltip>
       </div>

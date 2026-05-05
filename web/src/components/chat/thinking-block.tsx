@@ -2,13 +2,10 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  AiNetworkIcon,
-  ArrowDown01Icon,
-  ArrowUp01Icon,
-} from "@hugeicons/core-free-icons";
+import { ArrowDown, ArrowUp } from "lucide-react";
+import { Network } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 // ---------------------------------------------------------------------------
 // ThinkingBlock — collapsible chain-of-thought reasoning
@@ -33,7 +30,7 @@ export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
         {isStreaming ? (
           <Spinner size="sm" className="text-warning-foreground" />
         ) : (
-          <HugeiconsIcon icon={AiNetworkIcon} className="h-3.5 w-3.5" size="100%" />
+          <Network className="h-3.5 w-3.5" />
         )}
         <span className="font-medium">
           {isStreaming && !content ? t("thinking") : t("reasoning")}
@@ -41,11 +38,7 @@ export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
         <span className="ms-auto text-2xs text-warning-foreground">
           {content.length > 0 && t("steps", { count: content.split("\n").length })}
         </span>
-        <HugeiconsIcon
-          icon={isOpen ? ArrowUp01Icon : ArrowDown01Icon}
-          className="h-3 w-3 text-warning-foreground"
-          size="100%"
-        />
+        <DynamicIcon as={isOpen ? ArrowUp : ArrowDown} className="h-3 w-3 text-warning-foreground" />
       </button>
       {isOpen && (
         <div className="border-t border-warning-border/40 px-3 py-2">

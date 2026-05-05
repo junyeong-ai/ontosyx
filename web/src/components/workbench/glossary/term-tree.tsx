@@ -2,9 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { PlusSignIcon, Search01Icon } from "@hugeicons/core-free-icons";
-
+import { Plus, Search } from "lucide-react";
 import { SearchInput } from "@/components/ui/form-input";
 
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
@@ -115,7 +113,7 @@ export function TermTree({
           className="inline-flex items-center gap-1 rounded bg-brand-solid px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-foreground-onbrand shadow-1 transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-solid"
           aria-label={t("createAria")}
         >
-          <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
+          <Plus className="h-3 w-3" />
           {t("createLabel")}
         </button>
       </div>
@@ -128,7 +126,7 @@ export function TermTree({
           placeholder={t("searchPlaceholder")}
           aria-label={t("searchAria")}
           density="compact"
-          leadingIcon={Search01Icon}
+          leadingIcon={Search}
         />
       </div>
 

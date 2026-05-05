@@ -3,8 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { MagicWand01Icon } from "@hugeicons/core-free-icons";
+import { Wand2 } from "lucide-react";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { toast } from "@/components/ui/toast";
 import { FormInput } from "@/components/ui/form-input";
@@ -402,7 +401,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
               "border-concept-border bg-concept-surface text-concept-foreground hover:bg-concept-surface",
             )}
           >
-            <HugeiconsIcon icon={MagicWand01Icon} className="h-3 w-3" size="100%" />
+            <Wand2 className="h-3 w-3" />
             {t("autoFixAll")}
           </button>
         )}

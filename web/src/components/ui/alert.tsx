@@ -1,13 +1,9 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Alert01Icon,
-  InformationCircleIcon,
-  CheckmarkCircle02Icon,
-  Cancel01Icon,
-} from "@hugeicons/core-free-icons";
+import { AlertTriangle, X } from "lucide-react";
+import { CheckCircle2, Info } from "lucide-react";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { cn } from "@/lib/cn";
 
 type AlertVariant = "info" | "success" | "warning" | "error";
@@ -34,10 +30,10 @@ const variantStyles: Record<AlertVariant, { container: string; icon: string }> =
 };
 
 const variantIcons = {
-  info: InformationCircleIcon,
-  success: CheckmarkCircle02Icon,
-  warning: Alert01Icon,
-  error: Cancel01Icon,
+  info: Info,
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  error: X,
 };
 
 interface AlertProps {
@@ -68,11 +64,7 @@ export function Alert({
         className,
       )}
     >
-      <HugeiconsIcon
-        icon={Icon}
-        className={cn("mt-0.5 h-4 w-4 shrink-0", styles.icon)}
-        size="100%"
-      />
+      <DynamicIcon as={Icon} className={cn("mt-0.5 h-4 w-4 shrink-0", styles.icon)} />
       <div className="min-w-0 flex-1">
         {title && <p className="mb-0.5 font-semibold">{title}</p>}
         <div className="text-xs leading-relaxed">{children}</div>
@@ -84,7 +76,7 @@ export function Alert({
           className="shrink-0 rounded p-0.5 opacity-60 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:opacity-100"
           aria-label={t("dismiss")}
         >
-          <HugeiconsIcon icon={Cancel01Icon} className="h-3.5 w-3.5" size="100%" />
+          <X className="h-3.5 w-3.5" />
         </button>
       )}
     </div>

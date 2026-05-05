@@ -1,13 +1,5 @@
-import type { IconSvgElement } from "@hugeicons/react";
-import {
-  Building03Icon,
-  Database01Icon,
-  CpuIcon,
-  ShieldCheck,
-  SecurityCheckIcon,
-  TestTube01Icon,
-} from "@hugeicons/core-free-icons";
-
+import type { LucideIcon as IconSvgElement } from "lucide-react";
+import { Building, Cpu, Database, FlaskConical, ShieldCheck } from "lucide-react";
 export interface NavItem {
   labelKey: string;
   href: string;
@@ -37,7 +29,7 @@ export interface NavGroup {
 export const SETTINGS_NAV_GROUPS: readonly NavGroup[] = [
   {
     titleKey: "workspace",
-    icon: Building03Icon,
+    icon: Building,
     items: [
       { labelKey: "general", href: "/settings/workspace/general", adminOnly: true },
       { labelKey: "members", href: "/settings/workspace/members", authOnly: true },
@@ -48,7 +40,7 @@ export const SETTINGS_NAV_GROUPS: readonly NavGroup[] = [
   },
   {
     titleKey: "data",
-    icon: Database01Icon,
+    icon: Database,
     items: [
       { labelKey: "knowledgeBase", href: "/settings/knowledge/base", adminOnly: true },
       { labelKey: "federation", href: "/settings/knowledge/federation", adminOnly: true },
@@ -56,7 +48,7 @@ export const SETTINGS_NAV_GROUPS: readonly NavGroup[] = [
   },
   {
     titleKey: "runtime",
-    icon: CpuIcon,
+    icon: Cpu,
     items: [
       { labelKey: "config", href: "/settings/runtime", adminOnly: true },
       { labelKey: "providers", href: "/settings/runtime/providers" },
@@ -72,13 +64,13 @@ export const SETTINGS_NAV_GROUPS: readonly NavGroup[] = [
   },
   {
     titleKey: "evaluation",
-    icon: TestTube01Icon,
+    icon: FlaskConical,
     href: "/settings/evaluation",
     items: [],
   },
   {
     titleKey: "governance",
-    icon: SecurityCheckIcon,
+    icon: ShieldCheck,
     items: [
       { labelKey: "accessControl", href: "/settings/governance/acl", adminOnly: true },
       { labelKey: "routingMatrix", href: "/settings/governance/routing", adminOnly: true },

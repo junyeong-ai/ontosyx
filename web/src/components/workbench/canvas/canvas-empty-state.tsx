@@ -1,15 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { Heading } from "@/components/ui/heading";
-import {
-  Alert02Icon,
-  DatabaseIcon,
-  PencilEdit01Icon,
-  Upload04Icon,
-} from "@hugeicons/core-free-icons";
-
+import { AlertOctagon, Database, Pencil, Upload } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 
 /**
@@ -26,7 +19,7 @@ export function CanvasEmptyState() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-surface">
-          <HugeiconsIcon icon={PencilEdit01Icon} className="h-6 w-6 text-brand-foreground" size="100%" />
+          <Pencil className="h-6 w-6 text-brand-foreground" />
         </div>
         <div className="text-center">
           <Heading level={2} size={4}>{t("readyTitle")}</Heading>
@@ -53,7 +46,7 @@ export function CanvasEmptyState() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 p-8">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-surface">
-        <HugeiconsIcon icon={PencilEdit01Icon} className="h-6 w-6 text-brand-foreground" size="100%" />
+        <Pencil className="h-6 w-6 text-brand-foreground" />
       </div>
       <div className="text-center">
         <Heading level={2} size={4}>{t("startTitle")}</Heading>
@@ -70,7 +63,7 @@ export function CanvasEmptyState() {
           }}
           className="flex flex-col items-center gap-2 rounded-xl border border-divider bg-surface-base p-5 text-center transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] hover:border-brand-border hover:shadow-2"
         >
-          <HugeiconsIcon icon={DatabaseIcon} className="h-5 w-5 text-brand-foreground" size="100%" />
+          <Database className="h-5 w-5 text-brand-foreground" />
           <span className="text-xs font-medium text-foreground">{t("createOntologyDraft")}</span>
           <span className="text-2xs text-foreground-muted">{t("createOntologyDraftHint")}</span>
         </button>
@@ -82,7 +75,7 @@ export function CanvasEmptyState() {
           }}
           className="flex flex-col items-center gap-2 rounded-xl border border-divider bg-surface-base p-5 text-center transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] hover:border-brand-border hover:shadow-2"
         >
-          <HugeiconsIcon icon={Upload04Icon} className="h-5 w-5 text-concept-foreground" size="100%" />
+          <Upload className="h-5 w-5 text-concept-foreground" />
           <span className="text-xs font-medium text-foreground">{t("importOntology")}</span>
           <span className="text-2xs text-foreground-muted">{t("importOntologyHint")}</span>
         </button>
@@ -106,11 +99,7 @@ export function CanvasZeroNodesState() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-warning-surface/30">
-        <HugeiconsIcon
-          icon={Alert02Icon}
-          className="h-6 w-6 text-warning-foreground"
-          size="100%"
-        />
+        <AlertOctagon className="h-6 w-6 text-warning-foreground" />
       </div>
       <div className="text-center">
         <Heading level={2} size={4}>

@@ -3,9 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
-import { ArrowDown01Icon, Book01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-
+import { ArrowDown, BookOpen } from "lucide-react";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SettingsSelect } from "@/components/ui/form-input";
@@ -253,7 +251,7 @@ export default function KnowledgePage() {
             }
             skeleton={<SkeletonList count={5} />}
             empty={{
-              icon: Book01Icon,
+              icon: BookOpen,
               title: t("empty"),
               description: t("emptyHint"),
             }}
@@ -412,14 +410,10 @@ function EntryCard({
           )}
         </span>
         <span className="shrink-0 text-xs tabular-nums text-foreground-muted">{(entry.confidence * 100).toFixed(0)}%</span>
-        <HugeiconsIcon
-          icon={ArrowDown01Icon}
-          className={cn(
-            "h-4 w-4 shrink-0 text-foreground-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
-            isExpanded && "rotate-180",
-          )}
-          size="100%"
-        />
+        <ArrowDown className={cn(
+ "h-4 w-4 shrink-0 text-foreground-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+ isExpanded && "rotate-180",
+ )} />
       </button>
 
       {isExpanded && (

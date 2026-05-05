@@ -4,15 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { FormInput } from "@/components/ui/form-input";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Add01Icon,
-  ChartUpIcon,
-  CheckmarkCircle02Icon,
-  PencilEdit01Icon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons";
-
+import { Pencil, Plus, Search } from "lucide-react";
+import { CheckCircle2, TrendingUp } from "lucide-react";
 import { useOntologyDrafts } from "@/hooks/api/use-ontology-drafts";
 import { useAppStore } from "@/lib/store";
 import { getOntologyDraft } from "@/lib/api";
@@ -27,6 +20,7 @@ import type {
   OntologyDraftStatus,
   OntologyDraftSummary,
 } from "@/types/api";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 /**
  * Project Hub — card grid of every design project the operator
@@ -123,18 +117,14 @@ export function ProjectHub() {
       pageState={pageState}
       actions={
         <Button variant="primary" size="sm" onClick={onCreate}>
-          <HugeiconsIcon icon={Add01Icon} className="h-3.5 w-3.5" size="100%" />
+          <Plus className="h-3.5 w-3.5" />
           {t("createButton")}
         </Button>
       }
       filters={
         <>
           <div className="relative flex-1 max-w-md">
-            <HugeiconsIcon
-              icon={Search01Icon}
-              className="pointer-events-none absolute start-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-foreground-muted"
-              size="100%"
-            />
+            <Search className="pointer-events-none absolute start-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-foreground-muted" />
             <FormInput
               type="search"
               value={search}
@@ -189,13 +179,13 @@ export function ProjectHub() {
             retryLabel: tCommon("retry"),
           }}
           empty={{
-            icon: Add01Icon,
+            icon: Plus,
             title: t("empty.heading"),
             description: t("empty.subheading"),
             action: { label: t("empty.cta"), onClick: onCreate },
           }}
           filteredEmpty={{
-            icon: Search01Icon,
+            icon: Search,
             title: t("filteredEmpty.heading"),
             description: t("filteredEmpty.subheading"),
             clearLabel: t("filteredEmpty.clearFilters"),
@@ -252,13 +242,13 @@ function ProjectCard({
 
 function StatusIcon({ status }: { status: OntologyDraftStatus }) {
   const visual = {
-    analyzed: { icon: ChartUpIcon, color: "text-warning-foreground" },
-    designed: { icon: PencilEdit01Icon, color: "text-brand-foreground" },
-    completed: { icon: CheckmarkCircle02Icon, color: "text-info-foreground" },
+    analyzed: { icon: TrendingUp, color: "text-warning-foreground" },
+    designed: { icon: Pencil, color: "text-brand-foreground" },
+    completed: { icon: CheckCircle2, color: "text-info-foreground" },
   } as const;
   const v = visual[status];
   return (
-    <HugeiconsIcon icon={v.icon} className={cn("h-4 w-4 shrink-0", v.color)} size="100%" />
+    <DynamicIcon as={v.icon} className={cn("h-4 w-4 shrink-0", v.color)} />
   );
 }
 

@@ -2,14 +2,10 @@
 
 import { type ReactNode, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
-} from "@hugeicons/core-free-icons";
-
+import { ArrowDown, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 // ListBuilder — generic add / edit / remove / reorder editor for
 // `Vec<Item>` fields on an entity. Each row collapses to a compact
@@ -117,11 +113,7 @@ export function ListBuilder<Item>({
                     aria-expanded={open}
                     className="flex flex-1 items-center gap-2 text-start"
                   >
-                    <HugeiconsIcon
-                      icon={open ? ArrowDown01Icon : ArrowRight01Icon}
-                      className="h-3 w-3 text-foreground-muted"
-                      size="100%"
-                    />
+                    <DynamicIcon as={open ? ArrowDown : ArrowRight} className="h-3 w-3 text-foreground-muted" />
                     <span className="min-w-0 flex-1 text-xs">
                       {rowPreview(item, idx)}
                     </span>

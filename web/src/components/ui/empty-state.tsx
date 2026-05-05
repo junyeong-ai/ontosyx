@@ -1,14 +1,9 @@
-import {
-  AlertCircleIcon,
-  ChartBarLineIcon,
-  Clock04Icon,
-  Search01Icon,
-  SecurityLockIcon,
-  SparklesIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { AlertCircle, Search } from "lucide-react";
+import { BarChart3, Clock, Lock, Sparkles } from "lucide-react";
+import type { LucideIcon as IconSvgElement } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "./button";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 type EmptyStateVariant = "hero" | "compact";
 
@@ -71,12 +66,12 @@ interface EmptyStateProps {
 }
 
 const KIND_DEFAULT_ICON: Record<EmptyStateKind, IconSvgElement> = {
-  "no-data": ChartBarLineIcon,
-  "no-results": Search01Icon,
-  "no-permission": SecurityLockIcon,
-  "first-run": SparklesIcon,
-  pending: Clock04Icon,
-  error: AlertCircleIcon,
+  "no-data": BarChart3,
+  "no-results": Search,
+  "no-permission": Lock,
+  "first-run": Sparkles,
+  pending: Clock,
+  error: AlertCircle,
 };
 
 const KIND_TONE: Record<EmptyStateKind, { wrap: string; icon: string }> = {
@@ -159,11 +154,7 @@ export function EmptyState({
             iconWrapClass[variant],
           )}
         >
-          <HugeiconsIcon
-            icon={resolvedIcon}
-            className={cn(tone.icon, iconClass[variant])}
-            size="100%"
-          />
+          <DynamicIcon as={resolvedIcon} className={cn(tone.icon, iconClass[variant])} />
         </div>
       )}
       <div className="max-w-sm">

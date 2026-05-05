@@ -14,12 +14,7 @@
 // chrome.
 
 import { type ReactNode, useId } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
-} from "@hugeicons/core-free-icons";
-
+import { ArrowDown, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 interface FormSectionProps {
@@ -56,16 +51,8 @@ export function FormSection({
           id={summaryId}
           className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-2xs font-medium text-foreground [&::-webkit-details-marker]:hidden"
         >
-          <HugeiconsIcon
-            icon={ArrowRight01Icon}
-            className="h-3 w-3 group-open:hidden"
-            size="100%"
-          />
-          <HugeiconsIcon
-            icon={ArrowDown01Icon}
-            className="hidden h-3 w-3 group-open:inline"
-            size="100%"
-          />
+          <ArrowRight className="h-3 w-3 group-open:hidden" />
+          <ArrowDown className="hidden h-3 w-3 group-open:inline" />
           <span>{title}</span>
           {description && (
             <span className="ms-2 text-2xs text-foreground-subtle">

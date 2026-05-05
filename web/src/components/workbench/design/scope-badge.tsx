@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Database01Icon } from "@hugeicons/core-free-icons";
+import { Database } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 import {
@@ -38,7 +37,7 @@ export function ScopeBadge() {
   return (
     <Popover>
       <PopoverTrigger className="inline-flex items-center gap-1 rounded-md border border-brand-border bg-surface-base px-2 py-1 text-2xs text-brand-foreground shadow-1 hover:bg-brand-surface-strong">
-        <HugeiconsIcon icon={Database01Icon} className="h-3 w-3" size="100%" />
+        <Database className="h-3 w-3" />
         {summary}
       </PopoverTrigger>
       <PopoverContent className="z-popover w-inspector rounded-lg border border-divider bg-surface-base p-3 shadow-4 outline-none focus-visible:ring-0">

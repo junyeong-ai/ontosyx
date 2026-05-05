@@ -2,12 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import type { QueryExecutionSummary } from "@/types/api";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { Card } from "@/components/ui/card";
-import {
-  ChartColumnIcon,
-  Table01Icon,
-} from "@hugeicons/core-free-icons";
+import { BarChart, Table } from "lucide-react";
 import { useFormatters } from "@/hooks/use-formatters";
 
 // ---------------------------------------------------------------------------
@@ -43,9 +39,9 @@ export function ExecutionCard({ item, onClick }: ExecutionCardProps) {
       <div className="mt-1.5 flex items-center gap-3 text-xs text-foreground-muted">
         <span className="flex items-center gap-1">
           {item.has_widget ? (
-            <HugeiconsIcon icon={ChartColumnIcon} className="h-3 w-3" size="100%" />
+            <BarChart className="h-3 w-3" />
           ) : (
-            <HugeiconsIcon icon={Table01Icon} className="h-3 w-3" size="100%" />
+            <Table className="h-3 w-3" />
           )}
           {t("rowsSummary", { count: item.row_count })}
         </span>

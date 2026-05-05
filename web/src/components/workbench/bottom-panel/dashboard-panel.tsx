@@ -6,12 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Add01Icon,
-  Delete01Icon,
-  DashboardSpeed01Icon,
-} from "@hugeicons/core-free-icons";
+import { LayoutDashboard, Plus, Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import {
@@ -73,7 +68,7 @@ export function DashboardPanel() {
             disabled={createMutation.isPending || isLoading || isError}
             className="flex items-center gap-1 rounded-md bg-brand-solid px-2.5 py-1 text-xs font-medium text-foreground-onbrand transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-solid disabled:opacity-50"
           >
-            <HugeiconsIcon icon={Add01Icon} className="h-3 w-3" size="100%" />
+            <Plus className="h-3 w-3" />
             {t("new")}
           </button>
         )}
@@ -95,7 +90,7 @@ export function DashboardPanel() {
       ) : dashboards.length === 0 ? (
         <div className="flex flex-1 items-center">
           <EmptyState
-            icon={DashboardSpeed01Icon}
+            icon={LayoutDashboard}
             title={t("empty")}
             description={t("emptyHint")}
             variant="compact"
@@ -125,7 +120,7 @@ export function DashboardPanel() {
                   className="rounded p-1 text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-danger-surface hover:text-danger-foreground"
                   aria-label={t("deleteAria")}
                 >
-                  <HugeiconsIcon icon={Delete01Icon} className="h-3.5 w-3.5" size="100%" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>

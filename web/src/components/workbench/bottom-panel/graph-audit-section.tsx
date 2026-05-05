@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { MagicWand01Icon, Refresh01Icon } from "@hugeicons/core-free-icons";
+import { RefreshCw, Wand2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 import { Button } from "@/components/ui/button";
@@ -74,7 +73,7 @@ export function GraphAuditSection() {
             {loading ? (
               <Spinner size="xs" />
             ) : (
-              <HugeiconsIcon icon={Refresh01Icon} className="me-1 h-3 w-3" />
+              <RefreshCw className="me-1 h-3 w-3" />
             )}
             {t("auditGraph")}
           </Button>
@@ -156,7 +155,7 @@ export function GraphAuditSection() {
                 {adopting ? (
                   <Spinner size="xs" />
                 ) : (
-                  <HugeiconsIcon icon={MagicWand01Icon} className="me-1 h-3 w-3" />
+                  <Wand2 className="me-1 h-3 w-3" />
                 )}
                 {t("adoptGraphLabels")}
               </Button>

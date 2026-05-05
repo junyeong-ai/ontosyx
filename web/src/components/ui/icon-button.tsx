@@ -1,10 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import type { LucideIcon as IconSvgElement } from "lucide-react";
 import { Tooltip } from "./tooltip";
 import { Button } from "./button";
 import { cn } from "@/lib/cn";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 type IconButtonTone = "neutral" | "brand" | "danger";
 type IconButtonSize = "sm" | "md";
@@ -75,7 +76,7 @@ export function IconButton({
         className={cn(toneHoverClass[tone], stateClass, className)}
       >
         {icon ? (
-          <HugeiconsIcon icon={icon} className={iconSizeClass[size]} size="100%" />
+          <DynamicIcon as={icon} className={iconSizeClass[size]} />
         ) : (
           children
         )}

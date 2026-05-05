@@ -2,18 +2,14 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-} from "@hugeicons/core-free-icons";
-
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import type {
   DependencyEdge,
   DependencyKind,
   SchemaEntityRef,
 } from "@/lib/api/dependencies";
 import { entityRefKey } from "@/lib/api/dependencies";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 export type LineageDirection = "inbound" | "outbound";
 
@@ -146,7 +142,7 @@ function EdgeRow({
   onSelect: ((ref: SchemaEntityRef) => void) | undefined;
 }) {
   const label = labelOf?.(edge.endpoint) ?? defaultLabel(edge.endpoint);
-  const arrow = direction === "inbound" ? ArrowLeft01Icon : ArrowRight01Icon;
+  const arrow = direction === "inbound" ? ArrowLeft : ArrowRight;
   const interactive = !!onSelect;
   const Cell = interactive ? "button" : "div";
   return (
@@ -161,11 +157,7 @@ function EdgeRow({
             : "")
         }
       >
-        <HugeiconsIcon
-          icon={arrow}
-          className="h-2.5 w-2.5 shrink-0 text-foreground-muted"
-          size="100%"
-        />
+        <DynamicIcon as={arrow} className="h-2.5 w-2.5 shrink-0 text-foreground-muted" />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate font-medium text-foreground-strong">
             {label}

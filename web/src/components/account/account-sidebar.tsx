@@ -5,9 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/cn";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
-
+import { ArrowLeft } from "lucide-react";
 interface NavItem {
   labelKey: string;
   href: string;
@@ -45,11 +43,7 @@ export function AccountSidebar() {
           href="/"
           className="flex items-center gap-1.5 text-xs font-medium text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:text-foreground-strong"
         >
-          <HugeiconsIcon
-            icon={ArrowLeft01Icon}
-            className="h-3.5 w-3.5"
-            size="100%"
-          />
+          <ArrowLeft className="h-3.5 w-3.5" />
           {t("backToWorkbench")}
         </Link>
       </div>

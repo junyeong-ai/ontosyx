@@ -7,7 +7,7 @@ import type { QueryDiagnostic, QueryResult, WidgetSpec } from "@/types/api";
 import { addWidget, normalizeQueryResult } from "@/lib/api";
 import { useDashboards } from "@/hooks/api/use-dashboards";
 import { useExecution } from "@/hooks/api/use-executions";
-import { Message01Icon } from "@hugeicons/core-free-icons";
+import { MessageCircle } from "lucide-react";
 import { CopyButton } from "@/components/ui/copy-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormInput, FormSelect } from "@/components/ui/form-input";
@@ -49,7 +49,7 @@ export function AnalyzeResultsPanel() {
   if (toolResults.length === 0) {
     return (
       <EmptyState
-        icon={Message01Icon}
+        icon={MessageCircle}
         title={t("empty.title")}
         description={t("empty.description")}
       />

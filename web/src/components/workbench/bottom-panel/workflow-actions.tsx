@@ -2,12 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Tick01Icon,
-  Delete01Icon,
-  MagicWand01Icon,
-} from "@hugeicons/core-free-icons";
+import { Check, Trash2, Wand2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Heading } from "@/components/ui/heading";
 
@@ -324,7 +319,7 @@ export function WorkflowActions({
               disabled={loading}
               className="rounded p-1 text-foreground-muted hover:bg-danger-surface hover:text-danger-foreground"
             >
-              <HugeiconsIcon icon={Delete01Icon} className="h-3.5 w-3.5" size="100%" />
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
@@ -381,7 +376,7 @@ export function WorkflowActions({
             {loading ? (
               <Spinner size="xs" className="me-1.5" />
             ) : (
-              <HugeiconsIcon icon={MagicWand01Icon} className="me-1.5 h-3.5 w-3.5" size="100%" />
+              <Wand2 className="me-1.5 h-3.5 w-3.5" />
             )}
             {t("designOntology")}
           </Button>
@@ -440,7 +435,7 @@ export function WorkflowActions({
             {loading ? (
               <Spinner size="xs" className="me-1.5" />
             ) : (
-              <HugeiconsIcon icon={Tick01Icon} className="me-1.5 h-3 w-3" size="100%" />
+              <Check className="me-1.5 h-3 w-3" />
             )}
             {t("complete")}
           </Button>
@@ -451,7 +446,7 @@ export function WorkflowActions({
       {isCompleted && (
         <div className="space-y-2 rounded-lg border border-brand-border bg-brand-surface p-3">
           <div className="flex items-center gap-2">
-            <HugeiconsIcon icon={Tick01Icon} className="h-4 w-4 text-brand-foreground" size="100%" />
+            <Check className="h-4 w-4 text-brand-foreground" />
             <h4 className="text-xs font-semibold text-brand-foreground-strong">
               {t("savedHeader")}
             </h4>

@@ -4,10 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/hooks/use-auth";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { SETTINGS_NAV_GROUPS, type NavItem } from "@/lib/constants/settings-nav";
 
 export function SettingsSidebar() {
@@ -40,11 +40,7 @@ export function SettingsSidebar() {
           href="/"
           className="flex items-center gap-1.5 text-xs font-medium text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:text-foreground-strong"
         >
-          <HugeiconsIcon
-            icon={ArrowLeft01Icon}
-            className="h-3.5 w-3.5"
-            size="100%"
-          />
+          <ArrowLeft className="h-3.5 w-3.5" />
           {t("backToWorkbench")}
         </Link>
       </div>
@@ -73,12 +69,9 @@ export function SettingsSidebar() {
                     : "text-foreground-muted hover:text-foreground-strong",
                 )}
               >
-                <HugeiconsIcon
-                  icon={group.icon}
-                  className="h-3.5 w-3.5 shrink-0"
-                  size="100%"
-                  aria-hidden="true"
-                />
+                <DynamicIcon as={group.icon} className="h-3.5 w-3.5 shrink-0"
+ 
+ aria-hidden="true" />
                 <span className="flex-1 text-start">
                   {tSidebar(group.titleKey)}
                 </span>
@@ -103,12 +96,9 @@ export function SettingsSidebar() {
                 id={headingId}
                 className="mt-3 flex items-center gap-2 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted"
               >
-                <HugeiconsIcon
-                  icon={group.icon}
-                  className="h-3.5 w-3.5 shrink-0"
-                  size="100%"
-                  aria-hidden="true"
-                />
+                <DynamicIcon as={group.icon} className="h-3.5 w-3.5 shrink-0"
+ 
+ aria-hidden="true" />
                 <span className="flex-1 text-start">
                   {tSidebar(group.titleKey)}
                 </span>

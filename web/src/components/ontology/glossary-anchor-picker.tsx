@@ -2,14 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  PlusSignIcon,
-  Cancel01Icon,
-  AlertCircleIcon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons";
-
+import { AlertCircle, Plus, Search, X } from "lucide-react";
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
 import { localizePresent } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/hooks/use-locale-chain";
@@ -143,11 +136,7 @@ export function GlossaryAnchorPicker({
               onClick={() => setOpen(true)}
               className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-2xs text-foreground-muted hover:border-concept-border hover:text-concept-foreground"
             >
-              <HugeiconsIcon
-                icon={PlusSignIcon}
-                className="h-3 w-3"
-                size="100%"
-              />
+              <Plus className="h-3 w-3" />
               {t("addAction")}
             </button>
           )}
@@ -181,11 +170,7 @@ function AnchorChip({
     >
       {missing && (
         <span title={missingLabel}>
-          <HugeiconsIcon
-            icon={AlertCircleIcon}
-            className="h-2.5 w-2.5"
-            size="100%"
-          />
+          <AlertCircle className="h-2.5 w-2.5" />
         </span>
       )}
       <span className="font-medium">{label}</span>
@@ -197,7 +182,7 @@ function AnchorChip({
           aria-label={removeLabel}
           className="rounded-full p-0.5 hover:bg-concept-surface"
         >
-          <HugeiconsIcon icon={Cancel01Icon} className="h-2.5 w-2.5" size="100%" />
+          <X className="h-2.5 w-2.5" />
         </button>
       )}
     </li>
@@ -238,7 +223,7 @@ function SearchPopover({
           placeholder={labelSearch}
           aria-label={labelSearch}
           density="compact"
-          leadingIcon={Search01Icon}
+          leadingIcon={Search}
         />
       </div>
       <ul className="mt-1 max-h-60 space-y-0.5 overflow-y-auto">

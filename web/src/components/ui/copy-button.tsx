@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { CopyIcon, Tick01Icon } from "@hugeicons/core-free-icons";
-
+import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 interface CopyButtonProps {
@@ -41,13 +39,9 @@ export function CopyButton({ text, variant = "absolute" }: CopyButtonProps) {
       title={copied ? t("copied") : t("copy")}
     >
       {copied ? (
-        <HugeiconsIcon
-          icon={Tick01Icon}
-          className="h-3.5 w-3.5 text-success-foreground"
-          size="100%"
-        />
+        <Check className="h-3.5 w-3.5 text-success-foreground" />
       ) : (
-        <HugeiconsIcon icon={CopyIcon} className="h-3.5 w-3.5" size="100%" />
+        <Copy className="h-3.5 w-3.5" />
       )}
     </button>
   );

@@ -3,8 +3,7 @@
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowDown01Icon, ArrowRight01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { ArrowDown, ArrowRight, Search } from "lucide-react";
 import { useAppStore, selectStateSelectedNodeId, selectStateSelectedEdgeId } from "@/lib/store";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -12,6 +11,7 @@ import { SearchInput } from "@/components/ui/form-input";
 import type { QualityGap, NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
 import { localizeQualityGapIssue } from "@/lib/quality-gap-text";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 // ---------------------------------------------------------------------------
 // Explorer — node/edge list with search and quality indicators
@@ -147,7 +147,7 @@ const EdgeItem = memo(function EdgeItem({
         selected && "bg-brand-surface",
       )}
     >
-      <HugeiconsIcon icon={ArrowRight01Icon} className="h-2.5 w-2.5 text-foreground-muted" size="100%" />
+      <ArrowRight className="h-2.5 w-2.5 text-foreground-muted" />
       <span className="flex-1 truncate text-foreground">
         <span className="text-foreground-muted">{sourceLabel}</span>
         {" → "}
@@ -307,7 +307,7 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
           placeholder={tExplorer("searchPlaceholder")}
           aria-label={tExplorer("searchPlaceholder")}
           density="compact"
-          leadingIcon={Search01Icon}
+          leadingIcon={Search}
         />
       </div>
 
@@ -350,7 +350,7 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
               onClick={toggleFindings}
               className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-foreground-muted hover:bg-surface-raised"
             >
-              {findingsOpen ? <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3" size="100%" /> : <HugeiconsIcon icon={ArrowRight01Icon} className="h-3 w-3" size="100%" />}
+              {findingsOpen ? <ArrowDown className="h-3 w-3" /> : <ArrowRight className="h-3 w-3" />}
               {tExplorer("sourceFindings", { count: sourceFindings.length })}
             </button>
             {findingsOpen && (
@@ -477,11 +477,7 @@ function VirtualizedTree({
                   onClick={row.section === "nodes" ? toggleNodes : toggleEdges}
                   className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-foreground-muted hover:bg-surface-raised"
                 >
-                  <HugeiconsIcon
-                    icon={row.open ? ArrowDown01Icon : ArrowRight01Icon}
-                    className="h-3 w-3"
-                    size="100%"
-                  />
+                  <DynamicIcon as={row.open ? ArrowDown : ArrowRight} className="h-3 w-3" />
                   {row.section === "nodes" ? "Nodes" : "Edges"} ({row.count})
                 </button>
               ) : row.kind === "node" ? (

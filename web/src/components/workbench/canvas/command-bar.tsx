@@ -9,14 +9,8 @@ import {
   refineOntologyDraft,
   editOntologyDraft,
 } from "@/lib/api";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  MagicWand01Icon,
-  Cancel01Icon,
-  Tick01Icon,
-  Edit01Icon,
-  RepeatIcon,
-} from "@hugeicons/core-free-icons";
+import { Check, Repeat, Wand2, X } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
 import { CommandPreview } from "./command-preview";
@@ -320,11 +314,7 @@ export function CommandBar() {
             "hover:border-brand-border hover:bg-surface-base hover:text-brand-foreground hover:shadow-2",
           )}
         >
-          <HugeiconsIcon
-            icon={MagicWand01Icon}
-            className="h-3.5 w-3.5"
-            size="100%"
-          />
+          <Wand2 className="h-3.5 w-3.5" />
           {t("askOntosyx")}
           <KeyboardShortcut keys="mod+k" size="default" className="ms-1" />
         </button>
@@ -382,11 +372,7 @@ export function CommandBar() {
                 (!canEdit || loading) && "cursor-not-allowed opacity-40",
               )}
             >
-              <HugeiconsIcon
-                icon={Edit01Icon}
-                className="h-3 w-3"
-                size="100%"
-              />
+              <Pencil className="h-3 w-3" />
               {tCommon("edit")}
             </button>
             <button type="button"
@@ -403,11 +389,7 @@ export function CommandBar() {
                 (!canRefine || loading) && "cursor-not-allowed opacity-40",
               )}
             >
-              <HugeiconsIcon
-                icon={RepeatIcon}
-                className="h-3 w-3"
-                size="100%"
-              />
+              <Repeat className="h-3 w-3" />
               {t("refine")}
             </button>
           </div>
@@ -416,11 +398,7 @@ export function CommandBar() {
           {loading ? (
             <Spinner size="sm" className="shrink-0 text-brand-foreground" />
           ) : (
-            <HugeiconsIcon
-              icon={MagicWand01Icon}
-              className="h-4 w-4 shrink-0 text-foreground-muted"
-              size="100%"
-            />
+            <Wand2 className="h-4 w-4 shrink-0 text-foreground-muted" />
           )}
 
           {/* Input */}
@@ -457,11 +435,7 @@ export function CommandBar() {
               disabled={mode === "refine" && !canRefine}
               className="flex items-center gap-1 rounded-lg bg-brand-solid px-3 py-1.5 text-xs font-medium text-foreground-onbrand hover:bg-brand-solid-hover disabled:opacity-50"
             >
-              <HugeiconsIcon
-                icon={Tick01Icon}
-                className="h-3 w-3"
-                size="100%"
-              />
+              <Check className="h-3 w-3" />
               {mode === "edit" ? t("previewEdit") : t("refineBtn")}
             </button>
           )}
@@ -473,11 +447,7 @@ export function CommandBar() {
             aria-label={t("closeAria")}
             className="rounded-md p-1 text-foreground-muted hover:bg-surface-inset hover:text-foreground disabled:opacity-50"
           >
-            <HugeiconsIcon
-              icon={Cancel01Icon}
-              className="h-3.5 w-3.5"
-              size="100%"
-            />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
 

@@ -15,13 +15,9 @@ import type {
 } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { TabBar } from "@/components/ui/tab-bar";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  Clock01Icon,
-  PinIcon,
-  Delete01Icon,
-} from "@hugeicons/core-free-icons";
+import { Clock, Trash2 } from "lucide-react";
+import { Pin } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
@@ -46,8 +42,8 @@ export function HistoryPanel() {
       <div className="border-b border-divider">
         <TabBar
           tabs={[
-            { id: "recent", label: t("tabRecent"), icon: Clock01Icon },
-            { id: "pinned", label: t("tabPinned"), icon: PinIcon },
+            { id: "recent", label: t("tabRecent"), icon: Clock },
+            { id: "pinned", label: t("tabPinned"), icon: Pin },
           ]}
           activeTab={tab}
           onTabChange={handleTabChange}
@@ -103,7 +99,7 @@ function RecentTab() {
       {items.length === 0 && loading && <SkeletonList count={4} />}
 
       {items.length === 0 && !loading && (
-        <EmptyState icon={Clock01Icon} title={t("emptyRecent")} />
+        <EmptyState icon={Clock} title={t("emptyRecent")} />
       )}
 
       <div className="space-y-2">
@@ -190,7 +186,7 @@ function PinnedTab() {
   return (
     <div className="p-4">
       {items.length === 0 && !loading && (
-        <EmptyState icon={PinIcon} title={t("emptyPinned")} />
+        <EmptyState icon={Pin} title={t("emptyPinned")} />
       )}
 
       <div className="space-y-2">
@@ -232,7 +228,7 @@ function PinnedTab() {
               className="rounded p-1 text-foreground-muted opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] hover:bg-danger-surface hover:text-danger-foreground group-hover:opacity-100 group-focus-within:opacity-100"
               aria-label={t("unpinAria")}
             >
-              <HugeiconsIcon icon={Delete01Icon} className="h-3.5 w-3.5" size="100%" />
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
         ))}

@@ -4,8 +4,7 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/lib/store";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { RepeatIcon } from "@hugeicons/core-free-icons";
+import { Repeat } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { WidgetRenderer } from "@/components/dashboard/widgets/widget-renderer";
 import { rawQuery } from "@/lib/api";
@@ -100,11 +99,7 @@ export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCard
             </button>
           )}
           {widget.refresh_interval_secs && widget.refresh_interval_secs > 0 && (
-            <HugeiconsIcon
-              icon={RepeatIcon}
-              className={`h-3 w-3 text-foreground-muted ${refreshing ? "animate-spin" : ""}`}
-              size="100%"
-            />
+            <Repeat className={`h-3 w-3 text-foreground-muted ${refreshing ? "animate-spin" : ""}`} />
           )}
           <span className="text-2xs text-foreground-muted">{widget.widget_type}</span>
         </div>

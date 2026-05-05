@@ -36,8 +36,9 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 import { Switch as BaseSwitch } from "@base-ui/react/switch";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { ViewIcon, ViewOffIcon } from "@hugeicons/core-free-icons";
+import type { LucideIcon as IconSvgElement } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { cn } from "@/lib/cn";
 
 // ---------------------------------------------------------------------------
@@ -116,7 +117,7 @@ FormInput.displayName = "FormInput";
 
 interface SearchInputProps extends InputHTMLAttributes<HTMLInputElement> {
   /**
-   * Leading icon, typically `Search01Icon`. Sized automatically to
+   * Leading icon, typically `Search`. Sized automatically to
    * match `density`; the control sets the cap-height so the caller
    * doesn't need to thread `h-3 w-3` / `h-3.5 w-3.5` per surface.
    */
@@ -182,11 +183,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
         )}
         aria-hidden="true"
       >
-        <HugeiconsIcon
-          icon={leadingIcon}
-          className={ICON_SIZE_CLASS[density]}
-          size="100%"
-        />
+        <DynamicIcon as={leadingIcon} className={ICON_SIZE_CLASS[density]} />
       </span>
       <input
         ref={ref}
@@ -328,11 +325,7 @@ export const SecretInput = forwardRef<HTMLInputElement, SecretInputProps>(
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40",
           )}
         >
-          <HugeiconsIcon
-            icon={revealed ? ViewOffIcon : ViewIcon}
-            className="h-3.5 w-3.5"
-            size="100%"
-          />
+          <DynamicIcon as={revealed ? EyeOff : Eye} className="h-3.5 w-3.5" />
         </button>
       </div>
     );

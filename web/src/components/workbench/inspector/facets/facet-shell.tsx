@@ -18,9 +18,9 @@
 // switch is complete.
 
 import type { ReactNode } from "react";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-
+import type { LucideIcon as IconSvgElement } from "lucide-react";
 import { ErrorState } from "@/components/ui/error-state";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { SkeletonText } from "@/components/ui/skeleton";
 
 export type FacetState =
@@ -62,11 +62,7 @@ export function FacetShell({ state }: { state: FacetState }) {
         <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
           {state.icon && (
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-inset">
-              <HugeiconsIcon
-                icon={state.icon}
-                className="h-4 w-4 text-foreground-muted"
-                size="100%"
-              />
+              <DynamicIcon as={state.icon} className="h-4 w-4 text-foreground-muted" />
             </div>
           )}
           <p className="text-xs font-medium text-foreground">{state.title}</p>

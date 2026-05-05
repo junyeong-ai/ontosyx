@@ -10,34 +10,30 @@
  * blocked at the lint layer to keep this the only surface.
  */
 
-import {
-  AlertCircleIcon,
-  AlertDiamondIcon,
-  CheckmarkCircle02Icon,
-  InformationCircleIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { AlertCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import {
   Toaster as SonnerToaster,
   toast as sonnerToast,
   type ExternalToast,
 } from "sonner";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 type Variant = "success" | "error" | "warning" | "info";
 
 const VARIANT_DEFINITION: Record<
   Variant,
-  { icon: typeof CheckmarkCircle02Icon; tone: string }
+  { icon: typeof CheckCircle2; tone: string }
 > = {
-  success: { icon: CheckmarkCircle02Icon, tone: "text-success-foreground" },
-  error: { icon: AlertCircleIcon, tone: "text-danger-foreground" },
-  warning: { icon: AlertDiamondIcon, tone: "text-warning-foreground" },
-  info: { icon: InformationCircleIcon, tone: "text-info-foreground" },
+  success: { icon: CheckCircle2, tone: "text-success-foreground" },
+  error: { icon: AlertCircle, tone: "text-danger-foreground" },
+  warning: { icon: AlertTriangle, tone: "text-warning-foreground" },
+  info: { icon: Info, tone: "text-info-foreground" },
 };
 
 function variantIcon(variant: Variant) {
   const { icon, tone } = VARIANT_DEFINITION[variant];
-  return <HugeiconsIcon icon={icon} className={`size-5 ${tone}`} />;
+  return <DynamicIcon as={icon} className={`size-5 ${tone}`} />;
 }
 
 function withDefaultIcon(

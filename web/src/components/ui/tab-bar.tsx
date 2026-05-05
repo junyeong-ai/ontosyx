@@ -3,8 +3,9 @@
 import { useId } from "react";
 import { Tabs } from "@base-ui/react/tabs";
 import { motion } from "motion/react";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import type { LucideIcon as IconSvgElement } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 interface TabBarTab {
   id: string;
@@ -38,7 +39,7 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
                   : "text-foreground-muted hover:text-foreground-strong",
               )}
             >
-              {icon && <HugeiconsIcon icon={icon} className="h-3 w-3" size="100%" />}
+              {icon && <DynamicIcon as={icon} className="h-3 w-3" />}
               {label}
               {badge != null && badge > 0 && (
                 <span className="ms-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-warning-surface px-1 text-2xs font-bold text-warning-foreground">

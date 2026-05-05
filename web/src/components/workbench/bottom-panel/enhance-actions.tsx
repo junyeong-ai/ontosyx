@@ -2,8 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, MagicWand01Icon, Refresh01Icon } from "@hugeicons/core-free-icons";
+import { Plus, RefreshCw, Wand2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
 
@@ -202,7 +201,7 @@ export function EnhanceActions({
           disabled={loading}
           className="w-full text-xs"
         >
-          <HugeiconsIcon icon={Add01Icon} className="me-1.5 h-3 w-3" size="100%" />
+          <Plus className="me-1.5 h-3 w-3" />
           {extend.showExtend ? tCommon("cancel") : t("extendWithSource")}
         </Button>
         {extend.showExtend && (
@@ -270,7 +269,7 @@ export function EnhanceActions({
             disabled={loading}
             className="w-full text-xs"
           >
-            <HugeiconsIcon icon={MagicWand01Icon} className="me-1.5 h-3 w-3" size="100%" />
+            <Wand2 className="me-1.5 h-3 w-3" />
             {t("redesign")}
           </Button>
           {reanalyzeSourceType !== "ontology" && (
@@ -282,7 +281,7 @@ export function EnhanceActions({
                 disabled={loading}
                 className="w-full text-xs"
               >
-                <HugeiconsIcon icon={Refresh01Icon} className="me-1.5 h-3 w-3" size="100%" />
+                <RefreshCw className="me-1.5 h-3 w-3" />
                 {reanalyze.showReanalyze ? tCommon("cancel") : t("reanalyzeSource")}
               </Button>
               {reanalyze.showReanalyze && (

@@ -6,12 +6,7 @@ import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowDown01Icon,
-  PlusSignIcon,
-  Settings01Icon,
-} from "@hugeicons/core-free-icons";
+import { ArrowDown, Plus, Settings } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import {
   getWorkspaceId,
@@ -93,11 +88,7 @@ export function WorkspaceSwitcher() {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger className={TRIGGER_CLASS}>
           <span className="max-w-[140px] truncate">{label}</span>
-          <HugeiconsIcon
-            icon={ArrowDown01Icon}
-            className="h-3 w-3 text-foreground-muted"
-            size="100%"
-          />
+          <ArrowDown className="h-3 w-3 text-foreground-muted" />
         </PopoverTrigger>
         <PopoverContent className={POPOVER_CLASS}>
           <div className="max-h-60 overflow-auto p-1">
@@ -139,7 +130,7 @@ export function WorkspaceSwitcher() {
               }}
               className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs font-medium text-concept-foreground hover:bg-concept-surface"
             >
-              <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
+              <Plus className="h-3 w-3" />
               {t("newWorkspace")}
             </button>
             <Link
@@ -147,7 +138,7 @@ export function WorkspaceSwitcher() {
               onClick={() => setOpen(false)}
               className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs text-foreground-muted hover:bg-surface-raised"
             >
-              <HugeiconsIcon icon={Settings01Icon} className="h-3 w-3" size="100%" />
+              <Settings className="h-3 w-3" />
               {t("workspaceSettings")}
             </Link>
           </div>

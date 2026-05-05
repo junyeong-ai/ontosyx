@@ -30,8 +30,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { RecipeCard } from "@/components/recipes/recipe-card";
 import { RecipeRunner } from "@/components/recipes/recipe-runner";
-import { Analytics01Icon, ArrowDown01Icon, Search01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowDown, BarChart3, Search } from "lucide-react";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 
 const ALGORITHM_TYPES = [
@@ -195,7 +194,7 @@ export function RecipesWorkbench() {
             retryLabel: tCommon("retry"),
           }}
           empty={{
-            icon: Analytics01Icon,
+            icon: BarChart3,
             title: t("empty.title"),
             description: t("empty.description"),
             action: {
@@ -204,7 +203,7 @@ export function RecipesWorkbench() {
             },
           }}
           filteredEmpty={{
-            icon: Search01Icon,
+            icon: Search,
             title: t("filteredEmpty.title"),
             description: t("filteredEmpty.description"),
             clearLabel: t("filteredEmpty.clearFilters"),
@@ -514,11 +513,7 @@ function VersionRow({
             {t("versions.current")}
           </span>
         )}
-        <HugeiconsIcon
-          icon={ArrowDown01Icon}
-          className={`h-3 w-3 text-foreground-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)] ${isExpanded ? "rotate-180" : ""}`}
-          size="100%"
-        />
+        <ArrowDown className={`h-3 w-3 text-foreground-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)] ${isExpanded ? "rotate-180" : ""}`} />
       </button>
       {isExpanded && (
         <div className="border-t border-divider bg-surface-base px-3 py-3">

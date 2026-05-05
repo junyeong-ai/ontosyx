@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { FocusTrap } from "@/components/ui/focus-trap";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Search01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Search, X } from "lucide-react";
 import { searchGraph } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { SearchInput } from "@/components/ui/form-input";
@@ -249,7 +248,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
             }}
             placeholder={t("placeholder")}
             aria-label={t("placeholder")}
-            leadingIcon={Search01Icon}
+            leadingIcon={Search}
             trailing={
               <>
                 {loading && <Spinner size="xs" className="text-foreground-muted" />}
@@ -258,7 +257,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                   className="text-foreground-muted hover:text-foreground"
                   aria-label={t("closeAria")}
                 >
-                  <HugeiconsIcon icon={Cancel01Icon} className="h-3.5 w-3.5" size="100%" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </>
             }

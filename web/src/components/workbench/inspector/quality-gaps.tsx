@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { MagicWand01Icon } from "@hugeicons/core-free-icons";
+import { Wand2 } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import type { QualityGap } from "@/types/api";
@@ -91,7 +90,7 @@ export function QualityGapsList({
                     {fixingIndex === i && loading ? (
                       <Spinner size="xs" />
                     ) : (
-                      <HugeiconsIcon icon={MagicWand01Icon} className="h-2.5 w-2.5" size="100%" />
+                      <Wand2 className="h-2.5 w-2.5" />
                     )}
                   </button>
                 </Tooltip>

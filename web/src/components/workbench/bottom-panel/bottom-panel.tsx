@@ -9,17 +9,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { motion, AnimatePresence } from "motion/react";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import {
-  Message01Icon,
-  MagicWand01Icon,
-  CheckListIcon,
-  ArrowDown01Icon,
-  ArrowUp01Icon,
-  MaximizeScreenIcon,
-  MinimizeScreenIcon,
-} from "@hugeicons/core-free-icons";
-
+import type { LucideIcon as IconSvgElement } from "lucide-react";
+import { ArrowDown, ArrowUp, MessageCircle, Wand2 } from "lucide-react";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
+import { ListChecks, Maximize2, Minimize2 } from "lucide-react";
 // ---------------------------------------------------------------------------
 // Bottom panel — self-contained tabs for Workflow / Quality
 // ---------------------------------------------------------------------------
@@ -41,9 +34,9 @@ function QualityTab() {
 }
 
 const TAB_DEFS: { id: DesignBottomTab; icon: IconSvgElement }[] = [
-  { id: "chat", icon: Message01Icon },
-  { id: "workflow", icon: MagicWand01Icon },
-  { id: "quality", icon: CheckListIcon },
+  { id: "chat", icon: MessageCircle },
+  { id: "workflow", icon: Wand2 },
+  { id: "quality", icon: ListChecks },
 ];
 
 const panelMap: Record<DesignBottomTab, React.ComponentType> = {
@@ -123,7 +116,7 @@ export function BottomPanel({
                     : "text-foreground-muted hover:text-foreground-muted",
                 )}
               >
-                <HugeiconsIcon icon={icon} className="h-3 w-3" size="100%" />
+                <DynamicIcon as={icon} className="h-3 w-3" />
                 {t(id)}
               </button>
             );
@@ -151,11 +144,7 @@ export function BottomPanel({
               }
               className="px-2 text-foreground-muted hover:text-foreground-muted"
             >
-              <HugeiconsIcon
-                icon={isFullscreen ? MinimizeScreenIcon : MaximizeScreenIcon}
-                className="h-3.5 w-3.5"
-                size="100%"
-              />
+              <DynamicIcon as={isFullscreen ? Minimize2 : Maximize2} className="h-3.5 w-3.5" />
             </button>
           </Tooltip>
         )}
@@ -166,8 +155,8 @@ export function BottomPanel({
             className="px-2 text-foreground-muted hover:text-foreground-muted"
           >
             {isBottomPanelOpen
-              ? <HugeiconsIcon icon={ArrowDown01Icon} className="h-3.5 w-3.5" size="100%" />
-              : <HugeiconsIcon icon={ArrowUp01Icon} className="h-3.5 w-3.5" size="100%" />
+              ? <ArrowDown className="h-3.5 w-3.5" />
+              : <ArrowUp className="h-3.5 w-3.5" />
             }
           </button>
         </Tooltip>

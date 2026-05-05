@@ -7,15 +7,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore, selectStateSelectedWidgetId } from "@/lib/store";
 import { Group, Panel } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/ui/resize-handle";
-import {
-  AiNetworkIcon,
-  Copy01Icon,
-  DashboardSpeed01Icon,
-  Delete02Icon,
-  Download04Icon,
-  RepeatIcon,
-  Share01Icon,
-} from "@hugeicons/core-free-icons";
+import { Download, LayoutDashboard, Repeat } from "lucide-react";
+import { Copy, Network, Share2, Trash } from "lucide-react";
 import { SkeletonWidgetGrid } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -249,7 +242,7 @@ export function DashboardLayout() {
                 <IconButton
                   label={t("actions.aiGenerate")}
                   onClick={() => setIsAiDialogOpen(true)}
-                  icon={AiNetworkIcon}
+                  icon={Network}
                   tone="brand"
                 />
                 <IconButton
@@ -260,27 +253,27 @@ export function DashboardLayout() {
                   }
                   onClick={handleToggleSharing}
                   active={activeDashboard.is_public}
-                  icon={Share01Icon}
+                  icon={Share2}
                 />
                 <IconButton
                   label={t("actions.exportPdf")}
                   onClick={handleExportPdf}
-                  icon={Download04Icon}
+                  icon={Download}
                 />
                 <IconButton
                   label={t("actions.duplicate")}
                   onClick={handleDuplicate}
-                  icon={Copy01Icon}
+                  icon={Copy}
                 />
                 <IconButton
                   label={t("actions.refreshAll")}
                   onClick={() => setRefreshKey((prev) => prev + 1)}
-                  icon={RepeatIcon}
+                  icon={Repeat}
                 />
                 <IconButton
                   label={t("actions.delete")}
                   onClick={() => handleDelete(activeDashboard.id)}
-                  icon={Delete02Icon}
+                  icon={Trash}
                   tone="danger"
                 />
               </>
@@ -419,7 +412,7 @@ function EmptyDashboard({ onCreate }: { onCreate: () => void }) {
   const t = useTranslations("workbench.dashboard.layout.empty");
   return (
     <EmptyState
-      icon={DashboardSpeed01Icon}
+      icon={LayoutDashboard}
       title={t("dashboardTitle")}
       description={t("dashboardDescription")}
       action={{

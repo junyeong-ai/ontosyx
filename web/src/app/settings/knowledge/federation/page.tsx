@@ -8,8 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
-import { DatabaseIcon } from "@hugeicons/core-free-icons";
-
+import { Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonCard, SkeletonList } from "@/components/ui/skeleton";
@@ -451,7 +450,7 @@ export default function FederationAdaptersPage() {
 
       <section>
         {adapters.length === 0 ? (
-          <EmptyState icon={DatabaseIcon} title={t("empty")} />
+          <EmptyState icon={Database} title={t("empty")} />
         ) : (
           <table className="w-full text-sm">
             <thead>

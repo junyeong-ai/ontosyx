@@ -4,13 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import { FormInput } from "@/components/ui/form-input";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  PencilEdit01Icon,
-  Tick01Icon,
-  Cancel01Icon,
-} from "@hugeicons/core-free-icons";
-
+import { Check, Pencil, X } from "lucide-react";
 // ---------------------------------------------------------------------------
 // Inline editable field
 // ---------------------------------------------------------------------------
@@ -65,14 +59,14 @@ export function InlineEdit({
           aria-label={t("commitInline")}
           className="text-brand-foreground hover:text-brand-foreground-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 rounded"
         >
-          <HugeiconsIcon icon={Tick01Icon} className="h-3 w-3" size="100%" />
+          <Check className="h-3 w-3" />
         </button>
         <button type="button"
           onClick={cancel}
           aria-label={t("cancelInline")}
           className="text-foreground-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 rounded"
         >
-          <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
+          <X className="h-3 w-3" />
         </button>
       </div>
     );
@@ -91,7 +85,7 @@ export function InlineEdit({
       aria-label={t("editInline")}
     >
       <span className="flex-1 truncate">{value || placeholder}</span>
-      <HugeiconsIcon icon={PencilEdit01Icon} className="h-2.5 w-2.5 text-foreground-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" size="100%" />
+      <Pencil className="h-2.5 w-2.5 text-foreground-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" />
     </button>
   );
 }

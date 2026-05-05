@@ -1,13 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
-import { Search01Icon } from "@hugeicons/core-free-icons";
-
+import { Search } from "lucide-react";
 import { SearchInput } from "../form-input";
 
 describe("SearchInput", () => {
   it("renders the leading icon hidden from a11y tree", () => {
     const { container } = render(
-      <SearchInput leadingIcon={Search01Icon} aria-label="Search items" />,
+      <SearchInput leadingIcon={Search} aria-label="Search items" />,
     );
     const iconWrap = container.querySelector('[aria-hidden="true"]');
     expect(iconWrap).toBeTruthy();
@@ -18,7 +17,7 @@ describe("SearchInput", () => {
     const onChange = vi.fn();
     const { container } = render(
       <SearchInput
-        leadingIcon={Search01Icon}
+        leadingIcon={Search}
         aria-label="Search items"
         onChange={onChange}
       />,
@@ -30,7 +29,7 @@ describe("SearchInput", () => {
 
   it("defaults type to `search` (semantic + native clear button on supporting browsers)", () => {
     const { container } = render(
-      <SearchInput leadingIcon={Search01Icon} aria-label="Search items" />,
+      <SearchInput leadingIcon={Search} aria-label="Search items" />,
     );
     expect(container.querySelector("input")?.type).toBe("search");
   });
@@ -38,7 +37,7 @@ describe("SearchInput", () => {
   it("respects a caller-provided type override", () => {
     const { container } = render(
       <SearchInput
-        leadingIcon={Search01Icon}
+        leadingIcon={Search}
         type="text"
         aria-label="Filter"
       />,
@@ -49,7 +48,7 @@ describe("SearchInput", () => {
   it("aria-invalid is set when `error` is true", () => {
     const { container } = render(
       <SearchInput
-        leadingIcon={Search01Icon}
+        leadingIcon={Search}
         aria-label="Search"
         error
       />,
@@ -62,7 +61,7 @@ describe("SearchInput", () => {
   it("compact density tightens icon offset and input padding", () => {
     const { container } = render(
       <SearchInput
-        leadingIcon={Search01Icon}
+        leadingIcon={Search}
         density="compact"
         aria-label="Search"
       />,

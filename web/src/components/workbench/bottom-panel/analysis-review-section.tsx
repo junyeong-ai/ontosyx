@@ -2,8 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Alert01Icon, MagicWand01Icon } from "@hugeicons/core-free-icons";
+import { AlertTriangle, Wand2 } from "lucide-react";
 import { FormInput, SettingsSelect } from "@/components/ui/form-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/cn";
@@ -570,7 +569,7 @@ export function AnalysisReviewSection({
                 "border-concept-border bg-concept-surface text-concept-foreground hover:bg-concept-surface",
               )}
             >
-              <HugeiconsIcon icon={MagicWand01Icon} className="h-3 w-3" size="100%" />
+              <Wand2 className="h-3 w-3" />
               {t("autoFill")}
             </button>
           )}
@@ -640,7 +639,7 @@ export function AnalysisReviewSection({
           className="rounded-md border border-warning-border bg-warning-surface p-2"
         >
           <div className="flex items-center gap-1.5">
-            <HugeiconsIcon icon={Alert01Icon} className="h-3 w-3 text-warning-foreground" size="100%" />
+            <AlertTriangle className="h-3 w-3 text-warning-foreground" />
             <span className="text-xs font-medium text-warning-foreground">
               {t("warningsTitle")}
             </span>
@@ -665,7 +664,7 @@ export function AnalysisReviewSection({
           className="rounded-md border border-warning-border bg-warning-surface p-2"
         >
           <div className="flex items-center gap-1.5">
-            <HugeiconsIcon icon={Alert01Icon} className="h-3 w-3 text-warning-foreground" size="100%" />
+            <AlertTriangle className="h-3 w-3 text-warning-foreground" />
             <span className="text-xs font-medium text-warning-foreground">
               {t("largeSchemaTitle", {
                 tableCount: report.large_schema_warning.table_count,

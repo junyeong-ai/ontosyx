@@ -2,8 +2,7 @@
 
 import { Fragment } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Tick01Icon } from "@hugeicons/core-free-icons";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -109,11 +108,8 @@ function Connector({ active }: { active: boolean }) {
 
 function CheckGlyph() {
   return (
-    <HugeiconsIcon
-      icon={Tick01Icon}
-      className="h-3 w-3"
-      size="100%"
-      strokeWidth={2.5}
-    />
+    <Check className="h-3 w-3"
+ 
+ strokeWidth={2.5} />
   );
 }

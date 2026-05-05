@@ -2,12 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Cancel01Icon,
-  PlusSignIcon,
-} from "@hugeicons/core-free-icons";
-
+import { Plus, X } from "lucide-react";
 import type {
   ObjectMappingDef,
   PropertyMappingDef,
@@ -366,11 +361,7 @@ function ColumnChipInput({
               aria-label={removeAriaTemplate(column)}
               className="rounded p-0.5 hover:bg-surface-inset"
             >
-              <HugeiconsIcon
-                icon={Cancel01Icon}
-                className="h-2 w-2"
-                size="100%"
-              />
+              <X className="h-2 w-2" />
             </button>
           )}
         </span>
@@ -405,11 +396,7 @@ function ColumnChipInput({
             disabled={!draft.trim()}
             className="rounded p-0.5 text-foreground-muted hover:bg-surface-inset hover:text-concept-foreground disabled:opacity-50"
           >
-            <HugeiconsIcon
-              icon={PlusSignIcon}
-              className="h-2.5 w-2.5"
-              size="100%"
-            />
+            <Plus className="h-2.5 w-2.5" />
           </button>
         </span>
       )}

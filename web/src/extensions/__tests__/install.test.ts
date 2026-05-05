@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { Book02Icon } from "@hugeicons/core-free-icons";
-
+import { Book } from "lucide-react";
 import {
   _resetInspectorFacetRegistryForTests,
   listInspectorFacets,
@@ -43,7 +42,7 @@ const ORIGINAL_DESIGN: WorkbenchMode = listWorkbenchModes().find(
 const REPLACEMENT_DESIGN: WorkbenchMode = {
   ...ORIGINAL_DESIGN,
   labelKey: "ext-test-replaced-design",
-  icon: Book02Icon,
+  icon: Book,
 };
 
 // Plugin-style new mode — exercises the open `WorkspaceMode` path
@@ -51,7 +50,7 @@ const REPLACEMENT_DESIGN: WorkbenchMode = {
 const PLUGIN_AUDIT_MODE: WorkbenchMode = {
   id: "ext-audit",
   labelKey: "ext-audit",
-  icon: Book02Icon,
+  icon: Book,
   href: "/ext-audit",
   // No `shortcut` — plugin modes may omit the g-prefix shortcut.
 };

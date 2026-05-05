@@ -8,15 +8,8 @@ import { useWorkspaceMode } from "@/hooks/use-workspace-mode";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { FormInput } from "@/components/ui/form-input";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  FolderOpenIcon,
-  ArrowDown01Icon,
-  PlusSignIcon,
-  DashboardSpeed01Icon,
-  Message01Icon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons";
+import { ArrowDown, LayoutDashboard, MessageCircle, Plus, Search } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
@@ -99,9 +92,9 @@ function DesignSelector() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className={TRIGGER_CLASS}>
-        <HugeiconsIcon icon={FolderOpenIcon} className="h-3.5 w-3.5" size="100%" />
+        <FolderOpen className="h-3.5 w-3.5" />
         <span className="max-w-[280px] truncate">{label}</span>
-        <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3 text-foreground-muted" size="100%" />
+        <ArrowDown className="h-3 w-3 text-foreground-muted" />
       </PopoverTrigger>
       <PopoverContent className={POPOVER_CLASS}>
         <div className="max-h-60 overflow-auto p-1">
@@ -116,7 +109,7 @@ function DesignSelector() {
             }}
             className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs font-medium text-concept-foreground hover:bg-concept-surface"
           >
-            <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
+            <Plus className="h-3 w-3" />
             {t("newProject")}
           </button>
           <div className="my-1 h-px bg-surface-inset" />
@@ -193,7 +186,7 @@ function AnalyzeSelector() {
     return (
       <div className="flex items-center gap-2">
         <div className={TRIGGER_CLASS}>
-          <HugeiconsIcon icon={Message01Icon} className="h-3.5 w-3.5 text-foreground-muted" size="100%" />
+          <MessageCircle className="h-3.5 w-3.5 text-foreground-muted" />
           <span className="text-foreground-muted">
             {error ? t("toast.loadOntologyFailed") : t("noSavedOntology")}
           </span>
@@ -213,7 +206,7 @@ function AnalyzeSelector() {
 
   return (
     <div className={TRIGGER_CLASS}>
-      <HugeiconsIcon icon={Message01Icon} className="h-3.5 w-3.5" size="100%" />
+      <MessageCircle className="h-3.5 w-3.5" />
       <span className="max-w-[280px] truncate">{ontology.name}</span>
     </div>
   );
@@ -253,7 +246,7 @@ function ExploreSelector() {
 
   return (
     <div className={TRIGGER_CLASS}>
-      <HugeiconsIcon icon={Search01Icon} className="h-3.5 w-3.5" size="100%" />
+      <Search className="h-3.5 w-3.5" />
       <span className="max-w-[280px] truncate">
         {ontology?.name || (error ? t("toast.loadOntologyFailed") : t("noSavedOntology"))}
       </span>
@@ -317,9 +310,9 @@ function DashboardSelector() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className={TRIGGER_CLASS}>
-        <HugeiconsIcon icon={DashboardSpeed01Icon} className="h-3.5 w-3.5" size="100%" />
+        <LayoutDashboard className="h-3.5 w-3.5" />
         <span className="max-w-[280px] truncate">{label}</span>
-        <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3 text-foreground-muted" size="100%" />
+        <ArrowDown className="h-3 w-3 text-foreground-muted" />
       </PopoverTrigger>
       <PopoverContent className={POPOVER_CLASS}>
         <div className="max-h-60 overflow-auto p-1">
@@ -367,7 +360,7 @@ function DashboardSelector() {
                 onClick={() => setIsCreateOpen(true)}
                 className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-start text-xs font-medium text-concept-foreground hover:bg-concept-surface"
               >
-                <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
+                <Plus className="h-3 w-3" />
                 {t("newDashboard")}
               </button>
               <div className="my-1 h-px bg-surface-inset" />

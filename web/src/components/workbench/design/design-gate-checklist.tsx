@@ -2,13 +2,8 @@
 
 import { useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  CheckmarkCircle01Icon,
-  AlertCircleIcon,
-  Cancel01Icon,
-} from "@hugeicons/core-free-icons";
-
+import { AlertCircle, X } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { DesignGate, GateId } from "@/types/ontology-drafts";
 
@@ -160,28 +155,16 @@ function GateIcon({
 }) {
   if (status === "met") {
     return (
-      <HugeiconsIcon
-        icon={CheckmarkCircle01Icon}
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-foreground"
-        size="100%"
-      />
+      <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-foreground" />
     );
   }
   if (blocking) {
     return (
-      <HugeiconsIcon
-        icon={Cancel01Icon}
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-foreground"
-        size="100%"
-      />
+      <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-foreground" />
     );
   }
   return (
-    <HugeiconsIcon
-      icon={AlertCircleIcon}
-      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground-subtle"
-      size="100%"
-    />
+    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground-subtle" />
   );
 }
 

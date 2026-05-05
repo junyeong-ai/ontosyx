@@ -4,13 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAppStore, type ChatMessage } from "@/lib/store";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  BotIcon,
-  UserIcon,
-  ThumbsUpIcon,
-  ThumbsDownIcon,
-} from "@hugeicons/core-free-icons";
+import { Bot, ThumbsDown, ThumbsUp, User } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Streamdown } from "streamdown";
@@ -72,7 +66,7 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
     return (
       <div role="article" aria-label={t("userAria")} className="flex flex-row-reverse gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-base text-foreground-strong">
-          <HugeiconsIcon icon={UserIcon} className="h-4 w-4" size="100%" />
+          <User className="h-4 w-4" />
         </div>
         <div className="flex max-w-[80%] justify-end">
           <div className="rounded-2xl bg-surface-base px-4 py-2.5 text-sm leading-relaxed text-foreground-strong">
@@ -86,7 +80,7 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
   return (
     <div role="article" aria-label={t("assistantAria")} className="flex gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-surface-strong text-brand-foreground-strong">
-        <HugeiconsIcon icon={BotIcon} className="h-4 w-4" size="100%" />
+        <Bot className="h-4 w-4" />
       </div>
 
       <div className="min-w-0 flex-1 space-y-2">
@@ -266,7 +260,7 @@ function MessageFeedback() {
         }`}
         aria-label={feedback === "positive" ? t("removeHelpful") : t("helpful")}
       >
-        <HugeiconsIcon icon={ThumbsUpIcon} className="h-3 w-3" size="100%" />
+        <ThumbsUp className="h-3 w-3" />
       </button>
       <button
         type="button"
@@ -278,7 +272,7 @@ function MessageFeedback() {
         }`}
         aria-label={feedback === "negative" ? t("removeNotHelpful") : t("notHelpful")}
       >
-        <HugeiconsIcon icon={ThumbsDownIcon} className="h-3 w-3" size="100%" />
+        <ThumbsDown className="h-3 w-3" />
       </button>
     </div>
   );

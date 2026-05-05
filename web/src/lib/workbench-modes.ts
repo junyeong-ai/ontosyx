@@ -18,20 +18,8 @@
 // (`g ,`) but is not a peer of the workbench modes; it lives in the
 // chrome footer and follows its own sub-navigation tree.
 
-import {
-  Book02Icon,
-  CatalogueIcon,
-  ChartAnalysisIcon,
-  DashboardSpeed01Icon,
-  GitBranchIcon,
-  GitForkIcon,
-  Link01Icon,
-  MagicWand01Icon,
-  Message01Icon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons";
-import type { IconSvgElement } from "@hugeicons/react";
-
+import { Book, GitBranch, GitFork, LayoutDashboard, LineChart, Link, List, MessageCircle, Search, Wand2 } from "lucide-react";
+import type { LucideIcon as IconSvgElement } from "lucide-react";
 import {
   shortcutForRoute,
   type NavigationRoute,
@@ -102,16 +90,16 @@ function defaultMode(
  * Glossary, Vocabulary, Recipes are the artifact surfaces).
  */
 const DEFAULT_MODES: readonly WorkbenchMode[] = [
-  defaultMode("design", "modeDesign", MagicWand01Icon, { hasPanelToggles: true }),
-  defaultMode("analyze", "modeAnalyze", Message01Icon),
-  defaultMode("explore", "modeExplore", Search01Icon),
-  defaultMode("dashboard", "modeDashboard", DashboardSpeed01Icon),
-  defaultMode("glossary", "modeGlossary", Book02Icon),
-  defaultMode("vocabulary", "modeVocabulary", CatalogueIcon),
-  defaultMode("mappings", "modeMappings", Link01Icon, { requiresCanonical: true }),
-  defaultMode("lineage", "modeLineage", GitBranchIcon, { requiresCanonical: true }),
-  defaultMode("branches", "modeBranches", GitForkIcon),
-  defaultMode("recipes", "modeRecipes", ChartAnalysisIcon),
+  defaultMode("design", "modeDesign", Wand2, { hasPanelToggles: true }),
+  defaultMode("analyze", "modeAnalyze", MessageCircle),
+  defaultMode("explore", "modeExplore", Search),
+  defaultMode("dashboard", "modeDashboard", LayoutDashboard),
+  defaultMode("glossary", "modeGlossary", Book),
+  defaultMode("vocabulary", "modeVocabulary", List),
+  defaultMode("mappings", "modeMappings", Link, { requiresCanonical: true }),
+  defaultMode("lineage", "modeLineage", GitBranch, { requiresCanonical: true }),
+  defaultMode("branches", "modeBranches", GitFork),
+  defaultMode("recipes", "modeRecipes", LineChart),
 ];
 
 const modeOrder: WorkspaceMode[] = DEFAULT_MODES.map((m) => m.id);

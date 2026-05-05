@@ -11,8 +11,7 @@ import { z } from "zod";
 import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
 import { Heading } from "@/components/ui/heading";
-import { Clock01Icon } from "@hugeicons/core-free-icons";
-
+import { Clock } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { FormInput, SettingsSelect } from "@/components/ui/form-input";
 import { useQueryState } from "@/hooks/use-query-state";
@@ -217,7 +216,7 @@ export default function SessionsPage() {
       <div className="mt-6 space-y-2">
         {filtered.length === 0 ? (
           <EmptyState
-            icon={Clock01Icon}
+            icon={Clock}
             title={sessions.length === 0 ? t("empty") : t("emptyFiltered")}
           />
         ) : (

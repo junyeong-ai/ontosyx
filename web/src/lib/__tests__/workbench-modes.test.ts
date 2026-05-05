@@ -7,12 +7,11 @@ import {
   workbenchModeById,
   type WorkbenchMode,
 } from "../workbench-modes";
-import { Settings02Icon } from "@hugeicons/core-free-icons";
-
+import { Settings2 } from "lucide-react";
 const PLUGIN_MODE: WorkbenchMode = {
   id: "ext-test-mode",
   labelKey: "ext-test-mode",
-  icon: Settings02Icon,
+  icon: Settings2,
   href: "/ext-test-mode",
   // No `shortcut` — plugin modes may omit it.
 };
@@ -86,11 +85,11 @@ describe("registerWorkbenchMode / unregisterWorkbenchMode", () => {
     const before = listWorkbenchModes().map((m) => m.id);
     registerWorkbenchMode({
       ...workbenchModeById("design")!,
-      icon: Settings02Icon,
+      icon: Settings2,
     });
     const after = listWorkbenchModes().map((m) => m.id);
     expect(after).toEqual(before);
-    expect(workbenchModeById("design")?.icon).toBe(Settings02Icon);
+    expect(workbenchModeById("design")?.icon).toBe(Settings2);
   });
 
   it("unregister removes the mode and is idempotent", () => {

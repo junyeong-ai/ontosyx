@@ -5,15 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/components/ui/toast";
 import { useTranslations } from "next-intl";
 
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
-  CircleIcon,
-  DatabaseIcon,
-  Link01Icon,
-} from "@hugeicons/core-free-icons";
-
+import { ArrowDown, ArrowRight, Database, Link } from "lucide-react";
+import { Circle } from "lucide-react";
 import { request } from "@/lib/api/client";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell";
@@ -23,6 +16,7 @@ import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import { useFormatters } from "@/hooks/use-formatters";
 import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { cn } from "@/lib/cn";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 interface LineageSummary {
   graph_label: string;
@@ -152,19 +146,11 @@ function MappingCard({
       >
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center gap-1.5 rounded-md bg-surface-inset px-2.5 py-1 text-sm font-mono font-medium text-foreground-muted">
-            <HugeiconsIcon
-              icon={DatabaseIcon}
-              className="h-3.5 w-3.5 text-foreground-muted"
-              size="100%"
-            />
+            <Database className="h-3.5 w-3.5 text-foreground-muted" />
             {group.sourceTable}
           </span>
 
-          <HugeiconsIcon
-            icon={ArrowRight01Icon}
-            className="h-5 w-5 shrink-0 text-foreground-muted"
-            size="100%"
-          />
+          <ArrowRight className="h-5 w-5 shrink-0 text-foreground-muted" />
 
           <span
             className={cn(
@@ -174,11 +160,7 @@ function MappingCard({
                 : "bg-concept-surface text-concept-foreground",
             )}
           >
-            <HugeiconsIcon
-              icon={group.elementType === "node" ? CircleIcon : Link01Icon}
-              className="h-3.5 w-3.5"
-              size="100%"
-            />
+            <DynamicIcon as={group.elementType === "node" ? Circle : Link} className="h-3.5 w-3.5" />
             {group.graphLabel}
           </span>
 
@@ -187,14 +169,10 @@ function MappingCard({
           </span>
         </div>
 
-        <HugeiconsIcon
-          icon={ArrowDown01Icon}
-          className={cn(
-            "h-4 w-4 text-foreground-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
-            expanded && "rotate-180",
-          )}
-          size="100%"
-        />
+        <ArrowDown className={cn(
+ "h-4 w-4 text-foreground-muted transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+ expanded && "rotate-180",
+ )} />
       </button>
 
       {expanded && (
@@ -252,11 +230,7 @@ function MappingRow({
       >
         {mapping.source_column}
       </code>
-      <HugeiconsIcon
-        icon={ArrowRight01Icon}
-        className="h-3 w-3 shrink-0 text-foreground-muted"
-        size="100%"
-      />
+      <ArrowRight className="h-3 w-3 shrink-0 text-foreground-muted" />
       <code className="rounded bg-info-surface px-1.5 py-0.5 font-mono text-info-foreground">
         {mapping.graph_property}
       </code>

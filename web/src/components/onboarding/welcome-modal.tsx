@@ -4,17 +4,14 @@ import { useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { Dialog } from "@base-ui/react/dialog";
 import { AnimatePresence, motion } from "motion/react";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import {
-  Database01Icon,
-  AiBrain01Icon,
-  Analytics01Icon,
-} from "@hugeicons/core-free-icons";
-
+import type { LucideIcon as IconSvgElement } from "lucide-react";
+import { BarChart3, Database } from "lucide-react";
+import { Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { getWorkspaceId } from "@/lib/workspace";
 import { useAuth } from "@/hooks/use-auth";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 /**
  * Per-workspace onboarding state. A user who joins a second workspace
@@ -31,9 +28,9 @@ interface OnboardingStep {
 }
 
 const STEPS: readonly OnboardingStep[] = [
-  { key: "step1", icon: Database01Icon },
-  { key: "step2", icon: AiBrain01Icon },
-  { key: "step3", icon: Analytics01Icon },
+  { key: "step1", icon: Database },
+  { key: "step2", icon: Brain },
+  { key: "step3", icon: BarChart3 },
 ] as const;
 
 // Custom event name — *not* the native `"storage"` event. The native event
@@ -158,11 +155,7 @@ export function WelcomeModal() {
                 transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
               >
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-surface">
-                  <HugeiconsIcon
-                    icon={current.icon}
-                    className="h-7 w-7 text-brand-foreground"
-                    size="100%"
-                  />
+                  <DynamicIcon as={current.icon} className="h-7 w-7 text-brand-foreground" />
                 </div>
                 <Dialog.Title className="mt-5 text-lg font-semibold text-foreground-strong">
                   {t(`${current.key}Title`)}

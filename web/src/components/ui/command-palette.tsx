@@ -24,9 +24,7 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
-
+import { Search, X } from "lucide-react";
 import { FocusTrap } from "@/components/ui/focus-trap";
 import { SearchInput } from "@/components/ui/form-input";
 import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
@@ -40,6 +38,7 @@ import {
 } from "@/lib/command-registry";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/cn";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -184,7 +183,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
               placeholder={t("placeholder")}
               aria-label={t("placeholder")}
               density="settings"
-              leadingIcon={Search01Icon}
+              leadingIcon={Search}
               trailing={
                 <button
                   type="button"
@@ -192,11 +191,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   aria-label={t("closeAria")}
                   className="rounded p-0.5 text-foreground-muted hover:bg-surface-inset hover:text-foreground"
                 >
-                  <HugeiconsIcon
-                    icon={Cancel01Icon}
-                    className="h-3.5 w-3.5"
-                    size="100%"
-                  />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               }
             />
@@ -263,11 +258,7 @@ interface RowProps {
 
 function Row({ command, shortcut, active, onMouseEnter, onClick }: RowProps) {
   const icon: ReactNode = command.icon ? (
-    <HugeiconsIcon
-      icon={command.icon}
-      className="h-3.5 w-3.5 shrink-0 text-foreground-muted"
-      size="100%"
-    />
+    <DynamicIcon as={command.icon} className="h-3.5 w-3.5 shrink-0 text-foreground-muted" />
   ) : (
     <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
   );

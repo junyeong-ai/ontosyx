@@ -4,12 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
 import { setQueryFeedback } from "@/lib/api";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ThumbsUpIcon,
-  ThumbsDownIcon,
-} from "@hugeicons/core-free-icons";
-
+import { ThumbsDown, ThumbsUp } from "lucide-react";
 // ---------------------------------------------------------------------------
 // FeedbackButtons — toggleable thumbs up/down for query results
 // ---------------------------------------------------------------------------
@@ -53,7 +48,7 @@ export function FeedbackButtons({ executionId }: FeedbackButtonsProps) {
         } disabled:cursor-wait`}
         aria-label={t("good")}
       >
-        <HugeiconsIcon icon={ThumbsUpIcon} className="h-3 w-3" size="100%" />
+        <ThumbsUp className="h-3 w-3" />
       </button>
       <button
         type="button"
@@ -66,7 +61,7 @@ export function FeedbackButtons({ executionId }: FeedbackButtonsProps) {
         } disabled:cursor-wait`}
         aria-label={t("bad")}
       >
-        <HugeiconsIcon icon={ThumbsDownIcon} className="h-3 w-3" size="100%" />
+        <ThumbsDown className="h-3 w-3" />
       </button>
     </div>
   );

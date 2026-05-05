@@ -2,8 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { PlusSignIcon } from "@hugeicons/core-free-icons";
+import { Plus } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Heading } from "@/components/ui/heading";
 import { addWidget } from "@/lib/api";
@@ -114,7 +113,7 @@ export function AddWidgetButton({
         onClick={() => setOpen(true)}
         className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-divider py-6 text-xs text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:border-brand-border hover:text-brand-foreground"
       >
-        <HugeiconsIcon icon={PlusSignIcon} className="h-4 w-4" size="100%" />
+        <Plus className="h-4 w-4" />
         {t("trigger")}
       </button>
 

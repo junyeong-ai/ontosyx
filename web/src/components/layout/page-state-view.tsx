@@ -1,8 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { IconSvgElement } from "@hugeicons/react";
-
+import type { LucideIcon as IconSvgElement } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import type { PageState } from "./page-state";

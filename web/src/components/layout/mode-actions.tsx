@@ -9,8 +9,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Tooltip } from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { TOAST_WARNING } from "@/lib/toast/durations";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Upload04Icon, Download04Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { Download, Search, Upload } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import type { OntologyIR } from "@/types/api";
@@ -147,12 +146,12 @@ function DesignActions() {
           onClick={() => setSearchOpen(true)}
           aria-label={t("searchAria")}
         >
-          <HugeiconsIcon icon={Search01Icon} className="h-3.5 w-3.5" size="100%" />
+          <Search className="h-3.5 w-3.5" />
         </Button>
       </Tooltip>
       <Tooltip content={t("importTooltip")}>
         <Button variant="ghost" size="icon-sm" onClick={() => fileRef.current?.click()} disabled={importing} aria-label={t("importAria")}>
-          {importing ? <Spinner size="xs" /> : <HugeiconsIcon icon={Upload04Icon} className="h-3.5 w-3.5" size="100%" />}
+          {importing ? <Spinner size="xs" /> : <Upload className="h-3.5 w-3.5" />}
         </Button>
       </Tooltip>
       {ontology && (
@@ -177,7 +176,7 @@ function DesignActions() {
       {ontology && (
         <Popover open={exportMenuOpen} onOpenChange={setExportMenuOpen}>
           <PopoverTrigger aria-label={t("exportAria")} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset hover:text-foreground-muted">
-            <HugeiconsIcon icon={Download04Icon} className="h-3.5 w-3.5" size="100%" />
+            <Download className="h-3.5 w-3.5" />
           </PopoverTrigger>
           <PopoverContent className="z-popover w-48 rounded-lg border border-divider bg-surface-base p-1 shadow-3 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]">
             <button

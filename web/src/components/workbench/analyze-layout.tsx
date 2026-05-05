@@ -12,13 +12,7 @@ import { QueryPanel } from "@/components/chat/query-panel";
 import { Group, Panel } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { TabBar } from "@/components/ui/tab-bar";
-import {
-  Message01Icon,
-  Clock01Icon,
-  CommandLineIcon,
-  Analytics01Icon,
-  BookOpen01Icon,
-} from "@hugeicons/core-free-icons";
+import { BarChart3, BookOpen, Clock, MessageCircle, Terminal } from "lucide-react";
 import { SessionBar } from "@/components/workbench/analyze/session-bar";
 import { AnalyzeResultsPanel } from "@/components/workbench/analyze/analyze-results-panel";
 import { QueryBuilder } from "@/components/workbench/analyze/query-builder/query-builder";
@@ -38,13 +32,13 @@ type AnalyzeMode = "chat" | "builder";
 // updates the tab bar without rerunning module code.
 const ANALYZE_TAB_ICONS: Array<{
   id: AnalyzeRightTab;
-  icon: import("@hugeicons/react").IconSvgElement;
+  icon: import("lucide-react").LucideIcon;
 }> = [
-  { id: "results", icon: Message01Icon },
-  { id: "query", icon: CommandLineIcon },
-  { id: "history", icon: Clock01Icon },
-  { id: "insights", icon: Analytics01Icon },
-  { id: "knowledge", icon: BookOpen01Icon },
+  { id: "results", icon: MessageCircle },
+  { id: "query", icon: Terminal },
+  { id: "history", icon: Clock },
+  { id: "insights", icon: BarChart3 },
+  { id: "knowledge", icon: BookOpen },
 ];
 
 export function AnalyzeLayout() {

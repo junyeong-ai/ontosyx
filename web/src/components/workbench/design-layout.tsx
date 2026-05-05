@@ -14,13 +14,8 @@ import { InspectorPanel } from "./inspector/inspector-panel";
 import { BottomPanel } from "./bottom-panel/bottom-panel";
 import { DesignPanel } from "./bottom-panel/design-panel";
 import { SearchDialog } from "./search-dialog";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Add01Icon,
-  PanelLeftIcon,
-  PanelRightIcon,
-  Search01Icon,
-} from "@hugeicons/core-free-icons";
+import { Plus, Search } from "lucide-react";
+import { PanelLeft, PanelRight } from "lucide-react";
 import { Group, Panel, usePanelRef } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -165,7 +160,7 @@ export function DesignLayout() {
                       {t("paneExplorer")}
                     </span>
                     <button type="button" onClick={toggleExplorer} className="text-foreground-muted hover:text-foreground">
-                      <HugeiconsIcon icon={PanelLeftIcon} className="h-3 w-3" size="100%" />
+                      <PanelLeft className="h-3 w-3" />
                     </button>
                   </div>
                   <div className="flex-1 overflow-hidden">
@@ -187,7 +182,7 @@ export function DesignLayout() {
                   className="absolute start-2 top-2 z-canvas rounded-md border border-divider bg-surface-base p-1 shadow-1 hover:bg-surface-raised"
                   aria-label={t("showExplorer")}
                 >
-                  <HugeiconsIcon icon={PanelLeftIcon} className="h-3.5 w-3.5 text-foreground-muted" size="100%" />
+                  <PanelLeft className="h-3.5 w-3.5 text-foreground-muted" />
                 </button>
               )}
               {hasContent && (
@@ -196,7 +191,7 @@ export function DesignLayout() {
                   className="absolute start-1/2 top-2 z-canvas flex -translate-x-1/2 items-center gap-1.5 rounded-md border border-divider bg-surface-base px-2 py-1 shadow-1 hover:bg-surface-raised"
                   aria-label={t("searchAria")}
                 >
-                  <HugeiconsIcon icon={Search01Icon} className="h-3 w-3 text-foreground-muted" size="100%" />
+                  <Search className="h-3 w-3 text-foreground-muted" />
                   <span className="text-2xs font-medium text-foreground-muted">{t("searchPlaceholder")}</span>
                   <KeyboardShortcut keys="mod+k" variant="outline" className="ms-1" />
                 </button>
@@ -215,7 +210,7 @@ export function DesignLayout() {
                     aria-label={t("extendSourceAria")}
                     title={t("extendSourceAria")}
                   >
-                    <HugeiconsIcon icon={Add01Icon} className="h-3 w-3" size="100%" />
+                    <Plus className="h-3 w-3" />
                     {t("extendSourceLabel")}
                   </button>
                 </div>
@@ -226,7 +221,7 @@ export function DesignLayout() {
                   className="absolute end-2 top-2 z-canvas rounded-md border border-divider bg-surface-base p-1 shadow-1 hover:bg-surface-raised"
                   aria-label={t("showInspector")}
                 >
-                  <HugeiconsIcon icon={PanelRightIcon} className="h-3.5 w-3.5 text-foreground-muted" size="100%" />
+                  <PanelRight className="h-3.5 w-3.5 text-foreground-muted" />
                 </button>
               )}
               <ErrorBoundary name="Canvas">
@@ -245,7 +240,7 @@ export function DesignLayout() {
                       {t("paneInspector")}
                     </span>
                     <button type="button" onClick={toggleInspector} className="text-foreground-muted hover:text-foreground">
-                      <HugeiconsIcon icon={PanelRightIcon} className="h-3 w-3" size="100%" />
+                      <PanelRight className="h-3 w-3" />
                     </button>
                   </div>
                   <div className="flex-1 overflow-y-auto">

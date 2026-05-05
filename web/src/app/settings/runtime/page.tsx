@@ -14,8 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { TabBar } from "@/components/ui/tab-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { Settings01Icon } from "@hugeicons/core-free-icons";
-
+import { Settings } from "lucide-react";
 const CATEGORY_ORDER = ["ui", "llm", "thresholds", "profiling", "timeouts", "lifecycle"] as const;
 type KnownCategory = (typeof CATEGORY_ORDER)[number];
 function isKnownCategory(c: string): c is KnownCategory {
@@ -173,7 +172,7 @@ export default function SystemSettingsPage() {
     return (
       <SettingsPageShell title={t("title")} subtitle={t("description")}>
         <EmptyState
-          icon={Settings01Icon}
+          icon={Settings}
           title={t("empty.title")}
           description={t("empty.description")}
         />

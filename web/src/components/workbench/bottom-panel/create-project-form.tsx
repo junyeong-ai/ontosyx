@@ -2,12 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  PlusSignIcon,
-  CancelCircleIcon,
-  ArrowLeft01Icon,
-} from "@hugeicons/core-free-icons";
+import { ArrowLeft, Plus } from "lucide-react";
+import { XCircle } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 import { createOntologyDraft } from "@/lib/api";
@@ -369,11 +365,7 @@ export function CreateProjectForm({
         ) : preview.isError ? (
           <div className="flex flex-col gap-2 rounded-md border border-danger-border/30 bg-danger-solid/10 px-3 py-2 text-xs text-danger-foreground">
             <div className="flex items-center gap-1.5">
-              <HugeiconsIcon
-                icon={CancelCircleIcon}
-                className="h-3.5 w-3.5 shrink-0"
-                size="100%"
-              />
+              <XCircle className="h-3.5 w-3.5 shrink-0" />
               <span>{t("previewFailed")}</span>
             </div>
             <span className="text-danger-foreground">
@@ -407,11 +399,7 @@ export function CreateProjectForm({
             onClick={handleBackToConnection}
             disabled={loading}
           >
-            <HugeiconsIcon
-              icon={ArrowLeft01Icon}
-              className="me-1 h-4 w-4"
-              size="100%"
-            />
+            <ArrowLeft className="me-1 h-4 w-4" />
             {t("backToConnection")}
           </Button>
           <div className="flex-1" />
@@ -422,11 +410,7 @@ export function CreateProjectForm({
             {loading ? (
               <Spinner size="xs" className="me-2" />
             ) : (
-              <HugeiconsIcon
-                icon={PlusSignIcon}
-                className="me-2 h-4 w-4"
-                size="100%"
-              />
+              <Plus className="me-2 h-4 w-4" />
             )}
             {loading ? tCommon("creating") : t("createButton")}
           </Button>
@@ -860,11 +844,7 @@ export function CreateProjectForm({
               {loading ? (
                 <Spinner size="xs" className="me-2" />
               ) : (
-                <HugeiconsIcon
-                  icon={PlusSignIcon}
-                  className="me-2 h-4 w-4"
-                  size="100%"
-                />
+                <Plus className="me-2 h-4 w-4" />
               )}
               {loading ? tCommon("creating") : t("createButton")}
             </Button>

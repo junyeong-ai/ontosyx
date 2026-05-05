@@ -5,12 +5,7 @@ import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { editOntologyDraft } from "@/lib/api";
 import { defaultText } from "@/lib/locale/localize";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Tick01Icon,
-  Cancel01Icon,
-  MagicWand01Icon,
-} from "@hugeicons/core-free-icons";
+import { Check, Wand2, X } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
@@ -54,7 +49,7 @@ export function AiSuggestionRow({
 
   return (
     <div className="flex items-center gap-1.5 border-b border-dashed border-concept-border bg-concept-surface px-3 py-1.5">
-      <HugeiconsIcon icon={MagicWand01Icon} className="h-2.5 w-2.5 shrink-0 text-concept-foreground" size="100%" />
+      <Wand2 className="h-2.5 w-2.5 shrink-0 text-concept-foreground" />
       <span className="min-w-0 flex-1 truncate text-concept-foreground">
         {label}
       </span>
@@ -64,7 +59,7 @@ export function AiSuggestionRow({
           aria-label={tCommon("accept")}
           className="rounded p-0.5 text-brand-foreground hover:bg-brand-surface hover:text-brand-foreground"
         >
-          <HugeiconsIcon icon={Tick01Icon} className="h-3 w-3" size="100%" />
+          <Check className="h-3 w-3" />
         </button>
       </Tooltip>
       <Tooltip content={tCommon("reject")}>
@@ -73,7 +68,7 @@ export function AiSuggestionRow({
           aria-label={tCommon("reject")}
           className="rounded p-0.5 text-foreground-muted hover:bg-surface-inset hover:text-foreground"
         >
-          <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
+          <X className="h-3 w-3" />
         </button>
       </Tooltip>
     </div>
@@ -230,7 +225,7 @@ export function AiAssistButton({
         {loading ? (
           <Spinner size="xs" />
         ) : (
-          <HugeiconsIcon icon={MagicWand01Icon} className="h-3 w-3" size="100%" />
+          <Wand2 className="h-3 w-3" />
         )}
       </button>
     </Tooltip>

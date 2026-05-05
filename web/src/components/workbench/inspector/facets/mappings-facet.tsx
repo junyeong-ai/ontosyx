@@ -1,8 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { X } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 import { useAppStore } from "@/lib/store";
@@ -100,7 +99,7 @@ export function MappingsFacet({
             aria-label={t("deleteTooltip")}
             className="rounded p-0.5 text-foreground-muted hover:bg-danger-surface hover:text-danger-foreground"
           >
-            <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
+            <X className="h-3 w-3" />
           </button>
         </Tooltip>
       </div>

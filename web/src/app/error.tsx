@@ -10,8 +10,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { AlertCircleIcon, Home01Icon, RefreshIcon } from "@hugeicons/core-free-icons";
+import { AlertCircle, Home, RefreshCw } from "lucide-react";
 import { Button, buttonStyles } from "@/components/ui/button";
 
 interface RootErrorProps {
@@ -39,11 +38,7 @@ export default function RootError({ error, reset }: RootErrorProps) {
         <main id="main" className="mx-4 w-full max-w-md rounded-xl border border-divider bg-surface-base p-6 shadow-1">
           <div className="flex items-start gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger-surface/30">
-              <HugeiconsIcon
-                icon={AlertCircleIcon}
-                className="h-5 w-5 text-danger-foreground"
-                size="100%"
-              />
+              <AlertCircle className="h-5 w-5 text-danger-foreground" />
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="text-base font-semibold text-foreground-strong">
@@ -68,13 +63,13 @@ export default function RootError({ error, reset }: RootErrorProps) {
                   variant="primary"
                   size="sm"
                   leadingIcon={
-                    <HugeiconsIcon icon={RefreshIcon} className="h-3.5 w-3.5" size="100%" />
+                    <RefreshCw className="h-3.5 w-3.5" />
                   }
                 >
                   {t("tryAgain")}
                 </Button>
                 <Link href="/" className={buttonStyles({ variant: "outline", size: "sm" })}>
-                  <HugeiconsIcon icon={Home01Icon} className="h-3.5 w-3.5" size="100%" />
+                  <Home className="h-3.5 w-3.5" />
                   {t("home")}
                 </Link>
                 <a

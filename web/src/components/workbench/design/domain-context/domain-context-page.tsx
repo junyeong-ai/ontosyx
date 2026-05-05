@@ -3,9 +3,7 @@
 import { useCallback } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
-
+import { ArrowLeft, CheckCheck } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { selectStateOntology } from "@/lib/store/selectors";
 import { arr } from "@/lib/ir-collections";
@@ -230,7 +228,7 @@ function PageHeader({
         aria-label={backLabel}
         className="rounded p-1 text-foreground-muted hover:bg-surface-inset hover:text-foreground-strong"
       >
-        <HugeiconsIcon icon={ArrowLeft01Icon} className="h-4 w-4" size="100%" />
+        <ArrowLeft className="h-4 w-4" />
       </Link>
       <span className="rounded bg-brand-surface-strong px-1.5 py-0.5 text-2xs font-bold uppercase text-brand-foreground-strong">
         {tHeader("nodeBadge")}
@@ -265,7 +263,7 @@ function PageHeader({
           }
           aria-label={validateLabel}
         >
-          <HugeiconsIcon icon={Tick02Icon} className="h-3 w-3" size="100%" />
+          <CheckCheck className="h-3 w-3" />
           {t("summary", { passed: readinessPassed, total })}
         </span>
       </Tooltip>

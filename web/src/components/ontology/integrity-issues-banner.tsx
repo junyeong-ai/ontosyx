@@ -1,9 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { AlertCircleIcon } from "@hugeicons/core-free-icons";
-
+import { AlertCircle } from "lucide-react";
 import type { DiagnosticMessage } from "@/hooks/api/use-ontology-validation";
 
 export interface IntegrityIssuesBannerProps {
@@ -39,11 +37,7 @@ export function IntegrityIssuesBanner({
   return (
     <div className="rounded-md border border-warning-border bg-warning-surface p-3">
       <div className="mb-2 flex items-center gap-1.5">
-        <HugeiconsIcon
-          icon={AlertCircleIcon}
-          className="h-3.5 w-3.5 text-warning-foreground"
-          size="100%"
-        />
+        <AlertCircle className="h-3.5 w-3.5 text-warning-foreground" />
         <span className="text-2xs font-semibold uppercase tracking-wider text-warning-foreground">
           {t("heading", { count: issues.length })}
         </span>

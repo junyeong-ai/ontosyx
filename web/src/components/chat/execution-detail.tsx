@@ -10,12 +10,8 @@ import { ResponseBasis } from "@/components/dashboard/widgets/response-basis";
 import { Button } from "@/components/ui/button";
 import { useFormatters } from "@/hooks/use-formatters";
 import { TOAST_WARNING } from "@/lib/toast/durations";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowLeft01Icon,
-  PlayIcon,
-  AiNetworkIcon,
-} from "@hugeicons/core-free-icons";
+import { ArrowLeft, Play } from "lucide-react";
+import { Network } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import { arr } from "@/lib/ir-collections";
@@ -153,7 +149,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-divider px-4 py-3">
         <Button variant="ghost" size="icon" onClick={onBack} aria-label={t("backAria")} className="shrink-0">
-          <HugeiconsIcon icon={ArrowLeft01Icon} className="h-4 w-4" size="100%" />
+          <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground-strong">
@@ -171,17 +167,17 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
           {execution.query_bindings && (
             <>
               <Button variant="outline" size="sm" onClick={handleShowOnGraph} title={t("highlightTitle")}>
-                <HugeiconsIcon icon={AiNetworkIcon} className="me-1 h-3 w-3" size="100%" />
+                <Network className="me-1 h-3 w-3" />
                 {t("highlight")}
               </Button>
               <Button variant="outline" size="sm" onClick={handleShowOnSnapshot} title={t("replayTitle")}>
-                <HugeiconsIcon icon={AiNetworkIcon} className="me-1 h-3 w-3" size="100%" />
+                <Network className="me-1 h-3 w-3" />
                 {t("replay")}
               </Button>
             </>
           )}
           <Button variant="outline" size="sm" onClick={handleLoadToChat}>
-            <HugeiconsIcon icon={PlayIcon} className="me-1 h-3 w-3" size="100%" />
+            <Play className="me-1 h-3 w-3" />
             {t("loadToChat")}
           </Button>
         </div>

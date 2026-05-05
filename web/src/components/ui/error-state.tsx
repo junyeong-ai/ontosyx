@@ -6,9 +6,7 @@
 // callers from accidentally signalling "broken" when they meant
 // "empty list", which erodes user trust.
 
-import { HugeiconsIcon } from "@hugeicons/react";
-import { AlertCircleIcon } from "@hugeicons/core-free-icons";
-
+import { AlertCircle } from "lucide-react";
 interface ErrorStateProps {
   title: string;
   description?: string;
@@ -26,11 +24,7 @@ export function ErrorState({
     <div className="flex h-full items-center justify-center p-8">
       <div className="flex max-w-md flex-col items-center gap-4 rounded-2xl border border-danger-border/40 bg-danger-surface/40 px-8 py-7 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-danger-surface ring-4 ring-danger-surface/30">
-          <HugeiconsIcon
-            icon={AlertCircleIcon}
-            className="h-8 w-8 text-danger-foreground"
-            size="100%"
-          />
+          <AlertCircle className="h-8 w-8 text-danger-foreground" />
         </div>
         <div>
           <p className="text-sm font-semibold text-foreground-strong">{title}</p>

@@ -2,13 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  PlusSignIcon,
-  Cancel01Icon,
-  Delete01Icon,
-} from "@hugeicons/core-free-icons";
-
+import { Plus, Trash2, X } from "lucide-react";
 import type { ConstraintDef, NodeTypeDef, PropertyDef } from "@/types/ontology";
 import { arr } from "@/lib/ir-collections";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -107,11 +101,7 @@ function ConstraintRow({
             })}
             className="rounded p-0.5 text-foreground-muted opacity-0 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:text-danger-foreground group-hover:opacity-100"
           >
-            <HugeiconsIcon
-              icon={Delete01Icon}
-              className="h-3 w-3"
-              size="100%"
-            />
+            <Trash2 className="h-3 w-3" />
           </button>
         </Tooltip>
       )}
@@ -166,7 +156,7 @@ function AddConstraintForm({
         disabled={properties.length === 0}
         className="inline-flex items-center gap-1 rounded border border-dashed border-divider px-2 py-1 text-2xs text-foreground-muted hover:border-concept-border hover:text-concept-foreground disabled:opacity-50"
       >
-        <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
+        <Plus className="h-3 w-3" />
         {t("addAction")}
       </button>
     );
@@ -200,7 +190,7 @@ function AddConstraintForm({
           aria-label={t("cancelAction")}
           className="ms-auto rounded p-0.5 text-foreground-muted hover:bg-surface-inset"
         >
-          <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
+          <X className="h-3 w-3" />
         </button>
       </div>
 

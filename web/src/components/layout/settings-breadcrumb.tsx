@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
-
+import { ArrowRight } from "lucide-react";
 import { findNavMatch } from "@/lib/constants/settings-nav";
 
 /**
@@ -35,12 +33,9 @@ export function SettingsBreadcrumb() {
       >
         {t("rootTitle")}
       </Link>
-      <HugeiconsIcon
-        icon={ArrowRight01Icon}
-        className="h-3 w-3 shrink-0 text-foreground-subtle"
-        size="100%"
-        aria-hidden="true"
-      />
+      <ArrowRight className="h-3 w-3 shrink-0 text-foreground-subtle"
+ 
+ aria-hidden="true" />
       <span className="text-foreground" aria-current="page">
         {tSidebar(match.group.titleKey)}
       </span>

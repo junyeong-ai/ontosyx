@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { PlayIcon, CommandLineIcon } from "@hugeicons/core-free-icons";
+import { Play, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CodeEditor } from "@/components/ui/code-editor";
 import { Spinner } from "@/components/ui/spinner";
@@ -44,7 +43,7 @@ export function QueryPanel() {
         <div className="mx-auto max-w-4xl">
           <div className="flex items-center justify-between pb-3">
             <div className="flex items-center gap-2">
-              <HugeiconsIcon icon={CommandLineIcon} className="h-4 w-4 text-foreground-muted" size="100%" />
+              <Terminal className="h-4 w-4 text-foreground-muted" />
               <h2 className="text-sm font-semibold">{t("title")}</h2>
             </div>
             <Button
@@ -56,7 +55,7 @@ export function QueryPanel() {
               {loading ? (
                 <Spinner size="xs" />
               ) : (
-                <HugeiconsIcon icon={PlayIcon} className="h-3.5 w-3.5" size="100%" />
+                <Play className="h-3.5 w-3.5" />
               )}
               {loading ? t("runningLabel") : t("execute")}
             </Button>
@@ -104,7 +103,7 @@ export function QueryPanel() {
           )}
 
           {!result && !error && (
-            <EmptyState icon={CommandLineIcon} title={t("emptyPrompt")} />
+            <EmptyState icon={Terminal} title={t("emptyPrompt")} />
           )}
         </div>
       </div>

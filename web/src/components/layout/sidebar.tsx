@@ -16,14 +16,10 @@ import {
   type WorkbenchMode,
 } from "@/lib/workbench-modes";
 import { shortcutForRoute } from "@/lib/navigation-shortcuts";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import {
-  AiNetworkIcon,
-  FolderOpenIcon,
-  Layers01Icon,
-  Settings02Icon,
-} from "@hugeicons/core-free-icons";
-
+import type { LucideIcon as IconSvgElement } from "lucide-react";
+import { Settings2 } from "lucide-react";
+import { FolderOpen, Layers, Network } from "lucide-react";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 function ModeLink({
   mode,
   active,
@@ -53,7 +49,7 @@ function ModeLink({
       {active && (
         <span className="absolute start-0 top-1.5 bottom-1.5 w-0.5 rounded-e-full bg-brand-solid" />
       )}
-      <HugeiconsIcon icon={mode.icon} className="h-[18px] w-[18px] shrink-0" size="100%" />
+      <DynamicIcon as={mode.icon} className="h-[18px] w-[18px] shrink-0" />
       {expanded && (
         <span className="flex-1 truncate text-xs font-medium">{label}</span>
       )}
@@ -105,7 +101,7 @@ function PanelToggle({
           : "text-foreground-muted hover:text-foreground-muted",
       )}
     >
-      <HugeiconsIcon icon={icon} className="h-4 w-4 shrink-0" size="100%" />
+      <DynamicIcon as={icon} className="h-4 w-4 shrink-0" />
       {expanded && (
         <span className="flex-1 truncate text-xs">{label}</span>
       )}
@@ -169,7 +165,7 @@ export function Sidebar() {
         )}
       >
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-solid shadow-1">
-          <HugeiconsIcon icon={AiNetworkIcon} className="h-3.5 w-3.5 text-foreground-onbrand" size="100%" />
+          <Network className="h-3.5 w-3.5 text-foreground-onbrand" />
         </div>
         {expanded && (
           <span className="truncate text-sm font-semibold text-foreground-strong">
@@ -207,14 +203,14 @@ export function Sidebar() {
           <PanelToggle
             active={explorerOpen}
             label={explorerOpen ? t("hideExplorer") : t("showExplorer")}
-            icon={FolderOpenIcon}
+            icon={FolderOpen}
             onClick={toggleExplorer}
             expanded={expanded}
           />
           <PanelToggle
             active={inspectorOpen}
             label={inspectorOpen ? t("hideInspector") : t("showInspector")}
-            icon={Layers01Icon}
+            icon={Layers}
             onClick={toggleInspector}
             expanded={expanded}
           />
@@ -231,7 +227,7 @@ export function Sidebar() {
           mode={{
             id: "settings",
             labelKey: "settingsLabel",
-            icon: Settings02Icon,
+            icon: Settings2,
             href: "/settings",
             shortcut: shortcutForRoute("settings"),
           }}

@@ -12,9 +12,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ChatInput } from "./chat-input";
 import { MessageBubble } from "./message-bubble";
 import { motion, AnimatePresence } from "motion/react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ChatBotIcon } from "@hugeicons/core-free-icons";
-
+import { Bot } from "lucide-react";
 /** Upsert a step in the steps array (replace by step name, or append). */
 function upsertToolStep(steps: ToolStep[], update: ToolStep): ToolStep[] {
   const idx = steps.findIndex((s) => s.step === update.step);
@@ -410,7 +408,7 @@ export function ChatPanel() {
             // inside the visible area at the smallest snap height.
             <div className="flex flex-col items-center justify-center text-center">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-surface-inset">
-                <HugeiconsIcon icon={ChatBotIcon} className="h-5 w-5 text-foreground-muted" size="100%" />
+                <Bot className="h-5 w-5 text-foreground-muted" />
               </div>
               <Heading level={2} size={6}>
                 {t("appTitle")}

@@ -2,8 +2,7 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Refresh01Icon, Add01Icon } from "@hugeicons/core-free-icons";
+import { Plus, RefreshCw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
@@ -191,7 +190,7 @@ export function ReanalyzeForm({
         {loading ? (
           <Spinner size="xs" className="me-1.5" />
         ) : (
-          <HugeiconsIcon icon={Refresh01Icon} className="me-1.5 h-3 w-3" size="100%" />
+          <RefreshCw className="me-1.5 h-3 w-3" />
         )}
         {modeledOnly ? t("reanalyzeModeled") : t("reanalyze")}
       </Button>
@@ -525,7 +524,7 @@ export function ExtendSourceForm({
         {loading ? (
           <Spinner size="xs" className="me-1.5" />
         ) : (
-          <HugeiconsIcon icon={Add01Icon} className="me-1.5 h-3 w-3" size="100%" />
+          <Plus className="me-1.5 h-3 w-3" />
         )}
         {t("extendOntology")}
       </Button>

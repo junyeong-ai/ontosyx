@@ -16,8 +16,7 @@
 // in any environment.
 
 import type { useRouter } from "next/navigation";
-import type { IconSvgElement } from "@hugeicons/react";
-
+import type { LucideIcon as IconSvgElement } from "lucide-react";
 import type { AppStore } from "@/lib/store";
 import { PluginRegistry, type PluginItem } from "@/lib/plugins/registry";
 

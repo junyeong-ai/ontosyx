@@ -30,8 +30,7 @@
 // (inspector, glossary editor, rule editor) wires the callbacks
 // to its own command-stack semantics.
 
-import { HugeiconsIcon } from "@hugeicons/react";
-import { GitBranchIcon } from "@hugeicons/core-free-icons";
+import { GitBranch } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -98,12 +97,9 @@ export function MergeBanner({
       )}
     >
       <div className="flex items-start gap-2">
-        <HugeiconsIcon
-          icon={GitBranchIcon}
-          className={cn("mt-0.5 h-4 w-4 shrink-0", TONE_ICON_CLASS[tone])}
-          size="100%"
-          aria-hidden="true"
-        />
+        <GitBranch className={cn("mt-0.5 h-4 w-4 shrink-0", TONE_ICON_CLASS[tone])}
+ 
+ aria-hidden="true" />
         <div className="flex-1 text-xs">
           <p className="font-semibold text-foreground-strong">
             {t("title", { author: remoteAuthorName })}

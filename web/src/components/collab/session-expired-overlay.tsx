@@ -17,9 +17,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Alert02Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
-
+import { AlertOctagon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   isReauthCode,
@@ -68,11 +66,7 @@ export function SessionExpiredOverlay() {
     >
       <div className="flex gap-3 px-5 pt-5">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warning-surface">
-          <HugeiconsIcon
-            icon={Alert02Icon}
-            className="h-5 w-5 text-warning-foreground"
-            size="100%"
-          />
+          <AlertOctagon className="h-5 w-5 text-warning-foreground" />
         </div>
         <div className="min-w-0 flex-1">
           <p
@@ -94,7 +88,7 @@ export function SessionExpiredOverlay() {
           aria-label={tActions("dismiss")}
           className="-me-2 -mt-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground"
         >
-          <HugeiconsIcon icon={Cancel01Icon} className="h-3.5 w-3.5" size="100%" />
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
       <div className="flex items-center justify-end gap-2 px-5 py-4">

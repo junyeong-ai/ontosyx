@@ -5,14 +5,8 @@ import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { chatStream, addWidget, type StreamCallbacks } from "@/lib/api";
 import type { DashboardWidget, OntologyIR, QueryResult, WidgetSpec } from "@/types/api";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  AiNetworkIcon,
-  Cancel01Icon,
-  ChartLineData02Icon,
-  PlusSignIcon,
-  ArrowRight01Icon,
-} from "@hugeicons/core-free-icons";
+import { ArrowRight, Plus, X } from "lucide-react";
+import { Network, TrendingUp } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { FormInput } from "@/components/ui/form-input";
 import { toast } from "@/components/ui/toast";
@@ -273,11 +267,7 @@ export function DashboardAiDialog({
         {/* Header */}
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-divider px-4">
           <div className="flex items-center gap-2">
-            <HugeiconsIcon
-              icon={AiNetworkIcon}
-              className="h-4 w-4 text-brand-foreground"
-              size="100%"
-            />
+            <Network className="h-4 w-4 text-brand-foreground" />
             <span className="text-sm font-semibold text-foreground-strong">
               {t("title")}
             </span>
@@ -287,7 +277,7 @@ export function DashboardAiDialog({
             onClick={onClose}
             className="rounded-md p-1 text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset hover:text-foreground-muted"
           >
-            <HugeiconsIcon icon={Cancel01Icon} className="h-4 w-4" size="100%" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -297,11 +287,7 @@ export function DashboardAiDialog({
           {previews.length === 0 && !isStreaming && (
             <div className="flex flex-col items-center justify-center gap-3 py-12">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-surface">
-                <HugeiconsIcon
-                  icon={ChartLineData02Icon}
-                  className="h-5 w-5 text-brand-foreground"
-                  size="100%"
-                />
+                <TrendingUp className="h-5 w-5 text-brand-foreground" />
               </div>
               <p className="text-sm font-medium text-foreground">
                 {t("emptyHeading")}
@@ -359,11 +345,7 @@ export function DashboardAiDialog({
                 {isStreaming ? (
                   <Spinner size="sm" className="text-foreground-onbrand" />
                 ) : (
-                  <HugeiconsIcon
-                    icon={ArrowRight01Icon}
-                    className="h-4 w-4"
-                    size="100%"
-                  />
+                  <ArrowRight className="h-4 w-4" />
                 )}
               </button>
             </div>
@@ -438,7 +420,7 @@ function WidgetPreviewCard({
               <Spinner size="sm" className="text-foreground-onbrand" />
             ) : (
               <>
-                <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
+                <Plus className="h-3 w-3" />
                 {t("addToDashboard")}
               </>
             )}

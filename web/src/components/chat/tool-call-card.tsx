@@ -6,18 +6,14 @@ import { useAppStore, type ToolCall } from "@/lib/store";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { respondToolReview, normalizeQueryResult } from "@/lib/api";
 import { toast } from "@/components/ui/toast";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowDown01Icon,
-  ArrowUp01Icon,
-  CheckmarkCircle01Icon,
-  CancelCircleIcon,
-} from "@hugeicons/core-free-icons";
+import { ArrowDown, ArrowUp } from "lucide-react";
+import { CheckCircle, XCircle } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { CopyButton } from "@/components/ui/copy-button";
 import { useFormatters, type Formatters } from "@/hooks/use-formatters";
 import { toolErrorMessage } from "@/lib/error-messages";
 import { TOOL_META, DEFAULT_TOOL_META, STEP_LABELS } from "@/lib/constants/tool-meta";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
@@ -70,11 +66,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
           {isRunning ? (
             <Spinner size="sm" className="text-brand-foreground" />
           ) : (
-            <HugeiconsIcon
-              icon={meta.icon}
-              className={`h-3.5 w-3.5 ${isError ? "text-danger-foreground" : "text-foreground-muted"}`}
-              size="100%"
-            />
+            <DynamicIcon as={meta.icon} className={`h-3.5 w-3.5 ${isError ? "text-danger-foreground" : "text-foreground-muted"}`} />
           )}
 
           <span className={`font-medium ${isRunning ? "text-brand-foreground" : isError ? "text-danger-foreground" : "text-foreground"}`}>
@@ -108,11 +100,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
           )}
 
           {!isRunning && toolCall.output && (isAdmin || isError) && (
-            <HugeiconsIcon
-              icon={isExpanded ? ArrowUp01Icon : ArrowDown01Icon}
-              className="ms-auto h-3 w-3 text-foreground-muted"
-              size="100%"
-            />
+            <DynamicIcon as={isExpanded ? ArrowUp : ArrowDown} className="ms-auto h-3 w-3 text-foreground-muted" />
           )}
         </button>
 
@@ -158,9 +146,9 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
               {step.status === "started" ? (
                 <Spinner size="sm" className="h-3 w-3 text-brand-foreground" />
               ) : step.status === "completed" ? (
-                <HugeiconsIcon icon={CheckmarkCircle01Icon} className="h-3 w-3 text-brand-foreground" size="100%" />
+                <CheckCircle className="h-3 w-3 text-brand-foreground" />
               ) : (
-                <HugeiconsIcon icon={CancelCircleIcon} className="h-3 w-3 text-danger-foreground" size="100%" />
+                <XCircle className="h-3 w-3 text-danger-foreground" />
               )}
               <span className={
                 step.status === "started"

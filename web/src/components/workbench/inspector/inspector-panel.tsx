@@ -6,8 +6,7 @@ import { useAppStore, selectStateSelectedNodeId, selectStateSelectedEdgeId } fro
 import { applyOntologyCommands } from "@/lib/api";
 import { isApiError } from "@/lib/api/client";
 import { cn } from "@/lib/cn";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { UndoIcon, RedoIcon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
+import { Redo2, Save, Undo2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "@/components/ui/toast";
@@ -287,7 +286,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
             aria-label={tInspector("toolbar.undo")}
             className="rounded p-1 text-foreground-muted hover:bg-surface-inset hover:text-foreground disabled:opacity-30"
           >
-            <HugeiconsIcon icon={UndoIcon} className="h-3 w-3" size="100%" />
+            <Undo2 className="h-3 w-3" />
           </button>
         </Tooltip>
         <Tooltip content={tInspector("toolbar.redo")}>
@@ -297,7 +296,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
             aria-label={tInspector("toolbar.redo")}
             className="rounded p-1 text-foreground-muted hover:bg-surface-inset hover:text-foreground disabled:opacity-30"
           >
-            <HugeiconsIcon icon={RedoIcon} className="h-3 w-3" size="100%" />
+            <Redo2 className="h-3 w-3" />
           </button>
         </Tooltip>
         {commandStack.length > 0 && (
@@ -321,7 +320,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
                   {isSaving ? (
                     <Spinner size="xs" />
                   ) : (
-                    <HugeiconsIcon icon={FloppyDiskIcon} className="h-3 w-3" size="100%" />
+                    <Save className="h-3 w-3" />
                   )}
                 </button>
               </Tooltip>

@@ -2,8 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { X } from "lucide-react";
 import type { AnalysisRecipe } from "@/types/api";
 import { chatStream } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
@@ -165,11 +164,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
             onClick={onClose}
             className="rounded-md p-1 text-foreground-muted hover:bg-surface-inset hover:text-foreground"
           >
-            <HugeiconsIcon
-              icon={Cancel01Icon}
-              className="h-4 w-4"
-              size="100%"
-            />
+            <X className="h-4 w-4" />
           </button>
         </div>
 

@@ -14,7 +14,7 @@ import {
   WORKBENCH_GUTTER_X,
 } from "@/components/workbench/workbench-page-shell";
 import { cn } from "@/lib/cn";
-import { BookOpen01Icon } from "@hugeicons/core-free-icons";
+import { BookOpen } from "lucide-react";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { GlossaryForm } from "@/components/vocabulary/glossary-form";
 import { ResolutionModal } from "@/components/ambiguity/resolution-modal";
@@ -264,7 +264,7 @@ export function GlossaryWorkbench() {
       <WorkbenchPageShell title={t("heading")} fillBleed>
         <div className={cn("flex h-full items-center justify-center", WORKBENCH_GUTTER_X)}>
           <EmptyState
-            icon={BookOpen01Icon}
+            icon={BookOpen}
             title={t("noOntology.title")}
             description={t("noOntology.description")}
           />

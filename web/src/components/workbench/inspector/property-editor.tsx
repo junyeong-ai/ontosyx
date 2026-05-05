@@ -5,8 +5,7 @@ import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { defaultText } from "@/lib/locale/localize";
 import { cn } from "@/lib/cn";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Delete01Icon } from "@hugeicons/core-free-icons";
+import { Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
@@ -263,7 +262,7 @@ export function PropertyRow({
           aria-label={tAria("deleteProperty")}
           className="mt-0.5 rounded p-0.5 text-foreground-muted opacity-0 transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:text-danger-foreground group-hover:opacity-100 group-focus-within:opacity-100"
         >
-          <HugeiconsIcon icon={Delete01Icon} className="h-2.5 w-2.5" size="100%" />
+          <Trash2 className="h-2.5 w-2.5" />
         </button>
       </Tooltip>
     </div>

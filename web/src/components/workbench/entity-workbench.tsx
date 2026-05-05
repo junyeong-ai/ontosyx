@@ -25,8 +25,7 @@
 // rest of the app, so the lifecycle stays predictable.
 
 import { type ReactNode, useState } from "react";
-import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
-
+import { ArrowRight } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
@@ -91,7 +90,7 @@ export function EntityWorkbench<T>({
               size="sm"
               label={auxToggleLabel ?? ""}
               onClick={() => setAuxOpen((v) => !v)}
-              icon={ArrowRight01Icon}
+              icon={ArrowRight}
               className={cn(
                 "absolute right-2 top-2 z-10",
                 auxOpen && "rotate-180",

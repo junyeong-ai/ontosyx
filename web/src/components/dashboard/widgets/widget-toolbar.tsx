@@ -6,17 +6,9 @@ import { cn } from "@/lib/cn";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { WidgetRenderer, viableTypes } from "./widget-renderer";
 import { Tooltip } from "@/components/ui/tooltip";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import {
-  Table01Icon,
-  ChartColumnIcon,
-  PieChartIcon,
-  ChartLineData01Icon,
-  HashtagIcon,
-  Layers01Icon,
-  Share01Icon,
-} from "@hugeicons/core-free-icons";
-
+import type { LucideIcon as IconSvgElement } from "lucide-react";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
+import { BarChart, Hash, Layers, LineChart, PieChart, Share2, Table } from "lucide-react";
 interface WidgetWithToolbarProps {
   /** Initial widget spec (from LLM hint or auto) */
   spec: WidgetSpec;
@@ -24,13 +16,13 @@ interface WidgetWithToolbarProps {
 }
 
 const WIDGET_OPTIONS: readonly { type: string; icon: IconSvgElement; labelKey: string }[] = [
-  { type: "table", icon: Table01Icon, labelKey: "table" },
-  { type: "graph", icon: Share01Icon, labelKey: "graph" },
-  { type: "bar_chart", icon: ChartColumnIcon, labelKey: "barChart" },
-  { type: "combo_chart", icon: Layers01Icon, labelKey: "comboChart" },
-  { type: "pie_chart", icon: PieChartIcon, labelKey: "pieChart" },
-  { type: "line_chart", icon: ChartLineData01Icon, labelKey: "lineChart" },
-  { type: "stat_card", icon: HashtagIcon, labelKey: "statCard" },
+  { type: "table", icon: Table, labelKey: "table" },
+  { type: "graph", icon: Share2, labelKey: "graph" },
+  { type: "bar_chart", icon: BarChart, labelKey: "barChart" },
+  { type: "combo_chart", icon: Layers, labelKey: "comboChart" },
+  { type: "pie_chart", icon: PieChart, labelKey: "pieChart" },
+  { type: "line_chart", icon: LineChart, labelKey: "lineChart" },
+  { type: "stat_card", icon: Hash, labelKey: "statCard" },
 ];
 
 export function WidgetToolbar({ spec, data }: WidgetWithToolbarProps) {
@@ -67,7 +59,7 @@ export function WidgetToolbar({ spec, data }: WidgetWithToolbarProps) {
                       : "text-foreground-muted hover:text-foreground-strong",
                   )}
                 >
-                  <HugeiconsIcon icon={icon} className="h-3.5 w-3.5" size="100%" />
+                  <DynamicIcon as={icon} className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">{label}</span>
                 </button>
               </Tooltip>
