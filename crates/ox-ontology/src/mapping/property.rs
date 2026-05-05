@@ -102,6 +102,28 @@ pub enum PropertyTransform {
     /// the ontology model; the id will become a typed `FunctionId`
     /// once the function registry lands.
     Derived { function_id: String },
+    /// Concatenate multiple source columns with a fixed separator.
+    /// The most common multi-column composition pattern
+    /// (`first_name || ' ' || last_name`,
+    /// `street || ', ' || city`, …); pulling it into typed data
+    /// keeps the planner's pushdown introspection accurate
+    /// instead of opaquing the join inside an `SqlExpr`. Empty
+    /// `parts` is rejected by the integrity layer — concat with
+    /// no inputs is always a typo.
+    Concat {
+        /// Source columns in left-to-right concatenation order.
+        parts: Vec<ColumnRef>,
+        /// Literal separator inserted between every pair. Empty
+        /// string is valid (e.g. `area_code || phone_number`).
+        #[serde(default)]
+        separator: String,
+        /// Skip rows where any `parts` value is null. When `false`
+        /// (default), nulls coerce to the empty string so the
+        /// concatenation still produces a value — matches SQL's
+        /// `CONCAT_WS` semantics rather than `||`'s null-propagation.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        skip_when_null: bool,
+    },
 }
 
 #[cfg(test)]

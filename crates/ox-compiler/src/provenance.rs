@@ -480,6 +480,16 @@ fn build_lineage_row(
         PropertyTransform::Derived { function_id } => {
             Some(format!("derived({})", function_id))
         }
+        PropertyTransform::Concat { parts, separator, skip_when_null } => {
+            let cols = parts
+                .iter()
+                .map(|c| format!("{}.{}", c.relation, c.column))
+                .collect::<Vec<_>>()
+                .join(", ");
+            Some(format!(
+                "concat([{cols}], sep={separator:?}, skip_null={skip_when_null})"
+            ))
+        }
     };
 
     let concept_map_transform = pm
