@@ -13,7 +13,8 @@ import { toast } from "@/components/ui/toast";
 import { createProject } from "@/lib/api";
 import { isGitUrl } from "@/lib/git-url";
 import { Button } from "@/components/ui/button";
-import { FormInput, FormSelect, FormTextarea, SecretInput } from "@/components/ui/form-input";
+import { FormInput, FormTextarea, SecretInput } from "@/components/ui/form-input";
+import { Select, SelectOption } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
 import { Spinner } from "@/components/ui/spinner";
 import { TableSelector } from "@/components/source/table-selector";
@@ -461,27 +462,27 @@ export function CreateProjectForm({
         </FormField>
 
         <FormField label={t("sourceTypeLabel")} required>
-          <FormSelect
+          <Select
             value={sourceType}
-            onChange={(e) => {
-              setSourceType(e.target.value as GenerateSourceType);
+            onValueChange={(v) => {
+              if (!v) return;
+              setSourceType(v as GenerateSourceType);
               resetPreview();
             }}
-            density="settings"
           >
-            <option value="postgresql">{t("sourceTypes.postgresql")}</option>
-            <option value="mysql">{t("sourceTypes.mysql")}</option>
-            <option value="mongodb">{t("sourceTypes.mongodb")}</option>
-            <option value="snowflake">{t("sourceTypes.snowflake")}</option>
-            <option value="bigquery">{t("sourceTypes.bigquery")}</option>
-            <option value="duckdb">{t("sourceTypes.duckdb")}</option>
-            <option value="csv">{t("sourceTypes.csv")}</option>
-            <option value="json">{t("sourceTypes.json")}</option>
-            <option value="code_repository">
+            <SelectOption value="postgresql">{t("sourceTypes.postgresql")}</SelectOption>
+            <SelectOption value="mysql">{t("sourceTypes.mysql")}</SelectOption>
+            <SelectOption value="mongodb">{t("sourceTypes.mongodb")}</SelectOption>
+            <SelectOption value="snowflake">{t("sourceTypes.snowflake")}</SelectOption>
+            <SelectOption value="bigquery">{t("sourceTypes.bigquery")}</SelectOption>
+            <SelectOption value="duckdb">{t("sourceTypes.duckdb")}</SelectOption>
+            <SelectOption value="csv">{t("sourceTypes.csv")}</SelectOption>
+            <SelectOption value="json">{t("sourceTypes.json")}</SelectOption>
+            <SelectOption value="code_repository">
               {t("sourceTypes.codeRepository")}
-            </option>
-            <option value="text">{t("sourceTypes.text")}</option>
-          </FormSelect>
+            </SelectOption>
+            <SelectOption value="text">{t("sourceTypes.text")}</SelectOption>
+          </Select>
         </FormField>
 
         {sourceType === "postgresql" ? (

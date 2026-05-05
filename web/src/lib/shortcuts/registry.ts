@@ -73,9 +73,19 @@ function warnOnCollision(
   if (typeof process !== "undefined" && process.env?.NODE_ENV === "production") {
     return;
   }
+  // Mutual-exclusion is a first-class pattern: scoped shortcuts
+  // share a combo with a global one, but each carries an `enabled`
+  // guard so only one is active at a time (e.g. `Escape` on
+  // help.close vs design.exitFullscreen). Both specs declaring an
+  // `enabled` predicate makes the overlap intentional — silence the
+  // warning so the dev console stays signal-only. A real collision
+  // — at least one spec runs unconditionally — still logs.
+  const incomingHasGuard = typeof incoming.enabled === "function";
   const incomingCombos = new Set(incoming.keys.map(normalizeCombo));
   for (const [otherId, other] of existing) {
     if (otherId === incoming.id) continue;
+    const otherHasGuard = typeof other.enabled === "function";
+    if (incomingHasGuard && otherHasGuard) continue;
     for (const combo of other.keys.map(normalizeCombo)) {
       if (incomingCombos.has(combo)) {
         console.warn(
@@ -186,6 +196,12 @@ export function useShortcut(spec: ShortcutSpec | undefined): void {
   // body short-circuits — but the hook still runs unconditionally
   // so rules-of-hooks ordering is preserved across re-renders.
   const initialId = spec?.id;
+  // Capture whether the caller supplied an `enabled` predicate at
+  // mount. The collision warning treats "both specs guarded" as a
+  // mutual-exclusion intent and stays silent — wrapping every
+  // registered spec in a closure unconditionally would defeat that
+  // signal, since every entry would then read as guarded.
+  const hasEnabledPredicate = typeof spec?.enabled === "function";
   useEffect(() => {
     if (!initialId) return;
     register({
@@ -208,11 +224,13 @@ export function useShortcut(spec: ShortcutSpec | undefined): void {
       get fireInTypingTarget() {
         return specRef.current?.fireInTypingTarget;
       },
-      enabled: () => specRef.current?.enabled?.() ?? !!specRef.current,
+      enabled: hasEnabledPredicate
+        ? () => specRef.current?.enabled?.() ?? false
+        : undefined,
       handler: (e) => specRef.current?.handler(e),
     });
     return () => unregister(initialId);
-  }, [register, unregister, initialId]);
+  }, [register, unregister, initialId, hasEnabledPredicate]);
 }
 
 export function isTypingTarget(target: EventTarget | null): boolean {

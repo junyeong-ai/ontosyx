@@ -73,7 +73,7 @@ export function DesignLayout() {
 
   useShortcut({
     id: "design.search",
-    keys: ["mod+k"],
+    keys: ["mod+/"],
     group: "keyboardShortcuts.sections.workbench",
     description: "keyboardShortcuts.shortcuts.openCommandBar",
     handler: (e) => {

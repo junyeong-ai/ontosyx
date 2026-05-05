@@ -30,6 +30,7 @@ import {
   forwardRef,
   useState,
   type InputHTMLAttributes,
+  type ReactNode,
   type TextareaHTMLAttributes,
   type SelectHTMLAttributes,
 } from "react";
@@ -223,11 +224,18 @@ SearchInput.displayName = "SearchInput";
 // edge so the control reads as interactive across both light and dark
 // modes. The wrapping `<span>` is `inline-block` and inherits width
 // from the caller — pass `className="w-..."` to constrain.
+//
+// New surfaces should prefer the Base UI–backed `<Select>` /
+// `<SelectOption>` pair from `@/components/ui/select` so the listbox
+// renders the design tokens instead of the OS chrome. `FormSelect`
+// stays for the existing 36 call sites that depend on the native
+// `<option>` shape; their migration to `Select` is tracked in the
+// design plan.
 
 interface FormSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   error?: boolean;
   density?: FormDensity;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export const FormSelect = forwardRef<HTMLSelectElement, FormSelectProps>(
