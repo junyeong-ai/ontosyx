@@ -21,6 +21,7 @@ export const NAVIGATION_SHORTCUTS = [
   { key: "v", href: "/vocabulary", route: "vocabulary", glyph: "G V" },
   { key: "m", href: "/mappings", route: "mappings", glyph: "G M" },
   { key: "l", href: "/lineage", route: "lineage", glyph: "G L" },
+  { key: "n", href: "/branches", route: "branches", glyph: "G N" },
   { key: "r", href: "/recipes", route: "recipes", glyph: "G R" },
   { key: ",", href: "/settings", route: "settings", glyph: "G ," },
 ] as const satisfies readonly {

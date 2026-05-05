@@ -486,6 +486,8 @@ impl Modify for SecurityAddon {
             ontology::OntologyDetail,
             ontology::CurrentVersionSummary,
             ontology::WorkspaceOntologyResponse,
+            ontology::OntologyVersionEntry,
+            ontology::OntologyVersionsResponse,
             workspaces::WorkspaceMeResponse,
             workspaces::WorkspaceResponse,
             workspaces::WorkspaceSummaryResponse,

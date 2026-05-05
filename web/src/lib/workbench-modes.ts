@@ -24,6 +24,7 @@ import {
   ChartAnalysisIcon,
   DashboardSpeed01Icon,
   GitBranchIcon,
+  GitForkIcon,
   Link01Icon,
   MagicWand01Icon,
   Message01Icon,
@@ -109,6 +110,7 @@ const DEFAULT_MODES: readonly WorkbenchMode[] = [
   defaultMode("vocabulary", "modeVocabulary", CatalogueIcon),
   defaultMode("mappings", "modeMappings", Link01Icon, { requiresCanonical: true }),
   defaultMode("lineage", "modeLineage", GitBranchIcon, { requiresCanonical: true }),
+  defaultMode("branches", "modeBranches", GitForkIcon),
   defaultMode("recipes", "modeRecipes", ChartAnalysisIcon),
 ];
 

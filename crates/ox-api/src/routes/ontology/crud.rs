@@ -124,6 +124,84 @@ pub(crate) async fn get_workspace_ontology_detail(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/ontology/versions — workspace canonical version history
+//
+// Workspace × ontology = 1:1, so the version axis is the only
+// remaining navigation surface for the canonical lineage. The
+// branching dashboard reads this list as the trunk and hangs
+// drafts off each version via `parent_version_id`.
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct OntologyVersionEntry {
+    pub id: Uuid,
+    pub version: String,
+    pub committed_by: String,
+    pub commit_message: String,
+    pub created_at: DateTime<Utc>,
+    /// Parent version this commit was branched from. `None` for
+    /// the very first version of the canonical lineage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_version_id: Option<Uuid>,
+    /// `true` when this is the current canonical head — the row
+    /// whose `valid_to` is null.
+    pub is_current: bool,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct OntologyVersionsResponse {
+    pub versions: Vec<OntologyVersionEntry>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/ontology/versions",
+    responses(
+        (status = 200, description = "Canonical version history, newest first", body = OntologyVersionsResponse),
+    ),
+    security(("api_key" = [])),
+    tag = "Ontology",
+)]
+pub(crate) async fn list_canonical_versions(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<OntologyVersionsResponse>>, AppError> {
+    let identity = state
+        .store
+        .get_workspace_ontology()
+        .await
+        .map_err(AppError::from)?;
+    let Some(identity) = identity else {
+        // Greenfield — no canonical yet, no versions.
+        return Ok(ApiResponse::of(OntologyVersionsResponse {
+            versions: Vec::new(),
+        }));
+    };
+
+    // Cap at 100 versions for the dashboard's tree view; deeper
+    // history goes through the existing per-version endpoints.
+    let snapshots = state
+        .store
+        .list_versions(identity.id, 100)
+        .await
+        .map_err(AppError::from)?;
+
+    let versions = snapshots
+        .into_iter()
+        .map(|s| OntologyVersionEntry {
+            id: s.id,
+            version: s.version,
+            committed_by: s.committed_by,
+            commit_message: s.commit_message,
+            created_at: s.created_at,
+            parent_version_id: s.parent_version_id,
+            is_current: s.valid_to.is_none(),
+        })
+        .collect();
+
+    Ok(ApiResponse::of(OntologyVersionsResponse { versions }))
+}
+
+// ---------------------------------------------------------------------------
 // PATCH /api/ontology-drafts/{id}/ontology — apply batch of OntologyCommand
 //
 // Project-mediated edit path: command batch lands on the project's

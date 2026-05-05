@@ -384,6 +384,11 @@ pub struct OntologyDraft {
 }
 
 /// Lightweight projection for list endpoints (excludes large JSONB blobs).
+///
+/// `parent_version_id` is on the projection (not just the full row)
+/// because the branching dashboard renders the fork point inline
+/// without per-row hydration — every list endpoint that returns
+/// drafts already carries enough to draw the tree.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct DesignProjectSummary {
     pub id: Uuid,
@@ -392,6 +397,10 @@ pub struct DesignProjectSummary {
     pub user_id: String,
     pub title: Option<String>,
     pub source_config: serde_json::Value,
+    /// Canonical version this draft was branched from. `None` for
+    /// greenfield drafts whose first commit creates the workspace's
+    /// first canonical version.
+    pub parent_version_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub analyzed_at: Option<DateTime<Utc>>,

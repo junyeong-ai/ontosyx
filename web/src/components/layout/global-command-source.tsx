@@ -34,6 +34,7 @@ const NAV_LABEL_KEY: Record<NavigationRoute, string> = {
   vocabulary: "navigate-vocabulary",
   mappings: "navigate-mappings",
   lineage: "navigate-lineage",
+  branches: "navigate-branches",
   recipes: "navigate-recipes",
   settings: "navigate-settings",
 };

@@ -26,7 +26,9 @@ mod verifications;
 
 // Handler functions are referenced by the router (`routes::mod::router`) via
 // these module-local names, so `pub(crate) use` keeps the surface minimal.
-pub(crate) use crud::{apply_ontology_commands, get_workspace_ontology_detail};
+pub(crate) use crud::{
+    apply_ontology_commands, get_workspace_ontology_detail, list_canonical_versions,
+};
 pub(crate) use axis_items::list_axis_items;
 pub(crate) use create::create_ontology;
 pub(crate) use cross_refs::list_cross_refs;
@@ -57,6 +59,7 @@ pub(crate) use verifications::{delete_verification, list_verifications, verify_e
 // the derive's resolution.
 pub use crud::{
     __path_apply_ontology_commands, __path_get_workspace_ontology_detail,
+    __path_list_canonical_versions,
 };
 pub use create::__path_create_ontology;
 pub use dependencies::__path_get_ontology_dependencies;
@@ -77,7 +80,7 @@ pub use exchange::{
 pub use create::{CreateOntologyRequest, CreateOntologyResponse};
 pub use crud::{
     ApplyOntologyCommandsRequest, ApplyOntologyCommandsResponse, CurrentVersionSummary,
-    OntologyDetail, WorkspaceOntologyResponse,
+    OntologyDetail, OntologyVersionEntry, OntologyVersionsResponse, WorkspaceOntologyResponse,
 };
 pub use exchange::ImportOntologyRequest;
 pub use value_sets::{

@@ -198,6 +198,9 @@
       "navigate-lineage": {
         "label": "Go to Lineage"
       },
+      "navigate-branches": {
+        "label": "Go to Branches"
+      },
       "navigate-recipes": {
         "label": "Go to Recipes"
       },
@@ -984,6 +987,7 @@
       "modeVocabulary": "Vocabulary",
       "modeMappings": "Mappings",
       "modeLineage": "Lineage",
+      "modeBranches": "Branches",
       "modeRecipes": "Recipes",
       "settingsLabel": "Settings",
       "hideExplorer": "Hide Explorer",
@@ -3341,6 +3345,17 @@
     }
   },
   "workbench": {
+    "branches": {
+      "pageTitle": "Branches",
+      "currentBadge": "current",
+      "emptyCommitMessage": "(no commit message)",
+      "greenfieldTrunk": "No canonical version yet",
+      "greenfieldDescription": "Drafts below have not been committed to a canonical version yet — the first commit creates the workspace's canonical lineage.",
+      "draftsLabel": "Drafts",
+      "untitledDraft": "(untitled draft)",
+      "emptyTitle": "No drafts or commits yet",
+      "emptyDescription": "Create a draft from the Projects page — it will appear here once it's branched off a canonical version (or as a greenfield branch before the first commit)."
+    },
     "contextMenu": {
       "ai": {
         "analyzing": "Analyzing \"{label}\"…",

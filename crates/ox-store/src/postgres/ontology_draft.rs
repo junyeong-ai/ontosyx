@@ -59,7 +59,7 @@ impl OntologyDraftStore for PostgresStore {
 
         let rows = match pagination.cursor_parts() {
             Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, DesignProjectSummary>(
-                "SELECT id, status, revision, user_id, title, source_config, ontology_id,
+                "SELECT id, status, revision, user_id, title, source_config, parent_version_id,
                         created_at, updated_at, analyzed_at
                  FROM ontology_drafts
                  WHERE archived_at IS NULL AND (updated_at, id) < ($1, $2)
@@ -73,7 +73,7 @@ impl OntologyDraftStore for PostgresStore {
             .await
             .map_err(to_ox_error)?,
             None => sqlx::query_as::<_, DesignProjectSummary>(
-                "SELECT id, status, revision, user_id, title, source_config, ontology_id,
+                "SELECT id, status, revision, user_id, title, source_config, parent_version_id,
                         created_at, updated_at, analyzed_at
                  FROM ontology_drafts
                  WHERE archived_at IS NULL

@@ -21,7 +21,7 @@ import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import type { OntologyIR } from "@/types/api";
-import { getOntologyDraft, createOntologyDraft } from "@/lib/api";
+import { getOntologyDraft } from "@/lib/api";
 import { useOntologyDrafts } from "@/hooks/api/use-ontology-drafts";
 import { useCreateDashboard, useDashboards } from "@/hooks/api/use-dashboards";
 import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
@@ -141,36 +141,6 @@ function DesignSelector() {
                     {p.status}
                   </span>
                 </button>
-                {p.ontology_id && (
-                  <button
-                    type="button"
-                    title={t("forkTitle")}
-                    aria-label={t("forkAria")}
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      if (!(await guardPendingEdits(t("guardForkProject")))) return;
-                      setOpen(false);
-                      try {
-                        const forked = await createOntologyDraft({
-                          origin_type: "base_ontology",
-                          base_ontology_id: p.ontology_id!,
-                          title: `${p.title || t("untitledProject")} (fork)`,
-                        });
-                        applyProjectSnapshot(forked);
-                        setDesignBottomTab("workflow");
-                        if (!bottomPanelOpen) toggleBottomPanel();
-                        toast.success(t("toast.forked"), { description: t("forkedDescription", { title: p.title ?? t("untitledProject") }) });
-                      } catch (err) {
-                        toast.error(t("toast.forkFailed"), {
-                          description: err instanceof Error ? err.message : t("toast.unknownError"),
-                        });
-                      }
-                    }}
-                    className="shrink-0 rounded p-1 text-foreground-muted hover:bg-surface-inset hover:text-concept-foreground"
-                  >
-                    <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
-                  </button>
-                )}
               </div>
             ))
           )}

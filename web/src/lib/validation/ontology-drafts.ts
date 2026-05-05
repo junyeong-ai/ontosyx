@@ -374,7 +374,7 @@ export const OntologyDraftSummarySchema = z.object({
   revision: z.number(),
   title: z.string().nullable(),
   source_config: SourceConfigSchema,
-  ontology_id: z.string().nullable(),
+  parent_version_id: z.string().nullable(),
   user_id: z.string(),
   created_at: z.string(),
   updated_at: z.string(),

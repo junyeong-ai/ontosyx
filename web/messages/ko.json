@@ -198,6 +198,9 @@
       "navigate-lineage": {
         "label": "계보로 이동"
       },
+      "navigate-branches": {
+        "label": "브랜치로 이동"
+      },
       "navigate-recipes": {
         "label": "레시피로 이동"
       },
@@ -984,6 +987,7 @@
       "modeVocabulary": "어휘",
       "modeMappings": "매핑",
       "modeLineage": "계보",
+      "modeBranches": "브랜치",
       "modeRecipes": "레시피",
       "settingsLabel": "설정",
       "hideExplorer": "탐색기 숨기기",
@@ -3341,6 +3345,17 @@
     }
   },
   "workbench": {
+    "branches": {
+      "pageTitle": "브랜치",
+      "currentBadge": "현재",
+      "emptyCommitMessage": "(커밋 메시지 없음)",
+      "greenfieldTrunk": "아직 대표 버전 없음",
+      "greenfieldDescription": "아래 초안은 아직 대표 버전으로 커밋되지 않았습니다 — 첫 커밋이 워크스페이스의 대표 라인이 됩니다.",
+      "draftsLabel": "초안",
+      "untitledDraft": "(이름 없는 초안)",
+      "emptyTitle": "초안과 커밋이 없습니다",
+      "emptyDescription": "프로젝트 페이지에서 초안을 만들면 — 대표 버전에서 분기된 시점에 (또는 첫 커밋 전에는 그린필드 브랜치로) 여기 표시됩니다."
+    },
     "contextMenu": {
       "ai": {
         "analyzing": "\"{label}\" 분석 중…",

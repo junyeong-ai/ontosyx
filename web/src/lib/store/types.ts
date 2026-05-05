@@ -80,6 +80,7 @@ export type WorkspaceMode =
   | "vocabulary"
   | "mappings"
   | "lineage"
+  | "branches"
   | "recipes"
   | (string & {});
 

@@ -160,6 +160,10 @@ pub fn router(state: AppState) -> Router {
             get(ontology::get_workspace_ontology_detail).post(ontology::create_ontology),
         )
         .route(
+            "/ontology/versions",
+            get(ontology::list_canonical_versions),
+        )
+        .route(
             "/ontology/type-candidates",
             get(ontology::list_type_candidates),
         )

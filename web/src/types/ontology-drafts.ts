@@ -133,7 +133,11 @@ export interface OntologyDraftSummary {
   revision: number;
   title: string | null;
   source_config: SourceConfig;
-  ontology_id: string | null;
+  /** Canonical version this draft was branched from. `null` for
+   *  greenfield drafts whose first commit creates the workspace's
+   *  first canonical version. The branching dashboard renders the
+   *  fork point inline using this id. */
+  parent_version_id: string | null;
   user_id: string;
   created_at: string;
   updated_at: string;
