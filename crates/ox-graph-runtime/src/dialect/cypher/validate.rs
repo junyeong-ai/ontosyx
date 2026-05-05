@@ -684,22 +684,42 @@ impl CypherValidator for OntologyValidator {
             }
         }
 
-        // SET / REMOVE: walk every assignment / removal and verify the
-        // property exists on at least one of the variable's bound
-        // labels (node) or relationship types (edge). An LLM emitting
-        // `SET u.emial = 'x'` or `SET r.sicne = 2020` (typo) currently
-        // slips past the schema — Cypher is schema-less, so the
-        // driver silently writes a new property and the graph quietly
-        // drifts. Variable resolution is shared with SHACL via
-        // `CypherStatement::variable_labels`; when the variable is
-        // unbound to either a node label or an edge type (e.g.
-        // introduced by WITH / UNWIND) we cannot decide ontologically
-        // and silently skip.
+        // SET / REMOVE / WHERE: walk every property reference and verify
+        // it exists on at least one of the variable's bound labels
+        // (node) or relationship types (edge). An LLM emitting
+        // `SET u.emial = 'x'` or `WHERE u.emial = 'x'` (typo) currently
+        // slips past the schema — Cypher is schema-less so writes
+        // silently land a new property, and reads silently miss every
+        // row, leaving the operator debugging an empty result with no
+        // hint of the typo. Variable resolution is shared with SHACL
+        // via `CypherStatement::variable_labels`; when the variable
+        // is unbound to either a node label or an edge type (e.g.
+        // introduced by WITH / UNWIND, or local to a list
+        // comprehension) we cannot decide ontologically and silently
+        // skip.
+        let mut seen_unknown_where_props: HashSet<(String, String)> = HashSet::new();
         for statement in &ast.statements {
             let variable_labels = statement.variable_labels();
             let variable_rel_types = statement.variable_relationship_types();
             for clause in &statement.clauses {
                 match clause.kind {
+                    ClauseKind::Where => {
+                        for (var, prop, span) in extract_property_accesses(&clause.tokens) {
+                            if is_system_property(&prop) {
+                                continue;
+                            }
+                            if let Some(issue) = self.check_read_property(
+                                &variable_labels,
+                                &variable_rel_types,
+                                &var,
+                                &prop,
+                                span,
+                                &mut seen_unknown_where_props,
+                            ) {
+                                issues.push(issue);
+                            }
+                        }
+                    }
                     ClauseKind::Set => {
                         for item in &clause.set_items {
                             if is_system_property(&item.property) {
@@ -759,7 +779,146 @@ enum WriteKind {
     Remove,
 }
 
+/// Walk a clause's token stream and pull out every
+/// `<identifier>.<identifier>` triple that a Cypher reader would
+/// recognise as a property access. Returns `(variable, property,
+/// span)` triples, where the span covers the original
+/// `var.prop` slice for editor highlighting.
+///
+/// Conservative on purpose:
+///
+/// - Whitespace + comments are skipped before pattern matching.
+/// - Only `Identifier` / `QuotedIdentifier` operands count — a
+///   number / string literal / parameter on either side disqualifies
+///   the triple (so `1.5` numeric literals never match, `$p.x`
+///   parameter access stays opaque, etc.).
+/// - A leading WHERE keyword is consumed before scanning, so the
+///   first triple can start at token zero.
+/// - The walk advances by 3 tokens on a match and by 1 on a miss.
+///   Chained access (`u.name.toUpper`) yields the first triple
+///   (`u.name`) plus a second (`name.toUpper`); the first is
+///   resolved against the ontology, the second's `name` won't appear
+///   in the variable map and is silently dropped — the desired
+///   behaviour, since `toUpper` is a string-method, not a property.
+///
+/// The validator picks the variable up only when it appears in
+/// `variable_labels` / `variable_relationship_types`; locally-bound
+/// variables (list comprehension `[x IN coll | x.y]`, EXISTS
+/// subquery scope) never register and are silently skipped. False
+/// positives stay out, at the cost of false negatives the operator
+/// can address by labeling their pattern correctly.
+fn extract_property_accesses(
+    tokens: &[crate::cypher::token::CypherToken],
+) -> Vec<(String, String, Span)> {
+    use crate::cypher::token::{CypherToken, TokenKind};
+    let significant: Vec<&CypherToken> = tokens
+        .iter()
+        .filter(|t| !t.is_trivia())
+        .skip_while(|t| t.is_keyword("WHERE"))
+        .collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i + 2 < significant.len() {
+        let lhs = significant[i];
+        let dot = significant[i + 1];
+        let rhs = significant[i + 2];
+        let is_ident = |t: &CypherToken| {
+            matches!(t.kind, TokenKind::Identifier | TokenKind::QuotedIdentifier)
+        };
+        if is_ident(lhs)
+            && dot.kind == TokenKind::Operator
+            && dot.text == "."
+            && is_ident(rhs)
+        {
+            out.push((
+                lhs.text.clone(),
+                rhs.text.clone(),
+                Span::new(lhs.span.start, rhs.span.end),
+            ));
+            i += 3;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
 impl OntologyValidator {
+    /// Resolve a WHERE-side property reference. Same node-then-edge
+    /// fallback as [`Self::check_write_property`], but emits a
+    /// read-side diagnostic (`unknown_where_property`) so the editor
+    /// can distinguish it from a write-side typo.
+    fn check_read_property(
+        &self,
+        variable_labels: &std::collections::HashMap<String, Vec<String>>,
+        variable_rel_types: &std::collections::HashMap<String, Vec<String>>,
+        variable: &str,
+        property: &str,
+        span: Span,
+        seen: &mut HashSet<(String, String)>,
+    ) -> Option<ValidationIssue> {
+        if let Some(labels) = variable_labels.get(variable) {
+            let known = labels.iter().any(|label| {
+                self.ontology
+                    .node_by_label(label)
+                    .is_some_and(|n| n.properties.iter().any(|p| p.name == property))
+            });
+            if known {
+                return None;
+            }
+            if !seen.insert((variable.to_string(), property.to_string())) {
+                return None;
+            }
+            let label_list = labels.join("/");
+            return Some(
+                ValidationIssue::error(
+                    "ontology",
+                    diag("runtime.cypher.ontology.unknown_where_property")
+                        .with("property", property.to_string())
+                        .with("variable", variable.to_string())
+                        .with("labels", label_list.clone())
+                        .message(format!(
+                            "WHERE references property `{property}` not defined on label `{label_list}` in the active ontology",
+                        )),
+                )
+                .with_span(span),
+            );
+        }
+        if let Some(types) = variable_rel_types.get(variable) {
+            if types.is_empty() {
+                return None;
+            }
+            let known = types.iter().any(|ty| {
+                self.ontology
+                    .edge_types()
+                    .iter()
+                    .find(|e| e.label.as_str() == ty)
+                    .is_some_and(|e| e.properties.iter().any(|p| p.name == property))
+            });
+            if known {
+                return None;
+            }
+            if !seen.insert((variable.to_string(), property.to_string())) {
+                return None;
+            }
+            let type_list = types.join("|");
+            return Some(
+                ValidationIssue::error(
+                    "ontology",
+                    diag("runtime.cypher.ontology.unknown_where_property")
+                        .with("property", property.to_string())
+                        .with("variable", variable.to_string())
+                        .with("relationship_types", type_list.clone())
+                        .message(format!(
+                            "WHERE references property `{property}` not defined on relationship type `{type_list}` in the active ontology",
+                        )),
+                )
+                .with_span(span),
+            );
+        }
+        None
+    }
+
     /// Resolve a SET / REMOVE write target against the ontology.
     /// Tries node labels first (the common case — `SET u.email = …`
     /// where `u` is a `Person`), falls back to relationship types
@@ -1904,6 +2063,96 @@ mod tests {
             "type-less relationship SET must not raise an ontology error: {:?}",
             r.issues
         );
+    }
+
+    // ---- WHERE-clause property typo coverage ---------------------------
+
+    #[test]
+    fn ontology_flags_unknown_where_property_on_node_variable() {
+        // `WHERE p.emial = 'x'` — the schema-less driver returns no
+        // rows, leaving the operator debugging an empty result with
+        // no hint of the typo. Catch it pre-execute.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(&p, "MATCH (p:Person) WHERE p.emial = 'x' RETURN p");
+        assert!(r.has_errors(), "WHERE typo must be flagged");
+        assert!(
+            r.errors().any(|e| e.message.message.contains("emial")
+                && e.message.message.contains("WHERE")),
+            "diagnostic must name WHERE + typo: {:?}",
+            r.issues
+        );
+    }
+
+    #[test]
+    fn ontology_accepts_known_where_property_on_node_variable() {
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(&p, "MATCH (p:Person) WHERE p.name = 'Alice' RETURN p");
+        assert!(!r.has_errors(), "{:?}", r.issues);
+    }
+
+    #[test]
+    fn ontology_flags_unknown_where_property_on_relationship_variable() {
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (a:Person)-[r:WORKS_AT]->(b:Company) WHERE r.sicne > 2020 RETURN r",
+        );
+        assert!(r.has_errors());
+        assert!(
+            r.errors().any(|e| e.message.message.contains("sicne")
+                && e.message.message.contains("relationship type")),
+            "diagnostic must name relationship type: {:?}",
+            r.issues
+        );
+    }
+
+    #[test]
+    fn ontology_skips_where_chained_method_call() {
+        // `WHERE p.name.length() > 0` — first triple `p.name`
+        // resolves cleanly (name is a Person property); second
+        // triple `name.length` would have `name` as the variable,
+        // which is not in the variable map, so it silently skips.
+        // No spurious error on the method tail.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(&p, "MATCH (p:Person) WHERE p.name = 'a' RETURN p");
+        assert!(!r.has_errors(), "{:?}", r.issues);
+    }
+
+    #[test]
+    fn ontology_skips_where_local_list_comprehension_variable() {
+        // `[x IN coll WHERE x.y = 1]` — `x` is locally bound by the
+        // comprehension and never appears in the outer
+        // variable_labels map. The validator must silently skip
+        // rather than false-flag every list-comprehension property.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (p:Person) WHERE size([x IN ['a','b'] WHERE x.length > 0 | x]) > 0 RETURN p",
+        );
+        assert!(
+            !r.errors().any(|e| e.message.message.contains("length")),
+            "list-comprehension local var must not raise a property error: {:?}",
+            r.issues
+        );
+    }
+
+    #[test]
+    fn ontology_dedupes_repeated_where_typos() {
+        // Same typo on the same variable used twice in one WHERE —
+        // one diagnostic, not two.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (p:Person) WHERE p.emial = 'x' OR p.emial = 'y' RETURN p",
+        );
+        let count = r.errors().filter(|e| e.message.message.contains("emial")).count();
+        assert_eq!(count, 1, "expected single dedup'd diagnostic: {:?}", r.issues);
     }
 
     #[test]
