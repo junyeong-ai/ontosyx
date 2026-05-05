@@ -513,6 +513,19 @@ pub trait OntologyDraftStore: Send + Sync {
         expected_revision: i32,
     ) -> OxResult<()>;
 
+    /// Pin the draft's `parent_version_id` to a fresh canonical
+    /// head — branching rebase. The caller resolves `head_id`
+    /// from `OntologyVersionStore::get_current_version`; this
+    /// method only writes it. No CAS guard because the rebase is
+    /// inherently latest-wins (the operator clicked rebase right
+    /// now; concurrent mutations land their own commit independently
+    /// and the next rebase pins forward again).
+    async fn update_draft_parent_version(
+        &self,
+        ontology_draft_id: Uuid,
+        head_id: Uuid,
+    ) -> OxResult<()>;
+
     /// CAS update of `analysis_scope` only.
     async fn update_analysis_scope(
         &self,

@@ -3354,7 +3354,16 @@
       "draftsLabel": "초안",
       "untitledDraft": "(이름 없는 초안)",
       "emptyTitle": "초안과 커밋이 없습니다",
-      "emptyDescription": "프로젝트 페이지에서 초안을 만들면 — 대표 버전에서 분기된 시점에 (또는 첫 커밋 전에는 그린필드 브랜치로) 여기 표시됩니다."
+      "emptyDescription": "프로젝트 페이지에서 초안을 만들면 — 대표 버전에서 분기된 시점에 (또는 첫 커밋 전에는 그린필드 브랜치로) 여기 표시됩니다.",
+      "diffSummary": "{added} 추가 · {removed} 제거 · {modified} 변경",
+      "diffNoChanges": "대표와 차이 없음",
+      "diffLabel": "차이",
+      "rebaseLabel": "리베이스",
+      "rebaseSubmitting": "리베이스 중…",
+      "rebaseSuccessToast": "초안이 현재 대표 버전으로 리베이스되었습니다",
+      "rebaseErrorToast": "리베이스 실패: {error}",
+      "rebaseStaleHint": "현재 대표 헤드에 맞게 리베이스",
+      "rebaseCurrentHint": "이미 현재 대표 헤드에 고정됨"
     },
     "contextMenu": {
       "ai": {

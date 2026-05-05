@@ -225,6 +225,32 @@ impl OntologyDraftStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
+    async fn update_draft_parent_version(
+        &self,
+        ontology_draft_id: Uuid,
+        head_id: Uuid,
+    ) -> OxResult<()> {
+        super::require_workspace_context()?;
+        let result = sqlx::query(
+            "UPDATE ontology_drafts
+             SET parent_version_id = $1, updated_at = NOW(),
+                 revision = revision + 1
+             WHERE id = $2",
+        )
+        .bind(head_id)
+        .bind(ontology_draft_id)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        if result.rows_affected() == 0 {
+            return Err(OxError::NotFound {
+                entity: format!("ontology_drafts id={ontology_draft_id}"),
+            });
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn complete_ontology_draft(
         &self,
         ontology_draft_id: Uuid,

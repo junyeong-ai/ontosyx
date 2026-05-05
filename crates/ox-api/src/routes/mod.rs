@@ -146,6 +146,8 @@ pub fn router(state: AppState) -> Router {
             get(ontology_drafts::diff_revisions),
         )
         .route("/ontology-drafts/{id}/diff/current", get(ontology_drafts::diff_current))
+        .route("/ontology-drafts/{id}/diff/canonical", get(ontology_drafts::diff_canonical))
+        .route("/ontology-drafts/{id}/rebase", post(ontology_drafts::rebase_draft))
         .route(
             "/ontology-drafts/{id}/revisions/{rev}/migrate",
             post(ontology_drafts::migrate_schema),

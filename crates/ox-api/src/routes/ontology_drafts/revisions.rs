@@ -255,6 +255,170 @@ pub(crate) async fn diff_current(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/ontology-drafts/:id/diff/canonical — diff vs workspace canonical
+//
+// Branching diff: how does the draft's in-flight ontology differ
+// from the workspace's current canonical head? This is the merge-
+// time view operators reach for from the Branches surface ("what
+// will land if I commit?"). Distinct from `/diff/current` which
+// shows working changes against the draft's own latest snapshot.
+//
+// Greenfield (no canonical yet) returns the full draft ontology
+// as additions — the comparison baseline is "empty" rather than
+// 404, so the FE renders the same diff shell either way.
+// ---------------------------------------------------------------------------
+
+#[utoipa::path(
+    get,
+    path = "/api/ontology-drafts/{id}/diff/canonical",
+    params(("id" = Uuid, Path, description = "Draft ID")),
+    responses(
+        (status = 200, description = "Diff between draft ontology and workspace canonical head", body = Object),
+        (status = 400, description = "Draft has no ontology", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Draft not found", body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Projects",
+)]
+pub(crate) async fn diff_canonical(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ApiResponse<OntologyDiff>>, AppError> {
+    let project = state
+        .store
+        .get_ontology_draft(id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(AppError::project_not_found)?;
+
+    let current_ontology_json = project.ontology.ok_or_else(AppError::no_ontology)?;
+    let current: OntologyIR = serde_json::from_value(current_ontology_json)
+        .map_err(|e| AppError::internal(format!("Failed to parse draft ontology: {e}")))?;
+
+    // Resolve the workspace canonical's current IR. Greenfield
+    // workspaces (no canonical) compare against an empty IR so
+    // the diff shell renders consistently — every node / edge in
+    // `current` lands as an addition, the FE renders the same
+    // panel either way.
+    let canonical_ir: Option<OntologyIR> = match state
+        .store
+        .get_workspace_ontology()
+        .await
+        .map_err(AppError::from)?
+    {
+        Some(identity) => match state
+            .store
+            .get_current_version(identity.id)
+            .await
+            .map_err(AppError::from)?
+        {
+            Some(v) => state
+                .store
+                .get_ontology_ir(v.id)
+                .await
+                .map_err(AppError::from)?,
+            None => None,
+        },
+        None => None,
+    };
+    let baseline = canonical_ir.unwrap_or_else(|| {
+        OntologyIR::new(
+            String::new(),
+            String::new(),
+            ox_core::i18n::LocalizedText::default(),
+            1u32,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )
+    });
+
+    Ok(ApiResponse::of(compute_diff(&baseline, &current)))
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/ontology-drafts/:id/rebase — fast-forward parent_version_id
+//
+// Branching rebase. The workspace's canonical head may have
+// advanced since the draft was forked (a sibling draft was
+// committed first); rebasing the draft means pinning its
+// `parent_version_id` to the new head so the eventual commit
+// passes the lost-update guard.
+//
+// The MVP rebase is structural — it moves the parent pointer
+// without re-applying canonical changes onto the draft. A
+// future commit handles the "your draft conflicts with version
+// V's edits" case; today the operator rebases when the diff
+// against canonical shows no conflict, and the SHACL gate +
+// completion path catch the rest.
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct RebaseProjectResponse {
+    pub project: crate::routes::ontology_drafts::types::ProjectView,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/ontology-drafts/{id}/rebase",
+    params(("id" = Uuid, Path, description = "Draft ID")),
+    responses(
+        (status = 200, description = "Rebased — parent_version_id pinned to canonical head", body = RebaseProjectResponse),
+        (status = 400, description = "Workspace has no canonical to rebase onto", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Draft not found", body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Projects",
+)]
+pub(crate) async fn rebase_draft(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ApiResponse<RebaseProjectResponse>>, AppError> {
+    let project = state
+        .store
+        .get_ontology_draft(id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(AppError::project_not_found)?;
+
+    let identity = state
+        .store
+        .get_workspace_ontology()
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| {
+            AppError::query_ir_invalid(
+                "workspace has no canonical to rebase onto — first-version commits use the project complete path".to_string(),
+            )
+        })?;
+
+    let head = state
+        .store
+        .get_current_version(identity.id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| {
+            AppError::query_ir_invalid(
+                "workspace canonical has no committed head — nothing to rebase onto".to_string(),
+            )
+        })?;
+
+    state
+        .store
+        .update_draft_parent_version(project.id, head.id)
+        .await
+        .map_err(AppError::from)?;
+
+    let refreshed = crate::routes::ontology_drafts::helpers::reload_project(&state, project.id)
+        .await?;
+    let project_view =
+        crate::routes::ontology_drafts::types::ProjectView::from_project(refreshed);
+    Ok(ApiResponse::of(RebaseProjectResponse {
+        project: project_view,
+    }))
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/ontology-drafts/:id/revisions/:rev/migrate — migrate schema between revisions
 // ---------------------------------------------------------------------------
 

@@ -4,10 +4,16 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 
-import { useCanonicalVersions } from "@/hooks/api/use-ontology-branches";
+import {
+  useCanonicalVersions,
+  useDraftDiffAgainstCanonical,
+  useRebaseDraft,
+} from "@/hooks/api/use-ontology-branches";
 import { useOntologyDrafts } from "@/hooks/api/use-ontology-drafts";
+import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/toast";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
 import { cn } from "@/lib/cn";
@@ -52,14 +58,82 @@ function formatTimestamp(value: string) {
   return d.toLocaleString();
 }
 
+function DraftDiffSummary({ draftId }: { draftId: string }) {
+  const t = useTranslations("workbench.branches");
+  const diff = useDraftDiffAgainstCanonical(draftId);
+  if (diff.isLoading || !diff.data) return null;
+  const total = diff.data.summary.total_changes;
+  if (total === 0) {
+    return (
+      <span className="rounded-full bg-surface-inset px-2 py-0.5 text-2xs font-medium text-foreground-muted">
+        {t("diffNoChanges")}
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-info-surface px-2 py-0.5 text-2xs font-medium text-info-foreground">
+      {t("diffSummary", {
+        added: diff.data.summary.added_count,
+        removed: diff.data.summary.removed_count,
+        modified: diff.data.summary.modified_count,
+      })}
+    </span>
+  );
+}
+
+function DraftActions({
+  draft,
+  isPinnedToHead,
+}: {
+  draft: OntologyDraftSummary;
+  isPinnedToHead: boolean;
+}) {
+  const t = useTranslations("workbench.branches");
+  const rebase = useRebaseDraft();
+  const onRebase = () => {
+    rebase.mutate(draft.id, {
+      onSuccess: () => toast.success(t("rebaseSuccessToast")),
+      onError: (err) =>
+        toast.error(
+          t("rebaseErrorToast", {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        ),
+    });
+  };
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onRebase();
+      }}
+      disabled={isPinnedToHead || rebase.isPending}
+      loading={rebase.isPending}
+      title={
+        isPinnedToHead
+          ? t("rebaseCurrentHint")
+          : t("rebaseStaleHint")
+      }
+    >
+      {rebase.isPending ? t("rebaseSubmitting") : t("rebaseLabel")}
+    </Button>
+  );
+}
+
 function VersionNode({
   version,
   drafts,
   draftLabel,
+  currentHeadId,
 }: {
   version: OntologyVersionEntry | null;
   drafts: OntologyDraftSummary[];
   draftLabel: string;
+  currentHeadId: string | null;
 }) {
   const t = useTranslations("workbench.branches");
 
@@ -115,29 +189,38 @@ function VersionNode({
           <li className="mb-1 text-2xs font-medium uppercase tracking-wide text-foreground-muted">
             {draftLabel} · {drafts.length}
           </li>
-          {drafts.map((d) => (
-            <li
-              key={d.id}
-              className="rounded-lg px-3 py-1.5 hover:bg-surface-inset"
-            >
-              <Link
-                href={`/projects/${d.id}`}
-                className="flex items-baseline justify-between gap-3"
+          {drafts.map((d) => {
+            const pinnedToHead = !!(
+              currentHeadId && d.parent_version_id === currentHeadId
+            );
+            return (
+              <li
+                key={d.id}
+                className="rounded-lg px-3 py-1.5 hover:bg-surface-inset"
               >
-                <div className="min-w-0 flex-1">
-                  <span className="font-medium">
-                    {d.title?.trim() ? d.title : t("untitledDraft")}
-                  </span>
-                  <span className="ml-2 text-2xs text-foreground-muted">
-                    {d.status}
-                  </span>
+                <div className="flex items-baseline justify-between gap-3">
+                  <Link
+                    href={`/projects/${d.id}`}
+                    className="flex min-w-0 flex-1 items-baseline gap-2"
+                  >
+                    <span className="font-medium">
+                      {d.title?.trim() ? d.title : t("untitledDraft")}
+                    </span>
+                    <span className="text-2xs text-foreground-muted">
+                      {d.status}
+                    </span>
+                  </Link>
+                  <div className="flex shrink-0 items-baseline gap-2">
+                    <DraftDiffSummary draftId={d.id} />
+                    <DraftActions draft={d} isPinnedToHead={pinnedToHead} />
+                    <span className="text-2xs text-foreground-muted tabular-nums">
+                      {formatTimestamp(d.updated_at)}
+                    </span>
+                  </div>
                 </div>
-                <span className="shrink-0 text-2xs text-foreground-muted tabular-nums">
-                  {formatTimestamp(d.updated_at)}
-                </span>
-              </Link>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </li>
@@ -154,6 +237,7 @@ export function BranchingTree() {
   const drafts = draftsQuery.data?.items ?? [];
   const draftBuckets = useMemo(() => groupDraftsByParent(drafts), [drafts]);
   const greenfieldDrafts = draftBuckets.get(null) ?? [];
+  const currentHeadId = versions.find((v) => v.is_current)?.id ?? null;
 
   const pageState: PageState =
     versionsQuery.isLoading || draftsQuery.isLoading
@@ -191,6 +275,7 @@ export function BranchingTree() {
               version={null}
               drafts={greenfieldDrafts}
               draftLabel={t("draftsLabel")}
+              currentHeadId={currentHeadId}
             />
           ) : null}
           {versions.map((v) => (
@@ -199,6 +284,7 @@ export function BranchingTree() {
               version={v}
               drafts={draftBuckets.get(v.id) ?? []}
               draftLabel={t("draftsLabel")}
+              currentHeadId={currentHeadId}
             />
           ))}
           {versions.length > 0 && greenfieldDrafts.length > 0 ? (
@@ -206,6 +292,7 @@ export function BranchingTree() {
               version={null}
               drafts={greenfieldDrafts}
               draftLabel={t("draftsLabel")}
+              currentHeadId={currentHeadId}
             />
           ) : null}
         </ul>

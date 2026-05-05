@@ -3354,7 +3354,16 @@
       "draftsLabel": "Drafts",
       "untitledDraft": "(untitled draft)",
       "emptyTitle": "No drafts or commits yet",
-      "emptyDescription": "Create a draft from the Projects page — it will appear here once it's branched off a canonical version (or as a greenfield branch before the first commit)."
+      "emptyDescription": "Create a draft from the Projects page — it will appear here once it's branched off a canonical version (or as a greenfield branch before the first commit).",
+      "diffSummary": "{added} added · {removed} removed · {modified} modified",
+      "diffNoChanges": "no diff vs canonical",
+      "diffLabel": "Diff",
+      "rebaseLabel": "Rebase",
+      "rebaseSubmitting": "Rebasing…",
+      "rebaseSuccessToast": "Draft rebased onto current canonical",
+      "rebaseErrorToast": "Rebase failed: {error}",
+      "rebaseStaleHint": "Rebase to pin against the current canonical head",
+      "rebaseCurrentHint": "Already pinned to the current canonical head"
     },
     "contextMenu": {
       "ai": {
