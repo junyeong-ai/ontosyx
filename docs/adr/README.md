@@ -28,6 +28,9 @@ why the earlier shape existed.
 | 0013 | SHACL `sh:message` as diagnostic source of truth    | Accepted |
 | 0014 | `ConceptDef` as canonical identity above NodeType   | Accepted |
 | 0015 | `SegmentDef` as first-class IR collection           | Accepted |
+| 0016 | Workspace × Ontology = 1:1 (singleton invariant)    | Accepted |
+| 0017 | Typed error wire shape (`{ code, class, params }`)  | Accepted |
+| 0018 | `EvaluationStore` three-table RAGAS metric loop     | Accepted |
 | 0023 | `HeuristicProposal` queue + no-auto-decisions       | Accepted |
 
 Companion architecture documents live in `../architecture/`:
