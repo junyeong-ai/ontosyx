@@ -156,6 +156,42 @@ the OPPOSITE invariant — RLS is forbidden on them because the auth
 middleware reads them before `WORKSPACE_ID.scope` wraps the request.
 The `pre_scope_tables_carry_no_rls_policies` test pins this.
 
+## EvaluationStore — RAGAS-style metric loop
+
+`EvaluationStore` (`store.rs`) + the `evaluation` module +
+`postgres/evaluation.rs` form the platform's first-class metric
+surface for LLM-driven flows (NL→Cypher translation, GraphRAG
+retrieval, agent tool use). Three workspace-scoped tables, all
+4-clause RLS:
+
+- `evaluation_runs`     — one row per evaluation batch.
+- `evaluation_cases`    — one row per (run, input) pair.
+- `evaluation_metrics`  — one row per (case, rubric_axis) score.
+
+The case + metric split is the RAGAS / DeepEval pattern: a case
+captures the prompt-response pair plus golden expectation +
+latency + error path, and 0..N metrics score it along independent
+axes. Adding a new axis is a fresh INSERT, never a DDL change —
+the long shape lets the evaluator record an arbitrary mix and
+the operator pivot at query time.
+
+UPSERT keys mirror the run-and-rerun cycle:
+
+- `(run_id, case_key)` on cases — re-running a dataset replaces.
+- `(case_id, name)` on metrics — re-judging replaces.
+
+Both `parse_run_status` and `EvaluationRunStatus::is_terminal` live
+on the storage enum (no utoipa dep — the API DTO accepts
+`status: String` and converts via `from_wire_str`, keeping the
+schema crate's dependencies minimal). The closed enum's wire
+shape is snake_case; a forward deploy that tags a new variant
+fails fast at parse time as `OxError::Conflict` rather than
+silently downgrading to a default.
+
+Capture hooks (Stage 2.B) and the FE dashboard (Stage 3) extend
+this contract without touching the schema — the storage layer
+is the stable substrate they share.
+
 ## Advisory locks for boot-time + cron singletons
 
 Race-prone shared-write paths use `ox_store::advisory_lock`:
