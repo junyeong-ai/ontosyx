@@ -31,6 +31,9 @@ why the earlier shape existed.
 | 0016 | Workspace × Ontology = 1:1 (singleton invariant)    | Accepted |
 | 0017 | Typed error wire shape (`{ code, class, params }`)  | Accepted |
 | 0018 | `EvaluationStore` three-table RAGAS metric loop     | Accepted |
+| 0019 | `useOptimisticMutation` canonical FE mutation hook  | Accepted |
+| 0020 | `BulkActionBar` multi-select cohort primitive       | Accepted |
+| 0021 | Master-detail over modal for vocabulary CRUD        | Accepted |
 | 0023 | `HeuristicProposal` queue + no-auto-decisions       | Accepted |
 
 Companion architecture documents live in `../architecture/`:
