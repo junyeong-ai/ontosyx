@@ -463,7 +463,6 @@ mod tests {
             analysis_scope: serde_json::json!({}),
             ontology: None,
             quality_report: None,
-            ontology_id: None,
             parent_version_id: None,
             source_history: serde_json::json!([]),
             created_at: chrono::Utc::now(),

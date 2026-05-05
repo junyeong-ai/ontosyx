@@ -26,6 +26,7 @@
     "missing_context": "Server configuration error. Contact support with the x-request-id header.",
     "edit_operations_empty": "Select at least one change to apply.",
     "ontology_version_conflict": "Another user changed the schema (expected v{expected}, current v{current}). Refresh and retry.",
+    "project_stale_parent": "This project branched from v{parent_version}, but the canonical schema has advanced to v{current_version}. Rebase onto the new head before completing — committing now would silently overwrite intervening changes.",
     "ontology_invariant_violation": "Ontology integrity check failed. Resolve the items below and retry.",
     "edit_operation_rejected": "An edit operation was rejected. {detail}",
     "ontology_not_committed": "Ontology '{lineage_id}' has no committed version yet. Save it first and retry.",

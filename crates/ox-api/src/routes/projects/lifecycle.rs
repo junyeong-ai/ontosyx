@@ -61,6 +61,22 @@ pub(crate) async fn create_project(
     let audit_user_id = principal.user_uuid().ok();
     let now = Utc::now();
 
+    // Capture the canonical's current head as the project's parent
+    // branching point. `None` for greenfield workspaces (no canonical
+    // yet); `Some(version_id)` when the workspace already has a
+    // committed ontology, so `complete_project` can detect
+    // intervening canonical writes via the lost-update guard.
+    let workspace_parent_version = match state.store.get_workspace_ontology().await {
+        Ok(Some(canonical)) => state
+            .store
+            .get_current_version(canonical.id)
+            .await
+            .ok()
+            .flatten()
+            .map(|v| v.id),
+        _ => None,
+    };
+
     let CreateProjectRequest { title, origin } = req;
 
     let project = match origin {
@@ -122,8 +138,11 @@ pub(crate) async fn create_project(
                 analysis_scope: AppError::to_json(&ox_source::AnalysisScope::default())?,
                 ontology: Some(ontology_json),
                 quality_report: None,
-                ontology_id: None,
-                parent_version_id: None,
+                // Project is branched off the canonical version we
+                // just hydrated. complete_project compares this
+                // against the head at commit time to detect
+                // intervening canonical writes.
+                parent_version_id: Some(version.id),
                 source_history: AppError::to_json(&vec![history_entry])?,
                 created_at: now,
                 updated_at: now,
@@ -171,8 +190,7 @@ pub(crate) async fn create_project(
                     analysis_scope: AppError::to_json(&ox_source::AnalysisScope::default())?,
                     ontology: None,
                     quality_report: None,
-                    ontology_id: None,
-                    parent_version_id: None,
+                    parent_version_id: workspace_parent_version,
                     source_history: AppError::to_json(&vec![history_entry])?,
                     created_at: now,
                     updated_at: now,
@@ -277,8 +295,7 @@ pub(crate) async fn create_project(
                 })?,
                 ontology: None,
                 quality_report: None,
-                ontology_id: None,
-                parent_version_id: None,
+                parent_version_id: workspace_parent_version,
                 source_history: AppError::to_json(&vec![history_entry])?,
                 created_at: now,
                 updated_at: now,
@@ -436,12 +453,16 @@ pub(crate) async fn delete_project(
             });
         }
 
-        // Fire-and-forget: clean up orphaned memory entries for the deleted project's ontology.
+        // Fire-and-forget: clean up orphaned memory entries scoped to
+        // the workspace's canonical ontology. The project does not
+        // own the ontology — it iterates against the workspace's
+        // singleton — so we look the id up rather than carrying a
+        // stale FK on the project row.
         if let Some(ref memory) = state.memory
-            && let Some(ontology_id) = project.ontology_id
+            && let Ok(Some(ontology)) = state.store.get_workspace_ontology().await
         {
             let mem = Arc::clone(memory);
-            let oid = ontology_id.to_string();
+            let oid = ontology.id.to_string();
             crate::spawn_scoped::spawn_scoped(async move {
                 match mem.cleanup_by_ontology(&oid).await {
                     Ok(n) if n > 0 => {
@@ -527,6 +548,39 @@ pub(crate) async fn complete_project(
                 .get_current_version(identity.id)
                 .await
                 .map_err(AppError::from)?;
+
+            // Lost-update guard. The project's `parent_version_id`
+            // pins the canonical version its draft was branched
+            // from. If canonical advanced past that point while the
+            // project was in flight, a blind commit would silently
+            // overwrite the intervening changes — refuse instead and
+            // surface the rebase context to the FE. Greenfield
+            // workspaces (no canonical yet) and projects whose
+            // parent matches the current head fall through.
+            match (project.parent_version_id, current.as_ref().map(|v| v.id)) {
+                (Some(parent), Some(head)) if parent != head => {
+                    let parent_tag = state
+                        .store
+                        .get_version_snapshot(parent)
+                        .await
+                        .map_err(AppError::from)?
+                        .map(|s| s.version)
+                        .unwrap_or_else(|| "?".to_string());
+                    let head_tag = current
+                        .as_ref()
+                        .map(|v| v.version.clone())
+                        .unwrap_or_else(|| "?".to_string());
+                    return Err(AppError::project_stale_parent(&parent_tag, &head_tag));
+                }
+                (Some(_), None) => {
+                    // Project carries a parent pointer but the
+                    // canonical was wiped between draft and commit —
+                    // refuse rather than implicitly recreate.
+                    return Err(AppError::project_stale_parent("?", "0"));
+                }
+                _ => {}
+            }
+
             let next_tag = current
                 .as_ref()
                 .map(|v| super::helpers::next_ontology_version_tag(&v.version))
@@ -1297,11 +1351,15 @@ pub(crate) async fn execute_load_from_source(
     // Fire-and-forget: enrichment failure doesn't affect load success. Under
     // the Λ storage model, each enrichment produces a new version snapshot
     // (immutable history) rather than overwriting an IR in place.
-    if let (Some(runtime), Some(ont_id)) = (&state.runtime, project.ontology_id) {
+    if let Some(runtime) = &state.runtime {
         let runtime = Arc::clone(runtime);
         let store = Arc::clone(&state.store);
         let committer = principal.id.clone();
         crate::spawn_scoped::spawn_scoped(async move {
+            let Ok(Some(canonical)) = store.get_workspace_ontology().await else {
+                return;
+            };
+            let ont_id = canonical.id;
             let Ok(Some(current_version)) = store.get_current_version(ont_id).await else {
                 return;
             };

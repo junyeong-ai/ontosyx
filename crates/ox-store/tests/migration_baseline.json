@@ -3,5 +3,6 @@
   "0002_draft_cluster_checkpoints.sql": "546872ebfdef710d12f826f51ab0e134d31e9e5a821089a309027929bd8a2698",
   "0003_analysis_scope.sql": "6c88677d7e99255ebe0414329be6c7b36e7ecb9cc720b6e19015195ca8db54db",
   "0004_workspace_isolation.sql": "44f06b792167812af1fb8e11c2f878cff7a9dcfa53bfb2a670aac690ace00569",
-  "0005_design_project_parent_version.sql": "3cf49bece39034007d536c3ed93b85e4ad421da08f0620bc6788dea8d99b0341"
+  "0005_design_project_parent_version.sql": "3cf49bece39034007d536c3ed93b85e4ad421da08f0620bc6788dea8d99b0341",
+  "0006_workspace_ontology_singleton.sql": "35b15216ce5265a4b02332fb7c597144d0767e51b838d09da50bbf78e9684632"
 }

@@ -78,6 +78,14 @@ pub enum ApiErrorCode {
     /// `params.expected` + `params.current` give the FE the precise
     /// numbers for the message.
     OntologyVersionConflict,
+    /// `complete_project` refused because the project's draft was
+    /// branched from an older canonical version than the current
+    /// head. Another commit landed during the project's flight, so
+    /// merging the local copy would silently overwrite those
+    /// changes. `params.parent_version` (project's branching point,
+    /// short tag) and `params.current_version` (canonical's head,
+    /// short tag) give the FE the rebase context.
+    ProjectStaleParent,
     /// Whole-IR validation failed during commit — the apply phase
     /// produced an IR that broke a referential-integrity invariant.
     /// `params.errors` (array of strings) carries the validation
@@ -396,6 +404,7 @@ impl ApiErrorCode {
             RefineError => "refine_error",
             EditOperationsEmpty => "edit_operations_empty",
             OntologyVersionConflict => "ontology_version_conflict",
+            ProjectStaleParent => "project_stale_parent",
             OntologyInvariantViolation => "ontology_invariant_violation",
             EditOperationRejected => "edit_operation_rejected",
             OntologyNotCommitted => "ontology_not_committed",
@@ -662,6 +671,17 @@ impl AppError {
         Self::new(StatusCode::CONFLICT, ApiErrorCode::OntologyVersionConflict)
             .with_param("expected", expected)
             .with_param("current", current)
+    }
+
+    /// `complete_project` refused — project's draft branched from an
+    /// older canonical version than the current head. The FE
+    /// interpolates a "rebase onto v{current_version} before
+    /// retrying" message. Both version tags are short strings (the
+    /// `version` column on `ontology_version_snapshots`).
+    pub fn project_stale_parent(parent_version: &str, current_version: &str) -> Self {
+        Self::new(StatusCode::CONFLICT, ApiErrorCode::ProjectStaleParent)
+            .with_param("parent_version", parent_version)
+            .with_param("current_version", current_version)
     }
 
     /// Whole-IR validation failed during commit — `errors` is the
@@ -1438,6 +1458,7 @@ mod redaction_tests {
             RefineError,
             EditOperationsEmpty,
             OntologyVersionConflict,
+            ProjectStaleParent,
             OntologyInvariantViolation,
             EditOperationRejected,
             OntologyNotCommitted,

@@ -366,16 +366,15 @@ pub struct DesignProject {
     pub ontology: Option<serde_json::Value>,
     /// OntologyQualityReport
     pub quality_report: Option<serde_json::Value>,
-    /// FK to `ontologies.id` — the logical ontology identity this project
-    /// was completed into. `None` until the design is completed.
-    pub ontology_id: Option<Uuid>,
     /// FK to `ontology_version_snapshots.id` — the canonical version
     /// the project's in-flight `ontology` JSONB was branched from.
     /// `complete_design_project` compares this against the canonical
     /// head and refuses the commit if they diverge, forcing the
     /// operator to rebase before retry. `None` for greenfield
     /// projects whose first commit creates the canonical's first
-    /// version.
+    /// version. Workspace × ontology is 1:1, so the canonical's
+    /// identity is always the workspace's; the parent here pins the
+    /// *version* axis.
     pub parent_version_id: Option<Uuid>,
     /// History of data sources added to this project
     pub source_history: serde_json::Value,
@@ -393,7 +392,6 @@ pub struct DesignProjectSummary {
     pub user_id: String,
     pub title: Option<String>,
     pub source_config: serde_json::Value,
-    pub ontology_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub analyzed_at: Option<DateTime<Utc>>,

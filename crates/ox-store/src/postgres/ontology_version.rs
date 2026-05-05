@@ -35,6 +35,19 @@ impl crate::store::OntologyVersionStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
+    async fn get_workspace_ontology(
+        &self,
+    ) -> OxResult<Option<crate::models::OntologyRow>> {
+        // RLS scopes the query to the caller's workspace, and the
+        // `ontologies_workspace_singleton_uq` UNIQUE constraint
+        // guarantees at most one row matches.
+        sqlx::query_as::<_, crate::models::OntologyRow>("SELECT * FROM ontologies")
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_ontology(
         &self,
         id: Uuid,
@@ -102,8 +115,8 @@ impl crate::store::OntologyVersionStore for PostgresStore {
         &self,
         name: &str,
     ) -> OxResult<Option<crate::models::OntologyRow>> {
-        // RLS scopes the row set to the caller's workspace;
-        // `ontologies_ws_name_uq` makes this a single-row lookup.
+        // RLS scopes the row set to the caller's workspace; the
+        // singleton UNIQUE constraint makes this a 0-or-1 row lookup.
         sqlx::query_as::<_, crate::models::OntologyRow>(
             "SELECT * FROM ontologies WHERE name = $1",
         )

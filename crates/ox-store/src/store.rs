@@ -150,11 +150,10 @@ pub trait QueryStore: Send + Sync {
 
 #[async_trait]
 pub trait OntologyVersionStore: Send + Sync {
-    /// Create a new logical ontology. Assigns a fresh lineage_id
-    /// if `lineage_id` is `None`. `display_name` is the locale-aware
-    /// human label as a `LocalizedText` JSONB value; pass an empty
-    /// `{"default":"","translations":{}}` payload when the caller
-    /// has no display label and consumers should fall back to `name`.
+    /// Create the workspace's canonical ontology. The workspace ×
+    /// ontology cardinality is 1:1; calling this twice in the same
+    /// workspace fails the UNIQUE constraint. Assigns a fresh
+    /// lineage_id if `lineage_id` is `None`.
     async fn create_ontology(
         &self,
         name: &str,
@@ -163,30 +162,48 @@ pub trait OntologyVersionStore: Send + Sync {
         lineage_id: Option<&str>,
     ) -> OxResult<crate::models::OntologyRow>;
 
-    /// Look up a logical ontology by UUID. Workspace-scoped.
+    /// Singleton accessor — return the workspace's canonical
+    /// ontology, or `None` when one has not been created yet.
+    /// Workspace × ontology is 1:1 by schema invariant; the
+    /// workspace_id is the implicit selector via the task-local
+    /// context.
+    async fn get_workspace_ontology(
+        &self,
+    ) -> OxResult<Option<crate::models::OntologyRow>>;
+
+    /// Look up the workspace's ontology by id. Provided for
+    /// existing callers that hold an `OntologyId` reference (e.g.,
+    /// from a stored reference or path parameter); the singleton
+    /// invariant means this is equivalent to
+    /// `get_workspace_ontology` modulo the id check. Will be
+    /// removed when the URL surface drops `{id}` segments
+    /// (Phase 3 ontology workbench restructure).
     async fn get_ontology(&self, id: Uuid) -> OxResult<Option<crate::models::OntologyRow>>;
 
-    /// Paginated list of ontology identities visible to the
-    /// current workspace. Ordered newest-first by `created_at`
-    /// (then `id` for tie-break). Returns the identity row only;
-    /// callers that need the current version or IR call
-    /// `get_current_version` + `get_ontology_ir` per row.
+    /// Paginated list — singleton invariant guarantees at most
+    /// one row. Provided for existing callers that walk
+    /// `useOntologies({ limit: 1 }).items[0]`; same Phase 3
+    /// removal note applies.
     async fn list_ontologies(
         &self,
         pagination: &CursorParams,
     ) -> OxResult<CursorPage<crate::models::OntologyRow>>;
 
-    /// Look up a logical ontology by lineage id. The lineage id
-    /// is the stable cross-version handle referenced by quality
-    /// rules, saved queries, and external mappings.
+    /// Lookup by stable lineage id. Within a workspace the
+    /// singleton makes this redundant with `get_workspace_ontology`
+    /// + a lineage check, but cross-workspace audit / governance
+    /// callers still pin against the lineage. Phase 3 may
+    /// rationalise.
     async fn find_ontology_by_lineage(
         &self,
         lineage_id: &str,
     ) -> OxResult<Option<crate::models::OntologyRow>>;
 
-    /// Look up a logical ontology by its short name within the
-    /// current workspace. Names are unique per workspace (see
-    /// `ontologies_ws_name_uq`); the RLS policy scopes the query.
+    /// Lookup by short name within the workspace. With the
+    /// singleton in place this returns the workspace's ontology
+    /// when the name matches and `None` otherwise. Phase 3
+    /// will fold this into `get_workspace_ontology` + a name
+    /// assertion.
     async fn find_ontology_by_name(
         &self,
         name: &str,
