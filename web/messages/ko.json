@@ -2951,6 +2951,13 @@
         "latencyMs": "{ms} ms",
         "noLatency": "—",
         "errorLabel": "오류",
+        "judge": {
+          "label": "평가",
+          "submitting": "평가 중…",
+          "successToast": "판정 기록 — {count} 축",
+          "errorToast": "평가 실패: {error}",
+          "noActual": "먼저 케이스를 실행하세요 — 판정은 `actual` 이 필요합니다."
+        },
         "execute": {
           "title": "translate_query 케이스 실행",
           "description": "질문을 워크스페이스의 대표 온톨로지로 QueryIR 변환합니다. 지연은 자동으로 측정되고 QueryIR 은 케이스의 `actual` 필드에 저장됩니다.",

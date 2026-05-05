@@ -7,6 +7,7 @@ import {
   deleteEvaluationRun,
   executeEvaluationCase,
   getEvaluationRun,
+  judgeEvaluationCase,
   listEvaluationCases,
   listEvaluationMetrics,
   listEvaluationRuns,
@@ -103,6 +104,16 @@ export function useDeleteEvaluationRun() {
     mutationFn: (id) => deleteEvaluationRun(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: evaluationKeys.runs() });
+    },
+  });
+}
+
+export function useJudgeEvaluationCase() {
+  const qc = useQueryClient();
+  return useMutation<EvaluationMetric[], Error, string>({
+    mutationFn: (caseId) => judgeEvaluationCase(caseId),
+    onSuccess: (_metrics, caseId) => {
+      qc.invalidateQueries({ queryKey: evaluationKeys.metrics(caseId) });
     },
   });
 }

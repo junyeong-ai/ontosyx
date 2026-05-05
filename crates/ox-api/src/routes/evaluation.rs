@@ -609,6 +609,112 @@ pub(crate) async fn execute_evaluation_case(
     Ok(ApiResponse::of(ExecuteEvaluationCaseResponse { case }))
 }
 
+// ---------------------------------------------------------------------------
+// Handler — judge a case
+//
+// Reads the case's input + expected + actual, calls the LLM
+// judge, and records each axis as a fresh `evaluation_metrics`
+// row. The natural-key UPSERT on `(case_id, name)` means
+// re-judging replaces the previous score in place; latency
+// metrics from the case-execute path stay attached.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct JudgeEvaluationCaseResponse {
+    /// One row per recorded axis. Returned in canonical RAGAS
+    /// order (faithfulness → answer_relevance → context_precision
+    /// → context_recall) so the FE can render a stable column
+    /// ordering without re-sorting.
+    #[schema(value_type = Vec<Object>)]
+    pub metrics: Vec<EvaluationMetric>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/evaluation/cases/{case_id}/judge",
+    params(("case_id" = Uuid, Path, description = "Case id")),
+    responses(
+        (status = 200, description = "Judgement recorded", body = JudgeEvaluationCaseResponse),
+        (status = 400, description = "Case has no `actual` to judge",
+            body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Case not found",
+            body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+#[tracing::instrument(skip(state, principal))]
+pub(crate) async fn judge_evaluation_case(
+    State(state): State<AppState>,
+    principal: Principal,
+    ws: WorkspaceContext,
+    Path(case_id): Path<Uuid>,
+) -> Result<Json<ApiResponse<JudgeEvaluationCaseResponse>>, AppError> {
+    principal.require_admin()?;
+
+    let case = state
+        .store
+        .get_evaluation_case(case_id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("EvaluationCase"))?;
+
+    let actual = case.actual.as_ref().ok_or_else(|| {
+        AppError::query_ir_invalid(
+            "case has no `actual` to judge — execute the case first".to_string(),
+        )
+    })?;
+
+    // The case input envelope is the discriminated
+    // `ExecuteEvaluationCaseRequest`. Pull the question off
+    // whichever variant landed; today only `translate_query` is
+    // judgeable, but the dispatch matches the execute side so
+    // adding a new operation extends both arms together.
+    let parsed: Result<ExecuteEvaluationCaseRequest, _> =
+        serde_json::from_value(case.input.clone());
+    let question = match parsed {
+        Ok(ExecuteEvaluationCaseRequest::TranslateQuery { question, .. }) => question,
+        Err(e) => {
+            return Err(AppError::query_ir_invalid(format!(
+                "case input does not match a known executable shape: {e}"
+            )));
+        }
+    };
+
+    let judgement = state
+        .brain
+        .judge_evaluation_case(&question, case.expected.as_ref(), actual)
+        .await
+        .map_err(AppError::from)?;
+
+    let mut metrics = Vec::with_capacity(4);
+    let now = chrono::Utc::now();
+    for (name, score, reasoning) in judgement.axes() {
+        let metric = EvaluationMetric {
+            id: Uuid::now_v7(),
+            case_id: case.id,
+            workspace_id: ws.workspace_id,
+            name: name.to_string(),
+            score,
+            reasoning: Some(reasoning.to_string()),
+            metadata: serde_json::json!({
+                "kind": "judge",
+                "run_id": case.run_id,
+                "case_key": case.case_key,
+            }),
+            created_at: now,
+        };
+        let saved = state
+            .store
+            .record_evaluation_metric(&metric)
+            .await
+            .map_err(AppError::from)?;
+        metrics.push(saved);
+    }
+
+    Ok(ApiResponse::of(JudgeEvaluationCaseResponse { metrics }))
+}
+
 #[utoipa::path(
     get,
     path = "/api/evaluation/cases/{case_id}/metrics",

@@ -1,0 +1,41 @@
+[prompt]
+version = "1.0.0"
+description = "RAGAS-style judge — score a translate_query case along four axes"
+max_tokens = 2048
+temperature = 0.0
+
+system = """
+You are a strict evaluator scoring a natural-language → graph-query translation against four independent axes. The runtime translated a question into a `QueryIR`; you decide how well that translation captures the intent and the supplied golden expectation.
+
+Four axes, each scored on `[0.0, 1.0]`:
+
+- **faithfulness** — does the produced `actual` ground itself in identifiers, labels, and constraints that exist in the question? A `1.0` means every node label, edge type, property, and filter literal has a clear referent in the question. A `0.0` means the query fabricates entities the question never mentioned.
+- **answer_relevance** — does the produced `actual` actually answer the question, or does it answer an adjacent / different question? A `1.0` means the query, if executed, yields the row set the question asks for. A `0.0` means the query targets the wrong shape entirely.
+- **context_precision** — of the entities / properties the query touches, what fraction is *necessary* for answering the question? A `1.0` means the query fetches only what the answer needs. A `0.0` means the query drags in irrelevant joins, projections, or filters.
+- **context_recall** — of the entities / properties the question implies, what fraction is *covered* by the query? A `1.0` means every needed entity / filter is present. A `0.0` means the query misses critical parts of the question.
+
+Score independently on each axis — a query can be highly faithful but miss recall, or highly relevant but imprecise. Do not collapse axes.
+
+When `expected` is non-null, treat it as the operator's golden reference: a perfect `actual` should match the structural shape (same labels, same edges, same projection) of `expected`. A query that diverges from `expected` on a load-bearing axis loses points there. When `expected` is null, judge from the question alone.
+
+Reasoning is required on every axis — one or two sentences naming the specific evidence (label / property / filter) that drove the score. The reasoning is what an operator reads to triage; "score is high" without a referent is not acceptable.
+
+Output ONLY valid JSON matching this exact schema:
+{
+  "faithfulness": { "score": <number>, "reasoning": "<one or two sentences>" },
+  "answer_relevance": { "score": <number>, "reasoning": "<one or two sentences>" },
+  "context_precision": { "score": <number>, "reasoning": "<one or two sentences>" },
+  "context_recall": { "score": <number>, "reasoning": "<one or two sentences>" }
+}
+"""
+
+user_template = """
+Question:
+{{question}}
+
+Expected (golden QueryIR; may be `null`):
+{{expected}}
+
+Actual (translated QueryIR):
+{{actual}}
+"""

@@ -284,6 +284,87 @@ pub trait OntologyEditor: Send + Sync {
     ) -> OxResult<EditCommandsOutput>;
 }
 
+/// One axis of an [`EvaluationJudgement`] — score in `[0.0, 1.0]`
+/// plus reasoning. The reasoning surfaces directly on
+/// `evaluation_metrics.reasoning` so an operator triaging a
+/// regression sees the judge's evidence inline.
+#[derive(
+    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
+pub struct EvaluationAxisScore {
+    pub score: f64,
+    pub reasoning: String,
+}
+
+/// RAGAS-style judgement for a single evaluation case. Four
+/// independent axes, all on `[0.0, 1.0]`. The runtime persists
+/// each axis as its own `evaluation_metrics` row keyed at
+/// `(case_id, name)` so a re-judge replaces in place.
+#[derive(
+    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
+pub struct EvaluationJudgement {
+    /// Does the produced `actual` ground itself in identifiers
+    /// the question names?
+    pub faithfulness: EvaluationAxisScore,
+    /// Does the produced `actual` answer the question, or an
+    /// adjacent one?
+    pub answer_relevance: EvaluationAxisScore,
+    /// Of the entities the query touches, what fraction is
+    /// necessary?
+    pub context_precision: EvaluationAxisScore,
+    /// Of the entities the question implies, what fraction does
+    /// the query cover?
+    pub context_recall: EvaluationAxisScore,
+}
+
+impl EvaluationJudgement {
+    /// Materialise the judgement as `(name, score, reasoning)`
+    /// triples in the canonical RAGAS axis order. The endpoint
+    /// iterates this to record one `EvaluationMetric` per axis;
+    /// the natural-key UPSERT on `(case_id, name)` handles re-judge
+    /// idempotency.
+    pub fn axes(&self) -> [(&'static str, f64, &str); 4] {
+        [
+            (
+                "faithfulness",
+                self.faithfulness.score,
+                self.faithfulness.reasoning.as_str(),
+            ),
+            (
+                "answer_relevance",
+                self.answer_relevance.score,
+                self.answer_relevance.reasoning.as_str(),
+            ),
+            (
+                "context_precision",
+                self.context_precision.score,
+                self.context_precision.reasoning.as_str(),
+            ),
+            (
+                "context_recall",
+                self.context_recall.score,
+                self.context_recall.reasoning.as_str(),
+            ),
+        ]
+    }
+}
+
+/// LLM judge over an executed evaluation case. The judge sees
+/// the question, the optional golden expectation, and the actual
+/// translation output, and emits a four-axis RAGAS-style score.
+/// Invoked by the `/api/evaluation/cases/{case_id}/judge`
+/// endpoint after the case-execute path populates `actual`.
+#[async_trait]
+pub trait EvaluationJudge: Send + Sync {
+    async fn judge_evaluation_case(
+        &self,
+        question: &str,
+        expected: Option<&serde_json::Value>,
+        actual: &serde_json::Value,
+    ) -> OxResult<EvaluationJudgement>;
+}
+
 /// LLM provider metadata for health checks and observability.
 pub trait LlmMetadata: Send + Sync {
     /// Default model info for logging/audit purposes.
@@ -314,13 +395,25 @@ pub trait LlmMetadata: Send + Sync {
 /// Use specific sub-traits (`OntologyDesigner`, `QueryTranslator`, etc.) when
 /// a component only needs a subset of capabilities.
 pub trait Brain:
-    OntologyDesigner + OntologyEditor + QueryTranslator + Explainer + RepoAnalyzer + LlmMetadata
+    OntologyDesigner
+    + OntologyEditor
+    + QueryTranslator
+    + Explainer
+    + RepoAnalyzer
+    + EvaluationJudge
+    + LlmMetadata
 {
 }
 
 /// Blanket impl: anything implementing all sub-traits is automatically a Brain.
 impl<T> Brain for T where
-    T: OntologyDesigner + OntologyEditor + QueryTranslator + Explainer + RepoAnalyzer + LlmMetadata
+    T: OntologyDesigner
+        + OntologyEditor
+        + QueryTranslator
+        + Explainer
+        + RepoAnalyzer
+        + EvaluationJudge
+        + LlmMetadata
 {
 }
 
@@ -1410,6 +1503,40 @@ impl RepoAnalyzer for DefaultBrain {
             "repo_analyze",
             &vars,
             "Analyzing repo files for domain insights",
+        )
+        .await
+    }
+}
+
+#[async_trait]
+impl EvaluationJudge for DefaultBrain {
+    async fn judge_evaluation_case(
+        &self,
+        question: &str,
+        expected: Option<&serde_json::Value>,
+        actual: &serde_json::Value,
+    ) -> OxResult<EvaluationJudgement> {
+        // The judge prompt receives JSON-rendered values directly.
+        // `expected` ships as the literal `null` token when absent
+        // so the prompt can branch (`expected != null` → match
+        // shape; otherwise judge from the question alone).
+        let expected_str = match expected {
+            Some(v) => serde_json::to_string(v).unwrap_or_else(|_| "null".to_string()),
+            None => "null".to_string(),
+        };
+        let actual_str = serde_json::to_string(actual).unwrap_or_else(|_| "null".to_string());
+
+        let mut vars: HashMap<&str, &str> = HashMap::new();
+        vars.insert("question", question);
+        vars.insert("expected", expected_str.as_str());
+        vars.insert("actual", actual_str.as_str());
+
+        self.call_structured(
+            "evaluation_judge",
+            None,
+            "evaluation_judge",
+            &vars,
+            "Judging evaluation case",
         )
         .await
     }

@@ -2951,6 +2951,13 @@
         "latencyMs": "{ms} ms",
         "noLatency": "—",
         "errorLabel": "Error",
+        "judge": {
+          "label": "Judge",
+          "submitting": "Judging…",
+          "successToast": "Judgement recorded — {count} axes",
+          "errorToast": "Judge failed: {error}",
+          "noActual": "Run the case first — judge needs `actual` to score against."
+        },
         "execute": {
           "title": "Run a translate_query case",
           "description": "Translates the question into QueryIR against the workspace's canonical ontology. Latency is captured automatically; the QueryIR lands on the case's `actual` field.",

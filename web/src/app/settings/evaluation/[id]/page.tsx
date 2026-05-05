@@ -9,6 +9,7 @@ import {
   useEvaluationMetrics,
   useEvaluationRun,
   useExecuteEvaluationCase,
+  useJudgeEvaluationCase,
 } from "@/hooks/api/use-evaluation";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
@@ -38,6 +39,7 @@ export default function EvaluationDetailPage({
   const [activeCase, setActiveCase] = useState<EvaluationCase | null>(null);
   const metricsQuery = useEvaluationMetrics(activeCase?.id ?? null);
   const execute = useExecuteEvaluationCase(id);
+  const judge = useJudgeEvaluationCase();
   const [executeCaseKey, setExecuteCaseKey] = useState("");
   const [executeQuestion, setExecuteQuestion] = useState("");
   const canExecute =
@@ -92,6 +94,24 @@ export default function EvaluationDetailPage({
   // any row in the cases pane.
   const selectedCase =
     activeCase ?? (cases.length > 0 ? (cases[0] ?? null) : null);
+  const canJudge = !!selectedCase?.actual && !judge.isPending;
+  const onJudge = () => {
+    if (!selectedCase) return;
+    judge.mutate(selectedCase.id, {
+      onSuccess: (metrics) => {
+        toast.success(
+          t("detail.judge.successToast", { count: metrics.length }),
+        );
+      },
+      onError: (err) => {
+        toast.error(
+          t("detail.judge.errorToast", {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      },
+    });
+  };
 
   return (
     <SettingsPageShell
@@ -188,13 +208,32 @@ export default function EvaluationDetailPage({
           </section>
 
           <section>
-            <header className="mb-2 flex items-baseline justify-between">
+            <header className="mb-2 flex items-baseline justify-between gap-3">
               <Heading level={2} size={5}>
                 {t("detail.metricsTitle")}
               </Heading>
-              <span className="text-2xs text-foreground-muted tabular-nums">
-                {(metricsQuery.data ?? []).length}
-              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={onJudge}
+                  disabled={!canJudge}
+                  loading={judge.isPending}
+                  title={
+                    selectedCase?.actual
+                      ? undefined
+                      : t("detail.judge.noActual")
+                  }
+                >
+                  {judge.isPending
+                    ? t("detail.judge.submitting")
+                    : t("detail.judge.label")}
+                </Button>
+                <span className="text-2xs text-foreground-muted tabular-nums">
+                  {(metricsQuery.data ?? []).length}
+                </span>
+              </div>
             </header>
             <p className="mb-3 text-xs text-foreground-muted">
               {t("detail.metricsDescription")}

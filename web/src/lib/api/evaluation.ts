@@ -109,3 +109,13 @@ export async function listEvaluationMetrics(
     `/evaluation/cases/${encodeURIComponent(caseId)}/metrics`,
   );
 }
+
+export async function judgeEvaluationCase(
+  caseId: string,
+): Promise<EvaluationMetric[]> {
+  const res = await request<{ metrics: EvaluationMetric[] }>(
+    `/evaluation/cases/${encodeURIComponent(caseId)}/judge`,
+    { method: "POST" },
+  );
+  return res.metrics;
+}

@@ -348,6 +348,10 @@ pub fn router(state: AppState) -> Router {
             "/evaluation/cases/{case_id}/metrics",
             get(evaluation::list_evaluation_metrics),
         )
+        .route(
+            "/evaluation/cases/{case_id}/judge",
+            post(evaluation::judge_evaluation_case),
+        )
         // Perspectives
         .route("/perspectives", put(perspectives::save_perspective))
         .route(
