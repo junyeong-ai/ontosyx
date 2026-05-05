@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  bulkUpsertEvaluationCases,
   cancelEvaluationRun,
   createEvaluationRun,
   deleteEvaluationRun,
@@ -15,6 +16,8 @@ import {
   type ListEvaluationRunsParams,
 } from "@/lib/api/evaluation";
 import type {
+  BulkUpsertEvaluationCasesRequest,
+  BulkUpsertEvaluationCasesResponse,
   CreateEvaluationRunRequest,
   EvaluationCase,
   EvaluationMetric,
@@ -125,6 +128,20 @@ export function useJudgeEvaluationCase() {
     mutationFn: (caseId) => judgeEvaluationCase(caseId),
     onSuccess: (_metrics, caseId) => {
       qc.invalidateQueries({ queryKey: evaluationKeys.metrics(caseId) });
+    },
+  });
+}
+
+export function useBulkUpsertEvaluationCases(runId: string) {
+  const qc = useQueryClient();
+  return useMutation<
+    BulkUpsertEvaluationCasesResponse,
+    Error,
+    BulkUpsertEvaluationCasesRequest
+  >({
+    mutationFn: (req) => bulkUpsertEvaluationCases(runId, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: evaluationKeys.cases(runId) });
     },
   });
 }

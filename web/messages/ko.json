@@ -2960,6 +2960,17 @@
         "latencyMs": "{ms} ms",
         "noLatency": "—",
         "errorLabel": "오류",
+        "bulk": {
+          "title": "케이스 일괄 가져오기",
+          "description": "`{ case_key, input, expected? }` 행의 JSON 배열을 붙여넣거나 한 줄에 한 항목씩 입력하세요 (JSONL). 같은 case_key 를 다시 가져오면 기존 행을 대체합니다.",
+          "placeholder": "[\n  { \"case_key\": \"q01\", \"input\": { \"kind\": \"explain\", \"question\": \"X 는 무엇인가요?\" } }\n]",
+          "submit": "가져오기",
+          "submitting": "가져오는 중…",
+          "successToast": "{count} 케이스가 등록되었습니다",
+          "partialToast": "{ok} 케이스 등록, {failed} 실패",
+          "errorToast": "일괄 가져오기 실패: {error}",
+          "parseError": "파싱 실패 — JSON 배열 또는 JSONL 형식이어야 합니다"
+        },
         "judge": {
           "label": "평가",
           "submitting": "평가 중…",

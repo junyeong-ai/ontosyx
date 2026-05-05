@@ -2960,6 +2960,17 @@
         "latencyMs": "{ms} ms",
         "noLatency": "—",
         "errorLabel": "Error",
+        "bulk": {
+          "title": "Bulk import cases",
+          "description": "Paste a JSON array of `{ case_key, input, expected? }` rows or one entry per line (JSONL). Re-importing the same case_key replaces the row.",
+          "placeholder": "[\n  { \"case_key\": \"q01\", \"input\": { \"kind\": \"explain\", \"question\": \"What is X?\" } }\n]",
+          "submit": "Import",
+          "submitting": "Importing…",
+          "successToast": "{count} cases upserted",
+          "partialToast": "{ok} cases upserted, {failed} failed",
+          "errorToast": "Bulk import failed: {error}",
+          "parseError": "Could not parse — expected JSON array or JSONL"
+        },
         "judge": {
           "label": "Judge",
           "submitting": "Judging…",

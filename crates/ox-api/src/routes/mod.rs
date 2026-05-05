@@ -341,6 +341,10 @@ pub fn router(state: AppState) -> Router {
             post(evaluation::execute_evaluation_case),
         )
         .route(
+            "/evaluation/runs/{run_id}/cases/bulk",
+            post(evaluation::bulk_upsert_evaluation_cases),
+        )
+        .route(
             "/evaluation/cases/{case_id}/metrics",
             put(evaluation::record_evaluation_metric),
         )

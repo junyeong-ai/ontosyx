@@ -414,6 +414,105 @@ pub(crate) async fn record_evaluation_metric(
 }
 
 // ---------------------------------------------------------------------------
+// Handler — bulk case upsert
+//
+// Operator-facing dataset seed surface. Accepts an array of
+// (case_key, input, expected?) tuples and runs a sequential
+// `upsert_evaluation_case` per row. The natural-key UPSERT
+// `(run_id, case_key)` makes the call idempotent — re-importing
+// the same dataset replaces in place, dataset edits land
+// without a separate diff endpoint, and partial-success errors
+// surface as a typed list rather than aborting the whole batch.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct BulkUpsertEvaluationCaseEntry {
+    pub case_key: String,
+    #[schema(value_type = Object)]
+    pub input: serde_json::Value,
+    #[serde(default)]
+    #[schema(value_type = Option<Object>)]
+    pub expected: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct BulkUpsertEvaluationCasesRequest {
+    pub cases: Vec<BulkUpsertEvaluationCaseEntry>,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct BulkUpsertEvaluationCaseError {
+    pub case_key: String,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct BulkUpsertEvaluationCasesResponse {
+    pub upserted_count: usize,
+    /// Per-row errors. Empty when every row succeeded; a
+    /// non-empty list means partial success — the caller can
+    /// retry just the failed `case_key`s.
+    pub errors: Vec<BulkUpsertEvaluationCaseError>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/evaluation/runs/{run_id}/cases/bulk",
+    params(("run_id" = Uuid, Path, description = "Run id")),
+    request_body = BulkUpsertEvaluationCasesRequest,
+    responses(
+        (status = 200, description = "Bulk upsert outcome — partial success returns errors[]",
+            body = BulkUpsertEvaluationCasesResponse),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+#[tracing::instrument(skip(state, principal, req))]
+pub(crate) async fn bulk_upsert_evaluation_cases(
+    State(state): State<AppState>,
+    principal: Principal,
+    ws: WorkspaceContext,
+    Path(run_id): Path<Uuid>,
+    Json(req): Json<BulkUpsertEvaluationCasesRequest>,
+) -> Result<Json<ApiResponse<BulkUpsertEvaluationCasesResponse>>, AppError> {
+    principal.require_admin()?;
+
+    let mut upserted_count = 0usize;
+    let mut errors = Vec::new();
+    let now = chrono::Utc::now();
+    for entry in req.cases {
+        let case = EvaluationCase {
+            id: Uuid::now_v7(),
+            run_id,
+            workspace_id: ws.workspace_id,
+            case_key: entry.case_key.clone(),
+            input: entry.input,
+            expected: entry.expected,
+            actual: None,
+            error: None,
+            latency_ms: None,
+            created_at: now,
+        };
+        match state.store.upsert_evaluation_case(&case).await {
+            Ok(_) => {
+                upserted_count += 1;
+            }
+            Err(err) => {
+                errors.push(BulkUpsertEvaluationCaseError {
+                    case_key: entry.case_key,
+                    message: err.to_string(),
+                });
+            }
+        }
+    }
+
+    Ok(ApiResponse::of(BulkUpsertEvaluationCasesResponse {
+        upserted_count,
+        errors,
+    }))
+}
+
+// ---------------------------------------------------------------------------
 // Handler — case execute
 //
 // The endpoint that closes the RAGAS loop. Operator hands a case

@@ -5,6 +5,7 @@ import { use, useState } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
 import {
+  useBulkUpsertEvaluationCases,
   useEvaluationCases,
   useEvaluationMetrics,
   useEvaluationRun,
@@ -22,10 +23,45 @@ import { SettingsInput, SettingsSelect } from "@/components/ui/form-input";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import type {
+  BulkUpsertEvaluationCaseEntry,
   EvaluationCase,
   ExecuteEvaluationCaseRequest,
   ExecuteOperationKind,
 } from "@/types/evaluation";
+
+/**
+ * Parse a textarea blob as either a JSON array of bulk entries or
+ * JSONL (one entry per line). Returns the parsed entries on
+ * success, `null` when neither shape lands.
+ */
+function parseBulkInput(
+  raw: string,
+): BulkUpsertEvaluationCaseEntry[] | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return [];
+  // Try JSON array first.
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed) as BulkUpsertEvaluationCaseEntry[];
+      if (!Array.isArray(parsed)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+  // Otherwise JSONL — one JSON object per non-blank line.
+  const out: BulkUpsertEvaluationCaseEntry[] = [];
+  for (const line of trimmed.split(/\r?\n/)) {
+    const t = line.trim();
+    if (t.length === 0) continue;
+    try {
+      out.push(JSON.parse(t) as BulkUpsertEvaluationCaseEntry);
+    } catch {
+      return null;
+    }
+  }
+  return out;
+}
 
 interface EvaluationDetailPageProps {
   params: Promise<{ id: string }>;
@@ -44,6 +80,43 @@ export default function EvaluationDetailPage({
   const metricsQuery = useEvaluationMetrics(activeCase?.id ?? null);
   const execute = useExecuteEvaluationCase(id);
   const judge = useJudgeEvaluationCase();
+  const bulk = useBulkUpsertEvaluationCases(id);
+  const [bulkText, setBulkText] = useState("");
+  const onBulk = () => {
+    const parsed = parseBulkInput(bulkText);
+    if (parsed === null) {
+      toast.error(t("detail.bulk.parseError"));
+      return;
+    }
+    bulk.mutate(
+      { cases: parsed },
+      {
+        onSuccess: (res) => {
+          if (res.errors.length === 0) {
+            toast.success(
+              t("detail.bulk.successToast", { count: res.upserted_count }),
+            );
+            setBulkText("");
+          } else {
+            toast.error(
+              t("detail.bulk.partialToast", {
+                ok: res.upserted_count,
+                failed: res.errors.length,
+              }),
+            );
+          }
+        },
+        onError: (err) => {
+          toast.error(
+            t("detail.bulk.errorToast", {
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+        },
+      },
+    );
+  };
+  const canBulk = bulkText.trim().length > 0 && !bulk.isPending;
   const [executeKind, setExecuteKind] =
     useState<ExecuteOperationKind>("translate_query");
   const [executeCaseKey, setExecuteCaseKey] = useState("");
@@ -179,6 +252,37 @@ export default function EvaluationDetailPage({
                 ? t("detail.execute.submitting")
                 : t("detail.execute.submit")}
             </Button>
+          </div>
+        </section>
+
+        <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">
+          <Heading level={2} size={5}>
+            {t("detail.bulk.title")}
+          </Heading>
+          <p className="mt-1 text-xs text-foreground-muted">
+            {t("detail.bulk.description")}
+          </p>
+          <div className="mt-3 flex flex-col gap-3">
+            <textarea
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              placeholder={t("detail.bulk.placeholder")}
+              spellCheck={false}
+              rows={6}
+              className="w-full rounded-lg border border-divider bg-surface-inset px-3 py-2 font-mono text-xs text-foreground focus:border-brand-border focus:outline-none focus:ring-1 focus:ring-brand-border"
+            />
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={onBulk}
+                disabled={!canBulk}
+                loading={bulk.isPending}
+              >
+                {bulk.isPending
+                  ? t("detail.bulk.submitting")
+                  : t("detail.bulk.submit")}
+              </Button>
+            </div>
           </div>
         </section>
 

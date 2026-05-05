@@ -1,5 +1,7 @@
 import { request } from "./client";
 import type {
+  BulkUpsertEvaluationCasesRequest,
+  BulkUpsertEvaluationCasesResponse,
   CompleteEvaluationRunRequest,
   CreateEvaluationRunRequest,
   EvaluationCase,
@@ -80,6 +82,16 @@ export async function listEvaluationCases(
 ): Promise<EvaluationCase[]> {
   return request<EvaluationCase[]>(
     `${RUNS}/${encodeURIComponent(runId)}/cases`,
+  );
+}
+
+export async function bulkUpsertEvaluationCases(
+  runId: string,
+  req: BulkUpsertEvaluationCasesRequest,
+): Promise<BulkUpsertEvaluationCasesResponse> {
+  return request<BulkUpsertEvaluationCasesResponse>(
+    `${RUNS}/${encodeURIComponent(runId)}/cases/bulk`,
+    { method: "POST", body: JSON.stringify(req) },
   );
 }
 

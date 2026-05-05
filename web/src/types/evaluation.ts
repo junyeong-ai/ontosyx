@@ -60,6 +60,28 @@ export interface CreateEvaluationRunRequest {
   metadata?: Record<string, unknown>;
 }
 
+export interface BulkUpsertEvaluationCaseEntry {
+  case_key: string;
+  input: unknown;
+  expected?: unknown;
+}
+
+export interface BulkUpsertEvaluationCasesRequest {
+  cases: BulkUpsertEvaluationCaseEntry[];
+}
+
+export interface BulkUpsertEvaluationCaseError {
+  case_key: string;
+  message: string;
+}
+
+export interface BulkUpsertEvaluationCasesResponse {
+  upserted_count: number;
+  /** Empty when every row landed; non-empty when partial-success.
+   *  The caller retries just the listed `case_key`s. */
+  errors: BulkUpsertEvaluationCaseError[];
+}
+
 export interface UpsertEvaluationCaseRequest {
   case_key: string;
   input: unknown;
