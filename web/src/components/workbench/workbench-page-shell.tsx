@@ -1,11 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { InformationCircleIcon } from "@hugeicons/core-free-icons";
 import { TabBar } from "@/components/ui/tab-bar";
 import { FadeIn } from "@/components/motion/fade-in";
-import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { isInteractive, type PageState } from "@/components/layout/page-state";
 import type { IconSvgElement } from "@hugeicons/react";
@@ -18,13 +15,20 @@ export interface WorkbenchTab<TId extends string = string> {
 }
 
 interface WorkbenchPageShellProps<TId extends string = string> {
+  /**
+   * Page label for the screen-reader-only outline. The visual title
+   * row was removed because the active sidebar mode already names
+   * the page on every viewport (Linear / Foundry / Figma / VSCode
+   * pattern). Pass it anyway so assistive tech keeps the document
+   * outline; visually it's `sr-only`.
+   */
   title: string;
   /**
    * When true, the body region runs `overflow-hidden flex flex-col`
    * so the children can fill the viewport and own their internal
    * scroll (master-detail surfaces, canvas). When false (default),
-   * the body region scrolls as a single column with the standard
-   * container padding + max-width applied (cardlist surfaces).
+   * the body region scrolls as a single column and the shell wraps
+   * the children with the standard container padding + max-width.
    */
   fillBleed?: boolean;
   /**
@@ -42,29 +46,22 @@ interface WorkbenchPageShellProps<TId extends string = string> {
    */
   bodyPadding?: "default" | "narrow" | "flush";
   /**
-   * Optional descriptive context. Surfaces as a hover/focus tooltip
-   * on a small info icon next to the title rather than inline copy
-   * — matches the Linear / Stripe / Foundry pattern where the page
-   * title earns its own line and the description is on-demand. The
-   * sidebar already names the page and a verbose inline subtitle
-   * pushed the count + actions row off-balance on every reload.
-   * For an item count, use `count`.
-   */
-  subtitle?: string;
-  /**
-   * Total item count rendered as a counter beside the title. Dimmed
-   * when `pageState` is `loading`/`error` (data isn't authoritative
-   * yet). Pass `undefined` to omit.
+   * Total item count rendered as a counter inside the chrome row.
+   * Dimmed when `pageState` is `loading`/`error` (data isn't
+   * authoritative yet). Pass `undefined` to omit.
    */
   count?: number;
   /**
-   * Primary header actions (right side). Always visible — these are
-   * the page-level CTAs (e.g. "New Project") that should remain
-   * reachable in every state.
+   * Primary header actions (right side of the chrome row). Always
+   * visible — these are the page-level CTAs (e.g. "New Draft") that
+   * should remain reachable in every state.
    */
   actions?: ReactNode;
   /**
-   * Filter / search row rendered below the title. Hidden in
+   * Filter / search row rendered as a separate strip when there
+   * are tabs (so tabs and filters don't fight for the same line).
+   * When there are no tabs, filters fold into the chrome row beside
+   * the count for a tighter layout. Hidden in
    * `loading` / `error` / `empty` states because there is nothing
    * to filter. Visible in `data` and `filtered-empty` so the user
    * can adjust or clear the active filter set.
@@ -83,11 +80,15 @@ interface WorkbenchPageShellProps<TId extends string = string> {
 
 const DEFAULT_STATE: PageState = { kind: "data" };
 
+// Standardized horizontal padding — same on every chrome strip and
+// the default body container so the layout reads as a single column
+// from sidebar edge to gutter.
+const ROW_PADDING_X = "px-4 sm:px-6 lg:px-8";
+
 export function WorkbenchPageShell<TId extends string = string>({
   title,
   fillBleed = false,
   bodyPadding = "default",
-  subtitle,
   count,
   actions,
   filters,
@@ -98,65 +99,81 @@ export function WorkbenchPageShell<TId extends string = string>({
   children,
 }: WorkbenchPageShellProps<TId>) {
   const interactive = isInteractive(pageState);
+  const hasTabs = !!(tabs && tabs.length > 0 && activeTab && onTabChange);
+  const filtersVisible = !!filters && interactive;
+  // When tabs exist filters get their own strip; when there are no
+  // tabs filters share the chrome row with the count + actions for
+  // density.
+  const filtersInChrome = filtersVisible && !hasTabs;
+  const filtersStandalone = filtersVisible && hasTabs;
+  const showChromeRow =
+    hasTabs ||
+    typeof count === "number" ||
+    !!actions ||
+    filtersInChrome;
+
   const bodyClass = fillBleed
     ? null
     : bodyPadding === "narrow"
-      ? "mx-auto w-full max-w-3xl px-4 sm:px-6 lg:px-8 py-6"
+      ? `mx-auto w-full max-w-3xl ${ROW_PADDING_X} py-6`
       : bodyPadding === "default"
-        ? "mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6"
+        ? `mx-auto w-full max-w-7xl ${ROW_PADDING_X} py-6`
         : null;
+
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-11 shrink-0 items-center justify-between gap-4 border-b border-divider px-4 sm:px-6 lg:px-8">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="shrink-0 text-base font-semibold tracking-tight text-foreground-strong">
-            {title}
-          </h1>
-          {typeof count === "number" && (
-            <span
-              className={cn(
-                "shrink-0 rounded-full bg-surface-inset px-2 py-0.5 text-2xs font-medium tabular-nums",
-                interactive ? "text-foreground-muted" : "text-foreground-muted/50",
-              )}
-              aria-live="polite"
-            >
-              {count}
-            </span>
-          )}
-          {subtitle && (
-            <Tooltip content={subtitle} side="bottom">
-              <button
-                type="button"
-                aria-label={subtitle}
-                className="shrink-0 rounded p-0.5 text-foreground-muted/70 hover:text-foreground-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40"
-              >
-                <HugeiconsIcon
-                  icon={InformationCircleIcon}
-                  className="h-3.5 w-3.5"
-                  size="100%"
-                />
-              </button>
-            </Tooltip>
-          )}
-        </div>
-        {actions && (
-          <div className="flex shrink-0 items-center gap-2">{actions}</div>
-        )}
-      </header>
+      {/* Document outline anchor — visual title is absent on purpose
+          (sidebar already names the page; an inline H1 was visual
+          noise + duplicate landmark). Screen readers still get a
+          stable heading so the page outline reads cleanly. */}
+      <h1 className="sr-only">{title}</h1>
 
-      {filters && interactive && (
-        <div className="flex min-h-10 shrink-0 items-center gap-2 border-b border-divider px-4 py-2 sm:px-6 lg:px-8">
-          {filters}
+      {showChromeRow && (
+        <div
+          className={cn(
+            "flex h-11 shrink-0 items-center justify-between gap-3 border-b border-divider",
+            ROW_PADDING_X,
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            {hasTabs && (
+              <TabBar
+                tabs={[...tabs!]}
+                activeTab={activeTab!}
+                onTabChange={(id) => onTabChange!(id as TId)}
+              />
+            )}
+            {typeof count === "number" && (
+              <span
+                className={cn(
+                  "shrink-0 rounded-full bg-surface-inset px-2 py-0.5 text-2xs font-medium tabular-nums",
+                  interactive
+                    ? "text-foreground-muted"
+                    : "text-foreground-muted/50",
+                )}
+                aria-live="polite"
+              >
+                {count}
+              </span>
+            )}
+            {filtersInChrome && (
+              <div className="flex min-w-0 items-center gap-2">{filters}</div>
+            )}
+          </div>
+          {actions && (
+            <div className="flex shrink-0 items-center gap-2">{actions}</div>
+          )}
         </div>
       )}
 
-      {tabs && tabs.length > 0 && activeTab && onTabChange && (
-        <div className="flex h-9 shrink-0 items-center border-b border-divider px-3 sm:px-5 lg:px-7">
-          <TabBar
-            tabs={[...tabs]}
-            activeTab={activeTab}
-            onTabChange={(id) => onTabChange(id as TId)}
-          />
+      {filtersStandalone && (
+        <div
+          className={cn(
+            "flex min-h-10 shrink-0 items-center gap-2 border-b border-divider py-2",
+            ROW_PADDING_X,
+          )}
+        >
+          {filters}
         </div>
       )}
 

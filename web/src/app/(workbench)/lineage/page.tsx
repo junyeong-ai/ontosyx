@@ -358,7 +358,7 @@ export default function LineageSettingsPage() {
         : { kind: "data" };
 
   return (
-    <WorkbenchPageShell title={t("title")} subtitle={t("description")}>
+    <WorkbenchPageShell title={t("title")}>
       <PageStateView
           state={pageState}
           skeleton={<SkeletonTable rows={6} cols={5} />}

@@ -1671,7 +1671,6 @@
       },
       "codeSystems": {
         "pageTitle": "Code systems",
-        "pageSubtitle": "Registered terminology systems (national codes, units, internal taxonomies). Properties bind to ValueSets sliced from these systems.",
         "noOntology": "No committed ontology available — create one in Design mode before editing code systems.",
         "listHeading": "{count, plural, =0 {No code systems} one {# code system} other {# code systems}}",
         "createButton": "Add",
@@ -1737,7 +1736,6 @@
       },
       "notationPatterns": {
         "pageTitle": "Notation patterns",
-        "pageSubtitle": "Structured identifier formats (campaign codes, SKU patterns, sample IDs). Property bindings reference a pattern so SHACL `MatchesPattern` can validate inline values.",
         "noOntology": "No committed ontology available — create one in Design mode before editing notation patterns.",
         "listHeading": "{count, plural, =0 {No patterns} one {# pattern} other {# patterns}}",
         "createButton": "Add",
@@ -1782,7 +1780,6 @@
       },
       "valueSets": {
         "pageTitle": "Value sets",
-        "pageSubtitle": "Bounded subsets of one or more code systems. Properties bind to a value set so write-time validation can enforce membership.",
         "noOntology": "No committed ontology available — create one in Design mode before editing value sets.",
         "listHeading": "{count, plural, =0 {No value sets} one {# value set} other {# value sets}}",
         "createButton": "Add",
@@ -1832,7 +1829,6 @@
       },
       "conceptMaps": {
         "pageTitle": "Concept maps",
-        "pageSubtitle": "Translations between two code systems. The compiler rewrites literal codes through these maps before query execution (Φ3-E).",
         "noOntology": "No committed ontology available — create one in Design mode before editing concept maps.",
         "listHeading": "{count, plural, =0 {No concept maps} one {# concept map} other {# concept maps}}",
         "createButton": "Add",
@@ -1881,7 +1877,6 @@
       },
       "rules": {
         "pageTitle": "Rules",
-        "pageSubtitle": "SHACL-style validation shapes. The runtime enforces them at write / read / batch time depending on the rule's `enforcement` setting.",
         "noOntology": "No committed ontology available — create one in Design mode before editing rules.",
         "listHeading": "{count, plural, =0 {No rules} one {# rule} other {# rules}}",
         "createButton": "Add",
@@ -2218,7 +2213,6 @@
     },
     "recipes": {
       "title": "Analysis Recipes",
-      "description": "Reusable data analysis algorithms. The agent searches these before writing custom code.",
       "searchPlaceholder": "Search by name or description...",
       "newRecipe": "New Recipe",
       "emptyAll": "No recipes yet. The agent will create recipes when analyses produce useful results.",
@@ -3294,7 +3288,6 @@
     },
     "glossary": {
       "heading": "Glossary",
-      "subtitle": "Workspace canon vocabulary — anchors referenced by nodes, edges, and properties.",
       "noOntology": {
         "title": "No committed ontology",
         "description": "Create one in Design mode first — the workbench reads vocabulary off the latest committed ontology snapshot."
@@ -3361,7 +3354,6 @@
     },
     "vocabulary": {
       "heading": "Vocabulary",
-      "subtitle": "Workspace-scoped registries — code systems, value sets, and the rest of the domain vocabulary the glossary anchors against.",
       "tabsAria": "Vocabulary registry",
       "tabs": {
         "code-systems": "Code systems",
@@ -5195,7 +5187,6 @@
   },
   "lineage": {
     "title": "Data Lineage",
-    "description": "Trace how source data flows into your knowledge graph.",
     "noOntology": "No committed ontology available — create one in Design mode before reviewing lineage.",
     "summary": {
       "labels": "Graph Labels",
@@ -5230,7 +5221,6 @@
   },
   "mappings": {
     "pageTitle": "Mappings",
-    "pageSubtitle": "Physical-to-logical mapping layer — ObjectMapping binds a node type to one source relation; LinkMapping binds an edge type to a foreign-key, bridge, computed, or federated topology.",
     "noOntology": "No committed ontology available — create one in Design mode before editing mappings.",
     "addLabel": "Add",
     "listHeading": {

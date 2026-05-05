@@ -50,7 +50,6 @@ export function VocabularyWorkbench() {
   return (
     <WorkbenchPageShell
       title={t("heading")}
-      subtitle={t("subtitle")}
       tabs={tabItems}
       activeTab={tab}
       onTabChange={setTab}

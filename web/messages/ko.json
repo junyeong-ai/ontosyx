@@ -1671,7 +1671,6 @@
       },
       "codeSystems": {
         "pageTitle": "코드 시스템",
-        "pageSubtitle": "등록된 용어 체계(국가 코드, 단위, 내부 분류). 속성은 이 시스템에서 잘라낸 ValueSet 에 바인딩됩니다.",
         "noOntology": "대표 온톨로지가 없습니다 — 코드 시스템 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {코드 시스템 없음} other {코드 시스템 #개}}",
         "createButton": "추가",
@@ -1737,7 +1736,6 @@
       },
       "notationPatterns": {
         "pageTitle": "표기 패턴",
-        "pageSubtitle": "구조화된 식별자 형식(캠페인 코드, SKU 패턴, 샘플 ID). 속성 바인딩이 패턴을 참조하면 SHACL `MatchesPattern` 이 인라인 값을 검증합니다.",
         "noOntology": "대표 온톨로지가 없습니다 — 표기 패턴 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {패턴 없음} other {패턴 #개}}",
         "createButton": "추가",
@@ -1782,7 +1780,6 @@
       },
       "valueSets": {
         "pageTitle": "값 집합",
-        "pageSubtitle": "하나 이상의 코드 시스템을 슬라이스한 제한 집합. 속성이 값 집합에 바인딩되면 쓰기 시점에 멤버십 검증이 적용됩니다.",
         "noOntology": "대표 온톨로지가 없습니다 — 값 집합 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {값 집합 없음} other {값 집합 #개}}",
         "createButton": "추가",
@@ -1832,7 +1829,6 @@
       },
       "conceptMaps": {
         "pageTitle": "개념 매핑",
-        "pageSubtitle": "두 코드 시스템 간 번역. 컴파일러는 쿼리 실행 전 리터럴 코드를 이 매핑을 통해 재작성합니다 (Φ3-E).",
         "noOntology": "대표 온톨로지가 없습니다 — 개념 매핑 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {개념 매핑 없음} other {개념 매핑 #개}}",
         "createButton": "추가",
@@ -1881,7 +1877,6 @@
       },
       "rules": {
         "pageTitle": "규칙",
-        "pageSubtitle": "SHACL 스타일 검증 형태. 런타임이 `enforcement` 설정에 따라 쓰기/읽기/배치 시점에 강제합니다.",
         "noOntology": "대표 온톨로지가 없습니다 — 규칙 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {규칙 없음} other {규칙 #개}}",
         "createButton": "추가",
@@ -2218,7 +2213,6 @@
     },
     "recipes": {
       "title": "분석 레시피",
-      "description": "재사용 가능한 데이터 분석 알고리즘입니다. 에이전트가 커스텀 코드를 작성하기 전에 레시피를 먼저 검색합니다.",
       "searchPlaceholder": "이름 또는 설명으로 검색…",
       "newRecipe": "새 레시피",
       "emptyAll": "아직 레시피가 없습니다. 분석 결과가 유용할 때 에이전트가 자동으로 레시피를 생성합니다.",
@@ -3294,7 +3288,6 @@
     },
     "glossary": {
       "heading": "용어집",
-      "subtitle": "워크스페이스의 표준 어휘 — 노드 · 엣지 · 속성이 anchor 로 참조하는 대표 용어를 관리합니다.",
       "noOntology": {
         "title": "대표 온톨로지 없음",
         "description": "먼저 Design 모드에서 온톨로지를 만드세요 — Glossary 워크벤치는 가장 최근 등록된 대표 온톨로지 스냅샷의 어휘를 읽습니다."
@@ -3361,7 +3354,6 @@
     },
     "vocabulary": {
       "heading": "어휘",
-      "subtitle": "워크스페이스 범위 어휘 레지스트리 — 코드 시스템, 값 집합 등 용어집이 앵커하는 도메인 어휘를 관리합니다.",
       "tabsAria": "어휘 레지스트리",
       "tabs": {
         "code-systems": "코드 시스템",
@@ -5195,7 +5187,6 @@
   },
   "lineage": {
     "title": "데이터 리니지",
-    "description": "소스 데이터가 지식 그래프로 어떻게 흐르는지 추적합니다.",
     "noOntology": "대표 온톨로지가 없습니다 — 리니지 검토 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
     "summary": {
       "labels": "그래프 라벨",
@@ -5230,7 +5221,6 @@
   },
   "mappings": {
     "pageTitle": "매핑",
-    "pageSubtitle": "물리-논리 매핑 레이어 — ObjectMapping 은 노드 타입을 하나의 source relation 에 바인딩하고, LinkMapping 은 엣지 타입을 foreign-key / bridge / computed / federated 토폴로지에 바인딩합니다.",
     "noOntology": "대표 온톨로지가 없습니다 — 매핑 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
     "addLabel": "추가",
     "listHeading": {

@@ -231,7 +231,7 @@ export function GlossaryWorkbench() {
 
   if (ontologyDetailQuery.isLoading) {
     return (
-      <WorkbenchPageShell title={t("heading")} subtitle={t("subtitle")}>
+      <WorkbenchPageShell title={t("heading")}>
         <div className="px-6 py-6">
           <SkeletonList count={6} />
         </div>
@@ -241,7 +241,7 @@ export function GlossaryWorkbench() {
 
   if (ontologyDetailQuery.isError) {
     return (
-      <WorkbenchPageShell title={t("heading")} subtitle={t("subtitle")}>
+      <WorkbenchPageShell title={t("heading")}>
         <div className="flex h-full items-center justify-center px-6 py-12">
           <ErrorState
             title={tCommon("loadError.title")}
@@ -256,7 +256,7 @@ export function GlossaryWorkbench() {
 
   if (!ontology || !ontologyMeta) {
     return (
-      <WorkbenchPageShell title={t("heading")} subtitle={t("subtitle")}>
+      <WorkbenchPageShell title={t("heading")}>
         <div className="flex h-full items-center justify-center px-6 py-12">
           <EmptyState
             icon={BookOpen01Icon}

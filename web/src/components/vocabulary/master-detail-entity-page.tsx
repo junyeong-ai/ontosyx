@@ -38,8 +38,6 @@ import type { OntologyIR } from "@/types/ontology";
 export interface MasterDetailEntityPageLabels {
   /** Page title. */
   title: string;
-  /** One-line subtitle below the title. */
-  subtitle: string;
   /** "No committed ontology yet" amber banner copy. */
   noOntology: string;
   /** List-pane heading — "코드 시스템 N개" / "Code system" pattern. */
@@ -202,9 +200,12 @@ export function MasterDetailEntityPage<T extends { id?: string }>({
   }
 
   if (!ontology) {
+    // Self-managed padding for the gate view — the parent shell
+    // runs in `fillBleed` mode (master-detail surface), so the
+    // body has no container. Mirror the standard chrome padding so
+    // the warning sits where the chrome row above does.
     return (
-      <div className="flex flex-col gap-4">
-        <p className="text-xs text-foreground-muted">{labels.subtitle}</p>
+      <div className="flex flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
         <p className="rounded-md border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground">
           {labels.noOntology}
         </p>

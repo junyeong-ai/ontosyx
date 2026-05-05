@@ -213,7 +213,6 @@ export default function MappingsAdminPage() {
   return (
     <WorkbenchPageShell
       title={t("pageTitle")}
-      subtitle={t("pageSubtitle")}
       fillBleed
       pageState={pageState}
       tabs={[

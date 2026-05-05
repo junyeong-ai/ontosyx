@@ -149,7 +149,6 @@ export function RecipesWorkbench() {
   return (
     <WorkbenchPageShell
       title={t("title")}
-      subtitle={t("description")}
       count={recipes.length}
       pageState={pageState}
       actions={

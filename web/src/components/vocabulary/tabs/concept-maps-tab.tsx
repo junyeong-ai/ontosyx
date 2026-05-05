@@ -38,7 +38,6 @@ export function ConceptMapsTab() {
       )}
       labels={{
         title: t("pageTitle"),
-        subtitle: t("pageSubtitle"),
         noOntology: t("noOntology"),
         listHeading: (count) => t("listHeading", { count }),
         createButton: t("createButton"),
