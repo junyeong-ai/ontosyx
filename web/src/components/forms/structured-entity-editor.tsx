@@ -4,6 +4,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { SaveBar } from "@/components/ui/save-bar";
+import { snapshotEqual } from "@/lib/snapshot-equal";
 import {
   type EntitySchema,
   type FieldError,
@@ -33,12 +34,6 @@ interface StructuredEntityEditorProps<T> {
   pending?: boolean;
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
-  // Stable-key JSON.stringify for shallow compares. Sufficient for
-  // the IR shapes we edit (no functions, no Date, no circular refs).
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
 export function StructuredEntityEditor<T>({
   schema,
   initial,
@@ -55,7 +50,7 @@ export function StructuredEntityEditor<T>({
   const [submitted, setSubmitted] = useState(false);
 
   const dirty = useMemo(
-    () => !deepEqual(record, initialOrDefault),
+    () => !snapshotEqual(record, initialOrDefault),
     [record, initialOrDefault],
   );
 
