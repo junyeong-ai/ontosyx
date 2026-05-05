@@ -22,7 +22,6 @@ sha2 = { workspace = true }
 rand = { workspace = true }
 
 [dev-dependencies]
-ox-compiler = { workspace = true }
 ox-ontology = { workspace = true, features = ["test-fixtures"] }
 # `advisory_lock_integration` spawns parallel callers and joins
 # them via `futures::future::join_all`; only the integration

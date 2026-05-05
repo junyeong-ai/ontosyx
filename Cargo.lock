@@ -5291,7 +5291,6 @@ dependencies = [
  "async-trait",
  "chrono",
  "futures",
- "ox-compiler",
  "ox-core",
  "ox-ontology",
  "ox-query-ir",
