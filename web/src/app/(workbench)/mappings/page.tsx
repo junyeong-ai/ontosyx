@@ -361,7 +361,7 @@ function ListPane({
                   type="button"
                   onClick={() => onSelect(id)}
                   className={cn(
-                    "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-xs transition-colors duration-[var(--duration-quick)]",
+                    "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-start text-xs transition-colors duration-[var(--duration-quick)]",
                     isSelected
                       ? "bg-brand-surface text-brand-foreground"
                       : "text-foreground hover:bg-surface-hover",

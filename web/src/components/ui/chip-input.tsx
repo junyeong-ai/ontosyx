@@ -180,7 +180,7 @@ export function ChipInput<T = string>(props: ChipInputProps<T>) {
         placeholder={values.length === 0 ? placeholder : undefined}
         aria-label={ariaLabel}
         aria-describedby={describedBy}
-        className="min-w-[8ch] flex-1 bg-transparent text-sm placeholder:text-foreground-subtle focus:outline-none disabled:cursor-not-allowed"
+        className="min-w-[8ch] flex-1 bg-transparent text-sm placeholder:text-foreground-subtle focus:outline-none focus-visible:ring-1 focus-visible:ring-ring-default disabled:cursor-not-allowed"
       />
     </div>
   );

@@ -92,7 +92,7 @@ export function EntityWorkbench<T>({
               onClick={() => setAuxOpen((v) => !v)}
               icon={ArrowRight}
               className={cn(
-                "absolute right-2 top-2 z-10",
+                "absolute end-2 top-2 z-canvas",
                 auxOpen && "rotate-180",
               )}
             />

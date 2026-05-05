@@ -106,10 +106,29 @@ const ALLOW_LIST = {
     // Test fixture — exercises the workbench page shell with a
     // synthetic raw input to verify aria-live region wiring.
     "src/components/workbench/__tests__/workbench-page-shell.test.tsx",
+    // ChipInput primitive — the bare `<input>` is the cursor row
+    // inside the chip-rendering wrapper. The wrapper carries the
+    // visible focus-within ring; routing through `FormInput` would
+    // either collapse the chip+input composition or duplicate the
+    // chip-tag rendering inside FormInput's surface area.
+    "src/components/ui/chip-input.tsx",
+    // LocalizedTextInput primitive — the multiline branch ships a
+    // bare `<textarea>` because FormInput is single-line only.
+    // Promoting multiline into FormInput would either fork the
+    // primitive or carry textarea-only props on the input shape.
+    "src/components/forms/primitives/localized-text-input.tsx",
   ]),
   baseUi: new Set([
     "src/components/providers/confirm-provider.tsx",
     "src/components/providers/prompt-provider.tsx",
+    // WelcomeModal — the multi-step onboarding wizard with
+    // `AnimatePresence` between slides. The Modal primitive
+    // is the standard single-pane shape; promoting wizard
+    // pagination + per-slide motion choreography into Modal
+    // would either bloat the primitive's API surface or fork
+    // it. The bare `<Dialog>` here owns the wizard-specific
+    // shape that doesn't recur elsewhere.
+    "src/components/onboarding/welcome-modal.tsx",
   ]),
   rawKbd: new Set([
     // The KeyboardShortcut primitive is the one and only place where

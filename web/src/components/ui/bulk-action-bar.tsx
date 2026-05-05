@@ -77,7 +77,7 @@ export function BulkActionBar({
   return (
     <div
       className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-6 z-30 mx-auto flex max-w-2xl",
+        "pointer-events-none fixed inset-x-0 bottom-6 z-presence mx-auto flex max-w-2xl",
         "items-center justify-between gap-3 rounded-xl border border-divider",
         "bg-surface-overlay px-4 py-3 shadow-2",
         "transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",

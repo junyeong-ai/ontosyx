@@ -59,7 +59,7 @@ export function SaveBar({
           ) : lastSavedAt ? (
             <RelativeTimestamp iso={lastSavedAt} />
           ) : null}
-          {notice && <span className="ml-2">{notice}</span>}
+          {notice && <span className="ms-2">{notice}</span>}
         </div>
         <Button
           variant="ghost"
