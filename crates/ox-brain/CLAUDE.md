@@ -21,6 +21,41 @@ All `structured_completion` calls use `SystemPrompt::Blocks` with `CacheTtl::One
 
 `knowledge_rag.rs` retrieves learned corrections from the knowledge store. These are injected into the LLM prompt to prevent repeat mistakes. Corrections are per-ontology and version-scoped.
 
+## Evaluation capture hook
+
+`DefaultBrain::call_structured_traced` records a
+`latency_ms.<operation>` metric whenever **two** conditions hold:
+
+1. The calling task has an `EvaluationContext` bound (set by
+   `ox_store::scope_evaluation_context` higher up the stack —
+   typically by an evaluation-run endpoint that's iterating
+   cases).
+2. The Brain was built with
+   `Brain::with_evaluation_capture(arc)` — `Arc<dyn EvaluationCapture>`,
+   typically the canonical `PostgresStore` upcast.
+
+Both branches short-circuit when their condition is missing, so
+production traffic without an evaluation scope pays nothing.
+Capture-side write failures are logged at `warn` and dropped —
+the LLM call already succeeded, the metric is observability,
+not load-bearing. Mirrors the wider observability policy
+(rewriter param-collision warnings, request-id correlation).
+
+Adding a new captured axis:
+
+- Extend `EvaluationCapture` with a fresh `record_<axis>` method
+  in `ox-store/src/evaluation.rs`. Default to a noop so existing
+  consumers (the `NullEvaluationCapture` test stub, plus any
+  consumer that hasn't migrated to the new axis) keep working.
+- Call `capture.record_<axis>(&ctx, …)` from the corresponding
+  Brain hook site. Same dual-condition shape — `current_evaluation_context()
+  + self.evaluation_capture.as_ref()`.
+
+Don't bake the axis into `call_structured_traced` directly when
+the new metric needs the LLM call's output (faithfulness,
+relevance) — those route through a separate judge invocation
+that builds its own capture call.
+
 ## Query Translation Pipeline
 
 `translate_query()` follows a 3-tier fallback: StructuredMatchQuery (structured output, the LLM-oriented shape of `QueryOp::Match`) → QueryIR (JSON mode) → retry with error context. Each tier emits `ctx.progress()` events for real-time visibility.
