@@ -3,14 +3,13 @@
 // /settings/knowledge/mappings — master-detail CRUD page for the
 // physical-to-logical mapping layer (ObjectMapping + LinkMapping).
 //
-// The mapping shapes carry rich physical-layer metadata
-// (ColumnRef, SourceRelationRef, branching LinkMappingKind
-// variants) that don't have a typed FE schema yet, so the editor
-// layer is still `JsonRecordEditor` — the dual-mode pattern
-// (cf. dbt's model YAML) preserves every field while form helpers
-// can land per kind. Industry pattern (Linear / Stripe / Sanity):
-// list-pane + always-visible editor, modal reserved for destructive
-// confirms.
+// Both mapping kinds are edited through the typed schema-driven form
+// (`StructuredEntityEditor`) so every field — discriminated
+// LinkMappingKind variants, nested ColumnRef / EndpointRef compounds,
+// PropertyMappingDef rows with their own location / transform branches
+// — round-trips with full type fidelity. Industry pattern
+// (Linear / Stripe / Sanity): list-pane + always-visible editor,
+// modal reserved for destructive confirms.
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -32,10 +31,9 @@ import { toast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { EntityWorkbench } from "@/components/workbench/entity-workbench";
 import { IntegrityIssuesBanner } from "@/components/ontology/integrity-issues-banner";
-import {
-  JsonRecordEditor,
-  type JsonRecordEditorLabels,
-} from "@/components/vocabulary/json-record-editor";
+import { StructuredEntityEditor } from "@/components/forms/structured-entity-editor";
+import { linkMappingSchema } from "@/components/forms/schemas/link-mapping.schema";
+import { objectMappingSchema } from "@/components/forms/schemas/object-mapping.schema";
 import {
   useOntologies,
   useOntologyDetail,
@@ -52,50 +50,9 @@ import type {
 } from "@/lib/api/edit-ops";
 import { cn } from "@/lib/cn";
 
-const OBJECT_MAPPING_HINT = `{
-  "id": "om-customer",
-  "node_type_id": "node-customer",
-  "source_id": "src-postgres",
-  "relation": { "schema": "public", "table": "customers" },
-  "primary_key_columns": [{ "name": "id" }],
-  "property_mappings": []
-}`;
-
-const LINK_MAPPING_HINT = `{
-  "id": "lm-customer-orders",
-  "edge_type_id": "edge-placed",
-  "kind": {
-    "kind": "foreign_key",
-    "source_column": { "name": "customer_id" },
-    "target_column": { "name": "id" }
-  },
-  "cardinality": "OneToMany"
-}`;
-
 type MappingTab = "object" | "link";
 const TAB_PARAM = "kind";
 const ID_PARAM = "id";
-
-type MappingsTranslator = (
-  key: string,
-  values?: Record<string, string | number | Date>,
-) => string;
-
-function mappingLabels(
-  t: MappingsTranslator,
-  kind: MappingTab,
-): JsonRecordEditorLabels {
-  return {
-    title: t(kind === "object" ? "objectMapping" : "linkMapping"),
-    jsonLabel: t("jsonLabel"),
-    submitCreate: t("submitCreate"),
-    submitUpdate: t("submitUpdate"),
-    cancel: t("cancel"),
-    errorEmpty: t("error.empty"),
-    errorInvalidJsonTemplate: (message) =>
-      t("error.invalidJson", { message }),
-  };
-}
 
 function mappingId(m: ObjectMappingDef | LinkMappingDef): string {
   return (m as { id?: string }).id ?? "";
@@ -318,7 +275,6 @@ export default function MappingsAdminPage() {
                 isDraft={isDraft}
                 selected={selected}
                 ontologyId={ontology?.id ?? null}
-                labels={mappingLabels(t, tab)}
                 deleteLabel={t("deleteButton")}
                 draftTitle={t(`createDialog.${tab}Title`)}
                 nothingTitle={tWorkbench("nothingSelected.title")}
@@ -498,7 +454,6 @@ interface DetailPaneProps {
   isDraft: boolean;
   selected: ObjectMappingDef | LinkMappingDef | null;
   ontologyId: string | null;
-  labels: JsonRecordEditorLabels;
   deleteLabel: string;
   draftTitle: string;
   nothingTitle: string;
@@ -517,7 +472,6 @@ function DetailPane({
   isDraft,
   selected,
   ontologyId,
-  labels,
   deleteLabel,
   draftTitle,
   nothingTitle,
@@ -547,18 +501,6 @@ function DetailPane({
   }
   const title = isDraft ? draftTitle : selected ? mappingId(selected) : "";
 
-  const onSubmit = isDraft
-    ? tab === "object"
-      ? (def: ObjectMappingDef | LinkMappingDef) =>
-          onCreateObject(def as ObjectMappingDef)
-      : (def: ObjectMappingDef | LinkMappingDef) =>
-          onCreateLink(def as LinkMappingDef)
-    : tab === "object"
-      ? (def: ObjectMappingDef | LinkMappingDef) =>
-          onUpdateObject(def as ObjectMappingDef)
-      : (def: ObjectMappingDef | LinkMappingDef) =>
-          onUpdateLink(def as LinkMappingDef);
-
   return (
     <div className="flex h-full min-w-0 flex-col">
       <header className="flex items-center gap-3 border-b border-divider px-4 py-3">
@@ -580,14 +522,27 @@ function DetailPane({
         {!isDraft && issues.length > 0 && (
           <IntegrityIssuesBanner issues={issues} />
         )}
-        <JsonRecordEditor
-          initial={isDraft ? undefined : selected ?? undefined}
-          schemaHint={tab === "object" ? OBJECT_MAPPING_HINT : LINK_MAPPING_HINT}
-          labels={labels}
-          onSubmit={onSubmit}
-          onCancel={isDraft ? onCancelDraft : () => undefined}
-          pending={pending}
-        />
+        {tab === "object" ? (
+          <StructuredEntityEditor<ObjectMappingDef>
+            schema={objectMappingSchema}
+            initial={
+              isDraft ? undefined : (selected as ObjectMappingDef) ?? undefined
+            }
+            onSubmit={isDraft ? onCreateObject : onUpdateObject}
+            onCancel={isDraft ? onCancelDraft : undefined}
+            pending={pending}
+          />
+        ) : (
+          <StructuredEntityEditor<LinkMappingDef>
+            schema={linkMappingSchema}
+            initial={
+              isDraft ? undefined : (selected as LinkMappingDef) ?? undefined
+            }
+            onSubmit={isDraft ? onCreateLink : onUpdateLink}
+            onCancel={isDraft ? onCancelDraft : undefined}
+            pending={pending}
+          />
+        )}
       </div>
     </div>
   );
