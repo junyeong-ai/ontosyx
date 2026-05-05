@@ -659,16 +659,18 @@ impl CypherValidator for OntologyValidator {
 
         // SET / REMOVE: walk every assignment / removal and verify the
         // property exists on at least one of the variable's bound
-        // labels. An LLM emitting `SET u.emial = 'x'` (typo) currently
+        // labels (node) or relationship types (edge). An LLM emitting
+        // `SET u.emial = 'x'` or `SET r.sicne = 2020` (typo) currently
         // slips past the schema — Cypher is schema-less, so the
         // driver silently writes a new property and the graph quietly
-        // drifts. The variable→labels resolution is shared with the
-        // SHACL validator (`CypherStatement::variable_labels`); when
-        // the variable is unbound (e.g. introduced by WITH or UNWIND)
-        // we cannot decide ontologically, so we skip rather than
-        // false-flag.
+        // drifts. Variable resolution is shared with SHACL via
+        // `CypherStatement::variable_labels`; when the variable is
+        // unbound to either a node label or an edge type (e.g.
+        // introduced by WITH / UNWIND) we cannot decide ontologically
+        // and silently skip.
         for statement in &ast.statements {
             let variable_labels = statement.variable_labels();
+            let variable_rel_types = statement.variable_relationship_types();
             for clause in &statement.clauses {
                 match clause.kind {
                     ClauseKind::Set => {
@@ -676,33 +678,16 @@ impl CypherValidator for OntologyValidator {
                             if is_system_property(&item.property) {
                                 continue;
                             }
-                            let Some(labels) = variable_labels.get(&item.variable) else {
-                                continue;
-                            };
-                            let known = labels.iter().any(|label| {
-                                self.ontology.node_by_label(label).is_some_and(|n| {
-                                    n.properties.iter().any(|p| p.name == item.property)
-                                })
-                            });
-                            if !known
-                                && seen_unknown_set_props
-                                    .insert((item.variable.clone(), item.property.clone()))
-                            {
-                                let label_list = labels.join("/");
-                                issues.push(
-                                    ValidationIssue::error(
-                                        "ontology",
-                                        diag("runtime.cypher.ontology.unknown_set_property")
-                                            .with("property", item.property.clone())
-                                            .with("variable", item.variable.clone())
-                                            .with("labels", label_list.clone())
-                                            .message(format!(
-                                                "SET assigns to property `{}` not defined on label `{label_list}` in the active ontology",
-                                                item.property,
-                                            )),
-                                    )
-                                    .with_span(item.span),
-                                );
+                            if let Some(issue) = self.check_write_property(
+                                &variable_labels,
+                                &variable_rel_types,
+                                &item.variable,
+                                &item.property,
+                                item.span,
+                                WriteKind::Set,
+                                &mut seen_unknown_set_props,
+                            ) {
+                                issues.push(issue);
                             }
                         }
                     }
@@ -711,33 +696,16 @@ impl CypherValidator for OntologyValidator {
                             if is_system_property(&item.property) {
                                 continue;
                             }
-                            let Some(labels) = variable_labels.get(&item.variable) else {
-                                continue;
-                            };
-                            let known = labels.iter().any(|label| {
-                                self.ontology.node_by_label(label).is_some_and(|n| {
-                                    n.properties.iter().any(|p| p.name == item.property)
-                                })
-                            });
-                            if !known
-                                && seen_unknown_remove_props
-                                    .insert((item.variable.clone(), item.property.clone()))
-                            {
-                                let label_list = labels.join("/");
-                                issues.push(
-                                    ValidationIssue::error(
-                                        "ontology",
-                                        diag("runtime.cypher.ontology.unknown_remove_property")
-                                            .with("property", item.property.clone())
-                                            .with("variable", item.variable.clone())
-                                            .with("labels", label_list.clone())
-                                            .message(format!(
-                                                "REMOVE targets property `{}` not defined on label `{label_list}` in the active ontology",
-                                                item.property,
-                                            )),
-                                    )
-                                    .with_span(item.span),
-                                );
+                            if let Some(issue) = self.check_write_property(
+                                &variable_labels,
+                                &variable_rel_types,
+                                &item.variable,
+                                &item.property,
+                                item.span,
+                                WriteKind::Remove,
+                                &mut seen_unknown_remove_props,
+                            ) {
+                                issues.push(issue);
                             }
                         }
                     }
@@ -756,6 +724,109 @@ impl CypherValidator for OntologyValidator {
 /// as opaque rather than flag them as unknown.
 fn is_system_property(key: &str) -> bool {
     key.starts_with('_')
+}
+
+#[derive(Clone, Copy)]
+enum WriteKind {
+    Set,
+    Remove,
+}
+
+impl OntologyValidator {
+    /// Resolve a SET / REMOVE write target against the ontology.
+    /// Tries node labels first (the common case — `SET u.email = …`
+    /// where `u` is a `Person`), falls back to relationship types
+    /// (`SET r.since = …` where `r` is `WORKS_AT`). Returns `None`
+    /// when the property is known on either side or the variable is
+    /// unbound (silent skip — we cannot decide ontologically); a
+    /// fresh `(variable, property)` pair otherwise produces an
+    /// issue. The dedup set is keyed per call site so SET and REMOVE
+    /// keep their own dedup spaces.
+    fn check_write_property(
+        &self,
+        variable_labels: &std::collections::HashMap<String, Vec<String>>,
+        variable_rel_types: &std::collections::HashMap<String, Vec<String>>,
+        variable: &str,
+        property: &str,
+        span: Span,
+        kind: WriteKind,
+        seen: &mut HashSet<(String, String)>,
+    ) -> Option<ValidationIssue> {
+        // Node-side: any of the variable's labels declares the property.
+        if let Some(labels) = variable_labels.get(variable) {
+            let known = labels.iter().any(|label| {
+                self.ontology
+                    .node_by_label(label)
+                    .is_some_and(|n| n.properties.iter().any(|p| p.name == property))
+            });
+            if known {
+                return None;
+            }
+            if !seen.insert((variable.to_string(), property.to_string())) {
+                return None;
+            }
+            let label_list = labels.join("/");
+            let (code, verb) = match kind {
+                WriteKind::Set => ("runtime.cypher.ontology.unknown_set_property", "SET assigns to"),
+                WriteKind::Remove => ("runtime.cypher.ontology.unknown_remove_property", "REMOVE targets"),
+            };
+            return Some(
+                ValidationIssue::error(
+                    "ontology",
+                    diag(code)
+                        .with("property", property.to_string())
+                        .with("variable", variable.to_string())
+                        .with("labels", label_list.clone())
+                        .message(format!(
+                            "{verb} property `{property}` not defined on label `{label_list}` in the active ontology",
+                        )),
+                )
+                .with_span(span),
+            );
+        }
+
+        // Edge-side: any of the variable's types declares the property.
+        if let Some(types) = variable_rel_types.get(variable) {
+            // A type-less relationship (`[r {…}]`) registers an empty
+            // `Vec` here — without a type we cannot resolve, so skip.
+            if types.is_empty() {
+                return None;
+            }
+            let known = types.iter().any(|ty| {
+                self.ontology
+                    .edge_types()
+                    .iter()
+                    .find(|e| e.label.as_str() == ty)
+                    .is_some_and(|e| e.properties.iter().any(|p| p.name == property))
+            });
+            if known {
+                return None;
+            }
+            if !seen.insert((variable.to_string(), property.to_string())) {
+                return None;
+            }
+            let type_list = types.join("|");
+            let (code, verb) = match kind {
+                WriteKind::Set => ("runtime.cypher.ontology.unknown_set_property", "SET assigns to"),
+                WriteKind::Remove => ("runtime.cypher.ontology.unknown_remove_property", "REMOVE targets"),
+            };
+            return Some(
+                ValidationIssue::error(
+                    "ontology",
+                    diag(code)
+                        .with("property", property.to_string())
+                        .with("variable", variable.to_string())
+                        .with("relationship_types", type_list.clone())
+                        .message(format!(
+                            "{verb} property `{property}` not defined on relationship type `{type_list}` in the active ontology",
+                        )),
+                )
+                .with_span(span),
+            );
+        }
+
+        None
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1738,6 +1809,72 @@ mod tests {
             r.errors().any(|e| e.message.message.contains("sicne")
                 && e.message.message.contains("relationship type")),
             "diagnostic must name the offending property + edge type: {:?}",
+            r.issues
+        );
+    }
+
+    #[test]
+    fn ontology_flags_unknown_set_property_on_relationship_variable() {
+        // `SET r.sicne = 2020` — the WORKS_AT edge type defines
+        // `since` but not `sicne`. Without edge-side resolution
+        // the typo would slip through (relationship variables
+        // never appear in the node-label map) and the driver
+        // would silently write a brand-new edge property.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (a:Person)-[r:WORKS_AT]->(b:Company) SET r.sicne = 2020 RETURN r",
+        );
+        assert!(r.has_errors(), "edge SET typo must be flagged");
+        assert!(
+            r.errors().any(|e| e.message.message.contains("sicne")
+                && e.message.message.contains("relationship type")),
+            "diagnostic must name relationship type: {:?}",
+            r.issues
+        );
+    }
+
+    #[test]
+    fn ontology_accepts_known_set_property_on_relationship_variable() {
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (a:Person)-[r:WORKS_AT]->(b:Company) SET r.since = 2020 RETURN r",
+        );
+        assert!(!r.has_errors(), "{:?}", r.issues);
+    }
+
+    #[test]
+    fn ontology_flags_unknown_remove_property_on_relationship_variable() {
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (a:Person)-[r:WORKS_AT]->(b:Company) REMOVE r.sicne RETURN r",
+        );
+        assert!(r.has_errors());
+        assert!(r
+            .errors()
+            .any(|e| e.message.message.contains("sicne")
+                && e.message.message.contains("REMOVE")));
+    }
+
+    #[test]
+    fn ontology_skips_set_on_typeless_relationship_variable() {
+        // `[r]` — anonymous-typed relationship; we cannot resolve
+        // ontologically, so SET on `r` is silent-skipped rather
+        // than false-flagged.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (a:Person)-[r]->(b:Company) SET r.foo = 1 RETURN r",
+        );
+        assert!(
+            !r.errors().any(|e| e.message.message.contains("foo")),
+            "type-less relationship SET must not raise an ontology error: {:?}",
             r.issues
         );
     }

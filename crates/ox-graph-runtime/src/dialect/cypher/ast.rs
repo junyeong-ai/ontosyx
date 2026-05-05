@@ -276,15 +276,16 @@ impl CypherAst {
 
 impl CypherStatement {
     /// Walk every pattern-bearing clause and collect the labels each
-    /// variable picks up. A variable can carry multiple labels across
-    /// MATCH / CREATE / MERGE — `MATCH (n:Person) MERGE (n:Customer)`
-    /// lands `n` with `[Person, Customer]` so downstream SET / REMOVE
-    /// checks fire against every applicable label. The first
-    /// declaration wins for ordering; duplicates are coalesced.
+    /// **node** variable picks up. A variable can carry multiple
+    /// labels across MATCH / CREATE / MERGE — `MATCH (n:Person)
+    /// MERGE (n:Customer)` lands `n` with `[Person, Customer]` so
+    /// downstream SET / REMOVE checks fire against every applicable
+    /// label. The first declaration wins for ordering; duplicates
+    /// are coalesced.
     ///
-    /// Used by the ontology validator (unknown SET / REMOVE properties)
-    /// and the SHACL validator (PropertyShape resolution); shared so a
-    /// single walk feeds both.
+    /// Used by the ontology validator (unknown SET / REMOVE properties
+    /// on a node variable) and the SHACL validator (PropertyShape
+    /// resolution); shared so a single walk feeds both.
     pub fn variable_labels(&self) -> std::collections::HashMap<String, Vec<String>> {
         let mut out: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
@@ -307,6 +308,47 @@ impl CypherStatement {
                         for label in &node.labels {
                             if !entry.contains(label) {
                                 entry.push(label.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Same as [`Self::variable_labels`] but for **relationship**
+    /// variables: the types each `r` in `[r:T1|T2]` is bound to.
+    /// Used by the ontology validator to flag SET / REMOVE typos on
+    /// edge properties (`SET r.sicne = 2020` when WORKS_AT defines
+    /// `since`). Anonymous relationship patterns (no variable) and
+    /// patterns without explicit types contribute nothing — without
+    /// a type we cannot resolve ontologically and silently skip is
+    /// the safer call than a false flag.
+    pub fn variable_relationship_types(
+        &self,
+    ) -> std::collections::HashMap<String, Vec<String>> {
+        let mut out: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for clause in &self.clauses {
+            if !matches!(
+                clause.kind,
+                ClauseKind::Match
+                    | ClauseKind::OptionalMatch
+                    | ClauseKind::Create
+                    | ClauseKind::Merge
+            ) {
+                continue;
+            }
+            for pattern in &clause.patterns {
+                for element in &pattern.elements {
+                    if let CypherPatternElement::Relationship(rel) = element
+                        && let Some(var) = &rel.variable
+                    {
+                        let entry = out.entry(var.clone()).or_default();
+                        for ty in &rel.types {
+                            if !entry.contains(ty) {
+                                entry.push(ty.clone());
                             }
                         }
                     }
