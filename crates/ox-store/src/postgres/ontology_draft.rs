@@ -60,7 +60,7 @@ impl OntologyDraftStore for PostgresStore {
         let rows = match pagination.cursor_parts() {
             Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, OntologyDraftSummary>(
                 "SELECT id, status, revision, user_id, title, source_config, parent_version_id,
-                        created_at, updated_at, analyzed_at
+                        committed_version_id, created_at, updated_at, analyzed_at
                  FROM ontology_drafts
                  WHERE archived_at IS NULL AND (updated_at, id) < ($1, $2)
                  ORDER BY updated_at DESC, id DESC
@@ -74,7 +74,7 @@ impl OntologyDraftStore for PostgresStore {
             .map_err(to_ox_error)?,
             None => sqlx::query_as::<_, OntologyDraftSummary>(
                 "SELECT id, status, revision, user_id, title, source_config, parent_version_id,
-                        created_at, updated_at, analyzed_at
+                        committed_version_id, created_at, updated_at, analyzed_at
                  FROM ontology_drafts
                  WHERE archived_at IS NULL
                  ORDER BY updated_at DESC, id DESC
@@ -251,21 +251,17 @@ impl OntologyDraftStore for PostgresStore {
     async fn complete_ontology_draft(
         &self,
         ontology_draft_id: Uuid,
-        ontology_id: Uuid,
+        committed_version_id: Uuid,
         expected_revision: i32,
     ) -> OxResult<()> {
         super::require_workspace_context()?;
-        // The caller has already committed a new version through
-        // OntologyVersionStore; this path only links the project
-        // row to the new ontology identity. Single-statement path
-        // (no transaction needed — one UPDATE).
         let result = sqlx::query(
             "UPDATE ontology_drafts
-             SET status = 'completed', ontology_id = $1,
+             SET status = 'completed', committed_version_id = $1,
                  updated_at = NOW(), revision = revision + 1
              WHERE id = $2 AND revision = $3 AND status = 'designed'",
         )
-        .bind(ontology_id)
+        .bind(committed_version_id)
         .bind(ontology_draft_id)
         .bind(expected_revision)
         .execute(&self.pool)

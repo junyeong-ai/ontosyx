@@ -376,7 +376,14 @@ pub struct OntologyDraft {
     /// identity is always the workspace's; the parent here pins the
     /// *version* axis.
     pub parent_version_id: Option<Uuid>,
-    /// History of data sources added to this project
+    /// FK to `ontology_version_snapshots.id` — the snapshot this
+    /// draft was committed into via `complete_ontology_draft`.
+    /// `None` while the draft is in `analyzed` / `designed` status;
+    /// set on transition to `completed`. Operators follow the link
+    /// from a completed draft straight to "the version this
+    /// produced" without resolving via lineage.
+    pub committed_version_id: Option<Uuid>,
+    /// History of data sources added to this draft
     pub source_history: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -385,10 +392,9 @@ pub struct OntologyDraft {
 
 /// Lightweight projection for list endpoints (excludes large JSONB blobs).
 ///
-/// `parent_version_id` is on the projection (not just the full row)
-/// because the branching dashboard renders the fork point inline
-/// without per-row hydration — every list endpoint that returns
-/// drafts already carries enough to draw the tree.
+/// Both `parent_version_id` (fork point) and `committed_version_id`
+/// (commit target) ride on the projection because the branching
+/// dashboard renders both endpoints inline without per-row hydration.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct OntologyDraftSummary {
     pub id: Uuid,
@@ -401,6 +407,9 @@ pub struct OntologyDraftSummary {
     /// greenfield drafts whose first commit creates the workspace's
     /// first canonical version.
     pub parent_version_id: Option<Uuid>,
+    /// Canonical version this draft committed into. `None` until
+    /// the draft is completed.
+    pub committed_version_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub analyzed_at: Option<DateTime<Utc>>,

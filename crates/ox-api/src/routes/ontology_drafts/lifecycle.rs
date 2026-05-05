@@ -142,6 +142,7 @@ pub(crate) async fn create_ontology_draft(
                 // against the head at commit time to detect
                 // intervening canonical writes.
                 parent_version_id: Some(version.id),
+                committed_version_id: None,
                 source_history: AppError::to_json(&vec![history_entry])?,
                 created_at: now,
                 updated_at: now,
@@ -190,6 +191,7 @@ pub(crate) async fn create_ontology_draft(
                     ontology: None,
                     quality_report: None,
                     parent_version_id: workspace_parent_version,
+                committed_version_id: None,
                     source_history: AppError::to_json(&vec![history_entry])?,
                     created_at: now,
                     updated_at: now,
@@ -295,6 +297,7 @@ pub(crate) async fn create_ontology_draft(
                 ontology: None,
                 quality_report: None,
                 parent_version_id: workspace_parent_version,
+                committed_version_id: None,
                 source_history: AppError::to_json(&vec![history_entry])?,
                 created_at: now,
                 updated_at: now,
@@ -635,7 +638,7 @@ pub(crate) async fn complete_ontology_draft(
 
     state
         .store
-        .complete_ontology_draft(id, identity.id, req.revision)
+        .complete_ontology_draft(id, snapshot.id, req.revision)
         .await
         .map_err(AppError::from)?;
 

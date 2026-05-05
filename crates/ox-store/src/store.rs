@@ -537,16 +537,20 @@ pub trait OntologyDraftStore: Send + Sync {
 
     /// Mark the project as completed and link it to a committed
     /// ontology identity. The caller performs
-    /// [`OntologyVersionStore::create_ontology`] + `commit_version`
-    /// separately, then hands the resulting identity UUID here so
-    /// the project row's `ontology_id` column can point at it.
+    /// [`OntologyVersionStore::commit_version`] separately, then
+    /// hands the resulting **snapshot id** here. The draft row
+    /// pins `committed_version_id` to that snapshot — the draft's
+    /// audit trail and the branching tree both follow the link
+    /// straight to the exact version this draft produced. Workspace
+    /// × ontology = 1:1 already determines the lineage, so the
+    /// version axis is the only piece worth recording per draft.
     ///
     /// Uses optimistic CAS on `revision` — stale submissions fail
     /// rather than clobbering a concurrent update.
     async fn complete_ontology_draft(
         &self,
         ontology_draft_id: Uuid,
-        ontology_id: Uuid,
+        committed_version_id: Uuid,
         expected_revision: i32,
     ) -> OxResult<()>;
 
