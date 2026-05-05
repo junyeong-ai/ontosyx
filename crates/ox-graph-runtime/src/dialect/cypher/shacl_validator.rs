@@ -524,14 +524,129 @@ impl ShaclValidator {
                     Some(node.span),
                 ));
             }
+            ShaclConstraint::MinInclusive { target, min } => {
+                if !target_matches_property(target, prop) {
+                    return;
+                }
+                let Some(raw) = value else {
+                    return;
+                };
+                let Some(observed) = parse_numeric_literal(raw) else {
+                    // String / param / function call — cannot decide
+                    // numerically at AST time. Driver runtime takes
+                    // it (and a Datatype rule on the same property
+                    // would catch the type mismatch separately).
+                    return;
+                };
+                if observed >= *min {
+                    return;
+                }
+                let rn = rule_label(rule);
+                issues.push(build_issue(
+                    rule,
+                    diag("runtime.cypher.shacl.min_inclusive_violation")
+                        .with("property", key)
+                        .with("rule_id", rule.id.as_str())
+                        .with("rule_name", &rule.name)
+                        .with("min", *min)
+                        .with("value", raw)
+                        .message(format!(
+                            "property `{key}` = {raw} violates rule `{rn}` — value must be ≥ {min}"
+                        )),
+                    Some(node.span),
+                ));
+            }
+            ShaclConstraint::MaxInclusive { target, max } => {
+                if !target_matches_property(target, prop) {
+                    return;
+                }
+                let Some(raw) = value else {
+                    return;
+                };
+                let Some(observed) = parse_numeric_literal(raw) else {
+                    return;
+                };
+                if observed <= *max {
+                    return;
+                }
+                let rn = rule_label(rule);
+                issues.push(build_issue(
+                    rule,
+                    diag("runtime.cypher.shacl.max_inclusive_violation")
+                        .with("property", key)
+                        .with("rule_id", rule.id.as_str())
+                        .with("rule_name", &rule.name)
+                        .with("max", *max)
+                        .with("value", raw)
+                        .message(format!(
+                            "property `{key}` = {raw} violates rule `{rn}` — value must be ≤ {max}"
+                        )),
+                    Some(node.span),
+                ));
+            }
+            ShaclConstraint::MinLength { target, min } => {
+                if !target_matches_property(target, prop) {
+                    return;
+                }
+                let Some(raw) = value else {
+                    return;
+                };
+                let Some(literal) = parse_string_literal(raw) else {
+                    return;
+                };
+                let observed = literal.chars().count();
+                if observed >= *min as usize {
+                    return;
+                }
+                let rn = rule_label(rule);
+                issues.push(build_issue(
+                    rule,
+                    diag("runtime.cypher.shacl.min_length_violation")
+                        .with("property", key)
+                        .with("rule_id", rule.id.as_str())
+                        .with("rule_name", &rule.name)
+                        .with("min", *min)
+                        .with("observed", observed as u64)
+                        .with("value", raw)
+                        .message(format!(
+                            "property `{key}` = {raw} violates rule `{rn}` — string length must be ≥ {min} (got {observed})"
+                        )),
+                    Some(node.span),
+                ));
+            }
+            ShaclConstraint::MaxLength { target, max } => {
+                if !target_matches_property(target, prop) {
+                    return;
+                }
+                let Some(raw) = value else {
+                    return;
+                };
+                let Some(literal) = parse_string_literal(raw) else {
+                    return;
+                };
+                let observed = literal.chars().count();
+                if observed <= *max as usize {
+                    return;
+                }
+                let rn = rule_label(rule);
+                issues.push(build_issue(
+                    rule,
+                    diag("runtime.cypher.shacl.max_length_violation")
+                        .with("property", key)
+                        .with("rule_id", rule.id.as_str())
+                        .with("rule_name", &rule.name)
+                        .with("max", *max)
+                        .with("observed", observed as u64)
+                        .with("value", raw)
+                        .message(format!(
+                            "property `{key}` = {raw} violates rule `{rn}` — string length must be ≤ {max} (got {observed})"
+                        )),
+                    Some(node.span),
+                ));
+            }
             // Constraint kinds the MVP recognises but doesn't enforce at
             // the Cypher AST layer yet (see module docs for rationale).
-            ShaclConstraint::MaxCount { .. }
-            | ShaclConstraint::HasValue { .. }
-            | ShaclConstraint::MinInclusive { .. }
-            | ShaclConstraint::MaxInclusive { .. }
-            | ShaclConstraint::MinLength { .. }
-            | ShaclConstraint::MaxLength { .. } => {}
+            ShaclConstraint::MaxCount { .. } | ShaclConstraint::HasValue { .. } => {}
         }
     }
 
@@ -951,6 +1066,39 @@ pub(crate) fn property_type_label(ty: &PropertyType) -> &'static str {
         PropertyType::List { .. } => "list",
         PropertyType::Map => "map",
     }
+}
+
+/// Parse a SET / inline literal as a numeric value for the
+/// `Min/Max Inclusive` checks. Accepts both Int and Float wire
+/// shapes (`42`, `3.14`); returns `None` for anything else
+/// (string literal, parameter, function call, identifier, null).
+/// String / param values would land here as well-formed quoted
+/// or `$`-prefixed tokens, which we silently skip — the matching
+/// Datatype constraint catches the type-axis violation separately.
+pub(crate) fn parse_numeric_literal(raw: &str) -> Option<f64> {
+    let t = raw.trim();
+    if t.is_empty() {
+        return None;
+    }
+    let first = t.chars().next()?;
+    let last = t.chars().next_back()?;
+    // Quoted string / parameter / call / list / map → not numeric.
+    if (first, last) == ('\'', '\'')
+        || (first, last) == ('"', '"')
+        || first == '$'
+        || first == '['
+        || first == '{'
+        || t.contains('(')
+    {
+        return None;
+    }
+    if t.eq_ignore_ascii_case("null")
+        || t.eq_ignore_ascii_case("true")
+        || t.eq_ignore_ascii_case("false")
+    {
+        return None;
+    }
+    t.parse::<f64>().ok()
 }
 
 /// Whether a literal of `from` may legally assign to a slot of
@@ -2305,6 +2453,290 @@ mod tests {
         assert_eq!(classify_literal_type("[1, 2, 3]"), None);
         assert_eq!(classify_literal_type("{ a: 1 }"), None);
         assert_eq!(classify_literal_type(""), None);
+    }
+
+    // ---- MinInclusive / MaxInclusive enforcement -----------------------
+
+    fn score_prop() -> PropertyDef {
+        PropertyDef {
+            id: PropertyId::new("prop-score"),
+            name: PropertyKey::new("score").unwrap(),
+            property_type: PropertyType::Float,
+            ..Default::default()
+        }
+    }
+
+    fn min_inclusive_rule(target_property_id: &str, min: f64) -> RuleDef {
+        RuleDef {
+            id: RuleId::new(format!("r-min-{target_property_id}")),
+            name: format!("{target_property_id}_min").into(),
+            description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
+            kind: RuleKind::PropertyShape {
+                target_node_type_id: NodeTypeId::new("nt-user"),
+                target_property_id: PropertyId::new(target_property_id),
+            },
+            severity: Severity::Violation,
+            enforcement: EnforcementKind::Write,
+            activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
+            constraints: vec![ShaclConstraint::MinInclusive {
+                target: ConstraintTarget::Inherit,
+                min,
+            }],
+            valid_from: None,
+            valid_to: None,
+            sh_message: None,
+        }
+    }
+
+    fn max_inclusive_rule(target_property_id: &str, max: f64) -> RuleDef {
+        RuleDef {
+            id: RuleId::new(format!("r-max-{target_property_id}")),
+            name: format!("{target_property_id}_max").into(),
+            description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
+            kind: RuleKind::PropertyShape {
+                target_node_type_id: NodeTypeId::new("nt-user"),
+                target_property_id: PropertyId::new(target_property_id),
+            },
+            severity: Severity::Violation,
+            enforcement: EnforcementKind::Write,
+            activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
+            constraints: vec![ShaclConstraint::MaxInclusive {
+                target: ConstraintTarget::Inherit,
+                max,
+            }],
+            valid_from: None,
+            valid_to: None,
+            sh_message: None,
+        }
+    }
+
+    #[test]
+    fn min_inclusive_blocks_value_below_min() {
+        let prop = score_prop();
+        let rule = min_inclusive_rule("prop-score", 0.0);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.score = -1 RETURN u");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.min_inclusive_violation"),
+            "expected min_inclusive violation: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn min_inclusive_passes_at_boundary() {
+        let prop = score_prop();
+        let rule = min_inclusive_rule("prop-score", 0.0);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.score = 0 RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "boundary value `min` must pass (inclusive): {issues:?}"
+        );
+    }
+
+    #[test]
+    fn max_inclusive_blocks_value_above_max() {
+        let prop = score_prop();
+        let rule = max_inclusive_rule("prop-score", 100.0);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.score = 101 RETURN u");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.max_inclusive_violation"),
+            "expected max_inclusive violation: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn max_inclusive_passes_at_boundary() {
+        let prop = score_prop();
+        let rule = max_inclusive_rule("prop-score", 100.0);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.score = 100 RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "boundary value `max` must pass (inclusive): {issues:?}"
+        );
+    }
+
+    #[test]
+    fn min_inclusive_skips_non_numeric_literal() {
+        // String / param: cannot decide numerically. The matching
+        // Datatype rule (if any) would catch the type axis; this
+        // pass must silently skip rather than false-flag.
+        let prop = score_prop();
+        let rule = min_inclusive_rule("prop-score", 0.0);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.score = $score RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "$param assignment must not raise min_inclusive: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn min_inclusive_blocks_inline_create_value() {
+        let prop = score_prop();
+        let rule = min_inclusive_rule("prop-score", 0.0);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "CREATE (u:User {score: -5})");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.min_inclusive_violation"),
+            "expected min_inclusive on inline CREATE: {issues:?}"
+        );
+    }
+
+    // ---- MinLength / MaxLength enforcement -----------------------------
+
+    fn email_prop_for_length() -> PropertyDef {
+        PropertyDef {
+            id: PropertyId::new("prop-email"),
+            name: PropertyKey::new("email").unwrap(),
+            property_type: PropertyType::String,
+            ..Default::default()
+        }
+    }
+
+    fn min_length_rule(min: u32) -> RuleDef {
+        RuleDef {
+            id: RuleId::new("r-email-minlen"),
+            name: "email_minlen".into(),
+            description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
+            kind: RuleKind::PropertyShape {
+                target_node_type_id: NodeTypeId::new("nt-user"),
+                target_property_id: PropertyId::new("prop-email"),
+            },
+            severity: Severity::Violation,
+            enforcement: EnforcementKind::Write,
+            activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
+            constraints: vec![ShaclConstraint::MinLength {
+                target: ConstraintTarget::Inherit,
+                min,
+            }],
+            valid_from: None,
+            valid_to: None,
+            sh_message: None,
+        }
+    }
+
+    fn max_length_rule(max: u32) -> RuleDef {
+        RuleDef {
+            id: RuleId::new("r-email-maxlen"),
+            name: "email_maxlen".into(),
+            description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
+            kind: RuleKind::PropertyShape {
+                target_node_type_id: NodeTypeId::new("nt-user"),
+                target_property_id: PropertyId::new("prop-email"),
+            },
+            severity: Severity::Violation,
+            enforcement: EnforcementKind::Write,
+            activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
+            constraints: vec![ShaclConstraint::MaxLength {
+                target: ConstraintTarget::Inherit,
+                max,
+            }],
+            valid_from: None,
+            valid_to: None,
+            sh_message: None,
+        }
+    }
+
+    #[test]
+    fn min_length_blocks_short_string() {
+        let prop = email_prop_for_length();
+        let rule = min_length_rule(5);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "CREATE (u:User {email: 'a@b'})");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.min_length_violation"
+                && i.message.params.get("observed")
+                    == Some(&serde_json::Value::from(3u64))),
+            "expected min_length violation with observed=3: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn min_length_passes_at_boundary() {
+        let prop = email_prop_for_length();
+        let rule = min_length_rule(3);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "CREATE (u:User {email: 'a@b'})");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "boundary length 3 must pass: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn max_length_blocks_long_string() {
+        let prop = email_prop_for_length();
+        let rule = max_length_rule(5);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "CREATE (u:User {email: 'a@b.com'})");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.max_length_violation"
+                && i.message.params.get("observed")
+                    == Some(&serde_json::Value::from(7u64))),
+            "expected max_length violation with observed=7: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn length_check_counts_unicode_codepoints_not_bytes() {
+        // 한글 char 3개 = 3 codepoints, but 9 UTF-8 bytes. The
+        // length axis is "what users perceive" — codepoints, not
+        // raw byte count.
+        let prop = email_prop_for_length();
+        let rule = max_length_rule(3);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "CREATE (u:User {email: '한글짧'})");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "3-codepoint Korean string must pass max_length=3: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn length_check_skips_non_string_literal() {
+        // SET u.email = 42 — not a string literal. parse_string_literal
+        // returns None, so the length check silently skips. Datatype
+        // rule (if any) catches the type-axis violation separately.
+        let prop = email_prop_for_length();
+        let rule = min_length_rule(5);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.email = 42 RETURN u");
+        assert!(
+            issues
+                .iter()
+                .all(|i| i.message.code != "runtime.cypher.shacl.min_length_violation"),
+            "non-string literal must not raise min_length: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn parse_numeric_literal_recognises_int_and_float() {
+        assert_eq!(parse_numeric_literal("42"), Some(42.0));
+        assert_eq!(parse_numeric_literal("-1"), Some(-1.0));
+        assert_eq!(parse_numeric_literal("2.5"), Some(2.5));
+        assert_eq!(parse_numeric_literal("0"), Some(0.0));
+        assert_eq!(parse_numeric_literal("'42'"), None);
+        assert_eq!(parse_numeric_literal("$x"), None);
+        assert_eq!(parse_numeric_literal("null"), None);
+        assert_eq!(parse_numeric_literal("true"), None);
+        assert_eq!(parse_numeric_literal("toString(n)"), None);
+        assert_eq!(parse_numeric_literal("[1,2]"), None);
     }
 
     #[test]
