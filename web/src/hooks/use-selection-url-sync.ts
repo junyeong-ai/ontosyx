@@ -65,6 +65,22 @@ export function useSelectionUrlSync(): void {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // `searchParams` is intentionally NOT a dep below — `router.replace`
+  // mutates the URL, which mints a new `searchParams` reference on
+  // every render. Wiring it into the deps creates a router.replace →
+  // searchParams change → effect re-run → router.replace loop that
+  // re-fetches the RSC payload forever. The latest-ref pattern keeps
+  // the closure reading the freshest URL state without subscribing
+  // to its identity changes.
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
+  // `lastEncoded` survives across effect re-runs so navigating away
+  // and back doesn't replay the same `?sel=…` write — the previous
+  // implementation declared it inline and reset it every time
+  // `pathname` / `router` changed identity, defeating the dedup.
+  const lastEncodedRef = useRef<string | null>(null);
+
   // Hydrate once: read the URL and apply it to the store, but only
   // when the URL actually has a value. A pristine page load with no
   // `sel` param should not stomp the persisted in-memory selection
@@ -73,13 +89,15 @@ export function useSelectionUrlSync(): void {
   useEffect(() => {
     if (hydratedRef.current) return;
     hydratedRef.current = true;
-    const raw = searchParams.get("sel");
+    const raw = searchParamsRef.current.get("sel");
     if (!raw) return;
     const refs = decodeSelectionParam(raw);
     if (refs.length > 0) {
       useAppStore.getState().selectMany(refs);
     }
-  }, [searchParams]);
+    // searchParamsRef is intentionally read once on first mount via
+    // the ref to avoid a re-hydration loop on every URL change.
+  }, []);
 
   // Subscribe to selection changes and reflect them back into the URL.
   // The effect uses Zustand's `subscribe` directly so it runs once
@@ -88,11 +106,10 @@ export function useSelectionUrlSync(): void {
   // writeback off the React render path.
   useEffect(() => {
     if (!hydratedRef.current) return;
-    let lastEncoded: string | null = null;
     const apply = (encoded: string) => {
-      if (encoded === lastEncoded) return;
-      lastEncoded = encoded;
-      const next = new URLSearchParams(searchParams.toString());
+      if (encoded === lastEncodedRef.current) return;
+      lastEncodedRef.current = encoded;
+      const next = new URLSearchParams(searchParamsRef.current.toString());
       if (encoded) next.set("sel", encoded);
       else next.delete("sel");
       const search = next.toString();
@@ -105,5 +122,5 @@ export function useSelectionUrlSync(): void {
       apply(encodeSelectionParam(state.selection.refs));
     });
     return unsubscribe;
-  }, [pathname, router, searchParams]);
+  }, [pathname, router]);
 }
