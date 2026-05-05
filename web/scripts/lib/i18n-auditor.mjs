@@ -566,7 +566,219 @@ export function walkSource(rootDir) {
 }
 
 /**
- * Scan `src/app/**\/page.tsx` files and return any that render JSX
+ * Scan a file for hard-coded user-facing strings sitting on
+ * accessibility-critical JSX attributes (`placeholder`, `aria-label`,
+ * `title`, `alt`, `aria-description`). These attributes are the most
+ * common i18n leak vectors — they end up announced to screen readers
+ * or shown in tooltips even when the rest of the surface is localised.
+ *
+ * Heuristics tuned to minimise false positives:
+ *   - Only fires on string-literal attribute values; `{expression}`
+ *     forms (e.g. `{t("foo")}`) are ignored entirely.
+ *   - Empty strings and strings without any alpha character are
+ *     skipped — those are presentation hints (`"•"`, `"→"`, `"---"`).
+ *   - Single-token alphabetic acronyms ≤ 4 chars are allowed (covers
+ *     "API", "PDF", "URL", "CSV", brand names like "AI") since
+ *     translating them is a no-op.
+ *   - `// i18n-audit-ignore` comment on the line immediately above an
+ *     attribute opts that single occurrence out of the gate — useful
+ *     for genuinely language-neutral strings the heuristic doesn't
+ *     recognise (eg connection-string examples).
+ *
+ * @typedef {{ file: string, line: number, attribute: string, value: string }} HardcodedString
+ *
+ * @param {string} filePath
+ * @param {string} source
+ * @returns {HardcodedString[]}
+ */
+export function findHardcodedJsxStrings(filePath, source) {
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ true,
+    ts.ScriptKind.TSX,
+  );
+  /** @type {HardcodedString[]} */
+  const out = [];
+
+  // Collect line numbers of `// i18n-audit-ignore` comments so we can
+  // suppress findings on the next non-comment line. Build the lookup
+  // once per file rather than per attribute.
+  /** @type {Set<number>} */
+  const ignoredLines = new Set();
+  // Walk every comment via a regex over the raw source — JSX scanner
+  // needs to know the content's parsing context (which alternates
+  // between JSX and TS), and getting that exactly right per token is
+  // brittle. A line-by-line scan for the ignore marker is robust and
+  // catches every comment shape (`//` between attributes, `{/* */}`
+  // between elements, `/* */` block).
+  //
+  // Marker variants:
+  //   `i18n-audit-ignore`            — suppress next 2 lines (default,
+  //                                    covers attribute / single-line
+  //                                    JSX text patterns)
+  //   `i18n-audit-ignore(N)`         — suppress next N lines (used when
+  //                                    a marker precedes a multi-line
+  //                                    JSX element such as a `<select>`
+  //                                    with many `<option>` children)
+  const lines = source.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const match = /i18n-audit-ignore(?:\((\d+)\))?/.exec(lines[i]);
+    if (!match) continue;
+    const span = match[1] ? Math.min(parseInt(match[1], 10), 200) : 2;
+    for (let k = 0; k <= span; k++) ignoredLines.add(i + k);
+  }
+
+  const FLAGGED_ATTRS = new Set([
+    "placeholder",
+    "aria-label",
+    "aria-description",
+    "title",
+    "alt",
+  ]);
+
+  // Element names whose JSX text children are intentionally non-prose
+  // (technical identifiers, code samples, keyboard glyphs). We look at
+  // the *parent* JSX element's tag when deciding whether to flag a
+  // text child — `<code>SELECT * FROM x</code>` and `<kbd>Enter</kbd>`
+  // are NOT i18n leaks even though they contain alpha sequences.
+  const TECHNICAL_ELEMENTS = new Set([
+    "code",
+    "pre",
+    "kbd",
+    "tt",
+    "samp",
+    "var",
+  ]);
+
+  /** @param {string} value */
+  const looksLikeUserProse = (value) => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return false;
+    // Strip HTML entities (`&rarr;`, `&nbsp;`, `&#8594;`) before the
+    // alpha check — these render as Unicode glyphs at runtime, so the
+    // *text content* is non-prose even though the source contains
+    // `rarr` etc.
+    const decoded = trimmed.replace(/&[a-z][a-z0-9]+;|&#\d+;/gi, "");
+    if (!/[a-zA-Z]/.test(decoded)) return false;
+    // ≤ 4-char all-uppercase acronyms ("API", "URL", "PDF", "CSV")
+    // are language-neutral technical labels; skip.
+    if (/^[A-Z0-9_]{2,4}$/.test(trimmed)) return false;
+    // Multi-word prose ("Save changes" / "Click to edit") is always
+    // user-facing.
+    if (trimmed.includes(" ")) return true;
+    // Single-word prose: 4+ contiguous alpha chars catches common UI
+    // verbs ("Save", "Edit", "Done", "Cancel", "Submit"). Identifiers
+    // mixed with non-alpha (`tenant_id`, `cs-order-status`) fall
+    // through because the alpha run is shorter than 4.
+    if (/[a-zA-Z]{4,}/.test(trimmed)) return true;
+    return false;
+  };
+
+  /**
+   * Resolve the tag name of the JSX element / fragment that owns this
+   * node. Used to skip text inside `<code>`, `<pre>`, `<kbd>` etc.
+   * Returns `null` when the parent isn't a JSX element (e.g. fragment).
+   * @param {ts.Node} node
+   * @returns {string | null}
+   */
+  const enclosingJsxTag = (node) => {
+    let cur = node.parent;
+    while (cur) {
+      if (ts.isJsxElement(cur)) {
+        const tag = cur.openingElement.tagName;
+        if (ts.isIdentifier(tag)) return tag.text;
+        return null;
+      }
+      if (ts.isJsxFragment(cur)) return null;
+      cur = cur.parent;
+    }
+    return null;
+  };
+
+  /** Common report path so attribute + text findings share the
+   *  ignore-line and ts ranges logic.
+   *  @param {ts.Node} reportNode
+   *  @param {string} attribute
+   *  @param {string} value */
+  const reportLeak = (reportNode, attribute, value) => {
+    const { line } = sourceFile.getLineAndCharacterOfPosition(
+      reportNode.getStart(sourceFile),
+    );
+    if (ignoredLines.has(line)) return;
+    out.push({
+      file: filePath,
+      line: line + 1,
+      attribute,
+      value,
+    });
+  };
+
+  /** @param {ts.Node} node */
+  const visit = (node) => {
+    // 1. Attribute literals (placeholder, aria-label, ...).
+    if (ts.isJsxAttribute(node) && ts.isIdentifier(node.name)) {
+      const attrName = node.name.text;
+      if (FLAGGED_ATTRS.has(attrName) && node.initializer) {
+        // `attr="literal"` — directly a StringLiteral.
+        // `attr={"literal"}` — JsxExpression wrapping a StringLiteral.
+        let literal = null;
+        if (ts.isStringLiteral(node.initializer)) {
+          literal = node.initializer;
+        } else if (
+          ts.isJsxExpression(node.initializer) &&
+          node.initializer.expression &&
+          ts.isStringLiteral(node.initializer.expression)
+        ) {
+          literal = node.initializer.expression;
+        }
+        if (literal && looksLikeUserProse(literal.text)) {
+          reportLeak(literal, attrName, literal.text);
+        }
+      }
+    }
+
+    // 2. Bare JSX text content (`<p>Hello world</p>`). Skip
+    // `<code>` / `<pre>` / `<kbd>` etc. — those carry technical
+    // strings by design. Expression children (`{t("foo")}`) are
+    // a different node kind and never reach this branch.
+    if (ts.isJsxText(node)) {
+      const text = node.text;
+      if (looksLikeUserProse(text)) {
+        const tag = enclosingJsxTag(node);
+        if (!(tag && TECHNICAL_ELEMENTS.has(tag))) {
+          reportLeak(node, "<text>", text.trim());
+        }
+      }
+    }
+
+    // 3. JSX-expression-wrapped string literal text
+    // (`<p>{"Hello world"}</p>`). Same content, different node shape.
+    if (
+      ts.isJsxExpression(node) &&
+      node.expression &&
+      ts.isStringLiteral(node.expression) &&
+      node.parent &&
+      (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent))
+    ) {
+      const literal = node.expression;
+      if (looksLikeUserProse(literal.text)) {
+        const tag = enclosingJsxTag(node);
+        if (!(tag && TECHNICAL_ELEMENTS.has(tag))) {
+          reportLeak(literal, "<text>", literal.text);
+        }
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return out;
+}
+
+/**
+ * Scan `src/app/.../page.tsx` files and return any that render JSX
  * without calling `useTranslations` — these pages are guaranteed to
  * carry hard-coded copy in violation of the i18n policy. Heuristic:
  * pages that render *only* a child component (e.g. `<RecipesWorkbench />`)

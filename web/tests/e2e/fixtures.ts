@@ -164,8 +164,10 @@ async function seedContext(
  * ```
  */
 export const test = rawTest.extend<{
-  /** Resolves after the browser context has been seeded. */
-  seededContext: void;
+  /** Resolves to `true` once the browser context has been seeded.
+   *  The value itself is a sentinel — most specs only care that the
+   *  `auto: true` fixture has run. */
+  seededContext: boolean;
   /** The locale cookie value for this test. */
   locale: "en" | "ko";
   /** The role the seeded `/auth/me` mock advertises. `"none"`
@@ -177,7 +179,7 @@ export const test = rawTest.extend<{
   seededContext: [
     async ({ context, locale, role }, use) => {
       await seedContext(context, { locale, role });
-      await use();
+      await use(true);
     },
     // `auto: true` runs the fixture for every test, no matter
     // whether the test names it. Keeps the seed cost invisible at

@@ -126,7 +126,7 @@ export interface HealthResponse {
   version: string;
   components: {
     postgres: string;
-    neo4j: string;
+    graph: string;
     /** Actual graph backend name (e.g. "Neo4j", "Memgraph", "Neptune", "none") */
     graph_backend?: string;
     llm: {

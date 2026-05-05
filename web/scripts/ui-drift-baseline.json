@@ -1,0 +1,12 @@
+{
+  "src/components/forms/primitives/localized-text-input.tsx": {
+    "raw-form-control": 1
+  },
+  "src/components/onboarding/welcome-modal.tsx": {
+    "base-ui-direct-import": 1
+  },
+  "src/components/settings/settings-command-palette.tsx": {
+    "base-ui-direct-import": 1,
+    "raw-form-control": 1
+  }
+}

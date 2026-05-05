@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import ts from "typescript";
+import type ts from "typescript";
 import { afterAll, beforeAll, describe, it, expect } from "vitest";
 
 import {
   auditCalls,
   createAuditProgram,
+  findHardcodedJsxStrings,
   findTranslationCalls,
   findTranslationCallsTyped,
   reasonLabel,
@@ -346,5 +347,171 @@ describe("findTranslationCallsTyped — enum-resolved templates", () => {
     expect(findings).toHaveLength(1);
     expect(findings[0].path).toBe("ns.reason.PathFind");
     expect(findings[0].reason).toBe("missing_in_both");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findHardcodedJsxStrings
+// ---------------------------------------------------------------------------
+
+describe("findHardcodedJsxStrings", () => {
+  function scan(source: string): ReturnType<typeof findHardcodedJsxStrings> {
+    return findHardcodedJsxStrings("/virtual/file.tsx", source);
+  }
+
+  it("flags multi-word prose on placeholder", () => {
+    const out = scan(`
+      export function X() {
+        return <input placeholder="Search graph entities" />;
+      }
+    `);
+    expect(out).toHaveLength(1);
+    expect(out[0].attribute).toBe("placeholder");
+    expect(out[0].value).toBe("Search graph entities");
+  });
+
+  it("flags single-word ≥4-char prose ('Save', 'Edit', 'Done')", () => {
+    const out = scan(`
+      export function X() {
+        return (
+          <>
+            <button aria-label="Save" />
+            <button aria-label="Edit" />
+            <button aria-label="Done" />
+          </>
+        );
+      }
+    `);
+    expect(out.map((f) => f.value).sort()).toEqual(["Done", "Edit", "Save"]);
+  });
+
+  it("ignores ≤4-char all-uppercase acronyms ('API', 'URL', 'CSV')", () => {
+    const out = scan(`
+      export function X() {
+        return (
+          <>
+            <a aria-label="API" />
+            <a aria-label="URL" />
+            <a aria-label="CSV" />
+          </>
+        );
+      }
+    `);
+    expect(out).toEqual([]);
+  });
+
+  it("ignores presentation glyphs ('•', '→', '---')", () => {
+    const out = scan(`
+      export function X() {
+        return (
+          <>
+            <span title="•" />
+            <span title="→" />
+            <span title="---" />
+          </>
+        );
+      }
+    `);
+    expect(out).toEqual([]);
+  });
+
+  it("flags hyphen / underscore identifiers when they contain ≥4 alpha chars — marker opts them out", () => {
+    // `cs-order-status` and `tenant_id` both contain a 4+ alpha run
+    // ("order" / "status" / "tenant"), so they trip the heuristic.
+    // Real intent (these are language-neutral slugs) is communicated
+    // through the explicit `// i18n-audit-ignore` marker; the
+    // heuristic alone isn't smart enough to know.
+    const flagged = scan(`
+      export function X() {
+        return (
+          <>
+            <input placeholder="cs-order-status" />
+            <input placeholder="tenant_id" />
+          </>
+        );
+      }
+    `);
+    expect(flagged.map((f) => f.value).sort()).toEqual([
+      "cs-order-status",
+      "tenant_id",
+    ]);
+    const ignored = scan(`
+      export function X() {
+        return (
+          <>
+            {/* i18n-audit-ignore — slug */}
+            <input placeholder="cs-order-status" />
+            {/* i18n-audit-ignore — column id */}
+            <input placeholder="tenant_id" />
+          </>
+        );
+      }
+    `);
+    expect(ignored).toEqual([]);
+  });
+
+  it("ignores expression attribute values ({t('foo')}) entirely — only flags string literals", () => {
+    const out = scan(`
+      export function X({ t }: { t: (k: string) => string }) {
+        return <input placeholder={t("searchPlaceholder")} />;
+      }
+    `);
+    expect(out).toEqual([]);
+  });
+
+  it("only checks the four a11y-critical attributes — ignores className, value, etc.", () => {
+    const out = scan(`
+      export function X() {
+        return <input className="text-sm" value="Save changes" data-testid="Search graph" />;
+      }
+    `);
+    expect(out).toEqual([]);
+  });
+
+  it("respects the // i18n-audit-ignore line marker for the next 2 lines", () => {
+    const out = scan(`
+      export function X() {
+        return (
+          <input
+            // i18n-audit-ignore — slug example
+            placeholder="rule-min-email"
+          />
+        );
+      }
+    `);
+    // The placeholder is on the line after the comment; the marker
+    // suppresses lines [comment, comment+1, comment+2].
+    expect(out).toEqual([]);
+  });
+
+  it("does NOT suppress findings outside the marker's window", () => {
+    // The marker covers itself + the next 2 lines (intentional —
+    // multi-line `<Component\n  prop="value"\n/>` patterns are
+    // common). Anything farther down requires its own marker.
+    const out = scan(`
+      export function X() {
+        return (
+          <>
+            {/* i18n-audit-ignore */}
+            <input placeholder="ignored slug" />
+            <hr />
+            <hr />
+            <input placeholder="far below the marker" />
+          </>
+        );
+      }
+    `);
+    expect(out).toHaveLength(1);
+    expect(out[0].value).toBe("far below the marker");
+  });
+
+  it("flags JSX-expression-wrapped string literals — attr={\"literal\"} too", () => {
+    const out = scan(`
+      export function X() {
+        return <input placeholder={"Search graph entities"} />;
+      }
+    `);
+    expect(out).toHaveLength(1);
+    expect(out[0].value).toBe("Search graph entities");
   });
 });

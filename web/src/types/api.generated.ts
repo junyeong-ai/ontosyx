@@ -4491,30 +4491,25 @@ export interface components {
             /** Format: int64 */
             total_relationships: number;
         };
-        /**
-         * @description Wire shape of both `/api/health` (wrapped in `ApiResponse`) and
-         *     `/api/healthz` (returned flat).
-         */
-        HealthBody: {
-            components: components["schemas"]["HealthComponents"];
-            service: string;
-            status: string;
-            version: string;
-        };
         HealthComponents: {
+            graph: string;
             graph_backend: string;
             llm: components["schemas"]["HealthLlm"];
-            /**
-             * @description Kept under the `neo4j` key for backward compatibility with
-             *     existing FE/monitors. The actual backend name lives in
-             *     `graph_backend`.
-             */
-            neo4j: string;
             postgres: string;
         };
         HealthLlm: {
             model: string;
             provider: string;
+        };
+        /**
+         * @description Wire shape of both `/api/health` (wrapped in `ApiResponse`) and
+         *     `/api/healthz` (returned flat).
+         */
+        HealthResponse: {
+            components: components["schemas"]["HealthComponents"];
+            service: string;
+            status: string;
+            version: string;
         };
         /**
          * @description Idempotency contract.
@@ -5107,10 +5102,21 @@ export interface components {
              */
             node_type_id: components["schemas"]["NodeTypeId"];
             /**
+             * @description Partitioning columns the source enforces. When non-empty the
+             *     `SemanticGuardValidator` rejects queries that lack a literal
+             *     predicate on at least one of these columns — translates the
+             *     `require_partition_filter=true` contract from BigQuery /
+             *     Snowflake / Hive into a pre-flight check instead of a
+             *     per-query round-trip rejection.
+             */
+            partition_columns?: components["schemas"]["ColumnRef"][];
+            /**
              * Format: int32
              * @description Higher precedence wins in multi-mapping dedup. A new mapping
              *     that shadows an older one simply uses a higher number; the
-             *     oldest mapping can stay registered for audit purposes.
+             *     oldest mapping can stay registered for audit purposes. Ties
+             *     resolve by `id` ascending so the resolved order is independent
+             *     of insertion sequence.
              */
             precedence?: number;
             /**
@@ -5407,7 +5413,11 @@ export interface components {
          *     inside the universal `ApiResponse` envelope.
          */
         PageMeta: {
-            /** @description Opaque cursor for the next page. `None` when this is the last page. */
+            /**
+             * @description Opaque cursor for the next page. `None` when this is the last page.
+             *     Skipped on the wire when absent so the FE schema can stay
+             *     `next_cursor?: string` without a `.nullable()` widening.
+             */
             next_cursor?: string | null;
         };
         PerspectiveFindParams: {
@@ -6932,6 +6942,24 @@ export interface components {
             /** @enum {string} */
             type: "user_left";
             user_id: string;
+        } | {
+            author_user_id: string;
+            author_user_name: string;
+            /** Format: int32 */
+            base_revision: number;
+            /**
+             * @description `OntologyCommand` is internally tagged JSON; utoipa can't
+             *     derive a static schema for the runtime variant set, so the
+             *     wire shape surfaces as `Vec<Object>` in OpenAPI and the FE
+             *     reads it through the typed `OntologyCommand` union.
+             */
+            commands: Record<string, never>[];
+            /** Format: int32 */
+            new_revision: number;
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            type: "entity_updated";
         } | {
             code: components["schemas"]["ErrorCode"];
             params: {
@@ -9310,7 +9338,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthBody"];
+                    "application/json": components["schemas"]["HealthResponse"];
                 };
             };
         };
@@ -9330,7 +9358,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthBody"];
+                    "application/json": components["schemas"]["HealthResponse"];
                 };
             };
         };

@@ -99,10 +99,13 @@ jobs:
       - name: Run RLS enforcement tests
         # `--ignored` opts into the DB-live tests; the default `cargo test`
         # still skips them on machines without a Postgres fixture. The
-        # migration + temporal integration tests live in the same crate
-        # so we run them in the same job.
+        # migration + temporal + invariant tests live in the same crate
+        # so we run them in the same job. `rls_invariants` is the
+        # catalog-scan gate that fails when a new migration adds a
+        # `workspace_id` column without the four required RLS clauses.
         run: |
           cargo test -p ox-store --test rls_enforcement -- --ignored --nocapture
+          cargo test -p ox-store --test rls_invariants -- --ignored --nocapture
           cargo test -p ox-store --test migration_0007 -- --ignored --nocapture
           cargo test -p ox-store --test temporal_integration -- --ignored --nocapture --test-threads=1
 
@@ -139,9 +142,15 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - name: ESLint (max-warnings=0)
-        # `pnpm lint` resolves to `eslint --max-warnings=0`; any new warning
-        # fails this job and blocks the PR via the `summary` aggregator.
+      - name: Install Playwright browsers
+        # Required for the a11y suite (full-page axe assertions across the
+        # canonical route matrix in light / dark / forced-colors).
+        run: pnpm playwright install --with-deps chromium
+      - name: Biome (lint, error-on-warnings)
+        # `pnpm lint` resolves to `biome check --error-on-warnings`; any new
+        # diagnostic — error or warning — fails this job and blocks the PR
+        # via the `summary` aggregator. Domain-aware rules (`next` / `react`
+        # / `test`) are configured in `biome.json`.
         run: pnpm lint
       - name: Type check
         run: pnpm typecheck
@@ -151,10 +160,64 @@ jobs:
         # Catches the "nested toast.toast" style typos + raw-key leaks that
         # neither tsc nor React finds at build time.
         run: pnpm i18n-audit
+      - name: i18n parity audit
+        # Asserts the en + ko bundles share the same key set. Without
+        # this, a Korean user sees the raw key as a runtime fallback
+        # whenever an admin lands an English-only key.
+        run: pnpm i18n-parity-audit
+      - name: i18n dotted-key audit
+        # Rejects any key whose own name contains a dot. next-intl
+        # parses a dot as a path separator, so a key like `codes.add`
+        # crashes lookups under the parent path with INVALID_KEY.
+        run: pnpm i18n-dotted-key-audit
+      - name: ApiErrorCode parity audit
+        # Parses `crates/ox-api/src/error.rs::ApiErrorCode::as_str` and
+        # asserts every wire string has a matching `errors.<code>` in
+        # both ko + en bundles, with no stale templates in either.
+        run: pnpm error-code-parity-audit
+      - name: Heading primitive audit
+        # One-way ratchet on raw `<hN className=…>` JSX elements.
+        # The baseline (`scripts/heading-primitive.baseline.json`) is
+        # tracked; new violations fail. The `<Heading>` primitive
+        # decouples document outline (level) from visual tier (size).
+        run: pnpm heading-primitive-audit
+      - name: UI drift audit
+        # One-way ratchet: every raw-palette / raw-form-control / unringed
+        # focus-outline / @base-ui import outside `components/ui` against the
+        # baseline. New violations fail; refactors below baseline pass.
+        run: pnpm ui-drift-audit
+      - name: Contrast audit
+        # Static WCAG AA check across every documented foreground/background
+        # pair in `globals.css`. Worst-of light/dark must stay ≥ 4.5:1.
+        run: pnpm contrast-audit
+      - name: '"use client" placement audit'
+        # Asserts the `"use client"` directive sits on line 1 of every
+        # client module. A leading comment silently demotes the file to a
+        # server component under Turbopack — invisible until runtime.
+        run: pnpm use-client-audit
+      - name: Source-size budget
+        # Per-surface + whole-tree byte ratchet under `src/`. Catches
+        # bundle-bloat regressions before `next build` runs in seconds —
+        # the budget file is git-tracked so `--update` reviews are
+        # explicit.
+        run: pnpm source-size-audit
+      - name: Design rules audit
+        # Project-specific Tailwind / token / naming conventions that the
+        # general linter can't express (raw palette colours, magic pixel
+        # widths, `is*` boolean prop antipattern, transition-without-
+        # duration, sonner direct import). Each rule is regex over file
+        # contents with an explicit remediation hint.
+        run: pnpm design-rules-audit
       - name: Vitest
+        # Includes vitest-axe component-level a11y assertions.
         run: pnpm test
       - name: Build
         run: pnpm build
+      - name: Accessibility (axe) — full-page
+        # Runs the canonical-route a11y matrix against the production build
+        # in light / dark / forced-colors. Token drift surfaces here before
+        # it ships. `:no-build` skips the rebuild — we built one step up.
+        run: pnpm test:a11y:no-build
 
   docker:
     name: Docker Build
@@ -261,6 +324,44 @@ jobs:
         # would chain — we just built in the step above, so rebuilding
         # would waste ~30s of CI time.
         run: pnpm test:e2e:no-build
+
+  # ---------------------------------------------------------------------------
+  # 6.4b Lighthouse CI — label-gated (label: `lighthouse`).
+  #
+  # Multiple-run Lighthouse audits (performance + a11y + best-practices +
+  # SEO) against the canonical-route matrix. Slow (≈3 runs × 5 URLs ≈
+  # several minutes), so it's opt-in per PR. Budgets live in
+  # `web/lighthouserc.json`; failures block the PR when the label is set.
+  # ---------------------------------------------------------------------------
+  lighthouse:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'lighthouse')
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+      - name: Lighthouse
+        # `lhci autorun` reads `lighthouserc.json`, starts the static
+        # server via `pnpm start`, runs the configured Lighthouse passes
+        # against the canonical-route matrix, asserts against the
+        # category + Core-Web-Vitals budgets, and uploads to temporary
+        # public storage so the PR comment links the report.
+        run: pnpm lighthouse
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
 
   # ---------------------------------------------------------------------------
   # 6.5 Criterion bench regression — label-gated (label: `bench`).

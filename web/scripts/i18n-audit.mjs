@@ -36,6 +36,7 @@ import { fileURLToPath } from "node:url";
 import {
   auditCalls,
   createAuditProgram,
+  findHardcodedJsxStrings,
   findPagesMissingI18n,
   findTranslationCalls,
   findTranslationCallsTyped,
@@ -107,6 +108,8 @@ async function main() {
 
   const files = walkSource(args.src);
   const allCalls = [];
+  /** @type {ReturnType<typeof findHardcodedJsxStrings>} */
+  const hardcodedStrings = [];
 
   // `--typed` builds a Program once; the checker is reused across
   // every file, amortising the parse cost.
@@ -116,6 +119,12 @@ async function main() {
 
   for (const f of files) {
     const src = fs.readFileSync(f, "utf8");
+    // The hardcoded-strings pass is independent of useTranslations
+    // — a file can be hard-coded *because* it never calls into
+    // next-intl. Scan every TSX/JSX file.
+    if (/\.(tsx|jsx)$/.test(f)) {
+      hardcodedStrings.push(...findHardcodedJsxStrings(f, src));
+    }
     // Cheap fast-path: skip files that never reference
     // `useTranslations`. A full AST parse per file isn't free; the
     // vast majority of files have no i18n calls at all.
@@ -130,13 +139,22 @@ async function main() {
   const findings = auditCalls(allCalls, bundles);
   const untranslatedPages = findPagesMissingI18n(args.src);
 
+  const clean =
+    findings.length === 0 &&
+    untranslatedPages.length === 0 &&
+    hardcodedStrings.length === 0;
+
   if (args.json) {
     process.stdout.write(
-      JSON.stringify({ findings, untranslatedPages }, null, 2) + "\n",
+      JSON.stringify(
+        { findings, untranslatedPages, hardcodedStrings },
+        null,
+        2,
+      ) + "\n",
     );
-  } else if (findings.length === 0 && untranslatedPages.length === 0) {
+  } else if (clean) {
     process.stdout.write(
-      `i18n-audit: scanned ${allCalls.length} call(s) across ${files.length} file(s) — no missing keys, no untranslated pages.\n`,
+      `i18n-audit: scanned ${allCalls.length} call(s) across ${files.length} file(s) — no missing keys, no untranslated pages, no hardcoded JSX strings.\n`,
     );
   } else {
     if (findings.length > 0) {
@@ -172,9 +190,29 @@ async function main() {
       }
       process.stdout.write("\n");
     }
+    if (hardcodedStrings.length > 0) {
+      process.stdout.write(
+        `i18n-audit: ${hardcodedStrings.length} hardcoded JSX string(s) on accessibility-critical attributes:\n\n`,
+      );
+      const byFile = new Map();
+      for (const s of hardcodedStrings) {
+        const rel = path.relative(WEB_ROOT, s.file);
+        if (!byFile.has(rel)) byFile.set(rel, []);
+        byFile.get(rel).push(s);
+      }
+      for (const [file, rows] of byFile) {
+        process.stdout.write(`  ${file}\n`);
+        for (const r of rows) {
+          process.stdout.write(
+            `    ${r.attribute}="${r.value}"  (line ${r.line})\n`,
+          );
+        }
+      }
+      process.stdout.write("\n");
+    }
   }
 
-  return findings.length === 0 && untranslatedPages.length === 0 ? 0 : 1;
+  return clean ? 0 : 1;
 }
 
 main().then(
