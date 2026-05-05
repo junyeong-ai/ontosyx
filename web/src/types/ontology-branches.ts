@@ -153,3 +153,71 @@ export interface RebaseDraftResponse {
    *  path. */
   project: unknown;
 }
+
+/** Rebase preview — read-only conflict analysis. Mirrors
+ *  `ox_ontology::rebase::RebaseAnalysis` plus a head pin for
+ *  optimistic-confirm. */
+export interface RebaseAnalysis {
+  base_to_head: OntologyDiffSummary;
+  base_to_draft: OntologyDiffSummary;
+  conflicts: RebaseConflict[];
+}
+
+export interface RebasePreviewResponse {
+  already_at_head: boolean;
+  analysis: RebaseAnalysis;
+  head_version_id: string | null;
+}
+
+/** Conflict variants — mirror `ox_ontology::rebase::RebaseConflict`
+ *  on `serde(tag = "kind", rename_all = "snake_case")`. */
+export type RebaseConflict =
+  | {
+      kind: "add_add";
+      entity_kind: "node" | "edge";
+      entity_id: string;
+      label: string;
+    }
+  | {
+      kind: "modify_remove";
+      entity_kind: "node" | "edge";
+      entity_id: string;
+      label: string;
+      modifier: "draft" | "head";
+    }
+  | {
+      kind: "modify_modify";
+      entity_kind: "node" | "edge";
+      entity_id: string;
+      label: string;
+      axes: ConflictAxis[];
+    };
+
+/** ConflictAxis — atomic clash per modify/modify entity. */
+export type ConflictAxis =
+  | { axis: "label"; head: string; draft: string }
+  | { axis: "description"; head: string; draft: string }
+  | { axis: "source"; head: string; draft: string }
+  | { axis: "target"; head: string; draft: string }
+  | { axis: "cardinality"; head: string; draft: string }
+  | {
+      axis: "property_overlap";
+      property_name: string;
+      atoms: PropertyConflictAtom[];
+    }
+  | {
+      axis: "property_modify_remove";
+      property_name: string;
+      modifier: "draft" | "head";
+    }
+  | { axis: "property_add_add"; property_name: string };
+
+export type PropertyConflictAtom =
+  | { axis: "type"; head: string; draft: string }
+  | { axis: "nullability"; head: boolean; draft: boolean }
+  | { axis: "description"; head: string; draft: string }
+  | {
+      axis: "default_value";
+      head: string | null;
+      draft: string | null;
+    };

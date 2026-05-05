@@ -4,6 +4,7 @@ use serde::Serialize;
 use tracing::warn;
 use uuid::Uuid;
 
+use ox_ontology::rebase::{analyze_rebase, RebaseAnalysis};
 use ox_ontology::{OntologyDiff, OntologyIR, compute_diff};
 use ox_store::{OntologySnapshot, OntologySnapshotSummary};
 
@@ -337,6 +338,114 @@ pub(crate) async fn diff_canonical(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/ontology-drafts/:id/rebase/preview — conflict-aware analysis
+//
+// Computes the rebase preview without mutating anything: how
+// has the canonical advanced since the draft's parent? what
+// has the draft done? where do they overlap?
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct RebasePreviewResponse {
+    /// `true` when the canonical has not advanced (draft already
+    /// pinned to head). The FE skips the rebase call in that case.
+    pub already_at_head: bool,
+    /// Full rebase analysis — `base_to_head`, `base_to_draft`,
+    /// `conflicts`. Wire shape mirrors `ox_ontology::rebase::RebaseAnalysis`.
+    #[schema(value_type = Object)]
+    pub analysis: RebaseAnalysis,
+    /// Canonical head id at the time of analysis. The rebase
+    /// confirm call must echo this back so a sibling commit
+    /// landing between preview and rebase doesn't silently land
+    /// on a fresher head than the operator inspected.
+    pub head_version_id: Option<Uuid>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/ontology-drafts/{id}/rebase/preview",
+    params(("id" = Uuid, Path, description = "Draft ID")),
+    responses(
+        (status = 200, description = "Rebase analysis — conflicts, base→head, base→draft", body = RebasePreviewResponse),
+        (status = 400, description = "Draft has no ontology yet", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Draft not found", body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Projects",
+)]
+pub(crate) async fn rebase_preview(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ApiResponse<RebasePreviewResponse>>, AppError> {
+    let project = state
+        .store
+        .get_ontology_draft(id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(AppError::project_not_found)?;
+    let draft_json = project.ontology.ok_or_else(AppError::no_ontology)?;
+    let draft_ir: OntologyIR = serde_json::from_value(draft_json)
+        .map_err(|e| AppError::internal(format!("Failed to parse draft ontology: {e}")))?;
+
+    // Resolve canonical head + parent IRs.
+    let identity = state.store.get_workspace_ontology().await.map_err(AppError::from)?;
+    let head = match identity {
+        Some(ref id) => state
+            .store
+            .get_current_version(id.id)
+            .await
+            .map_err(AppError::from)?,
+        None => None,
+    };
+    let head_id = head.as_ref().map(|v| v.id);
+
+    let head_ir = match head.as_ref() {
+        Some(v) => state
+            .store
+            .get_ontology_ir(v.id)
+            .await
+            .map_err(AppError::from)?,
+        None => None,
+    };
+    let parent_ir = match project.parent_version_id {
+        Some(parent_id) => state
+            .store
+            .get_ontology_ir(parent_id)
+            .await
+            .map_err(AppError::from)?,
+        None => None,
+    };
+
+    let already_at_head = matches!(
+        (project.parent_version_id, head_id),
+        (Some(p), Some(h)) if p == h
+    );
+
+    // Greenfield baselines fall back to an empty IR so the
+    // analysis surface stays consistent.
+    let empty = || {
+        OntologyIR::new(
+            String::new(),
+            String::new(),
+            ox_core::i18n::LocalizedText::default(),
+            1u32,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )
+    };
+    let base = parent_ir.unwrap_or_else(empty);
+    let head = head_ir.unwrap_or_else(empty);
+    let analysis = analyze_rebase(&base, &head, &draft_ir);
+
+    Ok(ApiResponse::of(RebasePreviewResponse {
+        already_at_head,
+        analysis,
+        head_version_id: head_id,
+    }))
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/ontology-drafts/:id/rebase — fast-forward parent_version_id
 //
 // Branching rebase. The workspace's canonical head may have
@@ -353,6 +462,19 @@ pub(crate) async fn diff_canonical(
 // completion path catch the rest.
 // ---------------------------------------------------------------------------
 
+#[derive(serde::Deserialize, utoipa::ToSchema, Default)]
+pub struct RebaseProjectRequest {
+    /// When `true`, the operator has reviewed the rebase preview
+    /// and accepts the listed conflicts. The pin still goes
+    /// through; the draft's content stays under operator
+    /// control to reconcile by hand. When `false` (default), a
+    /// non-empty conflict set causes the endpoint to return
+    /// `409` so the FE can route the operator to the preview
+    /// surface first.
+    #[serde(default)]
+    pub acknowledge_conflicts: bool,
+}
+
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct RebaseProjectResponse {
     pub project: crate::routes::ontology_drafts::types::ProjectView,
@@ -362,10 +484,12 @@ pub struct RebaseProjectResponse {
     post,
     path = "/api/ontology-drafts/{id}/rebase",
     params(("id" = Uuid, Path, description = "Draft ID")),
+    request_body = RebaseProjectRequest,
     responses(
         (status = 200, description = "Rebased — parent_version_id pinned to canonical head", body = RebaseProjectResponse),
         (status = 400, description = "Workspace has no canonical to rebase onto", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Draft not found", body = inline(crate::openapi::ErrorResponse)),
+        (status = 409, description = "Conflicts present — preview first then resubmit with `acknowledge_conflicts: true`", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
     tag = "Projects",
@@ -373,7 +497,10 @@ pub struct RebaseProjectResponse {
 pub(crate) async fn rebase_draft(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
+    body: Option<Json<RebaseProjectRequest>>,
 ) -> Result<Json<ApiResponse<RebaseProjectResponse>>, AppError> {
+    let body = body.map(|b| b.0).unwrap_or_default();
+
     let project = state
         .store
         .get_ontology_draft(id)
@@ -402,6 +529,49 @@ pub(crate) async fn rebase_draft(
                 "workspace canonical has no committed head — nothing to rebase onto".to_string(),
             )
         })?;
+
+    // Conflict-aware gate. Run the same analysis the preview
+    // endpoint emits and refuse the pin when conflicts exist
+    // unless the operator explicitly acknowledged.
+    if !body.acknowledge_conflicts {
+        if let Some(draft_json) = project.ontology.clone() {
+            let draft_ir: OntologyIR = serde_json::from_value(draft_json).map_err(|e| {
+                AppError::internal(format!("Failed to parse draft ontology: {e}"))
+            })?;
+            let head_ir = state
+                .store
+                .get_ontology_ir(head.id)
+                .await
+                .map_err(AppError::from)?;
+            let parent_ir = match project.parent_version_id {
+                Some(parent_id) => state
+                    .store
+                    .get_ontology_ir(parent_id)
+                    .await
+                    .map_err(AppError::from)?,
+                None => None,
+            };
+            let empty = || {
+                OntologyIR::new(
+                    String::new(),
+                    String::new(),
+                    ox_core::i18n::LocalizedText::default(),
+                    1u32,
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                )
+            };
+            let analysis =
+                analyze_rebase(&parent_ir.unwrap_or_else(empty), &head_ir.unwrap_or_else(empty), &draft_ir);
+            if !analysis.is_clean() {
+                return Err(AppError::conflict(format!(
+                    "rebase has {} conflict(s) — preview first then resubmit with `acknowledge_conflicts: true`",
+                    analysis.conflicts.len()
+                )));
+            }
+        }
+    }
 
     state
         .store

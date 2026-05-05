@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   diffDraftAgainstCanonical,
   listCanonicalVersions,
+  previewRebaseAgainstCanonical,
   rebaseDraftAgainstCanonical,
 } from "@/lib/api/ontology-branches";
 import { ontologyDraftsKeys } from "@/hooks/api/use-ontology-drafts";
@@ -12,6 +13,7 @@ import type {
   OntologyDiffSummary,
   OntologyVersionsResponse,
   RebaseDraftResponse,
+  RebasePreviewResponse,
 } from "@/types/ontology-branches";
 
 export const ontologyBranchesKeys = {
@@ -19,6 +21,8 @@ export const ontologyBranchesKeys = {
   versions: () => [...ontologyBranchesKeys.all, "versions"] as const,
   diffCanonical: (draftId: string) =>
     [...ontologyBranchesKeys.all, "diff-canonical", draftId] as const,
+  rebasePreview: (draftId: string) =>
+    [...ontologyBranchesKeys.all, "rebase-preview", draftId] as const,
 };
 
 /**
@@ -55,14 +59,35 @@ export function useDraftDiffAgainstCanonical(
   });
 }
 
+export function useRebasePreview(draftId: string | null | undefined) {
+  return useQuery<RebasePreviewResponse>({
+    queryKey: ontologyBranchesKeys.rebasePreview(draftId ?? ""),
+    queryFn: () => {
+      if (!draftId) {
+        throw new Error("draft id is required");
+      }
+      return previewRebaseAgainstCanonical(draftId);
+    },
+    enabled: !!draftId,
+  });
+}
+
 export function useRebaseDraft() {
   const qc = useQueryClient();
-  return useMutation<RebaseDraftResponse, Error, string>({
-    mutationFn: (draftId) => rebaseDraftAgainstCanonical(draftId),
-    onSuccess: (_data, draftId) => {
+  return useMutation<
+    RebaseDraftResponse,
+    Error,
+    { draftId: string; acknowledgeConflicts?: boolean }
+  >({
+    mutationFn: ({ draftId, acknowledgeConflicts }) =>
+      rebaseDraftAgainstCanonical(draftId, acknowledgeConflicts ?? false),
+    onSuccess: (_data, { draftId }) => {
       qc.invalidateQueries({ queryKey: ontologyDraftsKeys.all });
       qc.invalidateQueries({
         queryKey: ontologyBranchesKeys.diffCanonical(draftId),
+      });
+      qc.invalidateQueries({
+        queryKey: ontologyBranchesKeys.rebasePreview(draftId),
       });
     },
   });

@@ -3364,6 +3364,47 @@
       "rebaseErrorToast": "Rebase failed: {error}",
       "rebaseStaleHint": "Rebase to pin against the current canonical head",
       "rebaseCurrentHint": "Already pinned to the current canonical head",
+      "rebaseModal": {
+        "title": "Rebase {title}",
+        "description": "Rebase pins this draft's parent_version_id to the current canonical head. Conflicts below mean the canonical and the draft both touched the same entities — you must reconcile by hand before rebasing or accept that the draft will need follow-up edits.",
+        "alreadyAtHead": "Already pinned to the current canonical head — no rebase needed.",
+        "clean": "Clean rebase — no conflicts. Confirming will pin the draft's parent_version_id to the current canonical head.",
+        "conflictsHeading": "{count} conflict(s)",
+        "confirmClean": "Rebase",
+        "confirmAcknowledge": "Acknowledge & Rebase",
+        "badge": {
+          "node": "node",
+          "edge": "edge"
+        },
+        "conflict": {
+          "addAdd": "Add / Add",
+          "addAddDescription": "Both sides added an entity with the same id but different content.",
+          "draftModifyHeadRemove": "Draft modify · canonical removed",
+          "headModifyDraftRemove": "Canonical modify · draft removed",
+          "modifyModify": "Modify / Modify"
+        },
+        "axis": {
+          "label": "label: head=`{head}` · draft=`{draft}`",
+          "description": "description: head=`{head}` · draft=`{draft}`",
+          "source": "source: head=`{head}` · draft=`{draft}`",
+          "target": "target: head=`{head}` · draft=`{draft}`",
+          "cardinality": "cardinality: head=`{head}` · draft=`{draft}`",
+          "propertyAddAdd": "+ property `{name}` added by both sides",
+          "propertyDraftModifyHeadRemove": "draft modified property `{name}`, canonical removed it",
+          "propertyHeadModifyDraftRemove": "canonical modified property `{name}`, draft removed it",
+          "propertyOverlap": "~ property `{name}` modified by both sides"
+        },
+        "propertyAtom": {
+          "type": "type: head=`{head}` · draft=`{draft}`",
+          "nullability": "nullability: head=`{head}` · draft=`{draft}`",
+          "description": "description: head=`{head}` · draft=`{draft}`",
+          "defaultValue": "default: head=`{head}` · draft=`{draft}`"
+        },
+        "toast": {
+          "success": "Draft rebased",
+          "error": "Rebase failed: {error}"
+        }
+      },
       "diffModal": {
         "title": "Diff vs canonical — {title}",
         "description": "Entity-level changes between this draft and the workspace canonical head. Empty when the draft matches the canonical exactly.",

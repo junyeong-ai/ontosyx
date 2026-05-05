@@ -3,6 +3,7 @@ import type {
   OntologyDiffSummary,
   OntologyVersionsResponse,
   RebaseDraftResponse,
+  RebasePreviewResponse,
 } from "@/types/ontology-branches";
 
 /**
@@ -27,15 +28,37 @@ export async function diffDraftAgainstCanonical(
 }
 
 /**
+ * Read-only rebase analysis — conflicts, base→head and
+ * base→draft diffs, current canonical head id. Drives the
+ * preview surface; the FE renders conflicts before the operator
+ * commits to the pin.
+ */
+export async function previewRebaseAgainstCanonical(
+  draftId: string,
+): Promise<RebasePreviewResponse> {
+  return request<RebasePreviewResponse>(
+    `/ontology-drafts/${encodeURIComponent(draftId)}/rebase/preview`,
+  );
+}
+
+/**
  * Pin a draft's `parent_version_id` to the workspace canonical
- * head. The MVP rebase moves the parent pointer — conflict
- * detection rides on the existing complete-draft guard.
+ * head. When `acknowledge_conflicts` is `false` (default), a
+ * non-empty conflict surface returns 409 — the FE routes the
+ * operator to the preview, then resubmits with `true` once the
+ * operator has reconciled.
  */
 export async function rebaseDraftAgainstCanonical(
   draftId: string,
+  acknowledgeConflicts = false,
 ): Promise<RebaseDraftResponse> {
   return request<RebaseDraftResponse>(
     `/ontology-drafts/${encodeURIComponent(draftId)}/rebase`,
-    { method: "POST" },
+    {
+      method: "POST",
+      body: JSON.stringify({
+        acknowledge_conflicts: acknowledgeConflicts,
+      }),
+    },
   );
 }

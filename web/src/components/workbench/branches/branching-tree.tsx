@@ -7,13 +7,11 @@ import Link from "next/link";
 import {
   useCanonicalVersions,
   useDraftDiffAgainstCanonical,
-  useRebaseDraft,
 } from "@/hooks/api/use-ontology-branches";
 import { useOntologyDrafts } from "@/hooks/api/use-ontology-drafts";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { toast } from "@/components/ui/toast";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
 import { cn } from "@/lib/cn";
@@ -21,6 +19,7 @@ import type { OntologyVersionEntry } from "@/types/ontology-branches";
 import type { OntologyDraftSummary } from "@/types/ontology-drafts";
 
 import { DiffModal } from "./diff-modal";
+import { RebaseModal } from "./rebase-modal";
 
 /**
  * Workspace × ontology = 1:1, so the branching tree is one
@@ -87,24 +86,14 @@ function DraftActions({
   draft,
   isPinnedToHead,
   onShowDiff,
+  onShowRebase,
 }: {
   draft: OntologyDraftSummary;
   isPinnedToHead: boolean;
   onShowDiff: (d: OntologyDraftSummary) => void;
+  onShowRebase: (d: OntologyDraftSummary) => void;
 }) {
   const t = useTranslations("workbench.branches");
-  const rebase = useRebaseDraft();
-  const onRebase = () => {
-    rebase.mutate(draft.id, {
-      onSuccess: () => toast.success(t("rebaseSuccessToast")),
-      onError: (err) =>
-        toast.error(
-          t("rebaseErrorToast", {
-            error: err instanceof Error ? err.message : String(err),
-          }),
-        ),
-    });
-  };
   return (
     <>
       <Button
@@ -126,17 +115,16 @@ function DraftActions({
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          onRebase();
+          onShowRebase(draft);
         }}
-        disabled={isPinnedToHead || rebase.isPending}
-        loading={rebase.isPending}
+        disabled={isPinnedToHead}
         title={
           isPinnedToHead
             ? t("rebaseCurrentHint")
             : t("rebaseStaleHint")
         }
       >
-        {rebase.isPending ? t("rebaseSubmitting") : t("rebaseLabel")}
+        {t("rebaseLabel")}
       </Button>
     </>
   );
@@ -148,12 +136,14 @@ function VersionNode({
   draftLabel,
   currentHeadId,
   onShowDiff,
+  onShowRebase,
 }: {
   version: OntologyVersionEntry | null;
   drafts: OntologyDraftSummary[];
   draftLabel: string;
   currentHeadId: string | null;
   onShowDiff: (d: OntologyDraftSummary) => void;
+  onShowRebase: (d: OntologyDraftSummary) => void;
 }) {
   const t = useTranslations("workbench.branches");
 
@@ -236,6 +226,7 @@ function VersionNode({
                       draft={d}
                       isPinnedToHead={pinnedToHead}
                       onShowDiff={onShowDiff}
+                      onShowRebase={onShowRebase}
                     />
                     <span className="text-2xs text-foreground-muted tabular-nums">
                       {formatTimestamp(d.updated_at)}
@@ -263,7 +254,11 @@ export function BranchingTree() {
   const greenfieldDrafts = draftBuckets.get(null) ?? [];
   const currentHeadId = versions.find((v) => v.is_current)?.id ?? null;
   const [diffDraft, setDiffDraft] = useState<OntologyDraftSummary | null>(null);
+  const [rebaseDraft, setRebaseDraft] = useState<OntologyDraftSummary | null>(
+    null,
+  );
   const onShowDiff = (d: OntologyDraftSummary) => setDiffDraft(d);
+  const onShowRebase = (d: OntologyDraftSummary) => setRebaseDraft(d);
 
   const pageState: PageState =
     versionsQuery.isLoading || draftsQuery.isLoading
@@ -303,6 +298,7 @@ export function BranchingTree() {
               draftLabel={t("draftsLabel")}
               currentHeadId={currentHeadId}
               onShowDiff={onShowDiff}
+              onShowRebase={onShowRebase}
             />
           ) : null}
           {versions.map((v) => (
@@ -313,6 +309,7 @@ export function BranchingTree() {
               draftLabel={t("draftsLabel")}
               currentHeadId={currentHeadId}
               onShowDiff={onShowDiff}
+              onShowRebase={onShowRebase}
             />
           ))}
           {versions.length > 0 && greenfieldDrafts.length > 0 ? (
@@ -322,6 +319,7 @@ export function BranchingTree() {
               draftLabel={t("draftsLabel")}
               currentHeadId={currentHeadId}
               onShowDiff={onShowDiff}
+              onShowRebase={onShowRebase}
             />
           ) : null}
         </ul>
@@ -336,6 +334,18 @@ export function BranchingTree() {
         open={!!diffDraft}
         onOpenChange={(open) => {
           if (!open) setDiffDraft(null);
+        }}
+      />
+      <RebaseModal
+        draftId={rebaseDraft?.id ?? null}
+        draftTitle={
+          rebaseDraft?.title?.trim()
+            ? rebaseDraft.title
+            : (rebaseDraft?.id ?? "")
+        }
+        open={!!rebaseDraft}
+        onOpenChange={(open) => {
+          if (!open) setRebaseDraft(null);
         }}
       />
     </PageStateView>

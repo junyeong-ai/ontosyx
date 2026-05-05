@@ -26,6 +26,7 @@ pub mod derived_rules;
 pub mod design_gate;
 pub mod ontology_draft;
 pub mod diff;
+pub mod rebase;
 pub mod enrichment;
 pub mod function;
 pub mod glossary;

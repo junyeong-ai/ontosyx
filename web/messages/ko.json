@@ -3364,6 +3364,47 @@
       "rebaseErrorToast": "리베이스 실패: {error}",
       "rebaseStaleHint": "현재 대표 헤드에 맞게 리베이스",
       "rebaseCurrentHint": "이미 현재 대표 헤드에 고정됨",
+      "rebaseModal": {
+        "title": "{title} 리베이스",
+        "description": "리베이스는 이 초안의 parent_version_id 를 현재 대표 헤드로 고정합니다. 아래 충돌은 대표와 초안이 같은 엔티티를 건드렸다는 의미입니다 — 직접 조정하거나 초안에 후속 수정이 필요함을 인정해야 합니다.",
+        "alreadyAtHead": "이미 현재 대표 헤드에 고정됨 — 리베이스 불필요.",
+        "clean": "깨끗한 리베이스 — 충돌 없음. 확인하면 초안의 parent_version_id 가 현재 대표 헤드로 고정됩니다.",
+        "conflictsHeading": "{count} 개 충돌",
+        "confirmClean": "리베이스",
+        "confirmAcknowledge": "인지하고 리베이스",
+        "badge": {
+          "node": "노드",
+          "edge": "엣지"
+        },
+        "conflict": {
+          "addAdd": "추가 / 추가",
+          "addAddDescription": "양쪽이 같은 id 의 엔티티를 다른 내용으로 추가했습니다.",
+          "draftModifyHeadRemove": "초안이 변경 · 대표가 제거",
+          "headModifyDraftRemove": "대표가 변경 · 초안이 제거",
+          "modifyModify": "변경 / 변경"
+        },
+        "axis": {
+          "label": "라벨: head=`{head}` · draft=`{draft}`",
+          "description": "설명: head=`{head}` · draft=`{draft}`",
+          "source": "출발: head=`{head}` · draft=`{draft}`",
+          "target": "도착: head=`{head}` · draft=`{draft}`",
+          "cardinality": "다중성: head=`{head}` · draft=`{draft}`",
+          "propertyAddAdd": "+ 속성 `{name}` 양쪽 추가",
+          "propertyDraftModifyHeadRemove": "초안이 속성 `{name}` 변경, 대표가 제거",
+          "propertyHeadModifyDraftRemove": "대표가 속성 `{name}` 변경, 초안이 제거",
+          "propertyOverlap": "~ 속성 `{name}` 양쪽 변경"
+        },
+        "propertyAtom": {
+          "type": "타입: head=`{head}` · draft=`{draft}`",
+          "nullability": "널 허용: head=`{head}` · draft=`{draft}`",
+          "description": "설명: head=`{head}` · draft=`{draft}`",
+          "defaultValue": "기본값: head=`{head}` · draft=`{draft}`"
+        },
+        "toast": {
+          "success": "초안이 리베이스되었습니다",
+          "error": "리베이스 실패: {error}"
+        }
+      },
       "diffModal": {
         "title": "대표와의 차이 — {title}",
         "description": "이 초안과 워크스페이스 대표 헤드 사이의 엔티티 단위 변경. 초안이 대표와 정확히 일치하면 비어 있습니다.",

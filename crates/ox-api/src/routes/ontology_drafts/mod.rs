@@ -24,7 +24,7 @@ pub(crate) use preview::preview_source;
 pub(crate) use refinement::{apply_reconcile, ontology_draft, refine_ontology_draft};
 pub(crate) use revisions::{
     diff_canonical, diff_current, diff_revisions, get_revision, list_revisions, migrate_schema,
-    rebase_draft, restore_revision,
+    rebase_draft, rebase_preview, restore_revision,
 };
 pub(crate) use scope::{defer_scope_tables, include_scope_tables};
 pub(crate) use streaming::{design_ontology_draft_stream, refine_ontology_draft_stream};
