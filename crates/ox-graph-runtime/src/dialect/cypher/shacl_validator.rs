@@ -338,9 +338,31 @@ impl ShaclValidator {
                 let Some(raw) = value else {
                     return;
                 };
-                let Some(literal) = parse_string_literal(raw) else {
-                    // Not a string literal (param / fn / numeric) — can't
-                    // decide at AST time. Skipping is correct behaviour.
+                // Three observed-literal shapes the value set comparison
+                // is meaningful for:
+                //
+                // 1. string literal `'foo'` → strip quotes, compare to
+                //    the `codes` set.
+                // 2. numeric / bool literal `42` / `true` → raw text
+                //    matches a code verbatim. Value sets carry their
+                //    `codes` as strings on the wire (see
+                //    `CodeSystemDef.codes[].code: String`), so a rule
+                //    author writing `"42"` / `"true"` matches against
+                //    the literal `42` / `true` written in the query —
+                //    same wire shape as `HasValue`.
+                // 3. param / function call / identifier / null →
+                //    opaque, silent skip; driver runtime takes the
+                //    call.
+                let literal: String = if let Some(s) = parse_string_literal(raw) {
+                    s
+                } else if classify_literal_type(raw).is_some_and(|t| {
+                    matches!(
+                        t,
+                        PropertyType::Int | PropertyType::Float | PropertyType::Bool
+                    )
+                }) {
+                    raw.trim().to_string()
+                } else {
                     return;
                 };
                 // Hit the pre-built cache (O(1)) instead of re-running
@@ -1679,6 +1701,93 @@ mod tests {
         assert!(
             issues.iter().all(|i| i.level != IssueLevel::Error),
             "{issues:?}"
+        );
+    }
+
+    #[test]
+    fn in_value_set_blocks_unknown_numeric_literal() {
+        // Status code as Int — `priority IN {1, 2, 3}`. A SET to
+        // `99` must be rejected just like a string mismatch is.
+        let prop = PropertyDef {
+            id: PropertyId::new("prop-status"),
+            name: PropertyKey::new("status").unwrap(),
+            property_type: PropertyType::Int,
+            ..Default::default()
+        };
+        let mut onto = OntologyIR::try_new(
+            "ont-test".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![user_with(prop)],
+            vec![],
+            vec![],
+        )
+        .expect("valid seed ontology");
+        let vs_id = seed_value_set(&mut onto, "status", &["1", "2", "3"]);
+        onto.add_rule(enum_rule(vs_id)).expect("rule add");
+        let issues = run(onto, "MATCH (u:User) SET u.status = 99 RETURN u");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.value_not_in_set"),
+            "numeric literal not in value set must be flagged: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn in_value_set_passes_known_numeric_literal() {
+        let prop = PropertyDef {
+            id: PropertyId::new("prop-status"),
+            name: PropertyKey::new("status").unwrap(),
+            property_type: PropertyType::Int,
+            ..Default::default()
+        };
+        let mut onto = OntologyIR::try_new(
+            "ont-test".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![user_with(prop)],
+            vec![],
+            vec![],
+        )
+        .expect("valid seed ontology");
+        let vs_id = seed_value_set(&mut onto, "status", &["1", "2", "3"]);
+        onto.add_rule(enum_rule(vs_id)).expect("rule add");
+        let issues = run(onto, "MATCH (u:User) SET u.status = 2 RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "numeric literal in value set must pass: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn in_value_set_blocks_unknown_bool_literal() {
+        // Bool-coded set — `enabled IN {true}`. Operator overrides
+        // with `false` must be rejected.
+        let prop = PropertyDef {
+            id: PropertyId::new("prop-status"),
+            name: PropertyKey::new("status").unwrap(),
+            property_type: PropertyType::Bool,
+            ..Default::default()
+        };
+        let mut onto = OntologyIR::try_new(
+            "ont-test".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![user_with(prop)],
+            vec![],
+            vec![],
+        )
+        .expect("valid seed ontology");
+        let vs_id = seed_value_set(&mut onto, "status", &["true"]);
+        onto.add_rule(enum_rule(vs_id)).expect("rule add");
+        let issues = run(onto, "MATCH (u:User) SET u.status = false RETURN u");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.value_not_in_set"),
+            "bool literal not in value set must be flagged: {issues:?}"
         );
     }
 
