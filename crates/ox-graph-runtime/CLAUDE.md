@@ -104,6 +104,61 @@ the existing code already exists — the ICU select keeps both
 arms in one entry, and the `feedback_set_remove_ontology_check`
 memory documents the contract.
 
+## SHACL constraint enforcement matrix
+
+`ShaclValidator` enforces every constraint kind that can be
+decided at AST time on the SET / inline-pattern / CREATE / MERGE
+write surfaces. Adding a new constraint kind that fits the same
+shape (compares an authored expectation against a literal value)
+follows a fixed playbook:
+
+1. Add the variant to `ShaclConstraint` in `ox_ontology::rule`.
+2. Decide the dedup signature: opt-in via `ConstraintSignature`
+   or stay `None` (the dedup pipeline never collapses two
+   `None`-signed constraints — opt-in is the durable contract).
+3. Pull the SET / inline value through one of the three
+   classifiers in `cypher::shacl_validator`:
+   - `parse_string_literal(raw)` — `'foo'` / `"foo"` → unquoted
+     string. Returns `None` for non-quoted tokens.
+   - `parse_numeric_literal(raw)` — `42` / `3.14` → `f64`.
+     Returns `None` for strings, params, function calls, null,
+     bool literals.
+   - `classify_literal_type(raw)` — `Option<PropertyType>` for
+     all 10 wire variants. Used by `Datatype` and the
+     `InValueSet` / `HasValue` numeric+bool fallback.
+4. Add the arm to `check_property_constraint`. **Silent skip on
+   non-decidable values** (parameter, function call, null,
+   identifier reference) — the matching `Datatype` rule (if
+   any) catches the type-axis violation independently. False-
+   positive avoidance trumps false-negative coverage.
+5. Emit a typed diagnostic with `runtime.cypher.shacl.<kind>_violation`
+   and stable params (the rule's id + name + the rule-specific
+   bound + the observed `value`). Add the catalog entry to
+   `web/messages/{en,ko}.json` — `pnpm i18n-parity-audit`
+   gates the lockstep.
+
+Currently enforced (one assertion site, one diagnostic):
+
+- `MinCount` (also derived implicitly from `nullable=false` —
+  see `ox_ontology::derived_rules::derive_nullable_rules`)
+- `Datatype` — literal type widening matrix in `type_assignable`
+- `InValueSet` — string + numeric + bool literal membership
+- `MatchesPattern` — notation-pattern regex
+- `LessThan` / `Equals` — sibling-property predicate emit
+- `Closed` — node-shape allow-list
+- `Disjoint` / `UniqueKey` / `UniqueLang` — node-level
+- `MinInclusive` / `MaxInclusive` — numeric bounds
+- `MinLength` / `MaxLength` — codepoint-counted string length
+- `HasValue` — single authored equality
+
+Deliberately not enforced at AST layer:
+
+- `MaxCount` — needs the graph-instance count, which the
+  AST cannot see; the validator only inspects one write at a
+  time and the count would race with concurrent writers.
+  A future runtime-side companion check belongs in the bolt
+  driver, not the AST validator.
+
 ## Adding a New Graph Backend
 
 1. Implement `GraphRuntime` trait (schema DDL, query execution, load, sandbox, health).

@@ -137,6 +137,43 @@ change the strength distribution don't change the answer.
 through `canonical_binding()` so consumers cannot accidentally
 reach the lower-priority entry.
 
+## Implicit-rule derivation — three layers
+
+`derived_rules.rs` synthesises SHACL rules along two orthogonal
+axes so a write reaching the runtime SHACL validator gets every
+schema-level invariant enforced without the operator hand-
+authoring a redundant `RuleDef`:
+
+- **Binding axis** — `PropertyBinding { strength: Required }` →
+  `InValueSet` / `MatchesPattern`. The `Required` strength is a
+  promise; the derivation turns the promise into an enforced
+  rule. CodeSystem-targeted bindings deliberately produce
+  nothing — wrap the system in a value set if you need
+  enforcement.
+- **Nullable axis** — `PropertyDef.nullable=false` → `MinCount=1`.
+  The schema-level NOT NULL declaration that the planner reads
+  on the source-mapping side. Without this derivation the
+  declaration would never reach the runtime validator and a
+  `CREATE` missing the property would land silently.
+
+Three methods, one per consumer shape:
+
+- `derive_binding_rules()` — binding axis only. Rule-suggestion
+  engines that filter by binding kind use this.
+- `derive_nullable_rules()` — nullable axis only. Symmetric
+  per-axis surface.
+- `derive_implicit_rules()` — full safety-net union. The SHACL
+  validator and the dedup-signature index call this; both the
+  binding and nullable derivations contribute.
+
+Dedup is signature-keyed via `ConstraintSignature`. New
+constraint kinds opt in by returning `Some(...)` from
+`ShaclConstraint::signature()`; `None`-signed constraints never
+collapse. `MinCount` is signature-marked (axis identity, ignores
+the numeric `min`) so an authored `MinCount=2` correctly
+suppresses the implicit nullable derivation — the stronger
+authored bound already implies the weaker implicit one.
+
 ## On-wire shape gate
 
 `OntologyIR` carries `ONTOLOGY_IR_SCHEMA_VERSION` (currently `1`)
