@@ -7,7 +7,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { selectConnectionState, useCollabStore } from "@/lib/collab";
+import { selectStateConnectionState, useCollabStore } from "@/lib/collab";
 import type { ConnectionState } from "@/lib/collab";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
@@ -29,7 +29,7 @@ const COLOR_CLASSES: Record<ConnectionState, string> = {
 };
 
 export function ConnectionStatusDot({ className }: { className?: string }) {
-  const state = useCollabStore(selectConnectionState);
+  const state = useCollabStore(selectStateConnectionState);
   const t = useTranslations("collaboration.status");
 
   // Steady-state hides the dot entirely so users only see a marker

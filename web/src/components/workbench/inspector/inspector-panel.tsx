@@ -20,7 +20,7 @@ import { arr } from "@/lib/ir-collections";
 import { gapTouchesEntity } from "@/lib/quality-utils";
 import { useEntityLock } from "@/components/collab/use-entity-lock";
 import { useEntityLockGuard } from "@/components/collab/use-entity-lock-guard";
-import { selectLatestRemoteUpdate, selectPresence, useCollabStore } from "@/lib/collab";
+import { selectStateLatestRemoteUpdate, selectStatePresence, useCollabStore } from "@/lib/collab";
 import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
@@ -77,10 +77,10 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   // room. When the room has multiple collaborators the banner
   // shows "another user" as a generic fallback rather than guess.
   const presence = useCollabStore((s) =>
-    activeProject ? selectPresence(activeProject.id)(s) : [],
+    activeProject ? selectStatePresence(activeProject.id)(s) : [],
   );
   const latestRemoteUpdate = useCollabStore((s) =>
-    activeProject ? selectLatestRemoteUpdate(activeProject.id)(s) : undefined,
+    activeProject ? selectStateLatestRemoteUpdate(activeProject.id)(s) : undefined,
   );
   const ackRemoteUpdate = useCollabStore((s) => s.ackRemoteUpdate);
   // The current viewer's user id — distinct from `activeProject.user_id`,

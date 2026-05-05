@@ -8,7 +8,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { colorFor, selectPresence, useCollabStore } from "@/lib/collab";
+import { colorFor, selectStatePresence, useCollabStore } from "@/lib/collab";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useEntityLock } from "./use-entity-lock";
 import { cn } from "@/lib/cn";
@@ -25,7 +25,7 @@ export function LockIndicator({
   className,
 }: LockIndicatorProps) {
   const lock = useEntityLock(projectId, entityId);
-  const presence = useCollabStore(selectPresence(projectId ?? ""));
+  const presence = useCollabStore(selectStatePresence(projectId ?? ""));
   const t = useTranslations("collaboration.lock");
 
   if (lock.kind === "unlocked") return null;

@@ -16,7 +16,7 @@ import { toast } from "@/components/ui/toast";
 import {
   classifyError,
   clearWsTokenCache,
-  selectLastError,
+  selectStateLastError,
   useCollabStore,
 } from "@/lib/collab";
 
@@ -26,7 +26,7 @@ import {
 const DEDUPE_WINDOW_MS = 2_000;
 
 export function CollaborationErrorToaster() {
-  const lastError = useCollabStore(selectLastError);
+  const lastError = useCollabStore(selectStateLastError);
   const t = useTranslations("collaboration.errors");
   const lastSeenRef = useRef<{ code: string; ts: number } | null>(null);
 

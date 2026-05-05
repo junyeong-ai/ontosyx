@@ -11,15 +11,15 @@ export type {
 } from "./client";
 export {
   applyServerMessage,
-  selectClientReady,
-  selectConnectionState,
-  selectCursors,
-  selectHidden,
-  selectLastError,
-  selectLatestRemoteUpdate,
-  selectLockFor,
-  selectLocks,
-  selectPresence,
+  selectStateClientReady,
+  selectStateConnectionState,
+  selectStateCursors,
+  selectStateHidden,
+  selectStateLastError,
+  selectStateLatestRemoteUpdate,
+  selectStateLockFor,
+  selectStateLocks,
+  selectStatePresence,
   useCollabStore,
 } from "./store";
 export { useNetworkAwareness, useVisibilityAwareness } from "./network-awareness";

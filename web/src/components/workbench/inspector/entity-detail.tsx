@@ -12,7 +12,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { TabBar } from "@/components/ui/tab-bar";
 import { LockIndicator } from "@/components/collab/lock-indicator";
 import { useEntityLock } from "@/components/collab/use-entity-lock";
-import { colorFor, selectPresence, useCollabStore } from "@/lib/collab";
+import { colorFor, selectStatePresence, useCollabStore } from "@/lib/collab";
 import { cn } from "@/lib/cn";
 import { useEntityDependencies } from "@/hooks/api/use-entity-dependencies";
 import type { SchemaEntityRef } from "@/lib/api/dependencies";
@@ -225,7 +225,7 @@ function LockedByOtherBanner({
   heldBy: string;
 }) {
   const t = useTranslations("collaboration.lock");
-  const presence = useCollabStore(selectPresence(projectId));
+  const presence = useCollabStore(selectStatePresence(projectId));
   const holderName =
     presence.find((p) => p.user_id === heldBy)?.user_name ?? heldBy;
   const color = colorFor(heldBy);

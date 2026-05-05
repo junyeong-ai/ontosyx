@@ -6,9 +6,9 @@
 import { describe, it, expect } from "vitest";
 
 import {
-  selectCursors,
-  selectLocks,
-  selectPresence,
+  selectStateCursors,
+  selectStateLocks,
+  selectStatePresence,
   type CollabState,
 } from "../store";
 
@@ -29,21 +29,21 @@ const empty: CollabState = {
 const projectId = "00000000-0000-0000-0000-0000000000aa";
 
 describe("collab selectors return stable empties", () => {
-  it("selectPresence returns the same array reference for an unseeded room", () => {
-    const a = selectPresence(projectId)(empty);
-    const b = selectPresence(projectId)(empty);
+  it("selectStatePresence returns the same array reference for an unseeded room", () => {
+    const a = selectStatePresence(projectId)(empty);
+    const b = selectStatePresence(projectId)(empty);
     expect(a).toBe(b);
   });
 
-  it("selectCursors returns the same map reference for an unseeded room", () => {
-    const a = selectCursors(projectId)(empty);
-    const b = selectCursors(projectId)(empty);
+  it("selectStateCursors returns the same map reference for an unseeded room", () => {
+    const a = selectStateCursors(projectId)(empty);
+    const b = selectStateCursors(projectId)(empty);
     expect(a).toBe(b);
   });
 
-  it("selectLocks returns the same map reference for an unseeded room", () => {
-    const a = selectLocks(projectId)(empty);
-    const b = selectLocks(projectId)(empty);
+  it("selectStateLocks returns the same map reference for an unseeded room", () => {
+    const a = selectStateLocks(projectId)(empty);
+    const b = selectStateLocks(projectId)(empty);
     expect(a).toBe(b);
   });
 });

@@ -9,7 +9,7 @@
 
 import { useMemo } from "react";
 
-import { colorFor, useCollabStore, selectPresence } from "@/lib/collab";
+import { colorFor, useCollabStore, selectStatePresence } from "@/lib/collab";
 import type { PresenceInfo } from "@/lib/collab";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
@@ -39,7 +39,7 @@ export function PresenceAvatars({
   excludeUserId,
   className,
 }: PresenceAvatarsProps) {
-  const presence = useCollabStore(selectPresence(projectId));
+  const presence = useCollabStore(selectStatePresence(projectId));
   const workspaceId = useAppStore((s) => s.workspaceId);
   const { data: members } = useWorkspaceMembers(workspaceId);
 

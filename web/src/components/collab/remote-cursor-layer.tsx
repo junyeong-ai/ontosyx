@@ -16,9 +16,9 @@ import { useReactFlow } from "@xyflow/react";
 
 import {
   colorFor,
-  selectCursors,
-  selectHidden,
-  selectPresence,
+  selectStateCursors,
+  selectStateHidden,
+  selectStatePresence,
   useCollabStore,
 } from "@/lib/collab";
 import { useCollabClient } from "./use-collab-client";
@@ -86,7 +86,7 @@ export function RemoteCursorLayer({
 function CursorEmitter({ projectId }: { projectId: string }) {
   const { screenToFlowPosition } = useReactFlow();
   const client = useCollabClient();
-  const hidden = useCollabStore(selectHidden);
+  const hidden = useCollabStore(selectStateHidden);
   const lastSentRef = useRef(0);
 
   useEffect(() => {
@@ -138,8 +138,8 @@ function CursorRenderer({
   projectId: string;
   currentUserId: string | undefined;
 }) {
-  const cursors = useCollabStore(selectCursors(projectId));
-  const presence = useCollabStore(selectPresence(projectId));
+  const cursors = useCollabStore(selectStateCursors(projectId));
+  const presence = useCollabStore(selectStatePresence(projectId));
   const { flowToScreenPosition } = useReactFlow();
 
   // Idle-fade tick — `useSyncExternalStore` models the wall

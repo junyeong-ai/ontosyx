@@ -7,7 +7,7 @@
 
 import { useMemo } from "react";
 
-import { selectLockFor, useCollabStore } from "@/lib/collab";
+import { selectStateLockFor, useCollabStore } from "@/lib/collab";
 import { useAuth } from "@/hooks/use-auth";
 
 export type EntityLockStatus =
@@ -21,7 +21,7 @@ export function useEntityLock(
 ): EntityLockStatus {
   const { user } = useAuth();
   const lock = useCollabStore(
-    selectLockFor(projectId ?? "", entityId ?? ""),
+    selectStateLockFor(projectId ?? "", entityId ?? ""),
   );
   return useMemo<EntityLockStatus>(() => {
     if (!projectId || !entityId || !lock) return { kind: "unlocked" };

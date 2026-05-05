@@ -296,37 +296,38 @@ export function applyServerMessage(
 // re-renders are scoped to the data they use.
 // ---------------------------------------------------------------------------
 
-export const selectPresence =
+export const selectStatePresence =
   (projectId: string) =>
   (state: CollabState): readonly PresenceInfo[] =>
     state.rooms.get(projectId)?.presence ?? EMPTY_PRESENCE;
 
-export const selectCursors =
+export const selectStateCursors =
   (projectId: string) =>
   (state: CollabState): ReadonlyMap<string, CursorEntry> =>
     state.rooms.get(projectId)?.cursors ?? EMPTY_CURSORS;
 
-export const selectLocks =
+export const selectStateLocks =
   (projectId: string) =>
   (state: CollabState): ReadonlyMap<string, LockState> =>
     state.rooms.get(projectId)?.locks ?? EMPTY_LOCKS;
 
-export const selectLockFor =
+export const selectStateLockFor =
   (projectId: string, entityId: string) =>
   (state: CollabState): LockState | undefined =>
     state.rooms.get(projectId)?.locks.get(entityId);
 
-export const selectLatestRemoteUpdate =
+export const selectStateLatestRemoteUpdate =
   (projectId: string) =>
   (state: CollabState): RemoteUpdateSnapshot | undefined =>
     state.rooms.get(projectId)?.latestRemoteUpdate;
 
-export const selectConnectionState = (state: CollabState): ConnectionState =>
-  state.connectionState;
+export const selectStateConnectionState = (
+  state: CollabState,
+): ConnectionState => state.connectionState;
 
-export const selectLastError = (state: CollabState) => state.lastError;
+export const selectStateLastError = (state: CollabState) => state.lastError;
 
-export const selectHidden = (state: CollabState): boolean => state.hidden;
+export const selectStateHidden = (state: CollabState): boolean => state.hidden;
 
-export const selectClientReady = (state: CollabState): boolean =>
+export const selectStateClientReady = (state: CollabState): boolean =>
   state.clientReady;

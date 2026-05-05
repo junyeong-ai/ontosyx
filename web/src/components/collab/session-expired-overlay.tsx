@@ -23,13 +23,13 @@ import { Alert02Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
 import {
   isReauthCode,
-  selectLastError,
+  selectStateLastError,
   useCollabStore,
 } from "@/lib/collab";
 import { useAuth } from "@/hooks/use-auth";
 
 export function SessionExpiredOverlay() {
-  const lastError = useCollabStore(selectLastError);
+  const lastError = useCollabStore(selectStateLastError);
   const { mode } = useAuth();
   const t = useTranslations("collaboration.errors");
   const tActions = useTranslations("collaboration.actions");
