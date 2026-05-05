@@ -5030,10 +5030,10 @@ dependencies = [
  "ox-brain",
  "ox-compiler",
  "ox-core",
+ "ox-graph-runtime",
  "ox-memory",
  "ox-ontology",
  "ox-query-ir",
- "ox-runtime",
  "ox-store",
  "schemars",
  "serde",
@@ -5077,10 +5077,10 @@ dependencies = [
  "ox-compiler",
  "ox-core",
  "ox-federation",
+ "ox-graph-runtime",
  "ox-memory",
  "ox-ontology",
  "ox-query-ir",
- "ox-runtime",
  "ox-source",
  "ox-store",
  "reqwest 0.13.2",
@@ -5181,6 +5181,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ox-graph-runtime"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "futures",
+ "neo4rs",
+ "ox-compiler",
+ "ox-core",
+ "ox-ontology",
+ "ox-query-ir",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "ox-memory"
 version = "0.1.0"
 dependencies = [
@@ -5228,26 +5248,6 @@ dependencies = [
  "sha2",
  "tracing",
  "utoipa",
- "uuid",
-]
-
-[[package]]
-name = "ox-runtime"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "chrono",
- "futures",
- "neo4rs",
- "ox-compiler",
- "ox-core",
- "ox-ontology",
- "ox-query-ir",
- "regex",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
  "uuid",
 ]
 

@@ -15,7 +15,7 @@ ox-core = { workspace = true }
 ox-ontology = { workspace = true }
 ox-query-ir = { workspace = true }
 ox-compiler = { workspace = true }
-ox-runtime = { workspace = true }
+ox-graph-runtime = { workspace = true }
 ox-brain = { workspace = true }
 ox-agent = { workspace = true }
 ox-store = { workspace = true }

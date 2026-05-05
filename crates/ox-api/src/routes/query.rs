@@ -14,7 +14,7 @@ use ox_ontology::ir::OntologyIR;
 use ox_query_ir::pattern::PatternIR;
 use ox_query_ir::query::{QueryIR, QueryResult};
 use ox_core::types::PropertyValue;
-use ox_runtime::cypher::{strict_advisory_diagnostics, strict_blocking_gate};
+use ox_graph_runtime::cypher::{strict_advisory_diagnostics, strict_blocking_gate};
 use ox_store::{CursorParams, QueryExecution, QueryExecutionSummary, SavedQueryPattern};
 
 use crate::error::AppError;
@@ -161,7 +161,7 @@ where
     F: std::future::Future,
 {
     match ontology {
-        Some(o) => ox_runtime::GRAPH_ONTOLOGY.scope(o, fut).await,
+        Some(o) => ox_graph_runtime::GRAPH_ONTOLOGY.scope(o, fut).await,
         None => fut.await,
     }
 }
@@ -871,7 +871,7 @@ pub(crate) async fn execute_from_ir_federation(
     // outside the Cypher pipeline, so the rewriter never sees the
     // plan. Read the request-scoped snapshot the middleware loaded
     // and apply it post-hoc to the materialised result.
-    if let Ok(snapshot) = ox_runtime::GRAPH_ACL_SNAPSHOT.try_with(std::sync::Arc::clone) {
+    if let Ok(snapshot) = ox_graph_runtime::GRAPH_ACL_SNAPSHOT.try_with(std::sync::Arc::clone) {
         crate::acl_enforcement::enforce_acl_on_result(&mut results, &snapshot);
     }
 

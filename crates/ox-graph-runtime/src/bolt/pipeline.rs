@@ -14,7 +14,7 @@
 //!   single time; both validator pipelines and the rewriter operate on
 //!   the AST directly. The final render happens after the post-rewrite
 //!   gate passes. This matches the triple-surface design documented in
-//!   `ox-runtime::cypher`: one parse feeds three consumers.
+//!   `ox-graph-runtime::cypher`: one parse feeds three consumers.
 //!
 //! - **Validator → rewriter → validator ordering.** Safety and ontology
 //!   errors must surface before workspace rewriting mutates the query,

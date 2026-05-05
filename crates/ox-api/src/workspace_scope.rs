@@ -36,14 +36,14 @@ impl ContextScope for WorkspaceContextScope {
         match self {
             WorkspaceContextScope::SystemBypass => Box::pin(async move {
                 ox_store::SYSTEM_BYPASS
-                    .scope(true, ox_runtime::GRAPH_SYSTEM_BYPASS.scope(true, fut))
+                    .scope(true, ox_graph_runtime::GRAPH_SYSTEM_BYPASS.scope(true, fut))
                     .await
             }),
             WorkspaceContextScope::Workspace { workspace_id } => {
                 let ws_id = *workspace_id;
                 Box::pin(async move {
                     ox_store::WORKSPACE_ID
-                        .scope(ws_id, ox_runtime::GRAPH_WORKSPACE_ID.scope(ws_id, fut))
+                        .scope(ws_id, ox_graph_runtime::GRAPH_WORKSPACE_ID.scope(ws_id, fut))
                         .await
                 })
             }

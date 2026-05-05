@@ -301,15 +301,15 @@ pub(crate) async fn enrich_ontology(
     let (identity, current_version, ontology) = load_identity_current_ir(&state).await?;
 
     let config =
-        ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types().len());
-    let profile = ox_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config)
+        ox_graph_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types().len());
+    let profile = ox_graph_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config)
         .await
         .map_err(AppError::from)?;
 
     let profiled_nodes = profile.node_profiles.len();
     let profiled_edges = profile.edge_profiles.len();
 
-    let result = ox_runtime::enrichment::enrich_descriptions(&ontology, &profile);
+    let result = ox_graph_runtime::enrichment::enrich_descriptions(&ontology, &profile);
 
     let changes: Vec<EnrichChange> = result
         .changes

@@ -53,12 +53,12 @@ where
         match scope {
             WsScope::System => {
                 ox_store::SYSTEM_BYPASS
-                    .scope(true, ox_runtime::GRAPH_SYSTEM_BYPASS.scope(true, fut))
+                    .scope(true, ox_graph_runtime::GRAPH_SYSTEM_BYPASS.scope(true, fut))
                     .await;
             }
             WsScope::Workspace(id) => {
                 ox_store::WORKSPACE_ID
-                    .scope(id, ox_runtime::GRAPH_WORKSPACE_ID.scope(id, fut))
+                    .scope(id, ox_graph_runtime::GRAPH_WORKSPACE_ID.scope(id, fut))
                     .await;
             }
             WsScope::None => {
@@ -137,7 +137,7 @@ where
                     ox_store::WORKSPACE_ID
                         .scope(
                             id,
-                            ox_runtime::GRAPH_WORKSPACE_ID
+                            ox_graph_runtime::GRAPH_WORKSPACE_ID
                                 .scope(id, futures::StreamExt::next(&mut inner)),
                         )
                         .await
@@ -146,7 +146,7 @@ where
                     ox_store::SYSTEM_BYPASS
                         .scope(
                             true,
-                            ox_runtime::GRAPH_SYSTEM_BYPASS
+                            ox_graph_runtime::GRAPH_SYSTEM_BYPASS
                                 .scope(true, futures::StreamExt::next(&mut inner)),
                         )
                         .await

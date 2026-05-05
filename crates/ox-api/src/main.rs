@@ -24,7 +24,7 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 
 use ox_brain::DefaultBrain;
 use ox_brain::prompts::PromptRegistry;
-use ox_runtime::registry::{GraphBackendConfig, GraphBackendRegistry};
+use ox_graph_runtime::registry::{GraphBackendConfig, GraphBackendRegistry};
 use ox_source::registry::AdapterRegistry;
 
 // All shared modules live in `lib.rs`; consume them via the library crate
@@ -1139,7 +1139,7 @@ async fn main() -> anyhow::Result<()> {
                         // run_pre_execute's workspace_scope gate). Scope
                         // both so every downstream hop sees a consistent
                         // system-bypass.
-                        ox_store::SYSTEM_BYPASS.scope(true, ox_runtime::GRAPH_SYSTEM_BYPASS.scope(true, async {
+                        ox_store::SYSTEM_BYPASS.scope(true, ox_graph_runtime::GRAPH_SYSTEM_BYPASS.scope(true, async {
                             evaluate_quality_rules(&quality_store, &quality_runtime).await;
                         })).await;
                     }
@@ -1297,7 +1297,7 @@ fn expand_tilde(path: &str) -> PathBuf {
 
 async fn evaluate_quality_rules(
     store: &Arc<dyn ox_store::Store>,
-    runtime: &Option<Arc<dyn ox_runtime::GraphRuntime>>,
+    runtime: &Option<Arc<dyn ox_graph_runtime::GraphRuntime>>,
 ) {
     let runtime = match runtime {
         Some(r) => r,
@@ -1417,7 +1417,7 @@ async fn evaluate_quality_rules(
             }
         };
         let (passed, actual_value) = match ontology {
-            Some(onto) => ox_runtime::GRAPH_ONTOLOGY.scope(onto, eval_fut).await,
+            Some(onto) => ox_graph_runtime::GRAPH_ONTOLOGY.scope(onto, eval_fut).await,
             None => eval_fut.await,
         };
 
@@ -1445,7 +1445,7 @@ async fn evaluate_quality_rules(
 }
 
 async fn evaluate_completeness(
-    runtime: &Arc<dyn ox_runtime::GraphRuntime>,
+    runtime: &Arc<dyn ox_graph_runtime::GraphRuntime>,
     rule: &ox_store::QualityRule,
 ) -> (bool, Option<f64>) {
     let cypher = if let Some(ref prop) = rule.target_property {
@@ -1478,7 +1478,7 @@ async fn evaluate_completeness(
 }
 
 async fn evaluate_uniqueness(
-    runtime: &Arc<dyn ox_runtime::GraphRuntime>,
+    runtime: &Arc<dyn ox_graph_runtime::GraphRuntime>,
     rule: &ox_store::QualityRule,
 ) -> (bool, Option<f64>) {
     let cypher = if let Some(ref prop) = rule.target_property {
@@ -1508,7 +1508,7 @@ async fn evaluate_uniqueness(
 }
 
 async fn evaluate_custom(
-    runtime: &Arc<dyn ox_runtime::GraphRuntime>,
+    runtime: &Arc<dyn ox_graph_runtime::GraphRuntime>,
     rule: &ox_store::QualityRule,
 ) -> (bool, Option<f64>) {
     let cypher = match &rule.cypher_check {

@@ -1,6 +1,6 @@
 [package]
-name = "ox-runtime"
-description = "Ontosyx graph DB runtime drivers and sample data loader"
+name = "ox-graph-runtime"
+description = "Ontosyx graph runtime — Cypher pipeline + driver implementations"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

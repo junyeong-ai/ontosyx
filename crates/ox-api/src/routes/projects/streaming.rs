@@ -56,7 +56,7 @@ use ox_ontology::source_mapping::ArtifactProvenance;
 use ox_ontology::design_project::{DesignProjectStatus, SourceConfig};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::source_analysis::DesignOptions;
-use ox_runtime::profiler;
+use ox_graph_runtime::profiler;
 use ox_source::analyzer::build_design_context;
 
 use crate::spawn_scoped::{WsScope, scope_stream};

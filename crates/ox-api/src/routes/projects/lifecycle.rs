@@ -1003,7 +1003,7 @@ pub struct ExecuteProjectLoadResponse {
     pub rows_fetched: u64,
     /// Load execution result
     #[schema(value_type = Object)]
-    pub result: ox_runtime::LoadResult,
+    pub result: ox_graph_runtime::LoadResult,
     /// Number of load steps executed
     pub steps_executed: usize,
 }
@@ -1104,7 +1104,7 @@ pub(crate) async fn execute_load_from_source(
     }
 
     let mut total_rows_fetched: u64 = 0;
-    let mut combined_result = ox_runtime::LoadResult {
+    let mut combined_result = ox_graph_runtime::LoadResult {
         nodes_created: 0,
         nodes_updated: 0,
         edges_created: 0,
@@ -1216,7 +1216,7 @@ pub(crate) async fn execute_load_from_source(
 
                 let values: Vec<serde_json::Value> =
                     rows.into_iter().map(serde_json::Value::Object).collect();
-                let batch = ox_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
+                let batch = ox_graph_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
 
                 let result = runtime
                     .execute_load(cypher, batch)
@@ -1287,7 +1287,7 @@ pub(crate) async fn execute_load_from_source(
 
                 let values: Vec<serde_json::Value> =
                     rows.into_iter().map(serde_json::Value::Object).collect();
-                let batch = ox_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
+                let batch = ox_graph_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
 
                 let result = runtime
                     .execute_load(cypher, batch)
@@ -1367,13 +1367,13 @@ pub(crate) async fn execute_load_from_source(
                 return;
             };
             let config =
-                ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types().len());
+                ox_graph_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types().len());
             let Ok(profile) =
-                ox_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config).await
+                ox_graph_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config).await
             else {
                 return;
             };
-            let result = ox_runtime::enrichment::enrich_descriptions(&ontology, &profile);
+            let result = ox_graph_runtime::enrichment::enrich_descriptions(&ontology, &profile);
             if result.changes.is_empty() {
                 return;
             }

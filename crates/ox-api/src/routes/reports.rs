@@ -361,7 +361,7 @@ pub(crate) async fn execute_report(
     let exec_fut = runtime.execute_query(&query, &empty_params);
     let wrapped_fut = async {
         match ontology {
-            Some(onto) => ox_runtime::GRAPH_ONTOLOGY.scope(onto, exec_fut).await,
+            Some(onto) => ox_graph_runtime::GRAPH_ONTOLOGY.scope(onto, exec_fut).await,
             None => exec_fut.await,
         }
     };

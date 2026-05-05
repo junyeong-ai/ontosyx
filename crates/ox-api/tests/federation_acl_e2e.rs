@@ -42,7 +42,7 @@ use ox_ontology::mapping::ObjectMappingDef;
 use ox_query_ir::query::{
     GraphPattern, Projection, QueryIR, QueryOp,
 };
-use ox_runtime::cypher::{AclAction, AclPolicySpec, AclSnapshot};
+use ox_graph_runtime::cypher::{AclAction, AclPolicySpec, AclSnapshot};
 use ox_source::DataSourceAdapter;
 use ox_source::sample::CsvAdapter;
 

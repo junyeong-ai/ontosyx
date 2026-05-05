@@ -4,7 +4,7 @@ members = [
     "crates/ox-ontology",
     "crates/ox-query-ir",
     "crates/ox-compiler",
-    "crates/ox-runtime",
+    "crates/ox-graph-runtime",
     "crates/ox-brain",
     "crates/ox-agent",
     "crates/ox-memory",
@@ -56,7 +56,7 @@ disallowed_methods = "deny"
 # Internal crates
 ox-core = { path = "crates/ox-core" }
 ox-compiler = { path = "crates/ox-compiler" }
-ox-runtime = { path = "crates/ox-runtime" }
+ox-graph-runtime = { path = "crates/ox-graph-runtime" }
 ox-brain = { path = "crates/ox-brain" }
 ox-store = { path = "crates/ox-store" }
 ox-source = { path = "crates/ox-source" }

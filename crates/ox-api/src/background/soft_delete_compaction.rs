@@ -1,7 +1,7 @@
 //! Daily retention cron for the graph's soft-delete tombstones.
 //!
 //! Soft-deleted nodes carry a `_deleted_at` timestamp set by
-//! [`ox_runtime::cypher::SoftDeleteRewriter`] when a `DELETE` /
+//! [`ox_graph_runtime::cypher::SoftDeleteRewriter`] when a `DELETE` /
 //! `DETACH DELETE` runs on a non-bypass request. Retention compacts
 //! every node whose tombstone is older than the configured cutoff —
 //! a single graph-wide `DETACH DELETE` issued under
@@ -22,7 +22,7 @@ use tracing::{info, warn};
 
 use ox_core::error::OxResult;
 use ox_core::types::PropertyValue;
-use ox_runtime::GraphRuntime;
+use ox_graph_runtime::GraphRuntime;
 
 use super::cron::{CronTask, spawn_cron};
 

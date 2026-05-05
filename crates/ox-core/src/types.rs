@@ -533,7 +533,7 @@ pub enum Direction {
 }
 
 // ---------------------------------------------------------------------------
-// Cypher identifier escaping — shared between ox-compiler and ox-runtime
+// Cypher identifier escaping — shared between ox-compiler and ox-graph-runtime
 // ---------------------------------------------------------------------------
 
 /// Backtick-escapes a Cypher identifier (label, property name, relationship type).

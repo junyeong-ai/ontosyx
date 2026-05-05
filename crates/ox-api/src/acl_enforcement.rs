@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use ox_query_ir::query::QueryResult;
 use ox_core::types::PropertyValue;
-use ox_runtime::cypher::{
+use ox_graph_runtime::cypher::{
     AclAction, AclPolicySpec, AclSnapshot, RequestPrincipal,
 };
 use ox_store::{AclPolicy, AclStore};

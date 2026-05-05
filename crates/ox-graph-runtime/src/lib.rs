@@ -9,7 +9,7 @@
 )]
 
 mod bolt;
-pub mod cypher;
+pub mod dialect;
 pub mod enrichment;
 pub mod isolation;
 pub mod memgraph;
@@ -17,6 +17,12 @@ pub mod neo4j;
 pub mod profiler;
 pub mod registry;
 pub mod transience;
+
+// Convenience re-export so external callers (ox-api / ox-agent /
+// ox-brain) keep referring to `cypher::*`; the dialect-aware module
+// layout stays internal. Future graph dialects (GQL, Gremlin) sit
+// beside cypher under `dialect::*` without touching this re-export.
+pub use dialect::cypher;
 
 use std::collections::HashMap;
 use std::sync::Arc;

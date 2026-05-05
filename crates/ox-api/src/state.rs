@@ -10,7 +10,7 @@ use ox_brain::Brain;
 use ox_brain::client_pool::ClientPool;
 use ox_compiler::{GraphCompiler, PlanCacheHandle};
 use ox_federation::InMemoryAdapterResolver;
-use ox_runtime::GraphRuntime;
+use ox_graph_runtime::GraphRuntime;
 use ox_source::registry::AdapterRegistry;
 use ox_store::{ApprovalStore, Store, ToolApproval};
 use uuid::Uuid;

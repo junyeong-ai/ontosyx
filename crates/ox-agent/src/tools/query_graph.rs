@@ -10,7 +10,7 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use ox_query_ir::resolve_query_bindings;
-use ox_runtime::cypher::strict_advisory_diagnostics;
+use ox_graph_runtime::cypher::strict_advisory_diagnostics;
 use ox_store::QueryExecution;
 
 use crate::DomainContext;
@@ -212,7 +212,7 @@ impl SchemaTool for QueryGraphTool {
         // exempt.
         ctx.progress("executing").started();
         let t3 = std::time::Instant::now();
-        let execute_fut = ox_runtime::GRAPH_ONTOLOGY.scope(
+        let execute_fut = ox_graph_runtime::GRAPH_ONTOLOGY.scope(
             Arc::clone(&ontology),
             runtime.execute_query(&compiled.statement, &compiled.params),
         );
@@ -360,7 +360,7 @@ impl SchemaTool for QueryGraphTool {
         }
 
         // Advisory-validator diagnostics run in strict mode via the
-        // shared `ox_runtime::cypher::diagnostics` helper so the agent
+        // shared `ox_graph_runtime::cypher::diagnostics` helper so the agent
         // surface and the HTTP surface (see
         // `ox-api/src/routes/query.rs`) stay aligned on which
         // validators run and how their output is shaped. The runtime
@@ -639,7 +639,7 @@ fn first_shacl_failure_kind(
         .find(|d| d.validator == "shacl" && d.level == DiagnosticLevel::Error)
         .map(|d| match d.message.code.as_str() {
             // SHACL diagnostic codes are the stable contract — see
-            // `crates/ox-runtime/src/cypher/shacl_validator.rs` emit
+            // `crates/ox-graph-runtime/src/cypher/shacl_validator.rs` emit
             // sites. Adding a new SHACL code requires a matching arm
             // here so the failure-kind histogram stays partitioned.
             "runtime.cypher.shacl.min_count_missing" => {

@@ -29,7 +29,6 @@
 //!   Cypher `=~` diverge on backreferences; defer until we have a
 //!   deliberate test plan.
 
-use chrono::NaiveDate;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::logical_expr::{Expr as DfExpr, col, lit};
 use datafusion::scalar::ScalarValue;

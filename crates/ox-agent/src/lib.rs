@@ -30,7 +30,7 @@ use ox_compiler::GraphCompiler;
 use ox_core::error::OxResult;
 use ox_ontology::ir::OntologyIR;
 use ox_memory::MemoryStore;
-use ox_runtime::GraphRuntime;
+use ox_graph_runtime::GraphRuntime;
 use ox_store::Store;
 use tools::{
     ApplyOntologyTool, ConsultKnowledgeTool, EditOntologyTool, ExecuteAnalysisTool,

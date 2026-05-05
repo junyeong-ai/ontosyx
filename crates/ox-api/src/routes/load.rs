@@ -5,7 +5,7 @@ use tracing::info;
 
 use ox_ontology::load_plan::LoadPlan;
 use ox_ontology::ir::OntologyIR;
-use ox_runtime::{LoadBatch, LoadResult};
+use ox_graph_runtime::{LoadBatch, LoadResult};
 
 use crate::error::AppError;
 use crate::principal::Principal;

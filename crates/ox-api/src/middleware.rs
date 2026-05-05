@@ -681,7 +681,7 @@ pub(crate) async fn scope_request<F, R>(
 where
     F: std::future::Future<Output = R>,
 {
-    use ox_runtime::{GRAPH_ACL_SNAPSHOT, GRAPH_PRINCIPAL, GRAPH_WORKSPACE_ID};
+    use ox_graph_runtime::{GRAPH_ACL_SNAPSHOT, GRAPH_PRINCIPAL, GRAPH_WORKSPACE_ID};
     use ox_store::WORKSPACE_ID;
 
     let request_principal = crate::acl_enforcement::request_principal(&principal, &ws);
@@ -853,7 +853,7 @@ mod tests {
             ws,
             workspace_id,
             async {
-                ox_runtime::GRAPH_ACL_SNAPSHOT
+                ox_graph_runtime::GRAPH_ACL_SNAPSHOT
                     .try_with(Arc::clone)
                     .expect("snapshot must be set inside the scoped future")
             },

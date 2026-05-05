@@ -1395,7 +1395,7 @@ pub struct QueryMetadata {
     /// is currently logged, not returned; downstream callers re-run the
     /// strict validator against the compiled statement to capture the
     /// diagnostics via
-    /// [`ox_runtime::cypher::strict_advisory_diagnostics`].
+    /// [`ox_graph_runtime::cypher::strict_advisory_diagnostics`].
     ///
     /// Structured rather than pre-formatted so UI consumers can filter
     /// by `level` or `validator` without string-parsing a single
@@ -1410,8 +1410,8 @@ pub struct QueryMetadata {
 
 /// A single advisory diagnostic produced by the pre-execute validator
 /// pipeline and surfaced on the response envelope. Mirrors the shape
-/// of `ox_runtime::cypher::ValidationIssue` without creating an
-/// `ox-query-ir → ox-runtime` dependency.
+/// of `ox_graph_runtime::cypher::ValidationIssue` without creating an
+/// `ox-query-ir → ox-graph-runtime` dependency.
 ///
 /// Frontends pattern-match on `validator` to route diagnostics to the
 /// right help link and on `level` to choose colour / iconography.

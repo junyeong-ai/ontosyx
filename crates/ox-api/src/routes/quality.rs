@@ -632,7 +632,7 @@ fn parse_violations(result: &ox_query_ir::query::QueryResult) -> (i64, i64) {
 /// Execute a single quality rule against the graph runtime and return a result.
 async fn execute_single_rule(
     rule: &QualityRule,
-    runtime: &dyn ox_runtime::GraphRuntime,
+    runtime: &dyn ox_graph_runtime::GraphRuntime,
     workspace_id: Uuid,
 ) -> Result<QualityResult, AppError> {
     let cypher = build_quality_cypher(rule)?;

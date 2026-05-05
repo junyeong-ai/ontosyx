@@ -123,7 +123,7 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
     ox_store::WORKSPACE_ID
         .scope(
             workspace_id,
-            ox_runtime::GRAPH_WORKSPACE_ID.scope(
+            ox_graph_runtime::GRAPH_WORKSPACE_ID.scope(
                 workspace_id,
                 serve_collab(state, socket, outcome, session),
             ),

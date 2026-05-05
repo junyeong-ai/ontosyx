@@ -10,7 +10,7 @@ use ox_compiler::GraphCompiler;
 use ox_core::LocalizedText;
 use ox_ontology::ir::OntologyIR;
 use ox_core::types::PropertyValue;
-use ox_runtime::GraphRuntime;
+use ox_graph_runtime::GraphRuntime;
 use ox_store::Store;
 
 use rmcp::{
@@ -570,7 +570,7 @@ impl OntosyxMcpServer {
             McpError::internal_error("Graph database not connected".to_string(), None)
         })?;
 
-        let results = ox_runtime::GRAPH_ONTOLOGY
+        let results = ox_graph_runtime::GRAPH_ONTOLOGY
             .scope(
                 Arc::new(ontology.clone()),
                 runtime.execute_query(&compiled.statement, &compiled.params),
@@ -814,7 +814,7 @@ impl OntosyxMcpServer {
         let empty_params: HashMap<String, PropertyValue> = HashMap::new();
         let exec_fut = runtime.execute_query(&params.query, &empty_params);
         let results = match ontology {
-            Some(o) => ox_runtime::GRAPH_ONTOLOGY.scope(o, exec_fut).await,
+            Some(o) => ox_graph_runtime::GRAPH_ONTOLOGY.scope(o, exec_fut).await,
             None => exec_fut.await,
         }
         .map_err(|e| McpError::internal_error(format!("Query execution failed: {e}"), None))?;

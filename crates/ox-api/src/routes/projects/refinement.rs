@@ -14,7 +14,7 @@ use crate::validation::validate_ontology_input;
 use ox_ontology::design_project::{DesignProjectStatus, SourceConfig};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::source_analysis::DesignOptions;
-use ox_runtime::profiler;
+use ox_graph_runtime::profiler;
 use ox_source::analyzer::build_design_context;
 
 use super::helpers::artifact::persist_design_artifact;
@@ -420,10 +420,10 @@ pub(crate) async fn refine_project(
     // LLM refinement may not include sample values — enrichment ensures they're always present.
     let refined = if let Some((_, _, _)) = &graph_profile {
         if let Some(runtime) = &state.runtime {
-            let config = ox_runtime::profiler::ProfileConfig::for_ontology_size(
+            let config = ox_graph_runtime::profiler::ProfileConfig::for_ontology_size(
                 reconciled.ontology.node_types().len(),
             );
-            match ox_runtime::profiler::profile_graph(
+            match ox_graph_runtime::profiler::profile_graph(
                 runtime.as_ref(),
                 &reconciled.ontology,
                 &config,
@@ -432,7 +432,7 @@ pub(crate) async fn refine_project(
             {
                 Ok(profile) => {
                     let enriched =
-                        ox_runtime::enrichment::enrich_descriptions(&reconciled.ontology, &profile);
+                        ox_graph_runtime::enrichment::enrich_descriptions(&reconciled.ontology, &profile);
                     if !enriched.changes.is_empty() {
                         info!(
                             project_id = %id,
