@@ -93,7 +93,51 @@ New headings use `<Heading level={N} size={M}>` (`components/ui/heading.tsx`). T
 
 Master-detail editor panes (`StructuredEntityEditor`, `GlossaryForm`, `RuleForm`) close with `<SaveBar dirty={...} pending={...} onSave onDiscard />`. The bar slides in from the bottom only when there are unsaved changes — same pattern as Linear / Sanity / Notion. Don't render explicit submit/cancel buttons at the bottom of an editor; route through SaveBar so the dirty/save state stays consistent across surfaces.
 
-Dirty calculation: `JSON.stringify(currentSnapshot) !== JSON.stringify(initialSnapshot)` where each snapshot is a `useMemo`'d object holding every editable slot. The same snapshot drives `useDraftPersistence` auto-save.
+Dirty calculation: `snapshotEqual(currentSnapshot, initialSnapshot)` (`@/lib/snapshot-equal`) where each snapshot is a `useMemo`'d object holding every editable slot. **Don't** use `JSON.stringify` — implementation-defined key order and `undefined`-vs-absent collapse both produce false dirty / false clean. The same snapshot drives `useDraftPersistence` auto-save.
+
+## Multi-select + BulkActionBar — sticky-bottom action bar for cohort flows
+
+List surfaces with row-level actions (knowledge base, stale-concept proposals, governance approvals, …) compose a multi-select cohort with row checkboxes + `<BulkActionBar />` (`components/ui/bulk-action-bar.tsx`). The bar slides in when `count > 0`, slides out otherwise, and disables every button while a mutation is pending. Industry pattern (Linear / Slack).
+
+Standard call shape:
+
+```tsx
+<BulkActionBar
+  count={selectedIds.size}
+  countLabel={t("bulkSelectedCount", { count: selectedIds.size })}
+  clearLabel={t("bulkClear")}
+  ariaLabel={t("bulkBarLabel")}
+  actions={[
+    { key: "reject", label: t("bulkReject"), variant: "danger", onClick: ... },
+    { key: "approve", label: t("bulkApprove"), variant: "primary", onClick: ... },
+  ]}
+  onClear={clearSelection}
+  pending={mutation.isPending}
+/>
+```
+
+The primitive takes pre-translated strings — i18n stays at the call site so each locale formats its own plural rules. **Don't** re-implement the inline `<div className="fixed inset-x-0 bottom-6 ...">` shape; that drifts (animation timing, pointer-events, z-index) and there are already three call sites to keep in sync. Add a fourth → `BulkActionBar`.
+
+Selection state lives in a local `Set<string>`. Reset on filter / tab change so a leftover selection can never silently target ids from a different cohort. The header uses a tri-state checkbox: checked when every visible row is selected, indeterminate when some are.
+
+## Optimistic mutations — `useOptimisticMutation` only
+
+Every mutation that wants immediate visual feedback (status flip, row remove, bulk decision, …) goes through `useOptimisticMutation` (`hooks/api/use-optimistic-mutation.ts`). The hook codifies the `onMutate` / `onError` / `onSettled` triad — cancel in-flight refetches, snapshot the cache, apply the optimistic delta, roll back atomically on error, invalidate post-settle.
+
+The bare TanStack `useMutation` admits four flavours of the same flow (no optimism, setQueryData without rollback, onMutate without invalidation, the full triad). Adopting one shape keeps every list-action behaviour consistent across surfaces.
+
+```ts
+useOptimisticMutation<Vars, Data>({
+  mutationFn,
+  queryKeys: [knowledgeKeys.list(filters)],
+  optimisticUpdate: (prev, vars) => {
+    if (!isExpectedShape(prev)) return prev; // runtime guard
+    return /* next cache value */;
+  },
+});
+```
+
+Pair every list page that wants optimistic delete / status / bulk-review with the matching hook (`useDeleteKnowledge`, `useUpdateKnowledgeStatus`, `useBulkReviewKnowledge`, `useBulkReviewApprovals`, `useBulkDecideStaleProposals`, …). New BE bulk endpoints land alongside their FE optimistic hook in the same commit.
 
 ## Typed error model — `errors.<code>` i18n catalog
 
