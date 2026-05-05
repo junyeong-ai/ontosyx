@@ -3372,7 +3372,22 @@
         "modifiedNodes": "Modified nodes",
         "addedEdges": "Added edges",
         "removedEdges": "Removed edges",
-        "modifiedEdges": "Modified edges"
+        "modifiedEdges": "Modified edges",
+        "change": {
+          "label": "Label: `{old}` → `{new}`",
+          "description": "Description: `{old}` → `{new}`",
+          "source": "Source: `{old}` → `{new}`",
+          "target": "Target: `{old}` → `{new}`",
+          "cardinality": "Cardinality: `{old}` → `{new}`",
+          "propertyType": "Type: `{old}` → `{new}`",
+          "nullability": "Nullability: `{old}` → `{new}`",
+          "defaultValue": "Default: `{old}` → `{new}`",
+          "propertyAdded": "+ property `{name}`",
+          "propertyRemoved": "− property `{name}`",
+          "propertyModified": "~ property `{name}`",
+          "constraintAdded": "+ constraint `{constraint}`",
+          "constraintRemoved": "− constraint `{constraint}`"
+        }
       }
     },
     "contextMenu": {

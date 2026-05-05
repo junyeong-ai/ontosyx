@@ -3372,7 +3372,22 @@
         "modifiedNodes": "변경된 노드",
         "addedEdges": "추가된 엣지",
         "removedEdges": "제거된 엣지",
-        "modifiedEdges": "변경된 엣지"
+        "modifiedEdges": "변경된 엣지",
+        "change": {
+          "label": "라벨: `{old}` → `{new}`",
+          "description": "설명: `{old}` → `{new}`",
+          "source": "출발: `{old}` → `{new}`",
+          "target": "도착: `{old}` → `{new}`",
+          "cardinality": "다중성: `{old}` → `{new}`",
+          "propertyType": "타입: `{old}` → `{new}`",
+          "nullability": "널 허용: `{old}` → `{new}`",
+          "defaultValue": "기본값: `{old}` → `{new}`",
+          "propertyAdded": "+ 속성 `{name}`",
+          "propertyRemoved": "− 속성 `{name}`",
+          "propertyModified": "~ 속성 `{name}`",
+          "constraintAdded": "+ 제약 `{constraint}`",
+          "constraintRemoved": "− 제약 `{constraint}`"
+        }
       }
     },
     "contextMenu": {

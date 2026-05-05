@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Modal } from "@/components/ui/modal";
@@ -12,6 +13,8 @@ import type {
   DiffModifiedNode,
 } from "@/types/ontology-branches";
 
+import { EdgeChangeList, NodeChangeList } from "./diff-change-list";
+
 interface DiffModalProps {
   draftId: string | null;
   draftTitle: string;
@@ -20,7 +23,113 @@ interface DiffModalProps {
 }
 
 /**
- * Section header + chip-list shell shared by every category
+ * Modified-nodes section — disclosure list. The chip count
+ * (`changes.length`) sits as the row preview; clicking the
+ * row expands to render the typed `NodeChange` list. Multiple
+ * rows can be expanded simultaneously so the operator
+ * cross-references freely.
+ */
+function ModifiedNodeSection({ items }: { items: DiffModifiedNode[] }) {
+  const t = useTranslations("workbench.branches");
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  if (items.length === 0) return null;
+  const toggle = (key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+  return (
+    <section className="mb-4">
+      <Heading level={3} size={6}>
+        {t("diffModal.modifiedNodes")} · {items.length}
+      </Heading>
+      <ul className="mt-2 space-y-1">
+        {items.map((n) => {
+          const isOpen = expanded.has(n.node_id);
+          return (
+            <li
+              key={n.node_id}
+              className="rounded-lg border border-divider bg-surface-base"
+            >
+              <button
+                type="button"
+                onClick={() => toggle(n.node_id)}
+                className="flex w-full items-baseline justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-surface-inset"
+                aria-expanded={isOpen}
+              >
+                <span className="font-medium">{n.label || n.node_id}</span>
+                <span className="rounded-full bg-info-surface px-2 py-0.5 text-2xs font-medium text-info-foreground">
+                  {n.changes.length}
+                </span>
+              </button>
+              {isOpen ? (
+                <div className="border-t border-divider px-3 py-2">
+                  <NodeChangeList changes={n.changes} />
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/** Same disclosure pattern for modified edges. */
+function ModifiedEdgeSection({ items }: { items: DiffModifiedEdge[] }) {
+  const t = useTranslations("workbench.branches");
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  if (items.length === 0) return null;
+  const toggle = (key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+  return (
+    <section className="mb-4">
+      <Heading level={3} size={6}>
+        {t("diffModal.modifiedEdges")} · {items.length}
+      </Heading>
+      <ul className="mt-2 space-y-1">
+        {items.map((e) => {
+          const isOpen = expanded.has(e.edge_id);
+          return (
+            <li
+              key={e.edge_id}
+              className="rounded-lg border border-divider bg-surface-base"
+            >
+              <button
+                type="button"
+                onClick={() => toggle(e.edge_id)}
+                className="flex w-full items-baseline justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-surface-inset"
+                aria-expanded={isOpen}
+              >
+                <span className="font-medium">{e.label || e.edge_id}</span>
+                <span className="rounded-full bg-info-surface px-2 py-0.5 text-2xs font-medium text-info-foreground">
+                  {e.changes.length}
+                </span>
+              </button>
+              {isOpen ? (
+                <div className="border-t border-divider px-3 py-2">
+                  <EdgeChangeList changes={e.changes} />
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Section header + chip-list shell shared by every added/removed
  * row. Hidden when the list is empty so the modal collapses
  * around whatever did change.
  */
@@ -99,9 +208,17 @@ export function DiffModal({
         <div>
           <p className="mb-4 text-xs text-foreground-muted">
             {t("diffSummary", {
-              added: diff.data.summary.added_count,
-              removed: diff.data.summary.removed_count,
-              modified: diff.data.summary.modified_count,
+              added:
+                diff.data.summary.nodes_added +
+                diff.data.summary.edges_added +
+                diff.data.summary.properties_added,
+              removed:
+                diff.data.summary.nodes_removed +
+                diff.data.summary.edges_removed +
+                diff.data.summary.properties_removed,
+              modified:
+                diff.data.summary.nodes_modified +
+                diff.data.summary.edges_modified,
             })}
           </p>
 
@@ -117,14 +234,7 @@ export function DiffModal({
             renderItem={(n) => n.label || n.id}
             variant="removed"
           />
-          <DiffSection<DiffModifiedNode>
-            title={t("diffModal.modifiedNodes")}
-            items={diff.data.modified_nodes}
-            renderItem={(n) =>
-              `${n.label || n.node_id} (${n.changes.length})`
-            }
-            variant="modified"
-          />
+          <ModifiedNodeSection items={diff.data.modified_nodes} />
           <DiffSection<DiffAddedEdge>
             title={t("diffModal.addedEdges")}
             items={diff.data.added_edges}
@@ -137,14 +247,7 @@ export function DiffModal({
             renderItem={(e) => e.label || e.id}
             variant="removed"
           />
-          <DiffSection<DiffModifiedEdge>
-            title={t("diffModal.modifiedEdges")}
-            items={diff.data.modified_edges}
-            renderItem={(e) =>
-              `${e.label || e.edge_id} (${e.changes.length})`
-            }
-            variant="modified"
-          />
+          <ModifiedEdgeSection items={diff.data.modified_edges} />
         </div>
       )}
     </Modal>

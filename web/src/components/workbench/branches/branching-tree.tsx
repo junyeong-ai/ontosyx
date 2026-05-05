@@ -72,13 +72,13 @@ function DraftDiffSummary({ draftId }: { draftId: string }) {
       </span>
     );
   }
+  const s = diff.data.summary;
+  const added = s.nodes_added + s.edges_added + s.properties_added;
+  const removed = s.nodes_removed + s.edges_removed + s.properties_removed;
+  const modified = s.nodes_modified + s.edges_modified;
   return (
     <span className="rounded-full bg-info-surface px-2 py-0.5 text-2xs font-medium text-info-foreground">
-      {t("diffSummary", {
-        added: diff.data.summary.added_count,
-        removed: diff.data.summary.removed_count,
-        modified: diff.data.summary.modified_count,
-      })}
+      {t("diffSummary", { added, removed, modified })}
     </span>
   );
 }

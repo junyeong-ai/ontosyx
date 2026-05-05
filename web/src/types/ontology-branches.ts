@@ -39,20 +39,86 @@ export interface DiffAddedEdge {
   [extra: string]: unknown;
 }
 
+/** Localized text wire shape mirror — kept narrow here so the
+ *  branching surface doesn't pull the full `LocalizedText` import
+ *  graph. The drilldown reads `.default` only for now. */
+export interface DiffLocalizedText {
+  default: string;
+  translations?: Record<string, string>;
+}
+
+/** PropertyChange variants — one per atomic property field
+ *  delta the BE detects. Tagged via `serde(tag = "type",
+ *  rename_all = "snake_case")` on the BE side. */
+export type PropertyChange =
+  | { type: "type_changed"; old: string; new: string }
+  | { type: "nullability_changed"; old: boolean; new: boolean }
+  | {
+      type: "description_changed";
+      old: DiffLocalizedText;
+      new: DiffLocalizedText;
+    }
+  | {
+      type: "default_value_changed";
+      old: string | null;
+      new: string | null;
+    };
+
+/** NodeChange variants — one per atomic node-level delta. */
+export type NodeChange =
+  | { type: "label_changed"; old: string; new: string }
+  | {
+      type: "description_changed";
+      old: DiffLocalizedText;
+      new: DiffLocalizedText;
+    }
+  | { type: "property_added"; property: { name: string } & Record<string, unknown> }
+  | {
+      type: "property_removed";
+      property: { name: string } & Record<string, unknown>;
+    }
+  | {
+      type: "property_modified";
+      property_name: string;
+      changes: PropertyChange[];
+    }
+  | { type: "constraint_added"; constraint: string }
+  | { type: "constraint_removed"; constraint: string };
+
+/** EdgeChange variants — one per atomic edge-level delta. */
+export type EdgeChange =
+  | { type: "label_changed"; old: string; new: string }
+  | {
+      type: "description_changed";
+      old: DiffLocalizedText;
+      new: DiffLocalizedText;
+    }
+  | { type: "source_changed"; old: string; new: string }
+  | { type: "target_changed"; old: string; new: string }
+  | { type: "cardinality_changed"; old: string; new: string }
+  | { type: "property_added"; property: { name: string } & Record<string, unknown> }
+  | {
+      type: "property_removed";
+      property: { name: string } & Record<string, unknown>;
+    }
+  | {
+      type: "property_modified";
+      property_name: string;
+      changes: PropertyChange[];
+    };
+
 /** Modified node — id + label plus the BE's per-field change
- *  list. The change list is opaque to the FE today; the count
- *  is what the operator sees on the category row. Drilldown
- *  into individual changes lands as a follow-up surface. */
+ *  list. */
 export interface DiffModifiedNode {
   node_id: string;
   label: string;
-  changes: unknown[];
+  changes: NodeChange[];
 }
 
 export interface DiffModifiedEdge {
   edge_id: string;
   label: string;
-  changes: unknown[];
+  changes: EdgeChange[];
 }
 
 /** Subset of the BE `OntologyDiff` shape the branching surface
@@ -70,9 +136,14 @@ export interface OntologyDiffSummary {
   modified_edges: DiffModifiedEdge[];
   summary: {
     total_changes: number;
-    added_count: number;
-    removed_count: number;
-    modified_count: number;
+    nodes_added: number;
+    nodes_removed: number;
+    nodes_modified: number;
+    edges_added: number;
+    edges_removed: number;
+    edges_modified: number;
+    properties_added: number;
+    properties_removed: number;
   };
 }
 
