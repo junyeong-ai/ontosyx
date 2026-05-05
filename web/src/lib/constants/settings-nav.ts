@@ -46,13 +46,11 @@ export const SETTINGS_NAV_GROUPS: readonly NavGroup[] = [
     ],
   },
   {
-    titleKey: "knowledge",
+    titleKey: "data",
     icon: Database01Icon,
     items: [
       { labelKey: "knowledgeBase", href: "/settings/knowledge/base", adminOnly: true },
       { labelKey: "federation", href: "/settings/knowledge/federation", adminOnly: true },
-      { labelKey: "lineage", href: "/settings/knowledge/lineage" },
-      { labelKey: "mappings", href: "/settings/knowledge/mappings", adminOnly: true },
     ],
   },
   {

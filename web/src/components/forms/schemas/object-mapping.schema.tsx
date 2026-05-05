@@ -27,7 +27,7 @@ type ColumnLocationVariant = Extract<PropertyLocation, { kind: "column" }>;
 type JsonPathLocationVariant = Extract<PropertyLocation, { kind: "json_path" }>;
 
 const columnLocationVariantSchema: EntitySchema<ColumnLocationVariant> = {
-  entityKind: "settings.knowledge.mappings.form.location.column",
+  entityKind: "mappings.form.location.column",
   buildDefault: () => ({
     kind: "column",
     relation: "",
@@ -54,7 +54,7 @@ const columnLocationVariantSchema: EntitySchema<ColumnLocationVariant> = {
 };
 
 const jsonPathLocationVariantSchema: EntitySchema<JsonPathLocationVariant> = {
-  entityKind: "settings.knowledge.mappings.form.location.jsonPath",
+  entityKind: "mappings.form.location.jsonPath",
   buildDefault: () => ({
     kind: "json_path",
     root_column: "",
@@ -105,13 +105,13 @@ type DerivedTransformVariant = Extract<
 >;
 
 const identityTransformVariantSchema: EntitySchema<IdentityTransformVariant> = {
-  entityKind: "settings.knowledge.mappings.form.transform.identity",
+  entityKind: "mappings.form.transform.identity",
   buildDefault: () => ({ kind: "identity" }),
   fields: [],
 };
 
 const sqlExprTransformVariantSchema: EntitySchema<SqlExprTransformVariant> = {
-  entityKind: "settings.knowledge.mappings.form.transform.sqlExpr",
+  entityKind: "mappings.form.transform.sqlExpr",
   buildDefault: () => ({ kind: "sql_expr", expression: "" }),
   fields: [
     {
@@ -128,7 +128,7 @@ const sqlExprTransformVariantSchema: EntitySchema<SqlExprTransformVariant> = {
 };
 
 const derivedTransformVariantSchema: EntitySchema<DerivedTransformVariant> = {
-  entityKind: "settings.knowledge.mappings.form.transform.derived",
+  entityKind: "mappings.form.transform.derived",
   buildDefault: () => ({ kind: "derived", function_id: "" }),
   fields: [
     {
@@ -154,7 +154,7 @@ const PROPERTY_TRANSFORM_VARIANTS: Readonly<
 // ---------------------------------------------------------------------------
 
 const propertyMappingItemSchema: EntitySchema<PropertyMappingDef> = {
-  entityKind: "settings.knowledge.mappings.form.propertyMapping",
+  entityKind: "mappings.form.propertyMapping",
   buildDefault: () => ({
     property_id: "",
     property_key: "",
@@ -209,13 +209,13 @@ type CacheNoneVariant = Extract<CacheHintKind, { kind: "none" }>;
 type GraphCacheVariant = Extract<CacheHintKind, { kind: "graph_cache" }>;
 
 const cacheNoneVariantSchema: EntitySchema<CacheNoneVariant> = {
-  entityKind: "settings.knowledge.mappings.form.cacheHint.none",
+  entityKind: "mappings.form.cacheHint.none",
   buildDefault: () => ({ kind: "none" }),
   fields: [],
 };
 
 const graphCacheVariantSchema: EntitySchema<GraphCacheVariant> = {
-  entityKind: "settings.knowledge.mappings.form.cacheHint.graphCache",
+  entityKind: "mappings.form.cacheHint.graphCache",
   buildDefault: () => ({
     kind: "graph_cache",
     ttl_seconds: 3600,
@@ -294,7 +294,7 @@ const columnRefListField = (
   }) as FieldSchema<ObjectMappingDef>;
 
 export const objectMappingSchema: EntitySchema<ObjectMappingDef> = {
-  entityKind: "settings.knowledge.mappings.form.object",
+  entityKind: "mappings.form.object",
   buildDefault: () => ({
     id: "",
     node_type_id: "",
@@ -325,34 +325,34 @@ export const objectMappingSchema: EntitySchema<ObjectMappingDef> = {
   layout: {
     sections: [
       {
-        titleKey: "settings.knowledge.mappings.form.sections.identity",
+        titleKey: "mappings.form.sections.identity",
         fieldKeys: ["id", "node_type_id"],
       },
       {
-        titleKey: "settings.knowledge.mappings.form.sections.source",
+        titleKey: "mappings.form.sections.source",
         fieldKeys: ["source_id", "relation", "relation_kind"],
       },
       {
-        titleKey: "settings.knowledge.mappings.form.sections.keys",
+        titleKey: "mappings.form.sections.keys",
         fieldKeys: ["primary_key_columns", "partition_columns"],
       },
       {
-        titleKey: "settings.knowledge.mappings.form.sections.scope",
+        titleKey: "mappings.form.sections.scope",
         fieldKeys: ["row_filter", "workspace_scope"],
         defaultOpen: false,
       },
       {
-        titleKey: "settings.knowledge.mappings.form.sections.lifecycle",
+        titleKey: "mappings.form.sections.lifecycle",
         fieldKeys: ["valid_from", "valid_to", "precedence"],
         defaultOpen: false,
       },
       {
-        titleKey: "settings.knowledge.mappings.form.sections.cache",
+        titleKey: "mappings.form.sections.cache",
         fieldKeys: ["cache_hint"],
         defaultOpen: false,
       },
       {
-        titleKey: "settings.knowledge.mappings.form.sections.propertyMappings",
+        titleKey: "mappings.form.sections.propertyMappings",
         fieldKeys: ["property_mappings"],
       },
     ],

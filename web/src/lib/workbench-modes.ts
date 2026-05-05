@@ -23,6 +23,8 @@ import {
   CatalogueIcon,
   ChartAnalysisIcon,
   DashboardSpeed01Icon,
+  GitBranchIcon,
+  Link01Icon,
   MagicWand01Icon,
   Message01Icon,
   Search01Icon,
@@ -93,6 +95,8 @@ const DEFAULT_MODES: readonly WorkbenchMode[] = [
   defaultMode("dashboard", "modeDashboard", DashboardSpeed01Icon),
   defaultMode("glossary", "modeGlossary", Book02Icon),
   defaultMode("vocabulary", "modeVocabulary", CatalogueIcon),
+  defaultMode("mappings", "modeMappings", Link01Icon),
+  defaultMode("lineage", "modeLineage", GitBranchIcon),
   defaultMode("recipes", "modeRecipes", ChartAnalysisIcon),
 ];
 

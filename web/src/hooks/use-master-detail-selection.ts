@@ -8,7 +8,7 @@
 //
 // The pattern was duplicated across `MasterDetailEntityPage`
 // (vocabulary tabs: code-systems / value-sets / concept-maps /
-// notation-patterns / rules) and the `/settings/knowledge/mappings`
+// notation-patterns / rules) and the `/mappings`
 // page; both are now thin call sites of this hook.
 //
 // Selection state lives in the URL — `?id=<entityId>` for an

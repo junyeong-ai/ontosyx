@@ -16,7 +16,7 @@ import {
 
 import { request } from "@/lib/api/client";
 import { SkeletonTable } from "@/components/ui/skeleton";
-import { SettingsPageShell } from "@/components/layout/settings-page-shell";
+import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
@@ -134,7 +134,7 @@ function MappingCard({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const t = useTranslations("settings.knowledge.lineage");
+  const t = useTranslations("lineage");
   const matchMappings = group.mappings.filter(
     (m) => m.mapping_kind === "match",
   );
@@ -238,7 +238,7 @@ function MappingRow({
   mapping: PropertyMapping;
   isIdentity?: boolean;
 }) {
-  const t = useTranslations("settings.knowledge.lineage");
+  const t = useTranslations("lineage");
   return (
     <div className="flex items-center gap-2 text-xs">
       <code
@@ -280,7 +280,7 @@ const lineageKeys = {
 };
 
 export default function LineageSettingsPage() {
-  const t = useTranslations("settings.knowledge.lineage");
+  const t = useTranslations("lineage");
   const tCommon = useTranslations("common");
   const fmt = useFormatters();
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
@@ -342,7 +342,7 @@ export default function LineageSettingsPage() {
       : { kind: "data" };
 
   return (
-    <SettingsPageShell title={t("title")} subtitle={t("description")}>
+    <WorkbenchPageShell title={t("title")} subtitle={t("description")}>
       <PageStateView
           state={pageState}
           skeleton={<SkeletonTable rows={6} cols={5} />}
@@ -467,6 +467,6 @@ export default function LineageSettingsPage() {
               </div>
             </div>
       </PageStateView>
-    </SettingsPageShell>
+    </WorkbenchPageShell>
   );
 }

@@ -12,7 +12,7 @@
     "quality_gate": "품질 게이트에서 차단되었습니다. {detail}",
     "design_gates_unmet": "설계 게이트를 모두 해결한 뒤 다시 시도하세요.",
     "invalid_ontology": "온톨로지 검증에 실패했습니다.",
-    "uncertain_reconcile": "확인이 필요한 매칭이 있습니다. 화면에서 검토해 주세요.",
+    "uncertain_reconcile": "정제 결과에서 검토가 필요한 식별자 매칭이 {count}건 있습니다.",
     "rate_limited": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
     "concurrency_cap": "동시 요청 한도에 도달했습니다. {detail}",
     "ontology_error": "온톨로지 처리 오류가 발생했습니다. {detail}",
@@ -59,7 +59,6 @@
     "repo_analysis_failed": "{operation, select, clone {Git 저장소를 복제하지 못했습니다. {detail}} tree {파일 트리를 생성하지 못했습니다. {detail}} read {저장소 파일을 읽지 못했습니다. {detail}} empty_selection {분석 대상 파일을 찾지 못했습니다.} empty_content {선택한 파일을 읽을 수 없습니다.} empty_models {저장소에서 ORM 모델이나 엔티티를 찾지 못했습니다.} other {저장소 분석에 실패했습니다. {detail}}}",
     "refinement_missing_inputs": "정제(Refinement)를 시작하려면 그래프 데이터, 추가 컨텍스트, 또는 소스 스키마 중 최소 하나가 필요합니다.",
     "refinement_decision_unknown_id": "정제 결정이 알 수 없는 ID '{original_id}'을(를) 참조하고 있습니다. 페이지를 새로고침한 후 다시 시도하세요.",
-    "uncertain_reconcile": "정제 결과에서 검토가 필요한 식별자 매칭이 {count}건 있습니다.",
     "reanalyze_no_modeled_tables": "모델링된 테이블이 없습니다. 보류된 테이블을 먼저 활성화하거나 일반 재분석 엔드포인트를 사용하세요.",
     "source_type_mismatch": "이 프로젝트는 '{expected}' 소스로 생성되었지만 '{got}' 소스로 재분석을 시도했습니다. 동일한 소스 타입을 사용하세요.",
     "decision_invalid_schema_refs": "결정 항목이 더 이상 존재하지 않는 스키마 요소를 참조하고 있습니다. 분석 결과를 다시 확인하세요.",
@@ -192,6 +191,12 @@
       },
       "navigate-vocabulary": {
         "label": "어휘로 이동"
+      },
+      "navigate-mappings": {
+        "label": "매핑으로 이동"
+      },
+      "navigate-lineage": {
+        "label": "계보로 이동"
       },
       "navigate-recipes": {
         "label": "레시피로 이동"
@@ -977,6 +982,8 @@
       "modeDashboard": "대시보드",
       "modeGlossary": "용어",
       "modeVocabulary": "어휘",
+      "modeMappings": "매핑",
+      "modeLineage": "계보",
       "modeRecipes": "레시피",
       "settingsLabel": "설정",
       "hideExplorer": "탐색기 숨기기",
@@ -2186,11 +2193,9 @@
         "usage": "사용량",
         "reports": "리포트",
         "schedules": "스케줄",
-        "knowledge": "지식",
+        "data": "데이터",
         "knowledgeBase": "지식 베이스",
         "federation": "연합 데이터",
-        "lineage": "데이터 계보",
-        "mappings": "매핑",
         "runtime": "런타임",
         "config": "런타임 설정",
         "providers": "프로바이더",
@@ -2609,272 +2614,6 @@
           "refreshFailed": "재구성 실패",
           "healthLoadFailed": "상태 조회 실패",
           "previewFailed": "미리보기 실패 — 자격 증명과 연결을 확인하세요"
-        }
-      },
-      "lineage": {
-        "title": "데이터 리니지",
-        "description": "소스 데이터가 지식 그래프로 어떻게 흐르는지 추적합니다.",
-        "summary": {
-          "labels": "그래프 라벨",
-          "sources": "소스 테이블",
-          "records": "총 레코드"
-        },
-        "columnMappings": "컬럼 매핑",
-        "columnMappingsHint": "데이터 로드 중 소스 컬럼이 그래프 속성에 매핑되는 방식입니다. 매핑을 클릭하면 컬럼 수준 세부 정보를 확인할 수 있습니다.",
-        "columnsCount": "{count}개 컬럼",
-        "identity": "식별자 (match)",
-        "properties": "속성 (set)",
-        "noMappings": "기록된 컬럼 매핑이 없습니다",
-        "key": "KEY",
-        "loadHistory": "로드 이력",
-        "column": {
-          "label": "라벨",
-          "source": "소스",
-          "records": "레코드",
-          "started": "시작",
-          "status": "상태"
-        },
-        "noHistory": "로드 이력이 없습니다",
-        "status": {
-          "completed": "완료",
-          "running": "실행 중",
-          "failed": "실패",
-          "partial": "부분 완료"
-        },
-        "toast": {
-          "loadFailed": "리니지 데이터를 불러오지 못했습니다"
-        }
-      },
-      "mappings": {
-        "pageTitle": "매핑",
-        "pageSubtitle": "물리-논리 매핑 레이어 — ObjectMapping 은 노드 타입을 하나의 source relation 에 바인딩하고, LinkMapping 은 엣지 타입을 foreign-key / bridge / computed / federated 토폴로지에 바인딩합니다.",
-        "noOntology": "커밋된 온톨로지가 없습니다 — 매핑 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
-        "addLabel": "추가",
-        "listHeading": {
-          "object": "{count, plural, =0 {오브젝트 매핑 없음} other {오브젝트 매핑 #개}}",
-          "link": "{count, plural, =0 {링크 매핑 없음} other {링크 매핑 #개}}"
-        },
-        "deleteButton": "삭제",
-        "tab": {
-          "object": "오브젝트 매핑",
-          "link": "링크 매핑"
-        },
-        "messages": {
-          "objectCreated": "오브젝트 매핑 '{id}' 생성",
-          "objectUpdated": "오브젝트 매핑 '{id}' 수정",
-          "objectDeleted": "오브젝트 매핑 '{id}' 삭제",
-          "linkCreated": "링크 매핑 '{id}' 생성",
-          "linkUpdated": "링크 매핑 '{id}' 수정",
-          "linkDeleted": "링크 매핑 '{id}' 삭제"
-        },
-        "toast": {
-          "created": "매핑 생성 완료",
-          "createFailed": "생성 실패: {error}",
-          "updated": "매핑 수정 완료",
-          "updateFailed": "수정 실패: {error}",
-          "deleted": "매핑 삭제 완료",
-          "deleteFailed": "삭제 실패: {error}"
-        },
-        "confirm": {
-          "deleteTitle": "매핑을 삭제하시겠습니까?",
-          "deleteDescription": "'{id}' 을 삭제하면 이 엔티티 타입과 source 사이의 바인딩이 끊깁니다. 새 매핑이 대체할 때까지 영향받는 슬라이스에 도달하는 쿼리는 빈 결과를 반환합니다."
-        },
-        "createDialog": {
-          "objectTitle": "새 오브젝트 매핑",
-          "linkTitle": "새 링크 매핑"
-        },
-        "empty": {
-          "object": {
-            "title": "오브젝트 매핑이 없습니다",
-            "description": "쿼리가 물리 데이터에 도달하도록 첫 노드 타입을 source relation 에 바인딩하세요."
-          },
-          "link": {
-            "title": "링크 매핑이 없습니다",
-            "description": "첫 엣지 타입을 foreign key / bridge / computed predicate / federated 토폴로지에 바인딩하세요."
-          }
-        },
-        "form": {
-          "sections": {
-            "identity": "식별자",
-            "topology": "토폴로지",
-            "endpoints": "엔드포인트",
-            "planner": "플래너 힌트",
-            "source": "소스",
-            "keys": "키",
-            "scope": "스코프",
-            "lifecycle": "수명주기",
-            "cache": "캐시",
-            "propertyMappings": "속성 매핑"
-          },
-          "link": {
-            "id": "링크 매핑 ID",
-            "edgeTypeId": "엣지 타입",
-            "kind": "종류",
-            "kindOptions": {
-              "foreign_key": "Foreign key",
-              "bridge": "Bridge",
-              "computed": "Computed",
-              "federated": "Federated"
-            },
-            "sourceEndpoint": "소스 엔드포인트",
-            "sourceEndpointDescription": "tail 엔드포인트가 위치한 곳 — 소스 ID, 릴레이션, 엔드포인트 인스턴스를 식별하는 컬럼.",
-            "targetEndpoint": "타깃 엔드포인트",
-            "targetEndpointDescription": "head 엔드포인트가 위치한 곳.",
-            "cardinality": "카디널리티",
-            "cardinalityDescription": "엣지의 의미적 다중성. ManyToMany 는 NL2SQL 집계 시 자동 DISTINCT 주입을 트리거합니다.",
-            "cardinalityOptions": {
-              "one_to_one": "일대일",
-              "one_to_many": "일대다",
-              "many_to_one": "다대일",
-              "many_to_many": "다대다"
-            },
-            "joinCostHint": "조인 비용 힌트",
-            "joinCostHintOptions": {
-              "unknown": "알 수 없음",
-              "indexed": "인덱스",
-              "scan": "스캔",
-              "cartesian": "카테시안"
-            },
-            "precedence": "우선도",
-            "precedenceDescription": "동일 엣지 타입의 다중 매핑 dedup 시 높은 값이 우선합니다."
-          },
-          "object": {
-            "id": "오브젝트 매핑 ID",
-            "nodeTypeId": "노드 타입",
-            "sourceId": "소스",
-            "relation": "릴레이션",
-            "relationKind": "릴레이션 종류",
-            "relationKindOptions": {
-              "table": "테이블",
-              "view": "뷰",
-              "collection": "컬렉션",
-              "file": "파일"
-            },
-            "primaryKeyColumns": "기본 키 컬럼",
-            "primaryKeyColumnsDescription": "노드 타입의 다중 매핑 DISTINCT-on dedup 에 사용됩니다.",
-            "primaryKeyColumnsAdd": "기본 키 컬럼 추가",
-            "primaryKeyColumnsEmptyTitle": "기본 키 컬럼 없음",
-            "primaryKeyColumnsEmptyDescription": "선언 전까지 다중 매핑 쿼리는 PK 부재 경고를 발생시킵니다.",
-            "partitionColumns": "파티션 컬럼",
-            "partitionColumnsDescription": "소스의 require_partition_filter 계약을 사전 검사로 변환합니다.",
-            "partitionColumnsAdd": "파티션 컬럼 추가",
-            "partitionColumnsEmptyTitle": "파티션 컬럼 없음",
-            "partitionColumnsEmptyDescription": "파티션 필터를 강제하지 않는 소스는 비워둘 수 있습니다.",
-            "rowFilter": "행 필터",
-            "rowFilterDescription": "소스 방언으로 TableProvider::scan 에 푸시다운됩니다 — 소프트 삭제, 매핑 단위 서브세팅.",
-            "workspaceScope": "워크스페이스 스코프 컬럼",
-            "workspaceScopeDescription": "릴레이션이 멀티테넌트일 때 워크스페이스 ID 를 담는 소스 컬럼.",
-            "validFrom": "시작 유효일",
-            "validTo": "종료 유효일",
-            "precedence": "우선도",
-            "precedenceDescription": "다중 매핑 dedup 시 높은 값이 우선. 동률은 ID 오름차순으로 결정됩니다.",
-            "cacheHint": "캐시 힌트",
-            "cacheHintOptions": {
-              "none": "없음",
-              "graph_cache": "그래프 캐시"
-            },
-            "propertyMappings": "속성 매핑",
-            "propertyMappingsAdd": "속성 매핑 추가",
-            "propertyMappingsEmptyTitle": "속성 매핑 없음",
-            "propertyMappingsEmptyDescription": "노드 타입의 속성은 여기에 매핑되거나 derived 로 선언되어야 합니다."
-          },
-          "columnRef": {
-            "relation": "릴레이션",
-            "column": "컬럼"
-          },
-          "sourceRelationRef": {
-            "sourceId": "소스",
-            "relation": "릴레이션",
-            "kind": "릴레이션 종류",
-            "kindOptions": {
-              "table": "테이블",
-              "view": "뷰",
-              "collection": "컬렉션",
-              "file": "파일"
-            }
-          },
-          "endpointRef": {
-            "sourceId": "소스",
-            "relation": "릴레이션",
-            "keyColumns": "키 컬럼",
-            "keyColumnsDescription": "엔드포인트 인스턴스를 식별하는 컬럼 — 엔드포인트 오브젝트 매핑의 기본 키 컬럼과 일치해야 합니다.",
-            "keyColumnsAdd": "키 컬럼 추가",
-            "keyColumnsRemove": "키 컬럼 제거",
-            "keyColumnPlaceholder": "id"
-          },
-          "linkKind": {
-            "foreignKey": {
-              "sourceColumn": "소스 컬럼",
-              "targetColumn": "타깃 컬럼"
-            },
-            "bridge": {
-              "bridgeRelation": "브릿지 릴레이션",
-              "sourceJoin": "소스 조인 컬럼",
-              "sourceJoinAdd": "소스 조인 컬럼 추가",
-              "sourceJoinEmptyTitle": "소스 조인 컬럼 없음",
-              "sourceJoinEmptyDescription": "Bridge 변형은 양쪽에 최소 한 개의 컬럼이 필요합니다.",
-              "targetJoin": "타깃 조인 컬럼",
-              "targetJoinAdd": "타깃 조인 컬럼 추가",
-              "targetJoinEmptyTitle": "타깃 조인 컬럼 없음",
-              "targetJoinEmptyDescription": "Bridge 변형은 양쪽에 최소 한 개의 컬럼이 필요합니다.",
-              "bridgeWorkspaceScope": "브릿지 워크스페이스 스코프 컬럼",
-              "bridgeWorkspaceScopeDescription": "선택 — 브릿지 릴레이션이 멀티테넌트인 경우의 워크스페이스 ID 컬럼."
-            },
-            "computed": {
-              "predicate": "Predicate",
-              "predicateDescription": "한쪽 또는 양쪽 엔드포인트 릴레이션에 적용되는 소스 방언 SQL predicate."
-            },
-            "federated": {
-              "sourceMatchColumn": "소스 매치 컬럼",
-              "targetMatchColumn": "타깃 매치 컬럼"
-            }
-          },
-          "propertyMapping": {
-            "propertyId": "속성",
-            "propertyKey": "속성 키",
-            "location": "위치",
-            "locationOptions": {
-              "column": "컬럼",
-              "json_path": "JSON 경로"
-            },
-            "transform": "변환",
-            "transformOptions": {
-              "identity": "Identity",
-              "sql_expr": "SQL 표현식",
-              "derived": "Derived 함수"
-            },
-            "conceptMapId": "Concept map",
-            "conceptMapIdDescription": "선택 — 쿼리 컴파일 시 값 변환에 적용되는 Concept map."
-          },
-          "location": {
-            "column": {
-              "relation": "릴레이션",
-              "column": "컬럼"
-            },
-            "jsonPath": {
-              "rootColumn": "루트 컬럼",
-              "path": "JSON 경로"
-            }
-          },
-          "transform": {
-            "identity": {},
-            "sqlExpr": {
-              "expression": "표현식",
-              "expressionDescription": "추출 시 컬럼에 적용되는 인라인 소스 방언 SQL."
-            },
-            "derived": {
-              "functionId": "함수"
-            }
-          },
-          "cacheHint": {
-            "none": {},
-            "graphCache": {
-              "ttlSeconds": "TTL (초)",
-              "ttlSecondsDescription": "그래프 캐시 항목이 갱신되기 전까지 유효한 시간.",
-              "schedule": "리프레시 스케줄",
-              "scheduleDescription": "선택 — 캐시 항목을 무효화하는 cron 표현식. 비우면 수동 리프레시."
-            }
-          }
         }
       },
       "base": {
@@ -5438,6 +5177,272 @@
         "profile": "프로필",
         "notifications": "알림",
         "sessions": "세션"
+      }
+    }
+  },
+  "lineage": {
+    "title": "데이터 리니지",
+    "description": "소스 데이터가 지식 그래프로 어떻게 흐르는지 추적합니다.",
+    "summary": {
+      "labels": "그래프 라벨",
+      "sources": "소스 테이블",
+      "records": "총 레코드"
+    },
+    "columnMappings": "컬럼 매핑",
+    "columnMappingsHint": "데이터 로드 중 소스 컬럼이 그래프 속성에 매핑되는 방식입니다. 매핑을 클릭하면 컬럼 수준 세부 정보를 확인할 수 있습니다.",
+    "columnsCount": "{count}개 컬럼",
+    "identity": "식별자 (match)",
+    "properties": "속성 (set)",
+    "noMappings": "기록된 컬럼 매핑이 없습니다",
+    "key": "KEY",
+    "loadHistory": "로드 이력",
+    "column": {
+      "label": "라벨",
+      "source": "소스",
+      "records": "레코드",
+      "started": "시작",
+      "status": "상태"
+    },
+    "noHistory": "로드 이력이 없습니다",
+    "status": {
+      "completed": "완료",
+      "running": "실행 중",
+      "failed": "실패",
+      "partial": "부분 완료"
+    },
+    "toast": {
+      "loadFailed": "리니지 데이터를 불러오지 못했습니다"
+    }
+  },
+  "mappings": {
+    "pageTitle": "매핑",
+    "pageSubtitle": "물리-논리 매핑 레이어 — ObjectMapping 은 노드 타입을 하나의 source relation 에 바인딩하고, LinkMapping 은 엣지 타입을 foreign-key / bridge / computed / federated 토폴로지에 바인딩합니다.",
+    "noOntology": "커밋된 온톨로지가 없습니다 — 매핑 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+    "addLabel": "추가",
+    "listHeading": {
+      "object": "{count, plural, =0 {오브젝트 매핑 없음} other {오브젝트 매핑 #개}}",
+      "link": "{count, plural, =0 {링크 매핑 없음} other {링크 매핑 #개}}"
+    },
+    "deleteButton": "삭제",
+    "tab": {
+      "object": "오브젝트 매핑",
+      "link": "링크 매핑"
+    },
+    "messages": {
+      "objectCreated": "오브젝트 매핑 '{id}' 생성",
+      "objectUpdated": "오브젝트 매핑 '{id}' 수정",
+      "objectDeleted": "오브젝트 매핑 '{id}' 삭제",
+      "linkCreated": "링크 매핑 '{id}' 생성",
+      "linkUpdated": "링크 매핑 '{id}' 수정",
+      "linkDeleted": "링크 매핑 '{id}' 삭제"
+    },
+    "toast": {
+      "created": "매핑 생성 완료",
+      "createFailed": "생성 실패: {error}",
+      "updated": "매핑 수정 완료",
+      "updateFailed": "수정 실패: {error}",
+      "deleted": "매핑 삭제 완료",
+      "deleteFailed": "삭제 실패: {error}"
+    },
+    "confirm": {
+      "deleteTitle": "매핑을 삭제하시겠습니까?",
+      "deleteDescription": "'{id}' 을 삭제하면 이 엔티티 타입과 source 사이의 바인딩이 끊깁니다. 새 매핑이 대체할 때까지 영향받는 슬라이스에 도달하는 쿼리는 빈 결과를 반환합니다."
+    },
+    "createDialog": {
+      "objectTitle": "새 오브젝트 매핑",
+      "linkTitle": "새 링크 매핑"
+    },
+    "empty": {
+      "object": {
+        "title": "오브젝트 매핑이 없습니다",
+        "description": "쿼리가 물리 데이터에 도달하도록 첫 노드 타입을 source relation 에 바인딩하세요."
+      },
+      "link": {
+        "title": "링크 매핑이 없습니다",
+        "description": "첫 엣지 타입을 foreign key / bridge / computed predicate / federated 토폴로지에 바인딩하세요."
+      }
+    },
+    "form": {
+      "sections": {
+        "identity": "식별자",
+        "topology": "토폴로지",
+        "endpoints": "엔드포인트",
+        "planner": "플래너 힌트",
+        "source": "소스",
+        "keys": "키",
+        "scope": "스코프",
+        "lifecycle": "수명주기",
+        "cache": "캐시",
+        "propertyMappings": "속성 매핑"
+      },
+      "link": {
+        "id": "링크 매핑 ID",
+        "edgeTypeId": "엣지 타입",
+        "kind": "종류",
+        "kindOptions": {
+          "foreign_key": "Foreign key",
+          "bridge": "Bridge",
+          "computed": "Computed",
+          "federated": "Federated"
+        },
+        "sourceEndpoint": "소스 엔드포인트",
+        "sourceEndpointDescription": "tail 엔드포인트가 위치한 곳 — 소스 ID, 릴레이션, 엔드포인트 인스턴스를 식별하는 컬럼.",
+        "targetEndpoint": "타깃 엔드포인트",
+        "targetEndpointDescription": "head 엔드포인트가 위치한 곳.",
+        "cardinality": "카디널리티",
+        "cardinalityDescription": "엣지의 의미적 다중성. ManyToMany 는 NL2SQL 집계 시 자동 DISTINCT 주입을 트리거합니다.",
+        "cardinalityOptions": {
+          "one_to_one": "일대일",
+          "one_to_many": "일대다",
+          "many_to_one": "다대일",
+          "many_to_many": "다대다"
+        },
+        "joinCostHint": "조인 비용 힌트",
+        "joinCostHintOptions": {
+          "unknown": "알 수 없음",
+          "indexed": "인덱스",
+          "scan": "스캔",
+          "cartesian": "카테시안"
+        },
+        "precedence": "우선도",
+        "precedenceDescription": "동일 엣지 타입의 다중 매핑 dedup 시 높은 값이 우선합니다."
+      },
+      "object": {
+        "id": "오브젝트 매핑 ID",
+        "nodeTypeId": "노드 타입",
+        "sourceId": "소스",
+        "relation": "릴레이션",
+        "relationKind": "릴레이션 종류",
+        "relationKindOptions": {
+          "table": "테이블",
+          "view": "뷰",
+          "collection": "컬렉션",
+          "file": "파일"
+        },
+        "primaryKeyColumns": "기본 키 컬럼",
+        "primaryKeyColumnsDescription": "노드 타입의 다중 매핑 DISTINCT-on dedup 에 사용됩니다.",
+        "primaryKeyColumnsAdd": "기본 키 컬럼 추가",
+        "primaryKeyColumnsEmptyTitle": "기본 키 컬럼 없음",
+        "primaryKeyColumnsEmptyDescription": "선언 전까지 다중 매핑 쿼리는 PK 부재 경고를 발생시킵니다.",
+        "partitionColumns": "파티션 컬럼",
+        "partitionColumnsDescription": "소스의 require_partition_filter 계약을 사전 검사로 변환합니다.",
+        "partitionColumnsAdd": "파티션 컬럼 추가",
+        "partitionColumnsEmptyTitle": "파티션 컬럼 없음",
+        "partitionColumnsEmptyDescription": "파티션 필터를 강제하지 않는 소스는 비워둘 수 있습니다.",
+        "rowFilter": "행 필터",
+        "rowFilterDescription": "소스 방언으로 TableProvider::scan 에 푸시다운됩니다 — 소프트 삭제, 매핑 단위 서브세팅.",
+        "workspaceScope": "워크스페이스 스코프 컬럼",
+        "workspaceScopeDescription": "릴레이션이 멀티테넌트일 때 워크스페이스 ID 를 담는 소스 컬럼.",
+        "validFrom": "시작 유효일",
+        "validTo": "종료 유효일",
+        "precedence": "우선도",
+        "precedenceDescription": "다중 매핑 dedup 시 높은 값이 우선. 동률은 ID 오름차순으로 결정됩니다.",
+        "cacheHint": "캐시 힌트",
+        "cacheHintOptions": {
+          "none": "없음",
+          "graph_cache": "그래프 캐시"
+        },
+        "propertyMappings": "속성 매핑",
+        "propertyMappingsAdd": "속성 매핑 추가",
+        "propertyMappingsEmptyTitle": "속성 매핑 없음",
+        "propertyMappingsEmptyDescription": "노드 타입의 속성은 여기에 매핑되거나 derived 로 선언되어야 합니다."
+      },
+      "columnRef": {
+        "relation": "릴레이션",
+        "column": "컬럼"
+      },
+      "sourceRelationRef": {
+        "sourceId": "소스",
+        "relation": "릴레이션",
+        "kind": "릴레이션 종류",
+        "kindOptions": {
+          "table": "테이블",
+          "view": "뷰",
+          "collection": "컬렉션",
+          "file": "파일"
+        }
+      },
+      "endpointRef": {
+        "sourceId": "소스",
+        "relation": "릴레이션",
+        "keyColumns": "키 컬럼",
+        "keyColumnsDescription": "엔드포인트 인스턴스를 식별하는 컬럼 — 엔드포인트 오브젝트 매핑의 기본 키 컬럼과 일치해야 합니다.",
+        "keyColumnsAdd": "키 컬럼 추가",
+        "keyColumnsRemove": "키 컬럼 제거",
+        "keyColumnPlaceholder": "id"
+      },
+      "linkKind": {
+        "foreignKey": {
+          "sourceColumn": "소스 컬럼",
+          "targetColumn": "타깃 컬럼"
+        },
+        "bridge": {
+          "bridgeRelation": "브릿지 릴레이션",
+          "sourceJoin": "소스 조인 컬럼",
+          "sourceJoinAdd": "소스 조인 컬럼 추가",
+          "sourceJoinEmptyTitle": "소스 조인 컬럼 없음",
+          "sourceJoinEmptyDescription": "Bridge 변형은 양쪽에 최소 한 개의 컬럼이 필요합니다.",
+          "targetJoin": "타깃 조인 컬럼",
+          "targetJoinAdd": "타깃 조인 컬럼 추가",
+          "targetJoinEmptyTitle": "타깃 조인 컬럼 없음",
+          "targetJoinEmptyDescription": "Bridge 변형은 양쪽에 최소 한 개의 컬럼이 필요합니다.",
+          "bridgeWorkspaceScope": "브릿지 워크스페이스 스코프 컬럼",
+          "bridgeWorkspaceScopeDescription": "선택 — 브릿지 릴레이션이 멀티테넌트인 경우의 워크스페이스 ID 컬럼."
+        },
+        "computed": {
+          "predicate": "Predicate",
+          "predicateDescription": "한쪽 또는 양쪽 엔드포인트 릴레이션에 적용되는 소스 방언 SQL predicate."
+        },
+        "federated": {
+          "sourceMatchColumn": "소스 매치 컬럼",
+          "targetMatchColumn": "타깃 매치 컬럼"
+        }
+      },
+      "propertyMapping": {
+        "propertyId": "속성",
+        "propertyKey": "속성 키",
+        "location": "위치",
+        "locationOptions": {
+          "column": "컬럼",
+          "json_path": "JSON 경로"
+        },
+        "transform": "변환",
+        "transformOptions": {
+          "identity": "Identity",
+          "sql_expr": "SQL 표현식",
+          "derived": "Derived 함수"
+        },
+        "conceptMapId": "Concept map",
+        "conceptMapIdDescription": "선택 — 쿼리 컴파일 시 값 변환에 적용되는 Concept map."
+      },
+      "location": {
+        "column": {
+          "relation": "릴레이션",
+          "column": "컬럼"
+        },
+        "jsonPath": {
+          "rootColumn": "루트 컬럼",
+          "path": "JSON 경로"
+        }
+      },
+      "transform": {
+        "identity": {},
+        "sqlExpr": {
+          "expression": "표현식",
+          "expressionDescription": "추출 시 컬럼에 적용되는 인라인 소스 방언 SQL."
+        },
+        "derived": {
+          "functionId": "함수"
+        }
+      },
+      "cacheHint": {
+        "none": {},
+        "graphCache": {
+          "ttlSeconds": "TTL (초)",
+          "ttlSecondsDescription": "그래프 캐시 항목이 갱신되기 전까지 유효한 시간.",
+          "schedule": "리프레시 스케줄",
+          "scheduleDescription": "선택 — 캐시 항목을 무효화하는 cron 표현식. 비우면 수동 리프레시."
+        }
       }
     }
   }

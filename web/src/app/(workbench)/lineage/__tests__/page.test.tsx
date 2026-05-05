@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
-import messages from "../../../../../../messages/en.json";
+import messages from "../../../../../messages/en.json";
 
 vi.mock("@/lib/api/client", () => ({
   request: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock("@/components/ui/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-import LineageSettingsPage from "@/app/settings/knowledge/lineage/page";
+import LineageSettingsPage from "@/app/(workbench)/lineage/page";
 import { request } from "@/lib/api/client";
 import { toast } from "@/components/ui/toast";
 

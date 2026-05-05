@@ -48,7 +48,7 @@ const RELATION_KINDS: readonly SourceRelationKind[] = [
  * The Domain Context page's Mappings section embeds this for
  * single-mapping editing — the common case where one NodeType
  * binds to one physical relation. Multi-mapping flows stay on
- * `/settings/knowledge/mappings` where the JSON dual-mode editor handles
+ * `/mappings` where the JSON dual-mode editor handles
  * the long tail.
  *
  * Stays purely controlled — caller owns the persistence boundary

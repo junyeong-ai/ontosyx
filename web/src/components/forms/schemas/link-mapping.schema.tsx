@@ -26,7 +26,7 @@ type SourceRelationRef = components["schemas"]["SourceRelationRef"];
 // ---------------------------------------------------------------------------
 
 export const columnRefSchema: EntitySchema<ColumnRef> = {
-  entityKind: "settings.knowledge.mappings.form.columnRef",
+  entityKind: "mappings.form.columnRef",
   buildDefault: () => ({ relation: "", column: "" }),
   fields: [
     {
@@ -59,7 +59,7 @@ const SOURCE_RELATION_KIND_OPTIONS: ReadonlyArray<{
 ];
 
 export const sourceRelationRefSchema: EntitySchema<SourceRelationRef> = {
-  entityKind: "settings.knowledge.mappings.form.sourceRelationRef",
+  entityKind: "mappings.form.sourceRelationRef",
   buildDefault: () => ({
     source_id: "",
     relation: "",
@@ -168,7 +168,7 @@ function KeyColumnsControl({
   disabled?: boolean;
 }) {
   const t = useTranslations(
-    "settings.knowledge.mappings.form.endpointRef",
+    "mappings.form.endpointRef",
   );
   const items = Array.isArray(value) ? (value as string[]) : [];
   return (
@@ -184,7 +184,7 @@ function KeyColumnsControl({
 }
 
 export const endpointRefSchema: EntitySchema<EndpointRef> = {
-  entityKind: "settings.knowledge.mappings.form.endpointRef",
+  entityKind: "mappings.form.endpointRef",
   buildDefault: () => ({
     source_id: "",
     relation: "",
@@ -233,7 +233,7 @@ const sourceRelationRefAsUnknown =
   sourceRelationRefSchema as EntitySchema<unknown>;
 
 const foreignKeyVariantSchema: EntitySchema<ForeignKeyVariant> = {
-  entityKind: "settings.knowledge.mappings.form.linkKind.foreignKey",
+  entityKind: "mappings.form.linkKind.foreignKey",
   buildDefault: () => ({
     kind: "foreign_key",
     source_column: columnRefSchema.buildDefault(),
@@ -256,7 +256,7 @@ const foreignKeyVariantSchema: EntitySchema<ForeignKeyVariant> = {
 };
 
 const bridgeVariantSchema: EntitySchema<BridgeVariant> = {
-  entityKind: "settings.knowledge.mappings.form.linkKind.bridge",
+  entityKind: "mappings.form.linkKind.bridge",
   buildDefault: () => ({
     kind: "bridge",
     bridge_relation: sourceRelationRefSchema.buildDefault(),
@@ -325,7 +325,7 @@ const bridgeVariantSchema: EntitySchema<BridgeVariant> = {
 };
 
 const computedVariantSchema: EntitySchema<ComputedVariant> = {
-  entityKind: "settings.knowledge.mappings.form.linkKind.computed",
+  entityKind: "mappings.form.linkKind.computed",
   buildDefault: () => ({
     kind: "computed",
     predicate: "",
@@ -345,7 +345,7 @@ const computedVariantSchema: EntitySchema<ComputedVariant> = {
 };
 
 const federatedVariantSchema: EntitySchema<FederatedVariant> = {
-  entityKind: "settings.knowledge.mappings.form.linkKind.federated",
+  entityKind: "mappings.form.linkKind.federated",
   buildDefault: () => ({
     kind: "federated",
     source_match_column: columnRefSchema.buildDefault(),
@@ -395,7 +395,7 @@ const CARDINALITY_OPTIONS = [
 const endpointRefAsUnknown = endpointRefSchema as EntitySchema<unknown>;
 
 export const linkMappingSchema: EntitySchema<LinkMappingDef> = {
-  entityKind: "settings.knowledge.mappings.form.link",
+  entityKind: "mappings.form.link",
   buildDefault: () => ({
     id: "",
     edge_type_id: "",
@@ -416,19 +416,19 @@ export const linkMappingSchema: EntitySchema<LinkMappingDef> = {
   layout: {
     sections: [
       {
-        titleKey: "settings.knowledge.mappings.form.sections.identity",
+        titleKey: "mappings.form.sections.identity",
         fieldKeys: ["id", "edge_type_id"],
       },
       {
-        titleKey: "settings.knowledge.mappings.form.sections.topology",
+        titleKey: "mappings.form.sections.topology",
         fieldKeys: ["kind"],
       },
       {
-        titleKey: "settings.knowledge.mappings.form.sections.endpoints",
+        titleKey: "mappings.form.sections.endpoints",
         fieldKeys: ["source_endpoint", "target_endpoint"],
       },
       {
-        titleKey: "settings.knowledge.mappings.form.sections.planner",
+        titleKey: "mappings.form.sections.planner",
         fieldKeys: ["cardinality", "join_cost_hint", "precedence"],
         defaultOpen: false,
       },

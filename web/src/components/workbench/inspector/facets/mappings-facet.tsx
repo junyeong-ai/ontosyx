@@ -14,7 +14,7 @@ import type { ObjectMappingDef } from "@/lib/api/edit-ops";
 
 // ---------------------------------------------------------------------------
 // MappingsFacet — single-mapping inline editor for a NodeType. The
-// multi-mapping admin path stays at /settings/knowledge/mappings; this facet
+// multi-mapping admin path stays at /mappings; this facet
 // targets the common case (one mapping per node).
 // ---------------------------------------------------------------------------
 

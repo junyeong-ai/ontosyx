@@ -1,15 +1,12 @@
 "use client";
 
-// /settings/knowledge/mappings — master-detail CRUD page for the
-// physical-to-logical mapping layer (ObjectMapping + LinkMapping).
-//
-// Both mapping kinds are edited through the typed schema-driven form
-// (`StructuredEntityEditor`) so every field — discriminated
-// LinkMappingKind variants, nested ColumnRef / EndpointRef compounds,
-// PropertyMappingDef rows with their own location / transform branches
-// — round-trips with full type fidelity. Industry pattern
-// (Linear / Stripe / Sanity): list-pane + always-visible editor,
-// modal reserved for destructive confirms.
+// /mappings — master-detail CRUD page for the physical-to-logical
+// mapping layer (ObjectMapping + LinkMapping). Workbench mode peer
+// of /vocabulary, /glossary, etc — every field roundtrips through
+// the typed schema-driven form (`StructuredEntityEditor`) with full
+// discriminated-variant + nested-compound fidelity. Industry
+// pattern (Linear / Stripe / Sanity): list-pane + always-visible
+// editor, modal reserved for destructive confirms.
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -23,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormInput } from "@/components/ui/form-input";
-import { SettingsPageShell } from "@/components/layout/settings-page-shell";
+import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
@@ -56,7 +53,7 @@ function mappingId(m: ObjectMappingDef | LinkMappingDef): string {
 }
 
 export default function MappingsAdminPage() {
-  const t = useTranslations("settings.knowledge.mappings");
+  const t = useTranslations("mappings");
   const tWorkbench = useTranslations("settings.vocabulary.workbench");
   const tCommon = useTranslations("common");
   const router = useRouter();
@@ -214,9 +211,17 @@ export default function MappingsAdminPage() {
         : { kind: "data" };
 
   return (
-    <SettingsPageShell
+    <WorkbenchPageShell
       title={t("pageTitle")}
       subtitle={t("pageSubtitle")}
+      fillBleed
+      pageState={pageState}
+      tabs={[
+        { id: "object", label: t("tab.object"), badge: objectMappings.length },
+        { id: "link", label: t("tab.link"), badge: linkMappings.length },
+      ]}
+      activeTab={tab}
+      onTabChange={(id) => setTab(id as MappingTab)}
     >
       <PageStateView
         state={pageState}
@@ -230,91 +235,48 @@ export default function MappingsAdminPage() {
           title: t("noOntology"),
         }}
       >
-        <div className="flex gap-2 border-b border-divider">
-          <TabButton
-            active={tab === "object"}
-            onClick={() => setTab("object")}
-            label={t("tab.object")}
-            count={objectMappings.length}
-          />
-          <TabButton
-            active={tab === "link"}
-            onClick={() => setTab("link")}
-            label={t("tab.link")}
-            count={linkMappings.length}
-          />
-        </div>
-        <div className="h-[calc(100vh-12rem)]">
-          <EntityWorkbench<ObjectMappingDef | LinkMappingDef>
-            listPane={
-              <ListPane
-                items={filtered}
-                tab={tab}
-                selectedId={selectedId}
-                onSelect={setSelection}
-                onCreate={() => setSelection(DRAFT_ID)}
-                search={search}
-                onSearch={setSearch}
-                heading={t(`listHeading.${tab}`, { count: items.length })}
-                createLabel={t("addLabel")}
-                searchPlaceholder={tWorkbench("searchPlaceholder")}
-                emptyTitle={t(`empty.${tab}.title`)}
-                emptyDescription={t(`empty.${tab}.description`)}
-                busy={apply.isPending}
-              />
-            }
-            detailPane={
-              <DetailPane
-                key={isDraft ? "__draft__" : selected ? mappingId(selected) : "__empty__"}
-                tab={tab}
-                isDraft={isDraft}
-                selected={selected}
-                ontologyId={ontology?.id ?? null}
-                deleteLabel={t("deleteButton")}
-                draftTitle={t(`createDialog.${tab}Title`)}
-                nothingTitle={tWorkbench("nothingSelected.title")}
-                nothingDescription={tWorkbench("nothingSelected.description")}
-                onCreateObject={handleCreateObject}
-                onUpdateObject={handleUpdateObject}
-                onCreateLink={handleCreateLink}
-                onUpdateLink={handleUpdateLink}
-                onDelete={handleDelete}
-                onCancelDraft={() => setSelection(null)}
-                pending={apply.isPending}
-              />
-            }
-            selected={selected}
-          />
-        </div>
+        <EntityWorkbench<ObjectMappingDef | LinkMappingDef>
+          listPane={
+            <ListPane
+              items={filtered}
+              tab={tab}
+              selectedId={selectedId}
+              onSelect={setSelection}
+              onCreate={() => setSelection(DRAFT_ID)}
+              search={search}
+              onSearch={setSearch}
+              heading={t(`listHeading.${tab}`, { count: items.length })}
+              createLabel={t("addLabel")}
+              searchPlaceholder={tWorkbench("searchPlaceholder")}
+              emptyTitle={t(`empty.${tab}.title`)}
+              emptyDescription={t(`empty.${tab}.description`)}
+              busy={apply.isPending}
+            />
+          }
+          detailPane={
+            <DetailPane
+              key={isDraft ? "__draft__" : selected ? mappingId(selected) : "__empty__"}
+              tab={tab}
+              isDraft={isDraft}
+              selected={selected}
+              ontologyId={ontology?.id ?? null}
+              deleteLabel={t("deleteButton")}
+              draftTitle={t(`createDialog.${tab}Title`)}
+              nothingTitle={tWorkbench("nothingSelected.title")}
+              nothingDescription={tWorkbench("nothingSelected.description")}
+              onCreateObject={handleCreateObject}
+              onUpdateObject={handleUpdateObject}
+              onCreateLink={handleCreateLink}
+              onUpdateLink={handleUpdateLink}
+              onDelete={handleDelete}
+              onCancelDraft={() => setSelection(null)}
+              pending={apply.isPending}
+            />
+          }
+          selected={selected}
+        />
       </PageStateView>
-    </SettingsPageShell>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  label,
-  count,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  count: number;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "border-b-2 px-2 pb-2 text-xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
-        active
-          ? "border-brand-foreground text-brand-foreground-strong"
-          : "border-transparent text-foreground-muted hover:text-foreground-subtle-strong",
-      )}
-    >
-      {label} <span className="ms-1 text-foreground-muted">({count})</span>
-    </button>
+    </WorkbenchPageShell>
   );
 }
 
@@ -392,7 +354,7 @@ function ListPane({
                   type="button"
                   onClick={() => onSelect(id)}
                   className={cn(
-                    "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-xs transition-colors",
+                    "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-xs transition-colors duration-[var(--duration-quick)]",
                     isSelected
                       ? "bg-brand-surface text-brand-foreground"
                       : "text-foreground hover:bg-surface-hover",

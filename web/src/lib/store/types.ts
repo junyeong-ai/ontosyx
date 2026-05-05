@@ -78,6 +78,8 @@ export type WorkspaceMode =
   | "dashboard"
   | "glossary"
   | "vocabulary"
+  | "mappings"
+  | "lineage"
   | "recipes"
   | (string & {});
 

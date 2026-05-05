@@ -12,7 +12,7 @@
     "quality_gate": "Blocked by quality gate. {detail}",
     "design_gates_unmet": "Resolve every design gate and try again.",
     "invalid_ontology": "Ontology validation failed.",
-    "uncertain_reconcile": "Some matches need review. Resolve them on screen.",
+    "uncertain_reconcile": "Refinement produced {count} uncertain ID match(es) that need review.",
     "rate_limited": "Too many requests. Please wait and retry.",
     "concurrency_cap": "Concurrent request limit reached. {detail}",
     "ontology_error": "Ontology processing error. {detail}",
@@ -59,7 +59,6 @@
     "repo_analysis_failed": "{operation, select, clone {Git clone failed. {detail}} tree {Couldn't generate the file tree. {detail}} read {Couldn't read repository files. {detail}} empty_selection {No relevant files found in the repository for analysis.} empty_content {The selected files couldn't be read.} empty_models {No ORM models or entities found in the repository.} other {Repository analysis failed. {detail}}}",
     "refinement_missing_inputs": "Refinement needs at least one of: a graph runtime, additional context, or a parseable source schema.",
     "refinement_decision_unknown_id": "Decision references unknown id '{original_id}'. Refresh and try again.",
-    "uncertain_reconcile": "Refinement produced {count} uncertain ID match(es) that need review.",
     "reanalyze_no_modeled_tables": "No modeled tables. Promote at least one deferred table or use the regular reanalyze endpoint.",
     "source_type_mismatch": "This project was created with '{expected}' but reanalyze got '{got}'. Use the same source type.",
     "decision_invalid_schema_refs": "Some decisions reference schema elements that no longer exist. Re-check the analysis report.",
@@ -192,6 +191,12 @@
       },
       "navigate-vocabulary": {
         "label": "Go to Vocabulary"
+      },
+      "navigate-mappings": {
+        "label": "Go to Mappings"
+      },
+      "navigate-lineage": {
+        "label": "Go to Lineage"
       },
       "navigate-recipes": {
         "label": "Go to Recipes"
@@ -977,6 +982,8 @@
       "modeDashboard": "Dashboard",
       "modeGlossary": "Glossary",
       "modeVocabulary": "Vocabulary",
+      "modeMappings": "Mappings",
+      "modeLineage": "Lineage",
       "modeRecipes": "Recipes",
       "settingsLabel": "Settings",
       "hideExplorer": "Hide Explorer",
@@ -2186,11 +2193,9 @@
         "usage": "Usage",
         "reports": "Reports",
         "schedules": "Schedules",
-        "knowledge": "Knowledge",
+        "data": "Data",
         "knowledgeBase": "Knowledge Base",
         "federation": "Federation",
-        "lineage": "Lineage",
-        "mappings": "Mappings",
         "runtime": "Runtime",
         "config": "Config",
         "providers": "Providers",
@@ -2609,272 +2614,6 @@
           "refreshFailed": "Refresh failed",
           "healthLoadFailed": "Failed to load health status",
           "previewFailed": "Preview failed — check credentials and connectivity"
-        }
-      },
-      "lineage": {
-        "title": "Data Lineage",
-        "description": "Trace how source data flows into your knowledge graph.",
-        "summary": {
-          "labels": "Graph Labels",
-          "sources": "Source Tables",
-          "records": "Total Records"
-        },
-        "columnMappings": "Column Mappings",
-        "columnMappingsHint": "Source columns mapped to graph properties during data loading. Click a mapping to expand column-level details.",
-        "columnsCount": "{count, plural, one {# column} other {# columns}}",
-        "identity": "Identity (match)",
-        "properties": "Properties (set)",
-        "noMappings": "No column mappings recorded",
-        "key": "KEY",
-        "loadHistory": "Load History",
-        "column": {
-          "label": "Label",
-          "source": "Source",
-          "records": "Records",
-          "started": "Started",
-          "status": "Status"
-        },
-        "noHistory": "No load history available",
-        "status": {
-          "completed": "Completed",
-          "running": "Running",
-          "failed": "Failed",
-          "partial": "Partial"
-        },
-        "toast": {
-          "loadFailed": "Failed to load lineage data"
-        }
-      },
-      "mappings": {
-        "pageTitle": "Mappings",
-        "pageSubtitle": "Physical-to-logical mapping layer — ObjectMapping binds a node type to one source relation; LinkMapping binds an edge type to a foreign-key, bridge, computed, or federated topology.",
-        "noOntology": "No committed ontology available — create one in Design mode before editing mappings.",
-        "addLabel": "Add",
-        "listHeading": {
-          "object": "{count, plural, =0 {No object mappings} one {# object mapping} other {# object mappings}}",
-          "link": "{count, plural, =0 {No link mappings} one {# link mapping} other {# link mappings}}"
-        },
-        "deleteButton": "Delete",
-        "tab": {
-          "object": "Object mappings",
-          "link": "Link mappings"
-        },
-        "messages": {
-          "objectCreated": "Create object mapping '{id}'",
-          "objectUpdated": "Update object mapping '{id}'",
-          "objectDeleted": "Delete object mapping '{id}'",
-          "linkCreated": "Create link mapping '{id}'",
-          "linkUpdated": "Update link mapping '{id}'",
-          "linkDeleted": "Delete link mapping '{id}'"
-        },
-        "toast": {
-          "created": "Mapping created",
-          "createFailed": "Create failed: {error}",
-          "updated": "Mapping updated",
-          "updateFailed": "Update failed: {error}",
-          "deleted": "Mapping deleted",
-          "deleteFailed": "Delete failed: {error}"
-        },
-        "confirm": {
-          "deleteTitle": "Delete mapping?",
-          "deleteDescription": "Removing '{id}' breaks the binding between this entity type and its source. Queries that reach the affected slice will return empty until a new mapping replaces it."
-        },
-        "createDialog": {
-          "objectTitle": "New object mapping",
-          "linkTitle": "New link mapping"
-        },
-        "empty": {
-          "object": {
-            "title": "No object mappings",
-            "description": "Bind your first node type to a source relation so queries can reach physical data."
-          },
-          "link": {
-            "title": "No link mappings",
-            "description": "Bind your first edge type to a foreign key, bridge, computed predicate, or federated topology."
-          }
-        },
-        "form": {
-          "sections": {
-            "identity": "Identity",
-            "topology": "Topology",
-            "endpoints": "Endpoints",
-            "planner": "Planner hints",
-            "source": "Source",
-            "keys": "Keys",
-            "scope": "Scope",
-            "lifecycle": "Lifecycle",
-            "cache": "Cache",
-            "propertyMappings": "Property mappings"
-          },
-          "link": {
-            "id": "Link mapping id",
-            "edgeTypeId": "Edge type",
-            "kind": "Kind",
-            "kindOptions": {
-              "foreign_key": "Foreign key",
-              "bridge": "Bridge",
-              "computed": "Computed",
-              "federated": "Federated"
-            },
-            "sourceEndpoint": "Source endpoint",
-            "sourceEndpointDescription": "Where the tail endpoint lives — source id, relation, and the columns whose values identify the endpoint instance.",
-            "targetEndpoint": "Target endpoint",
-            "targetEndpointDescription": "Where the head endpoint lives.",
-            "cardinality": "Cardinality",
-            "cardinalityDescription": "Semantic edge multiplicity. ManyToMany triggers automatic DISTINCT injection in NL2SQL aggregation.",
-            "cardinalityOptions": {
-              "one_to_one": "One-to-one",
-              "one_to_many": "One-to-many",
-              "many_to_one": "Many-to-one",
-              "many_to_many": "Many-to-many"
-            },
-            "joinCostHint": "Join cost hint",
-            "joinCostHintOptions": {
-              "unknown": "Unknown",
-              "indexed": "Indexed",
-              "scan": "Scan",
-              "cartesian": "Cartesian"
-            },
-            "precedence": "Precedence",
-            "precedenceDescription": "Higher precedence wins in multi-mapping dedup on the same edge type."
-          },
-          "object": {
-            "id": "Object mapping id",
-            "nodeTypeId": "Node type",
-            "sourceId": "Source",
-            "relation": "Relation",
-            "relationKind": "Relation kind",
-            "relationKindOptions": {
-              "table": "Table",
-              "view": "View",
-              "collection": "Collection",
-              "file": "File"
-            },
-            "primaryKeyColumns": "Primary-key columns",
-            "primaryKeyColumnsDescription": "Used by the planner for DISTINCT-on dedup across multi-mappings on this node type.",
-            "primaryKeyColumnsAdd": "Add primary-key column",
-            "primaryKeyColumnsEmptyTitle": "No primary-key columns",
-            "primaryKeyColumnsEmptyDescription": "Multi-mapping queries will surface a no-PK warning until columns are declared.",
-            "partitionColumns": "Partition columns",
-            "partitionColumnsDescription": "Translate the source's require_partition_filter contract into a pre-flight check.",
-            "partitionColumnsAdd": "Add partition column",
-            "partitionColumnsEmptyTitle": "No partition columns",
-            "partitionColumnsEmptyDescription": "Sources that don't enforce partition filters can leave this empty.",
-            "rowFilter": "Row filter",
-            "rowFilterDescription": "Pushed into TableProvider::scan in the source's dialect — soft-delete tombstones, per-mapping subsetting.",
-            "workspaceScope": "Workspace scope column",
-            "workspaceScopeDescription": "Source column carrying the workspace id when the relation is multi-tenant.",
-            "validFrom": "Valid from",
-            "validTo": "Valid to",
-            "precedence": "Precedence",
-            "precedenceDescription": "Higher precedence wins in multi-mapping dedup. Ties resolve by id ascending.",
-            "cacheHint": "Cache hint",
-            "cacheHintOptions": {
-              "none": "None",
-              "graph_cache": "Graph cache"
-            },
-            "propertyMappings": "Property mappings",
-            "propertyMappingsAdd": "Add property mapping",
-            "propertyMappingsEmptyTitle": "No property mappings",
-            "propertyMappingsEmptyDescription": "Properties on the node type must be mapped here or declared derived."
-          },
-          "columnRef": {
-            "relation": "Relation",
-            "column": "Column"
-          },
-          "sourceRelationRef": {
-            "sourceId": "Source",
-            "relation": "Relation",
-            "kind": "Relation kind",
-            "kindOptions": {
-              "table": "Table",
-              "view": "View",
-              "collection": "Collection",
-              "file": "File"
-            }
-          },
-          "endpointRef": {
-            "sourceId": "Source",
-            "relation": "Relation",
-            "keyColumns": "Key columns",
-            "keyColumnsDescription": "Columns whose values identify the endpoint instance — must match the endpoint object mapping's primary-key columns.",
-            "keyColumnsAdd": "Add key column",
-            "keyColumnsRemove": "Remove key column",
-            "keyColumnPlaceholder": "id"
-          },
-          "linkKind": {
-            "foreignKey": {
-              "sourceColumn": "Source column",
-              "targetColumn": "Target column"
-            },
-            "bridge": {
-              "bridgeRelation": "Bridge relation",
-              "sourceJoin": "Source join columns",
-              "sourceJoinAdd": "Add source join column",
-              "sourceJoinEmptyTitle": "No source join columns",
-              "sourceJoinEmptyDescription": "Bridge variants need at least one column on each side.",
-              "targetJoin": "Target join columns",
-              "targetJoinAdd": "Add target join column",
-              "targetJoinEmptyTitle": "No target join columns",
-              "targetJoinEmptyDescription": "Bridge variants need at least one column on each side.",
-              "bridgeWorkspaceScope": "Bridge workspace scope column",
-              "bridgeWorkspaceScopeDescription": "Optional — the bridge relation's workspace id column when it is multi-tenant."
-            },
-            "computed": {
-              "predicate": "Predicate",
-              "predicateDescription": "Source-dialect SQL predicate over one or both endpoint relations."
-            },
-            "federated": {
-              "sourceMatchColumn": "Source match column",
-              "targetMatchColumn": "Target match column"
-            }
-          },
-          "propertyMapping": {
-            "propertyId": "Property",
-            "propertyKey": "Property key",
-            "location": "Location",
-            "locationOptions": {
-              "column": "Column",
-              "json_path": "JSON path"
-            },
-            "transform": "Transform",
-            "transformOptions": {
-              "identity": "Identity",
-              "sql_expr": "SQL expression",
-              "derived": "Derived function"
-            },
-            "conceptMapId": "Concept map",
-            "conceptMapIdDescription": "Optional concept-map applied at query-compile time to translate values."
-          },
-          "location": {
-            "column": {
-              "relation": "Relation",
-              "column": "Column"
-            },
-            "jsonPath": {
-              "rootColumn": "Root column",
-              "path": "JSON path"
-            }
-          },
-          "transform": {
-            "identity": {},
-            "sqlExpr": {
-              "expression": "Expression",
-              "expressionDescription": "Inline source-dialect SQL applied to the column on extraction."
-            },
-            "derived": {
-              "functionId": "Function"
-            }
-          },
-          "cacheHint": {
-            "none": {},
-            "graphCache": {
-              "ttlSeconds": "TTL (seconds)",
-              "ttlSecondsDescription": "How long the graph-cache entry stays warm before it must be refreshed.",
-              "schedule": "Refresh schedule",
-              "scheduleDescription": "Optional cron expression that invalidates the cache entry. Empty = manual refresh only."
-            }
-          }
         }
       },
       "base": {
@@ -5438,6 +5177,272 @@
         "profile": "Profile",
         "notifications": "Notifications",
         "sessions": "Sessions"
+      }
+    }
+  },
+  "lineage": {
+    "title": "Data Lineage",
+    "description": "Trace how source data flows into your knowledge graph.",
+    "summary": {
+      "labels": "Graph Labels",
+      "sources": "Source Tables",
+      "records": "Total Records"
+    },
+    "columnMappings": "Column Mappings",
+    "columnMappingsHint": "Source columns mapped to graph properties during data loading. Click a mapping to expand column-level details.",
+    "columnsCount": "{count, plural, one {# column} other {# columns}}",
+    "identity": "Identity (match)",
+    "properties": "Properties (set)",
+    "noMappings": "No column mappings recorded",
+    "key": "KEY",
+    "loadHistory": "Load History",
+    "column": {
+      "label": "Label",
+      "source": "Source",
+      "records": "Records",
+      "started": "Started",
+      "status": "Status"
+    },
+    "noHistory": "No load history available",
+    "status": {
+      "completed": "Completed",
+      "running": "Running",
+      "failed": "Failed",
+      "partial": "Partial"
+    },
+    "toast": {
+      "loadFailed": "Failed to load lineage data"
+    }
+  },
+  "mappings": {
+    "pageTitle": "Mappings",
+    "pageSubtitle": "Physical-to-logical mapping layer — ObjectMapping binds a node type to one source relation; LinkMapping binds an edge type to a foreign-key, bridge, computed, or federated topology.",
+    "noOntology": "No committed ontology available — create one in Design mode before editing mappings.",
+    "addLabel": "Add",
+    "listHeading": {
+      "object": "{count, plural, =0 {No object mappings} one {# object mapping} other {# object mappings}}",
+      "link": "{count, plural, =0 {No link mappings} one {# link mapping} other {# link mappings}}"
+    },
+    "deleteButton": "Delete",
+    "tab": {
+      "object": "Object mappings",
+      "link": "Link mappings"
+    },
+    "messages": {
+      "objectCreated": "Create object mapping '{id}'",
+      "objectUpdated": "Update object mapping '{id}'",
+      "objectDeleted": "Delete object mapping '{id}'",
+      "linkCreated": "Create link mapping '{id}'",
+      "linkUpdated": "Update link mapping '{id}'",
+      "linkDeleted": "Delete link mapping '{id}'"
+    },
+    "toast": {
+      "created": "Mapping created",
+      "createFailed": "Create failed: {error}",
+      "updated": "Mapping updated",
+      "updateFailed": "Update failed: {error}",
+      "deleted": "Mapping deleted",
+      "deleteFailed": "Delete failed: {error}"
+    },
+    "confirm": {
+      "deleteTitle": "Delete mapping?",
+      "deleteDescription": "Removing '{id}' breaks the binding between this entity type and its source. Queries that reach the affected slice will return empty until a new mapping replaces it."
+    },
+    "createDialog": {
+      "objectTitle": "New object mapping",
+      "linkTitle": "New link mapping"
+    },
+    "empty": {
+      "object": {
+        "title": "No object mappings",
+        "description": "Bind your first node type to a source relation so queries can reach physical data."
+      },
+      "link": {
+        "title": "No link mappings",
+        "description": "Bind your first edge type to a foreign key, bridge, computed predicate, or federated topology."
+      }
+    },
+    "form": {
+      "sections": {
+        "identity": "Identity",
+        "topology": "Topology",
+        "endpoints": "Endpoints",
+        "planner": "Planner hints",
+        "source": "Source",
+        "keys": "Keys",
+        "scope": "Scope",
+        "lifecycle": "Lifecycle",
+        "cache": "Cache",
+        "propertyMappings": "Property mappings"
+      },
+      "link": {
+        "id": "Link mapping id",
+        "edgeTypeId": "Edge type",
+        "kind": "Kind",
+        "kindOptions": {
+          "foreign_key": "Foreign key",
+          "bridge": "Bridge",
+          "computed": "Computed",
+          "federated": "Federated"
+        },
+        "sourceEndpoint": "Source endpoint",
+        "sourceEndpointDescription": "Where the tail endpoint lives — source id, relation, and the columns whose values identify the endpoint instance.",
+        "targetEndpoint": "Target endpoint",
+        "targetEndpointDescription": "Where the head endpoint lives.",
+        "cardinality": "Cardinality",
+        "cardinalityDescription": "Semantic edge multiplicity. ManyToMany triggers automatic DISTINCT injection in NL2SQL aggregation.",
+        "cardinalityOptions": {
+          "one_to_one": "One-to-one",
+          "one_to_many": "One-to-many",
+          "many_to_one": "Many-to-one",
+          "many_to_many": "Many-to-many"
+        },
+        "joinCostHint": "Join cost hint",
+        "joinCostHintOptions": {
+          "unknown": "Unknown",
+          "indexed": "Indexed",
+          "scan": "Scan",
+          "cartesian": "Cartesian"
+        },
+        "precedence": "Precedence",
+        "precedenceDescription": "Higher precedence wins in multi-mapping dedup on the same edge type."
+      },
+      "object": {
+        "id": "Object mapping id",
+        "nodeTypeId": "Node type",
+        "sourceId": "Source",
+        "relation": "Relation",
+        "relationKind": "Relation kind",
+        "relationKindOptions": {
+          "table": "Table",
+          "view": "View",
+          "collection": "Collection",
+          "file": "File"
+        },
+        "primaryKeyColumns": "Primary-key columns",
+        "primaryKeyColumnsDescription": "Used by the planner for DISTINCT-on dedup across multi-mappings on this node type.",
+        "primaryKeyColumnsAdd": "Add primary-key column",
+        "primaryKeyColumnsEmptyTitle": "No primary-key columns",
+        "primaryKeyColumnsEmptyDescription": "Multi-mapping queries will surface a no-PK warning until columns are declared.",
+        "partitionColumns": "Partition columns",
+        "partitionColumnsDescription": "Translate the source's require_partition_filter contract into a pre-flight check.",
+        "partitionColumnsAdd": "Add partition column",
+        "partitionColumnsEmptyTitle": "No partition columns",
+        "partitionColumnsEmptyDescription": "Sources that don't enforce partition filters can leave this empty.",
+        "rowFilter": "Row filter",
+        "rowFilterDescription": "Pushed into TableProvider::scan in the source's dialect — soft-delete tombstones, per-mapping subsetting.",
+        "workspaceScope": "Workspace scope column",
+        "workspaceScopeDescription": "Source column carrying the workspace id when the relation is multi-tenant.",
+        "validFrom": "Valid from",
+        "validTo": "Valid to",
+        "precedence": "Precedence",
+        "precedenceDescription": "Higher precedence wins in multi-mapping dedup. Ties resolve by id ascending.",
+        "cacheHint": "Cache hint",
+        "cacheHintOptions": {
+          "none": "None",
+          "graph_cache": "Graph cache"
+        },
+        "propertyMappings": "Property mappings",
+        "propertyMappingsAdd": "Add property mapping",
+        "propertyMappingsEmptyTitle": "No property mappings",
+        "propertyMappingsEmptyDescription": "Properties on the node type must be mapped here or declared derived."
+      },
+      "columnRef": {
+        "relation": "Relation",
+        "column": "Column"
+      },
+      "sourceRelationRef": {
+        "sourceId": "Source",
+        "relation": "Relation",
+        "kind": "Relation kind",
+        "kindOptions": {
+          "table": "Table",
+          "view": "View",
+          "collection": "Collection",
+          "file": "File"
+        }
+      },
+      "endpointRef": {
+        "sourceId": "Source",
+        "relation": "Relation",
+        "keyColumns": "Key columns",
+        "keyColumnsDescription": "Columns whose values identify the endpoint instance — must match the endpoint object mapping's primary-key columns.",
+        "keyColumnsAdd": "Add key column",
+        "keyColumnsRemove": "Remove key column",
+        "keyColumnPlaceholder": "id"
+      },
+      "linkKind": {
+        "foreignKey": {
+          "sourceColumn": "Source column",
+          "targetColumn": "Target column"
+        },
+        "bridge": {
+          "bridgeRelation": "Bridge relation",
+          "sourceJoin": "Source join columns",
+          "sourceJoinAdd": "Add source join column",
+          "sourceJoinEmptyTitle": "No source join columns",
+          "sourceJoinEmptyDescription": "Bridge variants need at least one column on each side.",
+          "targetJoin": "Target join columns",
+          "targetJoinAdd": "Add target join column",
+          "targetJoinEmptyTitle": "No target join columns",
+          "targetJoinEmptyDescription": "Bridge variants need at least one column on each side.",
+          "bridgeWorkspaceScope": "Bridge workspace scope column",
+          "bridgeWorkspaceScopeDescription": "Optional — the bridge relation's workspace id column when it is multi-tenant."
+        },
+        "computed": {
+          "predicate": "Predicate",
+          "predicateDescription": "Source-dialect SQL predicate over one or both endpoint relations."
+        },
+        "federated": {
+          "sourceMatchColumn": "Source match column",
+          "targetMatchColumn": "Target match column"
+        }
+      },
+      "propertyMapping": {
+        "propertyId": "Property",
+        "propertyKey": "Property key",
+        "location": "Location",
+        "locationOptions": {
+          "column": "Column",
+          "json_path": "JSON path"
+        },
+        "transform": "Transform",
+        "transformOptions": {
+          "identity": "Identity",
+          "sql_expr": "SQL expression",
+          "derived": "Derived function"
+        },
+        "conceptMapId": "Concept map",
+        "conceptMapIdDescription": "Optional concept-map applied at query-compile time to translate values."
+      },
+      "location": {
+        "column": {
+          "relation": "Relation",
+          "column": "Column"
+        },
+        "jsonPath": {
+          "rootColumn": "Root column",
+          "path": "JSON path"
+        }
+      },
+      "transform": {
+        "identity": {},
+        "sqlExpr": {
+          "expression": "Expression",
+          "expressionDescription": "Inline source-dialect SQL applied to the column on extraction."
+        },
+        "derived": {
+          "functionId": "Function"
+        }
+      },
+      "cacheHint": {
+        "none": {},
+        "graphCache": {
+          "ttlSeconds": "TTL (seconds)",
+          "ttlSecondsDescription": "How long the graph-cache entry stays warm before it must be refreshed.",
+          "schedule": "Refresh schedule",
+          "scheduleDescription": "Optional cron expression that invalidates the cache entry. Empty = manual refresh only."
+        }
       }
     }
   }
