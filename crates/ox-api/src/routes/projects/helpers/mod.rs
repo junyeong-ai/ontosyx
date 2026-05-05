@@ -8,8 +8,8 @@ mod source;
 
 use uuid::Uuid;
 
-use ox_ontology::design_project::DesignProjectStatus;
-use ox_store::DesignProject;
+use ox_ontology::ontology_draft::OntologyDraftStatus;
+use ox_store::OntologyDraft;
 
 use crate::error::AppError;
 use crate::state::AppState;
@@ -32,7 +32,7 @@ pub(crate) use self::source::{analyze_source, build_adapter};
 
 /// Extract `DesignOptions` from a project's JSON field, falling back to defaults.
 pub(crate) fn get_design_options(
-    project: &ox_store::DesignProject,
+    project: &ox_store::OntologyDraft,
 ) -> ox_ontology::source_analysis::DesignOptions {
     serde_json::from_value(project.design_options.clone()).unwrap_or_default()
 }
@@ -51,7 +51,7 @@ pub(crate) fn get_design_options(
 /// The parse error is logged at `warn` so operators / observability
 /// see the schema drift without surfacing it as a blocking 422.
 pub(crate) fn load_analysis_report(
-    project: &ox_store::DesignProject,
+    project: &ox_store::OntologyDraft,
 ) -> Option<ox_ontology::source_analysis::SourceAnalysisReport> {
     let value = project.analysis_report.as_ref()?;
     match serde_json::from_value::<ox_ontology::source_analysis::SourceAnalysisReport>(
@@ -75,7 +75,7 @@ pub(crate) fn load_analysis_report(
 pub(crate) async fn load_mutable_project(
     state: &AppState,
     id: Uuid,
-) -> Result<DesignProject, AppError> {
+) -> Result<OntologyDraft, AppError> {
     reload_project(state, id).await
 }
 
@@ -83,11 +83,11 @@ pub(crate) async fn load_mutable_project(
 pub(crate) async fn load_project_in_status(
     state: &AppState,
     id: Uuid,
-    required: DesignProjectStatus,
-) -> Result<DesignProject, AppError> {
+    required: OntologyDraftStatus,
+) -> Result<OntologyDraft, AppError> {
     let project = load_mutable_project(state, id).await?;
 
-    if project.status.parse::<DesignProjectStatus>().ok() != Some(required) {
+    if project.status.parse::<OntologyDraftStatus>().ok() != Some(required) {
         return Err(AppError::project_status_mismatch(
             required.to_string(),
             project.status.clone(),
@@ -98,10 +98,10 @@ pub(crate) async fn load_project_in_status(
 }
 
 /// Reload a project from the store (typically after a mutation).
-pub(crate) async fn reload_project(state: &AppState, id: Uuid) -> Result<DesignProject, AppError> {
+pub(crate) async fn reload_project(state: &AppState, id: Uuid) -> Result<OntologyDraft, AppError> {
     state
         .store
-        .get_design_project(id)
+        .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)

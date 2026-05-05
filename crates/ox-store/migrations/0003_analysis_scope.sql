@@ -15,5 +15,5 @@
 --
 -- See `ox_source::AnalysisScope` for the wire shape.
 
-ALTER TABLE design_projects DROP COLUMN initial_selection;
-ALTER TABLE design_projects ADD COLUMN analysis_scope jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE ontology_drafts DROP COLUMN initial_selection;
+ALTER TABLE ontology_drafts ADD COLUMN analysis_scope jsonb NOT NULL DEFAULT '{}'::jsonb;

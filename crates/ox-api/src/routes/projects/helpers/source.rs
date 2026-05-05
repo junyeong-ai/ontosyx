@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tracing::info;
 
 use ox_core::source_schema::{SourceProfile, SourceSchema};
-use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
+use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
 use ox_ontology::mapping::refs::SourceId;
 use ox_ontology::source_analysis::SourceAnalysisReport;
 use ox_source::analyzer::build_analysis_report;

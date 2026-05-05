@@ -4,7 +4,7 @@ use serde::Deserialize;
 use tracing::warn;
 use uuid::Uuid;
 
-use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
+use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
 use ox_ontology::mapping::SourceId;
 use ox_source::AnalyzeSelection;
 use ox_store::store::AnalysisSnapshot;

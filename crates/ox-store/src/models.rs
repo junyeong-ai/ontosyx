@@ -325,7 +325,7 @@ pub struct IdempotencyRecord {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct DesignProject {
+pub struct OntologyDraft {
     pub id: Uuid,
     /// "analyzed", "designed", "completed"
     pub status: String,
@@ -368,7 +368,7 @@ pub struct DesignProject {
     pub quality_report: Option<serde_json::Value>,
     /// FK to `ontology_version_snapshots.id` — the canonical version
     /// the project's in-flight `ontology` JSONB was branched from.
-    /// `complete_design_project` compares this against the canonical
+    /// `complete_ontology_draft` compares this against the canonical
     /// head and refuses the commit if they diverge, forcing the
     /// operator to rebase before retry. `None` for greenfield
     /// projects whose first commit creates the canonical's first

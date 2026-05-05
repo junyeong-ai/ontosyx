@@ -115,7 +115,7 @@ pub(crate) async fn chat_stream(
 
     // Load source schema + repo insights from project (deserialize JSONB → typed structs)
     let (source_schema, source_profile, repo_insights) = if let Some(project_id) = req.project_id {
-        match state.store.get_design_project(project_id).await {
+        match state.store.get_ontology_draft(project_id).await {
             Ok(Some(project)) => {
                 let schema = project
                     .source_schema

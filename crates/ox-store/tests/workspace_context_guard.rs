@@ -71,12 +71,12 @@ fn assert_missing_context<T: std::fmt::Debug>(
 
 #[tokio::test]
 #[ignore = "requires OX_TEST_DATABASE_URL"]
-async fn delete_design_project_rejects_unscoped_call() {
+async fn delete_ontology_draft_rejects_unscoped_call() {
     let Some(store) = connect_store().await else {
         return;
     };
-    let result = store.delete_design_project(Uuid::nil()).await;
-    assert_missing_context(result, "delete_design_project");
+    let result = store.delete_ontology_draft(Uuid::nil()).await;
+    assert_missing_context(result, "delete_ontology_draft");
 }
 
 #[tokio::test]

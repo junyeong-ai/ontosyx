@@ -35,7 +35,7 @@ pub(crate) async fn list_revisions(
     // Verify project exists
     let _ = state
         .store
-        .get_design_project(id)
+        .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
@@ -222,7 +222,7 @@ pub(crate) async fn diff_current(
 ) -> Result<Json<ApiResponse<OntologyDiff>>, AppError> {
     let project = state
         .store
-        .get_design_project(id)
+        .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
@@ -307,7 +307,7 @@ pub(crate) async fn migrate_schema(
     // Load current project ontology
     let project = state
         .store
-        .get_design_project(id)
+        .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;

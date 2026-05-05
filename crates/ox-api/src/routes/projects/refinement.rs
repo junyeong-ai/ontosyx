@@ -11,7 +11,7 @@ use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::validation::validate_ontology_input;
-use ox_ontology::design_project::{DesignProjectStatus, SourceConfig};
+use ox_ontology::ontology_draft::{OntologyDraftStatus, SourceConfig};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::source_analysis::DesignOptions;
 use ox_graph_runtime::profiler;
@@ -47,7 +47,7 @@ use super::types::{
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub(crate) async fn design_project(
+pub(crate) async fn ontology_draft(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
@@ -227,7 +227,7 @@ pub(crate) async fn refine_project(
     Json(req): Json<RefineProjectRequest>,
 ) -> Result<Json<ApiResponse<RefineProjectResponse>>, AppError> {
     principal.require_designer()?;
-    let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
+    let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
     let ontology: OntologyIR = project
         .ontology
@@ -520,7 +520,7 @@ pub(crate) async fn apply_reconcile(
     Json(req): Json<ReconcileProjectRequest>,
 ) -> Result<Json<ApiResponse<RefineProjectResponse>>, AppError> {
     principal.require_designer()?;
-    let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
+    let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
     // Validate all decisions reference valid uncertain matches
     for decision in &req.decisions {

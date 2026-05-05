@@ -16,13 +16,13 @@
 --    redundant and drop with it — workspace-uniqueness already
 --    implies workspace-scoped name + id uniqueness.
 --
--- 2. `design_projects.ontology_id` was a redundant FK back into
+-- 2. `ontology_drafts.ontology_id` was a redundant FK back into
 --    the workspace's only ontology. With singleton enforced, the
 --    workspace_id IS the ontology pointer. The column drops along
 --    with the compound FK that paired it with workspace_id.
 
-ALTER TABLE design_projects
-    DROP CONSTRAINT design_projects_ontology_ws_fk,
+ALTER TABLE ontology_drafts
+    DROP CONSTRAINT ontology_drafts_ontology_ws_fk,
     DROP COLUMN ontology_id;
 
 ALTER TABLE ontologies

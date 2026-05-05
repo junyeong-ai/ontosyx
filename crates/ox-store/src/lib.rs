@@ -41,7 +41,7 @@ pub use store::{
     IdempotencyStore, InsightStore, JwtRevocationStore, KnowledgeStore, LineageStore,
     LoadCheckpointStore, MeteringStore, ModelConfigStore, NotificationStore,
     OntologyNavigationStore, OntologyVersionStore, PatternStore, PerspectiveStore, PinStore,
-    ProjectStore, PromptTemplateStore, QualityBaselineStore, QualitySignalStore, QualityStore,
+    OntologyDraftStore, PromptTemplateStore, QualityBaselineStore, QualitySignalStore, QualityStore,
     QueryStore, RecipeStore, ReportStore, ScheduledTaskStore, SourceMappingArtifactStore,
     StaleConceptProposalStore, Store, ToolApprovalStore, UserStore, VerificationStore,
     WorkspaceStore,

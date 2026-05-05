@@ -55,7 +55,7 @@ use crate::store::{
     DraftClusterCheckpointStore, EmbeddingRetryStore, ExtendResult, HealthStore, IdempotencyStore,
     InsightStore,
     JwtRevocationStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore, PatternStore, PerspectiveStore, PinStore,
-    ProjectStore,
+    OntologyDraftStore,
     PromptTemplateStore, QualitySignalStore, QualityStore, QueryStore, RecipeStore, ReportStore,
     ScheduledTaskStore, SourceMappingArtifactStore, StaleConceptProposalStore, ToolApprovalStore, UserStore,
     VerificationStore, WorkspaceStore,
@@ -420,7 +420,7 @@ mod ontology_version;
 mod pattern;
 mod perspective;
 mod pin;
-mod project;
+mod ontology_draft;
 mod prompt_template;
 mod quality;
 mod quality_baseline;

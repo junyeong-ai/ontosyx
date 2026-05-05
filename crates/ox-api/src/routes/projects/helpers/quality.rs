@@ -2,7 +2,7 @@ use ox_ontology::ir::OntologyIR;
 use ox_ontology::quality::{OntologyQualityReport, assess_quality};
 use ox_ontology::source_analysis::ColumnClarification;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
-use ox_store::DesignProject;
+use ox_store::OntologyDraft;
 
 use crate::error::AppError;
 
@@ -11,7 +11,7 @@ use crate::error::AppError;
 /// For sources without schema/profile (e.g. text), ontology-level
 /// checks (missing descriptions, etc.) still run.
 pub(crate) fn assess_quality_from_project(
-    project: &DesignProject,
+    project: &OntologyDraft,
     ontology: &OntologyIR,
     excluded_tables: &[String],
     column_clarifications: &[ColumnClarification],
@@ -29,7 +29,7 @@ pub(crate) fn assess_quality_from_project(
 /// not through a separate parameter. New call sites should prefer
 /// `assess_quality_from_project`; the two are identical.
 pub(crate) fn assess_quality_from_project_with_mapping(
-    project: &DesignProject,
+    project: &OntologyDraft,
     ontology: &OntologyIR,
     excluded_tables: &[String],
     column_clarifications: &[ColumnClarification],

@@ -144,7 +144,7 @@ pub trait OntologyDesigner: Send + Sync {
     /// `input.source_id` stamps every emitted `ObjectMappingDef` in
     /// the returned IR with the canonical source identity so
     /// federation plans, provenance, and plan-cache keys stay
-    /// consistent with the DesignProject the caller is operating on.
+    /// consistent with the OntologyDraft the caller is operating on.
     ///
     /// Returns the produced [`OntologyIR`] paired with the
     /// [`ArtifactProvenance`](ox_ontology::source_mapping::ArtifactProvenance)

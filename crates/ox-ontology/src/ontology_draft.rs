@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
-// DesignProjectStatus — lifecycle state of a design project
+// OntologyDraftStatus — lifecycle state of a design project
 // ---------------------------------------------------------------------------
 
 /// Status of a design project in its lifecycle.
@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum DesignProjectStatus {
+pub enum OntologyDraftStatus {
     /// Source analyzed, awaiting user review and design.
     Analyzed,
     /// Ontology designed, available for refinement.
@@ -27,7 +27,7 @@ pub enum DesignProjectStatus {
     Completed,
 }
 
-impl fmt::Display for DesignProjectStatus {
+impl fmt::Display for OntologyDraftStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
             Self::Analyzed => "analyzed",
@@ -38,7 +38,7 @@ impl fmt::Display for DesignProjectStatus {
     }
 }
 
-impl FromStr for DesignProjectStatus {
+impl FromStr for OntologyDraftStatus {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

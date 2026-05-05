@@ -220,7 +220,7 @@ ALTER TABLE source_mapping_artifacts FORCE ROW LEVEL SECURITY;
 CREATE INDEX idx_source_mapping_artifacts_source
     ON source_mapping_artifacts (workspace_id, source_id, created_at DESC);
 
-CREATE TABLE design_projects (
+CREATE TABLE ontology_drafts (
     id uuid NOT NULL,
     user_id text NOT NULL,
     status text DEFAULT 'analyzed' NOT NULL,
@@ -251,9 +251,9 @@ CREATE TABLE design_projects (
     analyzed_at TIMESTAMPTZ,
     archived_at TIMESTAMPTZ,
     workspace_id uuid DEFAULT (current_setting('app.workspace_id', true))::uuid NOT NULL,
-    CONSTRAINT design_projects_pkey PRIMARY KEY (id)
+    CONSTRAINT ontology_drafts_pkey PRIMARY KEY (id)
 );
-ALTER TABLE ONLY design_projects FORCE ROW LEVEL SECURITY;
+ALTER TABLE ONLY ontology_drafts FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE ontology_snapshots (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -985,14 +985,14 @@ CREATE INDEX idx_lineage_source ON data_lineage USING btree (source_name, source
 CREATE INDEX idx_lineage_workspace ON data_lineage USING btree (workspace_id, started_at DESC);
 
 -- ============================================================================
--- design_projects
+-- ontology_drafts
 -- ============================================================================
-CREATE INDEX idx_design_projects_status ON design_projects USING btree (status) WHERE (archived_at IS NULL);
-CREATE INDEX idx_design_projects_updated_at_id ON design_projects USING btree (updated_at DESC, id DESC) WHERE (archived_at IS NULL);
-CREATE INDEX idx_design_projects_user ON design_projects USING btree (user_id, updated_at DESC);
-CREATE INDEX idx_projects_archived ON design_projects USING btree (archived_at) WHERE (archived_at IS NOT NULL);
-CREATE INDEX idx_projects_workspace ON design_projects USING btree (workspace_id, created_at DESC);
-CREATE UNIQUE INDEX uq_design_projects_ws_id ON design_projects USING btree (workspace_id, id);
+CREATE INDEX idx_ontology_drafts_status ON ontology_drafts USING btree (status) WHERE (archived_at IS NULL);
+CREATE INDEX idx_ontology_drafts_updated_at_id ON ontology_drafts USING btree (updated_at DESC, id DESC) WHERE (archived_at IS NULL);
+CREATE INDEX idx_ontology_drafts_user ON ontology_drafts USING btree (user_id, updated_at DESC);
+CREATE INDEX idx_projects_archived ON ontology_drafts USING btree (archived_at) WHERE (archived_at IS NOT NULL);
+CREATE INDEX idx_projects_workspace ON ontology_drafts USING btree (workspace_id, created_at DESC);
+CREATE UNIQUE INDEX uq_ontology_drafts_ws_id ON ontology_drafts USING btree (workspace_id, id);
 
 -- ============================================================================
 -- knowledge_entries
@@ -1150,17 +1150,17 @@ ALTER TABLE ONLY workspace_members
     ADD CONSTRAINT workspace_members_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 -- ============================================================================
--- design_projects
+-- ontology_drafts
 -- ============================================================================
-ALTER TABLE ONLY design_projects
-    ADD CONSTRAINT design_projects_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+ALTER TABLE ONLY ontology_drafts
+    ADD CONSTRAINT ontology_drafts_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 -- ============================================================================
 -- ontology_snapshots
 -- ============================================================================
 ALTER TABLE ONLY ontology_snapshots
     ADD CONSTRAINT ontology_snapshots_workspace_fk FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE ONLY ontology_snapshots
-    ADD CONSTRAINT ontology_snapshots_project_ws_fk FOREIGN KEY (workspace_id, project_id) REFERENCES design_projects(workspace_id, id) ON DELETE CASCADE;
+    ADD CONSTRAINT ontology_snapshots_project_ws_fk FOREIGN KEY (workspace_id, project_id) REFERENCES ontology_drafts(workspace_id, id) ON DELETE CASCADE;
 
 -- ============================================================================
 -- ============================================================================
@@ -1219,7 +1219,7 @@ ALTER TABLE ONLY dashboard_widgets
 ALTER TABLE ONLY data_lineage
     ADD CONSTRAINT data_lineage_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE ONLY data_lineage
-    ADD CONSTRAINT data_lineage_project_ws_fk FOREIGN KEY (workspace_id, project_id) REFERENCES design_projects(workspace_id, id) ON DELETE SET NULL;
+    ADD CONSTRAINT data_lineage_project_ws_fk FOREIGN KEY (workspace_id, project_id) REFERENCES ontology_drafts(workspace_id, id) ON DELETE SET NULL;
 ALTER TABLE ONLY data_lineage
     ADD CONSTRAINT data_lineage_loaded_by_fkey FOREIGN KEY (loaded_by) REFERENCES users(id);
 
@@ -1369,7 +1369,7 @@ ALTER TABLE ONLY saved_reports
 ALTER TABLE ONLY workbench_perspectives
     ADD CONSTRAINT workbench_perspectives_workspace_fk FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 ALTER TABLE ONLY workbench_perspectives
-    ADD CONSTRAINT workbench_perspectives_project_ws_fk FOREIGN KEY (workspace_id, project_id) REFERENCES design_projects(workspace_id, id) ON DELETE SET NULL;
+    ADD CONSTRAINT workbench_perspectives_project_ws_fk FOREIGN KEY (workspace_id, project_id) REFERENCES ontology_drafts(workspace_id, id) ON DELETE SET NULL;
 
 -- ============================================================================
 -- Row-level security policies
@@ -1496,14 +1496,14 @@ CREATE POLICY system_bypass ON data_lineage
     USING (current_setting('app.system_bypass', true) = 'true');
 
 -- ============================================================================
--- design_projects
+-- ontology_drafts
 -- ============================================================================
-ALTER TABLE design_projects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE design_projects FORCE ROW LEVEL SECURITY;
-CREATE POLICY ws_isolation ON design_projects
+ALTER TABLE ontology_drafts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ontology_drafts FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON ontology_drafts
     USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
-CREATE POLICY system_bypass ON design_projects
+CREATE POLICY system_bypass ON ontology_drafts
     USING (current_setting('app.system_bypass', true) = 'true');
 
 -- ============================================================================
@@ -1926,7 +1926,7 @@ CREATE TABLE ontologies (
     -- have an "E-commerce" ontology.
     CONSTRAINT ontologies_ws_name_uq UNIQUE (workspace_id, name),
     -- Composite UNIQUE needed as the FK target for
-    -- `design_projects(workspace_id, ontology_id)` and
+    -- `ontology_drafts(workspace_id, ontology_id)` and
     -- `query_executions(workspace_id, ontology_id)` — PostgreSQL
     -- requires a matching unique index for multi-column FKs, and
     -- the primary key on `id` alone does not satisfy it.
@@ -2032,8 +2032,8 @@ CREATE POLICY system_bypass ON ontology_version_snapshots
 
 -- Cross-table foreign keys that need `ontologies` to exist — the
 -- table-creation order means these must land after this section.
-ALTER TABLE design_projects
-    ADD CONSTRAINT design_projects_ontology_ws_fk
+ALTER TABLE ontology_drafts
+    ADD CONSTRAINT ontology_drafts_ontology_ws_fk
         FOREIGN KEY (workspace_id, ontology_id)
         REFERENCES ontologies(workspace_id, id)
         ON DELETE SET NULL;
@@ -3208,9 +3208,9 @@ CREATE INDEX idx_stale_concept_proposals_open
     WHERE decision = 'pending';
 
 -- Federation plan-cache lookups by source id are the hot path for
--- `design_projects`; the dedicated index keeps them O(log n). The
+-- `ontology_drafts`; the dedicated index keeps them O(log n). The
 -- column itself is declared inline on the CREATE above.
-CREATE INDEX design_projects_source_id_idx ON design_projects (source_id);
+CREATE INDEX ontology_drafts_source_id_idx ON ontology_drafts (source_id);
 
 -- ============================================================================
 -- Workspace quality baseline (adaptive thresholds)

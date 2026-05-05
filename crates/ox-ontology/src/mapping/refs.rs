@@ -38,7 +38,7 @@ ox_core::define_id_newtype!(
 
 impl SourceId {
     /// Canonical `{kind}:{fingerprint}` identity derived from a
-    /// [`crate::design_project::SourceConfig`]. When the config has
+    /// [`crate::ontology_draft::SourceConfig`]. When the config has
     /// no fingerprint yet (e.g. before analysis), the source_type
     /// alone forms the id — those ids become concrete once the
     /// analyzer stamps a fingerprint and the project is re-saved.
@@ -48,7 +48,7 @@ impl SourceId {
     /// that previously built ids inline (e.g. the ambiguity path
     /// in `ox-api::routes::projects::helpers::source`) go through
     /// this method.
-    pub fn from_source_config(config: &crate::design_project::SourceConfig) -> Self {
+    pub fn from_source_config(config: &crate::ontology_draft::SourceConfig) -> Self {
         match &config.source_fingerprint {
             Some(fp) => Self::new(format!("{}:{}", config.source_type, fp)),
             None => Self::new(config.source_type.to_string()),

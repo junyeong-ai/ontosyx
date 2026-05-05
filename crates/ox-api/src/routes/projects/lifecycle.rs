@@ -8,14 +8,14 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use ox_ontology::design_project::{
-    DesignProjectStatus, SourceConfig, SourceHistoryEntry, SourceTypeKind,
+use ox_ontology::ontology_draft::{
+    OntologyDraftStatus, SourceConfig, SourceHistoryEntry, SourceTypeKind,
 };
 use ox_ontology::mapping::SourceId;
 use ox_ontology::quality::OntologyQualityReport;
 use ox_ontology::source_analysis::DesignOptions;
 use ox_store::store::CursorParams;
-use ox_store::{DesignProject, DesignProjectSummary};
+use ox_store::{OntologyDraft, DesignProjectSummary};
 
 use ox_source::fetcher::DataSourceFetcher;
 
@@ -121,10 +121,10 @@ pub(crate) async fn create_project(
                 fingerprint: None,
             };
 
-            DesignProject {
+            OntologyDraft {
                 id: Uuid::new_v4(),
                 user_id: principal.id,
-                status: DesignProjectStatus::Designed.to_string(),
+                status: OntologyDraftStatus::Designed.to_string(),
                 revision: 1,
                 title: title.clone(),
                 source_id: SourceId::from_source_config(&source_config).to_string(),
@@ -168,10 +168,10 @@ pub(crate) async fn create_project(
                     fingerprint: source_config.source_fingerprint.clone(),
                 };
 
-                let project = DesignProject {
+                let project = OntologyDraft {
                     id: Uuid::new_v4(),
                     user_id: principal.id,
-                    status: DesignProjectStatus::Analyzed.to_string(),
+                    status: OntologyDraftStatus::Analyzed.to_string(),
                     revision: 1,
                     title: title.clone(),
                     source_id: SourceId::from_source_config(&source_config).to_string(),
@@ -198,7 +198,7 @@ pub(crate) async fn create_project(
 
                 state
                     .store
-                    .create_design_project(&project)
+                    .create_ontology_draft(&project)
                     .await
                     .map_err(AppError::from)?;
 
@@ -262,10 +262,10 @@ pub(crate) async fn create_project(
                 fingerprint: source_config.source_fingerprint.clone(),
             };
 
-            DesignProject {
+            OntologyDraft {
                 id: Uuid::new_v4(),
                 user_id: principal.id,
-                status: DesignProjectStatus::Analyzed.to_string(),
+                status: OntologyDraftStatus::Analyzed.to_string(),
                 revision: 1,
                 title: title.clone(),
                 source_id: SourceId::from_source_config(&source_config).to_string(),
@@ -309,7 +309,7 @@ pub(crate) async fn create_project(
 
     state
         .store
-        .create_design_project(&project)
+        .create_ontology_draft(&project)
         .await
         .map_err(AppError::from)?;
 
@@ -365,7 +365,7 @@ pub(crate) async fn list_projects(
 ) -> Result<Json<ApiResponse<Vec<DesignProjectSummary>>>, AppError> {
     let page = state
         .store
-        .list_design_projects(&pagination)
+        .list_ontology_drafts(&pagination)
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::page(page))
@@ -418,7 +418,7 @@ pub(crate) async fn delete_project(
 
     let project = state
         .store
-        .get_design_project(id)
+        .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
@@ -427,7 +427,7 @@ pub(crate) async fn delete_project(
 
     let deleted = state
         .store
-        .delete_design_project(id)
+        .delete_ontology_draft(id)
         .await
         .map_err(AppError::from)?;
 
@@ -504,7 +504,7 @@ pub(crate) async fn complete_project(
     Json(req): Json<CompleteProjectRequest>,
 ) -> Result<Json<ApiResponse<ProjectView>>, AppError> {
     principal.require_designer()?;
-    let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
+    let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
     // Quality gate: reject completion unless confidence is high or user explicitly acknowledges
     if !req.acknowledge_quality_risks
@@ -638,7 +638,7 @@ pub(crate) async fn complete_project(
 
     state
         .store
-        .complete_design_project(id, identity.id, req.revision)
+        .complete_ontology_draft(id, identity.id, req.revision)
         .await
         .map_err(AppError::from)?;
 
@@ -777,7 +777,7 @@ pub(crate) async fn deploy_schema(
 
     let project = state
         .store
-        .get_design_project(id)
+        .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
@@ -869,7 +869,7 @@ pub(crate) async fn generate_load_plan(
 
     let project = state
         .store
-        .get_design_project(id)
+        .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
@@ -955,7 +955,7 @@ pub(crate) async fn compile_load(
     // request payload.
     state
         .store
-        .get_design_project(id)
+        .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
@@ -1035,7 +1035,7 @@ pub(crate) async fn execute_load_from_source(
 
     let project = state
         .store
-        .get_design_project(id)
+        .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
@@ -1052,7 +1052,7 @@ pub(crate) async fn execute_load_from_source(
     let object_mappings = ontology.object_mappings();
 
     // Determine schema name from project source config
-    let source_config: ox_ontology::design_project::SourceConfig =
+    let source_config: ox_ontology::ontology_draft::SourceConfig =
         serde_json::from_value(project.source_config.clone())
             .map_err(|e| AppError::internal(format!("Failed to parse source config: {e}")))?;
     let schema_name = source_config.schema_name.as_deref().unwrap_or("public");

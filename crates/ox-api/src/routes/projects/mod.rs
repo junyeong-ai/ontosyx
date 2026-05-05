@@ -21,9 +21,9 @@ pub(crate) use lifecycle::{
     execute_load_from_source, generate_load_plan, get_project, list_projects,
 };
 pub(crate) use preview::preview_source;
-pub(crate) use refinement::{apply_reconcile, design_project, refine_project};
+pub(crate) use refinement::{apply_reconcile, ontology_draft, refine_project};
 pub(crate) use revisions::{
     diff_current, diff_revisions, get_revision, list_revisions, migrate_schema, restore_revision,
 };
 pub(crate) use scope::{defer_scope_tables, include_scope_tables};
-pub(crate) use streaming::{design_project_stream, refine_project_stream};
+pub(crate) use streaming::{design_ontology_draft_stream, refine_project_stream};

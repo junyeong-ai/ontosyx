@@ -53,7 +53,7 @@ use crate::state::AppState;
 use crate::validation::validate_ontology_input;
 use ox_brain::DesignOntologyOutput;
 use ox_ontology::source_mapping::ArtifactProvenance;
-use ox_ontology::design_project::{DesignProjectStatus, SourceConfig};
+use ox_ontology::ontology_draft::{OntologyDraftStatus, SourceConfig};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::source_analysis::DesignOptions;
 use ox_graph_runtime::profiler;
@@ -137,7 +137,7 @@ fn sse_result<T: Serialize>(data: &T) -> String {
     tag = "Projects",
 )]
 #[tracing::instrument(skip(state, principal, req), fields(project_id = %id))]
-pub(crate) async fn design_project_stream(
+pub(crate) async fn design_ontology_draft_stream(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
@@ -932,7 +932,7 @@ pub(crate) async fn refine_project_stream(
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
     principal.require_designer()?;
     // Validate eagerly
-    let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
+    let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
     let ontology: OntologyIR = project
         .ontology
@@ -972,7 +972,7 @@ pub(crate) async fn refine_project_stream(
     // Clone source_schema before entering stream for schema fallback
     let source_schema_val = project.source_schema.clone();
 
-    // See `design_project_stream` — capture workspace scope before
+    // See `design_ontology_draft_stream` — capture workspace scope before
     // returning the Sse so per-poll store/runtime calls re-enter
     // task-locals.
     let ws_scope = WsScope::capture();

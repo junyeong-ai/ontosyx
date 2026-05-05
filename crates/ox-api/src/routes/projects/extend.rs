@@ -5,7 +5,7 @@ use tokio::time::Instant;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use ox_ontology::design_project::{DesignProjectStatus, SourceHistoryEntry};
+use ox_ontology::ontology_draft::{OntologyDraftStatus, SourceHistoryEntry};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::mapping::SourceId;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
@@ -51,7 +51,7 @@ pub(crate) async fn extend_project(
 ) -> Result<Json<ApiResponse<ExtendProjectResponse>>, AppError> {
     principal.require_designer()?;
     req.selection.validate().map_err(AppError::from)?;
-    let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
+    let project = load_project_in_status(&state, id, OntologyDraftStatus::Designed).await?;
 
     // Snapshot current state before mutation (best-effort)
     if let Some(ont) = &project.ontology
@@ -409,7 +409,7 @@ pub(crate) async fn extend_project(
 /// FK recovery; the alternative (rejecting the request) would
 /// hand-stitch an unrecoverable failure mode for a corruption the
 /// operator cannot fix from the FE.
-fn build_extend_baseline(project: &ox_store::DesignProject) -> Option<AnalysisResult> {
+fn build_extend_baseline(project: &ox_store::OntologyDraft) -> Option<AnalysisResult> {
     let schema_json = project.source_schema.as_ref()?;
     let profile_json = project.source_profile.as_ref()?;
     let schema: SourceSchema = serde_json::from_value(schema_json.clone()).ok()?;
@@ -446,8 +446,8 @@ mod tests {
     fn project(
         schema: Option<serde_json::Value>,
         profile: Option<serde_json::Value>,
-    ) -> ox_store::DesignProject {
-        ox_store::DesignProject {
+    ) -> ox_store::OntologyDraft {
+        ox_store::OntologyDraft {
             id: uuid::Uuid::new_v4(),
             status: "designed".to_string(),
             revision: 1,

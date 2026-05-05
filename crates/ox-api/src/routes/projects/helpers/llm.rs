@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
+use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
 use ox_ontology::input::InputOntologyDef;
 use ox_ontology::pii::{PiiAnnotation, redact_column_stats};
 use ox_ontology::source_analysis::{
@@ -8,12 +8,12 @@ use ox_ontology::source_analysis::{
 };
 use ox_core::source_schema::{ForeignKeyDef, SourceProfile, SourceSchema};
 use ox_ontology::table_clustering::TableCluster;
-use ox_store::DesignProject;
+use ox_store::OntologyDraft;
 
 use crate::error::AppError;
 use crate::system_config::SystemConfig;
 
-/// Context needed to build LLM input, extracted from a DesignProject.
+/// Context needed to build LLM input, extracted from a OntologyDraft.
 pub(crate) struct LlmInputContext<'a> {
     pub source_data: Option<&'a str>,
     pub source_schema: Option<&'a serde_json::Value>,
@@ -22,8 +22,8 @@ pub(crate) struct LlmInputContext<'a> {
 }
 
 impl<'a> LlmInputContext<'a> {
-    /// Extract context from a stored `DesignProject`.
-    pub fn from_project(project: &'a DesignProject) -> Self {
+    /// Extract context from a stored `OntologyDraft`.
+    pub fn from_project(project: &'a OntologyDraft) -> Self {
         Self {
             source_data: project.source_data.as_deref(),
             source_schema: project.source_schema.as_ref(),

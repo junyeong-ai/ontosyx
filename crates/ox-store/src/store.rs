@@ -469,12 +469,12 @@ pub trait InsightStore: Send + Sync {
 }
 
 #[async_trait]
-pub trait ProjectStore: Send + Sync {
-    async fn create_design_project(&self, project: &DesignProject) -> OxResult<()>;
+pub trait OntologyDraftStore: Send + Sync {
+    async fn create_ontology_draft(&self, project: &OntologyDraft) -> OxResult<()>;
 
-    async fn get_design_project(&self, id: Uuid) -> OxResult<Option<DesignProject>>;
+    async fn get_ontology_draft(&self, id: Uuid) -> OxResult<Option<OntologyDraft>>;
 
-    async fn list_design_projects(
+    async fn list_ontology_drafts(
         &self,
         pagination: &CursorParams,
     ) -> OxResult<CursorPage<DesignProjectSummary>>;
@@ -528,14 +528,14 @@ pub trait ProjectStore: Send + Sync {
     ///
     /// Uses optimistic CAS on `revision` — stale submissions fail
     /// rather than clobbering a concurrent update.
-    async fn complete_design_project(
+    async fn complete_ontology_draft(
         &self,
         project_id: Uuid,
         ontology_id: Uuid,
         expected_revision: i32,
     ) -> OxResult<()>;
 
-    async fn delete_design_project(&self, id: Uuid) -> OxResult<bool>;
+    async fn delete_ontology_draft(&self, id: Uuid) -> OxResult<bool>;
 
     /// Archive WIP projects that haven't been updated within `max_age_days`.
     /// Returns per-workspace counts so the maintenance loop can record one
@@ -1975,7 +1975,7 @@ pub trait SourceMappingArtifactStore: Send + Sync {
 pub trait Store:
     QueryStore
     + PinStore
-    + ProjectStore
+    + OntologyDraftStore
     + PerspectiveStore
     + ConfigStore
     + UserStore
@@ -2024,7 +2024,7 @@ pub trait Store:
 impl<T> Store for T where
     T: QueryStore
         + PinStore
-        + ProjectStore
+        + OntologyDraftStore
         + PerspectiveStore
         + ConfigStore
         + UserStore

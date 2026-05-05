@@ -5,10 +5,10 @@ use ox_ontology::design_gate::{DesignGate, evaluate_design_gates};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::source_analysis::{DesignOptions, SourceAnalysisReport};
 use ox_source::AnalyzeSelection;
-use ox_store::DesignProject;
+use ox_store::OntologyDraft;
 
 /// Wire shape for any endpoint that returns a project. Carries the
-/// underlying [`DesignProject`] flattened (so existing fields stay
+/// underlying [`OntologyDraft`] flattened (so existing fields stay
 /// at the top level) plus the server-evaluated [`Vec<DesignGate>`]
 /// the FE renders alongside the disabled-design-button checklist.
 ///
@@ -18,8 +18,8 @@ use ox_store::DesignProject;
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ProjectView {
     #[serde(flatten)]
-    #[schema(value_type = crate::openapi::DesignProject)]
-    pub project: DesignProject,
+    #[schema(value_type = crate::openapi::OntologyDraft)]
+    pub project: OntologyDraft,
     pub design_gates: Vec<DesignGate>,
     /// Status of the persisted `analysis_report` blob against the
     /// current wire shape. The FE renders a soft banner when
@@ -50,7 +50,7 @@ impl ProjectView {
     /// analysis report (still being analysed, or sourced from an
     /// existing ontology) get an empty gate vector — there is
     /// nothing to gate yet.
-    pub fn from_project(project: DesignProject) -> Self {
+    pub fn from_project(project: OntologyDraft) -> Self {
         let (gates, analysis_report_status) = derive_gate_state(&project);
         Self {
             project,
@@ -61,7 +61,7 @@ impl ProjectView {
 }
 
 fn derive_gate_state(
-    project: &DesignProject,
+    project: &OntologyDraft,
 ) -> (Vec<DesignGate>, AnalysisReportStatus) {
     let Some(value) = project.analysis_report.as_ref() else {
         return (Vec::new(), AnalysisReportStatus::Missing);

@@ -23,7 +23,7 @@ pub mod data_quality;
 pub mod dependency;
 pub mod derived_rules;
 pub mod design_gate;
-pub mod design_project;
+pub mod ontology_draft;
 pub mod diff;
 pub mod enrichment;
 pub mod function;
@@ -95,7 +95,7 @@ pub use data_quality::{
     DataQualityComputationKind, DataQualityDef, DataQualityDimensionKind, DataQualityId,
     DataQualityMeasurement, DataQualityTarget,
 };
-pub use design_project::{DesignProjectStatus, SourceConfig, SourceHistoryEntry, SourceTypeKind};
+pub use ontology_draft::{OntologyDraftStatus, SourceConfig, SourceHistoryEntry, SourceTypeKind};
 pub use enrichment::{EnrichmentDef, EnrichmentId, ExternalSourceRef, RefreshPolicy};
 pub use function::{
     FunctionDef, FunctionExpression, FunctionId, FunctionPurity, PropertyDependency,

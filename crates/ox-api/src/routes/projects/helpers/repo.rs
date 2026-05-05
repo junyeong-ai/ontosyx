@@ -1,6 +1,6 @@
 use tracing::{info, warn};
 
-use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
+use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
 use ox_ontology::mapping::refs::SourceId;
 use ox_ontology::repo_insights::{RepoSource, ValidatedRepoSource};
 use ox_ontology::source_analysis::{

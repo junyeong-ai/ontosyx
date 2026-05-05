@@ -38,7 +38,7 @@ pub(crate) async fn update_decisions(
     principal.require_designer()?;
     let project = state
         .store
-        .get_design_project(id)
+        .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
@@ -61,7 +61,7 @@ pub(crate) async fn update_decisions(
 
     let project = state
         .store
-        .get_design_project(id)
+        .get_ontology_draft(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;

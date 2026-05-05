@@ -1,14 +1,14 @@
-//! [`ProjectStore`] — design project lifecycle with CAS-gated revision updates.
+//! [`OntologyDraftStore`] — design project lifecycle with CAS-gated revision updates.
 
 use super::*;
 
 #[async_trait]
-impl ProjectStore for PostgresStore {
+impl OntologyDraftStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn create_design_project(&self, project: &DesignProject) -> OxResult<()> {
+    async fn create_ontology_draft(&self, project: &OntologyDraft) -> OxResult<()> {
         super::require_workspace_context()?;
         sqlx::query(
-            "INSERT INTO design_projects
+            "INSERT INTO ontology_drafts
              (id, user_id, status, revision, title, source_config, source_id,
               source_data, source_schema, source_profile, analysis_report,
               design_options, analysis_scope, ontology, quality_report,
@@ -41,8 +41,8 @@ impl ProjectStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_design_project(&self, id: Uuid) -> OxResult<Option<DesignProject>> {
-        sqlx::query_as::<_, DesignProject>("SELECT * FROM design_projects WHERE id = $1")
+    async fn get_ontology_draft(&self, id: Uuid) -> OxResult<Option<OntologyDraft>> {
+        sqlx::query_as::<_, OntologyDraft>("SELECT * FROM ontology_drafts WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await
@@ -50,7 +50,7 @@ impl ProjectStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn list_design_projects(
+    async fn list_ontology_drafts(
         &self,
         pagination: &CursorParams,
     ) -> OxResult<CursorPage<DesignProjectSummary>> {
@@ -61,7 +61,7 @@ impl ProjectStore for PostgresStore {
             Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, DesignProjectSummary>(
                 "SELECT id, status, revision, user_id, title, source_config, ontology_id,
                         created_at, updated_at, analyzed_at
-                 FROM design_projects
+                 FROM ontology_drafts
                  WHERE archived_at IS NULL AND (updated_at, id) < ($1, $2)
                  ORDER BY updated_at DESC, id DESC
                  LIMIT $3",
@@ -75,7 +75,7 @@ impl ProjectStore for PostgresStore {
             None => sqlx::query_as::<_, DesignProjectSummary>(
                 "SELECT id, status, revision, user_id, title, source_config, ontology_id,
                         created_at, updated_at, analyzed_at
-                 FROM design_projects
+                 FROM ontology_drafts
                  WHERE archived_at IS NULL
                  ORDER BY updated_at DESC, id DESC
                  LIMIT $1",
@@ -98,7 +98,7 @@ impl ProjectStore for PostgresStore {
     ) -> OxResult<()> {
         super::require_workspace_context()?;
         let result = sqlx::query(
-            "UPDATE design_projects
+            "UPDATE ontology_drafts
              SET design_options = $1, updated_at = NOW(),
                  revision = revision + 1
              WHERE id = $2 AND revision = $3 ",
@@ -122,7 +122,7 @@ impl ProjectStore for PostgresStore {
     ) -> OxResult<()> {
         super::require_workspace_context()?;
         let result = sqlx::query(
-            "UPDATE design_projects
+            "UPDATE ontology_drafts
              SET ontology = $1, quality_report = $2, status = 'designed',
                  updated_at = NOW(), revision = revision + 1
              WHERE id = $3 AND revision = $4 ",
@@ -146,7 +146,7 @@ impl ProjectStore for PostgresStore {
     ) -> OxResult<()> {
         super::require_workspace_context()?;
         let rows = sqlx::query(
-            "UPDATE design_projects
+            "UPDATE ontology_drafts
              SET ontology = $1, quality_report = $2,
                  source_schema = $3, source_profile = $4,
                  source_history = $5, analysis_scope = $6,
@@ -176,7 +176,7 @@ impl ProjectStore for PostgresStore {
     ) -> OxResult<()> {
         super::require_workspace_context()?;
         let result = sqlx::query(
-            "UPDATE design_projects
+            "UPDATE ontology_drafts
              SET source_config = $1, source_id = $2, source_data = $3,
                  source_schema = $4, source_profile = $5, analysis_report = $6,
                  design_options = $7, analysis_scope = $8,
@@ -210,7 +210,7 @@ impl ProjectStore for PostgresStore {
     ) -> OxResult<()> {
         super::require_workspace_context()?;
         let result = sqlx::query(
-            "UPDATE design_projects
+            "UPDATE ontology_drafts
              SET analysis_scope = $1, updated_at = NOW(),
                  revision = revision + 1
              WHERE id = $2 AND revision = $3 ",
@@ -225,7 +225,7 @@ impl ProjectStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn complete_design_project(
+    async fn complete_ontology_draft(
         &self,
         project_id: Uuid,
         ontology_id: Uuid,
@@ -237,7 +237,7 @@ impl ProjectStore for PostgresStore {
         // row to the new ontology identity. Single-statement path
         // (no transaction needed — one UPDATE).
         let result = sqlx::query(
-            "UPDATE design_projects
+            "UPDATE ontology_drafts
              SET status = 'completed', ontology_id = $1,
                  updated_at = NOW(), revision = revision + 1
              WHERE id = $2 AND revision = $3 AND status = 'designed'",
@@ -253,9 +253,9 @@ impl ProjectStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn delete_design_project(&self, id: Uuid) -> OxResult<bool> {
+    async fn delete_ontology_draft(&self, id: Uuid) -> OxResult<bool> {
         super::require_workspace_context()?;
-        let result = sqlx::query("DELETE FROM design_projects WHERE id = $1")
+        let result = sqlx::query("DELETE FROM ontology_drafts WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await
@@ -271,7 +271,7 @@ impl ProjectStore for PostgresStore {
         // instead of round-tripping every row to Rust.
         let rows: Vec<(Uuid, i64)> = sqlx::query_as(
             "WITH affected AS (
-                 UPDATE design_projects
+                 UPDATE ontology_drafts
                  SET archived_at = NOW()
                  WHERE status IN ('analyzed', 'designed')
                    AND updated_at < NOW() - ($1 || ' days')::interval
@@ -294,7 +294,7 @@ impl ProjectStore for PostgresStore {
         super::require_workspace_context()?;
         let rows: Vec<(Uuid, i64)> = sqlx::query_as(
             "WITH affected AS (
-                 DELETE FROM design_projects
+                 DELETE FROM ontology_drafts
                  WHERE archived_at IS NOT NULL
                    AND archived_at < NOW() - ($1 || ' days')::interval
                  RETURNING workspace_id

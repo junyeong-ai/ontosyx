@@ -14,6 +14,6 @@
 -- snapshots are immutable, but the foreign key relaxes to NULL if
 -- one is ever pruned so the project row stays loadable.
 
-ALTER TABLE design_projects
+ALTER TABLE ontology_drafts
     ADD COLUMN parent_version_id UUID
         REFERENCES ontology_version_snapshots(id) ON DELETE SET NULL;

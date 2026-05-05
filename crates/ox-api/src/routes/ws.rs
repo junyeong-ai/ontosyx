@@ -58,7 +58,7 @@ const AUTH_FRAME_MAX_BYTES: usize = 4 * 1024;
 /// rather than waiting for the JWT's natural expiry.
 const SESSION_RECHECK_INTERVAL: Duration = Duration::from_secs(60);
 
-/// `Join` runs `get_design_project` to confirm the project belongs
+/// `Join` runs `get_ontology_draft` to confirm the project belongs
 /// to the bound workspace. Past authorisation results stay in this
 /// per-connection cache for the TTL below — leave/re-join cycles
 /// don't hammer the store. RLS still gates every other query, so a
@@ -404,7 +404,7 @@ async fn verify_project(
         return true;
     }
     let authorised = matches!(
-        state.store.get_design_project(project_id).await,
+        state.store.get_ontology_draft(project_id).await,
         Ok(Some(_))
     );
     if authorised {

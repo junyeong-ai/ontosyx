@@ -79,10 +79,10 @@ pub fn router(state: AppState) -> Router {
             "/projects/{id}/decisions",
             patch(projects::update_decisions),
         )
-        .route("/projects/{id}/design", post(projects::design_project))
+        .route("/projects/{id}/design", post(projects::ontology_draft))
         .route(
             "/projects/{id}/design/stream",
-            post(projects::design_project_stream),
+            post(projects::design_ontology_draft_stream),
         )
         .route(
             "/projects/{id}/reanalyze",

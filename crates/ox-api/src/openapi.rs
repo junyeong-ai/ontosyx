@@ -142,7 +142,7 @@ impl Modify for SecurityAddon {
         project_lifecycle::delete_project,
         project_lifecycle::complete_project,
         project_decisions::update_decisions,
-        project_refinement::design_project,
+        project_refinement::ontology_draft,
         project_refinement::refine_project,
         project_refinement::apply_reconcile,
         project_analysis::reanalyze_project,
@@ -152,7 +152,7 @@ impl Modify for SecurityAddon {
         project_edit::edit_project,
         project_extend::extend_project,
         project_preview::preview_source,
-        project_streaming::design_project_stream,
+        project_streaming::design_ontology_draft_stream,
         project_streaming::refine_project_stream,
         // Projects — revisions
         project_revisions::list_revisions,
@@ -481,7 +481,7 @@ impl Modify for SecurityAddon {
             PromptTemplateRow,
             // Store models
             CursorParams,
-            DesignProject,
+            OntologyDraft,
             DesignProjectSummary,
             ontology::OntologyDetail,
             ontology::CurrentVersionSummary,
@@ -615,9 +615,9 @@ pub struct CursorParams {
 
 /// Design project — ontology design lifecycle.
 #[derive(ToSchema)]
-#[schema(as = DesignProject)]
+#[schema(as = OntologyDraft)]
 #[allow(dead_code)]
-pub struct DesignProject {
+pub struct OntologyDraft {
     pub id: uuid::Uuid,
     pub status: String,
     pub revision: i32,

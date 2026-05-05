@@ -40,7 +40,7 @@ pub struct DesignOntologyInput<'a> {
     /// Canonical source identity stamped onto every emitted
     /// `ObjectMappingDef` in the returned IR. Keeps federation
     /// plans, provenance, and plan-cache keys consistent with the
-    /// `DesignProject` the caller is operating on.
+    /// `OntologyDraft` the caller is operating on.
     pub source_id: &'a SourceId,
 
     /// Domain glossary the LLM should reference instead of inventing
