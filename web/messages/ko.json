@@ -4083,8 +4083,8 @@
         "designFirst": "먼저 프로젝트를 설계하세요."
       },
       "canonicalStatus": {
-        "withVersion": "현재 대표: v{version} — 이 초안이 완료되면 다음 대표 버전이 됩니다.",
-        "greenfield": "아직 대표이 없습니다 — 이 초안을 완료하면 워크스페이스의 첫 대표 버전이 생성됩니다."
+        "withVersion": "현재 대표 버전: v{version} — 이 초안이 완료되면 다음 대표 버전이 됩니다.",
+        "greenfield": "아직 대표 버전이 없습니다 — 이 초안을 완료하면 워크스페이스의 첫 대표 버전이 생성됩니다."
       },
       "tableSelector": {
         "searchPlaceholder": "이름으로 검색...",

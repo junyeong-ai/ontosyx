@@ -28,6 +28,10 @@ import { toast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { StructuredEntityEditor } from "@/components/forms/structured-entity-editor";
 import { EntityWorkbench } from "@/components/workbench/entity-workbench";
+import {
+  WORKBENCH_GUTTER,
+  WORKBENCH_GUTTER_X,
+} from "@/components/workbench/workbench-page-shell";
 import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import type { OntologyEditOp } from "@/lib/api/edit-ops";
@@ -185,27 +189,29 @@ export function MasterDetailEntityPage<T extends { id?: string }>({
   };
 
   if (detail.isLoading) {
-    return <SkeletonList count={5} />;
+    return (
+      <div className={WORKBENCH_GUTTER}>
+        <SkeletonList count={5} />
+      </div>
+    );
   }
 
   if (detail.isError) {
     return (
-      <ErrorState
-        title={labels.loadErrorTitle}
-        description={labels.loadErrorDescription}
-        onRetry={() => detail.refetch()}
-        retryLabel={labels.retryLabel}
-      />
+      <div className={cn("flex h-full items-center justify-center", WORKBENCH_GUTTER_X)}>
+        <ErrorState
+          title={labels.loadErrorTitle}
+          description={labels.loadErrorDescription}
+          onRetry={() => detail.refetch()}
+          retryLabel={labels.retryLabel}
+        />
+      </div>
     );
   }
 
   if (!ontology) {
-    // Self-managed padding for the gate view — the parent shell
-    // runs in `fillBleed` mode (master-detail surface), so the
-    // body has no container. Mirror the standard chrome padding so
-    // the warning sits where the chrome row above does.
     return (
-      <div className="flex flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
+      <div className={cn(WORKBENCH_GUTTER, "flex flex-col gap-4")}>
         <p className="rounded-md border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground">
           {labels.noOntology}
         </p>

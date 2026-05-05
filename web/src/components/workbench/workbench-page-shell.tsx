@@ -85,6 +85,23 @@ const DEFAULT_STATE: PageState = { kind: "data" };
 // from sidebar edge to gutter.
 const ROW_PADDING_X = "px-4 sm:px-6 lg:px-8";
 
+/**
+ * Public padding tokens for `fillBleed` surfaces (master-detail,
+ * canvas, multi-pane). Those bypass the shell's body container, so
+ * any gate view they render — empty state, error state, "no
+ * canonical ontology" warning — has to apply the same gutter
+ * itself or it ends up flush against the sidebar.
+ *
+ * Compose with `cn()` when adding extra classes, e.g.:
+ *   <div className={cn(WORKBENCH_GUTTER, "flex flex-col gap-4")}>
+ *
+ * Don't redefine the values inline — keep the single source of truth
+ * here so chrome row, body container, and gate views stay locked
+ * across every viewport.
+ */
+export const WORKBENCH_GUTTER_X = ROW_PADDING_X;
+export const WORKBENCH_GUTTER = `${ROW_PADDING_X} py-6`;
+
 export function WorkbenchPageShell<TId extends string = string>({
   title,
   fillBleed = false,

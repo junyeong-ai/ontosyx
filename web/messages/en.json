@@ -4083,8 +4083,8 @@
         "designFirst": "Design a project first."
       },
       "canonicalStatus": {
-        "withVersion": "Current canonical: v{version} — your next completed draft becomes the next canonical version.",
-        "greenfield": "No canonical yet — completing this draft creates the workspace's first canonical version."
+        "withVersion": "Current canonical version: v{version} — your next completed draft becomes the next canonical version.",
+        "greenfield": "No canonical version yet — completing this draft creates the workspace's first canonical version."
       },
       "tableSelector": {
         "searchPlaceholder": "Search by name...",

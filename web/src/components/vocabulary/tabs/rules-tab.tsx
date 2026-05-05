@@ -21,6 +21,10 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { EntityWorkbench } from "@/components/workbench/entity-workbench";
+import {
+  WORKBENCH_GUTTER,
+  WORKBENCH_GUTTER_X,
+} from "@/components/workbench/workbench-page-shell";
 import { RuleForm } from "@/components/vocabulary/rule-form";
 import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
@@ -142,25 +146,33 @@ export function RulesTab() {
   };
 
   if (detail.isLoading) {
-    return <SkeletonList count={4} />;
+    return (
+      <div className={WORKBENCH_GUTTER}>
+        <SkeletonList count={4} />
+      </div>
+    );
   }
 
   if (detail.isError) {
     return (
-      <ErrorState
-        title={tCommon("loadError.title")}
-        description={tCommon("loadError.description")}
-        onRetry={() => detail.refetch()}
-        retryLabel={tCommon("retry")}
-      />
+      <div className={cn("flex h-full items-center justify-center", WORKBENCH_GUTTER_X)}>
+        <ErrorState
+          title={tCommon("loadError.title")}
+          description={tCommon("loadError.description")}
+          onRetry={() => detail.refetch()}
+          retryLabel={tCommon("retry")}
+        />
+      </div>
     );
   }
 
   if (!ontology) {
     return (
-      <p className="rounded border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground">
-        {t("noOntology")}
-      </p>
+      <div className={WORKBENCH_GUTTER}>
+        <p className="rounded-md border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground">
+          {t("noOntology")}
+        </p>
+      </div>
     );
   }
 

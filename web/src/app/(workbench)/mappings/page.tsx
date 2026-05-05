@@ -20,7 +20,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormInput } from "@/components/ui/form-input";
-import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell";
+import {
+  WorkbenchPageShell,
+  WORKBENCH_GUTTER,
+} from "@/components/workbench/workbench-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
@@ -224,7 +227,11 @@ export default function MappingsAdminPage() {
     >
       <PageStateView
         state={pageState}
-        skeleton={<SkeletonTable rows={6} cols={4} />}
+        skeleton={
+          <div className={WORKBENCH_GUTTER}>
+            <SkeletonTable rows={6} cols={4} />
+          </div>
+        }
         error={{
           title: tCommon("loadError.title"),
           description: tCommon("loadError.description"),

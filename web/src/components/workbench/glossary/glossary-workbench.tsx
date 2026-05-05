@@ -8,7 +8,12 @@ import { toast } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { WorkbenchPageShell } from "@/components/workbench/workbench-page-shell";
+import {
+  WorkbenchPageShell,
+  WORKBENCH_GUTTER,
+  WORKBENCH_GUTTER_X,
+} from "@/components/workbench/workbench-page-shell";
+import { cn } from "@/lib/cn";
 import { BookOpen01Icon } from "@hugeicons/core-free-icons";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { GlossaryForm } from "@/components/vocabulary/glossary-form";
@@ -231,8 +236,8 @@ export function GlossaryWorkbench() {
 
   if (ontologyDetailQuery.isLoading) {
     return (
-      <WorkbenchPageShell title={t("heading")}>
-        <div className="px-6 py-6">
+      <WorkbenchPageShell title={t("heading")} fillBleed>
+        <div className={WORKBENCH_GUTTER}>
           <SkeletonList count={6} />
         </div>
       </WorkbenchPageShell>
@@ -241,8 +246,8 @@ export function GlossaryWorkbench() {
 
   if (ontologyDetailQuery.isError) {
     return (
-      <WorkbenchPageShell title={t("heading")}>
-        <div className="flex h-full items-center justify-center px-6 py-12">
+      <WorkbenchPageShell title={t("heading")} fillBleed>
+        <div className={cn("flex h-full items-center justify-center", WORKBENCH_GUTTER_X)}>
           <ErrorState
             title={tCommon("loadError.title")}
             description={tCommon("loadError.description")}
@@ -256,8 +261,8 @@ export function GlossaryWorkbench() {
 
   if (!ontology || !ontologyMeta) {
     return (
-      <WorkbenchPageShell title={t("heading")}>
-        <div className="flex h-full items-center justify-center px-6 py-12">
+      <WorkbenchPageShell title={t("heading")} fillBleed>
+        <div className={cn("flex h-full items-center justify-center", WORKBENCH_GUTTER_X)}>
           <EmptyState
             icon={BookOpen01Icon}
             title={t("noOntology.title")}
@@ -271,14 +276,15 @@ export function GlossaryWorkbench() {
   const ambiguityContextId = searchParams.get(AMBIGUITY_PARAM);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-surface-base">
-      {ambiguityContextId && (
-        <AmbiguityResolutionBanner
-          contextId={ambiguityContextId}
-          onDismiss={dismissAmbiguityHint}
-        />
-      )}
-      <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)_340px] divide-x divide-divider">
+    <WorkbenchPageShell title={t("heading")} fillBleed>
+      <div className="flex h-full flex-col overflow-hidden bg-surface-base">
+        {ambiguityContextId && (
+          <AmbiguityResolutionBanner
+            contextId={ambiguityContextId}
+            onDismiss={dismissAmbiguityHint}
+          />
+        )}
+        <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)_340px] divide-x divide-divider">
         <TermTree
         terms={glossary}
         selectedTermId={selectedTermId}
@@ -338,8 +344,9 @@ export function GlossaryWorkbench() {
             </div>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </WorkbenchPageShell>
   );
 }
 
