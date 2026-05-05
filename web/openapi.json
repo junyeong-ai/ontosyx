@@ -1061,6 +1061,62 @@
         ]
       }
     },
+    "/api/approvals/bulk-review": {
+      "post": {
+        "tags": [
+          "Approvals"
+        ],
+        "summary": "`POST /api/approvals/bulk-review` — apply the same decision\nto many approvals in one round-trip. Same workspace-admin\ngate as the single-id variant.",
+        "operationId": "bulk_review_approvals",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkReviewApprovalsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Decision recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkReviewApprovalsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized ids list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace admin required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/approvals/{id}": {
       "get": {
         "tags": [
@@ -11144,6 +11200,20 @@
           },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "BulkReviewApprovalsResponse": {
+        "type": "object",
+        "required": [
+          "reviewed"
+        ],
+        "properties": {
+          "reviewed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Count of rows that actually transitioned. Rows already in\na terminal state are silently skipped (matches single-id\nsemantics), so `reviewed` may be less than `ids.len()`\nwhen the cohort overlaps a previous decision run — that's\na normal \"double-click safe\" outcome, not an error.",
+            "minimum": 0
           }
         }
       },

@@ -147,6 +147,80 @@ pub(crate) async fn review_approval(
     ))
 }
 
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct BulkReviewApprovalsRequest {
+    /// Approval ids to decide. Capped at 100 per call by the
+    /// `bulk_limit_exceeded` typed gate; clients split into
+    /// multiple calls when the cohort is larger.
+    pub ids: Vec<Uuid>,
+    /// `true` → approve, `false` → reject. Same semantics as the
+    /// per-id `POST /api/approvals/{id}/review`.
+    pub approved: bool,
+    /// Optional admin note. Recorded as the first comment on
+    /// every transitioned row's thread atomically — either every
+    /// row + every comment lands, or none do.
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct BulkReviewApprovalsResponse {
+    /// Count of rows that actually transitioned. Rows already in
+    /// a terminal state are silently skipped (matches single-id
+    /// semantics), so `reviewed` may be less than `ids.len()`
+    /// when the cohort overlaps a previous decision run — that's
+    /// a normal "double-click safe" outcome, not an error.
+    pub reviewed: u64,
+}
+
+/// `POST /api/approvals/bulk-review` — apply the same decision
+/// to many approvals in one round-trip. Same workspace-admin
+/// gate as the single-id variant.
+#[utoipa::path(
+    post,
+    path = "/api/approvals/bulk-review",
+    tag = "Approvals",
+    request_body = BulkReviewApprovalsRequest,
+    responses(
+        (status = 200, description = "Decision recorded.", body = BulkReviewApprovalsResponse),
+        (status = 400, description = "Empty or oversized ids list.", body = crate::openapi::ErrorResponse),
+        (status = 403, description = "Workspace admin required.", body = crate::openapi::ErrorResponse),
+    ),
+    security(("api_key" = [])),
+)]
+pub(crate) async fn bulk_review_approvals(
+    State(state): State<ApprovalsState>,
+    principal: Principal,
+    ws: WorkspaceContext,
+    Json(req): Json<BulkReviewApprovalsRequest>,
+) -> Result<Json<ApiResponse<BulkReviewApprovalsResponse>>, AppError> {
+    ws.require_admin()?;
+    if req.ids.is_empty() {
+        return Err(AppError::required_field_empty("ids"));
+    }
+    if req.ids.len() > 100 {
+        return Err(AppError::bulk_limit_exceeded(100));
+    }
+    let reviewer_id = principal.user_uuid()?;
+
+    let reviewed = state
+        .store
+        .review_approvals(&req.ids, reviewer_id, req.approved, req.note)
+        .await
+        .map_err(AppError::from)?;
+
+    let decision = if req.approved { "approved" } else { "rejected" };
+    info!(
+        reviewer_id = %reviewer_id,
+        decision = decision,
+        cohort_size = req.ids.len(),
+        reviewed,
+        "Approval requests bulk-reviewed"
+    );
+
+    Ok(ApiResponse::of(BulkReviewApprovalsResponse { reviewed }))
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/approvals/:id/comments — list the comment thread
 // ---------------------------------------------------------------------------

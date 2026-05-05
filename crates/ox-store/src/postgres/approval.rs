@@ -150,6 +150,62 @@ impl ApprovalStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
+    async fn review_approvals(
+        &self,
+        ids: &[Uuid],
+        reviewer_id: Uuid,
+        approved: bool,
+        note: Option<String>,
+    ) -> OxResult<u64> {
+        super::require_workspace_context()?;
+        if ids.is_empty() {
+            return Ok(0);
+        }
+        let trimmed = note
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+
+        let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
+
+        let status = if approved { "approved" } else { "rejected" };
+        // `RETURNING id` lets us know exactly which rows transitioned —
+        // the cohort may overlap rows already in a terminal state, so
+        // the comment-insert below targets only those that just moved.
+        let transitioned: Vec<(Uuid,)> = sqlx::query_as(
+            "UPDATE approval_requests
+             SET status = $1, reviewer_id = $2, reviewed_at = NOW()
+             WHERE id = ANY($3) AND status = 'pending'
+             RETURNING id",
+        )
+        .bind(status)
+        .bind(reviewer_id)
+        .bind(ids)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        if let Some(body) = &trimmed {
+            // Insert one comment per transitioned row in a single
+            // statement — UNNEST broadcasts the body + author over
+            // the id list. No comment row when `note` was empty/
+            // missing, matching the single-id semantics.
+            sqlx::query(
+                "INSERT INTO approval_comments (approval_id, author_id, body)
+                 SELECT id, $2, $3 FROM UNNEST($1::uuid[]) AS t(id)",
+            )
+            .bind(transitioned.iter().map(|(id,)| *id).collect::<Vec<_>>())
+            .bind(reviewer_id)
+            .bind(body)
+            .execute(&mut *tx)
+            .await
+            .map_err(to_ox_error)?;
+        }
+
+        tx.commit().await.map_err(to_ox_error)?;
+        Ok(transitioned.len() as u64)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn expire_old_approvals(&self) -> OxResult<Vec<(Uuid, u64)>> {
         super::require_workspace_context()?;
         // Strict `<` so a request whose `expires_at == NOW()` is still

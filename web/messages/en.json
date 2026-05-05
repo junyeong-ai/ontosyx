@@ -1522,8 +1522,19 @@
           "loadFailed": "Failed to load approvals",
           "reviewFailed": "Failed to review approval",
           "approved": "Approved",
-          "rejected": "Rejected"
+          "rejected": "Rejected",
+          "bulkApproved": "{count} approved",
+          "bulkRejected": "{count} rejected",
+          "bulkFailed": "Bulk review failed"
         },
+        "selectAll": "Select all",
+        "selectAllHint": "Select all {count}",
+        "selectRow": "Select {action}",
+        "bulkBarLabel": "Bulk action bar",
+        "bulkSelectedCount": "{count} selected",
+        "bulkClear": "Clear",
+        "bulkApprove": "Approve selected",
+        "bulkReject": "Reject selected",
         "expandPreview": "Show changes",
         "collapsePreview": "Hide changes",
         "reviewerNote": {

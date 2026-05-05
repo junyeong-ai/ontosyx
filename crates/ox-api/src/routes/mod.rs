@@ -444,6 +444,7 @@ pub fn router(state: AppState) -> Router {
         .route("/approvals", get(approvals::list_approvals))
         .route("/approvals/{id}", get(approvals::get_approval))
         .route("/approvals/{id}/review", post(approvals::review_approval))
+        .route("/approvals/bulk-review", post(approvals::bulk_review_approvals))
         .route(
             "/approvals/{id}/comments",
             get(approvals::list_approval_comments).post(approvals::create_approval_comment),

@@ -75,6 +75,14 @@ mock! {
             note: Option<String>,
         ) -> OxResult<Option<ApprovalComment>>;
 
+        async fn review_approvals(
+            &self,
+            ids: &[Uuid],
+            reviewer_id: Uuid,
+            approved: bool,
+            note: Option<String>,
+        ) -> OxResult<u64>;
+
         async fn expire_old_approvals(&self) -> OxResult<Vec<(Uuid, u64)>>;
     }
 }

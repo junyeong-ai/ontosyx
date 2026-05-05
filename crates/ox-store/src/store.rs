@@ -1215,6 +1215,21 @@ pub trait ApprovalStore: Send + Sync {
         note: Option<String>,
     ) -> OxResult<Option<ApprovalComment>>;
 
+    /// Bulk variant — apply the same decision to every pending
+    /// approval whose id is in `ids`. Returns the count of rows
+    /// actually transitioned (rows already terminal are silently
+    /// skipped, mirroring single-id semantics). One round-trip
+    /// regardless of `ids.len()`. The optional `note` is appended
+    /// to *every* transitioned row's comment thread atomically;
+    /// either every row + every comment lands, or none do.
+    async fn review_approvals(
+        &self,
+        ids: &[Uuid],
+        reviewer_id: Uuid,
+        approved: bool,
+        note: Option<String>,
+    ) -> OxResult<u64>;
+
     /// Expire old pending approvals past their `expires_at`.
     /// Returns per-workspace counts so the maintenance loop can record
     /// one audit row per affected workspace.

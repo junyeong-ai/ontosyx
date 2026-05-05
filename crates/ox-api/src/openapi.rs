@@ -221,6 +221,7 @@ impl Modify for SecurityAddon {
         approvals::list_approvals,
         approvals::get_approval,
         approvals::review_approval,
+        approvals::bulk_review_approvals,
         approvals::list_approval_comments,
         approvals::create_approval_comment,
         // Audit
@@ -527,6 +528,8 @@ impl Modify for SecurityAddon {
             ApprovalComment,
             approvals::ReviewApprovalRequest,
             approvals::ReviewApprovalResponse,
+            approvals::BulkReviewApprovalsRequest,
+            approvals::BulkReviewApprovalsResponse,
             approvals::CreateApprovalCommentRequest,
             // Audit
             AuditRecord,

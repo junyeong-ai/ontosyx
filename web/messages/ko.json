@@ -1522,8 +1522,19 @@
           "loadFailed": "승인 목록을 불러오지 못했습니다",
           "reviewFailed": "승인 처리에 실패했습니다",
           "approved": "승인됨",
-          "rejected": "거절됨"
+          "rejected": "거절됨",
+          "bulkApproved": "{count}건 승인됨",
+          "bulkRejected": "{count}건 거절됨",
+          "bulkFailed": "일괄 처리에 실패했습니다"
         },
+        "selectAll": "모두 선택",
+        "selectAllHint": "{count}건 선택",
+        "selectRow": "{action} 항목 선택",
+        "bulkBarLabel": "다중 선택 작업",
+        "bulkSelectedCount": "{count}건 선택됨",
+        "bulkClear": "선택 해제",
+        "bulkApprove": "선택 승인",
+        "bulkReject": "선택 거절",
         "expandPreview": "변경 내역 보기",
         "collapsePreview": "변경 내역 접기",
         "reviewerNote": {
