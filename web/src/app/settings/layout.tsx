@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { SettingsCommandSource } from "@/components/settings/settings-command-source";
-import { NARROW_SETTINGS_PAGES } from "@/lib/constants/settings";
+import { isNarrowSettingsPage } from "@/lib/constants/settings";
 import { cn } from "@/lib/cn";
 import { useIsClient } from "@/hooks/use-is-client";
 import { useNavigationShortcuts } from "@/hooks/use-navigation-shortcuts";
@@ -36,8 +36,10 @@ export default function SettingsLayout({
   const pathname = usePathname();
   const t = useTranslations("settings.chrome");
   const tSkip = useTranslations("chrome.skipLinks");
-  // Wide-by-default; only pure-form pages opt into narrow.
-  const isNarrow = NARROW_SETTINGS_PAGES.has(pathname);
+  // Wide-by-default; only pure-form pages opt into narrow. Match is
+  // prefix-aware so a deep-link inside an opted-in subtree stays
+  // width-consistent with its parent.
+  const isNarrow = isNarrowSettingsPage(pathname);
   const pageTitle = deriveTitle(pathname);
 
   // Prevent hydration mismatch: client-only state (useAuth, localStorage)
