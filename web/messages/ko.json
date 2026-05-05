@@ -1200,6 +1200,7 @@
           "cross_clause_disconnection": "여러 MATCH 절이 변수를 공유하지 않습니다 — 카티시안 경계를 넘는 실행입니다. 의도라면 `WITH` 절을 추가하고, 아니라면 공통 변수로 연결하세요"
         },
         "shacl": {
+          "datatype_mismatch": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 을 위반합니다 — 기대 타입: {expected_type, select, bool {불리언} int {정수} float {실수} string {문자열} date {날짜} date_time {일시} duration {기간} bytes {바이트} list {리스트} map {맵} other {{expected_type}}}, 실제: {observed_type, select, bool {불리언} int {정수} float {실수} string {문자열} other {{observed_type}}}",
           "min_count_missing": "속성 `{property}` 은 규칙 `{rule_name}` (minCount={min}) 에 의해 필수이지만 쓰기에 누락되었습니다",
           "value_not_in_set": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 을 위반합니다 — 값 집합 `{value_set_name}` 에서 허용하지 않는 값입니다",
           "notation_pattern_mismatch": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 이 요구하는 표기 패턴 `{notation_pattern_name}` 과 일치하지 않습니다 ({error})",

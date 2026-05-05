@@ -64,6 +64,7 @@ use std::fmt;
 use ox_core::diagnostic::{diag, DiagnosticMessage};
 use ox_core::graph_label::GraphLabel;
 use ox_core::i18n::display_name_with_fallback;
+use ox_core::types::PropertyType;
 use ox_ontology::ir::{NodeTypeDef, OntologyIR, PropertyDef, PropertyId};
 use ox_ontology::rule::{
     ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity,
@@ -489,10 +490,43 @@ impl ShaclValidator {
             | ShaclConstraint::Disjoint { .. }
             | ShaclConstraint::UniqueKey { .. }
             | ShaclConstraint::UniqueLang { .. } => {}
+            ShaclConstraint::Datatype { target, expected } => {
+                if !target_matches_property(target, prop) {
+                    return;
+                }
+                let Some(raw) = value else {
+                    return;
+                };
+                let Some(literal_type) = classify_literal_type(raw) else {
+                    // Parameter, function call, identifier reference,
+                    // null, opaque list/map — cannot decide at AST
+                    // time. Driver runtime takes the call.
+                    return;
+                };
+                if type_assignable(&literal_type, expected) {
+                    return;
+                }
+                let rn = rule_label(rule);
+                let expected_label = property_type_label(expected);
+                let observed_label = property_type_label(&literal_type);
+                issues.push(build_issue(
+                    rule,
+                    diag("runtime.cypher.shacl.datatype_mismatch")
+                        .with("property", key)
+                        .with("rule_id", rule.id.as_str())
+                        .with("rule_name", &rule.name)
+                        .with("expected_type", expected_label)
+                        .with("observed_type", observed_label)
+                        .with("value", raw)
+                        .message(format!(
+                            "property `{key}` = {raw} violates rule `{rn}` — expected {expected_label}, got {observed_label}"
+                        )),
+                    Some(node.span),
+                ));
+            }
             // Constraint kinds the MVP recognises but doesn't enforce at
             // the Cypher AST layer yet (see module docs for rationale).
             ShaclConstraint::MaxCount { .. }
-            | ShaclConstraint::Datatype { .. }
             | ShaclConstraint::HasValue { .. }
             | ShaclConstraint::MinInclusive { .. }
             | ShaclConstraint::MaxInclusive { .. }
@@ -828,6 +862,131 @@ fn lookup_property_value<'a>(node: &'a NodePattern, key: &str) -> Option<&'a str
         .map(|(_, v)| v.as_str())
 }
 
+/// Classify a SET / inline-pattern `value_text` slice into its
+/// concrete literal type. Returns `None` when the value is anything
+/// the validator cannot decide at AST time (parameter `$x`,
+/// function call `coalesce(...)`, property reference `n.other`,
+/// `null`, identifier alias). The Datatype enforcement walks this
+/// classifier and skips the unknown cases — false-positive avoidance
+/// over false-negative coverage, mirroring the rest of the validator.
+///
+/// The classifier is conservative on widening: an integer literal
+/// could lawfully assign to a `Float` slot, but that's the SHACL
+/// compatibility test's call (see [`type_assignable`]). Here we
+/// emit only the narrowest match — `42` → `Int`, never `Float`.
+pub(crate) fn classify_literal_type(raw: &str) -> Option<PropertyType> {
+    let t = raw.trim();
+    if t.is_empty() {
+        return None;
+    }
+    // String literal: 'foo' / "foo" — quotes already stripped by
+    // parse_string_literal, but here we recognise the wrapper
+    // straight from the raw token so we don't double-allocate just
+    // to classify.
+    let first = t.chars().next()?;
+    let last = t.chars().next_back()?;
+    if (first, last) == ('\'', '\'') || (first, last) == ('"', '"') {
+        return Some(PropertyType::String);
+    }
+    // Boolean keywords (case-insensitive — the lexer keeps original
+    // casing in the token text).
+    if t.eq_ignore_ascii_case("true") || t.eq_ignore_ascii_case("false") {
+        return Some(PropertyType::Bool);
+    }
+    // `null` is "absence of value", not a typed value — every type
+    // accepts it (subject to MinCount / nullable rules elsewhere).
+    if t.eq_ignore_ascii_case("null") {
+        return None;
+    }
+    // Cypher list literal `[...]` is opaque at this layer — element
+    // typing would need a recursive parse that the validator
+    // intentionally avoids. Skip rather than over-reject.
+    if first == '[' || first == '{' {
+        return None;
+    }
+    // Parameter / function-call — opaque references the validator
+    // cannot decide at AST time. `(` indicates a call (`coalesce(...)`),
+    // `$` introduces a parameter.
+    if first == '$' || t.contains('(') {
+        return None;
+    }
+    // Numeric — try Int first, then Float. The classifier emits the
+    // narrowest match so the compatibility test can apply widening
+    // explicitly (Int → Float OK, Float → Int reject). Run parse
+    // BEFORE the property-access guard below — `3.14` is a Float
+    // literal even though it carries a `.`, while `n.other` is an
+    // identifier reference that won't parse as a number.
+    if t.parse::<i64>().is_ok() {
+        return Some(PropertyType::Int);
+    }
+    if t.parse::<f64>().is_ok() {
+        return Some(PropertyType::Float);
+    }
+    // Property access `n.other` or qualified identifier — opaque
+    // reference, skip. Anything that survived the numeric parse but
+    // still carries a `.` is a non-literal access path.
+    if t.contains('.') {
+        return None;
+    }
+    None
+}
+
+/// Stable wire-string label for a `PropertyType` used in
+/// diagnostic params. The locale-aware rendering happens in the
+/// FE i18n catalogue; here we emit the snake_case identifier
+/// (`"int"`, `"date_time"`, `"list"`) so the ICU select arm has a
+/// fixed key to switch on. List elements are not unfolded — the
+/// outer kind is the actionable bit for an operator chasing a
+/// SET-clause typo.
+pub(crate) fn property_type_label(ty: &PropertyType) -> &'static str {
+    match ty {
+        PropertyType::Bool => "bool",
+        PropertyType::Int => "int",
+        PropertyType::Float => "float",
+        PropertyType::String => "string",
+        PropertyType::Date => "date",
+        PropertyType::DateTime => "date_time",
+        PropertyType::Duration => "duration",
+        PropertyType::Bytes => "bytes",
+        PropertyType::List { .. } => "list",
+        PropertyType::Map => "map",
+    }
+}
+
+/// Whether a literal of `from` may legally assign to a slot of
+/// `to`. Mirrors the standard SQL-ish widening you'd expect:
+///
+/// - Identical types are always compatible.
+/// - `Int` assigns to `Float` (numeric widening).
+/// - String literals assign to `Date`, `DateTime`, `Duration`,
+///   `Bytes` — Cypher drivers parse the runtime string into the
+///   target type, so the AST-time check stays narrow on purpose.
+/// - Everything else is a mismatch.
+///
+/// The intentionally tight surface — strict on `Int → String` and
+/// `String → Int` — catches the high-frequency LLM hallucination
+/// (`SET p.age = 'twenty'`) without false-flagging the legitimate
+/// `SET p.start_date = '2026-05-05'` shape.
+pub(crate) fn type_assignable(from: &PropertyType, to: &PropertyType) -> bool {
+    if from == to {
+        return true;
+    }
+    match (from, to) {
+        // Numeric widening.
+        (PropertyType::Int, PropertyType::Float) => true,
+        // String literals carry the runtime payload for these
+        // types — Cypher drivers parse the string at write time.
+        (
+            PropertyType::String,
+            PropertyType::Date
+            | PropertyType::DateTime
+            | PropertyType::Duration
+            | PropertyType::Bytes,
+        ) => true,
+        _ => false,
+    }
+}
+
 /// Strip surrounding single- or double-quotes and unescape embedded
 /// quote characters. Returns `None` for anything that isn't a bare
 /// string literal (parameters start with `$`, numerics are raw digits,
@@ -1042,7 +1201,6 @@ mod tests {
     use super::*;
     use ox_core::i18n::LocalizedText;
     use ox_core::property_key::PropertyKey;
-    use ox_core::types::PropertyType;
     use ox_ontology::action::RuleId;
     use ox_ontology::ir::{NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef};
     use ox_ontology::rule::RuleOrigin;
@@ -1960,5 +2118,220 @@ mod tests {
             issues.iter().all(|i| i.level != IssueLevel::Error),
             "REMOVE of optional property must not fire: {issues:?}"
         );
+    }
+
+    // ---- Datatype enforcement -----------------------------------------
+
+    fn age_prop() -> PropertyDef {
+        PropertyDef {
+            id: PropertyId::new("prop-age"),
+            name: PropertyKey::new("age").unwrap(),
+            property_type: PropertyType::Int,
+            ..Default::default()
+        }
+    }
+
+    fn datatype_rule(target_property_id: &str, expected: PropertyType) -> RuleDef {
+        RuleDef {
+            id: RuleId::new(format!("r-datatype-{target_property_id}")),
+            name: format!("{target_property_id}_datatype").into(),
+            description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
+            kind: RuleKind::PropertyShape {
+                target_node_type_id: NodeTypeId::new("nt-user"),
+                target_property_id: PropertyId::new(target_property_id),
+            },
+            severity: Severity::Violation,
+            enforcement: EnforcementKind::Write,
+            activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
+            constraints: vec![ShaclConstraint::Datatype {
+                target: ConstraintTarget::Inherit,
+                expected,
+            }],
+            valid_from: None,
+            valid_to: None,
+            sh_message: None,
+        }
+    }
+
+    #[test]
+    fn datatype_blocks_set_string_into_int_slot() {
+        // `SET u.age = 'twenty'` — common LLM hallucination shape.
+        // The driver would silently store the string at runtime;
+        // validator catches it pre-execute.
+        let prop = age_prop();
+        let rule = datatype_rule("prop-age", PropertyType::Int);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.age = 'twenty' RETURN u");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.datatype_mismatch"
+                && i.message.params.get("expected_type")
+                    == Some(&serde_json::Value::from("int"))
+                && i.message.params.get("observed_type")
+                    == Some(&serde_json::Value::from("string"))),
+            "expected datatype_mismatch on Int ← String: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn datatype_passes_set_int_into_int_slot() {
+        let prop = age_prop();
+        let rule = datatype_rule("prop-age", PropertyType::Int);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.age = 42 RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "Int literal into Int slot must pass: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn datatype_passes_set_int_into_float_slot_via_widening() {
+        // SQL-ish numeric widening — `SET u.score = 1` on a Float
+        // property is the legit shape, must not false-flag.
+        let prop = PropertyDef {
+            id: PropertyId::new("prop-score"),
+            name: PropertyKey::new("score").unwrap(),
+            property_type: PropertyType::Float,
+            ..Default::default()
+        };
+        let rule = datatype_rule("prop-score", PropertyType::Float);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.score = 1 RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "Int → Float widening must pass: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn datatype_passes_set_string_into_date_slot() {
+        // ISO date strings are how Cypher drivers receive Date /
+        // DateTime / Duration values — must not be flagged.
+        let prop = PropertyDef {
+            id: PropertyId::new("prop-start"),
+            name: PropertyKey::new("start").unwrap(),
+            property_type: PropertyType::Date,
+            ..Default::default()
+        };
+        let rule = datatype_rule("prop-start", PropertyType::Date);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.start = '2026-05-05' RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "String → Date must pass: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn datatype_blocks_create_with_inline_string_for_int_slot() {
+        // Same check applies to inline `(n:User {age: 'old'})` —
+        // the validator goes through the same per-property pass
+        // for CREATE clauses, and Datatype constraint must be
+        // evaluated there too.
+        let prop = age_prop();
+        let rule = datatype_rule("prop-age", PropertyType::Int);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "CREATE (u:User {age: 'old'})");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.datatype_mismatch"),
+            "expected datatype_mismatch on inline CREATE: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn datatype_skips_set_when_value_is_a_parameter() {
+        // `SET u.age = $age` — cannot decide at AST time. Driver
+        // takes the call. The validator must not false-flag.
+        let prop = age_prop();
+        let rule = datatype_rule("prop-age", PropertyType::Int);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.age = $age RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "$param assignment must not raise datatype_mismatch: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn datatype_skips_set_when_value_is_null() {
+        // null means "absence of value", not a typed value.
+        // MinCount / nullable rules elsewhere police that axis.
+        let prop = age_prop();
+        let rule = datatype_rule("prop-age", PropertyType::Int);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.age = null RETURN u");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "null assignment must not raise datatype_mismatch: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn datatype_blocks_set_string_into_bool_slot() {
+        let prop = PropertyDef {
+            id: PropertyId::new("prop-active"),
+            name: PropertyKey::new("active").unwrap(),
+            property_type: PropertyType::Bool,
+            ..Default::default()
+        };
+        let rule = datatype_rule("prop-active", PropertyType::Bool);
+        let onto = fixture_ontology_with_rule(rule, prop);
+        let issues = run(onto, "MATCH (u:User) SET u.active = 'yes' RETURN u");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.datatype_mismatch"
+                && i.message.params.get("expected_type")
+                    == Some(&serde_json::Value::from("bool"))),
+            "expected datatype_mismatch on Bool ← String: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn classify_literal_type_recognises_each_kind() {
+        assert_eq!(classify_literal_type("'hello'"), Some(PropertyType::String));
+        assert_eq!(classify_literal_type("\"hello\""), Some(PropertyType::String));
+        assert_eq!(classify_literal_type("42"), Some(PropertyType::Int));
+        assert_eq!(classify_literal_type("3.14"), Some(PropertyType::Float));
+        assert_eq!(classify_literal_type("true"), Some(PropertyType::Bool));
+        assert_eq!(classify_literal_type("FALSE"), Some(PropertyType::Bool));
+        assert_eq!(classify_literal_type("null"), None);
+        assert_eq!(classify_literal_type("$age"), None);
+        assert_eq!(classify_literal_type("coalesce(a, 1)"), None);
+        assert_eq!(classify_literal_type("n.other"), None);
+        assert_eq!(classify_literal_type("[1, 2, 3]"), None);
+        assert_eq!(classify_literal_type("{ a: 1 }"), None);
+        assert_eq!(classify_literal_type(""), None);
+    }
+
+    #[test]
+    fn type_assignable_widening_matrix() {
+        use PropertyType::*;
+        // Same kind always assignable.
+        assert!(type_assignable(&Int, &Int));
+        assert!(type_assignable(&String, &String));
+        // Numeric widening Int → Float.
+        assert!(type_assignable(&Int, &Float));
+        // Float → Int is NOT assignable (precision loss).
+        assert!(!type_assignable(&Float, &Int));
+        // String literals carry runtime payload for temporal /
+        // bytes types.
+        assert!(type_assignable(&String, &Date));
+        assert!(type_assignable(&String, &DateTime));
+        assert!(type_assignable(&String, &Duration));
+        assert!(type_assignable(&String, &Bytes));
+        // Int → String / Bool → String / etc. are NOT auto-assignable
+        // in this conservative model — explicit `toString` cast is
+        // expected and the SET/CREATE clause would carry the
+        // resulting String literal anyway.
+        assert!(!type_assignable(&Int, &String));
+        assert!(!type_assignable(&Bool, &String));
+        // Cross-kind mismatches.
+        assert!(!type_assignable(&String, &Int));
+        assert!(!type_assignable(&String, &Bool));
+        assert!(!type_assignable(&Int, &Bool));
     }
 }

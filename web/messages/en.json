@@ -1201,6 +1201,7 @@
         },
         "shacl": {
           "min_count_missing": "Property `{property}` is required by rule `{rule_name}` (minCount={min}) but missing from the write",
+          "datatype_mismatch": "Property `{property}` = {value} violates rule `{rule_name}` — expected {expected_type, select, bool {bool} int {integer} float {float} string {string} date {date} date_time {date-time} duration {duration} bytes {bytes} list {list} map {map} other {{expected_type}}}, got {observed_type, select, bool {bool} int {integer} float {float} string {string} other {{observed_type}}}",
           "value_not_in_set": "Property `{property}` = {value} violates rule `{rule_name}` — not allowed by value set `{value_set_name}`",
           "notation_pattern_mismatch": "Property `{property}` = {value} does not match notation pattern `{notation_pattern_name}` required by rule `{rule_name}` ({error})",
           "closed_shape_extra_property": "Property `{property}` is not permitted on `{label}` (closed shape rule `{rule_name}`)",
