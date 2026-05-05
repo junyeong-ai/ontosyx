@@ -166,47 +166,10 @@ pub trait OntologyVersionStore: Send + Sync {
     /// ontology, or `None` when one has not been created yet.
     /// Workspace × ontology is 1:1 by schema invariant; the
     /// workspace_id is the implicit selector via the task-local
-    /// context.
+    /// context. This is the single read path; there is no
+    /// `get_ontology(id)`, no list, no name lookup.
     async fn get_workspace_ontology(
         &self,
-    ) -> OxResult<Option<crate::models::OntologyRow>>;
-
-    /// Look up the workspace's ontology by id. Provided for
-    /// existing callers that hold an `OntologyId` reference (e.g.,
-    /// from a stored reference or path parameter); the singleton
-    /// invariant means this is equivalent to
-    /// `get_workspace_ontology` modulo the id check. Will be
-    /// removed when the URL surface drops `{id}` segments
-    /// (Phase 3 ontology workbench restructure).
-    async fn get_ontology(&self, id: Uuid) -> OxResult<Option<crate::models::OntologyRow>>;
-
-    /// Paginated list — singleton invariant guarantees at most
-    /// one row. Provided for existing callers that walk
-    /// `useOntologies({ limit: 1 }).items[0]`; same Phase 3
-    /// removal note applies.
-    async fn list_ontologies(
-        &self,
-        pagination: &CursorParams,
-    ) -> OxResult<CursorPage<crate::models::OntologyRow>>;
-
-    /// Lookup by stable lineage id. Within a workspace the
-    /// singleton makes this redundant with `get_workspace_ontology`
-    /// + a lineage check, but cross-workspace audit / governance
-    /// callers still pin against the lineage. Phase 3 may
-    /// rationalise.
-    async fn find_ontology_by_lineage(
-        &self,
-        lineage_id: &str,
-    ) -> OxResult<Option<crate::models::OntologyRow>>;
-
-    /// Lookup by short name within the workspace. With the
-    /// singleton in place this returns the workspace's ontology
-    /// when the name matches and `None` otherwise. Phase 3
-    /// will fold this into `get_workspace_ontology` + a name
-    /// assertion.
-    async fn find_ontology_by_name(
-        &self,
-        name: &str,
     ) -> OxResult<Option<crate::models::OntologyRow>>;
 
     /// Commit a new immutable version of `ontology_id`.

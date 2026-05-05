@@ -45,14 +45,19 @@ use crate::workspace::WorkspaceContext;
 /// caller instead of silently falling back to unvalidated execution.
 async fn load_ontology_current(
     state: &AppState,
-    ontology_id: Option<Uuid>,
+    requested: Option<Uuid>,
 ) -> Result<Option<Arc<OntologyIR>>, AppError> {
-    let Some(id) = ontology_id else {
+    if requested.is_none() {
         return Ok(None);
-    };
+    }
+    // Workspace × ontology is 1:1; the caller's `ontology_id` is
+    // the workspace's canonical by construction. We ignore the
+    // bare value and resolve via the singleton accessor so the
+    // request shape stays compatible without re-encoding the
+    // implicit selection in the URL.
     let identity = state
         .store
-        .get_ontology(id)
+        .get_workspace_ontology()
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Ontology"))?;
@@ -91,13 +96,13 @@ async fn resolve_temporal(
         return Ok(req);
     };
 
-    let Some(ontology_id) = req.ontology_id else {
+    if req.ontology_id.is_none() {
         return Err(AppError::temporal_query_requires_ontology());
-    };
+    }
 
     let identity = state
         .store
-        .get_ontology(ontology_id)
+        .get_workspace_ontology()
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Ontology"))?;

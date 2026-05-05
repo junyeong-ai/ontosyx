@@ -1329,16 +1329,35 @@ async fn evaluate_quality_rules(
         let ontology = match ontology_cache.get(&rule.ontology_lineage_id) {
             Some(cached) => cached.clone(),
             None => {
-                // Lineage → identity → current version → hydrated IR.
-                // Three separate failure modes (unknown lineage, no
+                // Workspace × ontology is 1:1; the rule's lineage is
+                // the workspace's canonical lineage by construction.
+                // Three separate failure modes (no canonical, no
                 // committed version, hydrate error) all degrade to a
                 // `None` here — rules still evaluate, they just skip
                 // the label-conformance gate.
-                let fetched = match store
-                    .find_ontology_by_lineage(&rule.ontology_lineage_id)
-                    .await
-                {
-                    Ok(Some(identity)) => match store.get_current_version(identity.id).await {
+                let identity = match store.get_workspace_ontology().await {
+                    Ok(Some(identity)) if identity.lineage_id == rule.ontology_lineage_id => {
+                        Some(identity)
+                    }
+                    Ok(Some(_)) => {
+                        tracing::warn!(
+                            lineage = %rule.ontology_lineage_id,
+                            "Quality sweep: rule lineage doesn't match workspace ontology — skipping label validation"
+                        );
+                        None
+                    }
+                    Ok(None) => None,
+                    Err(e) => {
+                        tracing::warn!(
+                            lineage = %rule.ontology_lineage_id,
+                            error = %e,
+                            "Quality sweep workspace-ontology lookup failed"
+                        );
+                        None
+                    }
+                };
+                let fetched = match identity {
+                    Some(identity) => match store.get_current_version(identity.id).await {
                         Ok(Some(version)) => match store.get_ontology_ir(version.id).await {
                             Ok(Some(ir)) => {
                                 tracing::info!(
@@ -1382,15 +1401,7 @@ async fn evaluate_quality_rules(
                             None
                         }
                     },
-                    Ok(None) => None,
-                    Err(e) => {
-                        tracing::warn!(
-                            lineage = %rule.ontology_lineage_id,
-                            error = %e,
-                            "Quality sweep lineage lookup failed"
-                        );
-                        None
-                    }
+                    None => None,
                 };
                 ontology_cache.insert(rule.ontology_lineage_id.clone(), fetched.clone());
                 fetched

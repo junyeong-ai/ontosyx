@@ -80,15 +80,14 @@ pub(crate) async fn create_project(
     let CreateProjectRequest { title, origin } = req;
 
     let project = match origin {
-        ProjectOrigin::BaseOntology { base_ontology_id } => {
-            // --- From existing ontology ---
+        ProjectOrigin::BaseOntology => {
+            // --- From workspace's canonical ontology ---
             // Resolve identity → current version → hydrate IR. The new
             // project carries the IR JSON so downstream design edits
-            // operate on a local copy; the link back to `ontologies.id`
-            // is established only on completion.
+            // operate on a local copy.
             let identity = state
                 .store
-                .get_ontology(base_ontology_id)
+                .get_workspace_ontology()
                 .await
                 .map_err(AppError::from)?
                 .ok_or_else(AppError::ontology_not_found)?;
@@ -532,12 +531,13 @@ pub(crate) async fn complete_project(
     let ontology: ox_ontology::OntologyIR = serde_json::from_value(ontology_json)
         .map_err(|e| AppError::internal(format!("Failed to parse project ontology: {e}")))?;
 
-    // Identity resolution: find or create the `ontologies` row named by the
-    // caller. Existing identity + has a current version → this is version N+1
-    // in the same lineage; no identity → first version of a new lineage.
+    // Identity resolution: workspace × ontology is 1:1, so the
+    // commit either lands on the workspace's canonical (existing
+    // identity → version N+1) or creates the canonical (no
+    // identity → first version of the workspace's lineage).
     let existing_identity = state
         .store
-        .find_ontology_by_name(&req.name)
+        .get_workspace_ontology()
         .await
         .map_err(AppError::from)?;
 

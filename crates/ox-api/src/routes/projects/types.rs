@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use ox_ontology::command::OntologyCommand;
 use ox_ontology::design_gate::{DesignGate, evaluate_design_gates};
@@ -110,12 +109,11 @@ pub enum ProjectOrigin {
         #[schema(value_type = Object)]
         selection: AnalyzeSelection,
     },
-    BaseOntology {
-        /// Identity of the ontology to seed the project from —
-        /// matches `ontologies.id`. The server resolves the current
-        /// version and hydrates its IR into the new project.
-        base_ontology_id: Uuid,
-    },
+    /// Seed the project from the workspace's canonical ontology.
+    /// Workspace × ontology is 1:1 — no id needed. The server
+    /// resolves the current version and hydrates its IR into the
+    /// new project.
+    BaseOntology,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]

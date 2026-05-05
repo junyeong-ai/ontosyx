@@ -43,15 +43,18 @@ pub struct CreateReportRequest {
 }
 
 /// Best-effort resolution of the current-version IR for a lineage id.
-/// Used by read-only paths that want to bind `GRAPH_ONTOLOGY` for the
-/// runtime's OntologyValidator but don't want to hard-fail when the
-/// lineage has been archived or was never committed — those callers
-/// fall back to safety + workspace-scope validation only.
+/// Workspace × ontology is 1:1, so the lineage either matches the
+/// workspace's canonical or it doesn't — there's no cross-workspace
+/// disambiguation to do. Returns `None` on any failure so the caller
+/// falls back to safety + workspace-scope validation only.
 async fn resolve_lineage_current_ir(
     state: &AppState,
     lineage_id: &str,
 ) -> Option<std::sync::Arc<ox_ontology::ir::OntologyIR>> {
-    let identity = state.store.find_ontology_by_lineage(lineage_id).await.ok()??;
+    let identity = state.store.get_workspace_ontology().await.ok()??;
+    if identity.lineage_id != lineage_id {
+        return None;
+    }
     let version = state.store.get_current_version(identity.id).await.ok()??;
     let ir = state.store.get_ontology_ir(version.id).await.ok()??;
     Some(std::sync::Arc::new(ir))

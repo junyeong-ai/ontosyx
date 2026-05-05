@@ -12,7 +12,6 @@ use ox_ontology::ir::OntologyIR;
 use ox_core::types::PropertyValue;
 use ox_runtime::GraphRuntime;
 use ox_store::Store;
-use ox_store::store::CursorParams;
 
 use rmcp::{
     ErrorData as McpError, ServerHandler,
@@ -204,29 +203,13 @@ impl OntosyxMcpServer {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct QueryParams {
-    /// Natural language question to ask the knowledge graph
+    /// Natural language question to ask the workspace's knowledge
+    /// graph. Workspace × ontology is 1:1, so no name selector.
     question: String,
-    /// Name of the saved ontology to query against (use ontosyx_list_ontologies to find available names)
-    ontology_name: String,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct ListOntologiesParams {
-    /// Maximum number of ontologies to return (default 50, max 100)
-    #[serde(default)]
-    limit: Option<u32>,
-}
-
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct DescribeOntologyParams {
-    /// Name of the ontology to describe
-    ontology_name: String,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ExportParams {
-    /// Name of the ontology to export
-    ontology_name: String,
     /// Export format: "cypher" (Neo4j DDL), "graphql" (GraphQL schema), "owl" (OWL/Turtle), or "mermaid" (ER diagram)
     format: ExportFormat,
 }
@@ -248,13 +231,16 @@ enum ExportFormat {
 struct ExecuteCypherParams {
     /// Cypher query statement to execute
     query: String,
-    /// Optional ontology name. When present, the runtime's
-    /// OntologyValidator rejects unknown labels / relationship types /
-    /// properties before the query hits the driver. Same contract as
-    /// `ontosyx_query`.
+    /// When `true`, the runtime's OntologyValidator rejects unknown
+    /// labels / relationship types / properties before the query
+    /// hits the driver. Same contract as `ontosyx_query`. Workspace
+    /// × ontology is 1:1, so no name selector.
     #[serde(default)]
-    ontology_name: Option<String>,
+    validate_against_ontology: bool,
 }
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct DescribeOntologyParams {}
 
 // ---------------------------------------------------------------------------
 // Tool response types (for structured output)
@@ -266,36 +252,6 @@ struct QueryResponse {
     query: String,
     results: serde_json::Value,
     row_count: usize,
-}
-
-#[derive(Serialize)]
-struct OntologySummary {
-    id: String,
-    name: String,
-    /// Current-version tag (free-form; `"0"` when the identity has no
-    /// committed version yet).
-    version: String,
-    description: Option<String>,
-    node_count: usize,
-    edge_count: usize,
-}
-
-/// Flatten the `ontologies.description` LocalizedText JSON into a plain
-/// string suitable for MCP output. The stored shape is
-/// `{"default": "...", "translations": {...}}`; we surface the default.
-/// Returns `None` when the stored value is empty / malformed.
-fn localized_description_text(value: &serde_json::Value) -> Option<String> {
-    let text = value.get("default").and_then(|v| v.as_str())?;
-    if text.is_empty() {
-        None
-    } else {
-        Some(text.to_string())
-    }
-}
-
-#[derive(Serialize)]
-struct ListOntologiesResponse {
-    ontologies: Vec<OntologySummary>,
 }
 
 #[derive(Serialize)]
@@ -350,19 +306,21 @@ struct ExecuteCypherResponse {
 // Helper: load ontology by name from store
 // ---------------------------------------------------------------------------
 
-async fn load_ontology(store: &dyn Store, name: &str) -> Result<OntologyIR, McpError> {
+async fn load_ontology(store: &dyn Store) -> Result<OntologyIR, McpError> {
     let identity = store
-        .find_ontology_by_name(name)
+        .get_workspace_ontology()
         .await
         .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?
-        .ok_or_else(|| McpError::invalid_params(format!("Ontology '{name}' not found"), None))?;
+        .ok_or_else(|| {
+            McpError::invalid_params("Workspace has no canonical ontology yet", None)
+        })?;
     let version = store
         .get_current_version(identity.id)
         .await
         .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?
         .ok_or_else(|| {
             McpError::invalid_params(
-                format!("Ontology '{name}' has no committed version"),
+                format!("Ontology '{}' has no committed version", identity.name),
                 None,
             )
         })?;
@@ -372,7 +330,7 @@ async fn load_ontology(store: &dyn Store, name: &str) -> Result<OntologyIR, McpE
         .map_err(|e| McpError::internal_error(format!("Hydrate error: {e}"), None))?
         .ok_or_else(|| {
             McpError::invalid_params(
-                format!("Ontology '{name}' snapshot is no longer available"),
+                format!("Ontology '{}' snapshot is no longer available", identity.name),
                 None,
             )
         })
@@ -500,7 +458,7 @@ mod tests {
 impl OntosyxMcpServer {
     #[tool(
         name = "ontosyx_query",
-        description = "Query a knowledge graph using natural language. Translates the question into a graph query, executes it, and returns results with a natural language explanation. Requires a saved ontology name — use ontosyx_list_ontologies to discover available ontologies first."
+        description = "Query the workspace's knowledge graph using natural language. Translates the question into a graph query, executes it, and returns results with a natural language explanation. The workspace owns exactly one canonical ontology — no name selector needed."
     )]
     async fn query(
         &self,
@@ -511,25 +469,8 @@ impl OntosyxMcpServer {
     }
 
     #[tool(
-        name = "ontosyx_list_ontologies",
-        description = "List all saved ontologies available for querying. Returns names, versions, descriptions, and node/edge counts. Use this to discover which ontologies are available before using ontosyx_query or ontosyx_describe_ontology."
-    )]
-    async fn list_ontologies(
-        &self,
-        Parameters(params): Parameters<ListOntologiesParams>,
-    ) -> Result<CallToolResult, McpError> {
-        self.limiter.check()?;
-        with_call_timeout(
-            "ontosyx_list_ontologies",
-            self.call_timeout,
-            self.do_list_ontologies(params),
-        )
-        .await
-    }
-
-    #[tool(
         name = "ontosyx_describe_ontology",
-        description = "Get the detailed structure of a specific ontology, including all node types with their properties and constraints, and all edge types with their source/target connections. Useful for understanding the graph schema before writing queries."
+        description = "Get the structure of the workspace's canonical ontology — name, version, description, all node types with their properties and constraints, and all edge types with their source/target connections. Useful for understanding the graph schema before writing queries."
     )]
     async fn describe_ontology(
         &self,
@@ -580,13 +521,12 @@ impl OntosyxMcpServer {
         let start = Instant::now();
         let _duration_guard = DurationGuard::new("ontosyx_query", start);
         info!(
-            ontology = %params.ontology_name,
             question = %params.question,
             "MCP: ontosyx_query invoked"
         );
 
         // Load ontology
-        let ontology = load_ontology(self.store.as_ref(), &params.ontology_name).await?;
+        let ontology = load_ontology(self.store.as_ref()).await?;
 
         // Translate NL -> QueryIR
         let query_ir = self
@@ -671,7 +611,6 @@ impl OntosyxMcpServer {
 
         let elapsed = start.elapsed();
         info!(
-            ontology = %params.ontology_name,
             row_count,
             elapsed_ms = elapsed.as_millis() as u64,
             "MCP: ontosyx_query completed"
@@ -689,93 +628,9 @@ impl OntosyxMcpServer {
         )?)]))
     }
 
-    async fn do_list_ontologies(
-        &self,
-        params: ListOntologiesParams,
-    ) -> Result<CallToolResult, McpError> {
-        metrics::counter!(
-            "mcp_tool_invocations_total",
-            "tool" => "ontosyx_list_ontologies",
-        )
-        .increment(1);
-        let _duration_guard = DurationGuard::new("ontosyx_list_ontologies", Instant::now());
-        info!("MCP: ontosyx_list_ontologies invoked");
-
-        let pagination = CursorParams {
-            limit: params.limit.unwrap_or(50),
-            cursor: None,
-        };
-
-        let page = self
-            .store
-            .list_ontologies(&pagination)
-            .await
-            .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?;
-
-        // Per-row current-version probe: each call hits the partial
-        // `ontology_version_snapshots_current_idx`, and the page size is
-        // bounded at 100 so the sequential await cost stays well under a
-        // single MCP request budget.
-        let mut ontologies = Vec::with_capacity(page.items.len());
-        for identity in page.items {
-            let version_row = self
-                .store
-                .get_current_version(identity.id)
-                .await
-                .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?;
-
-            let (version_tag, node_count, edge_count) = match version_row {
-                Some(version) => {
-                    let ir = self
-                        .store
-                        .get_ontology_ir(version.id)
-                        .await
-                        .map_err(|e| {
-                            McpError::internal_error(format!("Hydrate error: {e}"), None)
-                        })?;
-                    match ir {
-                        Some(ir) => (
-                            version.version,
-                            ir.node_types().len(),
-                            ir.edge_types().len(),
-                        ),
-                        // Pointer existed but the snapshot vanished
-                        // between fetch and hydrate — surface as the
-                        // same "transitional" zero shape used for
-                        // unversioned identities.
-                        None => (String::from("0"), 0, 0),
-                    }
-                }
-                // Identity exists but no committed version — rare
-                // transitional state. Surface as "v0 / empty" rather
-                // than hiding the row.
-                None => (String::from("0"), 0, 0),
-            };
-
-            ontologies.push(OntologySummary {
-                id: identity.id.to_string(),
-                name: identity.name,
-                version: version_tag,
-                description: localized_description_text(&identity.description),
-                node_count,
-                edge_count,
-            });
-        }
-
-        info!(
-            count = ontologies.len(),
-            "MCP: ontosyx_list_ontologies completed"
-        );
-
-        let response = ListOntologiesResponse { ontologies };
-        Ok(CallToolResult::success(vec![Content::text(to_json_text(
-            &response,
-        )?)]))
-    }
-
     async fn do_describe_ontology(
         &self,
-        params: DescribeOntologyParams,
+        _params: DescribeOntologyParams,
     ) -> Result<CallToolResult, McpError> {
         metrics::counter!(
             "mcp_tool_invocations_total",
@@ -783,12 +638,9 @@ impl OntosyxMcpServer {
         )
         .increment(1);
         let _duration_guard = DurationGuard::new("ontosyx_describe_ontology", Instant::now());
-        info!(
-            ontology = %params.ontology_name,
-            "MCP: ontosyx_describe_ontology invoked"
-        );
+        info!("MCP: ontosyx_describe_ontology invoked");
 
-        let ontology = load_ontology(self.store.as_ref(), &params.ontology_name).await?;
+        let ontology = load_ontology(self.store.as_ref()).await?;
 
         let nodes: Vec<NodeSummary> = ontology
             .node_types()
@@ -844,7 +696,6 @@ impl OntosyxMcpServer {
             .collect();
 
         info!(
-            ontology = %params.ontology_name,
             node_count = nodes.len(),
             edge_count = edges.len(),
             "MCP: ontosyx_describe_ontology completed"
@@ -873,13 +724,9 @@ impl OntosyxMcpServer {
             ExportFormat::Mermaid => "mermaid",
         };
 
-        info!(
-            ontology = %params.ontology_name,
-            format = format_name,
-            "MCP: ontosyx_export invoked"
-        );
+        info!(format = format_name, "MCP: ontosyx_export invoked");
 
-        let ontology = load_ontology(self.store.as_ref(), &params.ontology_name).await?;
+        let ontology = load_ontology(self.store.as_ref()).await?;
 
         let content = match params.format {
             ExportFormat::Cypher => ox_compiler::export::generate_cypher_ddl(&ontology),
@@ -889,7 +736,6 @@ impl OntosyxMcpServer {
         };
 
         info!(
-            ontology = %params.ontology_name,
             format = format_name,
             content_len = content.len(),
             "MCP: ontosyx_export completed"
@@ -955,13 +801,14 @@ impl OntosyxMcpServer {
                 McpError::internal_error("Graph database not connected".to_string(), None)
             })?;
 
-        // Optional ontology gate — mirrors `ontosyx_query`: if the caller
-        // supplied `ontology_name`, load it and thread the task-local so
-        // the OntologyValidator runs. No name → raw path (safety +
-        // workspace-scope only).
-        let ontology = match &params.ontology_name {
-            Some(name) => Some(Arc::new(load_ontology(self.store.as_ref(), name).await?)),
-            None => None,
+        // Optional ontology gate — mirrors `ontosyx_query`: when the
+        // caller asks for it, load the workspace's canonical ontology
+        // and thread the task-local so the OntologyValidator runs.
+        // Off → raw path (safety + workspace-scope only).
+        let ontology = if params.validate_against_ontology {
+            Some(Arc::new(load_ontology(self.store.as_ref()).await?))
+        } else {
+            None
         };
 
         let empty_params: HashMap<String, PropertyValue> = HashMap::new();
