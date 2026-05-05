@@ -195,7 +195,7 @@ function VersionNode({
         </div>
       </div>
       {drafts.length > 0 ? (
-        <ul className="ml-6 border-l border-divider pl-4 pb-3">
+        <ul className="ms-6 border-s border-divider ps-4 pb-3">
           <li className="mb-1 text-2xs font-medium uppercase tracking-wide text-foreground-muted">
             {draftLabel} · {drafts.length}
           </li>

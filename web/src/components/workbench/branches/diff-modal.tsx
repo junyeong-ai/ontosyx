@@ -58,7 +58,7 @@ function ModifiedNodeSection({ items }: { items: DiffModifiedNode[] }) {
               <button
                 type="button"
                 onClick={() => toggle(n.node_id)}
-                className="flex w-full items-baseline justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-surface-inset"
+                className="flex w-full items-baseline justify-between gap-3 px-3 py-2 text-start text-xs hover:bg-surface-inset"
                 aria-expanded={isOpen}
               >
                 <span className="font-medium">{n.label || n.node_id}</span>
@@ -108,7 +108,7 @@ function ModifiedEdgeSection({ items }: { items: DiffModifiedEdge[] }) {
               <button
                 type="button"
                 onClick={() => toggle(e.edge_id)}
-                className="flex w-full items-baseline justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-surface-inset"
+                className="flex w-full items-baseline justify-between gap-3 px-3 py-2 text-start text-xs hover:bg-surface-inset"
                 aria-expanded={isOpen}
               >
                 <span className="font-medium">{e.label || e.edge_id}</span>

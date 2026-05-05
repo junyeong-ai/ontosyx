@@ -210,11 +210,11 @@ export default function EvaluationPage() {
           <table className="w-full text-sm">
             <thead className="bg-surface-inset text-2xs font-medium uppercase tracking-wide text-foreground-muted">
               <tr>
-                <th className="px-4 py-2 text-left">{t("table.name")}</th>
-                <th className="px-4 py-2 text-left">{t("table.status")}</th>
-                <th className="px-4 py-2 text-left">{t("table.startedAt")}</th>
-                <th className="px-4 py-2 text-left">{t("table.completedAt")}</th>
-                <th className="px-4 py-2 text-right">{t("table.actions")}</th>
+                <th className="px-4 py-2 text-start">{t("table.name")}</th>
+                <th className="px-4 py-2 text-start">{t("table.status")}</th>
+                <th className="px-4 py-2 text-start">{t("table.startedAt")}</th>
+                <th className="px-4 py-2 text-start">{t("table.completedAt")}</th>
+                <th className="px-4 py-2 text-end">{t("table.actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-divider">
@@ -247,7 +247,7 @@ export default function EvaluationPage() {
                   <td className="px-4 py-2 text-foreground-muted tabular-nums">
                     {run.completed_at ? formatTimestamp(run.completed_at) : "—"}
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-end">
                     <div className="flex justify-end gap-2">
                       {run.status === "running" ? (
                         <Button

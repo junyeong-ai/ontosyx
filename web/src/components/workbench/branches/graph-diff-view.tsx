@@ -189,7 +189,7 @@ export function GraphDiffView({ diff }: GraphDiffViewProps) {
         <Legend status="removed" label={t("legend.removed")} />
         <Legend status="modified" label={t("legend.modified")} />
         <Legend status="added" label={t("legend.added")} />
-        <span className="ml-auto text-foreground-muted tabular-nums">
+        <span className="ms-auto text-foreground-muted tabular-nums">
           {t("counts", {
             nodes: nodes.length,
             edges: edges.length,

@@ -91,7 +91,7 @@ function ConflictAxisLine({ axis }: { axis: ConflictAxis }) {
           <span>
             {t("axis.propertyOverlap", { name: axis.property_name })}
           </span>
-          <ul className="ml-4 mt-1 list-disc space-y-0.5 text-foreground-muted">
+          <ul className="ms-4 mt-1 list-disc space-y-0.5 text-foreground-muted">
             {axis.atoms.map((atom, idx) => (
               <PropertyAtomLine key={idx} atom={atom} />
             ))}
@@ -204,7 +204,7 @@ function ConflictRow({ conflict }: { conflict: RebaseConflict }) {
             </span>
           </div>
           {conflict.axes.length > 0 && (
-            <ul className="mt-2 ml-2 space-y-1 text-foreground-muted">
+            <ul className="mt-2 ms-2 space-y-1 text-foreground-muted">
               {conflict.axes.map((axis, idx) => (
                 <ConflictAxisLine key={idx} axis={axis} />
               ))}

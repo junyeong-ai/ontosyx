@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
-import { SettingsInput, SettingsSelect } from "@/components/ui/form-input";
+import { FormTextarea, SettingsInput, SettingsSelect } from "@/components/ui/form-input";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import type {
@@ -263,13 +263,13 @@ export default function EvaluationDetailPage({
             {t("detail.bulk.description")}
           </p>
           <div className="mt-3 flex flex-col gap-3">
-            <textarea
+            <FormTextarea
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
               placeholder={t("detail.bulk.placeholder")}
               spellCheck={false}
               rows={6}
-              className="w-full rounded-lg border border-divider bg-surface-inset px-3 py-2 font-mono text-xs text-foreground focus:border-brand-border focus:outline-none focus:ring-1 focus:ring-brand-border"
+              className="w-full font-mono"
             />
             <div className="flex justify-end">
               <Button
@@ -309,7 +309,7 @@ export default function EvaluationDetailPage({
                       type="button"
                       onClick={() => setActiveCase(c)}
                       className={cn(
-                        "flex w-full items-baseline justify-between gap-3 px-4 py-2 text-left hover:bg-surface-inset",
+                        "flex w-full items-baseline justify-between gap-3 px-4 py-2 text-start hover:bg-surface-inset",
                         selectedCase?.id === c.id && "bg-surface-inset",
                       )}
                     >

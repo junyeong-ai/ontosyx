@@ -82,7 +82,7 @@ export function NodeChangeList({ changes }: { changes: NodeChange[] }) {
                   {t("change.propertyModified", { name: c.property_name })}
                 </span>
                 {c.changes.length > 0 && (
-                  <ul className="mt-1 ml-4 list-disc space-y-0.5 text-foreground-muted">
+                  <ul className="mt-1 ms-4 list-disc space-y-0.5 text-foreground-muted">
                     {c.changes.map((sub, subIdx) => (
                       <li key={subIdx}>{renderPropertyChange(sub, t)}</li>
                     ))}
@@ -173,7 +173,7 @@ export function EdgeChangeList({ changes }: { changes: EdgeChange[] }) {
                   {t("change.propertyModified", { name: c.property_name })}
                 </span>
                 {c.changes.length > 0 && (
-                  <ul className="mt-1 ml-4 list-disc space-y-0.5 text-foreground-muted">
+                  <ul className="mt-1 ms-4 list-disc space-y-0.5 text-foreground-muted">
                     {c.changes.map((sub, subIdx) => (
                       <li key={subIdx}>{renderPropertyChange(sub, t)}</li>
                     ))}
