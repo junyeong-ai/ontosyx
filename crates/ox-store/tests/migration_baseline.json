@@ -1,0 +1,6 @@
+{
+  "0001_schema.sql": "71690e1595fae3218e83feea6947223910ce7f60bc52317d2fb78c67bd2c4431",
+  "0002_draft_cluster_checkpoints.sql": "546872ebfdef710d12f826f51ab0e134d31e9e5a821089a309027929bd8a2698",
+  "0003_analysis_scope.sql": "6c88677d7e99255ebe0414329be6c7b36e7ecb9cc720b6e19015195ca8db54db",
+  "0004_workspace_isolation.sql": "44f06b792167812af1fb8e11c2f878cff7a9dcfa53bfb2a670aac690ace00569"
+}

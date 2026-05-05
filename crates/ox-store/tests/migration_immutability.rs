@@ -7,20 +7,29 @@
 //! checksum mismatch and refuses to start. Mirroring the platform-
 //! standard advice: migrations are append-only.
 //!
-//! This test pins the SHA-256 of each historical migration file in
-//! source. A future PR that edits one fails the test and forces the
-//! author to either:
+//! ## Self-bootstrapping baseline
 //!
-//! - Revert the edit and add a new migration file instead (the
-//!   right answer for schema evolution), OR
-//! - Update the pinned hash explicitly (the rare answer when a
-//!   migration file is structurally identical but cosmetically
-//!   reformatted — e.g. trailing-whitespace cleanup; the explicit
-//!   update marks the change as deliberate).
+//! The pinned hashes live in `tests/migration_baseline.json` —
+//! a git-tracked JSON file mapping `<filename>.sql → sha256(hex)`.
+//! Two flows:
 //!
-//! The test is intentionally not gated on a database fixture: it
-//! reads files off disk and compares hashes. Runs in the default
-//! `cargo test` so every PR sees the gate.
+//! - **Default**: every PR runs `cargo test --test migration_immutability`
+//!   and the gate compares each `migrations/NNNN_*.sql` file against
+//!   its baseline entry. A hash mismatch means a sealed file was
+//!   edited (forbidden); a missing entry means a new migration
+//!   landed without baseline registration.
+//!
+//! - **Bootstrap**: when adding a new migration, set
+//!   `OX_UPDATE_MIGRATION_BASELINE=1` and re-run the test. The
+//!   baseline file is regenerated from the current state of
+//!   `migrations/` and the test passes. Commit the baseline diff
+//!   alongside the new SQL file. The diff in the PR documents the
+//!   deliberate registration; review can sanity-check the new entry
+//!   without the author hand-copying a hex hash.
+//!
+//! Same pattern as `web/scripts/heading-primitive-audit.mjs`'s
+//! baseline ratchet, kept in sync so contributors learn one mental
+//! model for "ratcheted invariant + JSON baseline" across the repo.
 //!
 //! Why not split `0001_schema.sql`? It would mutate every
 //! historical hash, break every existing deployment on the next
@@ -33,11 +42,17 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
 const MIGRATIONS_DIR: &str = "migrations";
+const BASELINE_FILE: &str = "tests/migration_baseline.json";
+const UPDATE_ENV: &str = "OX_UPDATE_MIGRATION_BASELINE";
+
+fn manifest_path(rel: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)
+}
 
 fn hash_file(path: &Path) -> String {
     let bytes = std::fs::read(path)
@@ -50,89 +65,162 @@ fn hash_file(path: &Path) -> String {
     })
 }
 
-/// Pinned SHA-256 of every applied historical migration. The
-/// constant is the source of truth — adding a new migration file
-/// extends this map; editing an existing file changes its hash and
-/// must be paired with an explicit update here.
-fn expected_hashes() -> BTreeMap<&'static str, &'static str> {
-    let mut m = BTreeMap::new();
-    m.insert(
-        "0001_schema.sql",
-        "71690e1595fae3218e83feea6947223910ce7f60bc52317d2fb78c67bd2c4431",
-    );
-    m.insert(
-        "0002_draft_cluster_checkpoints.sql",
-        "546872ebfdef710d12f826f51ab0e134d31e9e5a821089a309027929bd8a2698",
-    );
-    m.insert(
-        "0003_analysis_scope.sql",
-        "6c88677d7e99255ebe0414329be6c7b36e7ecb9cc720b6e19015195ca8db54db",
-    );
-    m.insert(
-        "0004_workspace_isolation.sql",
-        "44f06b792167812af1fb8e11c2f878cff7a9dcfa53bfb2a670aac690ace00569",
-    );
-    m
+/// Hash every `NNNN_*.sql` file under `migrations/`. Returns a
+/// sorted map for stable JSON output. The directory walk is the
+/// single source of truth for "which files exist"; the baseline
+/// file is the source of truth for "what their hashes were when
+/// last sanctioned".
+fn current_hashes() -> BTreeMap<String, String> {
+    let dir = manifest_path(MIGRATIONS_DIR);
+    let entries = std::fs::read_dir(&dir)
+        .unwrap_or_else(|e| panic!("read_dir {} failed: {e}", dir.display()));
+    let mut out: BTreeMap<String, String> = BTreeMap::new();
+    for entry in entries {
+        let entry = entry.expect("dir entry");
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy().into_owned();
+        if !looks_like_migration(&name_str) {
+            // Strays are surfaced by the sibling test —
+            // `migrations_directory_has_no_strays` — so skip
+            // silently here rather than mixing the two failure
+            // modes into one assertion.
+            continue;
+        }
+        out.insert(name_str, hash_file(&entry.path()));
+    }
+    out
+}
+
+/// Read the baseline JSON. The test's hard-fails on parse error
+/// rather than treating it as "no baseline" — a missing file is
+/// distinct from a corrupt one (the former invites bootstrap, the
+/// latter is a code-review error).
+fn read_baseline() -> BTreeMap<String, String> {
+    let path = manifest_path(BASELINE_FILE);
+    let raw = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+        panic!(
+            "Reading {} failed: {e}\n\
+             First-time setup: create the file with `{{}}` and re-run \
+             with {UPDATE_ENV}=1 to populate it from the current \
+             migrations/ directory.",
+            path.display()
+        )
+    });
+    serde_json::from_str(&raw).unwrap_or_else(|e| {
+        panic!(
+            "Parsing {} as JSON failed: {e}\n\
+             The baseline file is a `{{ \"<filename>.sql\": \"<sha256-hex>\" }}` \
+             map; restore the file or regenerate via {UPDATE_ENV}=1.",
+            path.display()
+        )
+    })
+}
+
+/// Write the baseline JSON. Pretty-printed with two-space indent
+/// and a trailing newline so the file diff is readable when a PR
+/// adds a migration.
+fn write_baseline(map: &BTreeMap<String, String>) {
+    let path = manifest_path(BASELINE_FILE);
+    // `serde_json::to_string_pretty` renders BTreeMap entries in
+    // key order, matching the file's existing layout. The trailing
+    // newline keeps the file POSIX-clean.
+    let mut json = serde_json::to_string_pretty(map).expect("serialize baseline");
+    json.push('\n');
+    std::fs::write(&path, json)
+        .unwrap_or_else(|e| panic!("write {} failed: {e}", path.display()));
 }
 
 #[test]
 fn historical_migrations_are_immutable() {
-    // The expected hashes are placeholders below — first run of
-    // this test will fail and report the actual hashes. Update the
-    // map to those values, commit, and the gate is armed: future
-    // edits surface as a hash mismatch with a clear remediation
-    // hint pointing at the test file itself.
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(MIGRATIONS_DIR);
-    let expected = expected_hashes();
+    let current = current_hashes();
+    let bootstrap = std::env::var(UPDATE_ENV).is_ok();
+
+    if bootstrap {
+        // Bootstrap mode: write the current state as the new
+        // baseline, then succeed. The PR diff records the change
+        // so a reviewer sees exactly what was registered.
+        write_baseline(&current);
+        return;
+    }
+
+    let expected = read_baseline();
 
     let mut mismatches: Vec<String> = Vec::new();
+    let mut missing_in_baseline: Vec<String> = Vec::new();
     let mut missing_files: Vec<String> = Vec::new();
-    for (name, want) in &expected {
-        let path = dir.join(name);
-        if !path.exists() {
-            missing_files.push((*name).to_string());
-            continue;
-        }
-        let got = hash_file(&path);
-        if got != *want {
-            mismatches.push(format!(
+
+    // Compare existing files to the baseline.
+    for (name, got) in &current {
+        match expected.get(name) {
+            None => missing_in_baseline.push(name.clone()),
+            Some(want) if want != got => mismatches.push(format!(
                 "  {name}\n    expected: {want}\n    actual:   {got}"
-            ));
+            )),
+            _ => {}
+        }
+    }
+    // Catch baseline entries with no corresponding file (deletion
+    // of a sealed migration is also forbidden).
+    for name in expected.keys() {
+        if !current.contains_key(name) {
+            missing_files.push(name.clone());
         }
     }
 
-    // Surface the actual hashes when the gate is freshly armed —
-    // the placeholder values in the map intentionally don't match,
-    // so the first CI run prints the values to copy-paste in.
-    if !mismatches.is_empty() || !missing_files.is_empty() {
-        let mut msg = String::from(
-            "Migration immutability gate\n\n\
-             Either a historical migration was edited (forbidden — \
-             schema evolution lands as a NEW file) or the pinned hashes \
-             in `tests/migration_immutability.rs` need to be updated \
-             after a deliberate restructure.\n\n",
-        );
-        if !mismatches.is_empty() {
-            msg.push_str("Hash mismatches:\n");
-            for line in &mismatches {
-                msg.push_str(line);
-                msg.push('\n');
-            }
-        }
-        if !missing_files.is_empty() {
-            msg.push_str("\nMissing files (deletion forbidden):\n");
-            for f in &missing_files {
-                msg.push_str(&format!("  {f}\n"));
-            }
-        }
-        msg.push_str(
-            "\nThe right move for schema evolution is `NNNN_<focus>.sql` \
-             with N == max(existing) + 1. Append-only is the contract \
-             sqlx-migrate enforces at runtime — failing this test now \
-             prevents a deployment-breaking checksum mismatch later.",
-        );
-        panic!("{msg}");
+    if mismatches.is_empty()
+        && missing_in_baseline.is_empty()
+        && missing_files.is_empty()
+    {
+        return;
     }
+
+    let mut msg = String::from("Migration immutability gate\n\n");
+    if !mismatches.is_empty() {
+        msg.push_str(
+            "Hash mismatches (a sealed migration file was edited — \
+             forbidden, schema evolution lands as a NEW file):\n",
+        );
+        for line in &mismatches {
+            msg.push_str(line);
+            msg.push('\n');
+        }
+        msg.push('\n');
+    }
+    if !missing_in_baseline.is_empty() {
+        msg.push_str(
+            "New migration(s) not yet registered in the baseline:\n",
+        );
+        for name in &missing_in_baseline {
+            msg.push_str("  ");
+            msg.push_str(name);
+            msg.push('\n');
+        }
+        msg.push('\n');
+    }
+    if !missing_files.is_empty() {
+        msg.push_str(
+            "Files in the baseline but missing from migrations/ \
+             (deletion of a sealed migration is forbidden):\n",
+        );
+        for name in &missing_files {
+            msg.push_str("  ");
+            msg.push_str(name);
+            msg.push('\n');
+        }
+        msg.push('\n');
+    }
+    msg.push_str(&format!(
+        "Remediation:\n  \
+         - For a NEW migration: re-run with `{UPDATE_ENV}=1 cargo test \
+         --test migration_immutability` to register it in the baseline, \
+         then commit the baseline diff alongside the SQL file.\n  \
+         - For an UNINTENDED edit: revert the change and add a fresh \
+         `NNNN_<focus>.sql` instead.\n  \
+         - For a deliberate cosmetic restructure (rare — only when sqlx \
+         migration metadata is unaffected): re-run with `{UPDATE_ENV}=1` \
+         and explicitly call out the rationale in the PR description.\n"
+    ));
+    panic!("{msg}");
 }
 
 /// `sqlx-migrate` reads files matching `^\d{4}_.*\.sql$`. Anything
@@ -160,14 +248,14 @@ fn looks_like_migration(name: &str) -> bool {
         .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
-/// Every file in `migrations/` is either pinned in `expected_hashes`
+/// Every file in `migrations/` is either pinned in the baseline
 /// (historical, immutable) or matches a `NNNN_*.sql` naming pattern
 /// for a future migration. Catches accidental scratch files
 /// (`0001_schema.sql.bak`, `temp.sql`, etc.) before they confuse
 /// `sqlx-migrate`.
 #[test]
 fn migrations_directory_has_no_strays() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(MIGRATIONS_DIR);
+    let dir = manifest_path(MIGRATIONS_DIR);
     let entries = std::fs::read_dir(&dir)
         .unwrap_or_else(|e| panic!("read_dir {} failed: {e}", dir.display()));
 

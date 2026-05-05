@@ -62,10 +62,24 @@ checksum check on the next deploy. Schema evolution lands as a
 fresh `NNNN_<focus>.sql` (N == max(existing) + 1).
 
 The `migration_immutability` test pins every historical file's
-hash. Editing a migration file fails the test with the expected vs.
-actual hash printed for diagnosis. Adding a new migration extends
-`expected_hashes()` in the same test — first run prints the hash
-to copy in.
+hash through `tests/migration_baseline.json` — a git-tracked map
+of `<filename>.sql → sha256(hex)`. Editing a sealed file fails the
+test with the expected vs. actual hash printed for diagnosis.
+Adding a new migration is a one-liner:
+
+```
+OX_UPDATE_MIGRATION_BASELINE=1 cargo test --test migration_immutability
+```
+
+The baseline regenerates from the current state of `migrations/`,
+the test passes, and the resulting `migration_baseline.json` diff
+gets committed alongside the new SQL file. No hand-copying hex
+hashes, but the deliberate registration is still visible in the
+PR diff.
+
+Same self-bootstrapping baseline pattern as
+`web/scripts/heading-primitive-audit.mjs` — one mental model for
+"ratcheted invariant + JSON baseline" across the repo.
 
 The `migrations_directory_has_no_strays` test rejects anything that
 doesn't match `^\d{4}_[a-z0-9_]+\.sql$` — catches editor backups

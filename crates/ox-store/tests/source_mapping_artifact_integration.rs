@@ -161,6 +161,7 @@ fn ontology_with_user_node(source: &str) -> OntologyIR {
         relation: "users".into(),
         relation_kind: SourceRelationKind::default(),
         primary_key_columns: Vec::new(),
+        partition_columns: Vec::new(),
         row_filter: None,
         property_mappings: vec![PropertyMappingDef {
             property_id: "prop-id".into(),
@@ -173,7 +174,7 @@ fn ontology_with_user_node(source: &str) -> OntologyIR {
             concept_map_id: None,
         }],
         workspace_scope: None,
-        precedence: u8::MAX,
+        precedence: u32::MAX,
         valid_from: None,
         valid_to: None,
         cache_hint: CacheHintKind::default(),
