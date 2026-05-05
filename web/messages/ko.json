@@ -2209,6 +2209,7 @@
         "models": "모델",
         "prompts": "프롬프트",
         "quality": "품질",
+        "evaluation": "평가",
         "governance": "거버넌스",
         "accessControl": "접근 제어",
         "routingMatrix": "변경 라우팅",
@@ -2907,6 +2908,38 @@
           "versionCreated": "v{version} 버전이 생성되었습니다",
           "versionCreateFailed": "버전 생성에 실패했습니다"
         }
+      }
+    },
+    "evaluation": {
+      "title": "평가",
+      "description": "RAGAS 스타일 메트릭 루프 — 실행/케이스/루브릭 축별로 모델 품질을 측정합니다.",
+      "adminOnly": "관리자 권한이 필요합니다",
+      "emptyTitle": "평가 실행이 없습니다",
+      "emptyDescription": "POST /api/evaluation/runs 로 실행을 생성해 모델 품질 측정을 시작하세요.",
+      "table": {
+        "name": "실행",
+        "status": "상태",
+        "startedAt": "시작",
+        "completedAt": "완료"
+      },
+      "status": {
+        "running": "진행 중",
+        "succeeded": "성공",
+        "failed": "실패",
+        "cancelled": "취소됨"
+      },
+      "detail": {
+        "casesTitle": "케이스",
+        "casesDescription": "각 (입력, 기대, 실제) 튜플. 데이터셋 재실행은 `(run_id, case_key)` 기준으로 이전 행을 대체합니다.",
+        "metricsTitle": "메트릭",
+        "metricsDescription": "축별 루브릭 점수. RAGAS 기본 + 테넌트 정의 메트릭이 같은 컬럼을 공유합니다.",
+        "noCases": "이 실행에 기록된 케이스가 없습니다.",
+        "noMetrics": "이 케이스에 기록된 메트릭이 없습니다.",
+        "caseKey": "케이스",
+        "latency": "지연",
+        "latencyMs": "{ms} ms",
+        "noLatency": "—",
+        "errorLabel": "오류"
       }
     },
     "quality": {

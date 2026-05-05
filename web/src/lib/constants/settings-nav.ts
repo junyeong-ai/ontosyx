@@ -5,6 +5,7 @@ import {
   CpuIcon,
   ShieldCheck,
   SecurityCheckIcon,
+  TestTube01Icon,
 } from "@hugeicons/core-free-icons";
 
 export interface NavItem {
@@ -67,6 +68,12 @@ export const SETTINGS_NAV_GROUPS: readonly NavGroup[] = [
     titleKey: "quality",
     icon: ShieldCheck,
     href: "/settings/quality",
+    items: [],
+  },
+  {
+    titleKey: "evaluation",
+    icon: TestTube01Icon,
+    href: "/settings/evaluation",
     items: [],
   },
   {

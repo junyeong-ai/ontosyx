@@ -1,0 +1,98 @@
+import { request } from "./client";
+import type {
+  CompleteEvaluationRunRequest,
+  CreateEvaluationRunRequest,
+  EvaluationCase,
+  EvaluationMetric,
+  EvaluationRun,
+  EvaluationRunListPage,
+  RecordEvaluationMetricRequest,
+  UpsertEvaluationCaseRequest,
+} from "@/types/evaluation";
+
+const RUNS = "/evaluation/runs";
+
+export interface ListEvaluationRunsParams {
+  cursor?: string;
+  limit?: number;
+}
+
+export async function listEvaluationRuns(
+  params: ListEvaluationRunsParams = {},
+): Promise<EvaluationRunListPage> {
+  const qs = new URLSearchParams();
+  if (params.cursor) qs.set("cursor", params.cursor);
+  if (params.limit) qs.set("limit", String(params.limit));
+  const suffix = qs.toString() ? `?${qs}` : "";
+  return request<EvaluationRunListPage>(`${RUNS}${suffix}`);
+}
+
+export async function getEvaluationRun(id: string): Promise<EvaluationRun> {
+  const res = await request<{ run: EvaluationRun }>(
+    `${RUNS}/${encodeURIComponent(id)}`,
+  );
+  return res.run;
+}
+
+export async function createEvaluationRun(
+  req: CreateEvaluationRunRequest,
+): Promise<EvaluationRun> {
+  const res = await request<{ run: EvaluationRun }>(RUNS, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+  return res.run;
+}
+
+export async function completeEvaluationRun(
+  id: string,
+  req: CompleteEvaluationRunRequest,
+): Promise<EvaluationRun> {
+  const res = await request<{ run: EvaluationRun }>(
+    `${RUNS}/${encodeURIComponent(id)}/complete`,
+    { method: "POST", body: JSON.stringify(req) },
+  );
+  return res.run;
+}
+
+export async function deleteEvaluationRun(id: string): Promise<void> {
+  await request(`${RUNS}/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function upsertEvaluationCase(
+  runId: string,
+  req: UpsertEvaluationCaseRequest,
+): Promise<EvaluationCase> {
+  const res = await request<{ case: EvaluationCase }>(
+    `${RUNS}/${encodeURIComponent(runId)}/cases`,
+    { method: "PUT", body: JSON.stringify(req) },
+  );
+  return res.case;
+}
+
+export async function listEvaluationCases(
+  runId: string,
+): Promise<EvaluationCase[]> {
+  return request<EvaluationCase[]>(
+    `${RUNS}/${encodeURIComponent(runId)}/cases`,
+  );
+}
+
+export async function recordEvaluationMetric(
+  caseId: string,
+  req: RecordEvaluationMetricRequest,
+): Promise<EvaluationMetric> {
+  const res = await request<{ metric: EvaluationMetric }>(
+    `/evaluation/cases/${encodeURIComponent(caseId)}/metrics`,
+    { method: "PUT", body: JSON.stringify(req) },
+  );
+  return res.metric;
+}
+
+export async function listEvaluationMetrics(
+  caseId: string,
+): Promise<EvaluationMetric[]> {
+  return request<EvaluationMetric[]>(
+    `/evaluation/cases/${encodeURIComponent(caseId)}/metrics`,
+  );
+}
