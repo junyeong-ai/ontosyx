@@ -369,6 +369,14 @@ pub struct DesignProject {
     /// FK to `ontologies.id` — the logical ontology identity this project
     /// was completed into. `None` until the design is completed.
     pub ontology_id: Option<Uuid>,
+    /// FK to `ontology_version_snapshots.id` — the canonical version
+    /// the project's in-flight `ontology` JSONB was branched from.
+    /// `complete_design_project` compares this against the canonical
+    /// head and refuses the commit if they diverge, forcing the
+    /// operator to rebase before retry. `None` for greenfield
+    /// projects whose first commit creates the canonical's first
+    /// version.
+    pub parent_version_id: Option<Uuid>,
     /// History of data sources added to this project
     pub source_history: serde_json::Value,
     pub created_at: DateTime<Utc>,

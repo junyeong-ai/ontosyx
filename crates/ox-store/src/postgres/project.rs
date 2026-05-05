@@ -12,9 +12,9 @@ impl ProjectStore for PostgresStore {
              (id, user_id, status, revision, title, source_config, source_id,
               source_data, source_schema, source_profile, analysis_report,
               design_options, analysis_scope, ontology, quality_report,
-              source_history, analyzed_at)
+              source_history, analyzed_at, parent_version_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                     $14, $15, $16, $17)",
+                     $14, $15, $16, $17, $18)",
         )
         .bind(project.id)
         .bind(&project.user_id)
@@ -33,6 +33,7 @@ impl ProjectStore for PostgresStore {
         .bind(&project.quality_report)
         .bind(&project.source_history)
         .bind(project.analyzed_at)
+        .bind(project.parent_version_id)
         .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;
