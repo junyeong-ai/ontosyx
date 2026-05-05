@@ -18,10 +18,14 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
-import { SettingsInput } from "@/components/ui/form-input";
+import { SettingsInput, SettingsSelect } from "@/components/ui/form-input";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
-import type { EvaluationCase } from "@/types/evaluation";
+import type {
+  EvaluationCase,
+  ExecuteEvaluationCaseRequest,
+  ExecuteOperationKind,
+} from "@/types/evaluation";
 
 interface EvaluationDetailPageProps {
   params: Promise<{ id: string }>;
@@ -40,6 +44,8 @@ export default function EvaluationDetailPage({
   const metricsQuery = useEvaluationMetrics(activeCase?.id ?? null);
   const execute = useExecuteEvaluationCase(id);
   const judge = useJudgeEvaluationCase();
+  const [executeKind, setExecuteKind] =
+    useState<ExecuteOperationKind>("translate_query");
   const [executeCaseKey, setExecuteCaseKey] = useState("");
   const [executeQuestion, setExecuteQuestion] = useState("");
   const canExecute =
@@ -48,13 +54,15 @@ export default function EvaluationDetailPage({
     !execute.isPending;
   const onExecute = () => {
     const caseKey = executeCaseKey.trim();
+    const question = executeQuestion.trim();
+    const request: ExecuteEvaluationCaseRequest =
+      executeKind === "translate_query"
+        ? { kind: "translate_query", question }
+        : { kind: "explain", question };
     execute.mutate(
       {
         caseKey,
-        request: {
-          kind: "translate_query",
-          question: executeQuestion.trim(),
-        },
+        request,
       },
       {
         onSuccess: () => {
@@ -134,7 +142,21 @@ export default function EvaluationDetailPage({
           <p className="mt-1 text-xs text-foreground-muted">
             {t("detail.execute.description")}
           </p>
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_3fr_auto] md:items-end">
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[2fr_1fr_3fr_auto] md:items-end">
+            <SettingsSelect
+              label={t("detail.execute.kindLabel")}
+              value={executeKind}
+              onChange={(e) =>
+                setExecuteKind(e.target.value as ExecuteOperationKind)
+              }
+            >
+              <option value="translate_query">
+                {t("detail.execute.kindOption.translateQuery")}
+              </option>
+              <option value="explain">
+                {t("detail.execute.kindOption.explain")}
+              </option>
+            </SettingsSelect>
             <SettingsInput
               label={t("detail.execute.caseKeyLabel")}
               placeholder={t("detail.execute.caseKeyPlaceholder")}

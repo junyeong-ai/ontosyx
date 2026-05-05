@@ -443,6 +443,44 @@ pub enum ExecuteEvaluationCaseRequest {
         #[schema(value_type = Option<Object>)]
         expected_query_ir: Option<serde_json::Value>,
     },
+    /// Free-form natural-language explanation. Does not require
+    /// a canonical ontology — useful for evaluating chat-style
+    /// answer quality independent of the schema.
+    Explain {
+        question: String,
+        /// Optional reference answer for downstream comparison.
+        #[serde(default)]
+        expected_answer: Option<String>,
+    },
+}
+
+impl ExecuteEvaluationCaseRequest {
+    /// True when the dispatch needs the workspace's canonical
+    /// ontology + IR loaded. Drives the up-front load in stage 1
+    /// of the handler — operations that don't need an ontology
+    /// (chat explain, generic LLM probes) skip the load and run
+    /// during the greenfield phase.
+    fn requires_canonical_ontology(&self) -> bool {
+        matches!(self, Self::TranslateQuery { .. })
+    }
+
+    fn question(&self) -> &str {
+        match self {
+            Self::TranslateQuery { question, .. } => question,
+            Self::Explain { question, .. } => question,
+        }
+    }
+
+    fn expected_value(&self) -> Option<serde_json::Value> {
+        match self {
+            Self::TranslateQuery {
+                expected_query_ir, ..
+            } => expected_query_ir.clone(),
+            Self::Explain {
+                expected_answer, ..
+            } => expected_answer.clone().map(serde_json::Value::String),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -477,36 +515,38 @@ pub(crate) async fn execute_evaluation_case(
 ) -> Result<Json<ApiResponse<ExecuteEvaluationCaseResponse>>, AppError> {
     principal.require_admin()?;
 
-    // Resolve the workspace ontology + IR up front so an error
-    // here surfaces before the case row is touched. The case
-    // input is persisted regardless — the operator should see
-    // their input on the case page even if the brain call later
-    // fails (the resulting `error` field on the case row carries
-    // the failure reason for triage).
-    let ir = match &req {
-        ExecuteEvaluationCaseRequest::TranslateQuery { .. } => {
-            let identity = state
-                .store
-                .get_workspace_ontology()
-                .await
-                .map_err(AppError::from)?
-                .ok_or_else(|| {
-                    AppError::query_ir_invalid(
-                        "workspace has no canonical ontology yet — commit a draft \
-                         before executing translate_query cases"
-                            .to_string(),
-                    )
-                })?;
-            let version = state
-                .store
-                .get_current_version(identity.id)
-                .await
-                .map_err(AppError::from)?
-                .ok_or_else(|| {
-                    AppError::query_ir_invalid(
-                        "workspace ontology has no committed version".to_string(),
-                    )
-                })?;
+    // Resolve the workspace ontology + IR up front for operations
+    // that need it so an error here surfaces before the case row
+    // is touched. Operations that don't (chat explain, generic
+    // LLM probes) skip the load entirely. The case input is
+    // persisted regardless — the operator should see their input
+    // on the case page even if the brain call later fails (the
+    // resulting `error` field on the case row carries the failure
+    // reason for triage).
+    let ir = if req.requires_canonical_ontology() {
+        let identity = state
+            .store
+            .get_workspace_ontology()
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| {
+                AppError::query_ir_invalid(
+                    "workspace has no canonical ontology yet — commit a draft \
+                     before executing translate_query cases"
+                        .to_string(),
+                )
+            })?;
+        let version = state
+            .store
+            .get_current_version(identity.id)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| {
+                AppError::query_ir_invalid(
+                    "workspace ontology has no committed version".to_string(),
+                )
+            })?;
+        Some(
             state
                 .store
                 .get_ontology_ir(version.id)
@@ -516,18 +556,16 @@ pub(crate) async fn execute_evaluation_case(
                     AppError::query_ir_invalid(
                         "workspace ontology snapshot is unavailable".to_string(),
                     )
-                })?
-        }
+                })?,
+        )
+    } else {
+        None
     };
 
     let input_value = serde_json::to_value(&req).map_err(|e| {
         AppError::query_ir_invalid(format!("failed to serialize case input: {e}"))
     })?;
-    let expected_value = match &req {
-        ExecuteEvaluationCaseRequest::TranslateQuery {
-            expected_query_ir, ..
-        } => expected_query_ir.clone(),
-    };
+    let expected_value = req.expected_value();
 
     // Stage 1 — UPSERT the case (input + expected). `actual` /
     // `latency_ms` / `error` are populated in stage 3 after the
@@ -563,6 +601,12 @@ pub(crate) async fn execute_evaluation_case(
     let outcome: Result<serde_json::Value, String> = scope_evaluation_context(ctx, async move {
         match req {
             ExecuteEvaluationCaseRequest::TranslateQuery { question, .. } => {
+                let Some(ir) = ir else {
+                    return Err(
+                        "internal: ontology IR not loaded for translate_query case"
+                            .to_string(),
+                    );
+                };
                 let query_ir = brain
                     .translate_query(
                         &question,
@@ -574,6 +618,13 @@ pub(crate) async fn execute_evaluation_case(
                 serde_json::to_value(&query_ir).map_err(|e| {
                     format!("failed to serialize translate_query output: {e}")
                 })
+            }
+            ExecuteEvaluationCaseRequest::Explain { question, .. } => {
+                let output = brain.explain(&question).await.map_err(|e| e.to_string())?;
+                Ok(serde_json::json!({
+                    "content": output.content,
+                    "model": output.model,
+                }))
             }
         }
     })
@@ -670,16 +721,13 @@ pub(crate) async fn judge_evaluation_case(
     // whichever variant landed; today only `translate_query` is
     // judgeable, but the dispatch matches the execute side so
     // adding a new operation extends both arms together.
-    let parsed: Result<ExecuteEvaluationCaseRequest, _> =
-        serde_json::from_value(case.input.clone());
-    let question = match parsed {
-        Ok(ExecuteEvaluationCaseRequest::TranslateQuery { question, .. }) => question,
-        Err(e) => {
-            return Err(AppError::query_ir_invalid(format!(
+    let parsed: ExecuteEvaluationCaseRequest = serde_json::from_value(case.input.clone())
+        .map_err(|e| {
+            AppError::query_ir_invalid(format!(
                 "case input does not match a known executable shape: {e}"
-            )));
-        }
-    };
+            ))
+        })?;
+    let question = parsed.question().to_string();
 
     let judgement = state
         .brain

@@ -82,12 +82,26 @@ export interface RecordEvaluationMetricRequest {
  * matching backend dispatch arm — the wrapping endpoint /
  * scope / latency-capture flow stays shared.
  */
-export type ExecuteEvaluationCaseRequest = {
-  kind: "translate_query";
-  question: string;
-  /** Optional golden `QueryIR` for downstream judge comparison. */
-  expected_query_ir?: unknown;
-};
+export type ExecuteEvaluationCaseRequest =
+  | {
+      kind: "translate_query";
+      question: string;
+      /** Optional golden `QueryIR` for downstream judge comparison. */
+      expected_query_ir?: unknown;
+    }
+  | {
+      kind: "explain";
+      question: string;
+      /** Optional reference answer for downstream comparison. */
+      expected_answer?: string;
+    };
+
+/** Operation kinds the case-execute endpoint dispatches on. The
+ *  closed union mirrors the BE `ExecuteEvaluationCaseRequest`
+ *  enum — adding a new kind lands as a new wire variant + UI
+ *  choice in lockstep. */
+export const EXECUTE_OPERATION_KINDS = ["translate_query", "explain"] as const;
+export type ExecuteOperationKind = (typeof EXECUTE_OPERATION_KINDS)[number];
 
 export interface CompleteEvaluationRunRequest {
   /** Terminal state — must be `succeeded` / `failed` /

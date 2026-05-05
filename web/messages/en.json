@@ -2959,8 +2959,13 @@
           "noActual": "Run the case first — judge needs `actual` to score against."
         },
         "execute": {
-          "title": "Run a translate_query case",
-          "description": "Translates the question into QueryIR against the workspace's canonical ontology. Latency is captured automatically; the QueryIR lands on the case's `actual` field.",
+          "title": "Run a case",
+          "description": "Runs the selected operation under an evaluation scope. Latency is captured automatically; the operation's output lands on the case's `actual` field.",
+          "kindLabel": "Operation",
+          "kindOption": {
+            "translateQuery": "translate_query — NL → QueryIR (requires canonical ontology)",
+            "explain": "explain — chat-style answer (greenfield friendly)"
+          },
           "caseKeyLabel": "Case key",
           "caseKeyPlaceholder": "q01",
           "questionLabel": "Question",

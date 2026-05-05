@@ -2959,8 +2959,13 @@
           "noActual": "먼저 케이스를 실행하세요 — 판정은 `actual` 이 필요합니다."
         },
         "execute": {
-          "title": "translate_query 케이스 실행",
-          "description": "질문을 워크스페이스의 대표 온톨로지로 QueryIR 변환합니다. 지연은 자동으로 측정되고 QueryIR 은 케이스의 `actual` 필드에 저장됩니다.",
+          "title": "케이스 실행",
+          "description": "선택한 오퍼레이션을 평가 스코프로 실행합니다. 지연은 자동 측정되고 오퍼레이션 출력은 케이스의 `actual` 필드에 저장됩니다.",
+          "kindLabel": "오퍼레이션",
+          "kindOption": {
+            "translateQuery": "translate_query — 자연어 → QueryIR (대표 온톨로지 필요)",
+            "explain": "explain — 챗 스타일 답변 (그린필드 가능)"
+          },
           "caseKeyLabel": "케이스 키",
           "caseKeyPlaceholder": "q01",
           "questionLabel": "질문",
