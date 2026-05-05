@@ -573,6 +573,19 @@ impl CypherValidator for OntologyValidator {
                     if node.labels.is_empty() || node.properties.is_empty() {
                         continue;
                     }
+                    // When every label is unknown, the unknown_label
+                    // diagnostic already covers the situation —
+                    // emitting "property X not defined on label
+                    // Userr" piles redundant noise on top. Skip the
+                    // property walk; the editor lights up on the
+                    // label, which is the actual fix-site.
+                    let any_known_label = node
+                        .labels
+                        .iter()
+                        .any(|label| self.ontology.node_by_label(label).is_some());
+                    if !any_known_label {
+                        continue;
+                    }
                     for (key, _) in &node.properties {
                         if is_system_property(key) {
                             continue;
@@ -624,6 +637,20 @@ impl CypherValidator for OntologyValidator {
                         }
                     }
                     if rel.types.is_empty() || rel.properties.is_empty() {
+                        continue;
+                    }
+                    // When every type is unknown, the unknown_type
+                    // diagnostic above already covers the situation —
+                    // emitting a follow-up property error per inline
+                    // key would just multiply the noise without adding
+                    // signal. Skip the property walk entirely in that
+                    // case; the operator's editor lights up on the
+                    // type, which is the actual fix-site.
+                    let any_known_type = rel
+                        .types
+                        .iter()
+                        .any(|ty| known_edge_labels.contains(ty.as_str()));
+                    if !any_known_type {
                         continue;
                     }
                     for (key, _) in &rel.properties {
@@ -1876,6 +1903,45 @@ mod tests {
             !r.errors().any(|e| e.message.message.contains("foo")),
             "type-less relationship SET must not raise an ontology error: {:?}",
             r.issues
+        );
+    }
+
+    #[test]
+    fn ontology_skips_property_walk_when_every_label_is_unknown() {
+        // `(u:Userr {emial: 'x'})` — unknown_node_label already
+        // tells the operator the real fix-site (the label). Adding
+        // "property emial not defined on label Userr" piles
+        // redundant noise the operator can't act on. Pin the
+        // single-diagnostic behaviour as a regression guard.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(&p, "MATCH (u:Userr {emial: 'x'}) RETURN u");
+        let issue_count = r.errors().count();
+        assert_eq!(
+            issue_count, 1,
+            "exactly one unknown_label issue, no property follow-up: {:?}",
+            r.issues
+        );
+        assert!(r.errors().any(|e| e.message.message.contains("Userr")));
+        assert!(
+            !r.errors().any(|e| e.message.message.contains("emial")),
+            "property error must be suppressed when every label is unknown",
+        );
+    }
+
+    #[test]
+    fn ontology_skips_property_walk_when_every_relationship_type_is_unknown() {
+        // Same noise-suppression policy on the edge side.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (a:Person)-[r:UNKNOWN_REL {since: 2020}]->(b:Company) RETURN r",
+        );
+        assert!(r.errors().any(|e| e.message.message.contains("UNKNOWN_REL")));
+        assert!(
+            !r.errors().any(|e| e.message.message.contains("since")),
+            "edge property error must be suppressed when every type is unknown",
         );
     }
 
