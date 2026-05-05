@@ -37,11 +37,14 @@
 //! Wide aggregates (per-run averages, percentiles) live in
 //! materialised views that ride on the same long shape.
 
+use std::sync::Arc;
+
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use ox_core::error::OxError;
+use ox_core::error::{OxError, OxResult};
 
 /// Status of an [`EvaluationRun`]. Wire shape is the snake_case
 /// string ("running" / "succeeded" / …) so adding a future variant
@@ -196,6 +199,118 @@ fn default_metadata() -> serde_json::Value {
     serde_json::json!({})
 }
 
+// ---------------------------------------------------------------------------
+// EvaluationContext — task-local capture handle
+// ---------------------------------------------------------------------------
+
+/// Per-task evaluation context. When set, callers along the
+/// task's async path can read it through
+/// [`current_evaluation_context`] and route latency / token
+/// observations into [`EvaluationCapture::record_latency`] without
+/// passing the run/case ids by hand.
+///
+/// Only the API endpoint that runs an evaluation case sets this —
+/// production traffic does NOT carry an `EvaluationContext`, so the
+/// capture path is silent for every other request.
+#[derive(Debug, Clone)]
+pub struct EvaluationContext {
+    pub run_id: Uuid,
+    /// Stable per-run case identifier — pairs with `case_id` after
+    /// the case row is created so the capture write keys the metric
+    /// row correctly. Carried as the case's natural key so the
+    /// context is meaningful even before a row exists in
+    /// `evaluation_cases`.
+    pub case_key: String,
+    /// `evaluation_cases.id` for the row this case currently
+    /// occupies. The capture call uses this as the metric's
+    /// `case_id` foreign key. Carried alongside `case_key` because
+    /// the case row may have been UPSERT-replaced between scope
+    /// entry and the capture call — the runtime's responsibility
+    /// is to keep these in lockstep when it re-emits a case mid-
+    /// scope.
+    pub case_id: Uuid,
+}
+
+tokio::task_local! {
+    static EVALUATION_CONTEXT: EvaluationContext;
+}
+
+/// Read the current evaluation context, or `None` when the call
+/// path is not inside an evaluation scope. Callers in production
+/// hot paths should treat the `None` branch as fall-through —
+/// no metric, no overhead.
+pub fn current_evaluation_context() -> Option<EvaluationContext> {
+    EVALUATION_CONTEXT.try_with(|c| c.clone()).ok()
+}
+
+/// Run `fut` inside an evaluation scope. The future and every
+/// task it awaits sees the supplied [`EvaluationContext`] via
+/// [`current_evaluation_context`] until the future resolves.
+///
+/// The scope is per-task — a `tokio::spawn` inside the future
+/// does NOT inherit it (use `spawn_with_evaluation_context`
+/// when a child task must inherit). The same isolation
+/// contract `WORKSPACE_ID` follows.
+pub async fn scope_evaluation_context<F, T>(ctx: EvaluationContext, fut: F) -> T
+where
+    F: std::future::Future<Output = T>,
+{
+    EVALUATION_CONTEXT.scope(ctx, fut).await
+}
+
+// ---------------------------------------------------------------------------
+// EvaluationCapture — pluggable metric emission for runtime hooks
+// ---------------------------------------------------------------------------
+
+/// Pluggable hook that records observations made inside an
+/// evaluation scope. Implementations land where the storage
+/// dependency makes sense (the canonical `EvaluationStore`-backed
+/// impl lives on `PostgresStore`); consumers further up the stack
+/// (e.g. `ox-brain`) hold an `Arc<dyn EvaluationCapture>` and
+/// call through it without knowing whether the bytes flow to a
+/// real DB or a test stub.
+///
+/// The trait deliberately mirrors a *single* metric kind today
+/// (`record_latency`). Future axes (`record_tokens`,
+/// `record_judge_output`) ride on additional methods with
+/// default `noop` impls so a consumer never has to care about
+/// the full surface — only the calls it cares about.
+#[async_trait]
+pub trait EvaluationCapture: Send + Sync {
+    /// Record an LLM-call latency observation against the active
+    /// case under the given `operation` axis. The default impl
+    /// is a noop so a `NullCapture`-style harness can be built
+    /// without writing the full table.
+    async fn record_latency(
+        &self,
+        ctx: &EvaluationContext,
+        operation: &str,
+        latency_ms: i64,
+    ) -> OxResult<()> {
+        let _ = (ctx, operation, latency_ms);
+        Ok(())
+    }
+}
+
+/// `Arc<dyn EvaluationCapture>` that drops every observation on
+/// the floor. The shared default for environments that haven't
+/// wired the storage-backed implementation — production traffic
+/// in workspaces that haven't enabled evaluation, embedded test
+/// harnesses, etc. The `current_evaluation_context()` returning
+/// `None` is the primary silence mechanism; this is the
+/// secondary belt-and-suspenders so a consumer that holds an
+/// `Arc<dyn EvaluationCapture>` always has a valid value.
+pub struct NullEvaluationCapture;
+
+#[async_trait]
+impl EvaluationCapture for NullEvaluationCapture {}
+
+impl NullEvaluationCapture {
+    pub fn arc() -> Arc<dyn EvaluationCapture> {
+        Arc::new(Self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,6 +384,40 @@ mod tests {
         assert!(v.get("actual").is_none());
         assert!(v.get("error").is_none());
         assert!(v.get("latency_ms").is_none());
+    }
+
+    #[tokio::test]
+    async fn evaluation_context_visible_inside_scope() {
+        assert!(current_evaluation_context().is_none());
+        let ctx = EvaluationContext {
+            run_id: Uuid::new_v4(),
+            case_key: "q01".into(),
+            case_id: Uuid::new_v4(),
+        };
+        let observed = scope_evaluation_context(ctx.clone(), async {
+            current_evaluation_context()
+        })
+        .await;
+        let observed = observed.expect("inside scope");
+        assert_eq!(observed.run_id, ctx.run_id);
+        assert_eq!(observed.case_key, ctx.case_key);
+        assert_eq!(observed.case_id, ctx.case_id);
+        // Outer scope: clean again.
+        assert!(current_evaluation_context().is_none());
+    }
+
+    #[tokio::test]
+    async fn null_capture_swallows_observations_silently() {
+        let cap = NullEvaluationCapture::arc();
+        let ctx = EvaluationContext {
+            run_id: Uuid::new_v4(),
+            case_key: "q01".into(),
+            case_id: Uuid::new_v4(),
+        };
+        // Default `record_latency` is a noop — test pins the
+        // contract so a future `EvaluationCapture` extension that
+        // forgets to default to noop trips this test.
+        cap.record_latency(&ctx, "translate_query", 42).await.unwrap();
     }
 
     #[test]

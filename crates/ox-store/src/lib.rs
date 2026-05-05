@@ -18,7 +18,9 @@ pub mod secret_token;
 pub mod store;
 
 pub use evaluation::{
-    parse_run_status, EvaluationCase, EvaluationMetric, EvaluationRun, EvaluationRunStatus,
+    current_evaluation_context, parse_run_status, scope_evaluation_context, EvaluationCapture,
+    EvaluationCase, EvaluationContext, EvaluationMetric, EvaluationRun, EvaluationRunStatus,
+    NullEvaluationCapture,
 };
 pub use models::*;
 pub use navigation::{

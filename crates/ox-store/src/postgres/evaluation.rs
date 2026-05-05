@@ -20,7 +20,8 @@
 //! trait pins it in doc.
 
 use crate::evaluation::{
-    parse_run_status, EvaluationCase, EvaluationMetric, EvaluationRun, EvaluationRunStatus,
+    parse_run_status, EvaluationCapture, EvaluationCase, EvaluationContext, EvaluationMetric,
+    EvaluationRun, EvaluationRunStatus,
 };
 use crate::store::EvaluationStore;
 
@@ -354,5 +355,43 @@ impl EvaluationStore for PostgresStore {
         .await
         .map_err(to_ox_error)?;
         Ok(rows.into_iter().map(EvaluationMetric::from).collect())
+    }
+}
+
+/// Storage-backed [`EvaluationCapture`]. Routes every latency
+/// observation to a fresh row on `evaluation_metrics` with the
+/// operation name as the rubric axis.
+///
+/// The capture is workspace-scoped via the same task-local
+/// guard the rest of the store uses; an evaluation scope
+/// without a workspace context fails the underlying
+/// `record_evaluation_metric` call rather than silently
+/// landing rows under a different tenant.
+#[async_trait]
+impl EvaluationCapture for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all, fields(case_id = %ctx.case_id, operation = %operation, latency_ms = latency_ms))]
+    async fn record_latency(
+        &self,
+        ctx: &EvaluationContext,
+        operation: &str,
+        latency_ms: i64,
+    ) -> OxResult<()> {
+        let workspace_id = super::bound_workspace_id_for_dml()?;
+        let metric = EvaluationMetric {
+            id: Uuid::now_v7(),
+            case_id: ctx.case_id,
+            workspace_id,
+            name: format!("latency_ms.{operation}"),
+            score: latency_ms as f64,
+            reasoning: None,
+            metadata: serde_json::json!({
+                "kind": "latency_ms",
+                "operation": operation,
+                "run_id": ctx.run_id,
+                "case_key": ctx.case_key,
+            }),
+            created_at: chrono::Utc::now(),
+        };
+        self.record_evaluation_metric(&metric).await.map(|_| ())
     }
 }
