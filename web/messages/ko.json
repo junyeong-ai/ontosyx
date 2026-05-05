@@ -4662,7 +4662,7 @@
           "complete": "완료",
           "reanalyze": "재분석",
           "extend": "확장",
-          "closeProject": "초안 닫기"
+          "closeOntologyDraft": "초안 닫기"
         },
         "toast": {
           "unknownError": "알 수 없는 오류",

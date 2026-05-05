@@ -4662,7 +4662,7 @@
           "complete": "Complete",
           "reanalyze": "Reanalyze",
           "extend": "Extend",
-          "closeProject": "Close Project"
+          "closeOntologyDraft": "Close ontology draft"
         },
         "toast": {
           "unknownError": "Unknown error",
