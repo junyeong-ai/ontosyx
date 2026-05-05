@@ -36,7 +36,7 @@ use crate::value_set::ValueSetId;
 /// input the admin UI lets people edit; derived rules are synthesised
 /// by the platform from another piece of the IR (typically a
 /// `Required`-strength `PropertyBinding` via
-/// [`crate::derived_rules::derive_binding_rules`]) and must be
+/// [`crate::derived_rules::OntologyIR::derive_implicit_rules`]) and must be
 /// regenerated rather than edited.
 ///
 /// Consumers gate behaviour on this field:
@@ -327,6 +327,12 @@ pub enum ConstraintSignature {
     InValueSet(ValueSetId),
     /// `sh:pattern` keyed by the notation-pattern identity.
     MatchesPattern(NotationPatternId),
+    /// `sh:minCount` keyed only by the constraint kind. Two MinCount
+    /// constraints on the same `(node, property)` enforce overlapping
+    /// intent regardless of their `min` numbers — an authored
+    /// MinCount=2 already implies MinCount=1, so the implicit
+    /// nullable=false derivation must not stack on top.
+    MinCount,
 }
 
 /// SHACL Core constraint component. The subset covers ~95% of
@@ -474,8 +480,8 @@ impl ShaclConstraint {
                 notation_pattern_id,
                 ..
             } => Some(ConstraintSignature::MatchesPattern(notation_pattern_id.clone())),
-            Self::MinCount { .. }
-            | Self::MaxCount { .. }
+            Self::MinCount { .. } => Some(ConstraintSignature::MinCount),
+            Self::MaxCount { .. }
             | Self::Datatype { .. }
             | Self::HasValue { .. }
             | Self::MinInclusive { .. }
@@ -745,10 +751,6 @@ mod tests {
         // additive change: extend `ConstraintSignature` and return
         // `Some(...)` from `signature()`.
         let kinds = [
-            ShaclConstraint::MinCount {
-                target: ConstraintTarget::Inherit,
-                min: 1,
-            },
             ShaclConstraint::Datatype {
                 target: ConstraintTarget::Inherit,
                 expected: PropertyType::String,
@@ -767,6 +769,23 @@ mod tests {
                 "{c:?} must remain dedup-independent until it opts in"
             );
         }
+    }
+
+    #[test]
+    fn min_count_signature_collapses_regardless_of_min_value() {
+        // Two MinCount constraints on the same property enforce
+        // overlapping intent — authored MinCount=2 already implies
+        // MinCount=1, so the signature must collapse them.
+        let a = ShaclConstraint::MinCount {
+            target: ConstraintTarget::Inherit,
+            min: 1,
+        };
+        let b = ShaclConstraint::MinCount {
+            target: ConstraintTarget::Inherit,
+            min: 5,
+        };
+        assert_eq!(a.signature(), b.signature());
+        assert_eq!(a.signature(), Some(ConstraintSignature::MinCount));
     }
 
     #[test]

@@ -1,12 +1,23 @@
-//! Synthesise SHACL `RuleDef`s from `Required`-strength
-//! [`PropertyBinding`]s.
+//! Synthesise SHACL `RuleDef`s as the platform's safety-net layer
+//! over schema-level invariants — `Required`-strength
+//! [`PropertyBinding`]s and the `nullable=false` flag on
+//! [`PropertyDef`].
 //!
-//! A [`PropertyBinding`] with `BindingStrength::Required` *promises*
-//! that every write satisfies the binding's domain — but until the
-//! ontology author also authors a matching `RuleDef`, no validator
-//! enforces that promise. This module closes that gap by turning the
-//! binding itself into the rule: write-time enforcement, derived
-//! deterministically from the IR, with no editor copy-paste.
+//! The two derivation axes:
+//!
+//! - **Binding**: a [`PropertyBinding`] with `BindingStrength::Required`
+//!   *promises* every write satisfies the binding's domain — but
+//!   until the ontology author also authors a matching `RuleDef`,
+//!   no validator enforces that promise. This module closes that
+//!   gap by turning the binding itself into the rule.
+//! - **Nullable**: `PropertyDef.nullable=false` is the schema-level
+//!   NOT NULL declaration. Without a derivation step it would only
+//!   surface at the planner's source-mapping layer (where the
+//!   typer reads it as a column-side invariant) and never reach
+//!   the SHACL validator's write path. This module derives an
+//!   implicit `MinCount=1` rule so a `CREATE (u:User)` missing a
+//!   non-null property is rejected pre-execute, the same way an
+//!   authored `MinCount=1` rule would.
 //!
 //! Mapping from [`PropertyBinding`] variant to [`ShaclConstraint`]:
 //!
@@ -65,13 +76,16 @@ impl OntologyIR {
     /// because callers (the SHACL validator, exporters, advisory
     /// tooling) typically iterate them once per request and the
     /// computation is O(node_types × properties × bindings).
+    /// Synthesise SHACL rules along the `Required`-strength
+    /// [`PropertyBinding`] axis only. Use [`Self::derive_implicit_rules`]
+    /// to reach the full safety-net set (binding + nullable).
     pub fn derive_binding_rules(&self) -> Vec<RuleDef> {
         let authored = self.authored_constraint_signatures();
         let mut out = Vec::new();
         for node in &self.node_types {
             for prop in &node.properties {
                 for binding in &prop.bindings {
-                    let Some(rule) = derive_rule(node, prop, binding) else {
+                    let Some(rule) = derive_binding_rule(node, prop, binding) else {
                         continue;
                     };
                     if rule_redundant_with_authored(&rule, &authored) {
@@ -84,8 +98,38 @@ impl OntologyIR {
         out
     }
 
+    /// Synthesise SHACL rules along the `nullable=false` axis only.
+    /// Use [`Self::derive_implicit_rules`] to reach the full
+    /// safety-net set (binding + nullable).
+    pub fn derive_nullable_rules(&self) -> Vec<RuleDef> {
+        let authored = self.authored_constraint_signatures();
+        let mut out = Vec::new();
+        for node in &self.node_types {
+            for prop in &node.properties {
+                if let Some(rule) = derive_nullable_rule(node, prop)
+                    && !rule_redundant_with_authored(&rule, &authored)
+                {
+                    out.push(rule);
+                }
+            }
+        }
+        out
+    }
+
+    /// Full safety-net set — [`Self::derive_binding_rules`] +
+    /// [`Self::derive_nullable_rules`]. Consumers that enforce write
+    /// invariants (the SHACL validator) call this; consumers that
+    /// reason only about a single derivation axis (rule-suggestion
+    /// engines that filter by binding kind) call the per-axis
+    /// methods directly.
+    pub fn derive_implicit_rules(&self) -> Vec<RuleDef> {
+        let mut out = self.derive_binding_rules();
+        out.extend(self.derive_nullable_rules());
+        out
+    }
+
     /// Authored constraint signatures keyed by **effective property
-    /// target**. Used by `derive_binding_rules` to suppress
+    /// target**. Used by `derive_implicit_rules` to suppress
     /// redundant derivations and by the rule-suggestion engine to
     /// skip proposals already covered.
     ///
@@ -129,7 +173,7 @@ impl OntologyIR {
         &self,
     ) -> HashSet<(NodeTypeId, PropertyId, ConstraintSignature)> {
         let mut out = HashSet::new();
-        for rule in self.derive_binding_rules() {
+        for rule in self.derive_implicit_rules() {
             for c in &rule.constraints {
                 if let (Some((node_id, prop_id)), Some(sig)) =
                     (effective_property_target(&rule, c), c.signature())
@@ -204,7 +248,65 @@ fn rule_redundant_with_authored(
     })
 }
 
-fn derive_rule(
+/// Derive a SHACL rule from the schema-level `nullable=false`
+/// declaration on a property. The derivation is conditional:
+/// `nullable=true` produces nothing, and the caller suppresses
+/// emission when an authored MinCount rule already enforces the
+/// same property (the dedup pipeline keys on
+/// `ConstraintSignature::MinCount`).
+///
+/// The derivation deliberately does NOT cover MaxCount — graph
+/// instance multiplicity is not implied by `nullable`, and an
+/// authored MaxCount expresses a separate axis that the safety
+/// net should not infer.
+fn derive_nullable_rule(node: &NodeTypeDef, prop: &PropertyDef) -> Option<RuleDef> {
+    if prop.nullable {
+        return None;
+    }
+    let id = RuleId::new(format!(
+        "{DERIVED_BINDING_RULE_PREFIX}{node}:{property}:nullable",
+        node = node.id.as_str(),
+        property = prop.id.as_str(),
+    ));
+    Some(RuleDef {
+        id,
+        name: derived_rule_name(node, prop),
+        description: LocalizedText::default(),
+        rationale: LocalizedText::bilingual(
+            format!(
+                "속성 `{label}.{name}` 의 `nullable=false` 선언에서 자동 파생된 강제 규칙입니다.",
+                label = node.label,
+                name = prop.name
+            ),
+            format!(
+                "Auto-derived enforcement of `nullable=false` on \
+                 `{label}.{name}`.",
+                label = node.label,
+                name = prop.name
+            ),
+        ),
+        kind: RuleKind::PropertyShape {
+            target_node_type_id: node.id.clone(),
+            target_property_id: prop.id.clone(),
+        },
+        severity: Severity::Violation,
+        enforcement: EnforcementKind::Write,
+        activation: RuleActivationKind::Always,
+        origin: RuleOrigin::DerivedFromBinding {
+            node_type_id: node.id.clone(),
+            property_id: prop.id.clone(),
+        },
+        constraints: vec![ShaclConstraint::MinCount {
+            target: ConstraintTarget::Inherit,
+            min: 1,
+        }],
+        valid_from: None,
+        valid_to: None,
+        sh_message: None,
+    })
+}
+
+fn derive_binding_rule(
     node: &NodeTypeDef,
     prop: &PropertyDef,
     binding: &PropertyBinding,
@@ -635,12 +737,18 @@ mod tests {
             1,
             "MinCount and InValueSet are orthogonal intents: {derived:?}",
         );
-        // The dedup-independent MinCount must contribute nothing to
-        // the authored signature index — otherwise a `None`-signed
-        // constraint could silently suppress an orthogonal derived
-        // rule on the same property.
+        // MinCount carries its own dedup signature (so the implicit
+        // nullable=false derivation can suppress correctly), but its
+        // signature is `MinCount` — orthogonal to the binding's
+        // `InValueSet(id)` signature, so the InValueSet derivation
+        // here must still emit. The signature index reflects only
+        // the authored MinCount's contribution.
         let authored_sigs = ontology.authored_constraint_signatures();
-        assert_eq!(authored_sigs.len(), 0);
+        assert_eq!(authored_sigs.len(), 1);
+        assert!(authored_sigs.iter().any(|(_, _, sig)| matches!(
+            sig,
+            crate::rule::ConstraintSignature::MinCount
+        )));
     }
 
     // ----- Wave 8.14 — effective-target dedup -----
@@ -862,5 +970,112 @@ mod tests {
             "NodeShape with explicit Property-target constraint \
              must suppress the equivalent derivation: {derived:?}",
         );
+    }
+
+    // ---- Wave 8.15 — nullable=false derivation -----------------------
+
+    fn ontology_with_nullable(name: &str, nullable: bool) -> OntologyIR {
+        OntologyIR::try_new(
+            "ont".into(),
+            "NullableTest".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![NodeTypeDef {
+                id: "nt-x".into(),
+                label: GraphLabel::new("X").unwrap(),
+                description: LocalizedText::default(),
+                properties: vec![PropertyDef {
+                    id: "p-x".into(),
+                    name: PropertyKey::new(name).unwrap(),
+                    property_type: PropertyType::String,
+                    nullable,
+                    ..Default::default()
+                }],
+                constraints: Vec::new(),
+                ..Default::default()
+            }],
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("seed ontology")
+    }
+
+    #[test]
+    fn nullable_false_derives_min_count_one() {
+        let ontology = ontology_with_nullable("status", false);
+        let derived = ontology.derive_nullable_rules();
+        assert_eq!(derived.len(), 1, "nullable=false must derive: {derived:?}");
+        let rule = &derived[0];
+        assert!(matches!(
+            &rule.constraints[0],
+            ShaclConstraint::MinCount { min: 1, .. }
+        ));
+        assert!(matches!(
+            &rule.origin,
+            RuleOrigin::DerivedFromBinding { property_id, .. } if property_id.as_str() == "p-x"
+        ));
+    }
+
+    #[test]
+    fn nullable_true_derives_nothing() {
+        let ontology = ontology_with_nullable("optional_field", true);
+        let derived = ontology.derive_nullable_rules();
+        assert!(derived.is_empty(), "nullable=true must not derive: {derived:?}");
+    }
+
+    #[test]
+    fn nullable_derivation_suppressed_when_authored_min_count_present() {
+        // An authored MinCount=2 already implies the platform's
+        // implicit MinCount=1; the nullable safety net must not
+        // pile on a duplicate diagnostic.
+        let mut ontology = ontology_with_nullable("status", false);
+        add_authored_rule(
+            &mut ontology,
+            "r-min-count-explicit",
+            ShaclConstraint::MinCount {
+                target: ConstraintTarget::Inherit,
+                min: 2,
+            },
+        );
+        let derived = ontology.derive_nullable_rules();
+        assert!(
+            derived.is_empty(),
+            "authored MinCount must suppress nullable derivation: {derived:?}",
+        );
+    }
+
+    #[test]
+    fn implicit_rules_set_unions_binding_and_nullable() {
+        // Property has BOTH a Required ValueSet binding (binding axis)
+        // AND nullable=false (nullable axis). `derive_implicit_rules`
+        // must emit one derivation per axis — the validator wants the
+        // full safety net.
+        let mut ontology = ontology_with_nullable("status", false);
+        let cs_id = add_singleton_code_system(&mut ontology, "cs-status");
+        let vs_id = seed_value_set_with_id(&mut ontology, &cs_id, "vs-status");
+        push_binding(
+            &mut ontology,
+            PropertyBinding::ValueSet {
+                id: vs_id,
+                strength: BindingStrength::Required,
+                concept_map_id: None,
+                valid_from: None,
+                valid_to: None,
+            },
+        );
+        let implicit = ontology.derive_implicit_rules();
+        assert_eq!(
+            implicit.len(),
+            2,
+            "binding + nullable axes must each contribute: {implicit:?}",
+        );
+        assert!(implicit.iter().any(|r| matches!(
+            &r.constraints[0],
+            ShaclConstraint::InValueSet { .. }
+        )));
+        assert!(implicit.iter().any(|r| matches!(
+            &r.constraints[0],
+            ShaclConstraint::MinCount { min: 1, .. }
+        )));
     }
 }

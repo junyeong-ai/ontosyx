@@ -84,11 +84,11 @@ use crate::cypher::validate::{
 ///
 /// The validator merges authored `OntologyIR.rules()` with rules
 /// synthesised from `Required`-strength `PropertyBinding`s
-/// (`OntologyIR::derive_binding_rules`) so a binding's promise is
+/// (`OntologyIR::derive_implicit_rules`) so a binding's promise is
 /// enforced at write time without the author copy-pasting the
 /// constraint into a separate `RuleDef`.
 ///
-/// **Dedup happens upstream**: `derive_binding_rules` suppresses any
+/// **Dedup happens upstream**: `derive_implicit_rules` suppresses any
 /// derivation whose `(node, property, signature)` is already covered
 /// by an authored rule. The validator therefore iterates the merged
 /// set without per-rule dedup logic — duplicate violations on the
@@ -111,7 +111,7 @@ pub struct ShaclValidator {
 
 impl ShaclValidator {
     pub fn new(ontology: OntologyIR) -> Self {
-        let derived_rules = ontology.derive_binding_rules();
+        let derived_rules = ontology.derive_implicit_rules();
         let value_set_codes = ontology
             .value_sets()
             .iter()
@@ -2884,6 +2884,68 @@ mod tests {
                 .iter()
                 .all(|i| i.message.code != "runtime.cypher.shacl.min_length_violation"),
             "non-string literal must not raise min_length: {issues:?}"
+        );
+    }
+
+    // ---- Nullable=false implicit derivation ----------------------------
+
+    /// CREATE without the nullable=false property must be flagged
+    /// even when the operator did NOT author an explicit MinCount=1
+    /// rule. The schema-level NOT NULL declaration is the source of
+    /// truth; the platform safety net derives the equivalent SHACL
+    /// rule.
+    #[test]
+    fn nullable_false_property_required_at_create() {
+        let prop = PropertyDef {
+            id: PropertyId::new("prop-name"),
+            name: PropertyKey::new("name").unwrap(),
+            property_type: PropertyType::String,
+            nullable: false,
+            ..Default::default()
+        };
+        let onto = OntologyIR::try_new(
+            "ont-test".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![user_with(prop)],
+            vec![],
+            vec![],
+        )
+        .expect("valid seed ontology");
+        let issues = run(onto, "CREATE (u:User {id: 1})");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.min_count_missing"),
+            "nullable=false derivation must surface as min_count_missing: {issues:?}"
+        );
+    }
+
+    /// nullable=true property may legitimately be omitted from a
+    /// CREATE — derivation must NOT fire.
+    #[test]
+    fn nullable_true_property_optional_at_create() {
+        let prop = PropertyDef {
+            id: PropertyId::new("prop-bio"),
+            name: PropertyKey::new("bio").unwrap(),
+            property_type: PropertyType::String,
+            nullable: true,
+            ..Default::default()
+        };
+        let onto = OntologyIR::try_new(
+            "ont-test".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![user_with(prop)],
+            vec![],
+            vec![],
+        )
+        .expect("valid seed ontology");
+        let issues = run(onto, "CREATE (u:User {id: 1})");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "nullable=true must not raise min_count_missing: {issues:?}"
         );
     }
 
