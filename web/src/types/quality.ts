@@ -85,7 +85,7 @@ export interface OntologySnapshot {
   created_at: string;
 }
 
-export interface ProjectRestoreResponse {
+export interface RestoreProjectRevisionResponse {
   project: DesignProject;
 }
 
@@ -168,7 +168,7 @@ export interface WorkbenchPerspective {
   updated_at: string;
 }
 
-export interface PerspectiveUpsertRequest {
+export interface UpsertPerspectiveRequest {
   lineage_id: string;
   topology_signature: string;
   project_id?: string;
@@ -270,14 +270,14 @@ export interface PendingReconcile {
   reconciled_ontology: OntologyIR;
 }
 
-export interface ProjectReconcileRequest {
+export interface ReconcileProjectRequest {
   revision: number;
   reconciled_ontology: OntologyIR;
   decisions: MatchDecision[];
   uncertain_matches: UncertainMatch[];
 }
 
-export interface ProjectRefineResponse {
+export interface RefineProjectResponse {
   project: DesignProject;
   profile_summary: string;
   reconcile_report: ReconcileReport;
@@ -305,7 +305,7 @@ export interface PhaseEvent {
   detail?: string;
 }
 
-export interface ProjectDesignResponse {
+export interface DesignProjectResponse {
   project: DesignProject;
 }
 

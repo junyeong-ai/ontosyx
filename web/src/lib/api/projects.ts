@@ -1,5 +1,5 @@
 import type {
-  ProjectReconcileRequest,
+  ReconcileProjectRequest,
   CompleteProjectRequest,
   CreateProjectRequest,
   CursorPage,
@@ -8,7 +8,7 @@ import type {
   DesignProject,
   DesignProjectRequest,
   DesignProjectSummary,
-  ProjectDesignResponse,
+  DesignProjectResponse,
   EditProjectRequest,
   EditProjectResponse,
   ProjectLoadCompileRequest,
@@ -22,7 +22,7 @@ import type {
   PendingReconcile,
   ReanalyzeProjectRequest,
   RefineProjectRequest,
-  ProjectRefineResponse,
+  RefineProjectResponse,
   UpdateProjectDecisionsRequest,
 } from "@/types/api";
 import type { ProjectSource } from "@/types/projects";
@@ -125,7 +125,7 @@ export async function reanalyzeModeledProject(
 export async function refineProject(
   id: string,
   req: RefineProjectRequest,
-): Promise<ProjectRefineResponse> {
+): Promise<RefineProjectResponse> {
   return request(`/projects/${encodeURIComponent(id)}/refine`, {
     method: "POST",
     body: JSON.stringify(req),
@@ -144,8 +144,8 @@ export async function editProject(
 
 export async function applyReconcile(
   projectId: string,
-  req: ProjectReconcileRequest,
-): Promise<ProjectRefineResponse> {
+  req: ReconcileProjectRequest,
+): Promise<RefineProjectResponse> {
   return request(`/projects/${encodeURIComponent(projectId)}/apply-reconcile`, {
     method: "POST",
     body: JSON.stringify(req),
@@ -281,13 +281,13 @@ export async function compileLoad(
 
 export interface DesignStreamCallbacks {
   onPhase?: (phase: string, detail?: string) => void;
-  onResult?: (result: ProjectDesignResponse) => void;
+  onResult?: (result: DesignProjectResponse) => void;
   onError?: (errorType: string, message: string) => void;
 }
 
 export interface RefineStreamCallbacks {
   onPhase?: (phase: string, detail?: string) => void;
-  onResult?: (result: ProjectRefineResponse) => void;
+  onResult?: (result: RefineProjectResponse) => void;
   onUncertainReconcile?: (data: PendingReconcile) => void;
   onError?: (errorType: string, message: string) => void;
 }
@@ -358,7 +358,7 @@ export async function designProjectStream(
     {
       onPhase: callbacks.onPhase,
       onResult: (data) =>
-        callbacks.onResult?.(data as ProjectDesignResponse),
+        callbacks.onResult?.(data as DesignProjectResponse),
       onError: callbacks.onError,
     },
   );
@@ -375,7 +375,7 @@ export async function refineProjectStream(
     {
       onPhase: callbacks.onPhase,
       onResult: (data) =>
-        callbacks.onResult?.(data as ProjectRefineResponse),
+        callbacks.onResult?.(data as RefineProjectResponse),
       onUncertainReconcile: (data) =>
         callbacks.onUncertainReconcile?.(
           data as PendingReconcile,

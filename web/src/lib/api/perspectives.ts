@@ -1,8 +1,8 @@
 import type {
   OntologyDiff,
-  ProjectRestoreResponse,
+  RestoreProjectRevisionResponse,
   RevisionSummary,
-  PerspectiveUpsertRequest,
+  UpsertPerspectiveRequest,
   WorkbenchPerspective,
 } from "@/types/api";
 import { request } from "./client";
@@ -12,7 +12,7 @@ import { request } from "./client";
 // ---------------------------------------------------------------------------
 
 export async function savePerspective(
-  req: PerspectiveUpsertRequest,
+  req: UpsertPerspectiveRequest,
 ): Promise<WorkbenchPerspective> {
   return request("/perspectives", {
     method: "PUT",
@@ -56,7 +56,7 @@ export async function listRevisions(
 export async function restoreRevision(
   projectId: string,
   revision: number,
-): Promise<ProjectRestoreResponse> {
+): Promise<RestoreProjectRevisionResponse> {
   return request(
     `/projects/${encodeURIComponent(projectId)}/revisions/${revision}/restore`,
     { method: "POST" },
