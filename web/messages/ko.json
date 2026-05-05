@@ -3405,9 +3405,27 @@
           "error": "리베이스 실패: {error}"
         }
       },
+      "graphDiff": {
+        "empty": "그릴 구조적 차이가 없습니다.",
+        "ariaLabel": "브랜치 차이 그래프",
+        "counts": "{nodes} 노드 · {edges} 엣지",
+        "legend": {
+          "added": "추가",
+          "removed": "제거",
+          "modified": "변경"
+        },
+        "column": {
+          "added": "추가",
+          "removed": "제거",
+          "modified": "변경"
+        }
+      },
       "diffModal": {
         "title": "대표와의 차이 — {title}",
         "description": "이 초안과 워크스페이스 대표 헤드 사이의 엔티티 단위 변경. 초안이 대표와 정확히 일치하면 비어 있습니다.",
+        "viewSwitcher": "보기",
+        "viewList": "목록",
+        "viewGraph": "그래프",
         "addedNodes": "추가된 노드",
         "removedNodes": "제거된 노드",
         "modifiedNodes": "변경된 노드",

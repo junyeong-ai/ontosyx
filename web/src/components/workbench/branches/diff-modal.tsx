@@ -14,6 +14,7 @@ import type {
 } from "@/types/ontology-branches";
 
 import { EdgeChangeList, NodeChangeList } from "./diff-change-list";
+import { GraphDiffView } from "./graph-diff-view";
 
 interface DiffModalProps {
   draftId: string | null;
@@ -187,6 +188,7 @@ export function DiffModal({
   const t = useTranslations("workbench.branches");
   const tCommon = useTranslations("common");
   const diff = useDraftDiffAgainstCanonical(open ? draftId : null);
+  const [view, setView] = useState<"list" | "graph">("list");
 
   return (
     <Modal
@@ -206,50 +208,101 @@ export function DiffModal({
         <p className="text-sm text-foreground-muted">{t("diffNoChanges")}</p>
       ) : (
         <div>
-          <p className="mb-4 text-xs text-foreground-muted">
-            {t("diffSummary", {
-              added:
-                diff.data.summary.nodes_added +
-                diff.data.summary.edges_added +
-                diff.data.summary.properties_added,
-              removed:
-                diff.data.summary.nodes_removed +
-                diff.data.summary.edges_removed +
-                diff.data.summary.properties_removed,
-              modified:
-                diff.data.summary.nodes_modified +
-                diff.data.summary.edges_modified,
-            })}
-          </p>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <p className="text-xs text-foreground-muted">
+              {t("diffSummary", {
+                added:
+                  diff.data.summary.nodes_added +
+                  diff.data.summary.edges_added +
+                  diff.data.summary.properties_added,
+                removed:
+                  diff.data.summary.nodes_removed +
+                  diff.data.summary.edges_removed +
+                  diff.data.summary.properties_removed,
+                modified:
+                  diff.data.summary.nodes_modified +
+                  diff.data.summary.edges_modified,
+              })}
+            </p>
+            <div
+              role="tablist"
+              aria-label={t("diffModal.viewSwitcher")}
+              className="inline-flex rounded-lg border border-divider bg-surface-inset p-0.5 text-2xs"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "list"}
+                onClick={() => setView("list")}
+                className={`rounded px-2 py-1 font-medium ${
+                  view === "list"
+                    ? "bg-surface-base text-foreground"
+                    : "text-foreground-muted hover:text-foreground"
+                }`}
+              >
+                {t("diffModal.viewList")}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "graph"}
+                onClick={() => setView("graph")}
+                className={`rounded px-2 py-1 font-medium ${
+                  view === "graph"
+                    ? "bg-surface-base text-foreground"
+                    : "text-foreground-muted hover:text-foreground"
+                }`}
+              >
+                {t("diffModal.viewGraph")}
+              </button>
+            </div>
+          </div>
 
-          <DiffSection<DiffAddedNode>
-            title={t("diffModal.addedNodes")}
-            items={diff.data.added_nodes}
-            renderItem={(n) => n.label || n.id}
-            variant="added"
-          />
-          <DiffSection<DiffAddedNode>
-            title={t("diffModal.removedNodes")}
-            items={diff.data.removed_nodes}
-            renderItem={(n) => n.label || n.id}
-            variant="removed"
-          />
-          <ModifiedNodeSection items={diff.data.modified_nodes} />
-          <DiffSection<DiffAddedEdge>
-            title={t("diffModal.addedEdges")}
-            items={diff.data.added_edges}
-            renderItem={(e) => e.label || e.id}
-            variant="added"
-          />
-          <DiffSection<DiffAddedEdge>
-            title={t("diffModal.removedEdges")}
-            items={diff.data.removed_edges}
-            renderItem={(e) => e.label || e.id}
-            variant="removed"
-          />
-          <ModifiedEdgeSection items={diff.data.modified_edges} />
+          {view === "graph" ? (
+            <GraphDiffView diff={diff.data} />
+          ) : (
+            <ListDiffView diff={diff.data} />
+          )}
         </div>
       )}
     </Modal>
+  );
+}
+
+function ListDiffView({
+  diff,
+}: {
+  diff: import("@/types/ontology-branches").OntologyDiffSummary;
+}) {
+  const t = useTranslations("workbench.branches");
+  return (
+    <div>
+      <DiffSection<DiffAddedNode>
+        title={t("diffModal.addedNodes")}
+        items={diff.added_nodes}
+        renderItem={(n) => n.label || n.id}
+        variant="added"
+      />
+      <DiffSection<DiffAddedNode>
+        title={t("diffModal.removedNodes")}
+        items={diff.removed_nodes}
+        renderItem={(n) => n.label || n.id}
+        variant="removed"
+      />
+      <ModifiedNodeSection items={diff.modified_nodes} />
+      <DiffSection<DiffAddedEdge>
+        title={t("diffModal.addedEdges")}
+        items={diff.added_edges}
+        renderItem={(e) => e.label || e.id}
+        variant="added"
+      />
+      <DiffSection<DiffAddedEdge>
+        title={t("diffModal.removedEdges")}
+        items={diff.removed_edges}
+        renderItem={(e) => e.label || e.id}
+        variant="removed"
+      />
+      <ModifiedEdgeSection items={diff.modified_edges} />
+    </div>
   );
 }

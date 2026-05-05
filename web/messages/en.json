@@ -3405,9 +3405,27 @@
           "error": "Rebase failed: {error}"
         }
       },
+      "graphDiff": {
+        "empty": "No structural differences to draw.",
+        "ariaLabel": "Branch diff graph",
+        "counts": "{nodes} nodes · {edges} edges",
+        "legend": {
+          "added": "added",
+          "removed": "removed",
+          "modified": "modified"
+        },
+        "column": {
+          "added": "added",
+          "removed": "removed",
+          "modified": "modified"
+        }
+      },
       "diffModal": {
         "title": "Diff vs canonical — {title}",
         "description": "Entity-level changes between this draft and the workspace canonical head. Empty when the draft matches the canonical exactly.",
+        "viewSwitcher": "View",
+        "viewList": "List",
+        "viewGraph": "Graph",
         "addedNodes": "Added nodes",
         "removedNodes": "Removed nodes",
         "modifiedNodes": "Modified nodes",
