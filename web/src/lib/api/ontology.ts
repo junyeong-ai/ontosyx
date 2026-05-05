@@ -27,25 +27,16 @@ import {
  * the workspace has no canonical yet (greenfield state).
  */
 export async function getWorkspaceOntology(): Promise<OntologyDetail | null> {
-  try {
-    const data = await request("/ontology");
-    const result = OntologyDetailSchema.safeParse(data);
-    if (!result.success) {
-      console.warn("Ontology detail validation failed:", result.error.issues);
-      return data as OntologyDetail;
-    }
-    return result.data as OntologyDetail;
-  } catch (e: unknown) {
-    if (
-      e &&
-      typeof e === "object" &&
-      "status" in e &&
-      (e as { status?: number }).status === 404
-    ) {
-      return null;
-    }
-    throw e;
+  const { ontology } = await request<{ ontology: OntologyDetail | null }>(
+    "/ontology",
+  );
+  if (ontology === null) return null;
+  const result = OntologyDetailSchema.safeParse(ontology);
+  if (!result.success) {
+    console.warn("Ontology detail validation failed:", result.error.issues);
+    return ontology as OntologyDetail;
   }
+  return result.data as OntologyDetail;
 }
 
 // ---------------------------------------------------------------------------

@@ -57,25 +57,37 @@ pub struct OntologyDetail {
     pub ontology_ir: Option<ox_ontology::ir::OntologyIR>,
 }
 
+/// Workspace ontology singleton response. Workspace × ontology
+/// is 1:1 — at most one canonical row exists, and the
+/// pre-canonical (greenfield) phase is a normal lifecycle state,
+/// not a missing resource. `ontology` is `None` during that
+/// phase; `404` is reserved for genuine missing-resource lookups
+/// (`/api/ontology-drafts/{id}` for a non-existent draft).
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct WorkspaceOntologyResponse {
+    pub ontology: Option<OntologyDetail>,
+}
+
 #[utoipa::path(
     get,
     path = "/api/ontology",
     responses(
-        (status = 200, description = "Workspace ontology detail with hydrated IR", body = OntologyDetail),
-        (status = 404, description = "Workspace has no ontology yet", body = inline(crate::openapi::ErrorResponse)),
+        (status = 200, description = "Workspace ontology singleton — `ontology` is null in the greenfield phase", body = WorkspaceOntologyResponse),
     ),
     security(("api_key" = [])),
     tag = "Ontology",
 )]
 pub(crate) async fn get_workspace_ontology_detail(
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<OntologyDetail>>, AppError> {
-    let identity = state
+) -> Result<Json<ApiResponse<WorkspaceOntologyResponse>>, AppError> {
+    let Some(identity) = state
         .store
         .get_workspace_ontology()
         .await
         .map_err(AppError::from)?
-        .ok_or_else(|| AppError::not_found("Ontology"))?;
+    else {
+        return Ok(ApiResponse::of(WorkspaceOntologyResponse { ontology: None }));
+    };
     let version = state
         .store
         .get_current_version(identity.id)
@@ -91,21 +103,23 @@ pub(crate) async fn get_workspace_ontology_detail(
         None
     };
 
-    Ok(ApiResponse::of(OntologyDetail {
-        id: identity.id,
-        lineage_id: identity.lineage_id,
-        name: identity.name,
-        description: identity.description,
-        created_at: identity.created_at,
-        updated_at: identity.updated_at,
-        current_version: version.map(|v| CurrentVersionSummary {
-            version_id: v.id,
-            version: v.version,
-            committed_by: v.committed_by,
-            commit_message: v.commit_message,
-            created_at: v.created_at,
+    Ok(ApiResponse::of(WorkspaceOntologyResponse {
+        ontology: Some(OntologyDetail {
+            id: identity.id,
+            lineage_id: identity.lineage_id,
+            name: identity.name,
+            description: identity.description,
+            created_at: identity.created_at,
+            updated_at: identity.updated_at,
+            current_version: version.map(|v| CurrentVersionSummary {
+                version_id: v.id,
+                version: v.version,
+                committed_by: v.committed_by,
+                commit_message: v.commit_message,
+                created_at: v.created_at,
+            }),
+            ontology_ir: ir,
         }),
-        ontology_ir: ir,
     }))
 }
 

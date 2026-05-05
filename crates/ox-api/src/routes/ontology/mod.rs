@@ -76,7 +76,8 @@ pub use exchange::{
 // — utoipa needs them visible at this canonical module path.
 pub use create::{CreateOntologyRequest, CreateOntologyResponse};
 pub use crud::{
-    CurrentVersionSummary, ApplyOntologyCommandsRequest, ApplyOntologyCommandsResponse, OntologyDetail,
+    ApplyOntologyCommandsRequest, ApplyOntologyCommandsResponse, CurrentVersionSummary,
+    OntologyDetail, WorkspaceOntologyResponse,
 };
 pub use exchange::ImportOntologyRequest;
 pub use value_sets::{
