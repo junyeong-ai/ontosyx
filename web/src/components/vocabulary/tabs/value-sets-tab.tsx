@@ -10,26 +10,12 @@ import {
 } from "@/components/vocabulary/usage-map";
 import type { ValueSetDef } from "@/lib/api/edit-ops";
 
-const VALUE_SET_HINT = `{
-  "id": "vs-order-status",
-  "name": "OrderStatus",
-  "version": "1.0.0",
-  "composition": [
-    {
-      "system_id": "cs-order-status",
-      "selector": { "kind": "all" },
-      "mode": "include"
-    }
-  ]
-}`;
-
 export function ValueSetsTab() {
   const t = useTranslations("settings.vocabulary.valueSets");
   const tCommon = useTranslations("common");
 
   return (
     <MasterDetailEntityPage<ValueSetDef>
-      schemaHint={VALUE_SET_HINT}
       schema={valueSetSchema}
       selectItems={(ir) =>
         ((ir as unknown as { value_sets?: ValueSetDef[] }).value_sets ?? [])
@@ -59,7 +45,6 @@ export function ValueSetsTab() {
         noOntology: t("noOntology"),
         listHeading: (count) => t("listHeading", { count }),
         createButton: t("createButton"),
-        editButton: t("editButton"),
         deleteButton: t("deleteButton"),
         emptyTitle: t("empty.title"),
         emptyDescription: t("empty.description"),
@@ -76,14 +61,6 @@ export function ValueSetsTab() {
         updatedMessage: (name) => t("messages.updated", { name }),
         deletedMessage: (name) => t("messages.deleted", { name }),
         createDialogTitle: t("createDialog.title"),
-        createDialogDescription: t("createDialog.description"),
-        jsonLabel: t("jsonLabel"),
-        submitCreate: t("form.submitCreate"),
-        submitUpdate: t("form.submitUpdate"),
-        cancel: t("form.cancel"),
-        errorEmpty: t("error.empty"),
-        errorInvalidJsonTemplate: (message) =>
-          t("error.invalidJson", { message }),
         loadErrorTitle: tCommon("loadError.title"),
         loadErrorDescription: tCommon("loadError.description"),
         retryLabel: tCommon("retry"),

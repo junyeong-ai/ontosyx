@@ -1667,9 +1667,7 @@
         "noOntology": "No committed ontology available — create one in Design mode before editing code systems.",
         "listHeading": "{count, plural, =0 {No code systems} one {# code system} other {# code systems}}",
         "createButton": "Add",
-        "editButton": "Edit",
         "deleteButton": "Delete",
-        "jsonLabel": "Code system (JSON)",
         "codeCount": "{count} coded value(s)",
         "empty": {
           "title": "No code systems registered",
@@ -1693,13 +1691,9 @@
           "deleteDescription": "Removing '{name}' un-binds every value-set composition + concept-map referring to it. The IR validator surfaces any dangling reference."
         },
         "createDialog": {
-          "title": "New code system",
-          "description": "Register a terminology system. Codes can be added inline or via subsequent CodedValue ops."
+          "title": "New code system"
         },
         "form": {
-          "submitCreate": "Create code system",
-          "submitUpdate": "Save changes",
-          "cancel": "Cancel",
           "id": "ID",
           "name": "Name",
           "displayName": "Display name",
@@ -1731,10 +1725,6 @@
             "deprecatedAt": "Deprecated at"
           }
         },
-        "error": {
-          "empty": "Code system JSON cannot be empty.",
-          "invalidJson": "Invalid JSON: {message}"
-        },
         "rowSummary": "{name} · v{version}"
       },
       "notationPatterns": {
@@ -1743,9 +1733,7 @@
         "noOntology": "No committed ontology available — create one in Design mode before editing notation patterns.",
         "listHeading": "{count, plural, =0 {No patterns} one {# pattern} other {# patterns}}",
         "createButton": "Add",
-        "editButton": "Edit",
         "deleteButton": "Delete",
-        "jsonLabel": "Notation pattern (JSON)",
         "componentCount": "{count} component(s)",
         "empty": {
           "title": "No notation patterns defined",
@@ -1769,13 +1757,9 @@
           "deleteDescription": "Removing '{name}' un-binds every property that referenced it. SHACL `MatchesPattern` rules pointing at it surface as warnings until a replacement lands."
         },
         "createDialog": {
-          "title": "New notation pattern",
-          "description": "Compose a structured identifier from named components — literals, year, sequence, code-from-set, etc."
+          "title": "New notation pattern"
         },
         "form": {
-          "submitCreate": "Create pattern",
-          "submitUpdate": "Save changes",
-          "cancel": "Cancel",
           "id": "ID",
           "name": "Name",
           "displayName": "Display name",
@@ -1786,10 +1770,6 @@
             "identity": "Identity",
             "template": "Template"
           }
-        },
-        "error": {
-          "empty": "Notation pattern JSON cannot be empty.",
-          "invalidJson": "Invalid JSON: {message}"
         }
       },
       "valueSets": {
@@ -1798,9 +1778,7 @@
         "noOntology": "No committed ontology available — create one in Design mode before editing value sets.",
         "listHeading": "{count, plural, =0 {No value sets} one {# value set} other {# value sets}}",
         "createButton": "Add",
-        "editButton": "Edit",
         "deleteButton": "Delete",
-        "jsonLabel": "Value set (JSON)",
         "includeCount": "{count} include rule(s)",
         "empty": {
           "title": "No value sets defined",
@@ -1824,13 +1802,9 @@
           "deleteDescription": "Removing '{name}' un-binds every property currently constrained to it. Runtime SHACL stops enforcing the membership rule."
         },
         "createDialog": {
-          "title": "New value set",
-          "description": "Compose codes from one or more registered systems. Each composition rule is include / exclude × all / explicit codes."
+          "title": "New value set"
         },
         "form": {
-          "submitCreate": "Create value set",
-          "submitUpdate": "Save changes",
-          "cancel": "Cancel",
           "id": "ID",
           "name": "Name",
           "displayName": "Display name",
@@ -1846,10 +1820,6 @@
             "composition": "Composition"
           }
         },
-        "error": {
-          "empty": "Value set JSON cannot be empty.",
-          "invalidJson": "Invalid JSON: {message}"
-        },
         "rowSummary": "{name} · v{version}"
       },
       "conceptMaps": {
@@ -1858,9 +1828,7 @@
         "noOntology": "No committed ontology available — create one in Design mode before editing concept maps.",
         "listHeading": "{count, plural, =0 {No concept maps} one {# concept map} other {# concept maps}}",
         "createButton": "Add",
-        "editButton": "Edit",
         "deleteButton": "Delete",
-        "jsonLabel": "Concept map (JSON)",
         "mappingCount": "{count, plural, one {# mapping} other {# mappings}}",
         "mappingSummary": "{source} → {target} · {count} mapping(s)",
         "empty": {
@@ -1885,13 +1853,9 @@
           "deleteDescription": "Removing '{name}' stops the compiler from rewriting literal values along this translation. Existing query plans remain valid against the original codes."
         },
         "createDialog": {
-          "title": "New concept map",
-          "description": "Define source-code → target-code translations between two registered systems with explicit equivalence."
+          "title": "New concept map"
         },
         "form": {
-          "submitCreate": "Create concept map",
-          "submitUpdate": "Save changes",
-          "cancel": "Cancel",
           "id": "ID",
           "name": "Name",
           "displayName": "Display name",
@@ -1904,10 +1868,6 @@
             "metadata": "Metadata",
             "systems": "Code systems"
           }
-        },
-        "error": {
-          "empty": "Concept map JSON cannot be empty.",
-          "invalidJson": "Invalid JSON: {message}"
         },
         "rowSummary": "{name} · v{version}"
       },

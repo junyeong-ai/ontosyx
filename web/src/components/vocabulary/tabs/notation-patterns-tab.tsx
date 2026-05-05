@@ -10,24 +10,11 @@ import {
 } from "@/components/vocabulary/usage-map";
 import type { NotationPatternDef } from "@/lib/api/edit-ops";
 
-const NOTATION_PATTERN_HINT = `{
-  "id": "np-campaign-code",
-  "name": "CampaignCode",
-  "template": "{{campaign}}_{{year}}_{{seq}}",
-  "separator": "_",
-  "components": [
-    { "name": "campaign", "kind": { "kind": "literal", "values": ["SPRING", "SUMMER"] } },
-    { "name": "year",     "kind": { "kind": "year" } },
-    { "name": "seq",      "kind": { "kind": "sequence", "width": 3 } }
-  ]
-}`;
-
 export function NotationPatternsTab() {
   const t = useTranslations("settings.vocabulary.notationPatterns");
   const tCommon = useTranslations("common");
   return (
     <MasterDetailEntityPage<NotationPatternDef>
-      schemaHint={NOTATION_PATTERN_HINT}
       schema={notationPatternSchema}
       selectItems={(ir) =>
         ((ir as unknown as { notation_patterns?: NotationPatternDef[] })
@@ -61,7 +48,6 @@ export function NotationPatternsTab() {
         noOntology: t("noOntology"),
         listHeading: (count) => t("listHeading", { count }),
         createButton: t("createButton"),
-        editButton: t("editButton"),
         deleteButton: t("deleteButton"),
         emptyTitle: t("empty.title"),
         emptyDescription: t("empty.description"),
@@ -78,14 +64,6 @@ export function NotationPatternsTab() {
         updatedMessage: (name) => t("messages.updated", { name }),
         deletedMessage: (name) => t("messages.deleted", { name }),
         createDialogTitle: t("createDialog.title"),
-        createDialogDescription: t("createDialog.description"),
-        jsonLabel: t("jsonLabel"),
-        submitCreate: t("form.submitCreate"),
-        submitUpdate: t("form.submitUpdate"),
-        cancel: t("form.cancel"),
-        errorEmpty: t("error.empty"),
-        errorInvalidJsonTemplate: (message) =>
-          t("error.invalidJson", { message }),
         loadErrorTitle: tCommon("loadError.title"),
         loadErrorDescription: tCommon("loadError.description"),
         retryLabel: tCommon("retry"),

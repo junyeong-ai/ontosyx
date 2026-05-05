@@ -1667,9 +1667,7 @@
         "noOntology": "커밋된 온톨로지가 없습니다 — 코드 시스템 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {코드 시스템 없음} other {코드 시스템 #개}}",
         "createButton": "추가",
-        "editButton": "편집",
         "deleteButton": "삭제",
-        "jsonLabel": "코드 시스템 (JSON)",
         "codeCount": "코드 {count}개",
         "empty": {
           "title": "등록된 코드 시스템이 없습니다",
@@ -1693,13 +1691,9 @@
           "deleteDescription": "'{name}' 을 삭제하면 이 시스템을 참조하는 모든 ValueSet/ConceptMap 의 바인딩이 해제됩니다. IR 검증기가 dangling reference 를 surface 합니다."
         },
         "createDialog": {
-          "title": "새 코드 시스템",
-          "description": "용어 체계를 등록합니다. 코드는 인라인 또는 후속 CodedValue 작업으로 추가할 수 있습니다."
+          "title": "새 코드 시스템"
         },
         "form": {
-          "submitCreate": "코드 시스템 생성",
-          "submitUpdate": "변경 저장",
-          "cancel": "취소",
           "id": "ID",
           "name": "이름",
           "displayName": "표시 이름",
@@ -1731,10 +1725,6 @@
             "deprecatedAt": "사용 중단 일시"
           }
         },
-        "error": {
-          "empty": "코드 시스템 JSON 은 비어 있을 수 없습니다.",
-          "invalidJson": "잘못된 JSON: {message}"
-        },
         "rowSummary": "{name} · v{version}"
       },
       "notationPatterns": {
@@ -1743,9 +1733,7 @@
         "noOntology": "커밋된 온톨로지가 없습니다 — 표기 패턴 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {패턴 없음} other {패턴 #개}}",
         "createButton": "추가",
-        "editButton": "편집",
         "deleteButton": "삭제",
-        "jsonLabel": "표기 패턴 (JSON)",
         "componentCount": "컴포넌트 {count}개",
         "empty": {
           "title": "정의된 표기 패턴이 없습니다",
@@ -1769,13 +1757,9 @@
           "deleteDescription": "'{name}' 을 삭제하면 참조하던 모든 속성의 바인딩이 해제됩니다. 이 패턴을 가리키던 SHACL `MatchesPattern` 규칙은 대체가 들어올 때까지 경고로 surface 됩니다."
         },
         "createDialog": {
-          "title": "새 표기 패턴",
-          "description": "이름 있는 컴포넌트(literal / year / sequence / code-from-set 등)로 구조화된 식별자를 합성합니다."
+          "title": "새 표기 패턴"
         },
         "form": {
-          "submitCreate": "패턴 생성",
-          "submitUpdate": "변경 저장",
-          "cancel": "취소",
           "id": "ID",
           "name": "이름",
           "displayName": "표시 이름",
@@ -1786,10 +1770,6 @@
             "identity": "식별 정보",
             "template": "템플릿"
           }
-        },
-        "error": {
-          "empty": "표기 패턴 JSON 은 비어 있을 수 없습니다.",
-          "invalidJson": "잘못된 JSON: {message}"
         }
       },
       "valueSets": {
@@ -1798,9 +1778,7 @@
         "noOntology": "커밋된 온톨로지가 없습니다 — 값 집합 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {값 집합 없음} other {값 집합 #개}}",
         "createButton": "추가",
-        "editButton": "편집",
         "deleteButton": "삭제",
-        "jsonLabel": "값 집합 (JSON)",
         "includeCount": "포함 규칙 {count}개",
         "empty": {
           "title": "정의된 값 집합이 없습니다",
@@ -1824,13 +1802,9 @@
           "deleteDescription": "'{name}' 을 삭제하면 이 집합으로 제한된 모든 속성의 바인딩이 해제됩니다. 런타임 SHACL 이 멤버십 규칙을 더 이상 강제하지 않습니다."
         },
         "createDialog": {
-          "title": "새 값 집합",
-          "description": "하나 이상의 등록된 코드 시스템에서 코드를 합성하세요. 각 합성 규칙은 include / exclude × all / explicit codes 입니다."
+          "title": "새 값 집합"
         },
         "form": {
-          "submitCreate": "값 집합 생성",
-          "submitUpdate": "변경 저장",
-          "cancel": "취소",
           "id": "ID",
           "name": "이름",
           "displayName": "표시 이름",
@@ -1846,10 +1820,6 @@
             "composition": "합성 규칙"
           }
         },
-        "error": {
-          "empty": "값 집합 JSON 은 비어 있을 수 없습니다.",
-          "invalidJson": "잘못된 JSON: {message}"
-        },
         "rowSummary": "{name} · v{version}"
       },
       "conceptMaps": {
@@ -1858,9 +1828,7 @@
         "noOntology": "커밋된 온톨로지가 없습니다 — 개념 매핑 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
         "listHeading": "{count, plural, =0 {개념 매핑 없음} other {개념 매핑 #개}}",
         "createButton": "추가",
-        "editButton": "편집",
         "deleteButton": "삭제",
-        "jsonLabel": "개념 매핑 (JSON)",
         "mappingCount": "매핑 {count}개",
         "mappingSummary": "{source} → {target} · 매핑 {count}개",
         "empty": {
@@ -1885,13 +1853,9 @@
           "deleteDescription": "'{name}' 을 삭제하면 컴파일러가 이 번역을 따라 리터럴을 재작성하지 않습니다. 기존 쿼리 플랜은 원본 코드에 대해 여전히 유효합니다."
         },
         "createDialog": {
-          "title": "새 개념 매핑",
-          "description": "두 등록된 시스템 간 source-code → target-code 번역을 명시적 equivalence 와 함께 정의합니다."
+          "title": "새 개념 매핑"
         },
         "form": {
-          "submitCreate": "개념 매핑 생성",
-          "submitUpdate": "변경 저장",
-          "cancel": "취소",
           "id": "ID",
           "name": "이름",
           "displayName": "표시 이름",
@@ -1904,10 +1868,6 @@
             "metadata": "메타데이터",
             "systems": "코드 시스템"
           }
-        },
-        "error": {
-          "empty": "개념 매핑 JSON 은 비어 있을 수 없습니다.",
-          "invalidJson": "잘못된 JSON: {message}"
         },
         "rowSummary": "{name} · v{version}"
       },

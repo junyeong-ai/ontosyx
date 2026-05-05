@@ -8,11 +8,9 @@
 // Dashboard, Sanity Studio) — modal/dialog flows are reserved for
 // destructive confirms; CRUD authoring stays inline.
 //
-// The page does NOT manage form state directly; it composes the
-// schema-driven `StructuredEntityEditor` for typed authoring and
-// falls back to `JsonRecordEditor` for entities still missing a
-// schema (eventually all five tabs land their own schemas, at
-// which point the JSON path retires).
+// The detail editor is the schema-driven `StructuredEntityEditor` —
+// every tab ships its own typed schema. The page itself does not
+// manage form state.
 
 import { type ReactNode, useMemo, useState } from "react";
 import {
@@ -40,12 +38,7 @@ import type { EntitySchema } from "@/lib/forms/field-schema";
 import { cn } from "@/lib/cn";
 import type { OntologyIR } from "@/types/ontology";
 
-import {
-  JsonRecordEditor,
-  type JsonRecordEditorLabels,
-} from "./json-record-editor";
-
-export interface MasterDetailEntityPageLabels extends JsonRecordEditorLabels {
+export interface MasterDetailEntityPageLabels {
   /** Page title. */
   title: string;
   /** One-line subtitle below the title. */
@@ -56,8 +49,6 @@ export interface MasterDetailEntityPageLabels extends JsonRecordEditorLabels {
   listHeading: (count: number) => string;
   /** Top-right "Add" button label. */
   createButton: string;
-  /** Per-row "Edit" button label — kept for label parity, no longer rendered. */
-  editButton: string;
   /** Detail-header "Delete" button label. */
   deleteButton: string;
   /** Empty state. */
@@ -77,9 +68,8 @@ export interface MasterDetailEntityPageLabels extends JsonRecordEditorLabels {
   createdMessage: (name: string) => string;
   updatedMessage: (name: string) => string;
   deletedMessage: (name: string) => string;
-  /** Create dialog copy — kept for label parity, used as detail-pane header on draft. */
+  /** Header title shown when the detail pane is in draft-create mode. */
   createDialogTitle: string;
-  createDialogDescription: string;
   /** Failure ErrorState copy. */
   loadErrorTitle: string;
   loadErrorDescription: string;
@@ -88,7 +78,6 @@ export interface MasterDetailEntityPageLabels extends JsonRecordEditorLabels {
 
 export interface MasterDetailEntityPageProps<T extends { id?: string }> {
   labels: MasterDetailEntityPageLabels;
-  schemaHint: string;
   /** Resolve the collection slice from the ontology IR. */
   selectItems: (ir: OntologyIR) => T[];
   /** Stable id for an item — used for selection + deep-linking. */
@@ -101,8 +90,8 @@ export interface MasterDetailEntityPageProps<T extends { id?: string }> {
   buildDeleteOp: (id: string) => OntologyEditOp;
   /** Optional reverse-pointer renderer — drives the right pane. */
   renderUsage?: (item: T, ontology: OntologyIR) => ReactNode;
-  /** Schema-driven structured editor. JSON-only authoring is the fallback. */
-  schema?: EntitySchema<T>;
+  /** Schema-driven structured editor. */
+  schema: EntitySchema<T>;
   /**
    * URL search-param key used to round-trip selection. Defaults to
    * `id` — vocabulary tabs share a single page surface so the
@@ -113,7 +102,6 @@ export interface MasterDetailEntityPageProps<T extends { id?: string }> {
 
 export function MasterDetailEntityPage<T extends { id?: string }>({
   labels,
-  schemaHint,
   selectItems,
   itemId,
   renderRow,
@@ -258,7 +246,6 @@ export function MasterDetailEntityPage<T extends { id?: string }>({
       isDraft={isDraft}
       selected={selected}
       schema={schema}
-      schemaHint={schemaHint}
       labels={labels}
       onCreate={handleCreate}
       onUpdate={handleUpdate}
@@ -399,8 +386,7 @@ function ListPane<T>({
 interface DetailPaneProps<T extends { id?: string }> {
   isDraft: boolean;
   selected: T | null;
-  schema?: EntitySchema<T>;
-  schemaHint: string;
+  schema: EntitySchema<T>;
   labels: MasterDetailEntityPageLabels;
   onCreate: (def: T) => Promise<void>;
   onUpdate: (def: T) => Promise<void>;
@@ -413,7 +399,6 @@ function DetailPane<T extends { id?: string }>({
   isDraft,
   selected,
   schema,
-  schemaHint,
   labels,
   onCreate,
   onUpdate,
@@ -458,24 +443,13 @@ function DetailPane<T extends { id?: string }>({
         )}
       </header>
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {schema ? (
-          <StructuredEntityEditor
-            schema={schema}
-            initial={isDraft ? undefined : selected ?? undefined}
-            onSubmit={isDraft ? onCreate : onUpdate}
-            onCancel={isDraft ? onCancelDraft : () => undefined}
-            pending={pending}
-          />
-        ) : (
-          <JsonRecordEditor
-            initial={isDraft ? undefined : selected ?? undefined}
-            schemaHint={schemaHint}
-            labels={labels}
-            onSubmit={isDraft ? onCreate : onUpdate}
-            onCancel={isDraft ? onCancelDraft : () => undefined}
-            pending={pending}
-          />
-        )}
+        <StructuredEntityEditor
+          schema={schema}
+          initial={isDraft ? undefined : selected ?? undefined}
+          onSubmit={isDraft ? onCreate : onUpdate}
+          onCancel={isDraft ? onCancelDraft : () => undefined}
+          pending={pending}
+        />
       </div>
     </div>
   );
