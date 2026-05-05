@@ -1,5 +1,5 @@
 [prompt]
-version = "1.1.0"
+version = "1.0.0"
 description = "Base system prompt for the Ontosyx AI agent (chat mode)"
 max_tokens = 16384
 temperature = 0.3

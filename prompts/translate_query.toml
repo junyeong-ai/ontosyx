@@ -1,5 +1,5 @@
 [prompt]
-version = "1.2.0"
+version = "1.0.0"
 description = "Translate natural language question into QueryIR"
 max_tokens = 8192
 temperature = 0.0
@@ -371,6 +371,7 @@ Question: "Average price by category, sorted by category name"
 user_template = """
 Ontology:
 {{ontology}}
+{{glossary_section}}
 {{knowledge}}
 Translate this question into a QueryIR.
 

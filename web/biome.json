@@ -1,0 +1,98 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.14/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": [
+      "src/**/*.{ts,tsx,js,jsx,mjs,cjs}",
+      "scripts/**/*.{mjs,js,ts}",
+      "tests/**/*.{ts,tsx}",
+      "!src/types/api.generated.ts",
+      "!src/types/openapi.generated.ts",
+      "!**/*.d.ts",
+      "!.next",
+      "!node_modules"
+    ]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "domains": {
+      "next": "recommended",
+      "react": "recommended",
+      "test": "recommended"
+    },
+    "rules": {
+      "recommended": true,
+      "complexity": {
+        "noUselessFragments": "off"
+      },
+      "style": {
+        "useImportType": "warn",
+        "useExportType": "warn",
+        "useNodejsImportProtocol": "warn",
+        "noNonNullAssertion": "off",
+        "useTemplate": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "warn",
+        "noConsole": {
+          "level": "warn",
+          "options": { "allow": ["warn", "error"] }
+        },
+        "noArrayIndexKey": "off",
+        "noAssignInExpressions": "off"
+      },
+      "a11y": {
+        "useKeyWithClickEvents": "off",
+        "noStaticElementInteractions": "off",
+        "useMediaCaption": "off",
+        "useSemanticElements": "off",
+        "noNoninteractiveTabindex": "off",
+        "useAriaPropsSupportedByRole": "off",
+        "noNoninteractiveElementToInteractiveRole": "off",
+        "noLabelWithoutControl": "off"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "enabled": false
+    }
+  },
+  "assist": {
+    "enabled": false
+  },
+  "overrides": [
+    {
+      "includes": ["scripts/**", "tests/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/**/__tests__/**", "src/**/*.test.{ts,tsx}"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off",
+            "noConsole": "off"
+          },
+          "complexity": {
+            "noBannedTypes": "off"
+          }
+        }
+      }
+    }
+  ]
+}

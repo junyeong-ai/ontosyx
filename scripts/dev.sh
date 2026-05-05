@@ -405,11 +405,11 @@ cmd_clean() {
     rm -f "$(_creds_file)"
     echo "  ${D}Removed $(_creds_file)${N}"
   fi
-  # Strip dev-only pairs from the FE env so a later `seed` rewrites
-  # them cleanly; preserve any other settings the user added.
+  # Drop the dev workspace id so a later `seed` rewrites it cleanly;
+  # preserve any other settings the user added to .env.local.
   local fe_env="$WEB_DIR/.env.local"
   if [ -f "$fe_env" ]; then
-    grep -v "^OX_DEV_API_KEY=\|^NEXT_PUBLIC_OX_DEV_WORKSPACE_ID=\|^NEXT_PUBLIC_OX_DEV_API_KEY=" "$fe_env" > "$fe_env.tmp" || true
+    grep -v "^NEXT_PUBLIC_OX_DEV_WORKSPACE_ID=" "$fe_env" > "$fe_env.tmp" || true
     mv "$fe_env.tmp" "$fe_env"
   fi
   echo ""
@@ -420,6 +420,8 @@ cmd_clean() {
   echo ""
 }
 
+# Path is a two-file contract — the FE proxy reads the same location
+# in `web/src/lib/server/api-proxy.ts` (DEV_CREDS_PATH).
 _creds_file() { echo "/tmp/ontosyx-dev-creds"; }
 
 # Mint (or reuse) a dev bootstrap credential — the same auth path
@@ -488,22 +490,17 @@ export OX_WORKSPACE_ID="$ws_id"
 EOF
   chmod 600 "$creds"
 
-  # Expose the pair to the FE through two separate env conventions:
-  #   OX_DEV_API_KEY            — server-only (proxy route reads it).
-  #                               MUST NOT be NEXT_PUBLIC_* or Next.js
-  #                               inlines it into the browser bundle.
-  #   NEXT_PUBLIC_OX_DEV_WORKSPACE_ID
-  #                             — client-visible (workspace_id is an
-  #                               identifier, not a secret; the
-  #                               `getWorkspaceId()` helper reads it
-  #                               as a default when nothing is cached).
+  # The API key lives only in $creds — the FE proxy reads it fresh
+  # per request so a re-seed propagates without restarting Next.js.
+  # Workspace_id is browser-visible (identifier, not secret) and is
+  # consumed by `getWorkspaceId()` as a default; it ships through the
+  # NEXT_PUBLIC_* env, which still requires `dev.sh fe restart`.
   local fe_env="$WEB_DIR/.env.local"
   if [ -f "$fe_env" ]; then
-    grep -v "^OX_DEV_API_KEY=\|^NEXT_PUBLIC_OX_DEV_WORKSPACE_ID=\|^NEXT_PUBLIC_OX_DEV_API_KEY=" "$fe_env" > "$fe_env.tmp" || true
+    grep -v "^NEXT_PUBLIC_OX_DEV_WORKSPACE_ID=" "$fe_env" > "$fe_env.tmp" || true
     mv "$fe_env.tmp" "$fe_env"
   fi
   cat >> "$fe_env" <<EOF
-OX_DEV_API_KEY=$key
 NEXT_PUBLIC_OX_DEV_WORKSPACE_ID=$ws_id
 EOF
 
@@ -513,15 +510,15 @@ EOF
   echo "  ${C}api key       :${N} $key"
   echo "  ${C}workspace_id  :${N} $ws_id"
   echo "  ${C}cached at     :${N} $creds"
-  echo "  ${C}frontend env  :${N} $fe_env  ${D}(NEXT_PUBLIC_OX_DEV_*)${N}"
+  echo "  ${C}frontend env  :${N} $fe_env  ${D}(NEXT_PUBLIC_OX_DEV_WORKSPACE_ID)${N}"
   echo ""
   echo "  ${D}curl example:${N}"
   echo "    source $creds"
   echo "    curl -H \"x-api-key: \$OX_API_KEY\" -H \"x-workspace-id: \$OX_WORKSPACE_ID\" \\"
   echo "         http://localhost:${BE_PORT}/api/ontologies"
   echo ""
-  echo "  ${Y}Restart the frontend so the NEXT_PUBLIC_* env picks up:${N}"
-  echo "    ./scripts/dev.sh fe restart"
+  echo "  ${Y}Restart the frontend if NEXT_PUBLIC_OX_DEV_WORKSPACE_ID changed:${N}"
+  echo "    ./scripts/dev.sh fe restart  ${D}(API key flows through ${creds} live)${N}"
   echo ""
 }
 
