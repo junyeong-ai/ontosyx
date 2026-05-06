@@ -143,6 +143,117 @@ pub fn generate_glossary_skos(ontology: &OntologyIR) -> String {
         out.push('\n');
     }
 
+    // ---- Concept identity layer ---------------------------------
+    // `ConceptDef` is the workspace-canonical identity above any
+    // single lexicalization. Distinct from the GlossaryTerm
+    // export above (which captures every lexicalization the
+    // catalogue carries) — the concept emits as its own
+    // `skos:Concept` whose `prefLabel` is *resolved through* the
+    // canonical term, so a SKOS / TopBraid consumer sees the
+    // identity layer directly without re-deriving the link.
+    if !ontology.concepts().is_empty() {
+        // Build a quick `term_id → &GlossaryTermDef` index so the
+        // resolver below is O(1) per concept rather than O(N²)
+        // across the term × concept cross product.
+        use std::collections::HashMap;
+        let term_index: HashMap<&str, &ox_ontology::glossary::GlossaryTermDef> =
+            ontology
+                .glossary()
+                .iter()
+                .map(|t| (t.id.as_str(), t))
+                .collect();
+
+        out.push_str("# ---- Concept identity layer ----\n");
+        for concept in ontology.concepts() {
+            let concept_local = local_name(concept.id.as_str());
+            out.push_str(&format!(
+                ":{concept_local} a skos:Concept ;\n",
+            ));
+            out.push_str(&format!(
+                "    skos:inScheme <{base_ns}> ;\n",
+                base_ns = base_ns,
+            ));
+
+            // prefLabel resolved through the canonical
+            // GlossaryTerm — operators reading the SKOS export
+            // see the same canonical short form they typed in
+            // the FE without inventing a second source of
+            // truth.
+            if let Some(term) = term_index.get(concept.canonical_term_id.as_str()) {
+                write_localized_labels(&mut out, "skos:prefLabel", &term.term);
+            }
+            // altLabel for every alias term — same lexical
+            // resolution. The `&**id` deref pierces the newtype
+            // wrapper to reach `String::as_str` unambiguously
+            // (the newtype's own `as_str()` method conflicts
+            // with the `Deref<Target=String>::as_str` blanket
+            // — explicit deref keeps inference happy).
+            for alias_id in &concept.alias_term_ids {
+                let key: &str = alias_id;
+                if let Some(term) = term_index.get(key) {
+                    write_localized_labels(&mut out, "skos:altLabel", &term.term);
+                }
+            }
+
+            // skos:broader for the concept hierarchy parent.
+            // Points at another `:concept_X` URI on the same
+            // ConceptScheme — the standard SKOS narrower /
+            // broader walk.
+            if let Some(parent) = &concept.broader {
+                let parent_str: &str = parent;
+                out.push_str(&format!(
+                    "    skos:broader :{} ;\n",
+                    local_name(parent_str),
+                ));
+            }
+
+            // Concept-level description + examples — distinct
+            // from the canonical-term's prose because the
+            // ConceptDef carries identity-stable definition
+            // text the catalogue prefers over a translation-
+            // shaped lexical record.
+            write_localized_labels(&mut out, "skos:definition", &concept.description);
+            for example in &concept.examples {
+                write_localized_labels(&mut out, "skos:example", example);
+            }
+
+            // Lifecycle — same deprecate / retire shape the
+            // GlossaryTerm export uses, but anchored on the
+            // concept identity. SKOS consumers chasing
+            // dcterms:isReplacedBy through concept-graph land
+            // on the right successor regardless of which
+            // lexicalization was renamed.
+            match &concept.lifecycle {
+                TermLifecycle::Active => {}
+                TermLifecycle::Deprecated {
+                    replaced_by: _,
+                    deprecated_at,
+                } => {
+                    out.push_str("    owl:deprecated true ;\n");
+                    out.push_str(&format!(
+                        "    dcterms:date \"{deprecated_at}\"^^xsd:dateTime ;\n"
+                    ));
+                    if let Some(successor) = &concept.replaced_by {
+                        let successor_str: &str = successor;
+                        out.push_str(&format!(
+                            "    dcterms:isReplacedBy :{} ;\n",
+                            local_name(successor_str),
+                        ));
+                    }
+                }
+                TermLifecycle::Retired { retired_at } => {
+                    out.push_str("    owl:deprecated true ;\n");
+                    out.push_str(&format!(
+                        "    dcterms:dateRetired \"{retired_at}\"^^xsd:dateTime ;\n"
+                    ));
+                }
+            }
+
+            finalise_block(&mut out);
+            out.push('\n');
+        }
+    }
+
     // ---- Type-level realisations --------------------------------
     // NodeType / EdgeType `glossary_anchors` lift the `Concept ↔
     // Class/Property` SKOS link to the type tier so a downstream
@@ -372,5 +483,82 @@ mod tests {
         let ttl = generate_glossary_skos(&onto);
         assert!(ttl.contains("skos:altLabel \"Buyer\""));
         assert!(ttl.contains("skos:altLabel \"구매자\"@ko"));
+    }
+
+    #[test]
+    fn concept_emits_identity_layer_with_resolved_pref_label() {
+        // Concept identity layer rides alongside the
+        // GlossaryTerm export. The concept's `prefLabel`
+        // resolves through `canonical_term_id` so the SKOS
+        // consumer reads the canonical short form without
+        // re-deriving the link. `skos:broader` lands when a
+        // parent concept is set; `skos:altLabel` rolls up
+        // every alias term's `term` literal.
+        use ox_ontology::concept::{ConceptDef, ConceptGovernance, ConceptId};
+
+        let canonical = empty_term("gt-customer", "Customer");
+        let alias = empty_term("gt-buyer", "Buyer");
+        let mut onto = ontology_with(vec![canonical, alias]);
+        // Parent concept first so the broader pointer resolves.
+        onto.add_concept(ConceptDef {
+            id: ConceptId::new("c-party"),
+            canonical_term_id: GlossaryTermId::new("gt-customer"),
+            alias_term_ids: Vec::new(),
+            broader: None,
+            description: LocalizedText::new("Generic party"),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: TermLifecycle::Active,
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: ConceptGovernance::default(),
+        })
+        .expect("add c-party");
+        onto.add_concept(ConceptDef {
+            id: ConceptId::new("c-customer"),
+            canonical_term_id: GlossaryTermId::new("gt-customer"),
+            alias_term_ids: vec![GlossaryTermId::new("gt-buyer")],
+            broader: Some(ConceptId::new("c-party")),
+            description: LocalizedText::new("Buyer side of every order"),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: TermLifecycle::Active,
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: ConceptGovernance::default(),
+        })
+        .expect("add c-customer");
+
+        let ttl = generate_glossary_skos(&onto);
+        // Concept identity block emits with its own URI.
+        assert!(
+            ttl.contains(":c_customer a skos:Concept"),
+            "concept identity block missing: {ttl}",
+        );
+        // prefLabel resolved through gt-customer.
+        assert!(
+            ttl.contains("skos:prefLabel \"Customer\""),
+            "concept prefLabel via canonical term missing: {ttl}",
+        );
+        // altLabel resolved through gt-buyer.
+        assert!(
+            ttl.contains("skos:altLabel \"Buyer\""),
+            "concept altLabel via alias term missing: {ttl}",
+        );
+        // Broader pointer.
+        assert!(
+            ttl.contains("skos:broader :c_party"),
+            "concept broader missing: {ttl}",
+        );
+        // Concept-level definition (distinct from the term's
+        // empty description).
+        assert!(
+            ttl.contains("skos:definition \"Buyer side of every order\""),
+            "concept definition missing: {ttl}",
+        );
     }
 }
