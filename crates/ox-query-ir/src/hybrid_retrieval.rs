@@ -1,25 +1,9 @@
 //! Hybrid-retrieval primitive types (vector + fulltext + graph).
 //!
-//! Phase 7 of the long-horizon work plan. The types ship here as
-//! a stable contract so the eventual `QueryOp::HybridSearch`
-//! variant + the per-engine compiler arms (Neo4j
-//! `db.index.vector.queryNodes` + `db.index.fulltext.queryNodes`,
-//! Memgraph `vector_search.search` + `text_search.search`) can
-//! reference them without re-deriving.
-//!
-//! The variant addition itself is deferred until the implementer
-//! lands the matching arms in `PatternIR::compile / decompile`,
-//! the Cypher compiler, the federation planner, and the agent
-//! prompts. Per the per-crate `CLAUDE.md`'s `Don't` list:
-//! "Don't add new variants to `QueryOp` without also extending
-//! `PatternIR::compile` / `decompile` and the agent prompts —
-//! silent drop on either side produces opaque 'query compiled
-//! but did nothing' bugs." Pinning the primitives now lets the
-//! variant land as a self-contained PR.
-//!
-//! See `docs/architecture/graphrag-design.md` for the full
-//! decision context, the volume gate (`graphrag_enabled` per
-//! workspace), and the schema for `graph_community_summaries`.
+//! Carries the request shape consumed by `QueryOp::HybridSearch`
+//! (the GraphRAG retrieval variant) and the per-engine reader arms
+//! (Neo4j `db.index.vector.queryNodes` + `db.index.fulltext.queryNodes`,
+//! Memgraph `vector_search.search` + `text_search.search`).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

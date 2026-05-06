@@ -1,16 +1,11 @@
 //! Cypher processing pipeline.
 //!
-//! The submodules here replace the ad-hoc string-manipulation approach
-//! that `scope_cypher` used previously. A unified partial AST plus
-//! rewriter and validator pipelines become the shared infrastructure for
-//! every cross-cutting Cypher concern.
-//!
-//! Workspace isolation is the first client of this pipeline — it lands
-//! as `WorkspaceScopeRewriter` in a follow-up commit, replacing the
-//! string-based `scope_cypher`. Future passes target ACL row-level
-//! filtering, temporal `as_of` queries, soft-delete tombstone filters,
-//! and a `CypherValidator` safety + ontology conformance gate for
-//! LLM-generated queries before execution.
+//! Unified partial AST plus rewriter and validator pipelines — the
+//! shared infrastructure for every cross-cutting Cypher concern.
+//! Workspace isolation, ACL row-level filtering, temporal `as_of`
+//! queries, soft-delete tombstone filters, and the safety + ontology
+//! conformance gate for LLM-generated queries all compose against
+//! the same shared AST through the rewriter / validator phases.
 //!
 //! Design goals:
 //!

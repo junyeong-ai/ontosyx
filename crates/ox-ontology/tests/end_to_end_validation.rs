@@ -39,8 +39,7 @@ fn glossary_term(id: &str, label: &str) -> GlossaryTermDef {
         valid_from: None,
         valid_to: None,
         lifecycle: TermLifecycle::default(),
-    concept_id: None,
-            upper_kind: None,
+        concept_id: None,
     }
 }
 

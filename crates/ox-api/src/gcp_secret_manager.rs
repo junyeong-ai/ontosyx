@@ -334,8 +334,8 @@ fn is_valid_secret_id(s: &str) -> bool {
 // ---------------------------------------------------------------------------
 // Tests — string-only paths. Live ADC + Secret Manager round-trips
 // are out of scope here; they require a real GCP project and are
-// covered by the BigQuery integration test pattern (Phase 1) for
-// the same auth path.
+// covered by the BigQuery integration test pattern for the same
+// auth path.
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]

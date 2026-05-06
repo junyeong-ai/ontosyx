@@ -28,9 +28,8 @@ describe("ChromeSlice", () => {
     store = createTestStore();
   });
 
-  // `workspaceMode` moved to the URL in Phase 2-4 — the slice no longer
-  // carries it. See `useWorkspaceMode()` for the replacement; tests for
-  // pathname-derived mode live with that hook.
+  // `workspaceMode` is URL-derived (`useWorkspaceMode()`); tests for
+  // pathname-derived mode live with that hook, not here.
 
   it("designBottomTab defaults to workflow", () => {
     expect(store.getState().designBottomTab).toBe("workflow");

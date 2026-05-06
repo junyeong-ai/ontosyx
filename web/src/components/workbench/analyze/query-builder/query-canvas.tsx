@@ -34,11 +34,10 @@ import type { PatternNode, PatternEdge } from "./ir-builder";
 // QueryCanvas — XyFlow surface for building a query pattern visually
 // ---------------------------------------------------------------------------
 //
-// Replaces the earlier DIV-based `pattern-canvas.tsx`. The move to XyFlow
-// lets users position nodes freely, see real directed arrows between them,
-// pan / zoom the workspace, and — on a follow-up commit — attach a
-// context menu + keyboard shortcuts via a shared `useGraphInteractions`
-// hook.
+// XyFlow-backed pattern canvas. Users position nodes freely, see real
+// directed arrows between them, pan / zoom the workspace, and drive
+// context menu + keyboard shortcuts through the shared
+// `useGraphInteractions` hook.
 //
 // The canvas remains a pure rendering surface. State ownership stays with
 // `QueryBuilder`: every structural change (add / remove / drag) comes back

@@ -26,7 +26,7 @@
 
 use ox_core::error::OxError;
 use ox_store::{
-    ApprovalStore, ChangeRoutingStore, PatternStore, PinStore, PostgresStore, ProjectStore,
+    ApprovalStore, ChangeRoutingStore, OntologyDraftStore, PatternStore, PinStore, PostgresStore,
     QualitySignalStore, SourceMappingArtifactStore, VerificationStore,
 };
 use uuid::Uuid;

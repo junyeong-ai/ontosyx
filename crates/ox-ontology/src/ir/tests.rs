@@ -321,7 +321,7 @@ fn test_validate_self_referencing_edge() {
 }
 
 // ---------------------------------------------------------------------------
-// SchemaView tiers (Phase 1.5)
+// SchemaView tiers
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "test-fixtures")]
@@ -527,10 +527,10 @@ fn node_def_deprecation_fields_roundtrip() {
     assert_eq!(back.replaced_by_id, Some(NodeTypeId::new("n2")));
 }
 
-// NOTE: unknown_labels_in_query tests moved to
-// `crates/ox-query-ir/tests/ontology_conformance.rs` in Phase 3-B
-// (the helper crosses the ontology × query boundary and lives in
-// the downstream crate that owns QueryIR).
+// `unknown_labels_in_query` tests live in
+// `crates/ox-query-ir/tests/ontology_conformance.rs` — the helper
+// crosses the ontology × query boundary and belongs in the
+// downstream crate that owns QueryIR.
 
 // ---------------------------------------------------------------------------
 // schema_version forward-compat gate

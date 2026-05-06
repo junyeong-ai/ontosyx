@@ -1,6 +1,6 @@
 //! End-to-end federation test: CSV source → DataFusion SELECT.
 //!
-//! Smoke-level proof that the Phase 2 plumbing is wired:
+//! Smoke-level proof that the adapter plumbing is wired:
 //! `CsvAdapter` → `SourceTableProvider` → `FederationContext::run_sql`
 //! returns rows the calling SQL selected.
 

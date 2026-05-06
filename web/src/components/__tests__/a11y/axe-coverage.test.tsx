@@ -1,14 +1,11 @@
 /**
- * Phase 5 — axe-core a11y coverage for Phase 4 components.
+ * axe-core a11y smoke coverage for non-trivial composed surfaces.
  *
- * Each new surface shipped in Phase 4 (4.1 Bootstrap, 4.3
- * Ambiguity, 4.4 Explore facet, 4.5 Link-term) gets a smoke
- * accessibility pass here. vitest-axe reports any WCAG
- * violation — the assertions below trip on any such finding.
- *
- * Keeping the fixtures minimal keeps the tests focused on the
- * rendered markup's accessibility (landmarks, labels, contrast
- * semantics) rather than business logic.
+ * vitest-axe reports any WCAG violation — the assertions below
+ * trip on any such finding. Fixtures are deliberately minimal so
+ * the tests focus on the rendered markup's accessibility
+ * (landmarks, labels, contrast semantics) rather than business
+ * logic.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
@@ -49,7 +46,7 @@ function renderA11y(ui: ReactElement) {
   );
 }
 
-describe("A11y — Phase 4 components", () => {
+describe("A11y — composed surfaces", () => {
   it("LinkTermDropdown (unbound state) has no axe violations", async () => {
     const { container } = renderA11y(
       <LinkTermDropdown

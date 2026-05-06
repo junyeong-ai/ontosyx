@@ -2,12 +2,11 @@
 //! `build_match_plan` → `FederationContext::execute_plan` → Arrow
 //! `RecordBatch`.
 //!
-//! This is the first test that walks the full Phase 6-C slice 1-3
-//! pipeline. The `MATCH (n:User)` pattern lives in the query layer
-//! and has never been seen by DataFusion directly; by the time
-//! `execute_plan` returns, every planner stage has done its job and
-//! the CSV adapter has handed rows back through the Arrow
-//! RecordBatch surface.
+//! Walks the full lowering pipeline. The `MATCH (n:User)` pattern
+//! lives in the query layer and has never been seen by DataFusion
+//! directly; by the time `execute_plan` returns, every planner stage
+//! has done its job and the CSV adapter has handed rows back through
+//! the Arrow RecordBatch surface.
 
 use std::sync::Arc;
 
@@ -516,7 +515,7 @@ async fn multi_mapping_union_all_doubles_row_count() {
 
 #[tokio::test]
 async fn match_relationship_foreign_key_hop_inner_joins_endpoints() {
-    // Headline Phase 6-C slice 5 test:
+    // ForeignKey link-mapping hop, end-to-end:
     //   MATCH (u:User)-[:PLACED]->(o:Order) RETURN u.name, o.id
     // Two CSV adapters back User and Order. The PLACED link mapping is
     // a ForeignKey `orders.user_id = users.id`. INNER JOIN drops the

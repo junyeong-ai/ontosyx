@@ -1,24 +1,16 @@
 //! `ActionExecutor` — typed write surface for ontology mutations.
 //!
-//! Phase 5 second half of the long-horizon work plan. The trait +
-//! result types ship here as a stable contract; the first concrete
-//! implementation is a follow-up commit. Until that lands, the
-//! agent has no `invoke_action` tool wired (today every mutation
-//! routes through hand-written endpoints or the ontology-edit
-//! pipeline).
-//!
-//! Symmetric in shape to the existing [`crate::GraphRuntime`]
-//! trait `query_graph` uses for reads — this trait is what
-//! `invoke_action` will use for writes.
-//!
-//! See `docs/architecture/action-executor-design.md` for the full
-//! decision context, approval-policy routing, and integration
-//! points.
+//! Symmetric to [`crate::GraphRuntime`] for reads:
+//! `GraphRuntime::execute_query` runs a compiled `QueryIR` against
+//! the graph backend, `ActionExecutor::invoke_action` runs an
+//! `ActionDef` against the same backend (or a federated source,
+//! depending on the action's body). Both honour the
+//! `GRAPH_ONTOLOGY` task-local for context.
 //!
 //! # Approval flow
 //!
-//! `ActionDef.approval_policy` already declares the gate. The
-//! executor honours it without the caller knowing:
+//! `ActionDef.approval_policy` declares the gate. The executor
+//! honours it without the caller knowing:
 //!
 //! - [`ApprovalPolicy::Automatic`] → executes immediately, returns
 //!   [`ActionResult::Executed`].
@@ -27,8 +19,8 @@
 //!   no-auto-decisions invariant) and returns
 //!   [`ActionResult::PendingApproval`]. The governance approval
 //!   surface picks up the proposal; on approve, the approval
-//!   handler re-invokes `ActionExecutor::invoke_action` with
-//!   the approval id threaded so the executor recognises the
+//!   handler re-invokes `ActionExecutor::invoke_action` with the
+//!   approval id threaded so the executor recognises the
 //!   post-approval invocation and lands as
 //!   [`ActionResult::Executed`].
 
@@ -52,8 +44,8 @@ use ox_ontology::provenance::{EntityRef, ProvenanceId};
 ///    routes through the [`HeuristicProposal`] queue (per ADR-0023)
 ///    and returns [`ActionResult::PendingApproval`] without
 ///    executing.
-/// 5. Executes the action's body — a typed Cypher / Federation /
-///    Function write operation declared on the `ActionDef`.
+/// 5. Executes the action's body — a typed graph / federation /
+///    function write operation declared on the `ActionDef`.
 /// 6. Evaluates the action's `postconditions` inside the same
 ///    transaction — failure rolls back.
 /// 7. Emits a `prov:Activity` row (per ADR-0008's PROV-O contract;
@@ -82,57 +74,45 @@ pub trait ActionExecutor: Send + Sync {
 ///   without executing.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ActionResult {
-    /// The action ran. `affected` carries typed counters
-    /// (rows / nodes / edges) the FE renders on the
-    /// completion toast; `provenance_id` is the canonical
-    /// link for "show me what happened" drilldown.
     Executed {
         affected: ActionAffected,
         provenance_id: ProvenanceId,
     },
-    /// The action's `ApprovalPolicy` requires human review.
-    /// The proposal is durable in the queue per ADR-0023; the
-    /// operator approval surface picks it up and a future
-    /// `invoke_action` call (post-approval) re-runs through
-    /// the same path with the approval id threaded.
     PendingApproval {
-        /// String id of the `HeuristicProposal` row carrying
-        /// the queued invocation. Stored as `String` rather
-        /// than a typed `HeuristicProposalId` so this crate
-        /// stays free of an `ox-store` dep — `ox-api` resolves
-        /// the id when wiring the approval handler.
+        /// String id of the `HeuristicProposal` row carrying the
+        /// queued invocation. Stored as `String` rather than a
+        /// typed `HeuristicProposalId` so this crate stays free
+        /// of an `ox-store` dep — `ox-api` resolves the id when
+        /// wiring the approval handler.
         proposal_id: String,
     },
-    /// Dry-run mode — the planner produced the would-be
-    /// effects without executing. Same `affected` shape, no
-    /// `provenance_id` (nothing committed).
     DryRun {
         affected: ActionAffected,
     },
 }
 
 /// Parameters for `invoke_action`. Carries the subject, the
-/// caller-supplied parameter values, the idempotency key, and
-/// the dry-run flag.
+/// caller-supplied parameter values, the idempotency key, and the
+/// dry-run flag.
 #[derive(Debug, Clone)]
 pub struct ActionInvocationParams {
-    /// Subject the action operates on. `ActionDef.target`
-    /// declares the expected `EntityKind`; the executor
-    /// rejects on mismatch.
+    /// Subject the action operates on. `ActionDef.target` declares
+    /// the expected `EntityKind`; the executor rejects on
+    /// mismatch.
     pub subject: EntityRef,
     /// Caller-supplied parameter values, validated against
-    /// `ActionDef.parameters`. Stored as a JSON value rather
-    /// than a typed `HashMap<String, PropertyValue>` so this
-    /// crate stays free of the `ox-core::types` enum surface
-    /// — the executor walks the JSON during validation against
-    /// the action's parameter schema.
+    /// `ActionDef.parameters`. Stored as a JSON value rather than
+    /// a typed `HashMap<String, PropertyValue>` so this crate
+    /// stays free of the `ox-core::types` enum surface — the
+    /// executor walks the JSON during validation against the
+    /// action's parameter schema.
     pub values: serde_json::Value,
     /// `Some` for replay-safe invocations; `None` for
     /// idempotency-best-effort. The executor reads
     /// `ActionDef.idempotency` to decide how to honour this.
     pub idempotency_key: Option<String>,
-    /// `true` reroutes execution into a planner-only path
-    /// that returns the effects without committing. Honoured
+    /// `true` reroutes execution into a planner-only path that
+    /// returns the effects without committing. Honoured
     /// regardless of `approval_policy`.
     pub dry_run: bool,
 }
@@ -148,21 +128,21 @@ pub struct ActionAffected {
     pub edges_created: u64,
     pub edges_updated: u64,
     /// Federation-backed actions write rows on the source
-    /// adapter. Counted separately from `nodes_*` /
-    /// `edges_*` so the operator can tell graph writes from
-    /// upstream-source writes.
+    /// adapter. Counted separately from `nodes_*` / `edges_*` so
+    /// the operator can tell graph writes from upstream-source
+    /// writes.
     pub rows_written: u64,
 }
 
 /// Caller identity. The executor passes this through to the
-/// `prov:Activity` emit + the precondition rule evaluator
-/// (which may branch on roles / scopes).
+/// `prov:Activity` emit + the precondition rule evaluator (which
+/// may branch on roles / scopes).
 #[derive(Debug, Clone)]
 pub struct Principal {
     /// Stable user identifier (UUID string).
     pub user_id: String,
-    /// Workspace roles the user holds. Used by approval-
-    /// policy precondition rules.
+    /// Workspace roles the user holds. Used by approval-policy
+    /// precondition rules.
     pub roles: Vec<String>,
 }
 
@@ -194,12 +174,9 @@ mod tests {
     #[test]
     fn dry_run_omits_provenance() {
         // The DryRun variant deliberately doesn't carry a
-        // `provenance_id` — nothing committed, nothing to
-        // attribute. The executor must NOT emit a
-        // `prov:Activity` row on the dry-run path. This test
-        // pins the variant shape so a future expansion that
-        // adds a field has to consciously update the
-        // documented behaviour.
+        // `provenance_id` — nothing committed, nothing to attribute.
+        // The executor must NOT emit a `prov:Activity` row on the
+        // dry-run path.
         let r = ActionResult::DryRun {
             affected: ActionAffected {
                 nodes_created: 1,

@@ -24,6 +24,11 @@ rand = { workspace = true }
 
 [dev-dependencies]
 ox-ontology = { workspace = true, features = ["test-fixtures"] }
+# `temporal_integration` exercises the full
+# `OntologyVersionStore::resolve_version_at` →
+# `rewrite_temporal_with_renames` chain end-to-end; the rewriter
+# lives in ox-compiler and is only needed under cfg(test).
+ox-compiler = { workspace = true }
 # `advisory_lock_integration` spawns parallel callers and joins
 # them via `futures::future::join_all`; only the integration
 # tests need it, not production code.
