@@ -349,11 +349,31 @@ pub fn render_subgraph_as_llm_markdown(
 
     let mut out = String::with_capacity(2048);
 
-    // Group nodes by kind — the LLM reads kind-sectioned markdown
-    // better than a flat list. Within a section, closer anchors
-    // (lower depth) sort first.
+    // Anchors — depth-0 nodes are the direct hits from
+    // `search_entry_points`; everything else is BFS expansion.
+    // Surfacing them in a dedicated section so the LLM can tell
+    // "this is what the question matched" from "these are the
+    // neighbors we walked to". Without this split, anchors get
+    // mixed in with their kind-section siblings (e.g. a `Customer`
+    // anchor lands among 5 sibling NodeTypes from the
+    // expansion) and the model loses the retrieval discriminator.
+    let mut anchors: Vec<&SubgraphNode> = subgraph
+        .nodes
+        .iter()
+        .filter(|n| n.depth == 0)
+        .collect();
+    anchors.sort_by(|a, b| {
+        a.kind.cmp(&b.kind).then_with(|| a.logical_id.cmp(&b.logical_id))
+    });
+
+    // Group non-anchor nodes by kind — the LLM reads kind-
+    // sectioned markdown better than a flat list. Within a
+    // section, closer expansions (lower depth) sort first.
     let mut by_kind: BTreeMap<&str, Vec<&SubgraphNode>> = BTreeMap::new();
     for n in &subgraph.nodes {
+        if n.depth == 0 {
+            continue; // surfaced under "## Anchors" above
+        }
         by_kind.entry(n.kind.as_str()).or_default().push(n);
     }
     for bucket in by_kind.values_mut() {
@@ -364,9 +384,45 @@ pub fn render_subgraph_as_llm_markdown(
         });
     }
 
+    let render_one = |out: &mut String, n: &SubgraphNode, include_kind: bool| {
+        let label = n.label.as_deref().unwrap_or(n.logical_id.as_str());
+        let kind_tag = if include_kind {
+            format!(" · _{}_", n.kind)
+        } else {
+            String::new()
+        };
+        let _ = writeln!(out, "- **{}** · `{}`{}", label, n.logical_id, kind_tag);
+        if options.include_doc_snippets
+            && let Some(doc) = &n.doc
+            && !doc.is_empty()
+        {
+            let _ = writeln!(out, "  {doc}");
+        }
+    };
+
     let mut rendered: usize = 0;
     let mut hit_token_cap = false;
+    if !anchors.is_empty() {
+        let _ = writeln!(out, "## Anchors");
+        for n in &anchors {
+            if rendered >= options.max_nodes {
+                break;
+            }
+            if let Some(cap) = options.max_tokens
+                && estimate_tokens_chars(&out) >= cap
+            {
+                hit_token_cap = true;
+                break;
+            }
+            render_one(&mut out, n, true);
+            rendered += 1;
+        }
+        let _ = writeln!(out);
+    }
     'outer: for (kind, nodes) in &by_kind {
+        if hit_token_cap || rendered >= options.max_nodes {
+            break;
+        }
         let _ = writeln!(out, "## {kind}");
         for n in nodes {
             if rendered >= options.max_nodes {
@@ -383,14 +439,7 @@ pub fn render_subgraph_as_llm_markdown(
                 hit_token_cap = true;
                 break 'outer;
             }
-            let label = n.label.as_deref().unwrap_or(n.logical_id.as_str());
-            let _ = writeln!(out, "- **{}** · `{}`", label, n.logical_id);
-            if options.include_doc_snippets
-                && let Some(doc) = &n.doc
-                && !doc.is_empty()
-            {
-                let _ = writeln!(out, "  {doc}");
-            }
+            render_one(&mut out, n, false);
             rendered += 1;
         }
         let _ = writeln!(out);
@@ -462,12 +511,59 @@ mod tests {
             truncated: false,
         };
         let md = render_subgraph_as_llm_markdown(&g, &LlmRenderOptions::default());
+        // Depth-0 nodes go under `## Anchors`; the per-kind
+        // sections only carry depth>=1 expansion neighbors.
+        assert!(md.contains("## Anchors"));
         assert!(md.contains("## NodeType"));
         assert!(md.contains("## PropertyDef"));
-        // Depth-sort: nt_customer (0) before nt_order (1)
+        // Anchors come first; the `nt_customer` depth-0 anchor
+        // must precede the `nt_order` depth-1 expansion.
         let c = md.find("nt_customer").unwrap();
         let o = md.find("nt_order").unwrap();
         assert!(c < o, "{md}");
+        // Anchors section must come before any kind section.
+        let anchors_pos = md.find("## Anchors").unwrap();
+        let kind_pos = md.find("## NodeType").unwrap();
+        assert!(anchors_pos < kind_pos, "{md}");
+    }
+
+    #[test]
+    fn anchors_section_separates_hits_from_expansion() {
+        // Two anchors of different kinds, plus a depth-1 expansion.
+        // The anchors should land in `## Anchors` with a kind tag
+        // each, NOT in their per-kind sections.
+        let g = Subgraph {
+            nodes: vec![
+                node("NodeType", "nt_customer", 0),
+                node("GlossaryTerm", "gt_vip", 0),
+                node("NodeType", "nt_order", 1),
+            ],
+            edges: vec![],
+            truncated: false,
+        };
+        let md = render_subgraph_as_llm_markdown(&g, &LlmRenderOptions::default());
+        // `## Anchors` carries both anchors with their kind hint.
+        let anchors_block = md
+            .split("## Anchors")
+            .nth(1)
+            .and_then(|s| s.split("##").next())
+            .unwrap();
+        assert!(anchors_block.contains("nt_customer"));
+        assert!(anchors_block.contains("gt_vip"));
+        assert!(anchors_block.contains("_NodeType_"));
+        assert!(anchors_block.contains("_GlossaryTerm_"));
+        // The depth-1 `nt_order` is NOT under `## Anchors`.
+        assert!(!anchors_block.contains("nt_order"), "{anchors_block}");
+        // It IS under `## NodeType`.
+        let nt_block = md
+            .split("## NodeType")
+            .nth(1)
+            .and_then(|s| s.split("##").next())
+            .unwrap();
+        assert!(nt_block.contains("nt_order"));
+        // And the anchor `nt_customer` is NOT duplicated under
+        // `## NodeType`.
+        assert!(!nt_block.contains("nt_customer"), "{nt_block}");
     }
 
     #[test]
