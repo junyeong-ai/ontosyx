@@ -72,6 +72,61 @@ interface EvaluationDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
+/// `caseStatus` — derives a status string from the case's
+/// `error` / `actual` / `latency_ms` fields. The triplet
+/// (`pending` / `executed` / `failed`) is what the case-list
+/// pill renders, so the FE doesn't have to plumb a fourth
+/// status field through the wire shape — derivation lives in
+/// one place.
+function caseStatus(c: EvaluationCase): "pending" | "executed" | "failed" {
+  if (c.error) return "failed";
+  if (c.actual !== undefined && c.actual !== null) return "executed";
+  return "pending";
+}
+
+const STATUS_PILL_CLASS: Record<
+  ReturnType<typeof caseStatus>,
+  { bg: string; fg: string; ring: string }
+> = {
+  pending: {
+    bg: "bg-surface-inset",
+    fg: "text-foreground-muted",
+    ring: "ring-divider",
+  },
+  executed: {
+    bg: "bg-success-surface",
+    fg: "text-success-foreground",
+    ring: "ring-success-border",
+  },
+  failed: {
+    bg: "bg-danger-surface",
+    fg: "text-danger-foreground",
+    ring: "ring-danger-border",
+  },
+};
+
+function CaseStatusPill({
+  status,
+  label,
+}: {
+  status: ReturnType<typeof caseStatus>;
+  label: string;
+}) {
+  const tone = STATUS_PILL_CLASS[status];
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-2xs font-medium ring-1",
+        tone.bg,
+        tone.fg,
+        tone.ring,
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
 /// `<SummaryCard>` — header tile for the run-detail page. Reads
 /// the run summary endpoint and renders three counters
 /// (total / judged / failed) plus a per-axis mean strip. Order
@@ -524,7 +579,17 @@ export default function EvaluationDetailPage({
                       )}
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{c.case_key}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-medium">
+                            {c.case_key}
+                          </span>
+                          <CaseStatusPill
+                            status={caseStatus(c)}
+                            label={t(
+                              `detail.caseStatus.${caseStatus(c)}`,
+                            )}
+                          />
+                        </div>
                         {c.error ? (
                           <div className="truncate text-2xs text-danger-foreground">
                             {t("detail.errorLabel")}: {c.error}

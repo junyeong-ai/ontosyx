@@ -2973,6 +2973,11 @@
         },
         "casesTitle": "Cases",
         "casesDescription": "Each (input, expected, actual) tuple. Re-running the dataset replaces previous rows on `(run_id, case_key)`.",
+        "caseStatus": {
+          "pending": "Pending",
+          "executed": "Executed",
+          "failed": "Failed"
+        },
         "metricsTitle": "Metrics",
         "metricsDescription": "Per-axis rubric scores. RAGAS canonicals plus tenant-defined metrics ride on the same column.",
         "noCases": "No cases recorded for this run.",
