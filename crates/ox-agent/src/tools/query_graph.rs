@@ -694,52 +694,137 @@ async fn try_retrieve_subgraph_md(
         .ok()??;
     let version_id = snapshot.id;
 
-    let anchors = match domain
-        .store
-        .search_entry_points(EntryPointSearchOptions::new(version_id, question, 8))
-        .await
-    {
-        Ok(hits) if !hits.is_empty() => hits,
-        _ => return None,
-    };
+    // Fan-out: entity-anchor blend + community-summary
+    // search. Microsoft GraphRAG's insight is that broad
+    // questions ("how does the customer base look") need
+    // cluster-level context that no single entity match can
+    // satisfy. Both sources run; the markdown renderer
+    // splices each into its own header so the LLM reads
+    // anchors + communities as distinct retrieval evidence.
+    //
+    // `search_community_summaries` is best-effort — a
+    // workspace with no authored summaries returns empty,
+    // and the entity-only path renders cleanly without it.
+    // Fan-out via `tokio::join!` — both reads run
+    // concurrently against the same pool. The store impls
+    // are independent (`ontology_entity_search_vector` vs
+    // `ontology_community_summaries`), so a parallel call
+    // halves the wall-clock budget vs sequential. Empty
+    // results on either side don't fail the helper — broad
+    // questions can hit only communities, narrow questions
+    // only entities.
+    let (anchors_res, communities_res) = tokio::join!(
+        domain.store.search_entry_points(
+            EntryPointSearchOptions::new(version_id, question, 8),
+        ),
+        domain
+            .store
+            .search_community_summaries(version_id, question, 4),
+    );
+    let anchors = anchors_res.unwrap_or_default();
+    let communities = communities_res.unwrap_or_default();
 
-    let anchor_refs: Vec<ox_store::EntityRef> =
-        anchors.iter().map(|h| h.as_entity_ref()).collect();
+    if anchors.is_empty() && communities.is_empty() {
+        return None;
+    }
 
-    let mut expand_options =
-        NeighborExpandOptions::new(version_id, anchor_refs);
-    expand_options.depth = 2;
-    expand_options.max_nodes = 40;
+    let mut sections: Vec<String> = Vec::new();
 
-    let subgraph = match domain
-        .store
-        .expand_neighbors(expand_options)
-        .await
-    {
-        Ok(g) => g,
-        Err(_) => return None,
-    };
+    if !anchors.is_empty() {
+        let anchor_refs: Vec<ox_store::EntityRef> =
+            anchors.iter().map(|h| h.as_entity_ref()).collect();
 
-    // Cap the GraphRAG injection at a conservative token slice so
-    // a large ontology can't squeeze the operator's question, the
-    // schema RAG, the conversation history, and the answer
-    // reservation out of the context window. The 2000-token
-    // budget is the empirical sweet spot — wide enough to carry
-    // a 2-hop subgraph for a complex domain, narrow enough that
-    // the prompt overhead stays under 30% of even an 8K window.
-    let render_options = LlmRenderOptions {
-        max_nodes: 40,
-        max_tokens: Some(2_000),
-        include_doc_snippets: true,
-    };
-    let markdown = domain
-        .store
-        .render_subgraph_for_llm(&subgraph, &render_options);
-    if markdown.trim().is_empty() {
+        let mut expand_options =
+            NeighborExpandOptions::new(version_id, anchor_refs);
+        expand_options.depth = 2;
+        expand_options.max_nodes = 40;
+
+        if let Ok(subgraph) = domain.store.expand_neighbors(expand_options).await {
+            // Cap the GraphRAG injection at a conservative
+            // token slice so a large ontology can't squeeze
+            // the operator's question, the schema RAG, the
+            // conversation history, and the answer
+            // reservation out of the context window. The
+            // 1500-token budget reserves the remaining 500
+            // for the community section below; together they
+            // fit the original 2000-token GraphRAG envelope.
+            let render_options = LlmRenderOptions {
+                max_nodes: 40,
+                max_tokens: Some(1_500),
+                include_doc_snippets: true,
+            };
+            let markdown = domain
+                .store
+                .render_subgraph_for_llm(&subgraph, &render_options);
+            if !markdown.trim().is_empty() {
+                sections.push(format!("## Retrieved subgraph\n\n{markdown}"));
+            }
+        }
+    }
+
+    if !communities.is_empty() {
+        let md = format_community_summaries(&communities);
+        if !md.trim().is_empty() {
+            sections.push(md);
+        }
+    }
+
+    if sections.is_empty() {
         None
     } else {
-        Some(format!("## Retrieved subgraph\n\n{markdown}"))
+        Some(sections.join("\n\n"))
     }
+}
+
+/// Render a slice of community summaries as the markdown the
+/// LLM prompt tail expects. One H3 per community carrying the
+/// title, level, and prose summary; member entities surface
+/// inline as a comma-separated list so the LLM can cross-
+/// reference them against the entity-level subgraph above.
+///
+/// Truncated at 4 communities (the search caller's `top_k = 4`)
+/// + a 600-character clamp on each summary so a single chatty
+/// summary can't exhaust the GraphRAG budget — the
+/// member list survives because operator-facing community
+/// boundaries are usually the load-bearing signal.
+fn format_community_summaries(
+    communities: &[ox_store::community::CommunitySummary],
+) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::with_capacity(1024);
+    let _ = writeln!(out, "## Relevant communities");
+    let _ = writeln!(out);
+    for c in communities {
+        let _ = writeln!(out, "### {} (level {})", c.title, c.level);
+        let summary_clamped = if c.summary.chars().count() > 600 {
+            let take_n = c.summary.chars().take(597).count();
+            let take_byte_idx: usize = c
+                .summary
+                .char_indices()
+                .nth(take_n)
+                .map(|(i, _)| i)
+                .unwrap_or(c.summary.len());
+            format!("{}…", &c.summary[..take_byte_idx])
+        } else {
+            c.summary.clone()
+        };
+        let _ = writeln!(out, "{summary_clamped}");
+        if !c.member_logical_ids.is_empty() {
+            let members: Vec<String> = c
+                .member_entity_kinds
+                .iter()
+                .zip(c.member_logical_ids.iter())
+                .take(8)
+                .map(|(k, l)| format!("`{k}:{l}`"))
+                .collect();
+            let suffix =
+                if c.member_logical_ids.len() > 8 { ", …" } else { "" };
+            let _ = writeln!(out, "_Members:_ {}{suffix}", members.join(", "));
+        }
+        let _ = writeln!(out);
+    }
+    out
 }
 
 fn truncate(s: &str, max_len: usize) -> &str {
@@ -994,6 +1079,60 @@ mod tests {
         };
         let hits = collect_glossary_hits(Some(&ir), Some(&prov));
         assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn community_summary_markdown_renders_title_summary_members() {
+        use ox_store::community::CommunitySummary;
+        use uuid::Uuid;
+
+        let s = CommunitySummary {
+            id: Uuid::new_v4(),
+            workspace_id: Uuid::new_v4(),
+            ontology_version_id: Uuid::new_v4(),
+            community_id: "leiden:1:7".into(),
+            level: 1,
+            member_entity_kinds: vec!["NodeType".into(), "GlossaryTerm".into()],
+            member_logical_ids: vec!["nt_customer".into(), "gt_vip".into()],
+            title: "Premium customer cluster".into(),
+            summary: "Customers with VIP tier ordering high-value premium products."
+                .into(),
+            generated_at: chrono::Utc::now(),
+        };
+        let md = super::format_community_summaries(&[s]);
+        assert!(md.contains("## Relevant communities"));
+        assert!(md.contains("### Premium customer cluster (level 1)"));
+        assert!(md.contains("VIP tier ordering"));
+        // Members rendered as comma-joined kind:logical_id
+        // backticks so the LLM can grep them.
+        assert!(md.contains("`NodeType:nt_customer`"));
+        assert!(md.contains("`GlossaryTerm:gt_vip`"));
+    }
+
+    #[test]
+    fn community_summary_markdown_clamps_long_summary() {
+        use ox_store::community::CommunitySummary;
+        use uuid::Uuid;
+
+        let long_summary = "X".repeat(800);
+        let s = CommunitySummary {
+            id: Uuid::new_v4(),
+            workspace_id: Uuid::new_v4(),
+            ontology_version_id: Uuid::new_v4(),
+            community_id: "c1".into(),
+            level: 0,
+            member_entity_kinds: vec![],
+            member_logical_ids: vec![],
+            title: "Big".into(),
+            summary: long_summary,
+            generated_at: chrono::Utc::now(),
+        };
+        let md = super::format_community_summaries(&[s]);
+        // Clamp at 600 chars + "…". 800-char source must
+        // shrink so the GraphRAG token budget is bounded.
+        assert!(md.contains("…"));
+        // Sanity: < 800 chars in the rendered slice.
+        assert!(md.len() < 800);
     }
 
     #[test]
