@@ -2193,7 +2193,6 @@ mod tests {
             properties: Vec::new(),
             constraints: Vec::new(),
             concept_id: Some(crate::concept::ConceptId::new("c-customer")),
-            upper_kind: None,
             ..Default::default()
         };
         ontology.add_node_type(extra).expect("add second implementer");

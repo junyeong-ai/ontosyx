@@ -15853,17 +15853,6 @@
                 "description": "Source lineage — which data source table this node was derived from\n(table name, primary key, source system). Authoritative replacement\nfor the removed `source_table` field."
               }
             ]
-          },
-          "upper_kind": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/UpperKind",
-                "description": "Upper-ontology category this NodeType belongs to. Mirrors the\nBFO / Foundry \"Object / Event / Concept / Process / Agent\"\ntri-split that lets the LLM disambiguate query intent (\"which\n_events_ involve this customer?\" vs \"which _objects_ does\nthis customer own?\") without parsing labels lexically. Surfaces\ndownstream as:\n\n- **Brain** — schema-RAG renders the upper kind in the\n  compact node summary so translation prompts can filter on\n  \"this question is about events\".\n- **Action surface** — `ActionExecutor` matches kinds against\n  the action's allowed targets so a \"schedule\" action only\n  binds to `Event`s.\n- **UI** — the node-type chip carries an upper-kind icon\n  (object / event / agent / …) so operators read the\n  topology at a glance.\n\n`None` is the unkinded structural-only case (most legacy\nontologies ship without an explicit upper kind); the\nfederation planner treats `None` as `Object` for filtering\nfall-back, but the LLM prompt path renders it explicitly as\n\"unkinded\" so the operator notices the gap."
-              }
-            ]
           }
         }
       },
@@ -22966,17 +22955,6 @@
             "type": "object"
           }
         }
-      },
-      "UpperKind": {
-        "type": "string",
-        "description": "Upper-ontology categories. Picks a tri-split that maps cleanly\nto BFO (Continuant / Occurrent / Concept) and to Foundry's\n\"Object / Link / Action\" with the minimal extension that lets\nthe LLM disambiguate ontology intent without parsing labels:\n\n- **`Object`** — a continuant / endurant. Customer, Product,\n  Account, Asset. The default category for \"things that exist\n  over time\".\n- **`Event`** — an occurrent / happening. Order, Login, Payment,\n  Shipment. Carries an implicit temporal axis the planner uses\n  when matching time-window queries.\n- **`Concept`** — an abstract category / vocabulary entity.\n  Glossary terms, code-system codes, taxonomies. Distinct from\n  instance-bearing types so federation doesn't ask the source\n  adapter to materialise a \"Customer Segment Concept\" row.\n- **`Process`** — a long-running activity / workflow. Order\n  Fulfilment, Onboarding Flow. Carries lifecycle state and\n  sub-event aggregation; differs from `Event` in duration +\n  composability.\n- **`Agent`** — a participating actor. User, Service, Bot,\n  Organisation. The PROV-O `prov:Agent` axis at the type\n  level — Action surfaces gate on agent identity.",
-        "enum": [
-          "object",
-          "event",
-          "concept",
-          "process",
-          "agent"
-        ]
       },
       "UpsertPerspectiveRequest": {
         "type": "object",

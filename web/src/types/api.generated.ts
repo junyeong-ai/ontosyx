@@ -5180,7 +5180,6 @@ export interface components {
              */
             rules?: components["schemas"]["RuleId"][];
             source_lineage?: null | components["schemas"]["SourceLineage"];
-            upper_kind?: null | components["schemas"]["UpperKind"];
         };
         /** @description Type-safe identifier for node types in an ontology. */
         NodeTypeId: string;
@@ -7956,32 +7955,6 @@ export interface components {
             name: string;
             settings?: Record<string, never>;
         };
-        /**
-         * @description Upper-ontology categories. Picks a tri-split that maps cleanly
-         *     to BFO (Continuant / Occurrent / Concept) and to Foundry's
-         *     "Object / Link / Action" with the minimal extension that lets
-         *     the LLM disambiguate ontology intent without parsing labels:
-         *
-         *     - **`Object`** — a continuant / endurant. Customer, Product,
-         *       Account, Asset. The default category for "things that exist
-         *       over time".
-         *     - **`Event`** — an occurrent / happening. Order, Login, Payment,
-         *       Shipment. Carries an implicit temporal axis the planner uses
-         *       when matching time-window queries.
-         *     - **`Concept`** — an abstract category / vocabulary entity.
-         *       Glossary terms, code-system codes, taxonomies. Distinct from
-         *       instance-bearing types so federation doesn't ask the source
-         *       adapter to materialise a "Customer Segment Concept" row.
-         *     - **`Process`** — a long-running activity / workflow. Order
-         *       Fulfilment, Onboarding Flow. Carries lifecycle state and
-         *       sub-event aggregation; differs from `Event` in duration +
-         *       composability.
-         *     - **`Agent`** — a participating actor. User, Service, Bot,
-         *       Organisation. The PROV-O `prov:Agent` axis at the type
-         *       level — Action surfaces gate on agent identity.
-         * @enum {string}
-         */
-        UpperKind: "object" | "event" | "concept" | "process" | "agent";
         UpsertPerspectiveRequest: {
             /** @description Collapsed group settings JSON. */
             collapsed_groups?: unknown;
