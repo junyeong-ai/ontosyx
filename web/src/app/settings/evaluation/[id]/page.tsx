@@ -121,17 +121,39 @@ export default function EvaluationDetailPage({
     useState<ExecuteOperationKind>("translate_query");
   const [executeCaseKey, setExecuteCaseKey] = useState("");
   const [executeQuestion, setExecuteQuestion] = useState("");
+  // Retrieval-only inputs. Surface alongside the question textbox
+  // when the operator picks `retrieve_anchors`. Top-K defaults to
+  // 10 (the platform's standard retrieval working set); anchors
+  // accept the comma-separated `kind:logical_id` shape that
+  // matches the BE wire shape.
+  const [retrieveTopK, setRetrieveTopK] = useState(10);
+  const [retrieveAnchorIds, setRetrieveAnchorIds] = useState("");
+  const isRetrieve = executeKind === "retrieve_anchors";
   const canExecute =
     executeCaseKey.trim().length > 0 &&
     executeQuestion.trim().length > 0 &&
-    !execute.isPending;
+    !execute.isPending &&
+    (!isRetrieve || retrieveTopK >= 1);
   const onExecute = () => {
     const caseKey = executeCaseKey.trim();
     const question = executeQuestion.trim();
-    const request: ExecuteEvaluationCaseRequest =
-      executeKind === "translate_query"
-        ? { kind: "translate_query", question }
-        : { kind: "explain", question };
+    let request: ExecuteEvaluationCaseRequest;
+    if (executeKind === "translate_query") {
+      request = { kind: "translate_query", question };
+    } else if (executeKind === "explain") {
+      request = { kind: "explain", question };
+    } else {
+      const expected_anchor_ids = retrieveAnchorIds
+        .split(/[\s,]+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      request = {
+        kind: "retrieve_anchors",
+        question,
+        top_k: retrieveTopK,
+        expected_anchor_ids,
+      };
+    }
     execute.mutate(
       {
         caseKey,
@@ -142,6 +164,7 @@ export default function EvaluationDetailPage({
           toast.success(t("detail.execute.successToast", { caseKey }));
           setExecuteCaseKey("");
           setExecuteQuestion("");
+          setRetrieveAnchorIds("");
         },
         onError: (err) => {
           toast.error(
@@ -229,6 +252,9 @@ export default function EvaluationDetailPage({
               <option value="explain">
                 {t("detail.execute.kindOption.explain")}
               </option>
+              <option value="retrieve_anchors">
+                {t("detail.execute.kindOption.retrieveAnchors")}
+              </option>
             </SettingsSelect>
             <SettingsInput
               label={t("detail.execute.caseKeyLabel")}
@@ -253,6 +279,28 @@ export default function EvaluationDetailPage({
                 : t("detail.execute.submit")}
             </Button>
           </div>
+          {isRetrieve ? (
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_3fr] md:items-end">
+              <SettingsInput
+                label={t("detail.execute.topKLabel")}
+                type="number"
+                min={1}
+                max={100}
+                value={retrieveTopK}
+                onChange={(e) => {
+                  const next = Number.parseInt(e.target.value, 10);
+                  if (Number.isFinite(next))
+                    setRetrieveTopK(Math.max(1, Math.min(100, next)));
+                }}
+              />
+              <SettingsInput
+                label={t("detail.execute.anchorIdsLabel")}
+                placeholder={t("detail.execute.anchorIdsPlaceholder")}
+                value={retrieveAnchorIds}
+                onChange={(e) => setRetrieveAnchorIds(e.target.value)}
+              />
+            </div>
+          ) : null}
         </section>
 
         <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">

@@ -959,11 +959,10 @@ impl EvaluationCapture for PostgresStore {
 impl PostgresStore {
     /// Shared write path for every numeric `EvaluationCapture`
     /// metric. Stamps the workspace from the bound task-local,
-    /// builds a uniform `metadata` envelope (`kind` + `operation`
-    /// + run+case correlation), and lands the row through
-    /// [`super::EvaluationStore::upsert_evaluation_metric`] so
-    /// re-runs replace in place on the natural key
-    /// `(case_id, name)`.
+    /// builds a uniform `metadata` envelope (`kind`, `operation`,
+    /// run + case correlation), and lands the row through
+    /// `super::EvaluationStore::upsert_evaluation_metric` so re-runs
+    /// replace in place on the natural key `(case_id, name)`.
     async fn record_metric(
         &self,
         ctx: &EvaluationContext,

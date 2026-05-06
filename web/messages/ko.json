@@ -2995,12 +2995,16 @@
           "kindLabel": "오퍼레이션",
           "kindOption": {
             "translateQuery": "translate_query — 자연어 → QueryIR (대표 온톨로지 필요)",
-            "explain": "explain — 챗 스타일 답변 (그린필드 가능)"
+            "explain": "explain — 챗 스타일 답변 (그린필드 가능)",
+            "retrieveAnchors": "retrieve_anchors — IR 리트리벌 (precision/recall/MRR/NDCG)"
           },
           "caseKeyLabel": "케이스 키",
           "caseKeyPlaceholder": "q01",
           "questionLabel": "질문",
           "questionPlaceholder": "이번 분기 가장 많이 판매된 제품을 알려주세요",
+          "topKLabel": "Top-K",
+          "anchorIdsLabel": "골드 앵커 ID",
+          "anchorIdsPlaceholder": "node_type:Customer, glossary_term:gt-vip",
           "submit": "실행",
           "submitting": "실행 중…",
           "successToast": "케이스 `{caseKey}` 실행 완료",

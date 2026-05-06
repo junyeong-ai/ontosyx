@@ -2995,12 +2995,16 @@
           "kindLabel": "Operation",
           "kindOption": {
             "translateQuery": "translate_query — NL → QueryIR (requires canonical ontology)",
-            "explain": "explain — chat-style answer (greenfield friendly)"
+            "explain": "explain — chat-style answer (greenfield friendly)",
+            "retrieveAnchors": "retrieve_anchors — IR retrieval (precision/recall/MRR/NDCG)"
           },
           "caseKeyLabel": "Case key",
           "caseKeyPlaceholder": "q01",
           "questionLabel": "Question",
           "questionPlaceholder": "List the most popular products this quarter",
+          "topKLabel": "Top-K",
+          "anchorIdsLabel": "Gold anchor ids",
+          "anchorIdsPlaceholder": "node_type:Customer, glossary_term:gt-vip",
           "submit": "Run",
           "submitting": "Running…",
           "successToast": "Case `{caseKey}` executed",

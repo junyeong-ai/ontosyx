@@ -559,6 +559,36 @@ pub enum ExecuteEvaluationCaseRequest {
         #[serde(default)]
         expected_answer: Option<String>,
     },
+    /// Retrieval evaluation against the workspace's
+    /// `OntologyNavigationStore`. Walks
+    /// `search_entry_points{ query, limit: top_k }` and scores
+    /// the resulting anchor set against `expected_anchor_ids`
+    /// using deterministic IR metrics: precision@k, recall@k,
+    /// MRR (mean reciprocal rank), and NDCG@k. No LLM judge —
+    /// the metrics land directly via `record_metric` so the
+    /// case is "complete" the moment execution returns.
+    ///
+    /// `expected_anchor_ids` carries the gold-standard logical
+    /// ids (kind-prefixed: `node_type:Customer`, `glossary_term:gt-vip`,
+    /// etc.) the operator authored as the right answer for this
+    /// question. The retrieval set is matched against this list
+    /// by exact equality.
+    ///
+    /// Requires the workspace to have a committed canonical
+    /// ontology (the navigation store is version-keyed).
+    RetrieveAnchors {
+        question: String,
+        /// Top-K cap on the retrieval set. Mirrors
+        /// `EntryPointSearchOptions.limit`. Capped to `100` by
+        /// the implementation to bound the score computation.
+        top_k: u32,
+        /// Gold-standard anchor logical ids — the set the
+        /// retrieval should rank highly. Stored on
+        /// `evaluation_cases.expected` so the dataset round-trips
+        /// across re-runs.
+        #[serde(default)]
+        expected_anchor_ids: Vec<String>,
+    },
 }
 
 impl ExecuteEvaluationCaseRequest {
@@ -568,13 +598,17 @@ impl ExecuteEvaluationCaseRequest {
     /// (chat explain, generic LLM probes) skip the load and run
     /// during the greenfield phase.
     fn requires_canonical_ontology(&self) -> bool {
-        matches!(self, Self::TranslateQuery { .. })
+        matches!(
+            self,
+            Self::TranslateQuery { .. } | Self::RetrieveAnchors { .. }
+        )
     }
 
     fn question(&self) -> &str {
         match self {
             Self::TranslateQuery { question, .. } => question,
             Self::Explain { question, .. } => question,
+            Self::RetrieveAnchors { question, .. } => question,
         }
     }
 
@@ -586,6 +620,12 @@ impl ExecuteEvaluationCaseRequest {
             Self::Explain {
                 expected_answer, ..
             } => expected_answer.clone().map(serde_json::Value::String),
+            Self::RetrieveAnchors {
+                expected_anchor_ids,
+                ..
+            } => Some(serde_json::json!({
+                "anchor_ids": expected_anchor_ids,
+            })),
         }
     }
 }
@@ -630,7 +670,12 @@ pub(crate) async fn execute_evaluation_case(
     // on the case page even if the brain call later fails (the
     // resulting `error` field on the case row carries the failure
     // reason for triage).
-    let ir = if req.requires_canonical_ontology() {
+    // Resolve the canonical version once for any branch that needs
+    // ontology-anchored data (translate-query loads the IR;
+    // retrieve-anchors walks the navigation store keyed on
+    // `version_id`). Only the IR materialise step is conditional —
+    // navigation-only cases skip the JSONB hydrate.
+    let (version_id, ir) = if req.requires_canonical_ontology() {
         let identity = state
             .store
             .get_workspace_ontology()
@@ -653,20 +698,25 @@ pub(crate) async fn execute_evaluation_case(
                     "workspace ontology has no committed version".to_string(),
                 )
             })?;
-        Some(
-            state
-                .store
-                .get_ontology_ir(version.id)
-                .await
-                .map_err(AppError::from)?
-                .ok_or_else(|| {
-                    AppError::query_ir_invalid(
-                        "workspace ontology snapshot is unavailable".to_string(),
-                    )
-                })?,
-        )
+        let ir = if matches!(req, ExecuteEvaluationCaseRequest::TranslateQuery { .. }) {
+            Some(
+                state
+                    .store
+                    .get_ontology_ir(version.id)
+                    .await
+                    .map_err(AppError::from)?
+                    .ok_or_else(|| {
+                        AppError::query_ir_invalid(
+                            "workspace ontology snapshot is unavailable".to_string(),
+                        )
+                    })?,
+            )
+        } else {
+            None
+        };
+        (Some(version.id), ir)
     } else {
-        None
+        (None, None)
     };
 
     let input_value = serde_json::to_value(&req).map_err(|e| {
@@ -705,6 +755,7 @@ pub(crate) async fn execute_evaluation_case(
         case_id: case.id,
     };
     let brain = Arc::clone(&state.brain);
+    let nav_store = Arc::clone(&state.store);
     let started = std::time::Instant::now();
     // Outcome envelope carries the typed payload + the optional
     // `CallProvenance` from whichever LLM call produced it. The
@@ -748,6 +799,56 @@ pub(crate) async fn execute_evaluation_case(
                         }),
                         None,
                     ))
+                }
+                ExecuteEvaluationCaseRequest::RetrieveAnchors {
+                    question,
+                    top_k,
+                    expected_anchor_ids,
+                } => {
+                    let Some(version_id) = version_id else {
+                        return Err(
+                            "internal: ontology version not resolved for retrieve_anchors case"
+                                .to_string(),
+                        );
+                    };
+                    // Cap `top_k` at 100 — the Level-3 anchor index
+                    // returns at most a few hundred hits even for the
+                    // broadest blend, and IR metric stability collapses
+                    // past this point. Mirrors the runtime ceiling on
+                    // `EntryPointSearchOptions.limit`.
+                    let k = top_k.clamp(1, 100);
+                    let opts = ox_store::navigation::EntryPointSearchOptions::new(
+                        version_id, &question, k,
+                    );
+                    let hits = nav_store
+                        .search_entry_points(opts)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    // Encode the retrieved anchors as `kind:logical_id`
+                    // strings — the same shape the operator authors
+                    // gold-standard ids in. Round-trips through the
+                    // case `actual` payload so the FE renders side-by-
+                    // side without re-fetching.
+                    let actual_ids: Vec<String> = hits
+                        .iter()
+                        .map(|h| format!("{}:{}", h.entity_kind, h.logical_id))
+                        .collect();
+                    let metrics = ox_store::evaluation::score_retrieval_metrics(
+                        &actual_ids,
+                        &expected_anchor_ids,
+                        k as usize,
+                    );
+                    let payload = serde_json::json!({
+                        "anchor_ids": actual_ids,
+                        "hits": hits.iter().map(|h| serde_json::json!({
+                            "entity_kind": h.entity_kind,
+                            "logical_id": h.logical_id,
+                            "doc": h.doc,
+                            "score": h.score,
+                        })).collect::<Vec<_>>(),
+                        "metrics": metrics,
+                    });
+                    Ok((payload, None))
                 }
             }
         })
@@ -799,6 +900,50 @@ pub(crate) async fn execute_evaluation_case(
         .upsert_evaluation_case(&updated)
         .await
         .map_err(AppError::from)?;
+
+    // Stage 4 — for retrieval cases, lift the deterministic IR
+    // metrics off the `actual` payload and persist them as
+    // `evaluation_metrics` rows. The dashboard / diff surfaces
+    // pick them up identically to LLM-judged axes; the case is
+    // "complete" the moment execute returns (no judge round-trip
+    // needed). Skip silently when the brain call failed —
+    // `case.actual` will be None and the FE renders the error
+    // path instead.
+    if let Some(actual) = case.actual.as_ref()
+        && let Some(metrics_json) = actual.get("metrics")
+        && let Ok(metrics) = serde_json::from_value::<
+            ox_store::evaluation::RetrievalMetrics,
+        >(metrics_json.clone())
+    {
+        let axes: [(&str, f64); 4] = [
+            ("retrieval.precision_at_k", metrics.precision_at_k),
+            ("retrieval.recall_at_k", metrics.recall_at_k),
+            ("retrieval.mrr", metrics.mrr),
+            ("retrieval.ndcg_at_k", metrics.ndcg_at_k),
+        ];
+        let metric_metadata = serde_json::json!({
+            "k": metrics.k,
+            "topk_hit_count": metrics.topk_hit_count,
+            "expected_count": metrics.expected_count,
+        });
+        for (name, score) in axes {
+            let row = EvaluationMetric {
+                id: Uuid::now_v7(),
+                case_id: case.id,
+                workspace_id: ws.workspace_id,
+                name: name.to_string(),
+                score,
+                reasoning: None,
+                metadata: metric_metadata.clone(),
+                created_at: chrono::Utc::now(),
+            };
+            state
+                .store
+                .upsert_evaluation_metric(&row)
+                .await
+                .map_err(AppError::from)?;
+        }
+    }
 
     Ok(ApiResponse::of(ExecuteEvaluationCaseResponse { case }))
 }
@@ -870,6 +1015,18 @@ pub(crate) async fn judge_evaluation_case(
                 "case input does not match a known executable shape: {e}"
             ))
         })?;
+    // Retrieval cases land their metrics deterministically at
+    // execute time — there's nothing for the LLM judge to score
+    // (the IR axes don't benefit from a rubric). Reject early
+    // rather than silently re-judging on top of the deterministic
+    // axes.
+    if matches!(parsed, ExecuteEvaluationCaseRequest::RetrieveAnchors { .. }) {
+        return Err(AppError::query_ir_invalid(
+            "retrieve_anchors cases score deterministically at execute \
+             time and are not LLM-judgeable"
+                .to_string(),
+        ));
+    }
     let question = parsed.question().to_string();
 
     let judgement = state

@@ -116,13 +116,31 @@ export type ExecuteEvaluationCaseRequest =
       question: string;
       /** Optional reference answer for downstream comparison. */
       expected_answer?: string;
+    }
+  | {
+      kind: "retrieve_anchors";
+      question: string;
+      /** Top-K cap on the retrieval set. The server clamps
+       *  to `[1, 100]` to match the navigation store's
+       *  `EntryPointSearchOptions.limit` ceiling. */
+      top_k: number;
+      /** Gold-standard anchor logical ids in `kind:logical_id`
+       *  form (`node_type:Customer`, `glossary_term:gt-vip`).
+       *  Stored on `evaluation_cases.expected` so the dataset
+       *  survives re-runs. Empty list is allowed — the case
+       *  scores precision at 0 with vacuous recall 1. */
+      expected_anchor_ids: string[];
     };
 
 /** Operation kinds the case-execute endpoint dispatches on. The
  *  closed union mirrors the BE `ExecuteEvaluationCaseRequest`
  *  enum — adding a new kind lands as a new wire variant + UI
  *  choice in lockstep. */
-export const EXECUTE_OPERATION_KINDS = ["translate_query", "explain"] as const;
+export const EXECUTE_OPERATION_KINDS = [
+  "translate_query",
+  "explain",
+  "retrieve_anchors",
+] as const;
 export type ExecuteOperationKind = (typeof EXECUTE_OPERATION_KINDS)[number];
 
 export interface CompleteEvaluationRunRequest {

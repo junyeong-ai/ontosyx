@@ -229,6 +229,101 @@ pub struct EvaluationCase {
     pub created_at: DateTime<Utc>,
 }
 
+/// Deterministic IR scoring for retrieval evaluation cases.
+/// Operates on a ranked list of returned anchor ids + the gold-
+/// standard set; emits the four canonical IR axes the literature
+/// agrees on (precision@k, recall@k, MRR, NDCG@k). Pure function,
+/// no LLM round-trip — retrieval cases land their metrics
+/// synchronously inside the case-execute handler.
+pub fn score_retrieval_metrics(
+    actual_anchors: &[String],
+    expected_anchors: &[String],
+    k: usize,
+) -> RetrievalMetrics {
+    let k_capped = actual_anchors.len().min(k.max(1));
+    let topk: &[String] = &actual_anchors[..k_capped];
+    let expected_set: std::collections::BTreeSet<&String> = expected_anchors.iter().collect();
+    let expected_count = expected_set.len() as f64;
+
+    // precision@k = |topk ∩ expected| / k_capped
+    let topk_hits = topk.iter().filter(|a| expected_set.contains(a)).count();
+    let precision = if k_capped == 0 {
+        0.0
+    } else {
+        topk_hits as f64 / k_capped as f64
+    };
+    // recall@k = |topk ∩ expected| / |expected|
+    let recall = if expected_count == 0.0 {
+        // No gold-standard anchors authored — vacuously 1.0
+        // (every expected item retrieved). Mirrors the
+        // information-retrieval convention for empty relevance
+        // sets; the FE renders the case as "no expected
+        // anchors authored" so the score doesn't mislead.
+        1.0
+    } else {
+        topk_hits as f64 / expected_count
+    };
+    // MRR = 1 / rank_of_first_relevant. 0.0 when no relevant in
+    // topk. Iterate full `actual_anchors` (not capped) so a
+    // relevant anchor at position k+1 still scores nothing,
+    // matching `mrr@k` semantics.
+    let mrr = topk
+        .iter()
+        .enumerate()
+        .find_map(|(i, a)| {
+            if expected_set.contains(a) {
+                Some(1.0 / (i + 1) as f64)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(0.0);
+    // NDCG@k with binary relevance — relevance = 1 if
+    // anchor ∈ expected, 0 otherwise. DCG = Σ rel_i / log2(i + 2).
+    // IDCG = ideal ordering (every relevant first).
+    let dcg: f64 = topk
+        .iter()
+        .enumerate()
+        .map(|(i, a)| {
+            if expected_set.contains(a) {
+                1.0 / ((i as f64 + 2.0).log2())
+            } else {
+                0.0
+            }
+        })
+        .sum();
+    let ideal_hits = expected_count.min(k_capped as f64) as usize;
+    let idcg: f64 = (0..ideal_hits)
+        .map(|i| 1.0 / ((i as f64 + 2.0).log2()))
+        .sum();
+    let ndcg = if idcg > 0.0 { dcg / idcg } else { 0.0 };
+
+    RetrievalMetrics {
+        k: k_capped as u32,
+        topk_hit_count: topk_hits as u32,
+        expected_count: expected_count as u32,
+        precision_at_k: precision,
+        recall_at_k: recall,
+        mrr,
+        ndcg_at_k: ndcg,
+    }
+}
+
+/// IR-flavoured deterministic retrieval metrics. Each axis lands
+/// as a separate `evaluation_metrics` row keyed
+/// `retrieval.<axis>` so the existing dashboard / diff surfaces
+/// pick them up uniformly with the LLM-judged axes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RetrievalMetrics {
+    pub k: u32,
+    pub topk_hit_count: u32,
+    pub expected_count: u32,
+    pub precision_at_k: f64,
+    pub recall_at_k: f64,
+    pub mrr: f64,
+    pub ndcg_at_k: f64,
+}
+
 /// One per-case axis-level diff between two runs over the same
 /// dataset. Carries both raw scores so the FE diff panel renders
 /// the comparison without re-fetching either side.
@@ -604,6 +699,60 @@ mod tests {
         let v = serde_json::to_value(&m).unwrap();
         let back: EvaluationMetric = serde_json::from_value(v).unwrap();
         assert_eq!(back, m);
+    }
+
+    #[test]
+    fn retrieval_perfect_top_k_yields_all_ones() {
+        let actual = vec!["a".into(), "b".into(), "c".into()];
+        let expected = vec!["a".into(), "b".into(), "c".into()];
+        let m = score_retrieval_metrics(&actual, &expected, 3);
+        assert_eq!(m.precision_at_k, 1.0);
+        assert_eq!(m.recall_at_k, 1.0);
+        assert_eq!(m.mrr, 1.0);
+        // NDCG@3 with all 3 relevant in ideal order = 1.0
+        assert!((m.ndcg_at_k - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn retrieval_partial_match_scores_correctly() {
+        // top-3 = [hit, miss, hit]; expected = {hit, hit, hit-not-in-topk}
+        let actual = vec!["a".into(), "miss".into(), "c".into()];
+        let expected = vec!["a".into(), "c".into(), "z".into()];
+        let m = score_retrieval_metrics(&actual, &expected, 3);
+        assert!((m.precision_at_k - 2.0 / 3.0).abs() < 1e-9);
+        assert!((m.recall_at_k - 2.0 / 3.0).abs() < 1e-9);
+        assert_eq!(m.mrr, 1.0); // first hit at position 1
+        assert_eq!(m.topk_hit_count, 2);
+    }
+
+    #[test]
+    fn retrieval_no_overlap_yields_zeros() {
+        let actual = vec!["a".into(), "b".into(), "c".into()];
+        let expected = vec!["x".into(), "y".into()];
+        let m = score_retrieval_metrics(&actual, &expected, 3);
+        assert_eq!(m.precision_at_k, 0.0);
+        assert_eq!(m.recall_at_k, 0.0);
+        assert_eq!(m.mrr, 0.0);
+        assert_eq!(m.ndcg_at_k, 0.0);
+    }
+
+    #[test]
+    fn retrieval_empty_expected_set_treats_recall_as_one() {
+        // No gold-standard anchors — vacuously perfect recall.
+        let actual = vec!["a".into()];
+        let expected: Vec<String> = vec![];
+        let m = score_retrieval_metrics(&actual, &expected, 1);
+        assert_eq!(m.recall_at_k, 1.0);
+        assert_eq!(m.precision_at_k, 0.0);
+        assert_eq!(m.expected_count, 0);
+    }
+
+    #[test]
+    fn retrieval_first_match_at_position_2_yields_mrr_half() {
+        let actual = vec!["miss".into(), "hit".into(), "miss2".into()];
+        let expected = vec!["hit".into()];
+        let m = score_retrieval_metrics(&actual, &expected, 3);
+        assert!((m.mrr - 0.5).abs() < 1e-9);
     }
 
     #[test]
