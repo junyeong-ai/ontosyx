@@ -2987,6 +2987,12 @@
           "countLabel": "{shown} of {total}",
           "emptyForFilter": "No cases match the selected filter."
         },
+        "retry": {
+          "label": "Retry",
+          "successToast": "Case `{caseKey}` re-run",
+          "errorToast": "Retry failed: {error}",
+          "parseError": "Case input has an unexpected shape — cannot retry"
+        },
         "metricsTitle": "Metrics",
         "metricsDescription": "Per-axis rubric scores. RAGAS canonicals plus tenant-defined metrics ride on the same column.",
         "noCases": "No cases recorded for this run.",

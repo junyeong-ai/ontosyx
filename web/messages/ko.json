@@ -2986,6 +2986,12 @@
           "countLabel": "{shown} / {total}",
           "emptyForFilter": "선택한 필터에 해당하는 케이스가 없습니다."
         },
+        "retry": {
+          "label": "재실행",
+          "successToast": "케이스 `{caseKey}` 재실행 완료",
+          "errorToast": "재실행 실패: {error}",
+          "parseError": "케이스 입력 형식이 예상과 다릅니다 — 재실행 불가"
+        },
         "casesDescription": "각 (입력, 기대, 실제) 튜플. 데이터셋 재실행은 `(run_id, case_key)` 기준으로 이전 행을 대체합니다.",
         "metricsTitle": "메트릭",
         "metricsDescription": "축별 루브릭 점수. RAGAS 기본 + 테넌트 정의 메트릭이 같은 컬럼을 공유합니다.",

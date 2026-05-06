@@ -235,6 +235,11 @@ export function useExecuteEvaluationCase(runId: string) {
       executeEvaluationCase(runId, caseKey, request),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: evaluationKeys.cases(runId) });
+      // Retrying a failed case flips `failed_cases` / `total
+      // judged` on the summary card; without this invalidation
+      // the header tile reads stale until the next 30s
+      // refetch.
+      qc.invalidateQueries({ queryKey: evaluationKeys.runSummary(runId) });
     },
   });
 }

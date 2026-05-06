@@ -409,6 +409,45 @@ export default function EvaluationDetailPage({
     });
   };
   const canPromote = !!selectedCase && !promote.isPending;
+  /// Re-runs a failed case using its persisted `input` envelope.
+  /// The `EvaluationCase.input` already carries the full
+  /// `ExecuteEvaluationCaseRequest` shape (kind + question + per-
+  /// kind fields), so retry is a one-line dispatch — no operator
+  /// re-input needed. The case_key stays the same so the natural-
+  /// key UPSERT (`run_id, case_key`) replaces the failed row in
+  /// place; metrics from the prior failed attempt cascade-delete
+  /// when the FK fires.
+  const onRetryCase = (c: EvaluationCase, evt: React.MouseEvent) => {
+    // The retry button lives inside the case row's `<button>`
+    // (selecting the case) — stop propagation so the click
+    // doesn't also flip `selectedCase`. Operators clicking the
+    // body row vs the retry pill is the discriminator.
+    evt.stopPropagation();
+    let parsed: ExecuteEvaluationCaseRequest;
+    try {
+      parsed = c.input as ExecuteEvaluationCaseRequest;
+    } catch {
+      toast.error(t("detail.retry.parseError"));
+      return;
+    }
+    execute.mutate(
+      { caseKey: c.case_key, request: parsed },
+      {
+        onSuccess: () => {
+          toast.success(
+            t("detail.retry.successToast", { caseKey: c.case_key }),
+          );
+        },
+        onError: (err) => {
+          toast.error(
+            t("detail.retry.errorToast", {
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+        },
+      },
+    );
+  };
   const onPromote = async () => {
     if (!selectedCase) return;
     // Two-step prompt: dataset id then promotion mode. The
@@ -659,10 +698,22 @@ export default function EvaluationDetailPage({
                           </div>
                         ) : null}
                       </div>
-                      <div className="shrink-0 text-2xs text-foreground-muted tabular-nums">
-                        {typeof c.latency_ms === "number"
-                          ? t("detail.latencyMs", { ms: c.latency_ms })
-                          : t("detail.noLatency")}
+                      <div className="flex shrink-0 items-center gap-2 text-2xs text-foreground-muted tabular-nums">
+                        {caseStatus(c) === "failed" ? (
+                          <button
+                            type="button"
+                            onClick={(evt) => onRetryCase(c, evt)}
+                            disabled={execute.isPending}
+                            className="rounded-md border border-divider bg-surface-base px-2 py-0.5 font-medium text-foreground-strong hover:bg-surface-raised disabled:opacity-50"
+                          >
+                            {t("detail.retry.label")}
+                          </button>
+                        ) : null}
+                        <span>
+                          {typeof c.latency_ms === "number"
+                            ? t("detail.latencyMs", { ms: c.latency_ms })
+                            : t("detail.noLatency")}
+                        </span>
                       </div>
                     </button>
                   </li>
