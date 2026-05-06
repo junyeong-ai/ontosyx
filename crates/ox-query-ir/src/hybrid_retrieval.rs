@@ -195,4 +195,64 @@ mod tests {
         let back: FusionStrategy = serde_json::from_str(&json).unwrap();
         assert_eq!(f, back);
     }
+
+    #[test]
+    fn query_op_hybrid_search_round_trips_through_serde() {
+        // The variant lands on the wire as
+        // `{"op":"hybrid_search","request":{...}}` — pin the
+        // tag rendering + round-trip so a future serde rename
+        // doesn't break stored fixtures silently.
+        use crate::query::{QueryIR, QueryOp, QUERY_IR_SCHEMA_VERSION};
+        let ir = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::HybridSearch {
+                request: HybridSearchRequest {
+                    vector_query: Embedding::new(
+                        vec![0.1, 0.2, 0.3, 0.4],
+                        "all-MiniLM-L6-v2",
+                    ),
+                    fulltext_query: Some("customer churn".into()),
+                    graph_constraints: None,
+                    fuse: FusionStrategy::default(),
+                    top_k: 25,
+                },
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        };
+        let json = serde_json::to_value(&ir).unwrap();
+        assert_eq!(json["operation"]["op"], "hybrid_search");
+        assert_eq!(json["operation"]["request"]["top_k"], 25);
+        let back: QueryIR = serde_json::from_value(json).unwrap();
+        assert!(matches!(back.operation, QueryOp::HybridSearch { .. }));
+    }
+
+    #[test]
+    fn validator_rejects_inconsistent_vector_dim() {
+        // A vector whose `dim` field doesn't match `vector.len()`
+        // would surface as an opaque driver panic at the index
+        // reader. Validator catches it before the runtime.
+        use crate::query::{QueryIR, QueryOp, QUERY_IR_SCHEMA_VERSION};
+        let mut bad_emb = Embedding::new(vec![0.0; 4], "test");
+        bad_emb.dim = 999; // corruption
+        let ir = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::HybridSearch {
+                request: HybridSearchRequest {
+                    vector_query: bad_emb,
+                    fulltext_query: None,
+                    graph_constraints: None,
+                    fuse: FusionStrategy::default(),
+                    top_k: 10,
+                },
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        };
+        assert!(ir.validate().is_err());
+    }
 }

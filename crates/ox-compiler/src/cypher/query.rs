@@ -303,6 +303,30 @@ pub(super) fn compile_op(
                 parts.push(format!("RETURN {}", projs.join(", ")));
             }
         }
+
+        QueryOp::HybridSearch { .. } => {
+            // Hybrid retrieval lowers to engine-specific
+            // index-procedure calls (`db.index.vector.queryNodes`
+            // + `db.index.fulltext.queryNodes` on Neo4j;
+            // `vector_search.search` + `text_search.search` on
+            // Memgraph) plus a Reciprocal Rank Fusion CTE. The
+            // emission path is non-trivial (different procedures
+            // per dialect, fusion CTE shape varies, top_k must
+            // round-trip without parameter substitution into the
+            // procedure call) and ships in a follow-up. The
+            // variant is reachable through the type system today
+            // so consumers can construct it; emission lands when
+            // the per-dialect index-procedure conventions are
+            // wired through.
+            return Err(OxError::UnsupportedOperation {
+                target: "graph:cypher".into(),
+                operation: "QueryOp::HybridSearch — hybrid \
+                    retrieval emission lands in a follow-up; \
+                    the agent's `try_retrieve_subgraph_md` \
+                    helper bypasses QueryIR for now"
+                    .into(),
+            });
+        }
     }
 
     Ok(())

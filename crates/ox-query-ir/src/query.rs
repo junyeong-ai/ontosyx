@@ -138,7 +138,13 @@ impl std::fmt::Display for GraphFunction {
 /// [`ox_ontology::ir::ONTOLOGY_IR_SCHEMA_VERSION`] for the versioning
 /// rationale — the same contract applies: bump on incompatible shape
 /// change, deserialisation rejects higher values.
-pub const QUERY_IR_SCHEMA_VERSION: u32 = 1;
+// Bumped to 2 with the addition of `QueryOp::HybridSearch` —
+// adding a tagged-enum variant is a breaking on-wire change for
+// any reader on schema_version=1 (the strict serde_json
+// deserialise rejects unknown `op` tags). Persisted
+// `saved_query_patterns` remained Match-shape, so the upgrade
+// is safe at write time.
+pub const QUERY_IR_SCHEMA_VERSION: u32 = 2;
 
 fn default_query_ir_schema_version() -> u32 {
     QUERY_IR_SCHEMA_VERSION
@@ -304,6 +310,26 @@ impl QueryIR {
                 }
                 let mut sub_scope: HashSet<String> = import_variables.iter().cloned().collect();
                 Self::validate_op(&inner.operation, &mut sub_scope)
+            }
+            QueryOp::HybridSearch { request } => {
+                // Hybrid retrieval doesn't introduce pattern
+                // variables — its result set is a ranked node
+                // list, projected by the planner. Validate the
+                // payload's dim invariant here; the runtime
+                // never reaches the index reader with an
+                // inconsistent vector.
+                if !request.vector_query.dimension_consistent() {
+                    return Err(ox_core::error::OxError::Validation {
+                        field: "vector_query".into(),
+                        message: format!(
+                            "HybridSearch vector_query has inconsistent dim \
+                             (vec.len()={} vs declared dim={})",
+                            request.vector_query.vector.len(),
+                            request.vector_query.dim,
+                        ),
+                    });
+                }
+                Ok(())
             }
             QueryOp::Mutate {
                 context,
@@ -560,6 +586,29 @@ pub enum QueryOp {
         source: AnalyticsSource,
         params: HashMap<String, Expr>,
         projections: Vec<Projection>,
+    },
+
+    /// Hybrid retrieval — vector kNN ⊕ full-text BM25 ⊕ optional
+    /// graph-traversal predicate, fused via Reciprocal Rank
+    /// Fusion (default) or weighted sum. The GraphRAG path the
+    /// platform exposes for question-answer retrieval — unlike
+    /// `Match`, the result set isn't pattern-shaped: it's a
+    /// ranked list of nodes scored against the query embedding.
+    ///
+    /// Per-engine emission:
+    /// - **Neo4j 5+**: lowers to
+    ///   `db.index.vector.queryNodes` + `db.index.fulltext.queryNodes`
+    ///   plus a Cypher fusion CTE.
+    /// - **Memgraph**: lowers to `vector_search.search` +
+    ///   `text_search.search` plus a fusion CTE.
+    ///
+    /// The `request` payload's `Embedding` carries the model id
+    /// so the dispatcher can route the vector to the matching-
+    /// dimension index — querying a 1536-dim vector against a
+    /// 384-dim index is a typed compile-time error caught by
+    /// the validator.
+    HybridSearch {
+        request: crate::hybrid_retrieval::HybridSearchRequest,
     },
 }
 

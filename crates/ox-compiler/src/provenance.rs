@@ -180,12 +180,17 @@ fn collect_column_lineage(
         QueryOp::Aggregate { source, .. } => {
             collect_column_lineage(&source.operation, ontology, out);
         }
-        // PathFind / Mutate / Analytics carry no projection
-        // surface this walker can attribute to a source column;
-        // future work adds them when their projection shape lands.
+        // PathFind / Mutate / Analytics / HybridSearch carry no
+        // projection surface this walker can attribute to a
+        // source column; future work adds them when their
+        // projection shape lands. HybridSearch in particular
+        // returns a ranked node list scored against a vector,
+        // which has no per-column lineage to a relational
+        // mapping.
         QueryOp::PathFind { .. }
         | QueryOp::Mutate { .. }
-        | QueryOp::Analytics { .. } => {}
+        | QueryOp::Analytics { .. }
+        | QueryOp::HybridSearch { .. } => {}
     }
 }
 
@@ -730,6 +735,18 @@ fn collect(
             }
         }
         QueryOp::Analytics { .. } => {}
+        QueryOp::HybridSearch { request } => {
+            // The graph constraint sub-pattern can reference
+            // labels — record them so the response provenance
+            // names what the hybrid retrieval was scoped to.
+            if let Some(constraint) = &request.graph_constraints {
+                for node in &constraint.nodes {
+                    if let Some(lbl) = &node.label {
+                        type_ids.push(lbl.to_string());
+                    }
+                }
+            }
+        }
     }
 }
 

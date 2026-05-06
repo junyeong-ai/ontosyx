@@ -385,6 +385,31 @@ fn extract_node_labels_from_op(op: &QueryOp, labels: &mut Vec<GraphLabel>) {
             }
             crate::query::AnalyticsSource::WholeGraph => {}
         },
+        QueryOp::HybridSearch { request } => {
+            // The graph constraint sub-pattern (when present)
+            // can reference node labels — surface them so the
+            // ontology validator catches typos before the
+            // hybrid retrieval runs.
+            if let Some(gp) = &request.graph_constraints {
+                extract_node_labels_from_pattern_ir(gp, labels);
+            }
+        }
+    }
+}
+
+/// Walk a `PatternIR` (the canvas-shape pattern, not the
+/// runtime `GraphPattern`) collecting node labels. Used by
+/// `HybridSearch.graph_constraints` extraction; the lower-level
+/// `extract_node_labels_from_pattern` only handles
+/// `GraphPattern`, which is shaped for the runtime side.
+fn extract_node_labels_from_pattern_ir(
+    pattern: &crate::pattern::PatternIR,
+    labels: &mut Vec<GraphLabel>,
+) {
+    for node in &pattern.nodes {
+        if let Some(l) = &node.label {
+            labels.push(l.clone());
+        }
     }
 }
 
@@ -467,6 +492,15 @@ fn extract_edge_labels_from_op(op: &QueryOp, labels: &mut Vec<GraphLabel>) {
         QueryOp::Analytics { source, .. } => {
             if let crate::query::AnalyticsSource::Subgraph { filter } = source {
                 extract_edge_labels_from_op(filter, labels);
+            }
+        }
+        QueryOp::HybridSearch { request } => {
+            if let Some(gp) = &request.graph_constraints {
+                for edge in &gp.edges {
+                    if let Some(l) = &edge.label {
+                        labels.push(l.clone());
+                    }
+                }
             }
         }
     }

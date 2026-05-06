@@ -200,6 +200,13 @@ impl ResolverCtx<'_> {
                 }
                 self.usage_hint = prev_hint;
             }
+            // HybridSearch carries no Cypher patterns / projections
+            // — the resolver has nothing to walk. The graph
+            // constraint sub-pattern doesn't introduce binding-kind
+            // / scope segments through the resolver because the
+            // planner consumes it directly at the index-reader
+            // layer (no MATCH lowering).
+            QueryOp::HybridSearch { .. } => {}
         }
     }
 }

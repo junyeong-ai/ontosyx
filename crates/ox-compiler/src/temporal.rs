@@ -469,6 +469,11 @@ fn collect_variable_owners(
                 collect_variable_owners(filter, current, map);
             }
         }
+        // Hybrid retrieval doesn't introduce variable bindings
+        // through pattern matching — its result is a ranked
+        // node list, projected by the planner. The temporal
+        // rewriter has nothing to attribute here.
+        QueryOp::HybridSearch { .. } => {}
     }
 }
 
@@ -679,6 +684,24 @@ fn apply_renames(op: &mut QueryOp, ctx: &RenameCtx<'_>) -> OxResult<()> {
             // doesn't slip past this walker without review.
             AnalyticsSource::WholeGraph => {}
         },
+        QueryOp::HybridSearch { request } => {
+            // Rename labels embedded in the optional graph
+            // constraint sub-pattern. The vector / fulltext
+            // queries are opaque text — temporal rewrites don't
+            // touch them.
+            if let Some(constraint) = &mut request.graph_constraints {
+                for node in &mut constraint.nodes {
+                    if let Some(lbl) = &mut node.label {
+                        swap_if_renamed(lbl, ctx.node_labels);
+                    }
+                }
+                for edge in &mut constraint.edges {
+                    if let Some(lbl) = &mut edge.label {
+                        swap_if_renamed(lbl, ctx.edge_labels);
+                    }
+                }
+            }
+        }
     }
     Ok(())
 }

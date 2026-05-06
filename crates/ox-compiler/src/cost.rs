@@ -427,6 +427,24 @@ fn walk_op(op: &QueryOp, ctx: &mut CostCtx) {
                 walk_op(filter, ctx);
             }
         }
+
+        QueryOp::HybridSearch { request } => {
+            // Hybrid retrieval is a top-K operation against
+            // pre-computed indexes — its cost is bounded by
+            // top_k regardless of the corpus size. Treat it as
+            // a single bounded read with no pattern signals, so
+            // the cost dispatcher routes it through the cheap
+            // index-procedure path rather than triggering
+            // Cartesian / var-length warnings.
+            ctx.pattern_count += 1;
+            if let Some(constraint) = &request.graph_constraints {
+                for node in &constraint.nodes {
+                    if let Some(lbl) = &node.label {
+                        ctx.referenced_labels.insert(lbl.to_string());
+                    }
+                }
+            }
+        }
     }
 }
 

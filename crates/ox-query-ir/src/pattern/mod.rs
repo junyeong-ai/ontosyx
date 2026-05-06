@@ -90,6 +90,7 @@ impl ReadOnlyReason {
             QueryOp::CallSubquery { .. } => "CallSubquery",
             QueryOp::Mutate { .. } => "Mutate",
             QueryOp::Analytics { .. } => "Analytics",
+            QueryOp::HybridSearch { .. } => "HybridSearch",
         }
     }
 

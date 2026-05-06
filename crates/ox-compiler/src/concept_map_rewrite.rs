@@ -303,6 +303,14 @@ where
                 f(&end.variable, label);
             }
         }
+        QueryOp::HybridSearch { .. } => {
+            // Hybrid retrieval result set isn't pattern-shaped —
+            // there's no `(variable, label)` binding for the
+            // ConceptMap rewriter to anchor property-level
+            // translations on. The optional `graph_constraints`
+            // pattern doesn't bind variables to projections, so
+            // it doesn't contribute either.
+        }
     }
 }
 
@@ -404,6 +412,14 @@ fn rewrite_op(
             for pf in &mut end.property_filters {
                 rewrite_property_filter(&end.variable, pf, table, report);
             }
+        }
+        QueryOp::HybridSearch { .. } => {
+            // Hybrid retrieval has no property-assignment or
+            // property-filter surface for the rewriter to anchor
+            // on. The vector / fulltext queries are opaque text;
+            // the optional graph constraint sub-pattern doesn't
+            // expose property filters that the existing
+            // rewriter walks.
         }
     }
 }

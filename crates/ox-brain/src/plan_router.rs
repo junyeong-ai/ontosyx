@@ -341,6 +341,19 @@ fn collect_relationship_labels<'a>(op: &'a QueryOp, out: &mut HashSet<&'a str>) 
             collect_relationship_labels(&inner.operation, out);
         }
         QueryOp::Analytics { .. } => {}
+        QueryOp::HybridSearch { request } => {
+            // The optional graph constraint sub-pattern can pin
+            // edge labels — surface them so the federation
+            // detector counts hybrid-with-cross-source as
+            // federation-eligible.
+            if let Some(constraint) = &request.graph_constraints {
+                for edge in &constraint.edges {
+                    if let Some(label) = &edge.label {
+                        out.insert(label.as_str());
+                    }
+                }
+            }
+        }
     }
 }
 
