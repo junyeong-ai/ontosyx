@@ -25,7 +25,7 @@ use uuid::Uuid;
 use ox_store::evaluation::{
     scope_evaluation_context, EvaluationCase, EvaluationContext, EvaluationDataset,
     EvaluationDatasetItem, EvaluationMetric, EvaluationRun, EvaluationRunStatus,
-    RunComparisonReport,
+    RunComparisonReport, RunSummary,
 };
 use ox_store::{CursorPage, CursorParams};
 
@@ -1610,6 +1610,41 @@ pub(crate) async fn create_run_from_dataset(
             case_count,
         }),
     ))
+}
+
+// ---------------------------------------------------------------------------
+// Run summary — case counts + per-axis aggregate in one round trip
+// ---------------------------------------------------------------------------
+
+/// `GET /api/evaluation/runs/{run_id}/summary` — case counts +
+/// per-axis aggregate. Drives the run-list "judged 5/12 ·
+/// faithfulness 0.78" badge so operators triage without
+/// drilling into each detail page. RAGAS axes (`faithfulness`
+/// / `answer_relevance` / …) and safety axes
+/// (`safety.toxicity_safe` / …) ride together; the
+/// `axis_means[]` ordering is alphabetic for stable rendering.
+#[utoipa::path(
+    get,
+    path = "/api/evaluation/runs/{run_id}/summary",
+    params(("run_id" = Uuid, Path, description = "Run id")),
+    responses(
+        (status = 200, description = "Run summary", body = inline(serde_json::Value)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn evaluation_run_summary(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Path(run_id): Path<Uuid>,
+) -> Result<Json<ApiResponse<RunSummary>>, AppError> {
+    let summary = state
+        .store
+        .evaluation_run_summary(run_id)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(summary))
 }
 
 // ---------------------------------------------------------------------------

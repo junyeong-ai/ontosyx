@@ -376,6 +376,44 @@ pub struct RunAxisSummary {
     pub cohen_d: Option<f64>,
 }
 
+/// One axis aggregate for [`RunSummary`]. Per-axis mean across
+/// every case scored on that axis. `count` is the denominator the
+/// FE renders alongside the mean ("0.78 over 12 cases") so the
+/// number isn't read in isolation — a 1.0 mean from one case is
+/// not the same signal as a 0.78 mean from twelve.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AxisAggregate {
+    pub axis: String,
+    pub mean: f64,
+    pub count: u64,
+}
+
+/// Run-level summary returned by
+/// [`crate::EvaluationStore::evaluation_run_summary`]. Drives
+/// the run-list badge and the run-detail header card without
+/// fanning out into per-case + per-metric round trips.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RunSummary {
+    pub run_id: Uuid,
+    /// Every case attached to the run.
+    pub total_cases: u64,
+    /// Cases with at least one metric tagged
+    /// `metadata.kind = 'judge'` (RAGAS rubric). Operators
+    /// surfacing "judged 5/12" want the RAGAS denominator,
+    /// not the safety one — the safety judge is opt-in and
+    /// reading both would conflate distinct signals.
+    pub judged_cases: u64,
+    /// Cases with `error IS NOT NULL` — the case-execute path
+    /// raised before producing `actual`. The judge can't
+    /// score them, the dashboard renders them in red.
+    pub failed_cases: u64,
+    /// Per-axis aggregate, sorted by `axis ASC` for stable
+    /// FE rendering. Includes both RAGAS axes
+    /// (`faithfulness` / `answer_relevance` / …) and safety
+    /// axes (`safety.toxicity_safe` / …) when present.
+    pub axis_means: Vec<AxisAggregate>,
+}
+
 /// Two-run comparison report. Returned by
 /// [`crate::EvaluationStore::compare_evaluation_runs`]. Per-case
 /// row diffs ride on `per_case`; aggregate summaries on `per_axis`.
@@ -768,6 +806,45 @@ mod tests {
         };
         let v = serde_json::to_value(&s).unwrap();
         let back: RunAxisSummary = serde_json::from_value(v).unwrap();
+        assert_eq!(back, s);
+    }
+
+    #[test]
+    fn run_summary_round_trips_with_axis_aggregates() {
+        let s = RunSummary {
+            run_id: Uuid::new_v4(),
+            total_cases: 12,
+            judged_cases: 5,
+            failed_cases: 1,
+            axis_means: vec![
+                AxisAggregate {
+                    axis: "answer_relevance".into(),
+                    mean: 0.83,
+                    count: 5,
+                },
+                AxisAggregate {
+                    axis: "faithfulness".into(),
+                    mean: 0.78,
+                    count: 5,
+                },
+                AxisAggregate {
+                    axis: "safety.toxicity_safe".into(),
+                    mean: 0.95,
+                    count: 3,
+                },
+            ],
+        };
+        let v = serde_json::to_value(&s).unwrap();
+        // Wire shape pin: counts are u64, axis_means is an
+        // array of {axis, mean, count}. The FE renders these
+        // verbatim — drift here would silently break the
+        // run-list badge.
+        assert_eq!(v["total_cases"], 12);
+        assert_eq!(v["judged_cases"], 5);
+        assert_eq!(v["failed_cases"], 1);
+        assert_eq!(v["axis_means"][0]["axis"], "answer_relevance");
+        assert_eq!(v["axis_means"][2]["axis"], "safety.toxicity_safe");
+        let back: RunSummary = serde_json::from_value(v).unwrap();
         assert_eq!(back, s);
     }
 

@@ -371,6 +371,10 @@ pub fn router(state: AppState) -> Router {
             "/evaluation/cases/{case_id}/promote-to-dataset",
             post(evaluation::promote_case_to_dataset),
         )
+        .route(
+            "/evaluation/runs/{run_id}/summary",
+            get(evaluation::evaluation_run_summary),
+        )
         // Evaluation datasets — frozen Q+expected pairs reusable
         // across runs (Phoenix / Braintrust / LangSmith pattern).
         .route(

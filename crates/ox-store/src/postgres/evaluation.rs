@@ -592,6 +592,78 @@ impl EvaluationStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all, fields(run_id = %run_id))]
+    async fn evaluation_run_summary(
+        &self,
+        run_id: Uuid,
+    ) -> OxResult<crate::evaluation::RunSummary> {
+        use crate::evaluation::{AxisAggregate, RunSummary};
+        super::require_workspace_context()?;
+
+        // Single round-trip — three SELECTs against
+        // `evaluation_cases` + `evaluation_metrics`, joined
+        // workspace-side. RLS scopes both tables; the inner
+        // probes never see cross-tenant rows.
+        //
+        // `judged_cases` counts cases (not metrics) that have
+        // any RAGAS-tagged metric — the COUNT DISTINCT prevents
+        // a case with 4 axes from inflating the count by 4.
+        // `failed_cases` is a separate count over the cases row.
+        let (total_cases, judged_cases, failed_cases): (i64, i64, i64) =
+            sqlx::query_as(
+                "SELECT
+                    (SELECT COUNT(*)
+                       FROM evaluation_cases
+                      WHERE run_id = $1) AS total,
+                    (SELECT COUNT(DISTINCT m.case_id)
+                       FROM evaluation_metrics m
+                       JOIN evaluation_cases c ON c.id = m.case_id
+                      WHERE c.run_id = $1
+                        AND m.metadata ->> 'kind' = 'judge') AS judged,
+                    (SELECT COUNT(*)
+                       FROM evaluation_cases
+                      WHERE run_id = $1
+                        AND error IS NOT NULL) AS failed",
+            )
+            .bind(run_id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+
+        // Per-axis aggregate across every metric attached to
+        // every case in the run. `axis ASC` sort keeps the FE
+        // column ordering stable across re-fetches.
+        let axis_rows: Vec<(String, f64, i64)> = sqlx::query_as(
+            "SELECT m.name AS axis,
+                    AVG(m.score)::float8 AS mean,
+                    COUNT(*) AS cnt
+               FROM evaluation_metrics m
+               JOIN evaluation_cases c ON c.id = m.case_id
+              WHERE c.run_id = $1
+              GROUP BY m.name
+              ORDER BY m.name ASC",
+        )
+        .bind(run_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        Ok(RunSummary {
+            run_id,
+            total_cases: total_cases.max(0) as u64,
+            judged_cases: judged_cases.max(0) as u64,
+            failed_cases: failed_cases.max(0) as u64,
+            axis_means: axis_rows
+                .into_iter()
+                .map(|(axis, mean, cnt)| AxisAggregate {
+                    axis,
+                    mean,
+                    count: cnt.max(0) as u64,
+                })
+                .collect(),
+        })
+    }
+
     #[tracing::instrument(level = "debug", skip_all, fields(
         baseline = %baseline_run_id,
         candidate = %candidate_run_id,

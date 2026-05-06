@@ -30,7 +30,7 @@ use ox_core::error::OxResult;
 
 use crate::evaluation::{
     EvaluationCase, EvaluationDataset, EvaluationDatasetItem, EvaluationMetric, EvaluationRun,
-    EvaluationRunStatus, RunComparisonReport,
+    EvaluationRunStatus, RunComparisonReport, RunSummary,
 };
 
 use super::{CursorPage, CursorParams};
@@ -160,6 +160,21 @@ pub trait EvaluationStore: Send + Sync {
     /// "deleted" from "not found" without a separate exists
     /// probe.
     async fn delete_evaluation_run(&self, id: Uuid) -> OxResult<bool>;
+
+    /// Run summary — case counts + per-axis aggregate (mean,
+    /// count) in one round trip. Drives the run-list "5 of 12
+    /// judged · faithfulness 0.78" badge so the operator
+    /// triages without drilling into each detail page.
+    ///
+    /// `total_cases` counts every case attached to the run;
+    /// `judged_cases` counts cases that have at least one
+    /// metric tagged `metadata.kind = 'judge'` (RAGAS);
+    /// `failed_cases` counts cases with `error IS NOT NULL`
+    /// (case-execute failed). `axis_means` carries one entry
+    /// per metric axis present on the run, the count of cases
+    /// scored on that axis, and the mean score across them.
+    /// Sorted by `axis ASC` for deterministic FE rendering.
+    async fn evaluation_run_summary(&self, run_id: Uuid) -> OxResult<RunSummary>;
 
     /// Diff two runs over the same dataset. Returns per-case
     /// `(case_key, axis, baseline_score, candidate_score, delta)`
