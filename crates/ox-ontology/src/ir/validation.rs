@@ -1069,6 +1069,66 @@ impl OntologyIR {
             .map(|f| f.id.as_str())
             .collect();
 
+        // Concept ↔ glossary referential integrity. Every
+        // ConceptDef pins a canonical lexical realisation
+        // (`canonical_term_id`) and optionally fans out to
+        // alias terms (`alias_term_ids`); both sides must
+        // resolve to glossary entries that actually exist on
+        // this IR. Without this check a stale concept could
+        // reference a deleted glossary term and the SKOS export
+        // / NL-to-Cypher resolver would surface broken anchors.
+        // `broader` (concept hierarchy parent) must resolve to
+        // another concept on the same IR.
+        let known_term_ids: std::collections::HashSet<&GlossaryTermId> =
+            self.glossary.iter().map(|t| &t.id).collect();
+        let known_concept_ids: std::collections::HashSet<&str> = self
+            .concepts
+            .iter()
+            .map(|c| c.id.as_str())
+            .collect();
+        for concept in &self.concepts {
+            if !known_term_ids.contains(&concept.canonical_term_id) {
+                errors.push(
+                    diag("ontology.validate.concept.unknown_canonical_term")
+                        .with("concept_id", concept.id.as_str())
+                        .with("term_id", concept.canonical_term_id.as_str())
+                        .message(format!(
+                            "Concept '{}' canonical_term_id '{}' \
+                             does not resolve to a glossary entry",
+                            concept.id, concept.canonical_term_id
+                        )),
+                );
+            }
+            for alias_id in &concept.alias_term_ids {
+                if !known_term_ids.contains(alias_id) {
+                    errors.push(
+                        diag("ontology.validate.concept.unknown_alias_term")
+                            .with("concept_id", concept.id.as_str())
+                            .with("term_id", alias_id.as_str())
+                            .message(format!(
+                                "Concept '{}' alias_term_ids includes '{}' \
+                                 which is not a glossary entry",
+                                concept.id, alias_id
+                            )),
+                    );
+                }
+            }
+            if let Some(parent) = &concept.broader
+                && !known_concept_ids.contains(parent.as_str())
+            {
+                errors.push(
+                    diag("ontology.validate.concept.unknown_broader")
+                        .with("concept_id", concept.id.as_str())
+                        .with("broader_id", parent.as_str())
+                        .message(format!(
+                            "Concept '{}' broader pointer '{}' does not \
+                             resolve to a sibling concept",
+                            concept.id, parent
+                        )),
+                );
+            }
+        }
+
         for concept in &self.concepts {
             match &concept.realisation {
                 Some(crate::glossary::TermRealisation::Segment { segment_id }) => {
@@ -2209,6 +2269,98 @@ mod tests {
             &crate::concept::ConceptId::new("c-customer"),
         );
         assert_eq!(implementers.len(), 2);
+    }
+
+    #[test]
+    fn validate_rejects_concept_canonical_term_pointing_at_missing_glossary_entry() {
+        // Validator runs over arbitrary IRs — including ones
+        // loaded from JSON storage where `add_concept`'s
+        // referential check didn't run. Drop directly into the
+        // backing Vec to simulate that path; the validator is
+        // the safety net.
+        let mut ontology = base_ontology();
+        ontology.glossary.push(term("gt-customer", "Customer"));
+        ontology.concepts.push(crate::concept::ConceptDef {
+            id: crate::concept::ConceptId::new("c-customer"),
+            canonical_term_id: crate::glossary::GlossaryTermId::new("gt-missing"),
+            alias_term_ids: Vec::new(),
+            broader: None,
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: crate::concept::ConceptGovernance::default(),
+        });
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.unknown_canonical_term"),
+            "expected unknown_canonical_term diagnostic: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn validate_rejects_concept_alias_pointing_at_missing_glossary_entry() {
+        let mut ontology = base_ontology();
+        ontology.glossary.push(term("gt-customer", "Customer"));
+        ontology.concepts.push(crate::concept::ConceptDef {
+            id: crate::concept::ConceptId::new("c-customer"),
+            canonical_term_id: crate::glossary::GlossaryTermId::new("gt-customer"),
+            alias_term_ids: vec![crate::glossary::GlossaryTermId::new("gt-missing-alias")],
+            broader: None,
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: crate::concept::ConceptGovernance::default(),
+        });
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.unknown_alias_term"),
+            "expected unknown_alias_term diagnostic: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn validate_rejects_concept_broader_pointing_at_missing_concept() {
+        let mut ontology = base_ontology();
+        ontology.glossary.push(term("gt-customer", "Customer"));
+        ontology.concepts.push(crate::concept::ConceptDef {
+            id: crate::concept::ConceptId::new("c-customer"),
+            canonical_term_id: crate::glossary::GlossaryTermId::new("gt-customer"),
+            alias_term_ids: Vec::new(),
+            broader: Some(crate::concept::ConceptId::new("c-party")),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: crate::concept::ConceptGovernance::default(),
+        });
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.unknown_broader"),
+            "expected unknown_broader diagnostic: {errors:?}",
+        );
     }
 
     #[test]
