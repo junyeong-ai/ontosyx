@@ -52,7 +52,7 @@ async fn schema_enforced_path_returns_typed_struct_and_caches_system_prompt() {
     let mock = MockLlmCall::new();
     mock.enqueue_text(r#"{"label":"alpha","score":1}"#);
 
-    let answer: Answer = structured_completion_with_thresholds(
+    let (answer, _usage): (Answer, _) = structured_completion_with_thresholds(
         &mock,
         "claude-mock",
         SYSTEM,
@@ -91,7 +91,7 @@ async fn json_only_fallback_strips_code_fence_wrapper() {
          Hope that helps!",
     );
 
-    let answer: Answer = structured_completion_with_thresholds(
+    let (answer, _usage): (Answer, _) = structured_completion_with_thresholds(
         &mock,
         "claude-mock",
         SYSTEM,
@@ -118,7 +118,7 @@ async fn json_only_fallback_strips_reasoning_prefix() {
          {\"label\":\"gamma\",\"score\":3}",
     );
 
-    let answer: Answer = structured_completion_with_thresholds(
+    let (answer, _usage): (Answer, _) = structured_completion_with_thresholds(
         &mock,
         "claude-mock",
         SYSTEM,
@@ -149,7 +149,7 @@ async fn json_only_fallback_recovers_self_corrected_last_object() {
          {\"label\":\"final\",\"score\":42}",
     );
 
-    let answer: Answer = structured_completion_with_thresholds(
+    let (answer, _usage): (Answer, _) = structured_completion_with_thresholds(
         &mock,
         "claude-mock",
         SYSTEM,
@@ -242,7 +242,7 @@ async fn content_filter_kind_triggers_json_only_retry_with_strict_directive() {
     });
     mock.enqueue_text(r#"{"label":"after-retry","score":9}"#);
 
-    let answer: Answer = structured_completion_with_thresholds(
+    let (answer, _usage): (Answer, _) = structured_completion_with_thresholds(
         &mock,
         "claude-mock",
         SYSTEM,

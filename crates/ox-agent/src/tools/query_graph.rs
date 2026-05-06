@@ -168,7 +168,10 @@ impl SchemaTool for QueryGraphTool {
         )
         .await
         {
-            Ok(Ok(ir)) => ir,
+            // The agent's persistence path (`QueryExecution`) doesn't
+            // carry CallProvenance today; eval case-execute drives
+            // that capture instead. Drop the provenance handle.
+            Ok(Ok((ir, _provenance))) => ir,
             Ok(Err(e)) => {
                 warn!(question = %question, error = %e, "Query translation failed");
                 return ToolResult::error(format!("Query translation failed: {e}"));

@@ -212,6 +212,14 @@ pub trait OntologyDesigner: Send + Sync {
 pub trait QueryTranslator: Send + Sync {
     /// Translate natural language question into a QueryIR.
     ///
+    /// Returns the typed `QueryIR` alongside a [`CallProvenance`]
+    /// envelope — the prompt id + version + render-hash + model
+    /// id + max_tokens + temperature actually executed. Callers
+    /// that don't need provenance ignore the second tuple
+    /// element; callers that do (the eval case-execute path,
+    /// future ArtifactProvenance authoring on saved queries) get
+    /// the seam without a second LLM round-trip.
+    ///
     /// `retrieved_context` carries the GraphRAG-rendered subgraph
     /// markdown the caller has assembled (typically by walking
     /// `OntologyNavigationStore::search_entry_points` →
@@ -229,7 +237,7 @@ pub trait QueryTranslator: Send + Sync {
         ontology: &OntologyIR,
         retrieved_context: Option<&str>,
         ctx: &branchforge::ExecutionContext,
-    ) -> OxResult<QueryIR>;
+    ) -> OxResult<(QueryIR, CallProvenance)>;
 
     /// Generate a LoadPlan from an ontology and source data description
     async fn plan_load(
@@ -599,7 +607,7 @@ impl DefaultBrain {
         );
 
         let started = std::time::Instant::now();
-        let parsed = structured_completion(
+        let (parsed, usage) = structured_completion(
             client.as_ref(),
             &resolved.model_id,
             &tmpl.system,
@@ -610,26 +618,42 @@ impl DefaultBrain {
         .await?;
         let elapsed_ms = started.elapsed().as_millis() as i64;
 
-        // Evaluation capture hook — records `latency_ms.<operation>`
-        // when the call path is inside an `EvaluationContext` scope
-        // *and* an `EvaluationCapture` was attached. Production
-        // traffic without an evaluation scope skips both branches
-        // for free (no allocations, no awaits).
+        // Evaluation capture hook — records `latency_ms.<operation>`,
+        // `tokens.{prompt,completion}.<operation>`, and
+        // `cost_usd.<operation>` (when the resolved model carries a
+        // tariff) on the active case when the call path is inside an
+        // `EvaluationContext` scope *and* an `EvaluationCapture` was
+        // attached. Production traffic without an evaluation scope
+        // skips for free.
         if let (Some(ctx), Some(capture)) = (
             ox_store::current_evaluation_context(),
             self.evaluation_capture.as_ref(),
         ) {
-            // Don't propagate capture-side failures — the LLM
-            // call already succeeded, the operator's primary path
-            // is the typed response. Log + drop matches the
-            // wider observability policy (capture is best-effort,
-            // not load-bearing).
+            // Capture-side failures don't propagate — the LLM call
+            // already succeeded, the operator's primary path is the
+            // typed response. Log + drop matches the wider
+            // observability policy (capture is best-effort, not
+            // load-bearing).
             if let Err(err) = capture.record_latency(&ctx, operation, elapsed_ms).await {
-                tracing::warn!(
-                    error = %err,
+                tracing::warn!(error = %err, operation, "evaluation capture record_latency failed");
+            }
+            if let Err(err) = capture
+                .record_tokens(
+                    &ctx,
                     operation,
-                    "evaluation capture record_latency failed"
-                );
+                    usage.input_tokens.min(u32::MAX as u64) as u32,
+                    usage.output_tokens.min(u32::MAX as u64) as u32,
+                )
+                .await
+            {
+                tracing::warn!(error = %err, operation, "evaluation capture record_tokens failed");
+            }
+            if let Some(cost_micro_usd) = estimated_cost_micro_usd(&resolved.model_id, &usage)
+                && let Err(err) = capture
+                    .record_cost_usd(&ctx, operation, cost_micro_usd)
+                    .await
+            {
+                tracing::warn!(error = %err, operation, "evaluation capture record_cost_usd failed");
             }
         }
 
@@ -705,6 +729,46 @@ fn serialize_pretty(value: &impl serde::Serialize, label: &str) -> OxResult<Stri
     serde_json::to_string_pretty(value).map_err(|e| OxError::Runtime {
         message: format!("Failed to serialize {label}: {e}"),
     })
+}
+
+/// Per-million-token tariff (input, output) in micro-USD. Wide
+/// catalogue keyed by an exact-match prefix on the resolved
+/// `model_id`. `None` means "no published tariff for this model"
+/// — the cost capture path skips for that call rather than
+/// landing a fabricated value. Tariffs reflect the 2026 Q2 list
+/// price; per-workspace overrides land via `model_configs`
+/// `cost_per_million_input_tokens_micro_usd` /
+/// `cost_per_million_output_tokens_micro_usd` once the column
+/// pair ships (separate change).
+fn estimated_cost_micro_usd(
+    model_id: &str,
+    usage: &provider::TokenUsage,
+) -> Option<u64> {
+    // (input µUSD per 1M tokens, output µUSD per 1M tokens)
+    // Tariffs for the canonical Anthropic / OpenAI / Bedrock
+    // model families. Match by the longest stable prefix —
+    // `claude-opus-4-7` vs `claude-sonnet-4-6` differ on output
+    // tariff. Empty result returns None so the capture skips.
+    let (input_per_m, output_per_m) = match model_id {
+        m if m.starts_with("claude-opus-4")    => (15_000_000, 75_000_000),
+        m if m.starts_with("claude-sonnet-4")  => (3_000_000, 15_000_000),
+        m if m.starts_with("claude-haiku-4")   => (800_000, 4_000_000),
+        m if m.starts_with("gpt-5")            => (10_000_000, 30_000_000),
+        m if m.starts_with("gpt-4.1")          => (3_000_000, 12_000_000),
+        m if m.starts_with("gpt-4o")           => (5_000_000, 15_000_000),
+        m if m.starts_with("o3")               => (15_000_000, 60_000_000),
+        m if m.starts_with("o4-mini")          => (1_100_000, 4_400_000),
+        m if m.starts_with("gemini-2.5-pro")   => (3_500_000, 10_500_000),
+        m if m.starts_with("gemini-2.5-flash") => (300_000, 1_200_000),
+        _ => return None,
+    };
+    // Cost = (input * input_per_m + output * output_per_m) / 1M
+    // Operate in u128 to avoid overflow on very large input
+    // tokens × tariff multiplications before the division.
+    let input_cost = (usage.input_tokens as u128).saturating_mul(input_per_m as u128) / 1_000_000;
+    let output_cost =
+        (usage.output_tokens as u128).saturating_mul(output_per_m as u128) / 1_000_000;
+    Some((input_cost + output_cost).min(u64::MAX as u128) as u64)
 }
 
 

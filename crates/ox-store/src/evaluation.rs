@@ -164,6 +164,17 @@ pub struct EvaluationCase {
     /// could be measured.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub latency_ms: Option<i64>,
+    /// Free-form audit envelope stamped by the executor. The
+    /// canonical key is `call_provenance` carrying the
+    /// `CallProvenance` shape (prompt_id + prompt_version +
+    /// prompt_render_hash + model_id + max_tokens +
+    /// temperature) so eval-failure drill-down resolves to the
+    /// exact LLM call without re-running. Unused keys here are
+    /// rendered verbatim by the FE detail panel; future
+    /// case-execute kinds (retrieval, action invocation) land
+    /// their own envelope keys without a schema migration.
+    #[serde(default)]
+    pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
 }
 
@@ -290,6 +301,41 @@ pub trait EvaluationCapture: Send + Sync {
         let _ = (ctx, operation, latency_ms);
         Ok(())
     }
+
+    /// Record token-count observations against the active case
+    /// for one LLM call. Two metrics land per call:
+    /// `tokens.prompt.<operation>` (input) and
+    /// `tokens.completion.<operation>` (output). Production cost
+    /// + utilisation dashboards roll these up as the canonical
+    /// throughput axis. The default impl is a noop so the trait
+    /// stays drop-in for harnesses that don't care about token
+    /// observability.
+    async fn record_tokens(
+        &self,
+        ctx: &EvaluationContext,
+        operation: &str,
+        prompt_tokens: u32,
+        completion_tokens: u32,
+    ) -> OxResult<()> {
+        let _ = (ctx, operation, prompt_tokens, completion_tokens);
+        Ok(())
+    }
+
+    /// Record an LLM-call cost observation in micro-USD against
+    /// the active case under `cost_usd.<operation>`. Cost is
+    /// stored as a numeric metric so the FE can sum across cases
+    /// without re-deriving from per-call token counts × tariff
+    /// (per-model cost tables drift; the captured value is the
+    /// historical truth). The default impl is a noop.
+    async fn record_cost_usd(
+        &self,
+        ctx: &EvaluationContext,
+        operation: &str,
+        cost_micro_usd: u64,
+    ) -> OxResult<()> {
+        let _ = (ctx, operation, cost_micro_usd);
+        Ok(())
+    }
 }
 
 /// `Arc<dyn EvaluationCapture>` that drops every observation on
@@ -377,6 +423,7 @@ mod tests {
             actual: None,
             error: None,
             latency_ms: None,
+            metadata: serde_json::Value::Object(Default::default()),
             created_at: Utc::now(),
         };
         let v = serde_json::to_value(&case).unwrap();

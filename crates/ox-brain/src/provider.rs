@@ -46,9 +46,15 @@ impl Default for SchemaComplexityThresholds {
 
 /// Parse the LLM response as JSON into a typed struct.
 ///
-/// Uses branchforge `ProviderClient.send()` with native JSON Schema enforcement.
-/// branchforge 0.9 handles all provider-specific schema transformations internally
-/// (Anthropic, Bedrock, OpenAI, Gemini) — no manual pre-processing needed.
+/// Returns the typed payload alongside the provider-reported
+/// [`TokenUsage`] so the call site can route both axes (the
+/// observability hook in [`crate::DefaultBrain::call_structured_traced`]
+/// pipes tokens into `EvaluationCapture::record_tokens`, and the
+/// `metrics::counter!("ox_brain.tokens.*")` Prometheus signal
+/// already lands here). Uses branchforge `ProviderClient.send()`
+/// with native JSON Schema enforcement; branchforge 0.9 handles
+/// per-provider schema transformations internally (Anthropic /
+/// Bedrock / OpenAI / Gemini).
 pub async fn structured_completion<T: serde::de::DeserializeOwned + schemars::JsonSchema>(
     client: &dyn LlmCall,
     model: &str,
@@ -56,7 +62,7 @@ pub async fn structured_completion<T: serde::de::DeserializeOwned + schemars::Js
     user_prompt: &str,
     max_tokens: u32,
     temperature: Option<f32>,
-) -> OxResult<T> {
+) -> OxResult<(T, TokenUsage)> {
     structured_completion_with_thresholds(
         client,
         model,
@@ -79,7 +85,7 @@ pub async fn structured_completion_with_thresholds<
     max_tokens: u32,
     temperature: Option<f32>,
     thresholds: SchemaComplexityThresholds,
-) -> OxResult<T> {
+) -> OxResult<(T, TokenUsage)> {
     let max_optional = thresholds.max_optional_params;
     let max_total = thresholds.max_total_properties;
 
@@ -188,16 +194,23 @@ pub async fn structured_completion_with_thresholds<
     metrics::counter!("ox_brain.tokens.input").increment(response.usage.input_tokens);
     metrics::counter!("ox_brain.tokens.output").increment(response.usage.output_tokens);
 
+    let usage = TokenUsage {
+        input_tokens: response.usage.input_tokens,
+        output_tokens: response.usage.output_tokens,
+    };
+
     // When provider-level schema enforcement was active, use branchforge's
     // finish-reason-aware JSON parser (handles ContentFilter, Length, parse errors).
     if schema_enforced {
-        return response.json::<T>().map_err(|e| OxError::Runtime {
+        let parsed: T = response.json::<T>().map_err(|e| OxError::Runtime {
             message: format!("Failed to parse structured output: {e}"),
-        });
+        })?;
+        return Ok((parsed, usage));
     }
 
     // JSON-only mode: manual extraction with fallback for LLM self-corrections.
-    parse_json_response::<T>(&response)
+    let parsed = parse_json_response::<T>(&response)?;
+    Ok((parsed, usage))
 }
 
 /// Parse a ModelResponse as JSON, handling common LLM output patterns.

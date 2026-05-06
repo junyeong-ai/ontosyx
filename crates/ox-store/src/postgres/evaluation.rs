@@ -69,6 +69,7 @@ struct EvaluationCaseRow {
     actual: Option<serde_json::Value>,
     error: Option<String>,
     latency_ms: Option<i64>,
+    metadata: serde_json::Value,
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -84,6 +85,7 @@ impl From<EvaluationCaseRow> for EvaluationCase {
             actual: r.actual,
             error: r.error,
             latency_ms: r.latency_ms,
+            metadata: r.metadata,
             created_at: r.created_at,
         }
     }
@@ -243,16 +245,17 @@ impl EvaluationStore for PostgresStore {
         let row: EvaluationCaseRow = sqlx::query_as(
             "INSERT INTO evaluation_cases
                 (id, run_id, workspace_id, case_key, input, expected, actual,
-                 error, latency_ms, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                 error, latency_ms, metadata, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
              ON CONFLICT (run_id, case_key) DO UPDATE SET
                 input = EXCLUDED.input,
                 expected = EXCLUDED.expected,
                 actual = EXCLUDED.actual,
                 error = EXCLUDED.error,
-                latency_ms = EXCLUDED.latency_ms
+                latency_ms = EXCLUDED.latency_ms,
+                metadata = EXCLUDED.metadata
              RETURNING id, run_id, workspace_id, case_key, input, expected,
-                       actual, error, latency_ms, created_at",
+                       actual, error, latency_ms, metadata, created_at",
         )
         .bind(case.id)
         .bind(case.run_id)
@@ -263,6 +266,7 @@ impl EvaluationStore for PostgresStore {
         .bind(&case.actual)
         .bind(&case.error)
         .bind(case.latency_ms)
+        .bind(&case.metadata)
         .bind(case.created_at)
         .fetch_one(&self.pool)
         .await
@@ -275,7 +279,7 @@ impl EvaluationStore for PostgresStore {
         super::require_workspace_context()?;
         let row: Option<EvaluationCaseRow> = sqlx::query_as(
             "SELECT id, run_id, workspace_id, case_key, input, expected, actual,
-                    error, latency_ms, created_at
+                    error, latency_ms, metadata, created_at
              FROM evaluation_cases WHERE id = $1",
         )
         .bind(id)
@@ -290,7 +294,7 @@ impl EvaluationStore for PostgresStore {
         super::require_workspace_context()?;
         let rows: Vec<EvaluationCaseRow> = sqlx::query_as(
             "SELECT id, run_id, workspace_id, case_key, input, expected, actual,
-                    error, latency_ms, created_at
+                    error, latency_ms, metadata, created_at
              FROM evaluation_cases
              WHERE run_id = $1
              ORDER BY case_key ASC",
@@ -376,16 +380,98 @@ impl EvaluationCapture for PostgresStore {
         operation: &str,
         latency_ms: i64,
     ) -> OxResult<()> {
+        self.record_metric(ctx, format!("latency_ms.{operation}"), latency_ms as f64, "latency_ms", operation)
+            .await
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, fields(
+        case_id = %ctx.case_id,
+        operation = %operation,
+        prompt = prompt_tokens,
+        completion = completion_tokens,
+    ))]
+    async fn record_tokens(
+        &self,
+        ctx: &EvaluationContext,
+        operation: &str,
+        prompt_tokens: u32,
+        completion_tokens: u32,
+    ) -> OxResult<()> {
+        // Two rows — prompt + completion. Splitting on the
+        // metric name lets the FE roll up per-axis (ratio of
+        // prompt:completion is a meaningful fingerprint of how
+        // chatty the system prompt is) without a second pass.
+        self.record_metric(
+            ctx,
+            format!("tokens.prompt.{operation}"),
+            prompt_tokens as f64,
+            "tokens",
+            operation,
+        )
+        .await?;
+        self.record_metric(
+            ctx,
+            format!("tokens.completion.{operation}"),
+            completion_tokens as f64,
+            "tokens",
+            operation,
+        )
+        .await
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, fields(
+        case_id = %ctx.case_id,
+        operation = %operation,
+        cost_micro_usd = cost_micro_usd,
+    ))]
+    async fn record_cost_usd(
+        &self,
+        ctx: &EvaluationContext,
+        operation: &str,
+        cost_micro_usd: u64,
+    ) -> OxResult<()> {
+        // Stored in micro-USD on the metric `score: f64` — keeps
+        // the wire shape uniform with latency / tokens (numeric
+        // axis). Sub-cent precision is meaningful for high-volume
+        // operations (an embedding call at 0.0001 USD per 1K
+        // tokens flattens to "0.00" if stored in cents).
+        self.record_metric(
+            ctx,
+            format!("cost_usd.{operation}"),
+            cost_micro_usd as f64,
+            "cost_usd",
+            operation,
+        )
+        .await
+    }
+}
+
+impl PostgresStore {
+    /// Shared write path for every numeric `EvaluationCapture`
+    /// metric. Stamps the workspace from the bound task-local,
+    /// builds a uniform `metadata` envelope (`kind` + `operation`
+    /// + run+case correlation), and lands the row through
+    /// [`super::EvaluationStore::upsert_evaluation_metric`] so
+    /// re-runs replace in place on the natural key
+    /// `(case_id, name)`.
+    async fn record_metric(
+        &self,
+        ctx: &EvaluationContext,
+        name: String,
+        score: f64,
+        kind: &'static str,
+        operation: &str,
+    ) -> OxResult<()> {
         let workspace_id = super::bound_workspace_id_for_dml()?;
         let metric = EvaluationMetric {
             id: Uuid::now_v7(),
             case_id: ctx.case_id,
             workspace_id,
-            name: format!("latency_ms.{operation}"),
-            score: latency_ms as f64,
+            name,
+            score,
             reasoning: None,
             metadata: serde_json::json!({
-                "kind": "latency_ms",
+                "kind": kind,
                 "operation": operation,
                 "run_id": ctx.run_id,
                 "case_key": ctx.case_key,

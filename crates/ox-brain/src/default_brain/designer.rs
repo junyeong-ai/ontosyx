@@ -145,7 +145,7 @@ impl OntologyDesigner for DefaultBrain {
             "Designing ontology batch (divide-and-conquer)"
         );
 
-        let llm_output: design::LlmDesignOutput = structured_completion(
+        let (llm_output, _usage): (design::LlmDesignOutput, _) = structured_completion(
             client.as_ref(),
             &resolved.model_id,
             &system,

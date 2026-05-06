@@ -194,7 +194,7 @@ impl Explainer for DefaultBrain {
         )
         .await
         {
-            Ok(suggestions) => Ok(suggestions),
+            Ok((suggestions, _usage)) => Ok(suggestions),
             Err(e) => {
                 tracing::warn!(error = %e, "Failed to generate insight suggestions");
                 Ok(vec![])

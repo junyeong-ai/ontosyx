@@ -21,7 +21,7 @@ impl QueryTranslator for DefaultBrain {
         ontology: &OntologyIR,
         retrieved_context: Option<&str>,
         ctx: &branchforge::ExecutionContext,
-    ) -> OxResult<QueryIR> {
+    ) -> OxResult<(QueryIR, crate::CallProvenance)> {
         // Schema discovery
         ctx.progress("schema_discovery").started();
         let t_schema = std::time::Instant::now();
@@ -109,8 +109,8 @@ impl QueryTranslator for DefaultBrain {
         // Primary LLM call (StructuredMatchQuery structured output)
         ctx.progress("llm_primary").started();
         let t_llm = std::time::Instant::now();
-        let query_ir = match self
-            .call_structured::<ox_query_ir::StructuredMatchQuery>(
+        let (query_ir, mut provenance) = match self
+            .call_structured_traced::<ox_query_ir::StructuredMatchQuery>(
                 "translate_match_query",
                 Some("1.0.0"),
                 "translate_match_query",
@@ -118,13 +118,13 @@ impl QueryTranslator for DefaultBrain {
                 "Translating to StructuredMatchQuery (structured output)",
             )
             .await
-            .and_then(|match_ir| match_ir.into_query_ir())
+            .and_then(|(match_ir, prov)| match_ir.into_query_ir().map(|qir| (qir, prov)))
         {
-            Ok(qir) => {
+            Ok((qir, prov)) => {
                 ctx.progress("llm_primary")
                     .completed(t_llm.elapsed().as_millis() as u64);
                 info!("StructuredMatchQuery structured output succeeded");
-                qir
+                (qir, prov)
             }
             Err(match_err) => {
                 ctx.progress("llm_primary").failed_with(t_llm.elapsed().as_millis() as u64,
@@ -137,8 +137,8 @@ impl QueryTranslator for DefaultBrain {
                     error = %match_err,
                     "StructuredMatchQuery path failed, falling back to full QueryIR"
                 );
-                let result: OxResult<QueryIR> = self
-                    .call_structured(
+                let result: OxResult<(QueryIR, crate::CallProvenance)> = self
+                    .call_structured_traced(
                         "translate_query",
                         Some("1.0.0"),
                         "translate_query",
@@ -148,10 +148,10 @@ impl QueryTranslator for DefaultBrain {
                     .await;
 
                 match result {
-                    Ok(qir) => {
+                    Ok((qir, prov)) => {
                         ctx.progress("llm_fallback")
                             .completed(t_fallback.elapsed().as_millis() as u64);
-                        qir
+                        (qir, prov)
                     }
                     Err(first_err) => {
                         ctx.progress("llm_fallback")
@@ -164,7 +164,7 @@ impl QueryTranslator for DefaultBrain {
                             "QueryIR translation failed, retrying once"
                         );
                         let retry_result = self
-                            .call_structured::<QueryIR>(
+                            .call_structured_traced::<QueryIR>(
                                 "translate_query",
                                 Some("1.0.0"),
                                 "translate_query",
@@ -220,8 +220,8 @@ impl QueryTranslator for DefaultBrain {
                 );
                 let mut retry_vars = vars.clone();
                 retry_vars.insert("correction", correction.as_str());
-                let retry: OxResult<QueryIR> = self
-                    .call_structured(
+                let retry: OxResult<(QueryIR, crate::CallProvenance)> = self
+                    .call_structured_traced(
                         "translate_query",
                         Some("1.0.0"),
                         "translate_query",
@@ -230,7 +230,7 @@ impl QueryTranslator for DefaultBrain {
                     )
                     .await;
                 match retry {
-                    Ok(qir) => {
+                    Ok((qir, retry_prov)) => {
                         let still_unknown =
                             ox_query_ir::unknown_labels_in_query(ontology, &qir);
                         if !still_unknown.is_empty() {
@@ -254,6 +254,9 @@ impl QueryTranslator for DefaultBrain {
                         }
                         ctx.progress("llm_label_retry")
                             .completed(t_label_retry.elapsed().as_millis() as u64);
+                        // Replace provenance with the retry's — the
+                        // returned IR came from this call.
+                        provenance = retry_prov;
                         qir
                     }
                     Err(_) => {
@@ -273,7 +276,7 @@ impl QueryTranslator for DefaultBrain {
             }
         };
 
-        Ok(query_ir)
+        Ok((query_ir, provenance))
     }
 
     async fn plan_load(

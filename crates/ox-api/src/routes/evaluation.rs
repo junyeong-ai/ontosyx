@@ -336,6 +336,7 @@ pub(crate) async fn upsert_evaluation_case(
         actual: req.actual,
         error: req.error,
         latency_ms: req.latency_ms,
+        metadata: serde_json::Value::Object(Default::default()),
         created_at: chrono::Utc::now(),
     };
     let saved = state
@@ -491,6 +492,7 @@ pub(crate) async fn bulk_upsert_evaluation_cases(
             actual: None,
             error: None,
             latency_ms: None,
+            metadata: serde_json::Value::Object(Default::default()),
             created_at: now,
         };
         match state.store.upsert_evaluation_case(&case).await {
@@ -679,6 +681,7 @@ pub(crate) async fn execute_evaluation_case(
         actual: None,
         error: None,
         latency_ms: None,
+        metadata: serde_json::Value::Object(Default::default()),
         created_at: chrono::Utc::now(),
     };
     let case = state
@@ -697,51 +700,80 @@ pub(crate) async fn execute_evaluation_case(
     };
     let brain = Arc::clone(&state.brain);
     let started = std::time::Instant::now();
-    let outcome: Result<serde_json::Value, String> = scope_evaluation_context(ctx, async move {
-        match req {
-            ExecuteEvaluationCaseRequest::TranslateQuery { question, .. } => {
-                let Some(ir) = ir else {
-                    return Err(
-                        "internal: ontology IR not loaded for translate_query case"
-                            .to_string(),
-                    );
-                };
-                // Evaluation case-execute runs against the dataset's
-                // frozen ontology IR — no DomainContext / navigation
-                // store reachable here. Pass `None` so the schema RAG
-                // path on the Brain side drives the prompt context.
-                let query_ir = brain
-                    .translate_query(
-                        &question,
-                        &ir,
+    // Outcome envelope carries the typed payload + the optional
+    // `CallProvenance` from whichever LLM call produced it. The
+    // case-update path stamps provenance onto `case.metadata` so
+    // eval-failure drill-down resolves to the exact prompt +
+    // model + render hash.
+    let outcome: Result<(serde_json::Value, Option<ox_brain::CallProvenance>), String> =
+        scope_evaluation_context(ctx, async move {
+            match req {
+                ExecuteEvaluationCaseRequest::TranslateQuery { question, .. } => {
+                    let Some(ir) = ir else {
+                        return Err(
+                            "internal: ontology IR not loaded for translate_query case"
+                                .to_string(),
+                        );
+                    };
+                    // Evaluation case-execute runs against the dataset's
+                    // frozen ontology IR — no DomainContext / navigation
+                    // store reachable here. Pass `None` so the schema RAG
+                    // path on the Brain side drives the prompt context.
+                    let (query_ir, provenance) = brain
+                        .translate_query(
+                            &question,
+                            &ir,
+                            None,
+                            &branchforge::ExecutionContext::empty(),
+                        )
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    let payload = serde_json::to_value(&query_ir).map_err(|e| {
+                        format!("failed to serialize translate_query output: {e}")
+                    })?;
+                    Ok((payload, Some(provenance)))
+                }
+                ExecuteEvaluationCaseRequest::Explain { question, .. } => {
+                    let output = brain.explain(&question).await.map_err(|e| e.to_string())?;
+                    Ok((
+                        serde_json::json!({
+                            "content": output.content,
+                            "model": output.model,
+                        }),
                         None,
-                        &branchforge::ExecutionContext::empty(),
-                    )
-                    .await
-                    .map_err(|e| e.to_string())?;
-                serde_json::to_value(&query_ir).map_err(|e| {
-                    format!("failed to serialize translate_query output: {e}")
-                })
+                    ))
+                }
             }
-            ExecuteEvaluationCaseRequest::Explain { question, .. } => {
-                let output = brain.explain(&question).await.map_err(|e| e.to_string())?;
-                Ok(serde_json::json!({
-                    "content": output.content,
-                    "model": output.model,
-                }))
-            }
-        }
-    })
-    .await;
+        })
+        .await;
     let elapsed_ms = started.elapsed().as_millis() as i64;
 
-    // Stage 3 — UPSERT the case again with actual / error / latency.
-    // The same natural key (`run_id`, `case_key`) replaces stage 1's
-    // row in place; metrics already attached to `case.id` (latency
-    // capture) survive because the case_id is preserved.
-    let (actual, error_msg) = match outcome {
-        Ok(value) => (Some(value), None),
-        Err(msg) => (None, Some(msg)),
+    // Stage 3 — UPSERT the case again with actual / error / latency
+    // / metadata. The same natural key (`run_id`, `case_key`)
+    // replaces stage 1's row in place; metrics already attached to
+    // `case.id` (latency / token / cost capture) survive because
+    // the case_id is preserved.
+    //
+    // `metadata.call_provenance` carries the prompt + model the
+    // outcome resolved through. Eval-failure drill-down resolves to
+    // the exact LLM call (prompt id + version + render hash + model
+    // id + max_tokens + temperature) without re-running.
+    let (actual, error_msg, provenance) = match outcome {
+        Ok((value, prov)) => (Some(value), None, prov),
+        Err(msg) => (None, Some(msg), None),
+    };
+    let metadata = match provenance.as_ref() {
+        Some(prov) => serde_json::json!({
+            "call_provenance": {
+                "prompt_id": prov.prompt_id,
+                "prompt_version": prov.prompt_version.to_string(),
+                "model_id": prov.model_id,
+                "max_tokens": prov.max_tokens,
+                "temperature": prov.temperature,
+                "prompt_render_hash": prov.prompt_render_hash,
+            },
+        }),
+        None => serde_json::Value::Object(Default::default()),
     };
     let updated = EvaluationCase {
         id: case.id,
@@ -753,6 +785,7 @@ pub(crate) async fn execute_evaluation_case(
         actual,
         error: error_msg,
         latency_ms: Some(elapsed_ms),
+        metadata,
         created_at: case.created_at,
     };
     let case = state
