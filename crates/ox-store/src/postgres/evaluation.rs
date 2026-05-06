@@ -571,6 +571,182 @@ impl EvaluationStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all, fields(
+        baseline = %baseline_run_id,
+        candidate = %candidate_run_id,
+    ))]
+    async fn compare_evaluation_runs(
+        &self,
+        baseline_run_id: Uuid,
+        candidate_run_id: Uuid,
+    ) -> OxResult<crate::evaluation::RunComparisonReport> {
+        use crate::evaluation::{RunAxisSummary, RunComparisonReport, RunMetricDelta};
+        super::require_workspace_context()?;
+
+        // 1. Verify both runs exist + share dataset_id. RLS
+        //    already filters cross-tenant ids; the dataset
+        //    correspondence check is the pair gate.
+        let pair: Option<(Option<Uuid>, Option<Uuid>)> = sqlx::query_as(
+            "SELECT
+                (SELECT dataset_id FROM evaluation_runs WHERE id = $1) AS baseline_dataset,
+                (SELECT dataset_id FROM evaluation_runs WHERE id = $2) AS candidate_dataset",
+        )
+        .bind(baseline_run_id)
+        .bind(candidate_run_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        let (baseline_dataset, candidate_dataset) = match pair {
+            Some((Some(b), Some(c))) => (b, c),
+            _ => {
+                return Err(OxError::Validation {
+                    field: "run_pair".to_string(),
+                    message: format!(
+                        "Cannot diff runs: at least one of {baseline_run_id} / {candidate_run_id} \
+                         is not associated with a dataset (ad-hoc runs cannot be compared — \
+                         only dataset-materialised runs share the case_key correspondence the \
+                         diff requires)."
+                    ),
+                });
+            }
+        };
+        if baseline_dataset != candidate_dataset {
+            return Err(OxError::Validation {
+                field: "run_pair".to_string(),
+                message: format!(
+                    "Cannot diff runs over different datasets: baseline={baseline_dataset}, \
+                     candidate={candidate_dataset}. Only runs that materialised from the same \
+                     dataset share the case_key correspondence the diff requires."
+                ),
+            });
+        }
+        let dataset_id = baseline_dataset;
+
+        // 2. Per-(case_key, axis) inner join across both runs.
+        //    Metric `(case_id, name)` is unique by the natural-
+        //    key UPSERT contract, so each (case_key, axis) pair
+        //    yields exactly one row per side. Returned ordering
+        //    is stable for FE rendering.
+        #[derive(sqlx::FromRow)]
+        struct DeltaRow {
+            case_key: String,
+            axis: String,
+            baseline_score: f64,
+            candidate_score: f64,
+            delta: f64,
+        }
+        let rows: Vec<DeltaRow> = sqlx::query_as(
+            "SELECT
+                c1.case_key                            AS case_key,
+                m1.name                                AS axis,
+                m1.score                               AS baseline_score,
+                m2.score                               AS candidate_score,
+                (m2.score - m1.score)                  AS delta
+            FROM evaluation_cases c1
+            JOIN evaluation_cases c2
+                ON c2.case_key = c1.case_key AND c2.run_id = $2
+            JOIN evaluation_metrics m1
+                ON m1.case_id = c1.id
+            JOIN evaluation_metrics m2
+                ON m2.case_id = c2.id AND m2.name = m1.name
+            WHERE c1.run_id = $1
+            ORDER BY c1.case_key ASC, m1.name ASC",
+        )
+        .bind(baseline_run_id)
+        .bind(candidate_run_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        let per_case: Vec<RunMetricDelta> = rows
+            .iter()
+            .map(|r| RunMetricDelta {
+                case_key: r.case_key.clone(),
+                axis: r.axis.clone(),
+                baseline_score: r.baseline_score,
+                candidate_score: r.candidate_score,
+                delta: r.delta,
+            })
+            .collect();
+
+        // 3. Aggregate per axis. `BTreeMap` keeps the per_axis
+        //    order stable (matches the SQL `ORDER BY axis ASC`).
+        let mut by_axis: std::collections::BTreeMap<String, Vec<&DeltaRow>> =
+            std::collections::BTreeMap::new();
+        for row in &rows {
+            by_axis.entry(row.axis.clone()).or_default().push(row);
+        }
+        let mut per_axis = Vec::with_capacity(by_axis.len());
+        for (axis, group) in by_axis {
+            let n = group.len() as f64;
+            let baseline_sum: f64 = group.iter().map(|r| r.baseline_score).sum();
+            let candidate_sum: f64 = group.iter().map(|r| r.candidate_score).sum();
+            let baseline_mean = baseline_sum / n;
+            let candidate_mean = candidate_sum / n;
+            let mean_delta = candidate_mean - baseline_mean;
+
+            // Tie-counts-half so the win-rate doesn't push to
+            // either pole on identical-score runs.
+            let wins: f64 = group
+                .iter()
+                .map(|r| {
+                    if r.candidate_score > r.baseline_score {
+                        1.0
+                    } else if r.candidate_score == r.baseline_score {
+                        0.5
+                    } else {
+                        0.0
+                    }
+                })
+                .sum();
+            let win_rate_pct = (wins / n) * 100.0;
+
+            // Cohen's d — pooled-std effect size. `n - 1` Bessel
+            // correction on each side; `None` when either side
+            // is a single sample (variance undefined under
+            // n = 1) or both runs produced identical
+            // distributions (zero pooled std).
+            let cohen_d = if (n as usize) >= 2 {
+                let baseline_var = group
+                    .iter()
+                    .map(|r| (r.baseline_score - baseline_mean).powi(2))
+                    .sum::<f64>()
+                    / (n - 1.0);
+                let candidate_var = group
+                    .iter()
+                    .map(|r| (r.candidate_score - candidate_mean).powi(2))
+                    .sum::<f64>()
+                    / (n - 1.0);
+                let pooled = ((baseline_var + candidate_var) / 2.0).sqrt();
+                if pooled > 0.0 {
+                    Some(mean_delta / pooled)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            per_axis.push(RunAxisSummary {
+                axis,
+                paired_case_count: n as u64,
+                baseline_mean,
+                candidate_mean,
+                mean_delta,
+                win_rate_pct,
+                cohen_d,
+            });
+        }
+
+        Ok(RunComparisonReport {
+            baseline_run_id,
+            candidate_run_id,
+            dataset_id,
+            per_case,
+            per_axis,
+        })
+    }
+
     // --- Cases ---------------------------------------------------------
 
     #[tracing::instrument(level = "debug", skip_all, fields(run_id = %case.run_id, case_key = %case.case_key))]

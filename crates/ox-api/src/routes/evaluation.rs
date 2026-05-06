@@ -25,6 +25,7 @@ use uuid::Uuid;
 use ox_store::evaluation::{
     scope_evaluation_context, EvaluationCase, EvaluationContext, EvaluationDataset,
     EvaluationDatasetItem, EvaluationMetric, EvaluationRun, EvaluationRunStatus,
+    RunComparisonReport,
 };
 use ox_store::{CursorPage, CursorParams};
 
@@ -1236,4 +1237,48 @@ pub(crate) async fn create_run_from_dataset(
             case_count,
         }),
     ))
+}
+
+// ---------------------------------------------------------------------------
+// Run comparison — Phoenix/Braintrust regression diff
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct CompareRunsQuery {
+    pub baseline: Uuid,
+    pub candidate: Uuid,
+}
+
+/// `GET /api/evaluation/runs/diff?baseline=<id>&candidate=<id>` —
+/// per-axis delta + per-case row diff between two runs that
+/// materialised from the same dataset. Returns a typed
+/// `validation_error` 400 when the runs don't share a dataset
+/// (the case_key correspondence the diff requires).
+#[utoipa::path(
+    get,
+    path = "/api/evaluation/runs/diff",
+    params(
+        ("baseline" = Uuid, Query, description = "Baseline run id"),
+        ("candidate" = Uuid, Query, description = "Candidate run id"),
+    ),
+    responses(
+        (status = 200, description = "Diff", body = inline(serde_json::Value)),
+        (status = 400, description = "Runs don't share a dataset",
+            body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn compare_evaluation_runs(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Query(q): Query<CompareRunsQuery>,
+) -> Result<Json<ApiResponse<RunComparisonReport>>, AppError> {
+    let report = state
+        .store
+        .compare_evaluation_runs(q.baseline, q.candidate)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(report))
 }

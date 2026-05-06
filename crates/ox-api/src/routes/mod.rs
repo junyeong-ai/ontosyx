@@ -393,6 +393,10 @@ pub fn router(state: AppState) -> Router {
             "/evaluation/runs/from-dataset",
             post(evaluation::create_run_from_dataset),
         )
+        .route(
+            "/evaluation/runs/diff",
+            get(evaluation::compare_evaluation_runs),
+        )
         // Perspectives
         .route("/perspectives", put(perspectives::save_perspective))
         .route(

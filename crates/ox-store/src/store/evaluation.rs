@@ -30,7 +30,7 @@ use ox_core::error::OxResult;
 
 use crate::evaluation::{
     EvaluationCase, EvaluationDataset, EvaluationDatasetItem, EvaluationMetric, EvaluationRun,
-    EvaluationRunStatus,
+    EvaluationRunStatus, RunComparisonReport,
 };
 
 use super::{CursorPage, CursorParams};
@@ -147,6 +147,28 @@ pub trait EvaluationStore: Send + Sync {
     /// "deleted" from "not found" without a separate exists
     /// probe.
     async fn delete_evaluation_run(&self, id: Uuid) -> OxResult<bool>;
+
+    /// Diff two runs over the same dataset. Returns per-case
+    /// `(case_key, axis, baseline_score, candidate_score, delta)`
+    /// rows + per-axis aggregate summary (mean delta, win-rate,
+    /// Cohen's d).
+    ///
+    /// Both runs MUST share the same `dataset_id`. Diff between
+    /// runs over different datasets is not statistically
+    /// meaningful (the case_key correspondence is the bridge that
+    /// pairs metrics); the impl rejects with `OxError::Validation`
+    /// when the lineage doesn't match.
+    ///
+    /// Per-case rows are ordered `(case_key ASC, axis ASC)` for
+    /// deterministic FE rendering. Axes are aggregated across
+    /// every case both runs scored on the same axis — un-paired
+    /// metrics (axis present on one side only) are silently
+    /// dropped from `per_axis` rather than skewing the summary.
+    async fn compare_evaluation_runs(
+        &self,
+        baseline_run_id: Uuid,
+        candidate_run_id: Uuid,
+    ) -> OxResult<RunComparisonReport>;
 
     // --- Cases ---------------------------------------------------------
 

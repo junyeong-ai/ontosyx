@@ -229,6 +229,76 @@ pub struct EvaluationCase {
     pub created_at: DateTime<Utc>,
 }
 
+/// One per-case axis-level diff between two runs over the same
+/// dataset. Carries both raw scores so the FE diff panel renders
+/// the comparison without re-fetching either side.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RunMetricDelta {
+    /// Stable per-dataset identifier — the same `case_key` is
+    /// present in both runs because both materialised from the
+    /// same dataset. Renders as the row label on the FE diff
+    /// table.
+    pub case_key: String,
+    /// Rubric axis (`faithfulness`, `answer_relevance`, …).
+    /// Mirrors `EvaluationMetric.name`.
+    pub axis: String,
+    pub baseline_score: f64,
+    pub candidate_score: f64,
+    /// `candidate_score - baseline_score`. Positive = candidate
+    /// improved; negative = regression. Sign convention chosen so
+    /// the FE green-on-positive / red-on-negative styling is
+    /// trivial.
+    pub delta: f64,
+}
+
+/// Per-axis aggregate roll-up across every `(case_key, axis)`
+/// pair both runs share. Surfaces the operator-facing summary on
+/// the diff page header — "candidate beats baseline by 0.04 mean
+/// faithfulness with Cohen's d 0.62 and 73% win rate over 30
+/// cases".
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RunAxisSummary {
+    pub axis: String,
+    /// Number of cases where both runs produced a score on this
+    /// axis. The denominator for `mean_delta` / `win_rate_pct` /
+    /// `cohen_d`.
+    pub paired_case_count: u64,
+    pub baseline_mean: f64,
+    pub candidate_mean: f64,
+    /// `candidate_mean - baseline_mean`. Positive = candidate
+    /// improved.
+    pub mean_delta: f64,
+    /// Percentage of paired cases where `candidate_score >
+    /// baseline_score`. `[0.0, 100.0]`. Ties (delta == 0.0) count
+    /// as half a win — symmetric "beats baseline" measure.
+    pub win_rate_pct: f64,
+    /// Cohen's d effect size — `(mean_c - mean_b) / pooled_std`.
+    /// Industry interpretation: `|d| < 0.2` negligible, `0.5`
+    /// medium, `0.8` large. `None` when both runs produced
+    /// identical scores (zero variance — `pooled_std == 0`); the
+    /// FE renders a "—" in that cell.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cohen_d: Option<f64>,
+}
+
+/// Two-run comparison report. Returned by
+/// [`crate::EvaluationStore::compare_evaluation_runs`]. Per-case
+/// row diffs ride on `per_case`; aggregate summaries on `per_axis`.
+/// Both ordered for deterministic FE rendering — case_key ASC,
+/// axis ASC.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RunComparisonReport {
+    pub baseline_run_id: Uuid,
+    pub candidate_run_id: Uuid,
+    /// Pinned dataset both runs reference. The store enforces
+    /// matching `dataset_id` and rejects with `OxError::Validation`
+    /// otherwise — diff between runs over different datasets is
+    /// not meaningful.
+    pub dataset_id: Uuid,
+    pub per_case: Vec<RunMetricDelta>,
+    pub per_axis: Vec<RunAxisSummary>,
+}
+
 /// One score on one rubric axis for one case. Mirrors the
 /// `evaluation_metrics` row.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -534,5 +604,56 @@ mod tests {
         let v = serde_json::to_value(&m).unwrap();
         let back: EvaluationMetric = serde_json::from_value(v).unwrap();
         assert_eq!(back, m);
+    }
+
+    #[test]
+    fn run_axis_summary_round_trips() {
+        let s = RunAxisSummary {
+            axis: "faithfulness".into(),
+            paired_case_count: 30,
+            baseline_mean: 0.82,
+            candidate_mean: 0.86,
+            mean_delta: 0.04,
+            win_rate_pct: 73.0,
+            cohen_d: Some(0.62),
+        };
+        let v = serde_json::to_value(&s).unwrap();
+        let back: RunAxisSummary = serde_json::from_value(v).unwrap();
+        assert_eq!(back, s);
+    }
+
+    #[test]
+    fn run_axis_summary_omits_cohen_d_when_undefined() {
+        let s = RunAxisSummary {
+            axis: "exact_match".into(),
+            paired_case_count: 1,
+            baseline_mean: 1.0,
+            candidate_mean: 1.0,
+            mean_delta: 0.0,
+            win_rate_pct: 50.0,
+            cohen_d: None,
+        };
+        let v = serde_json::to_value(&s).unwrap();
+        assert!(v.get("cohen_d").is_none(), "absent cohen_d skipped on wire");
+    }
+
+    #[test]
+    fn run_comparison_report_round_trips() {
+        let r = RunComparisonReport {
+            baseline_run_id: Uuid::new_v4(),
+            candidate_run_id: Uuid::new_v4(),
+            dataset_id: Uuid::new_v4(),
+            per_case: vec![RunMetricDelta {
+                case_key: "q01".into(),
+                axis: "faithfulness".into(),
+                baseline_score: 0.8,
+                candidate_score: 0.9,
+                delta: 0.1,
+            }],
+            per_axis: vec![],
+        };
+        let v = serde_json::to_value(&r).unwrap();
+        let back: RunComparisonReport = serde_json::from_value(v).unwrap();
+        assert_eq!(back, r);
     }
 }
