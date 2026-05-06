@@ -166,3 +166,24 @@ export async function compareEvaluationRuns(
     `${RUNS}/diff?${qs.toString()}`,
   );
 }
+
+/** Promote a chat-sample case into a curated dataset item. The
+ *  online sampler lands cases in `live_chat_samples`; this is
+ *  the operator-driven path to lift one into a regression
+ *  fixture. */
+export interface PromoteCaseToDatasetRequest {
+  dataset_id: string;
+  use_actual_as_expected?: boolean;
+  item_key?: string;
+}
+
+export async function promoteCaseToDataset(
+  caseId: string,
+  req: PromoteCaseToDatasetRequest,
+): Promise<unknown> {
+  const res = await request<{ item: unknown }>(
+    `/evaluation/cases/${encodeURIComponent(caseId)}/promote-to-dataset`,
+    { method: "POST", body: JSON.stringify(req) },
+  );
+  return res.item;
+}

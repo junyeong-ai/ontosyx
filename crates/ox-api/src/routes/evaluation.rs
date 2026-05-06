@@ -1287,6 +1287,120 @@ pub(crate) async fn upsert_evaluation_dataset(
     Ok(ApiResponse::of(EvaluationDatasetResponse { dataset: saved }))
 }
 
+// ---------------------------------------------------------------------------
+// Handler — promote a chat-sample case to a curated dataset
+//
+// The online sampler (`eval_sampler`) drops chat completions
+// into `live_chat_samples` cases. Operators triage those, and
+// when a case looks like a useful regression anchor they want
+// to promote it into a named dataset for repeatable runs.
+// Without this endpoint, the promotion path is a manual
+// copy/paste through the dataset-import surface — slow + lossy.
+//
+// The promotion is a pure case → dataset-item upsert: pulls the
+// case's `input` (and any captured `actual` as the expected
+// reference, if the operator opts in), generates a stable
+// `item_key`, lands it through `upsert_evaluation_dataset_item`.
+// Re-promoting the same case is idempotent because the
+// natural-key UPSERT collapses on the generated key.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct PromoteCaseToDatasetRequest {
+    pub dataset_id: Uuid,
+    /// When true, the case's captured `actual` payload becomes
+    /// the dataset item's `expected`. Useful when operator
+    /// already manually verified the answer is correct and wants
+    /// to pin it as the regression target. Default false — the
+    /// item lands `expected`-less, leaving the gold answer to
+    /// be authored separately.
+    #[serde(default)]
+    pub use_actual_as_expected: bool,
+    /// Optional override for the generated `item_key`. Default
+    /// (`None`) generates `sample-{case.case_key}` so the
+    /// promoted item traces back to its origin.
+    #[serde(default)]
+    pub item_key: Option<String>,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct PromoteCaseToDatasetResponse {
+    #[schema(value_type = Object)]
+    pub item: ox_store::evaluation::EvaluationDatasetItem,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/evaluation/cases/{case_id}/promote-to-dataset",
+    params(("case_id" = Uuid, Path, description = "Case id")),
+    request_body = PromoteCaseToDatasetRequest,
+    responses(
+        (status = 200, description = "Case promoted to dataset item", body = PromoteCaseToDatasetResponse),
+        (status = 404, description = "Case or dataset not found",
+            body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+#[tracing::instrument(skip(state, principal, req))]
+pub(crate) async fn promote_case_to_dataset(
+    State(state): State<AppState>,
+    principal: Principal,
+    ws: WorkspaceContext,
+    Path(case_id): Path<Uuid>,
+    Json(req): Json<PromoteCaseToDatasetRequest>,
+) -> Result<Json<ApiResponse<PromoteCaseToDatasetResponse>>, AppError> {
+    principal.require_admin()?;
+
+    let case = state
+        .store
+        .get_evaluation_case(case_id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("EvaluationCase"))?;
+
+    // Resolve the dataset to ensure it exists in the workspace.
+    // RLS would block a cross-workspace dataset lookup anyway,
+    // but surfacing a clear 404 beats a silent insert into a
+    // ghost dataset.
+    let _dataset = state
+        .store
+        .get_evaluation_dataset(req.dataset_id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("EvaluationDataset"))?;
+
+    let item_key = req
+        .item_key
+        .clone()
+        .unwrap_or_else(|| format!("sample-{}", case.case_key));
+    let expected = if req.use_actual_as_expected {
+        case.actual.clone()
+    } else {
+        None
+    };
+    let item = ox_store::evaluation::EvaluationDatasetItem {
+        id: Uuid::now_v7(),
+        dataset_id: req.dataset_id,
+        workspace_id: ws.workspace_id,
+        item_key,
+        input: case.input.clone(),
+        expected,
+        metadata: serde_json::json!({
+            "promoted_from_case_id": case.id,
+            "promoted_from_run_id": case.run_id,
+            "promoted_from_case_key": case.case_key,
+        }),
+        created_at: chrono::Utc::now(),
+    };
+    let saved = state
+        .store
+        .upsert_evaluation_dataset_item(&item)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(PromoteCaseToDatasetResponse { item: saved }))
+}
+
 /// `GET /api/evaluation/datasets` — list datasets in the active
 /// workspace, newest-created first.
 #[utoipa::path(
