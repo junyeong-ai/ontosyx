@@ -2964,6 +2964,13 @@
         "cancelled": "취소됨"
       },
       "detail": {
+        "summary": {
+          "title": "요약",
+          "description": "이 런의 케이스 카운트와 axis별 평균 점수.",
+          "totalLabel": "전체 케이스",
+          "judgedLabel": "Judged",
+          "failedLabel": "실패"
+        },
         "casesTitle": "케이스",
         "casesDescription": "각 (입력, 기대, 실제) 튜플. 데이터셋 재실행은 `(run_id, case_key)` 기준으로 이전 행을 대체합니다.",
         "metricsTitle": "메트릭",

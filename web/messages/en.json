@@ -2964,6 +2964,13 @@
         "cancelled": "Cancelled"
       },
       "detail": {
+        "summary": {
+          "title": "Summary",
+          "description": "Case counts and per-axis aggregate across this run.",
+          "totalLabel": "Total cases",
+          "judgedLabel": "Judged",
+          "failedLabel": "Failed"
+        },
         "casesTitle": "Cases",
         "casesDescription": "Each (input, expected, actual) tuple. Re-running the dataset replaces previous rows on `(run_id, case_key)`.",
         "metricsTitle": "Metrics",

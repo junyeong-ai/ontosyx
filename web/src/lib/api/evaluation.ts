@@ -11,6 +11,7 @@ import type {
   ExecuteEvaluationCaseRequest,
   RecordEvaluationMetricRequest,
   RunComparisonReport,
+  RunSummary,
   UpsertEvaluationCaseRequest,
 } from "@/types/evaluation";
 
@@ -149,6 +150,18 @@ export async function judgeSafetyEvaluationCase(
     { method: "POST" },
   );
   return res.metrics;
+}
+
+/** Run summary — case counts + per-axis aggregate in one
+ *  round trip. Drives the run-detail header card and (future)
+ *  run-list badge so operators triage without drilling into
+ *  every per-case + per-metric list. */
+export async function getEvaluationRunSummary(
+  runId: string,
+): Promise<RunSummary> {
+  return request<RunSummary>(
+    `${RUNS}/${encodeURIComponent(runId)}/summary`,
+  );
 }
 
 /** Diff two runs over the same dataset. Backend is the

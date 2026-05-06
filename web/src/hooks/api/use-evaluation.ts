@@ -10,6 +10,7 @@ import {
   deleteEvaluationRun,
   executeEvaluationCase,
   getEvaluationRun,
+  getEvaluationRunSummary,
   judgeEvaluationCase,
   judgeSafetyEvaluationCase,
   listEvaluationCases,
@@ -29,6 +30,7 @@ import type {
   EvaluationRunListPage,
   ExecuteEvaluationCaseRequest,
   RunComparisonReport,
+  RunSummary,
 } from "@/types/evaluation";
 
 // ---------------------------------------------------------------------------
@@ -50,6 +52,8 @@ export const evaluationKeys = {
     [...evaluationKeys.all, "metrics", caseId] as const,
   diff: (baselineId: string, candidateId: string) =>
     [...evaluationKeys.runs(), "diff", baselineId, candidateId] as const,
+  runSummary: (id: string) =>
+    [...evaluationKeys.runs(), "summary", id] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -91,6 +95,25 @@ export function useEvaluationCases(runId: string | null | undefined) {
       return listEvaluationCases(runId);
     },
     enabled: !!runId,
+    staleTime: 30_000,
+  });
+}
+
+/** Run-level summary (case counts + per-axis aggregate). The
+ *  detail-page header card reads this; it auto-refreshes when
+ *  cases / metrics around the run change because the underlying
+ *  trees in `evaluationKeys.cases` / `evaluationKeys.metrics`
+ *  share the same staleTime envelope. */
+export function useEvaluationRunSummary(id: string | null | undefined) {
+  return useQuery<RunSummary>({
+    queryKey: evaluationKeys.runSummary(id ?? ""),
+    queryFn: () => {
+      if (!id) {
+        throw new Error("evaluation run id is required");
+      }
+      return getEvaluationRunSummary(id);
+    },
+    enabled: !!id,
     staleTime: 30_000,
   });
 }

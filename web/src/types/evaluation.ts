@@ -196,3 +196,25 @@ export interface RunComparisonReport {
   per_case: RunMetricDelta[];
   per_axis: RunAxisSummary[];
 }
+
+/** Per-axis aggregate for a single run. Mirrors
+ *  `ox_store::evaluation::AxisAggregate`. */
+export interface AxisAggregate {
+  axis: string;
+  mean: number;
+  count: number;
+}
+
+/** Run-level summary returned by the
+ *  `/api/evaluation/runs/{run_id}/summary` endpoint. */
+export interface RunSummary {
+  run_id: string;
+  total_cases: number;
+  /** Cases with at least one RAGAS-tagged metric. The badge
+   *  reads as "judged X of Y". */
+  judged_cases: number;
+  /** Cases with `error IS NOT NULL` — case-execute failed. */
+  failed_cases: number;
+  /** Per-axis (mean, count). Sorted alphabetically by axis. */
+  axis_means: AxisAggregate[];
+}

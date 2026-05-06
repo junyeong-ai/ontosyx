@@ -9,6 +9,7 @@ import {
   useEvaluationCases,
   useEvaluationMetrics,
   useEvaluationRun,
+  useEvaluationRunSummary,
   useExecuteEvaluationCase,
   useJudgeEvaluationCase,
   useJudgeSafetyEvaluationCase,
@@ -30,6 +31,7 @@ import type {
   EvaluationCase,
   ExecuteEvaluationCaseRequest,
   ExecuteOperationKind,
+  RunSummary,
 } from "@/types/evaluation";
 
 /**
@@ -70,6 +72,102 @@ interface EvaluationDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
+/// `<SummaryCard>` — header tile for the run-detail page. Reads
+/// the run summary endpoint and renders three counters
+/// (total / judged / failed) plus a per-axis mean strip. Order
+/// of the per-axis chips matches the BE's alphabetic sort —
+/// safety axes ride together at the bottom because of the
+/// `safety.` prefix.
+function SummaryCard({
+  summary,
+  t,
+}: {
+  summary: RunSummary;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  const { total_cases, judged_cases, failed_cases, axis_means } = summary;
+  return (
+    <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">
+      <Heading level={2} size={5}>
+        {t("detail.summary.title")}
+      </Heading>
+      <p className="mt-1 text-xs text-foreground-muted">
+        {t("detail.summary.description")}
+      </p>
+      <div className="mt-3 grid grid-cols-3 gap-3">
+        <div className="rounded-lg border border-divider bg-surface-inset px-3 py-2">
+          <div className="text-2xs text-foreground-muted">
+            {t("detail.summary.totalLabel")}
+          </div>
+          <div className="text-lg font-medium tabular-nums text-foreground-strong">
+            {total_cases}
+          </div>
+        </div>
+        <div className="rounded-lg border border-divider bg-surface-inset px-3 py-2">
+          <div className="text-2xs text-foreground-muted">
+            {t("detail.summary.judgedLabel")}
+          </div>
+          <div className="text-lg font-medium tabular-nums text-foreground-strong">
+            {judged_cases}
+            <span className="ms-1 text-2xs text-foreground-muted">
+              / {total_cases}
+            </span>
+          </div>
+        </div>
+        <div
+          className={cn(
+            "rounded-lg border px-3 py-2",
+            failed_cases > 0
+              ? "border-danger-border bg-danger-surface"
+              : "border-divider bg-surface-inset",
+          )}
+        >
+          <div
+            className={cn(
+              "text-2xs",
+              failed_cases > 0
+                ? "text-danger-foreground"
+                : "text-foreground-muted",
+            )}
+          >
+            {t("detail.summary.failedLabel")}
+          </div>
+          <div
+            className={cn(
+              "text-lg font-medium tabular-nums",
+              failed_cases > 0
+                ? "text-danger-foreground"
+                : "text-foreground-strong",
+            )}
+          >
+            {failed_cases}
+          </div>
+        </div>
+      </div>
+      {axis_means.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {axis_means.map((a) => (
+            <div
+              key={a.axis}
+              className="rounded-md border border-divider bg-surface-inset px-2.5 py-1"
+            >
+              <span className="text-2xs text-foreground-muted">
+                {a.axis}
+              </span>
+              <span className="ms-2 text-xs font-medium tabular-nums text-foreground-strong">
+                {a.mean.toFixed(3)}
+              </span>
+              <span className="ms-1 text-2xs text-foreground-muted tabular-nums">
+                ({a.count})
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function EvaluationDetailPage({
   params,
 }: EvaluationDetailPageProps) {
@@ -79,6 +177,7 @@ export default function EvaluationDetailPage({
   const { isAdmin } = useAuth();
   const runQuery = useEvaluationRun(id);
   const casesQuery = useEvaluationCases(id);
+  const summaryQuery = useEvaluationRunSummary(id);
   const [activeCase, setActiveCase] = useState<EvaluationCase | null>(null);
   const metricsQuery = useEvaluationMetrics(activeCase?.id ?? null);
   const execute = useExecuteEvaluationCase(id);
@@ -290,6 +389,10 @@ export default function EvaluationDetailPage({
           retryLabel: tCommon("retry"),
         }}
       >
+        {summaryQuery.data ? (
+          <SummaryCard summary={summaryQuery.data} t={t} />
+        ) : null}
+
         <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">
           <Heading level={2} size={5}>
             {t("detail.execute.title")}
