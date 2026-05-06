@@ -1,5 +1,6 @@
 use ox_core::error::{OxError, OxResult};
 use ox_core::types::PropertyValue;
+use ox_query_ir::hybrid_retrieval::FusionStrategy;
 use ox_query_ir::query::{AnalyticsSource, GraphAlgorithm, PathAlgorithm, QueryOp};
 
 use super::expr::{compile_agg_function, compile_expr, compile_order_by, compile_projection};
@@ -306,32 +307,16 @@ pub(super) fn compile_op(
         }
 
         QueryOp::HybridSearch { request } => {
-            // Vector-only path lowers cleanly to Neo4j 5's
-            // `db.index.vector.queryNodes(indexName, k, vector)`
-            // procedure. The fulltext + RRF fusion CTE is a
-            // separate follow-up because the fusion shape is
-            // procedure-flavour-specific (RRF over two CALL
-            // YIELD streams takes a CTE with `collect` +
-            // `UNWIND` per source then a final aggregate, plus
-            // the vector and fulltext top-K caps interact —
-            // calling each at `k * 2` and trimming at the end
-            // is the canonical operator-friendly default but
-            // adds enough surface area to warrant its own
-            // commit). The `graph_constraints` sub-pattern is
-            // also deferred — Cypher's `CALL` doesn't accept
-            // an inline filter on the procedure-yielded node,
-            // so the constraint becomes a follow-up `WHERE`
-            // clause that rides on top of the YIELD stream.
-            if request.fulltext_query.is_some() {
-                return Err(OxError::UnsupportedOperation {
-                    target: "graph:cypher".into(),
-                    operation: "QueryOp::HybridSearch with \
-                        fulltext_query — RRF fusion CTE \
-                        emission lands in a follow-up; supply \
-                        a vector-only request for now"
-                        .into(),
-                });
-            }
+            // The `graph_constraints` sub-pattern is the only
+            // remaining deferred path — Cypher's `CALL` doesn't
+            // accept an inline filter on the procedure-yielded
+            // node, so the constraint becomes a follow-up
+            // `WHERE` clause that rides on top of the YIELD
+            // stream. Vector-only and vector + fulltext + RRF
+            // both lower; vector + fulltext + WeightedSum is
+            // also deferred because the lowering shape is
+            // distinctly different (Cypher arithmetic on
+            // weighted scores rather than rank-based fusion).
             if request.graph_constraints.is_some() {
                 return Err(OxError::UnsupportedOperation {
                     target: "graph:cypher".into(),
@@ -343,14 +328,30 @@ pub(super) fn compile_op(
                         .into(),
                 });
             }
-            // Vector-index name — convention `entity_embedding_index`
-            // is the platform's hardcoded default that the
-            // ontology materialise step writes against. A
-            // future `HybridSearchRequest.vector_index_name`
-            // optional field would let operators target a
-            // workspace-specific index without a recompile;
-            // until then the convention is the contract.
-            let index_param =
+            if request.fulltext_query.is_some()
+                && matches!(request.fuse, FusionStrategy::WeightedSum { .. })
+            {
+                return Err(OxError::UnsupportedOperation {
+                    target: "graph:cypher".into(),
+                    operation: "QueryOp::HybridSearch with \
+                        fulltext_query + WeightedSum fusion — \
+                        weighted-sum lowering uses Cypher \
+                        arithmetic on per-source scores rather \
+                        than rank-based fusion; ships in a \
+                        follow-up. Default RRF lowers cleanly."
+                        .into(),
+                });
+            }
+
+            // Vector-index name — convention
+            // `entity_embedding_index` is the platform's
+            // hardcoded default that the ontology materialise
+            // step writes against. A future
+            // `HybridSearchRequest.vector_index_name` optional
+            // field would let operators target a workspace-
+            // specific index without a recompile; until then
+            // the convention is the contract.
+            let vec_index_param =
                 pc.push(PropertyValue::String("entity_embedding_index".into()));
             let top_k_param =
                 pc.push(PropertyValue::Int(request.top_k as i64));
@@ -365,12 +366,77 @@ pub(super) fn compile_op(
                 .collect();
             let vector_param = pc.push(PropertyValue::List(vector_value));
 
-            parts.push(format!(
-                "CALL db.index.vector.queryNodes({index_param}, {top_k_param}, {vector_param})",
-            ));
-            parts.push("YIELD node, score".to_string());
-            parts.push("RETURN node, score".to_string());
-            parts.push("ORDER BY score DESC".to_string());
+            match &request.fulltext_query {
+                None => {
+                    // Vector-only path — single procedure call
+                    // + score-desc projection.
+                    parts.push(format!(
+                        "CALL db.index.vector.queryNodes({vec_index_param}, {top_k_param}, {vector_param})",
+                    ));
+                    parts.push("YIELD node, score".to_string());
+                    parts.push("RETURN node, score".to_string());
+                    parts.push("ORDER BY score DESC".to_string());
+                }
+                Some(fulltext_query) => {
+                    // Vector + fulltext + RRF fusion. RRF
+                    // (Cormack et al. 2009): for each result
+                    // candidate the fused score is
+                    // `sum_over_sources(1 / (k + rank))` where
+                    // `k` is the smoothing constant (default
+                    // 60) and `rank` is the 1-indexed position
+                    // in the source's ranked list.
+                    //
+                    // Cypher list comprehensions over
+                    // `range(0, size(vec_nodes) - 1)` produce
+                    // `{node, rrf}` records per source; UNWIND
+                    // unions them, group-by node sums the
+                    // rrf, then sort + LIMIT lands the top-K.
+                    //
+                    // Each procedure call expands to `top_k`
+                    // candidates so the fusion has room to
+                    // re-rank — the final `LIMIT $top_k`
+                    // trims back to the operator-requested
+                    // window. Without the per-source expansion,
+                    // a fusion that swaps a vector-rank-1 with
+                    // a fulltext-rank-1 has no headroom to
+                    // discover the true top-K under the
+                    // operator's k.
+                    let rrf_k = match request.fuse {
+                        FusionStrategy::ReciprocalRankFusion { k } => k,
+                        // Unreachable — WeightedSum guarded
+                        // above. Default to standard 60.
+                        _ => 60,
+                    };
+                    let rrf_k_param = pc.push(PropertyValue::Int(rrf_k as i64));
+                    let fulltext_index_param = pc.push(PropertyValue::String(
+                        "entity_doc_index".into(),
+                    ));
+                    let fulltext_query_param =
+                        pc.push(PropertyValue::String(fulltext_query.clone()));
+
+                    parts.push(format!(
+                        "CALL db.index.vector.queryNodes({vec_index_param}, {top_k_param}, {vector_param})",
+                    ));
+                    parts.push("YIELD node AS v_node, score AS v_score".to_string());
+                    parts.push("WITH collect(v_node) AS vec_nodes".to_string());
+                    parts.push(format!(
+                        "CALL db.index.fulltext.queryNodes({fulltext_index_param}, {fulltext_query_param})",
+                    ));
+                    parts.push("YIELD node AS f_node, score AS f_score".to_string());
+                    parts.push("WITH vec_nodes, collect(f_node) AS txt_nodes".to_string());
+                    parts.push(format!(
+                        "WITH [i IN range(0, size(vec_nodes) - 1) | \
+                         {{node: vec_nodes[i], rrf: 1.0 / ({rrf_k_param} + i + 1)}}] AS vec_rrf, \
+                         [j IN range(0, size(txt_nodes) - 1) | \
+                         {{node: txt_nodes[j], rrf: 1.0 / ({rrf_k_param} + j + 1)}}] AS txt_rrf",
+                    ));
+                    parts.push("UNWIND vec_rrf + txt_rrf AS r".to_string());
+                    parts.push("WITH r.node AS node, sum(r.rrf) AS score".to_string());
+                    parts.push("RETURN node, score".to_string());
+                    parts.push("ORDER BY score DESC".to_string());
+                    parts.push(format!("LIMIT {top_k_param}"));
+                }
+            }
         }
     }
 

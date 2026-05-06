@@ -2209,7 +2209,7 @@ fn hybrid_search_vector_only_compiles_to_neo4j_index_call() {
 }
 
 #[test]
-fn hybrid_search_with_fulltext_query_returns_unsupported_until_rrf_lands() {
+fn hybrid_search_vector_plus_fulltext_rrf_emits_fusion_cte() {
     use ox_query_ir::hybrid_retrieval::{
         Embedding, FusionStrategy, HybridSearchRequest,
     };
@@ -2220,13 +2220,87 @@ fn hybrid_search_with_fulltext_query_returns_unsupported_until_rrf_lands() {
         operation: QueryOp::HybridSearch {
             request: HybridSearchRequest {
                 vector_query: Embedding::new(vec![0.1, 0.2], "test"),
-                // Fulltext present — RRF fusion path not yet
-                // emitted; the compiler fails fast with a
-                // typed UnsupportedOperation rather than
-                // silently dropping the fulltext side.
                 fulltext_query: Some("customer churn".into()),
                 graph_constraints: None,
-                fuse: FusionStrategy::default(),
+                fuse: FusionStrategy::ReciprocalRankFusion { k: 60 },
+                top_k: 10,
+            },
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        as_of: None,
+    };
+
+    let compiled = compiler
+        .compile_query(&query, None)
+        .expect("vector + fulltext RRF compiles");
+    // Both source procedures called.
+    assert!(
+        compiled.statement.contains("db.index.vector.queryNodes"),
+        "missing vector procedure call:\n{}",
+        compiled.statement,
+    );
+    assert!(
+        compiled.statement.contains("db.index.fulltext.queryNodes"),
+        "missing fulltext procedure call:\n{}",
+        compiled.statement,
+    );
+    // RRF fusion CTE shape — list comprehension + UNWIND +
+    // sum aggregate.
+    assert!(
+        compiled.statement.contains("range(0, size(vec_nodes)"),
+        "missing vector RRF list comprehension:\n{}",
+        compiled.statement,
+    );
+    assert!(
+        compiled.statement.contains("UNWIND vec_rrf + txt_rrf"),
+        "missing UNWIND fusion union:\n{}",
+        compiled.statement,
+    );
+    assert!(
+        compiled.statement.contains("sum(r.rrf)"),
+        "missing sum aggregate on RRF:\n{}",
+        compiled.statement,
+    );
+    // Final ORDER BY + LIMIT trims the fused candidate pool
+    // back to the operator's top_k.
+    assert!(compiled.statement.contains("ORDER BY score DESC"));
+    assert!(compiled.statement.contains("LIMIT $"));
+    // 5 params — vec_index, top_k, vector, rrf_k,
+    // fulltext_index, fulltext_query (top_k reused for
+    // procedure expansion + final LIMIT). Actually 6 distinct
+    // params land because every push() bumps the counter; the
+    // final LIMIT references the same `top_k_param` symbol so
+    // Cypher de-dupes at execute time but the collector count
+    // is fresh per push.
+    assert_eq!(
+        compiled.params.len(),
+        6,
+        "expected 6 params (vec_idx, top_k, vector, rrf_k, ft_idx, ft_query) — got {}: {:?}",
+        compiled.params.len(),
+        compiled.params,
+    );
+}
+
+#[test]
+fn hybrid_search_with_weighted_sum_returns_unsupported() {
+    use ox_query_ir::hybrid_retrieval::{
+        Embedding, FusionStrategy, HybridSearchRequest,
+    };
+
+    let compiler = CypherCompiler::neo4j();
+    let query = QueryIR {
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::HybridSearch {
+            request: HybridSearchRequest {
+                vector_query: Embedding::new(vec![0.1, 0.2], "test"),
+                fulltext_query: Some("customer churn".into()),
+                graph_constraints: None,
+                fuse: FusionStrategy::WeightedSum {
+                    vector_weight: 0.7,
+                    fulltext_weight: 0.3,
+                },
                 top_k: 10,
             },
         },
@@ -2238,10 +2312,10 @@ fn hybrid_search_with_fulltext_query_returns_unsupported_until_rrf_lands() {
 
     let err = compiler
         .compile_query(&query, None)
-        .expect_err("fulltext path should be deferred");
+        .expect_err("weighted-sum path should still be deferred");
     let msg = format!("{err}");
     assert!(
-        msg.contains("RRF") || msg.contains("fulltext_query"),
+        msg.contains("WeightedSum") || msg.contains("weighted-sum"),
         "unexpected error: {msg}",
     );
 }
