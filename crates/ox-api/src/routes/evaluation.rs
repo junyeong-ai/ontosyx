@@ -706,10 +706,15 @@ pub(crate) async fn execute_evaluation_case(
                             .to_string(),
                     );
                 };
+                // Evaluation case-execute runs against the dataset's
+                // frozen ontology IR — no DomainContext / navigation
+                // store reachable here. Pass `None` so the schema RAG
+                // path on the Brain side drives the prompt context.
                 let query_ir = brain
                     .translate_query(
                         &question,
                         &ir,
+                        None,
                         &branchforge::ExecutionContext::empty(),
                     )
                     .await

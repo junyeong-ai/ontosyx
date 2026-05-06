@@ -210,11 +210,24 @@ pub trait OntologyDesigner: Send + Sync {
 /// Query translation and widget selection capabilities.
 #[async_trait]
 pub trait QueryTranslator: Send + Sync {
-    /// Translate natural language question into a QueryIR
+    /// Translate natural language question into a QueryIR.
+    ///
+    /// `retrieved_context` carries the GraphRAG-rendered subgraph
+    /// markdown the caller has assembled (typically by walking
+    /// `OntologyNavigationStore::search_entry_points` →
+    /// `expand_neighbors` → `render_subgraph_for_llm`). When
+    /// supplied, the translator injects it into the prompt as the
+    /// `ontology_subgraph_md` template variable so the LLM sees a
+    /// targeted, anchor-expanded slice of the ontology in addition
+    /// to the schema RAG snippet. Pass `None` from callers that
+    /// have no Postgres-backed navigation store wired (admin
+    /// preview routes, `mcp` standalone server, evaluation
+    /// case-execute endpoint that runs against a fresh draft IR).
     async fn translate_query(
         &self,
         question: &str,
         ontology: &OntologyIR,
+        retrieved_context: Option<&str>,
         ctx: &branchforge::ExecutionContext,
     ) -> OxResult<QueryIR>;
 

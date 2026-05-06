@@ -19,6 +19,7 @@ impl QueryTranslator for DefaultBrain {
         &self,
         question: &str,
         ontology: &OntologyIR,
+        retrieved_context: Option<&str>,
         ctx: &branchforge::ExecutionContext,
     ) -> OxResult<QueryIR> {
         // Schema discovery
@@ -91,6 +92,19 @@ impl QueryTranslator for DefaultBrain {
         // happy path (PromptTemplate::render_user does plain string
         // replacement — unmatched placeholders survive).
         vars.insert("correction", "");
+        // GraphRAG-rendered subgraph slice. When the agent walks
+        // `OntologyNavigationStore::search_entry_points → expand_neighbors
+        // → render_subgraph_for_llm` and threads the markdown in,
+        // the prompt template surfaces it as a "## Retrieved
+        // subgraph" block alongside the schema RAG snippet —
+        // gives the LLM anchor-expanded ontology context the
+        // schema RAG alone misses (Postgres-backed Level-3 indexes
+        // beat the in-memory `discover_schema` heuristic on
+        // ontologies past a few hundred node types).
+        vars.insert(
+            "ontology_subgraph_md",
+            retrieved_context.unwrap_or(""),
+        );
 
         // Primary LLM call (StructuredMatchQuery structured output)
         ctx.progress("llm_primary").started();

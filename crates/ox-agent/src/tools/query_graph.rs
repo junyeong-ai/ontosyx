@@ -13,7 +13,9 @@ use ox_brain::plan_router::{CostBudget, HeuristicPlanRouter, PlanRouter, RouteDe
 use ox_core::error::OxError;
 use ox_graph_runtime::cypher::strict_advisory_diagnostics;
 use ox_query_ir::resolve_query_bindings;
-use ox_store::QueryExecution;
+use ox_store::{
+    EntryPointSearchOptions, LlmRenderOptions, NeighborExpandOptions, QueryExecution,
+};
 
 use crate::DomainContext;
 
@@ -134,13 +136,35 @@ impl SchemaTool for QueryGraphTool {
 
         let question = input.question.clone();
 
+        // GraphRAG step — walk the OntologyNavigationStore (Postgres-
+        // backed Level-3 indexes) to surface a question-anchored
+        // subgraph slice for the LLM prompt. Skipped silently when
+        // the session has no committed ontology version (ad-hoc
+        // draft, system-bypass test) or when navigation calls fail
+        // (unavailable index, transient DB blip — the schema RAG
+        // path on the Brain side still carries the prompt context).
+        let retrieved_subgraph_md =
+            try_retrieve_subgraph_md(&self.domain, &question).await;
+        if let Some(md) = retrieved_subgraph_md.as_deref() {
+            let approx_chars = md.len();
+            ctx.progress("graphrag_retrieval").completed_with(
+                0,
+                serde_json::json!({ "chars": approx_chars }),
+            );
+        }
+
         // Step 1: Translate NL → QueryIR (timeout: 60s)
         // Brain emits sub-steps (schema_discovery, llm_primary, llm_fallback)
         // via ctx.emit_progress(), providing real-time visibility.
         // Cancel is handled by branchforge ToolRegistry at the outer level.
         let query_ir = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
-            self.brain.translate_query(&question, &ontology, ctx),
+            self.brain.translate_query(
+                &question,
+                &ontology,
+                retrieved_subgraph_md.as_deref(),
+                ctx,
+            ),
         )
         .await
         {
@@ -636,6 +660,71 @@ impl SchemaTool for QueryGraphTool {
         };
 
         ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
+    }
+}
+
+/// Walk `OntologyNavigationStore` (Postgres-backed Level-3
+/// indexes) and assemble a question-anchored subgraph slice for
+/// the LLM prompt. Returns `None` when navigation is unavailable
+/// (no committed ontology, no version snapshot, fetch failure) —
+/// the translator's schema RAG path stays the source of truth on
+/// the prompt side, this just adds a denser, anchor-expanded
+/// slice when one is reachable.
+///
+/// Three-step Progressive Disclosure flow per
+/// `crates/ox-store/src/store/ontology_navigation.rs`:
+///   1. `search_entry_points(top_k=8)` → blended trigram + FTS +
+///      embedding anchors against the question.
+///   2. `expand_neighbors{depth:2, max_nodes:40}` → BFS the
+///      anchors into a single subgraph.
+///   3. `render_subgraph_for_llm` → markdown the prompt template
+///      surfaces under `## Retrieved subgraph`.
+async fn try_retrieve_subgraph_md(
+    domain: &DomainContext,
+    question: &str,
+) -> Option<String> {
+    let ontology_id = domain.ontology_id?;
+    let snapshot = domain
+        .store
+        .find_current_version(ontology_id)
+        .await
+        .ok()??;
+    let version_id = snapshot.id;
+
+    let anchors = match domain
+        .store
+        .search_entry_points(EntryPointSearchOptions::new(version_id, question, 8))
+        .await
+    {
+        Ok(hits) if !hits.is_empty() => hits,
+        _ => return None,
+    };
+
+    let anchor_refs: Vec<ox_store::EntityRef> =
+        anchors.iter().map(|h| h.as_entity_ref()).collect();
+
+    let mut expand_options =
+        NeighborExpandOptions::new(version_id, anchor_refs);
+    expand_options.depth = 2;
+    expand_options.max_nodes = 40;
+
+    let subgraph = match domain
+        .store
+        .expand_neighbors(expand_options)
+        .await
+    {
+        Ok(g) => g,
+        Err(_) => return None,
+    };
+
+    let render_options = LlmRenderOptions::default();
+    let markdown = domain
+        .store
+        .render_subgraph_for_llm(&subgraph, &render_options);
+    if markdown.trim().is_empty() {
+        None
+    } else {
+        Some(format!("## Retrieved subgraph\n\n{markdown}"))
     }
 }
 

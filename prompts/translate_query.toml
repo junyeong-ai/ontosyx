@@ -372,6 +372,7 @@ user_template = """
 Ontology:
 {{ontology}}
 {{glossary_section}}
+{{ontology_subgraph_md}}
 {{knowledge}}
 Translate this question into a QueryIR.
 

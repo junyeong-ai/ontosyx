@@ -528,12 +528,15 @@ impl OntosyxMcpServer {
         // Load ontology
         let ontology = load_ontology(self.store.as_ref()).await?;
 
-        // Translate NL -> QueryIR
+        // Translate NL -> QueryIR. Standalone MCP server doesn't
+        // walk the OntologyNavigationStore (no DomainContext); the
+        // schema RAG path on the Brain side carries the prompt.
         let query_ir = self
             .brain
             .translate_query(
                 &params.question,
                 &ontology,
+                None,
                 &branchforge::ExecutionContext::empty(),
             )
             .await

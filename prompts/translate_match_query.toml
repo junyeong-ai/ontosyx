@@ -264,6 +264,7 @@ Q: "Find ingredients that treat aging but do NOT aggravate sensitive skin"
 user_template = """
 Ontology:
 {{ontology}}
+{{ontology_subgraph_md}}
 {{knowledge}}
 Translate this question into a MatchQueryIR.
 
