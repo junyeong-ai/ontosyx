@@ -21,6 +21,18 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
     // dcterms is used for `dcterms:isReplacedBy`, the standard way to point
     // a deprecated entity at its successor. owl:replacedBy is non-standard.
     out.push_str("@prefix dcterms: <http://purl.org/dc/terms/> .\n");
+    // SKOS lets us cross-link `owl:Class` (NodeType) to its
+    // canonical `skos:Concept` (the workspace's `ConceptDef`)
+    // so a SKOS-aware catalogue (TopBraid EDG / Stardog
+    // Designer) overlays the identity layer onto the OWL
+    // schema. The concept URIs live on the sibling glossary
+    // namespace; the `:c_X` URI inside this OWL document points
+    // there via `rdfs:isDefinedBy` on the class.
+    out.push_str("@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .\n");
+    out.push_str(&format!(
+        "@prefix concept: <http://ontosyx.io/ontology/{}/glossary#> .\n",
+        uri_encode(&ontology.name),
+    ));
     out.push_str(&format!("@prefix :        <{base_ns}#> .\n"));
     out.push('\n');
 
@@ -64,6 +76,24 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
             chain_triple(
                 &mut out,
                 &format!("dcterms:isReplacedBy :{}", local_name(label)),
+            );
+        }
+        // Cross-link to the canonical SKOS concept when set.
+        // `rdfs:isDefinedBy` is the W3C-standard way to point an
+        // OWL Class at its identity record on a sibling
+        // namespace; SKOS-aware catalogues navigate from the
+        // class to the concept-tree without re-deriving the
+        // link. The concept URI lives on the `concept:` prefix
+        // (the workspace's glossary namespace) so an external
+        // reasoner can resolve it standalone.
+        if let Some(concept_id) = &node.concept_id {
+            let concept_str: &str = concept_id;
+            chain_triple(
+                &mut out,
+                &format!(
+                    "rdfs:isDefinedBy concept:{}",
+                    local_name(concept_str),
+                ),
             );
         }
         out.push('\n');
@@ -115,6 +145,16 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
         }
         if edge.deprecated_at.is_some() {
             chain_triple(&mut out, "owl:deprecated true");
+        }
+        if let Some(concept_id) = &edge.concept_id {
+            let concept_str: &str = concept_id;
+            chain_triple(
+                &mut out,
+                &format!(
+                    "rdfs:isDefinedBy concept:{}",
+                    local_name(concept_str),
+                ),
+            );
         }
         if let Some(replaced_by) = &edge.replaced_by_id
             && let Some(replacement) = ontology.edge_types().iter().find(|e| &e.id == replaced_by)
@@ -696,5 +736,45 @@ mod tests {
         assert_eq!(local_name("Hello World"), "Hello_World");
         assert_eq!(local_name("123abc"), "_123abc");
         assert_eq!(local_name(""), "_unnamed");
+    }
+
+    #[test]
+    fn node_with_concept_id_emits_skos_cross_reference() {
+        // NodeType.concept_id pointing at a workspace concept
+        // emits an `rdfs:isDefinedBy concept:c_X` triple on the
+        // OWL Class. SKOS-aware catalogues (TopBraid EDG /
+        // Stardog Designer) follow this pointer to the
+        // sibling SKOS document the glossary exporter
+        // produces.
+        use ox_ontology::concept::ConceptId;
+        let mut onto = OntologyIR::new(
+            "test-id".into(),
+            "TestOnto".into(),
+            LocalizedText::default(),
+            1,
+            vec![NodeTypeDef {
+                id: "n_customer".into(),
+                label: gl("Customer"),
+                description: LocalizedText::default(),
+                properties: Vec::new(),
+                constraints: Vec::new(),
+                concept_id: Some(ConceptId::new("c-customer")),
+                ..Default::default()
+            }],
+            Vec::new(),
+            Vec::new(),
+        );
+        let _ = &mut onto;
+
+        let ttl = generate_owl_turtle(&onto);
+        // Class block emits as before.
+        assert!(ttl.contains(":Customer a owl:Class"));
+        // SKOS prefix declared so the URI shorthand resolves.
+        assert!(ttl.contains("@prefix concept:"));
+        // The concept cross-reference lands on the class.
+        assert!(
+            ttl.contains("rdfs:isDefinedBy concept:c_customer"),
+            "missing concept cross-ref on Customer class:\n{ttl}",
+        );
     }
 }
