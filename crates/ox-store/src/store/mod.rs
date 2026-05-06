@@ -24,6 +24,7 @@ mod approval_comment;
 mod audit;
 mod audit_trail;
 mod change_routing;
+mod community;
 mod config;
 mod dashboard;
 mod data_source;
@@ -74,6 +75,7 @@ pub use approval_comment::ApprovalCommentStore;
 pub use audit::AuditStore;
 pub use audit_trail::{AuditRecord, AuditTrailFilter, AuditTrailStore};
 pub use change_routing::ChangeRoutingStore;
+pub use community::CommunitySummaryStore;
 pub use config::ConfigStore;
 pub use dashboard::DashboardStore;
 pub use data_source::DataSourceStore;
@@ -126,6 +128,7 @@ pub trait Store:
     + AuditStore
     + AuditTrailStore
     + ChangeRoutingStore
+    + CommunitySummaryStore
     + ConfigStore
     + DashboardStore
     + DataSourceStore
@@ -176,6 +179,7 @@ impl<T> Store for T where
         + AuditStore
         + AuditTrailStore
         + ChangeRoutingStore
+        + CommunitySummaryStore
         + ConfigStore
         + DashboardStore
         + DataSourceStore

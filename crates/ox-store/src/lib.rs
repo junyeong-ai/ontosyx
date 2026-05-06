@@ -9,6 +9,7 @@
 )]
 
 pub mod advisory_lock;
+pub mod community;
 pub mod evaluation;
 pub mod models;
 pub mod navigation;
@@ -42,7 +43,7 @@ pub use sqlx::PgPool;
 pub use store::{
     AclStore, AgentSessionStore, AmbiguityStore, RecipeExecutionStore, AnalysisSnapshot,
     ApiKeyStore, ApprovalCommentStore, ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter,
-    AuditTrailStore, ChangeRoutingStore, ConfigStore, CursorPage, CursorParams, DashboardStore,
+    AuditTrailStore, ChangeRoutingStore, CommunitySummaryStore, ConfigStore, CursorPage, CursorParams, DashboardStore,
     DataSourceStore, DraftClusterCheckpointStore, EmbeddingRetryStore, EvaluationStore,
     ExtendResult, HealthStore, IdempotencyStore, InsightStore, JwtRevocationStore, KnowledgeStore,
     LineageStore, LoadCheckpointStore, MeteringStore, ModelConfigStore, NotificationStore,

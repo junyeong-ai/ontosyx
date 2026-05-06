@@ -399,6 +399,7 @@ mod approval_comment;
 mod audit;
 mod audit_trail;
 mod change_routing;
+mod community;
 mod config;
 mod dashboard;
 mod data_source;
