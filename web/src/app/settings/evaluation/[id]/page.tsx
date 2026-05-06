@@ -72,17 +72,25 @@ interface EvaluationDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
+type CaseStatus = "pending" | "executed" | "failed";
+
 /// `caseStatus` — derives a status string from the case's
 /// `error` / `actual` / `latency_ms` fields. The triplet
 /// (`pending` / `executed` / `failed`) is what the case-list
 /// pill renders, so the FE doesn't have to plumb a fourth
 /// status field through the wire shape — derivation lives in
 /// one place.
-function caseStatus(c: EvaluationCase): "pending" | "executed" | "failed" {
+function caseStatus(c: EvaluationCase): CaseStatus {
   if (c.error) return "failed";
   if (c.actual !== undefined && c.actual !== null) return "executed";
   return "pending";
 }
+
+/// Filter sentinel — `null` means "show every status", any
+/// concrete `CaseStatus` narrows the list. Local UI state, not
+/// persisted; the case list is short-lived enough that resetting
+/// to "all" on navigation is the natural reset.
+type CaseStatusFilter = CaseStatus | null;
 
 const STATUS_PILL_CLASS: Record<
   ReturnType<typeof caseStatus>,
@@ -234,6 +242,7 @@ export default function EvaluationDetailPage({
   const casesQuery = useEvaluationCases(id);
   const summaryQuery = useEvaluationRunSummary(id);
   const [activeCase, setActiveCase] = useState<EvaluationCase | null>(null);
+  const [statusFilter, setStatusFilter] = useState<CaseStatusFilter>(null);
   const metricsQuery = useEvaluationMetrics(activeCase?.id ?? null);
   const execute = useExecuteEvaluationCase(id);
   const judge = useJudgeEvaluationCase();
@@ -353,6 +362,10 @@ export default function EvaluationDetailPage({
 
   const run = runQuery.data;
   const cases = casesQuery.data ?? [];
+  const filteredCases =
+    statusFilter === null
+      ? cases
+      : cases.filter((c) => caseStatus(c) === statusFilter);
   // First-load convenience — pin the inspector to the first case
   // when nothing is selected yet. The user can switch by clicking
   // any row in the cases pane.
@@ -558,17 +571,67 @@ export default function EvaluationDetailPage({
                 {t("detail.casesTitle")}
               </Heading>
               <span className="text-2xs text-foreground-muted tabular-nums">
-                {cases.length}
+                {statusFilter === null
+                  ? cases.length
+                  : t("detail.caseFilter.countLabel", {
+                      shown: filteredCases.length,
+                      total: cases.length,
+                    })}
               </span>
             </header>
             <p className="mb-3 text-xs text-foreground-muted">
               {t("detail.casesDescription")}
             </p>
+            {cases.length === 0 ? null : (
+              <div
+                className="mb-3 inline-flex flex-wrap items-center gap-1 rounded-lg bg-surface-inset p-0.5"
+                role="tablist"
+                aria-label={t("detail.caseFilter.ariaLabel")}
+              >
+                {(
+                  [null, "executed", "failed", "pending"] as const
+                ).map((option) => {
+                  const isActive = statusFilter === option;
+                  const optionCount =
+                    option === null
+                      ? cases.length
+                      : cases.filter((c) => caseStatus(c) === option).length;
+                  const labelKey =
+                    option === null
+                      ? "all"
+                      : (option as CaseStatus);
+                  return (
+                    <button
+                      key={option ?? "all"}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => setStatusFilter(option)}
+                      className={cn(
+                        "rounded-md px-2.5 py-1 text-xs transition-colors duration-[var(--duration-base)] ease-[var(--ease-out)]",
+                        isActive
+                          ? "bg-surface-base text-foreground-strong shadow-1-strong"
+                          : "text-foreground-muted hover:text-foreground-strong",
+                      )}
+                    >
+                      {t(`detail.caseFilter.${labelKey}`)}
+                      <span className="ms-1.5 tabular-nums text-2xs text-foreground-muted">
+                        {optionCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {cases.length === 0 ? (
               <EmptyState title={t("detail.noCases")} />
+            ) : filteredCases.length === 0 ? (
+              <EmptyState
+                title={t("detail.caseFilter.emptyForFilter")}
+              />
             ) : (
               <ul className="divide-y divide-divider rounded-xl border border-divider">
-                {cases.map((c) => (
+                {filteredCases.map((c) => (
                   <li key={c.id}>
                     <button
                       type="button"

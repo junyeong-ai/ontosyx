@@ -2978,6 +2978,15 @@
           "executed": "Executed",
           "failed": "Failed"
         },
+        "caseFilter": {
+          "ariaLabel": "Filter cases by status",
+          "all": "All",
+          "pending": "Pending",
+          "executed": "Executed",
+          "failed": "Failed",
+          "countLabel": "{shown} of {total}",
+          "emptyForFilter": "No cases match the selected filter."
+        },
         "metricsTitle": "Metrics",
         "metricsDescription": "Per-axis rubric scores. RAGAS canonicals plus tenant-defined metrics ride on the same column.",
         "noCases": "No cases recorded for this run.",
