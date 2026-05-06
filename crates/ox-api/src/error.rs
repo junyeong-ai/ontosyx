@@ -138,6 +138,19 @@ pub enum ApiErrorCode {
     /// Query compilation failed (QueryIR → Cypher / DataFusion).
     /// `params.detail` carries the compiler's diagnostic.
     QueryCompilationFailed,
+    /// `PlanRouter` refused the query because its `cost::estimate_cost`
+    /// classification (or quantitative `estimated_pattern_expansions`
+    /// / `estimated_wallclock_ms`) exceeded the active
+    /// [`CostBudget`](ox_brain::plan_router::CostBudget). Operator
+    /// can opt into the run with `?allow_high_cost=true` or
+    /// reformulate to add an indexed filter / bound the
+    /// `var_length` depth / break the Cartesian. `params.risk_level`
+    /// + `params.detail` carry the cost-estimator's primary
+    /// rejection reason; `params.estimated_wallclock_ms` /
+    /// `params.estimated_expansions` surface the quantitative
+    /// projections so the FE inline error can render an actionable
+    /// "we expect this query to take ~Ns / touch ~M rows" copy.
+    QueryCostBudgetExceeded,
     /// Knowledge entry payload had a `kind` / `status` value not in
     /// the typed enum allowlist. `params.field` names which slot,
     /// `params.value` the rejected input, `params.allowed` the
@@ -425,6 +438,7 @@ impl ApiErrorCode {
             TemporalSnapshotMissing => "temporal_snapshot_missing",
             QueryExecutionFailed => "query_execution_failed",
             QueryCompilationFailed => "query_compilation_failed",
+            QueryCostBudgetExceeded => "query_cost_budget_exceeded",
             InvalidEnumValue => "invalid_enum_value",
             TextLengthOutOfRange => "text_length_out_of_range",
             BulkLimitExceeded => "bulk_limit_exceeded",
@@ -810,6 +824,32 @@ impl AppError {
             ApiErrorCode::QueryCompilationFailed,
         )
         .with_param("detail", detail.into())
+    }
+
+    /// `PlanRouter` refused the query because its cost classification
+    /// exceeded the active `CostBudget`. Carries `risk_level` +
+    /// `detail` (primary rejection reason) +
+    /// `estimated_wallclock_ms` + `estimated_expansions` so the FE
+    /// inline error can render an actionable copy. Status 422
+    /// (the IR is well-formed; the platform refuses to run it under
+    /// the current budget).
+    pub fn query_cost_budget_exceeded(
+        risk_level: impl Into<String>,
+        detail: impl Into<String>,
+        estimated_wallclock_ms: Option<u64>,
+        estimated_expansions: u64,
+    ) -> Self {
+        let mut e = Self::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            ApiErrorCode::QueryCostBudgetExceeded,
+        )
+        .with_param("risk_level", risk_level.into())
+        .with_param("detail", detail.into())
+        .with_param("estimated_expansions", estimated_expansions.to_string());
+        if let Some(wallclock) = estimated_wallclock_ms {
+            e = e.with_param("estimated_wallclock_ms", wallclock.to_string());
+        }
+        e
     }
 
     /// Enum field rejected because the value isn't in the allowlist.
@@ -1493,6 +1533,7 @@ mod redaction_tests {
             TemporalSnapshotMissing,
             QueryExecutionFailed,
             QueryCompilationFailed,
+            QueryCostBudgetExceeded,
             InvalidEnumValue,
             TextLengthOutOfRange,
             BulkLimitExceeded,

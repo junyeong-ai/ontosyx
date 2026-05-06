@@ -370,6 +370,7 @@ pub(crate) async fn raw_query(
             filter_summary: None,
             registry_versions: std::collections::BTreeMap::new(),
             column_lineage: Vec::new(),
+            routing: None,
         });
     }
 

@@ -38,6 +38,7 @@
     "temporal_snapshot_missing": "No version was live at {as_of} for lineage '{lineage_id}'. The earliest committed version came after that timestamp, or the version was removed.",
     "query_execution_failed": "Query execution failed. {detail}",
     "query_compilation_failed": "Query compilation failed. {detail}",
+    "query_cost_budget_exceeded": "Query refused — {risk_level} risk: {detail}. Estimated {estimated_expansions} pattern expansions. Reformulate (add an indexed filter, bound `*` depth, break the Cartesian) or re-run with `allow_high_cost=true`.",
     "invalid_enum_value": "'{value}' is not a valid {field}. Must be one of: {allowed}.",
     "text_length_out_of_range": "{field} must be at least {min} characters.",
     "bulk_limit_exceeded": "Bulk operations accept at most {limit} items per call. Split the request and retry.",

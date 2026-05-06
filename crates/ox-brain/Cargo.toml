@@ -10,6 +10,7 @@ publish.workspace = true
 ox-core = { workspace = true }
 ox-ontology = { workspace = true }
 ox-query-ir = { workspace = true }
+ox-compiler = { workspace = true }
 ox-memory = { workspace = true }
 ox-store = { workspace = true }
 branchforge = { workspace = true, features = ["aws", "cli-auth"] }

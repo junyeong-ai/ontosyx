@@ -1505,6 +1505,15 @@ pub struct QueryProvenance {
     /// payload.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub column_lineage: Vec<ColumnLineage>,
+    /// Backend dispatch attribution from the `PlanRouter`. Stable,
+    /// FE-renderable string ("graph runtime — single-source pattern
+    /// execution", "federation runtime — cross-source traversal
+    /// detected"). Surfaces on the result panel's "response basis"
+    /// section so the operator sees *why* the platform picked the
+    /// route. `None` for paths that bypass the router (the
+    /// `from-raw-cypher` admin escape, system-bypass cron loads).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing: Option<String>,
 }
 
 /// One output-column ↔ source-column attribution edge surfaced on

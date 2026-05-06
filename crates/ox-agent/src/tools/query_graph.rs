@@ -9,8 +9,10 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use ox_query_ir::resolve_query_bindings;
+use ox_brain::plan_router::{CostBudget, HeuristicPlanRouter, PlanRouter, RouteDecision};
+use ox_core::error::OxError;
 use ox_graph_runtime::cypher::strict_advisory_diagnostics;
+use ox_query_ir::resolve_query_bindings;
 use ox_store::QueryExecution;
 
 use crate::DomainContext;
@@ -153,26 +155,55 @@ impl SchemaTool for QueryGraphTool {
             }
         };
 
-        // Cost estimation: analyse QueryIR before compilation. High-risk
-        // shapes (unbounded `*`, Cartesian joins, unindexed high-fanout
-        // labels) are refused before they reach the driver when policy
-        // allows — otherwise we still warn so operators see the shape.
-        let cost_estimate = ox_compiler::cost::estimate_cost(&query_ir, &ontology);
-        if cost_estimate.risk_level == ox_compiler::cost::RiskLevel::High {
-            warn!(
-                risk = ?cost_estimate.risk_level,
-                cartesian = cost_estimate.has_cartesian,
-                var_depth = cost_estimate.max_var_length_depth,
-                "High-risk query detected"
-            );
-            if self.reject_high_cost {
-                let detail = cost_estimate.warnings.join("; ");
+        // PlanRouter dispatch — single source of truth for backend
+        // selection + cost-budget enforcement. The router consults
+        // `cost::estimate_cost` once, gates `RiskLevel::High` against
+        // `CostBudget.allow_high_cost`, detects cross-source
+        // traversal for `Federation` routing, and emits a stable
+        // attribution string the FE result panel renders. The
+        // `reject_high_cost` agent flag maps to the inverse of
+        // `allow_high_cost` so workspace policy rides on the same
+        // gate as the LLM-toggled `?allow_high_cost=true` query
+        // parameter.
+        let router = HeuristicPlanRouter::new();
+        let budget = CostBudget {
+            allow_high_cost: !self.reject_high_cost,
+            ..Default::default()
+        };
+        let decision = match router.route(&query_ir, &ontology, Some(&budget)).await {
+            Ok(d) => d,
+            Err(OxError::Validation { message, .. }) if message.starts_with("[budget]") => {
+                warn!(question = %question, message = %message, "PlanRouter refused query");
                 return ToolResult::error(format!(
-                    "Query rejected: the cost estimator flagged this as high-risk ({detail}). \
-                     Reformulate with a bounded path length / indexed filter / connected pattern, \
-                     or ask an admin to disable `agent.reject_high_cost` for this workspace."
+                    "Query rejected: {message}. Reformulate with a bounded path length / \
+                     indexed filter / connected pattern, or pass `allow_high_cost=true` \
+                     to override."
                 ));
             }
+            Err(e) => {
+                warn!(question = %question, error = %e, "PlanRouter error");
+                return ToolResult::error(format!("PlanRouter error: {e}"));
+            }
+        };
+        let routing_reason = decision.reason();
+        let cost_estimate = decision
+            .cost()
+            .cloned()
+            .expect("HeuristicPlanRouter always populates cost");
+        match &decision {
+            RouteDecision::Federation { .. } => {
+                // Cross-source traversal: today the agent still
+                // executes via the graph runtime path because
+                // federation execute_plan integration ships in T3.
+                // Surface the routing decision in the attribution
+                // so the operator + EvaluationCapture see the
+                // detection actually fired.
+                info!(question = %question, routing = routing_reason, "Federation routing detected");
+            }
+            RouteDecision::Hybrid { .. } => {
+                info!(question = %question, routing = routing_reason, "Hybrid routing");
+            }
+            RouteDecision::Graph { .. } => {}
         }
 
         // Step 2: Compile QueryIR → target language. The compiler
@@ -258,11 +289,22 @@ impl SchemaTool for QueryGraphTool {
         let execution_time_ms = start.elapsed().as_millis() as i64;
         let execution_id = Uuid::new_v4();
 
+        // Persist routing attribution onto the per-response
+        // provenance trail so the FE result panel + the
+        // `useExecution` hook surface "why this backend".
+        let mut results = results;
+        let provenance = results
+            .metadata
+            .provenance
+            .get_or_insert_with(Default::default);
+        provenance.routing = Some(routing_reason.to_string());
+
         info!(
             execution_id = %execution_id,
             question = %input.question,
             target = self.domain.compiler.name(),
             rows = results.metadata.rows_returned,
+            routing = routing_reason,
             execution_time_ms,
             "Graph query executed"
         );

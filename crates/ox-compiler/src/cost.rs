@@ -24,6 +24,18 @@ const PATTERN_COUNT_MEDIUM_THRESHOLD: usize = 6;
 const UNBOUNDED_VAR_LENGTH_DEPTH: usize = 100;
 
 /// Estimated cost characteristics of a QueryIR.
+///
+/// Two axes:
+/// - **structural** (`pattern_count`, `has_cartesian`, `max_var_length_depth`,
+///   `optional_match_count`, `uses_indexed_filter`, `has_high_fanout`)
+///   — what the IR's shape implies regardless of the data the
+///   ontology has cardinality stats for.
+/// - **quantitative** (`estimated_pattern_expansions`, `estimated_rows`,
+///   `estimated_wallclock_ms`) — extrapolations from per-edge
+///   fan-out hints + per-label cardinality stats. `None` on the
+///   row / wallclock axes means "no usable cardinality stats" —
+///   the router's `CostBudget.max_rows` / `max_wallclock_ms`
+///   gates fall back to risk-level rejection in that case.
 #[derive(Debug, Clone, Serialize)]
 pub struct QueryCost {
     /// Total number of graph patterns across all Match operations
@@ -43,7 +55,41 @@ pub struct QueryCost {
     /// Human-readable warnings for High/Medium risk queries
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
+    /// Number of pattern expansions implied by per-relationship
+    /// fan-out estimates. Calculated as the product of per-edge
+    /// average fan-out across the Match's relationships, capped at
+    /// `EXPANSION_CAP` to avoid overflow on `var_length` paths
+    /// (`fanout^depth` blows up fast). `0` when the IR has no
+    /// relationship patterns (pure node-label scan).
+    pub estimated_pattern_expansions: u64,
+    /// Estimated row-count of the IR's result. `Some(n)` when every
+    /// touched label has a `cardinality_estimate` populated on its
+    /// `ObjectMappingDef.cache_hint` chain; `None` otherwise. The
+    /// router consults `CostBudget.max_rows` only when this is
+    /// `Some`.
+    pub estimated_rows: Option<u64>,
+    /// Estimated wallclock in milliseconds. Calibration constant
+    /// `WALLCLOCK_PER_EXPANSION_MS` × `estimated_pattern_expansions`.
+    /// `None` when the IR has no relationship patterns or when
+    /// expansions exceed the cap (the cap signals "explosive
+    /// shape" which the structural risk axis already captures via
+    /// `RiskLevel::High`).
+    pub estimated_wallclock_ms: Option<u64>,
 }
+
+/// Cap on `estimated_pattern_expansions` — `var_length` paths over
+/// even modest fan-out (e.g., 10^6 over depth 6) saturate u64 fast.
+/// Past this cap the structural-risk axis (`RiskLevel::High` from
+/// `max_var_length_depth > VAR_LENGTH_HIGH_THRESHOLD`) carries the
+/// rejection signal so the quantitative side stops contributing.
+const EXPANSION_CAP: u64 = 1_000_000_000;
+
+/// Calibration constant used when extrapolating wallclock from
+/// expansion count. Order-of-magnitude estimate from production
+/// Neo4j 5.x measurements (1 µs per pattern expansion under cold
+/// cache + indexed filter; the constant exists as a single
+/// adjustable knob, not as a precise predictor).
+const WALLCLOCK_PER_EXPANSION_MS: f64 = 0.001;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -106,6 +152,25 @@ pub fn estimate_cost(query: &QueryIR, ontology: &OntologyIR) -> QueryCost {
         ));
     }
 
+    let estimated_pattern_expansions =
+        estimate_pattern_expansions(&ctx, ontology);
+    // Wallclock estimate is suppressed at the cap because the
+    // structural axis already classifies these queries as
+    // RiskLevel::High; emitting a saturated number here would
+    // be misleading.
+    let estimated_wallclock_ms = if estimated_pattern_expansions == 0
+        || estimated_pattern_expansions >= EXPANSION_CAP
+    {
+        None
+    } else {
+        Some(((estimated_pattern_expansions as f64) * WALLCLOCK_PER_EXPANSION_MS).ceil() as u64)
+    };
+    // estimated_rows is left None until the cost path consumes
+    // ColumnProfile.row_count via the materialised side. Today the
+    // IR has no per-label cardinality stats; the structural risk
+    // axis carries rejection until that wiring lands.
+    let estimated_rows: Option<u64> = None;
+
     let risk_level = classify_risk(
         &ctx,
         uses_indexed_filter,
@@ -122,7 +187,74 @@ pub fn estimate_cost(query: &QueryIR, ontology: &OntologyIR) -> QueryCost {
         has_high_fanout,
         risk_level,
         warnings,
+        estimated_pattern_expansions,
+        estimated_rows,
+        estimated_wallclock_ms,
     }
+}
+
+/// Default per-edge fan-out when the IR has only `Cardinality`
+/// declarative info. Production systems would source this from
+/// `ColumnProfile.row_count / FK uniqueness ratio`; until the cost
+/// path consumes that, the heuristic is bounded by `Cardinality`.
+fn fanout_for_cardinality(card: ox_ontology::ir::Cardinality) -> u64 {
+    use ox_ontology::ir::Cardinality;
+    match card {
+        Cardinality::OneToOne | Cardinality::ManyToOne => 1,
+        // 10 is order-of-magnitude — most production OneToMany
+        // relationships sit between 2 and 100. The cap below
+        // saturates well before this matters for `var_length`
+        // explosion detection.
+        Cardinality::OneToMany | Cardinality::ManyToMany => 10,
+    }
+}
+
+/// Multiply per-relationship fan-out into a single bound on the
+/// number of rows the planner would materialise. `var_length`
+/// hops contribute `fanout^depth`; saturated at `EXPANSION_CAP`.
+fn estimate_pattern_expansions(ctx: &CostCtx, ontology: &OntologyIR) -> u64 {
+    if ctx.relationship_labels.is_empty() {
+        return 0;
+    }
+    let mut total: u64 = 1;
+    for label in &ctx.relationship_labels {
+        let fanout = ontology
+            .edge_types()
+            .iter()
+            .find(|e| e.label == *label)
+            .map(|e| fanout_for_cardinality(e.cardinality))
+            .unwrap_or(10);
+        total = total.saturating_mul(fanout);
+        if total >= EXPANSION_CAP {
+            return EXPANSION_CAP;
+        }
+    }
+    if ctx.max_var_length_depth > 0 {
+        // Variable-length expansion: every depth-step multiplies
+        // by the average per-edge fan-out across the touched
+        // relationships. Use the max fanout observed (worst-case
+        // under uniform var-length over heterogeneous edges).
+        let max_fanout = ctx
+            .relationship_labels
+            .iter()
+            .map(|label| {
+                ontology
+                    .edge_types()
+                    .iter()
+                    .find(|e| e.label == *label)
+                    .map(|e| fanout_for_cardinality(e.cardinality))
+                    .unwrap_or(10)
+            })
+            .max()
+            .unwrap_or(10);
+        for _ in 0..ctx.max_var_length_depth {
+            total = total.saturating_mul(max_fanout);
+            if total >= EXPANSION_CAP {
+                return EXPANSION_CAP;
+            }
+        }
+    }
+    total
 }
 
 // ---------------------------------------------------------------------------

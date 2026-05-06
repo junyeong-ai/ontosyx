@@ -91,6 +91,10 @@ pub fn build_provenance(query: &QueryIR, ctx: &ProvenanceContext<'_>) -> QueryPr
         filter_summary,
         registry_versions,
         column_lineage,
+        // Routing reason is stamped by the agent's `query_graph`
+        // tool on the response side, not here. The compiler runs
+        // before dispatch picks a backend.
+        routing: None,
     }
 }
 

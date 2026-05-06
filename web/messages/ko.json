@@ -38,6 +38,7 @@
     "temporal_snapshot_missing": "{lineage_id} 온톨로지의 {as_of} 시점 버전을 찾을 수 없습니다. 가장 오래된 버전이 그 이후에 커밋되었거나 해당 버전이 제거되었습니다.",
     "query_execution_failed": "쿼리 실행 중 오류가 발생했습니다. {detail}",
     "query_compilation_failed": "쿼리 컴파일에 실패했습니다. {detail}",
+    "query_cost_budget_exceeded": "쿼리 실행이 거부되었습니다 — {risk_level} 위험: {detail}. 예상 패턴 확장 {estimated_expansions}회. 인덱스된 필터 추가, `*` 깊이 제한, 카티시안 분리 등으로 재작성하거나 `allow_high_cost=true` 로 재시도하세요.",
     "invalid_enum_value": "{field} 값 '{value}'은(는) 허용되지 않습니다. 다음 중 하나여야 합니다: {allowed}.",
     "text_length_out_of_range": "{field}은(는) {min}자 이상이어야 합니다.",
     "bulk_limit_exceeded": "한 번에 최대 {limit}건까지만 처리할 수 있습니다. 항목을 나누어 다시 시도하세요.",
