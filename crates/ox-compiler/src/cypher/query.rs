@@ -307,28 +307,20 @@ pub(super) fn compile_op(
         }
 
         QueryOp::HybridSearch { request } => {
-            // graph_constraints + fulltext + RRF combined is
-            // still deferred — the RRF fusion CTE rebinds
-            // `node` through UNWIND + group-by, and weaving
-            // a label filter through that pipeline asks for a
-            // distinct lowering shape (filter inside each list
-            // comprehension, with the empty-source edge case
-            // doubled). Vector-only paths take the constraint
-            // cleanly via WHERE on the YIELD stream below.
-            if request.graph_constraints.is_some()
-                && request.fulltext_query.is_some()
-            {
-                return Err(OxError::UnsupportedOperation {
-                    target: "graph:cypher".into(),
-                    operation: "QueryOp::HybridSearch with \
-                        graph_constraints + fulltext_query — \
-                        constraint filtering across the RRF \
-                        fusion CTE lands in a follow-up; \
-                        vector-only requests support \
-                        graph_constraints today"
-                        .into(),
-                });
-            }
+            // Extract the constraint label early so both the
+            // vector-only and RRF paths can weave it through
+            // their YIELD stream / fusion CTE consistently.
+            // First pattern node's label is the operator's
+            // primary intent; richer constraints (property
+            // filters / multi-node / edges) are still
+            // deferred until the lowering surface grows.
+            let constraint_label: Option<String> = request
+                .graph_constraints
+                .as_ref()
+                .and_then(|p| p.nodes.first())
+                .and_then(|n| n.label.as_ref())
+                .map(|lbl| escape_identifier(lbl.as_str()));
+
             if request.fulltext_query.is_some()
                 && matches!(request.fuse, FusionStrategy::WeightedSum { .. })
             {
@@ -373,32 +365,16 @@ pub(super) fn compile_op(
                     // + score-desc projection. When
                     // `graph_constraints` carries a node
                     // pattern, weave its label as a `WHERE
-                    // node:Label` filter on the YIELD stream so
-                    // the procedure's top-K candidates trim to
-                    // the structural cohort the operator
-                    // anchored. Property filters / multi-node
-                    // patterns are deferred — the first
-                    // pattern node's label is the operator's
-                    // primary intent; richer constraints land
-                    // when the lowering surface grows.
-                    let constraint_label_filter = request
-                        .graph_constraints
-                        .as_ref()
-                        .and_then(|p| p.nodes.first())
-                        .and_then(|n| n.label.as_ref())
-                        .map(|lbl| {
-                            format!(
-                                "WHERE node:{}",
-                                escape_identifier(lbl.as_str()),
-                            )
-                        });
-
+                    // node:Label` filter on the YIELD stream
+                    // so the procedure's top-K candidates trim
+                    // to the structural cohort the operator
+                    // anchored.
                     parts.push(format!(
                         "CALL db.index.vector.queryNodes({vec_index_param}, {top_k_param}, {vector_param})",
                     ));
                     parts.push("YIELD node, score".to_string());
-                    if let Some(filter) = constraint_label_filter {
-                        parts.push(filter);
+                    if let Some(label) = &constraint_label {
+                        parts.push(format!("WHERE node:{label}"));
                     }
                     parts.push("RETURN node, score".to_string());
                     parts.push("ORDER BY score DESC".to_string());
@@ -444,12 +420,37 @@ pub(super) fn compile_op(
                         "CALL db.index.vector.queryNodes({vec_index_param}, {top_k_param}, {vector_param})",
                     ));
                     parts.push("YIELD node AS v_node, score AS v_score".to_string());
-                    parts.push("WITH collect(v_node) AS vec_nodes".to_string());
+                    // graph_constraints label filter weaves
+                    // through *both* source streams via a list
+                    // comprehension — `[n IN raw WHERE n:Label
+                    // | n]` pre-filters before the RRF
+                    // ranking lands. Without it the structural
+                    // cohort would be lost across the
+                    // UNWIND + group-by rebind. Vector and
+                    // fulltext filters land symmetrically so a
+                    // node only contributes to the fused score
+                    // when both sources see it under the
+                    // anchor cohort.
+                    if let Some(label) = &constraint_label {
+                        parts.push(format!(
+                            "WITH [n IN collect(v_node) WHERE n:{label} | n] AS vec_nodes",
+                        ));
+                    } else {
+                        parts.push("WITH collect(v_node) AS vec_nodes".to_string());
+                    }
                     parts.push(format!(
                         "CALL db.index.fulltext.queryNodes({fulltext_index_param}, {fulltext_query_param})",
                     ));
                     parts.push("YIELD node AS f_node, score AS f_score".to_string());
-                    parts.push("WITH vec_nodes, collect(f_node) AS txt_nodes".to_string());
+                    if let Some(label) = &constraint_label {
+                        parts.push(format!(
+                            "WITH vec_nodes, [n IN collect(f_node) WHERE n:{label} | n] AS txt_nodes",
+                        ));
+                    } else {
+                        parts.push(
+                            "WITH vec_nodes, collect(f_node) AS txt_nodes".to_string(),
+                        );
+                    }
                     parts.push(format!(
                         "WITH [i IN range(0, size(vec_nodes) - 1) | \
                          {{node: vec_nodes[i], rrf: 1.0 / ({rrf_k_param} + i + 1)}}] AS vec_rrf, \

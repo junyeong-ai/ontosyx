@@ -2349,7 +2349,7 @@ fn hybrid_search_vector_only_with_graph_constraints_emits_label_filter() {
 }
 
 #[test]
-fn hybrid_search_with_constraints_plus_fulltext_returns_unsupported() {
+fn hybrid_search_with_constraints_plus_fulltext_rrf_filters_both_sources() {
     use ox_query_ir::hybrid_retrieval::{
         Embedding, FusionStrategy, HybridSearchRequest,
     };
@@ -2391,18 +2391,30 @@ fn hybrid_search_with_constraints_plus_fulltext_returns_unsupported() {
         as_of: None,
     };
 
-    // graph_constraints + fulltext + RRF combination still
-    // deferred — the RRF fusion CTE rebinds `node` through
-    // UNWIND + group-by, so weaving label filtering through
-    // is its own lowering shape.
-    let err = compiler
+    let compiled = compiler
         .compile_query(&query, None)
-        .expect_err("constraint + fulltext path should be deferred");
-    let msg = format!("{err}");
+        .expect("graph_constraints + fulltext + RRF compiles");
+    // Both source streams pre-filter via list comprehension
+    // BEFORE the RRF rank assignment — the structural cohort
+    // restriction needs to land before the rank-based fusion
+    // or the WHERE would have nothing to filter against.
     assert!(
-        msg.contains("graph_constraints") && msg.contains("fulltext_query"),
-        "unexpected error: {msg}",
+        compiled.statement.contains(
+            "[n IN collect(v_node) WHERE n:`Customer` | n] AS vec_nodes"
+        ),
+        "missing vector pre-filter:\n{}",
+        compiled.statement,
     );
+    assert!(
+        compiled.statement.contains(
+            "[n IN collect(f_node) WHERE n:`Customer` | n] AS txt_nodes"
+        ),
+        "missing fulltext pre-filter:\n{}",
+        compiled.statement,
+    );
+    // RRF fusion CTE still lands.
+    assert!(compiled.statement.contains("UNWIND vec_rrf + txt_rrf"));
+    assert!(compiled.statement.contains("sum(r.rrf)"));
 }
 
 #[test]
