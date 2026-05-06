@@ -10,6 +10,7 @@ import type {
   EvaluationRunListPage,
   ExecuteEvaluationCaseRequest,
   RecordEvaluationMetricRequest,
+  RunComparisonReport,
   UpsertEvaluationCaseRequest,
 } from "@/types/evaluation";
 
@@ -134,4 +135,20 @@ export async function judgeEvaluationCase(
     { method: "POST" },
   );
   return res.metrics;
+}
+
+/** Diff two runs over the same dataset. Backend is the
+ *  `compare_evaluation_runs` Phoenix/Braintrust-style report —
+ *  per-case delta rows + per-axis aggregate (mean delta,
+ *  win-rate, Cohen's d). */
+export async function compareEvaluationRuns(
+  baselineId: string,
+  candidateId: string,
+): Promise<RunComparisonReport> {
+  const qs = new URLSearchParams();
+  qs.set("baseline", baselineId);
+  qs.set("candidate", candidateId);
+  return request<RunComparisonReport>(
+    `${RUNS}/diff?${qs.toString()}`,
+  );
 }

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   bulkUpsertEvaluationCases,
   cancelEvaluationRun,
+  compareEvaluationRuns,
   createEvaluationRun,
   deleteEvaluationRun,
   executeEvaluationCase,
@@ -24,6 +25,7 @@ import type {
   EvaluationRun,
   EvaluationRunListPage,
   ExecuteEvaluationCaseRequest,
+  RunComparisonReport,
 } from "@/types/evaluation";
 
 // ---------------------------------------------------------------------------
@@ -43,6 +45,8 @@ export const evaluationKeys = {
     [...evaluationKeys.all, "cases", runId] as const,
   metrics: (caseId: string) =>
     [...evaluationKeys.all, "metrics", caseId] as const,
+  diff: (baselineId: string, candidateId: string) =>
+    [...evaluationKeys.runs(), "diff", baselineId, candidateId] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -84,6 +88,26 @@ export function useEvaluationCases(runId: string | null | undefined) {
       return listEvaluationCases(runId);
     },
     enabled: !!runId,
+    staleTime: 30_000,
+  });
+}
+
+/** Two-run regression diff (Phoenix/Braintrust). Disabled until
+ *  both ids are present so the picker can render without firing
+ *  a request prematurely. */
+export function useEvaluationRunDiff(
+  baselineId: string | null | undefined,
+  candidateId: string | null | undefined,
+) {
+  return useQuery<RunComparisonReport>({
+    queryKey: evaluationKeys.diff(baselineId ?? "", candidateId ?? ""),
+    queryFn: () => {
+      if (!baselineId || !candidateId) {
+        throw new Error("baseline and candidate run ids are required");
+      }
+      return compareEvaluationRuns(baselineId, candidateId);
+    },
+    enabled: !!baselineId && !!candidateId && baselineId !== candidateId,
     staleTime: 30_000,
   });
 }

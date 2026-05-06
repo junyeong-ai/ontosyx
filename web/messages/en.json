@@ -2221,6 +2221,8 @@
         "prompts": "Prompts",
         "quality": "Quality",
         "evaluation": "Evaluation",
+        "runs": "Runs",
+        "diff": "Compare runs",
         "governance": "Governance",
         "accessControl": "Access Control",
         "routingMatrix": "Change Routing",
@@ -3009,6 +3011,49 @@
           "submitting": "Running…",
           "successToast": "Case `{caseKey}` executed",
           "errorToast": "Execute failed: {error}"
+        }
+      },
+      "diff": {
+        "title": "Compare runs",
+        "description": "Phoenix/Braintrust regression diff between two runs over the same dataset.",
+        "adminOnly": "Admin role required",
+        "pickerTitle": "Pick two runs",
+        "pickerDescription": "Both runs must come from the same dataset — the diff endpoint rejects mismatched lineage.",
+        "baselineLabel": "Baseline",
+        "candidateLabel": "Candidate",
+        "sameRunWarning": "Pick two different runs to compare.",
+        "emptyPick": {
+          "title": "Pick a baseline and candidate run to start",
+          "description": "Per-axis aggregate (mean delta, win rate, Cohen's d) and per-case row diffs land here once both ids are set."
+        },
+        "loadError": {
+          "title": "Diff failed",
+          "description": "The runs may not share a dataset. Pick two runs materialised from the same dataset and try again."
+        },
+        "perAxisTitle": "Per-axis aggregate",
+        "perAxisDescription": "Mean delta, win rate, and Cohen's d effect size across every paired (case_key, axis) row.",
+        "perCaseTitle": "Per-case rows",
+        "perCaseDescription": "{count} paired metric rows, ordered by case_key + axis.",
+        "emptyAxis": "No axes share both runs.",
+        "emptyCase": "No paired metric rows.",
+        "col": {
+          "axis": "Axis",
+          "pairedCount": "Paired",
+          "baselineMean": "Baseline mean",
+          "candidateMean": "Candidate mean",
+          "meanDelta": "Δ mean",
+          "winRate": "Win rate",
+          "cohenD": "Cohen's d",
+          "caseKey": "Case",
+          "baseline": "Baseline",
+          "candidate": "Candidate",
+          "delta": "Δ"
+        },
+        "bandLabel": {
+          "negligible": "negligible",
+          "small": "small",
+          "medium": "medium",
+          "large": "large"
         }
       }
     },

@@ -66,7 +66,10 @@ export const SETTINGS_NAV_GROUPS: readonly NavGroup[] = [
     titleKey: "evaluation",
     icon: FlaskConical,
     href: "/settings/evaluation",
-    items: [],
+    items: [
+      { labelKey: "runs", href: "/settings/evaluation", adminOnly: true },
+      { labelKey: "diff", href: "/settings/evaluation/diff", adminOnly: true },
+    ],
   },
   {
     titleKey: "governance",

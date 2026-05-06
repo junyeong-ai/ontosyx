@@ -153,3 +153,46 @@ export interface EvaluationRunListPage {
   items: EvaluationRun[];
   next_cursor?: string;
 }
+
+/** One per-case axis-level diff between two runs over the same
+ *  dataset. Mirrors `ox_store::evaluation::RunMetricDelta`. */
+export interface RunMetricDelta {
+  case_key: string;
+  axis: string;
+  baseline_score: number;
+  candidate_score: number;
+  /** `candidate_score - baseline_score`. Positive = candidate
+   *  improved; negative = regression. */
+  delta: number;
+}
+
+/** Per-axis aggregate roll-up across every (case_key, axis) pair
+ *  both runs share. Mirrors `ox_store::evaluation::RunAxisSummary`. */
+export interface RunAxisSummary {
+  axis: string;
+  paired_case_count: number;
+  baseline_mean: number;
+  candidate_mean: number;
+  /** `candidate_mean - baseline_mean`. */
+  mean_delta: number;
+  /** Percentage of paired cases where candidate beats baseline.
+   *  `[0.0, 100.0]`. Ties count as half a win. */
+  win_rate_pct: number;
+  /** Cohen's d effect size — `(mean_c - mean_b) / pooled_std`.
+   *  Industry interpretation: `|d| < 0.2` negligible, `0.5`
+   *  medium, `0.8` large. `undefined` when both runs produced
+   *  identical scores (zero pooled variance). */
+  cohen_d?: number;
+}
+
+/** Two-run comparison report shape. Mirrors
+ *  `ox_store::evaluation::RunComparisonReport`. */
+export interface RunComparisonReport {
+  baseline_run_id: string;
+  candidate_run_id: string;
+  /** Pinned dataset both runs reference. The BE rejects diff
+   *  between runs over different datasets with a typed 400. */
+  dataset_id: string;
+  per_case: RunMetricDelta[];
+  per_axis: RunAxisSummary[];
+}

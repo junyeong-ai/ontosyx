@@ -2221,6 +2221,8 @@
         "prompts": "프롬프트",
         "quality": "품질",
         "evaluation": "평가",
+        "runs": "런",
+        "diff": "런 비교",
         "governance": "거버넌스",
         "accessControl": "접근 제어",
         "routingMatrix": "변경 라우팅",
@@ -3009,6 +3011,49 @@
           "submitting": "실행 중…",
           "successToast": "케이스 `{caseKey}` 실행 완료",
           "errorToast": "실행 실패: {error}"
+        }
+      },
+      "diff": {
+        "title": "런 비교",
+        "description": "동일 데이터셋에서 만들어진 두 런 간의 회귀 비교 (Phoenix/Braintrust 스타일).",
+        "adminOnly": "관리자 권한이 필요합니다",
+        "pickerTitle": "두 런 선택",
+        "pickerDescription": "두 런이 동일한 데이터셋에서 만들어진 경우에만 비교 가능합니다 — 다르면 백엔드가 거부합니다.",
+        "baselineLabel": "기준 (baseline)",
+        "candidateLabel": "후보 (candidate)",
+        "sameRunWarning": "서로 다른 런을 선택해야 비교할 수 있습니다.",
+        "emptyPick": {
+          "title": "기준과 후보 런을 선택하세요",
+          "description": "두 런 ID가 모두 설정되면 axis 별 집계 (평균 차, 승률, Cohen's d) 와 case 별 row 가 표시됩니다."
+        },
+        "loadError": {
+          "title": "비교 실패",
+          "description": "두 런이 동일 데이터셋에서 만들어진 게 아닐 수 있습니다. 같은 데이터셋의 런을 골라 다시 시도해 주세요."
+        },
+        "perAxisTitle": "Axis 별 집계",
+        "perAxisDescription": "쌍이 매칭된 모든 (case_key, axis) row 에 대한 평균 차, 승률, Cohen's d 효과 크기.",
+        "perCaseTitle": "Case 별 row",
+        "perCaseDescription": "총 {count} 개의 매칭된 metric row — case_key + axis 순.",
+        "emptyAxis": "공통 axis 가 없습니다.",
+        "emptyCase": "매칭된 metric row 가 없습니다.",
+        "col": {
+          "axis": "Axis",
+          "pairedCount": "매칭",
+          "baselineMean": "기준 평균",
+          "candidateMean": "후보 평균",
+          "meanDelta": "Δ 평균",
+          "winRate": "승률",
+          "cohenD": "Cohen's d",
+          "caseKey": "Case",
+          "baseline": "기준",
+          "candidate": "후보",
+          "delta": "Δ"
+        },
+        "bandLabel": {
+          "negligible": "무시 수준",
+          "small": "작음",
+          "medium": "중간",
+          "large": "큼"
         }
       }
     },
