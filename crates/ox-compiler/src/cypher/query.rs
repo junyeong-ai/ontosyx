@@ -1,4 +1,5 @@
 use ox_core::error::{OxError, OxResult};
+use ox_core::types::PropertyValue;
 use ox_query_ir::query::{AnalyticsSource, GraphAlgorithm, PathAlgorithm, QueryOp};
 
 use super::expr::{compile_agg_function, compile_expr, compile_order_by, compile_projection};
@@ -304,28 +305,72 @@ pub(super) fn compile_op(
             }
         }
 
-        QueryOp::HybridSearch { .. } => {
-            // Hybrid retrieval lowers to engine-specific
-            // index-procedure calls (`db.index.vector.queryNodes`
-            // + `db.index.fulltext.queryNodes` on Neo4j;
-            // `vector_search.search` + `text_search.search` on
-            // Memgraph) plus a Reciprocal Rank Fusion CTE. The
-            // emission path is non-trivial (different procedures
-            // per dialect, fusion CTE shape varies, top_k must
-            // round-trip without parameter substitution into the
-            // procedure call) and ships in a follow-up. The
-            // variant is reachable through the type system today
-            // so consumers can construct it; emission lands when
-            // the per-dialect index-procedure conventions are
-            // wired through.
-            return Err(OxError::UnsupportedOperation {
-                target: "graph:cypher".into(),
-                operation: "QueryOp::HybridSearch — hybrid \
-                    retrieval emission lands in a follow-up; \
-                    the agent's `try_retrieve_subgraph_md` \
-                    helper bypasses QueryIR for now"
-                    .into(),
-            });
+        QueryOp::HybridSearch { request } => {
+            // Vector-only path lowers cleanly to Neo4j 5's
+            // `db.index.vector.queryNodes(indexName, k, vector)`
+            // procedure. The fulltext + RRF fusion CTE is a
+            // separate follow-up because the fusion shape is
+            // procedure-flavour-specific (RRF over two CALL
+            // YIELD streams takes a CTE with `collect` +
+            // `UNWIND` per source then a final aggregate, plus
+            // the vector and fulltext top-K caps interact —
+            // calling each at `k * 2` and trimming at the end
+            // is the canonical operator-friendly default but
+            // adds enough surface area to warrant its own
+            // commit). The `graph_constraints` sub-pattern is
+            // also deferred — Cypher's `CALL` doesn't accept
+            // an inline filter on the procedure-yielded node,
+            // so the constraint becomes a follow-up `WHERE`
+            // clause that rides on top of the YIELD stream.
+            if request.fulltext_query.is_some() {
+                return Err(OxError::UnsupportedOperation {
+                    target: "graph:cypher".into(),
+                    operation: "QueryOp::HybridSearch with \
+                        fulltext_query — RRF fusion CTE \
+                        emission lands in a follow-up; supply \
+                        a vector-only request for now"
+                        .into(),
+                });
+            }
+            if request.graph_constraints.is_some() {
+                return Err(OxError::UnsupportedOperation {
+                    target: "graph:cypher".into(),
+                    operation: "QueryOp::HybridSearch with \
+                        graph_constraints — pattern-filtered \
+                        retrieval lands in a follow-up; the \
+                        constraint becomes a WHERE clause on \
+                        the YIELD stream"
+                        .into(),
+                });
+            }
+            // Vector-index name — convention `entity_embedding_index`
+            // is the platform's hardcoded default that the
+            // ontology materialise step writes against. A
+            // future `HybridSearchRequest.vector_index_name`
+            // optional field would let operators target a
+            // workspace-specific index without a recompile;
+            // until then the convention is the contract.
+            let index_param =
+                pc.push(PropertyValue::String("entity_embedding_index".into()));
+            let top_k_param =
+                pc.push(PropertyValue::Int(request.top_k as i64));
+            // Vector → List(Float) — pgvector / Neo4j vector
+            // ingestion both accept Cypher list-of-doubles, so
+            // the f32 source widens to f64 cleanly.
+            let vector_value: Vec<PropertyValue> = request
+                .vector_query
+                .vector
+                .iter()
+                .map(|v| PropertyValue::Float(*v as f64))
+                .collect();
+            let vector_param = pc.push(PropertyValue::List(vector_value));
+
+            parts.push(format!(
+                "CALL db.index.vector.queryNodes({index_param}, {top_k_param}, {vector_param})",
+            ));
+            parts.push("YIELD node, score".to_string());
+            parts.push("RETURN node, score".to_string());
+            parts.push("ORDER BY score DESC".to_string());
         }
     }
 

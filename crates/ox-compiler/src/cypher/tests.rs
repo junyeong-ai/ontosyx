@@ -2146,3 +2146,102 @@ fn neo4j_lowers_percentile_aggregation_unchanged() {
         .expect("neo4j retains percentile lowering");
     assert!(compiled.statement.contains("percentileCont"));
 }
+
+#[test]
+fn hybrid_search_vector_only_compiles_to_neo4j_index_call() {
+    use ox_query_ir::hybrid_retrieval::{
+        Embedding, FusionStrategy, HybridSearchRequest,
+    };
+
+    let compiler = CypherCompiler::neo4j();
+    let query = QueryIR {
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::HybridSearch {
+            request: HybridSearchRequest {
+                vector_query: Embedding::new(
+                    vec![0.1, 0.2, 0.3, 0.4],
+                    "test-model",
+                ),
+                fulltext_query: None,
+                graph_constraints: None,
+                fuse: FusionStrategy::default(),
+                top_k: 25,
+            },
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        as_of: None,
+    };
+
+    let compiled = compiler
+        .compile_query(&query, None)
+        .expect("vector-only HybridSearch compiles");
+    // Calls the Neo4j 5 vector procedure with parameter
+    // bindings — the index name, top_k, and vector all ride
+    // through the ParamCollector.
+    assert!(
+        compiled.statement.contains("CALL db.index.vector.queryNodes("),
+        "missing vector procedure call:\n{}",
+        compiled.statement,
+    );
+    assert!(
+        compiled.statement.contains("YIELD node, score"),
+        "missing YIELD on hybrid search:\n{}",
+        compiled.statement,
+    );
+    assert!(
+        compiled.statement.contains("ORDER BY score DESC"),
+        "missing score-desc ordering:\n{}",
+        compiled.statement,
+    );
+    // The vector + index_name + top_k all land in `params` —
+    // nothing inlined as literal so the operator is shielded
+    // from injection / quoting issues. 3 params exactly: index
+    // name, top_k, vector.
+    assert_eq!(
+        compiled.params.len(),
+        3,
+        "expected 3 params (index, top_k, vector) — got {}: {:?}",
+        compiled.params.len(),
+        compiled.params,
+    );
+}
+
+#[test]
+fn hybrid_search_with_fulltext_query_returns_unsupported_until_rrf_lands() {
+    use ox_query_ir::hybrid_retrieval::{
+        Embedding, FusionStrategy, HybridSearchRequest,
+    };
+
+    let compiler = CypherCompiler::neo4j();
+    let query = QueryIR {
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::HybridSearch {
+            request: HybridSearchRequest {
+                vector_query: Embedding::new(vec![0.1, 0.2], "test"),
+                // Fulltext present — RRF fusion path not yet
+                // emitted; the compiler fails fast with a
+                // typed UnsupportedOperation rather than
+                // silently dropping the fulltext side.
+                fulltext_query: Some("customer churn".into()),
+                graph_constraints: None,
+                fuse: FusionStrategy::default(),
+                top_k: 10,
+            },
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        as_of: None,
+    };
+
+    let err = compiler
+        .compile_query(&query, None)
+        .expect_err("fulltext path should be deferred");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("RRF") || msg.contains("fulltext_query"),
+        "unexpected error: {msg}",
+    );
+}
