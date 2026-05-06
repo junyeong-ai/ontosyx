@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { use, useState } from "react";
 
@@ -496,6 +497,20 @@ export default function EvaluationDetailPage({
           retryLabel: tCommon("retry"),
         }}
       >
+        {run?.dataset_id ? (
+          <div className="mb-4 flex items-center gap-2 rounded-md border border-divider bg-surface-inset px-3 py-2 text-xs">
+            <span className="text-foreground-muted">
+              {t("detail.lineage.fromDataset")}
+            </span>
+            <Link
+              href={`/settings/evaluation/datasets/${encodeURIComponent(run.dataset_id)}`}
+              className="font-mono text-2xs text-brand-foreground hover:underline"
+            >
+              {run.dataset_id}
+            </Link>
+          </div>
+        ) : null}
+
         {summaryQuery.data ? (
           <SummaryCard summary={summaryQuery.data} t={t} />
         ) : null}

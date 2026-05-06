@@ -14,6 +14,12 @@ export interface EvaluationRun {
   /** Optional pin to a committed ontology version. Absent for
    *  pre-canonical / draft-stage evaluations. */
   ontology_version_id?: string;
+  /** Origin dataset when the run was materialised via
+   *  `create_run_from_dataset`. Absent on ad-hoc runs created
+   *  through the index-page form. The detail page surfaces a
+   *  link to the dataset header so operators can trace the
+   *  lineage. */
+  dataset_id?: string;
   name: string;
   description?: string;
   status: EvaluationRunStatus;

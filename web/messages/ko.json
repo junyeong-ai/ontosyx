@@ -2965,6 +2965,9 @@
         "cancelled": "취소됨"
       },
       "detail": {
+        "lineage": {
+          "fromDataset": "이 런이 만들어진 데이터셋"
+        },
         "summary": {
           "title": "요약",
           "description": "이 런의 케이스 카운트와 axis별 평균 점수.",

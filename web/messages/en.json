@@ -2965,6 +2965,9 @@
         "cancelled": "Cancelled"
       },
       "detail": {
+        "lineage": {
+          "fromDataset": "Materialised from dataset"
+        },
         "summary": {
           "title": "Summary",
           "description": "Case counts and per-axis aggregate across this run.",
