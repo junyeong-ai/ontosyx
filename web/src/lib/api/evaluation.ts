@@ -6,6 +6,7 @@ import type {
   CreateEvaluationRunRequest,
   EvaluationCase,
   EvaluationDataset,
+  EvaluationDatasetItem,
   EvaluationDatasetListPage,
   EvaluationMetric,
   EvaluationRun,
@@ -217,6 +218,23 @@ export async function deleteEvaluationDataset(id: string): Promise<void> {
   await request(`${DATASETS}/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
+}
+
+export async function getEvaluationDataset(
+  id: string,
+): Promise<EvaluationDataset> {
+  const res = await request<{ dataset: EvaluationDataset }>(
+    `${DATASETS}/${encodeURIComponent(id)}`,
+  );
+  return res.dataset;
+}
+
+export async function listEvaluationDatasetItems(
+  datasetId: string,
+): Promise<EvaluationDatasetItem[]> {
+  return request<EvaluationDatasetItem[]>(
+    `${DATASETS}/${encodeURIComponent(datasetId)}/items`,
+  );
 }
 
 /** Promote a chat-sample case into a curated dataset item. The

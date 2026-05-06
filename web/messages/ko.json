@@ -3090,6 +3090,20 @@
           "description": "설명",
           "id": "ID",
           "actions": "액션"
+        },
+        "detail": {
+          "title": "데이터셋",
+          "headerTitle": "헤더",
+          "itemsTitle": "아이템",
+          "itemsDescription": "데이터셋이 freeze 한 (input, expected) 쌍. `create_run_from_dataset` 가 같은 `case_key` 로 케이스를 한 개씩 materialise.",
+          "emptyItems": "이 데이터셋에 아이템이 없습니다 — run-detail 페이지에서 chat sample 을 승격하거나 bulk import 엔드포인트로 가져오세요.",
+          "expectedSet": "있음",
+          "col": {
+            "itemKey": "Item key",
+            "kind": "Kind",
+            "input": "입력 (요약)",
+            "expected": "Expected"
+          }
         }
       },
       "diff": {

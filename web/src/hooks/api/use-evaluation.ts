@@ -10,11 +10,13 @@ import {
   deleteEvaluationDataset,
   deleteEvaluationRun,
   executeEvaluationCase,
+  getEvaluationDataset,
   getEvaluationRun,
   getEvaluationRunSummary,
   judgeEvaluationCase,
   judgeSafetyEvaluationCase,
   listEvaluationCases,
+  listEvaluationDatasetItems,
   listEvaluationDatasets,
   listEvaluationMetrics,
   listEvaluationRuns,
@@ -30,6 +32,7 @@ import type {
   CreateEvaluationRunRequest,
   EvaluationCase,
   EvaluationDataset,
+  EvaluationDatasetItem,
   EvaluationDatasetListPage,
   EvaluationMetric,
   EvaluationRun,
@@ -64,6 +67,10 @@ export const evaluationKeys = {
   datasets: () => [...evaluationKeys.all, "datasets"] as const,
   datasetList: (params: ListEvaluationDatasetsParams) =>
     [...evaluationKeys.datasets(), "list", params] as const,
+  datasetDetail: (id: string) =>
+    [...evaluationKeys.datasets(), "detail", id] as const,
+  datasetItems: (id: string) =>
+    [...evaluationKeys.datasets(), "items", id] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -136,6 +143,34 @@ export function useDeleteEvaluationDataset() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: evaluationKeys.datasets() });
     },
+  });
+}
+
+export function useEvaluationDataset(id: string | null | undefined) {
+  return useQuery<EvaluationDataset>({
+    queryKey: evaluationKeys.datasetDetail(id ?? ""),
+    queryFn: () => {
+      if (!id) {
+        throw new Error("dataset id is required");
+      }
+      return getEvaluationDataset(id);
+    },
+    enabled: !!id,
+    staleTime: 30_000,
+  });
+}
+
+export function useEvaluationDatasetItems(id: string | null | undefined) {
+  return useQuery<EvaluationDatasetItem[]>({
+    queryKey: evaluationKeys.datasetItems(id ?? ""),
+    queryFn: () => {
+      if (!id) {
+        throw new Error("dataset id is required");
+      }
+      return listEvaluationDatasetItems(id);
+    },
+    enabled: !!id,
+    staleTime: 30_000,
   });
 }
 

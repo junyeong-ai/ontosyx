@@ -3090,6 +3090,20 @@
           "description": "Description",
           "id": "ID",
           "actions": "Actions"
+        },
+        "detail": {
+          "title": "Dataset",
+          "headerTitle": "Header",
+          "itemsTitle": "Items",
+          "itemsDescription": "Each (input, expected) pair the dataset froze. `create_run_from_dataset` materialises one EvaluationCase per item with the same `case_key`.",
+          "emptyItems": "No items in this dataset yet — promote chat samples from the run-detail page or import via the bulk endpoint.",
+          "expectedSet": "Set",
+          "col": {
+            "itemKey": "Item key",
+            "kind": "Kind",
+            "input": "Input (summary)",
+            "expected": "Expected"
+          }
         }
       },
       "diff": {

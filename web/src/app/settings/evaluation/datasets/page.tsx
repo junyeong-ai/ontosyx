@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
@@ -168,7 +169,14 @@ export default function EvaluationDatasetsPage() {
                 <tbody>
                   {datasets.map((d) => (
                     <tr key={d.id} className="border-b border-divider last:border-b-0">
-                      <td className="px-3 py-2 font-medium">{d.name}</td>
+                      <td className="px-3 py-2 font-medium">
+                        <Link
+                          href={`/settings/evaluation/datasets/${encodeURIComponent(d.id)}`}
+                          className="text-brand-foreground hover:underline"
+                        >
+                          {d.name}
+                        </Link>
+                      </td>
                       <td className="px-3 py-2 text-foreground-muted">
                         {d.description || (
                           <span className="text-foreground-subtle">—</span>

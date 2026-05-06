@@ -239,3 +239,15 @@ export interface UpsertEvaluationDatasetRequest {
   name: string;
   description?: string;
 }
+
+/** Mirrors `ox_store::evaluation::EvaluationDatasetItem`. */
+export interface EvaluationDatasetItem {
+  id: string;
+  dataset_id: string;
+  workspace_id: string;
+  item_key: string;
+  input: unknown;
+  expected?: unknown;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
