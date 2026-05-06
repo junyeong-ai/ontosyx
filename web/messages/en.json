@@ -1255,7 +1255,9 @@
       "comboChart": "Combo Chart",
       "pieChart": "Pie Chart",
       "lineChart": "Line Chart",
-      "statCard": "Stat Card"
+      "statCard": "Stat Card",
+      "raw": "Raw JSON",
+      "rawAriaLabel": "Raw query result as JSON"
     },
     "responseBasis": {
       "title": "Response basis",

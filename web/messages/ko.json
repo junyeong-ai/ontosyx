@@ -1255,7 +1255,9 @@
       "comboChart": "복합 차트",
       "pieChart": "원형 차트",
       "lineChart": "선 차트",
-      "statCard": "지표 카드"
+      "statCard": "지표 카드",
+      "raw": "원본 JSON",
+      "rawAriaLabel": "원본 쿼리 결과 (JSON)"
     },
     "responseBasis": {
       "title": "응답 근거",

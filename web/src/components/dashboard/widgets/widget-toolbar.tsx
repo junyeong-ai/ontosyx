@@ -3,17 +3,35 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
+import { CodeEditor } from "@/components/ui/code-editor";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { WidgetRenderer, viableTypes } from "./widget-renderer";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { LucideIcon } from "lucide-react";
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
-import { BarChart, Hash, Layers, LineChart, PieChart, Share2, Table } from "lucide-react";
+import {
+  BarChart,
+  Braces,
+  Hash,
+  Layers,
+  LineChart,
+  PieChart,
+  Share2,
+  Table,
+} from "lucide-react";
 interface WidgetWithToolbarProps {
   /** Initial widget spec (from LLM hint or auto) */
   spec: WidgetSpec;
   data: QueryResult;
 }
+
+/// `RAW_VIEW_TYPE` is a toolbar-only sentinel that bypasses the
+/// `WidgetRenderer` — selecting it shows the raw QueryResult as
+/// syntax-highlighted JSON. Distinct from the renderer's widget
+/// types (`table`, `graph`, ...) because it isn't a data
+/// visualisation, it's an inspection affordance for advanced
+/// operators / debugging.
+const RAW_VIEW_TYPE = "__raw__";
 
 const WIDGET_OPTIONS: readonly { type: string; icon: LucideIcon; labelKey: string }[] = [
   { type: "table", icon: Table, labelKey: "table" },
@@ -23,6 +41,7 @@ const WIDGET_OPTIONS: readonly { type: string; icon: LucideIcon; labelKey: strin
   { type: "pie_chart", icon: PieChart, labelKey: "pieChart" },
   { type: "line_chart", icon: LineChart, labelKey: "lineChart" },
   { type: "stat_card", icon: Hash, labelKey: "statCard" },
+  { type: RAW_VIEW_TYPE, icon: Braces, labelKey: "raw" },
 ];
 
 export function WidgetToolbar({ spec, data }: WidgetWithToolbarProps) {
@@ -33,11 +52,15 @@ export function WidgetToolbar({ spec, data }: WidgetWithToolbarProps) {
   // Don't show toolbar for trivial data
   if (!data.rows.length || !data.columns.length) return null;
 
-  // Use shared viableTypes logic for consistent filtering
+  // Use shared viableTypes logic for consistent filtering. The
+  // raw JSON view is always viable — it's a debugging affordance
+  // independent of the visualisation eligibility heuristics.
   const viable = viableTypes(data);
+  viable.add(RAW_VIEW_TYPE);
 
   const available = WIDGET_OPTIONS.filter(({ type }) => viable.has(type));
 
+  const isRawView = activeType === RAW_VIEW_TYPE;
   const currentSpec: WidgetSpec = { ...spec, widget_type: activeType };
 
   return (
@@ -69,7 +92,17 @@ export function WidgetToolbar({ spec, data }: WidgetWithToolbarProps) {
       )}
 
       {/* Widget */}
-      <WidgetRenderer spec={currentSpec} data={data} />
+      {isRawView ? (
+        <CodeEditor
+          value={JSON.stringify(data, null, 2)}
+          language="json"
+          readOnly
+          height="360px"
+          ariaLabel={t("rawAriaLabel")}
+        />
+      ) : (
+        <WidgetRenderer spec={currentSpec} data={data} />
+      )}
     </div>
   );
 }
