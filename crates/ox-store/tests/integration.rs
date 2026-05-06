@@ -18,6 +18,7 @@ mod integration {
     mod advisory_lock;
     mod data_sources;
     mod draft_cluster_checkpoint;
+    mod eval_retrieval_golden;
     mod idempotency;
     mod jwt_revocation;
     mod load_checkpoint;

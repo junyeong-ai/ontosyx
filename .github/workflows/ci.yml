@@ -96,18 +96,37 @@ jobs:
 
       - uses: ./.github/actions/install-onnxruntime
 
-      - name: Run RLS enforcement tests
-        # `--ignored` opts into the DB-live tests; the default `cargo test`
-        # still skips them on machines without a Postgres fixture. The
-        # migration + temporal + invariant tests live in the same crate
-        # so we run them in the same job. `rls_invariants` is the
-        # catalog-scan gate that fails when a new migration adds a
-        # `workspace_id` column without the four required RLS clauses.
+      - name: Install Postgres extensions on the service container
+        # The test database needs the same extensions the dev /
+        # production runtime relies on. Without these the
+        # migration step fails before a single test runs.
         run: |
-          cargo test -p ox-store --test rls_enforcement -- --ignored --nocapture
-          cargo test -p ox-store --test rls_invariants -- --ignored --nocapture
-          cargo test -p ox-store --test migration_0007 -- --ignored --nocapture
-          cargo test -p ox-store --test temporal_integration -- --ignored --nocapture --test-threads=1
+          docker exec $(docker ps -q -f ancestor=postgres:16) \
+              psql -U ontosyx_app -d ontosyx -c \
+              "CREATE EXTENSION IF NOT EXISTS vector;
+               CREATE EXTENSION IF NOT EXISTS pg_trgm;
+               CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";
+               CREATE EXTENSION IF NOT EXISTS btree_gin;"
+
+      - name: Run RLS enforcement + temporal + retrieval-golden tests
+        # `--ignored` opts into the DB-live tests; the default `cargo test`
+        # still skips them on machines without a Postgres fixture. Every
+        # PG-live integration module statically links into the single
+        # `integration` test binary (one compilation per crate) so we
+        # name modules instead of binaries.
+        #
+        # `rls_invariants` is the catalog-scan gate that fails when a
+        # new migration adds a `workspace_id` column without the four
+        # required RLS clauses. `eval_retrieval_golden` is the
+        # deterministic IR-axis retrieval gate; it fails the PR when
+        # the navigation blend regresses on the frozen golden fixture.
+        run: |
+          cargo test -p ox-store --test integration -- --ignored --nocapture --test-threads=1 \
+            integration::rls_enforcement \
+            integration::rls_invariants \
+            integration::migration_0007 \
+            integration::temporal \
+            integration::eval_retrieval_golden
 
   udeps:
     # Advisory-only: reports unused deps. Not a gate until the baseline is clean.
