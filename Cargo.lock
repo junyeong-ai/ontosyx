@@ -5083,6 +5083,7 @@ dependencies = [
  "ox-query-ir",
  "ox-source",
  "ox-store",
+ "rand 0.10.1",
  "reqwest 0.13.2",
  "rmcp",
  "schemars",

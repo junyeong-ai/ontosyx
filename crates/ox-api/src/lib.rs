@@ -23,6 +23,7 @@ pub mod arrow_conversion;
 pub mod audit_middleware;
 pub mod background;
 pub mod credential;
+pub mod eval_sampler;
 #[cfg(feature = "gcp-sm")]
 pub mod gcp_secret_manager;
 pub mod idempotency;

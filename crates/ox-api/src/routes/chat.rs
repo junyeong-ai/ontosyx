@@ -257,6 +257,10 @@ pub(crate) async fn chat_stream(
     // Capture values for metering inside the stream closure
     let principal_user_uuid = principal.user_uuid().ok();
     let model_id_for_stream = model_id.clone();
+    // Online-sampling capture — moved into the stream so the
+    // post-completion sample includes the original user
+    // question without re-borrowing `req`.
+    let user_message_for_stream = user_message.clone();
 
     // Stream agent events as SSE
     let store_for_events = Arc::clone(&state.store);
@@ -455,6 +459,31 @@ pub(crate) async fn chat_stream(
                                         tracing::warn!(?error, %audit_session_id, "agent session completion record failed");
                                     }
                                 });
+
+                                // Online evaluation sampler — at the
+                                // configured rate, drop a sample
+                                // (question, final answer, model)
+                                // into the workspace's
+                                // `live_chat_samples` evaluation
+                                // run. Async judge worker picks
+                                // them up in the background. Best-
+                                // effort; spawned task isolates
+                                // store calls from the SSE stream
+                                // path so a sampler failure never
+                                // delays the user's response.
+                                if !result.text.is_empty() {
+                                    crate::eval_sampler::spawn_sample(
+                                        Arc::clone(&store_for_events),
+                                        ws_scope.clone(),
+                                        crate::eval_sampler::sampling_config_from_env(),
+                                        crate::eval_sampler::ChatSampleInput {
+                                            workspace_id: ws_id,
+                                            question: user_message_for_stream.clone(),
+                                            answer: result.text.clone(),
+                                            model_id: model_id_for_stream.clone(),
+                                        },
+                                    );
+                                }
                             }
                         }
                         Err(e) => {

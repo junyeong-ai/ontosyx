@@ -124,6 +124,19 @@ pub trait EvaluationStore: Send + Sync {
     /// `None` for ids outside the active workspace.
     async fn get_evaluation_run(&self, id: Uuid) -> OxResult<Option<EvaluationRun>>;
 
+    /// Conditional lookup by `(workspace_id, name)`. Used by the
+    /// online-sampling middleware to find the workspace's
+    /// `live_chat_samples` run without listing the entire table.
+    /// Returns the most-recent match (`started_at DESC`) when
+    /// duplicates exist — the storage layer doesn't enforce a
+    /// uniqueness constraint on `name` because operator-driven
+    /// runs share the namespace and the same display name is
+    /// allowed across cohorts.
+    async fn find_evaluation_run_by_name(
+        &self,
+        name: &str,
+    ) -> OxResult<Option<EvaluationRun>>;
+
     /// List runs in the active workspace, newest-started first.
     async fn list_evaluation_runs(
         &self,

@@ -59,6 +59,7 @@ async-stream = { workspace = true }
 url = "2.5.8"
 sha2 = { workspace = true }
 reqwest = { workspace = true }
+rand = { workspace = true }
 # Optional GCP Secret Manager resolver — enabled with feature `gcp-sm`.
 # ADC dispatch reuses ox-source's `gcp_auth` module (the same seam BigQuery uses).
 base64 = { workspace = true, optional = true }
