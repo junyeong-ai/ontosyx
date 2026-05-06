@@ -23,8 +23,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use ox_store::evaluation::{
-    scope_evaluation_context, EvaluationCase, EvaluationContext, EvaluationMetric,
-    EvaluationRun, EvaluationRunStatus,
+    scope_evaluation_context, EvaluationCase, EvaluationContext, EvaluationDataset,
+    EvaluationDatasetItem, EvaluationMetric, EvaluationRun, EvaluationRunStatus,
 };
 use ox_store::{CursorPage, CursorParams};
 
@@ -152,6 +152,11 @@ pub(crate) async fn create_evaluation_run(
         id: Uuid::now_v7(),
         workspace_id: ws.workspace_id,
         ontology_version_id: req.ontology_version_id,
+        // Ad-hoc runs created via this admin endpoint have no
+        // dataset lineage. Operators that want diff / regression
+        // hit the `POST /api/evaluation/runs/from-dataset` path
+        // instead.
+        dataset_id: None,
         name: req.name,
         description: req.description,
         status: EvaluationRunStatus::Running,
@@ -923,4 +928,312 @@ pub(crate) async fn list_evaluation_metrics(
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(metrics))
+}
+
+// ---------------------------------------------------------------------------
+// Datasets — frozen `(input, expected)` pairs reusable across runs
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct UpsertEvaluationDatasetRequest {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct UpsertEvaluationDatasetItemEntry {
+    pub item_key: String,
+    pub input: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected: Option<serde_json::Value>,
+    #[serde(default)]
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct ReplaceEvaluationDatasetItemsRequest {
+    pub items: Vec<UpsertEvaluationDatasetItemEntry>,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EvaluationDatasetResponse {
+    #[schema(value_type = Object)]
+    pub dataset: EvaluationDataset,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct ReplaceEvaluationDatasetItemsResponse {
+    pub dataset_id: Uuid,
+    pub item_count: u64,
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct CreateRunFromDatasetRequest {
+    pub dataset_id: Uuid,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ontology_version_id: Option<Uuid>,
+    #[serde(default)]
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct CreateRunFromDatasetResponse {
+    #[schema(value_type = Object)]
+    pub run: EvaluationRun,
+    /// Number of dataset items materialised into cases. Allows
+    /// the FE to surface "12 cases ready to execute" without a
+    /// follow-up `list_evaluation_cases` call.
+    pub case_count: u64,
+}
+
+/// `POST /api/evaluation/datasets` — upsert a dataset by
+/// `(workspace_id, name)`. Re-importing under the same name
+/// preserves `id` + `created_at` and updates `description` only;
+/// every downstream FK (runs that referenced this id, items
+/// keyed on this id) survives the re-import.
+#[utoipa::path(
+    post,
+    path = "/api/evaluation/datasets",
+    request_body = UpsertEvaluationDatasetRequest,
+    responses(
+        (status = 200, description = "Dataset upserted", body = EvaluationDatasetResponse),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn upsert_evaluation_dataset(
+    State(state): State<AppState>,
+    principal: Principal,
+    ws: WorkspaceContext,
+    Json(req): Json<UpsertEvaluationDatasetRequest>,
+) -> Result<Json<ApiResponse<EvaluationDatasetResponse>>, AppError> {
+    principal.require_admin()?;
+    let dataset = EvaluationDataset {
+        id: Uuid::now_v7(),
+        workspace_id: ws.workspace_id,
+        name: req.name,
+        description: req.description,
+        created_at: chrono::Utc::now(),
+    };
+    let saved = state
+        .store
+        .upsert_evaluation_dataset(&dataset)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(EvaluationDatasetResponse { dataset: saved }))
+}
+
+/// `GET /api/evaluation/datasets` — list datasets in the active
+/// workspace, newest-created first.
+#[utoipa::path(
+    get,
+    path = "/api/evaluation/datasets",
+    params(
+        ("limit" = Option<u32>, Query, description = "Page size (default 50, max 100)"),
+        ("cursor" = Option<String>, Query, description = "Opaque cursor"),
+    ),
+    responses(
+        (status = 200, description = "Dataset page", body = inline(serde_json::Value)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn list_evaluation_datasets(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Query(pagination): Query<CursorParams>,
+) -> Result<Json<ApiResponse<CursorPage<EvaluationDataset>>>, AppError> {
+    let page = state
+        .store
+        .list_evaluation_datasets(&pagination)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(page))
+}
+
+/// `GET /api/evaluation/datasets/{id}` — fetch a single dataset
+/// header. Items live behind the sibling
+/// `/api/evaluation/datasets/{id}/items` endpoint to keep this
+/// path lightweight when the FE only needs the header.
+#[utoipa::path(
+    get,
+    path = "/api/evaluation/datasets/{id}",
+    params(("id" = Uuid, Path)),
+    responses(
+        (status = 200, description = "Dataset", body = EvaluationDatasetResponse),
+        (status = 404, description = "Dataset not found", body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn get_evaluation_dataset(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ApiResponse<EvaluationDatasetResponse>>, AppError> {
+    let dataset = state
+        .store
+        .get_evaluation_dataset(id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("EvaluationDataset"))?;
+    Ok(ApiResponse::of(EvaluationDatasetResponse { dataset }))
+}
+
+/// `DELETE /api/evaluation/datasets/{id}` — cascade-delete the
+/// dataset + items. Runs that referenced the dataset stay alive
+/// (`evaluation_runs.dataset_id` `SET NULL`).
+#[utoipa::path(
+    delete,
+    path = "/api/evaluation/datasets/{id}",
+    params(("id" = Uuid, Path)),
+    responses(
+        (status = 204, description = "Deleted"),
+        (status = 404, description = "Dataset not found", body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn delete_evaluation_dataset(
+    State(state): State<AppState>,
+    principal: Principal,
+    _ws: WorkspaceContext,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    principal.require_admin()?;
+    let deleted = state
+        .store
+        .delete_evaluation_dataset(id)
+        .await
+        .map_err(AppError::from)?;
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(AppError::not_found("EvaluationDataset"))
+    }
+}
+
+/// `GET /api/evaluation/datasets/{id}/items` — list every frozen
+/// `(input, expected)` pair in the dataset, ordered by
+/// `item_key`.
+#[utoipa::path(
+    get,
+    path = "/api/evaluation/datasets/{id}/items",
+    params(("id" = Uuid, Path)),
+    responses(
+        (status = 200, description = "Items", body = inline(serde_json::Value)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn list_evaluation_dataset_items(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ApiResponse<Vec<EvaluationDatasetItem>>>, AppError> {
+    let items = state
+        .store
+        .list_evaluation_dataset_items(id)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(items))
+}
+
+/// `PUT /api/evaluation/datasets/{id}/items` — replace every
+/// item under `dataset_id` with the supplied set in one
+/// transaction. Items not in the request body are deleted; items
+/// in both DB + request body are upserted on `(dataset_id,
+/// item_key)`. Atomic — partial import never lands.
+#[utoipa::path(
+    put,
+    path = "/api/evaluation/datasets/{id}/items",
+    params(("id" = Uuid, Path)),
+    request_body = ReplaceEvaluationDatasetItemsRequest,
+    responses(
+        (status = 200, description = "Items replaced", body = ReplaceEvaluationDatasetItemsResponse),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn replace_evaluation_dataset_items(
+    State(state): State<AppState>,
+    principal: Principal,
+    ws: WorkspaceContext,
+    Path(id): Path<Uuid>,
+    Json(req): Json<ReplaceEvaluationDatasetItemsRequest>,
+) -> Result<Json<ApiResponse<ReplaceEvaluationDatasetItemsResponse>>, AppError> {
+    principal.require_admin()?;
+    let now = chrono::Utc::now();
+    let items: Vec<EvaluationDatasetItem> = req
+        .items
+        .into_iter()
+        .map(|entry| EvaluationDatasetItem {
+            id: Uuid::now_v7(),
+            dataset_id: id,
+            workspace_id: ws.workspace_id,
+            item_key: entry.item_key,
+            input: entry.input,
+            expected: entry.expected,
+            metadata: entry.metadata,
+            created_at: now,
+        })
+        .collect();
+    let count = state
+        .store
+        .replace_evaluation_dataset_items(id, &items)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(ReplaceEvaluationDatasetItemsResponse {
+        dataset_id: id,
+        item_count: count,
+    }))
+}
+
+/// `POST /api/evaluation/runs/from-dataset` — materialise a fresh
+/// run from a dataset. Atomic dataset-read + run-insert + bulk
+/// case-insert in one transaction. Returns the created run plus
+/// the case count for the FE response panel.
+#[utoipa::path(
+    post,
+    path = "/api/evaluation/runs/from-dataset",
+    request_body = CreateRunFromDatasetRequest,
+    responses(
+        (status = 201, description = "Run created", body = CreateRunFromDatasetResponse),
+        (status = 404, description = "Dataset not found", body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn create_run_from_dataset(
+    State(state): State<AppState>,
+    principal: Principal,
+    _ws: WorkspaceContext,
+    Json(req): Json<CreateRunFromDatasetRequest>,
+) -> Result<(StatusCode, Json<ApiResponse<CreateRunFromDatasetResponse>>), AppError> {
+    principal.require_admin()?;
+    let (run, case_count) = state
+        .store
+        .create_run_from_dataset(
+            req.dataset_id,
+            &req.name,
+            &req.description,
+            req.ontology_version_id,
+            req.metadata,
+        )
+        .await
+        .map_err(AppError::from)?;
+    Ok((
+        StatusCode::CREATED,
+        ApiResponse::of(CreateRunFromDatasetResponse {
+            run,
+            case_count,
+        }),
+    ))
 }

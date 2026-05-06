@@ -28,12 +28,91 @@ use uuid::Uuid;
 
 use ox_core::error::OxResult;
 
-use crate::evaluation::{EvaluationCase, EvaluationMetric, EvaluationRun, EvaluationRunStatus};
+use crate::evaluation::{
+    EvaluationCase, EvaluationDataset, EvaluationDatasetItem, EvaluationMetric, EvaluationRun,
+    EvaluationRunStatus,
+};
 
 use super::{CursorPage, CursorParams};
 
 #[async_trait]
 pub trait EvaluationStore: Send + Sync {
+    // --- Datasets ------------------------------------------------------
+
+    /// Insert-or-update a dataset on the `(workspace_id, name)`
+    /// natural key. Returns the persisted row so the caller picks
+    /// up the server-stamped `created_at` without re-fetching.
+    /// Re-importing a dataset under the same name preserves `id`
+    /// + `created_at` and updates `description` only — every
+    /// downstream FK (runs, items) survives the re-import.
+    async fn upsert_evaluation_dataset(
+        &self,
+        dataset: &EvaluationDataset,
+    ) -> OxResult<EvaluationDataset>;
+
+    async fn get_evaluation_dataset(&self, id: Uuid) -> OxResult<Option<EvaluationDataset>>;
+
+    /// List datasets visible to the active workspace, newest-
+    /// created first. Cursor-paginated to match the rest of the
+    /// admin surface.
+    async fn list_evaluation_datasets(
+        &self,
+        pagination: &CursorParams,
+    ) -> OxResult<CursorPage<EvaluationDataset>>;
+
+    /// Cascade-delete a dataset + every item. Runs that referenced
+    /// the dataset stay alive (`evaluation_runs.dataset_id` goes
+    /// `SET NULL` so historical comparison rows survive).
+    async fn delete_evaluation_dataset(&self, id: Uuid) -> OxResult<bool>;
+
+    /// Insert-or-update one dataset item on the `(dataset_id,
+    /// item_key)` natural key. Re-importing replaces in place so a
+    /// frozen dataset evolves under stable item ids without
+    /// fan-out CRUD.
+    async fn upsert_evaluation_dataset_item(
+        &self,
+        item: &EvaluationDatasetItem,
+    ) -> OxResult<EvaluationDatasetItem>;
+
+    /// Bulk variant — replace every item under `dataset_id` with
+    /// the supplied set in one transaction. Items present in the
+    /// caller's slice but missing from the DB are inserted; items
+    /// present in the DB but missing from the slice are deleted;
+    /// items in both are upserted by `(dataset_id, item_key)`.
+    /// Atomic: a single failed item rolls back the whole import,
+    /// matching the Phoenix / Braintrust dataset import contract.
+    async fn replace_evaluation_dataset_items(
+        &self,
+        dataset_id: Uuid,
+        items: &[EvaluationDatasetItem],
+    ) -> OxResult<u64>;
+
+    /// List every item under `dataset_id`, ordered by `item_key`
+    /// ASC so the dataset detail panel renders deterministically.
+    async fn list_evaluation_dataset_items(
+        &self,
+        dataset_id: Uuid,
+    ) -> OxResult<Vec<EvaluationDatasetItem>>;
+
+    /// Materialise a fresh run from a dataset — copies every item
+    /// into `evaluation_cases` keyed on the dataset's `item_key`,
+    /// pins the run's `dataset_id` for lineage. Returns the
+    /// created run + the case count for the caller's response
+    /// envelope. The run starts in `Running` state; the caller
+    /// then drives execute / judge as usual.
+    ///
+    /// Atomic: dataset read + run insert + case bulk-insert all
+    /// land in one transaction so partial materialisation is
+    /// impossible.
+    async fn create_run_from_dataset(
+        &self,
+        dataset_id: Uuid,
+        run_name: &str,
+        run_description: &str,
+        ontology_version_id: Option<Uuid>,
+        run_metadata: serde_json::Value,
+    ) -> OxResult<(EvaluationRun, u64)>;
+
     // --- Runs ----------------------------------------------------------
 
     /// Insert a new evaluation run in the `Running` state. Returns

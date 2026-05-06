@@ -20,10 +20,10 @@
 //! trait pins it in doc.
 
 use crate::evaluation::{
-    parse_run_status, EvaluationCapture, EvaluationCase, EvaluationContext, EvaluationMetric,
-    EvaluationRun, EvaluationRunStatus,
+    parse_run_status, EvaluationCapture, EvaluationCase, EvaluationContext, EvaluationDataset,
+    EvaluationDatasetItem, EvaluationMetric, EvaluationRun, EvaluationRunStatus,
 };
-use crate::store::EvaluationStore;
+use crate::store::{CursorPage, CursorParams, EvaluationStore};
 
 use super::*;
 
@@ -34,6 +34,7 @@ struct EvaluationRunRow {
     id: Uuid,
     workspace_id: Uuid,
     ontology_version_id: Option<Uuid>,
+    dataset_id: Option<Uuid>,
     name: String,
     description: String,
     status: String,
@@ -48,6 +49,7 @@ impl EvaluationRunRow {
             id: self.id,
             workspace_id: self.workspace_id,
             ontology_version_id: self.ontology_version_id,
+            dataset_id: self.dataset_id,
             name: self.name,
             description: self.description,
             status: parse_run_status(&self.status)?,
@@ -55,6 +57,56 @@ impl EvaluationRunRow {
             completed_at: self.completed_at,
             metadata: self.metadata,
         })
+    }
+}
+
+/// Row mirror for `evaluation_datasets`.
+#[derive(sqlx::FromRow)]
+struct EvaluationDatasetRow {
+    id: Uuid,
+    workspace_id: Uuid,
+    name: String,
+    description: String,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl From<EvaluationDatasetRow> for EvaluationDataset {
+    fn from(r: EvaluationDatasetRow) -> Self {
+        Self {
+            id: r.id,
+            workspace_id: r.workspace_id,
+            name: r.name,
+            description: r.description,
+            created_at: r.created_at,
+        }
+    }
+}
+
+/// Row mirror for `evaluation_dataset_items`.
+#[derive(sqlx::FromRow)]
+struct EvaluationDatasetItemRow {
+    id: Uuid,
+    dataset_id: Uuid,
+    workspace_id: Uuid,
+    item_key: String,
+    input: serde_json::Value,
+    expected: Option<serde_json::Value>,
+    metadata: serde_json::Value,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl From<EvaluationDatasetItemRow> for EvaluationDatasetItem {
+    fn from(r: EvaluationDatasetItemRow) -> Self {
+        Self {
+            id: r.id,
+            dataset_id: r.dataset_id,
+            workspace_id: r.workspace_id,
+            item_key: r.item_key,
+            input: r.input,
+            expected: r.expected,
+            metadata: r.metadata,
+            created_at: r.created_at,
+        }
     }
 }
 
@@ -120,6 +172,287 @@ impl From<EvaluationMetricRow> for EvaluationMetric {
 
 #[async_trait]
 impl EvaluationStore for PostgresStore {
+    // --- Datasets ------------------------------------------------------
+
+    #[tracing::instrument(level = "debug", skip_all, fields(dataset.name = %dataset.name))]
+    async fn upsert_evaluation_dataset(
+        &self,
+        dataset: &EvaluationDataset,
+    ) -> OxResult<EvaluationDataset> {
+        let workspace_id = super::bound_workspace_id_for_dml()?;
+        let row: EvaluationDatasetRow = sqlx::query_as(
+            "INSERT INTO evaluation_datasets
+                (id, workspace_id, name, description, created_at)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (workspace_id, name) DO UPDATE SET
+                description = EXCLUDED.description
+             RETURNING id, workspace_id, name, description, created_at",
+        )
+        .bind(dataset.id)
+        .bind(workspace_id)
+        .bind(&dataset.name)
+        .bind(&dataset.description)
+        .bind(dataset.created_at)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(row.into())
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, fields(dataset_id = %id))]
+    async fn get_evaluation_dataset(
+        &self,
+        id: Uuid,
+    ) -> OxResult<Option<EvaluationDataset>> {
+        super::require_workspace_context()?;
+        let row: Option<EvaluationDatasetRow> = sqlx::query_as(
+            "SELECT id, workspace_id, name, description, created_at
+             FROM evaluation_datasets WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(row.map(EvaluationDataset::from))
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn list_evaluation_datasets(
+        &self,
+        pagination: &CursorParams,
+    ) -> OxResult<CursorPage<EvaluationDataset>> {
+        super::require_workspace_context()?;
+        let limit = pagination.effective_limit();
+        let fetch_limit = limit + 1;
+
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
+            "SELECT id, workspace_id, name, description, created_at
+             FROM evaluation_datasets WHERE TRUE",
+        );
+        if let Some((cursor_ts, cursor_id)) = pagination.cursor_parts() {
+            qb.push(" AND (created_at, id) < (");
+            qb.push_bind(cursor_ts);
+            qb.push(", ");
+            qb.push_bind(cursor_id);
+            qb.push(")");
+        }
+        qb.push(" ORDER BY created_at DESC, id DESC LIMIT ");
+        qb.push_bind(fetch_limit);
+
+        let rows: Vec<EvaluationDatasetRow> = qb
+            .build_query_as()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+        let items: Vec<EvaluationDataset> =
+            rows.into_iter().map(EvaluationDataset::from).collect();
+        Ok(super::build_cursor_page(items, limit, |d| {
+            (d.created_at, d.id)
+        }))
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, fields(dataset_id = %id))]
+    async fn delete_evaluation_dataset(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
+        let result = sqlx::query("DELETE FROM evaluation_datasets WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, fields(
+        dataset_id = %item.dataset_id,
+        item_key = %item.item_key,
+    ))]
+    async fn upsert_evaluation_dataset_item(
+        &self,
+        item: &EvaluationDatasetItem,
+    ) -> OxResult<EvaluationDatasetItem> {
+        let workspace_id = super::bound_workspace_id_for_dml()?;
+        let row: EvaluationDatasetItemRow = sqlx::query_as(
+            "INSERT INTO evaluation_dataset_items
+                (id, dataset_id, workspace_id, item_key, input, expected, metadata,
+                 created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT (dataset_id, item_key) DO UPDATE SET
+                input = EXCLUDED.input,
+                expected = EXCLUDED.expected,
+                metadata = EXCLUDED.metadata
+             RETURNING id, dataset_id, workspace_id, item_key, input, expected,
+                       metadata, created_at",
+        )
+        .bind(item.id)
+        .bind(item.dataset_id)
+        .bind(workspace_id)
+        .bind(&item.item_key)
+        .bind(&item.input)
+        .bind(&item.expected)
+        .bind(&item.metadata)
+        .bind(item.created_at)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(row.into())
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, fields(
+        dataset_id = %dataset_id,
+        item_count = items.len(),
+    ))]
+    async fn replace_evaluation_dataset_items(
+        &self,
+        dataset_id: Uuid,
+        items: &[EvaluationDatasetItem],
+    ) -> OxResult<u64> {
+        let workspace_id = super::bound_workspace_id_for_dml()?;
+        let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
+
+        // Drop items not in the supplied set. The keep-list ride
+        // on the natural key so a re-import that renames an
+        // `item_key` correctly removes the old row + inserts the
+        // new one rather than leaking the stale entry.
+        let keep_keys: Vec<&str> = items.iter().map(|i| i.item_key.as_str()).collect();
+        sqlx::query(
+            "DELETE FROM evaluation_dataset_items
+             WHERE dataset_id = $1 AND NOT (item_key = ANY($2))",
+        )
+        .bind(dataset_id)
+        .bind(&keep_keys)
+        .execute(&mut *tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        // UPSERT every supplied item.
+        for item in items {
+            sqlx::query(
+                "INSERT INTO evaluation_dataset_items
+                    (id, dataset_id, workspace_id, item_key, input, expected, metadata,
+                     created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                 ON CONFLICT (dataset_id, item_key) DO UPDATE SET
+                    input = EXCLUDED.input,
+                    expected = EXCLUDED.expected,
+                    metadata = EXCLUDED.metadata",
+            )
+            .bind(item.id)
+            .bind(dataset_id)
+            .bind(workspace_id)
+            .bind(&item.item_key)
+            .bind(&item.input)
+            .bind(&item.expected)
+            .bind(&item.metadata)
+            .bind(item.created_at)
+            .execute(&mut *tx)
+            .await
+            .map_err(to_ox_error)?;
+        }
+
+        tx.commit().await.map_err(to_ox_error)?;
+        Ok(items.len() as u64)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, fields(dataset_id = %dataset_id))]
+    async fn list_evaluation_dataset_items(
+        &self,
+        dataset_id: Uuid,
+    ) -> OxResult<Vec<EvaluationDatasetItem>> {
+        super::require_workspace_context()?;
+        let rows: Vec<EvaluationDatasetItemRow> = sqlx::query_as(
+            "SELECT id, dataset_id, workspace_id, item_key, input, expected, metadata,
+                    created_at
+             FROM evaluation_dataset_items
+             WHERE dataset_id = $1
+             ORDER BY item_key ASC",
+        )
+        .bind(dataset_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(rows.into_iter().map(EvaluationDatasetItem::from).collect())
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, fields(dataset_id = %dataset_id, run.name = %run_name))]
+    async fn create_run_from_dataset(
+        &self,
+        dataset_id: Uuid,
+        run_name: &str,
+        run_description: &str,
+        ontology_version_id: Option<Uuid>,
+        run_metadata: serde_json::Value,
+    ) -> OxResult<(EvaluationRun, u64)> {
+        let workspace_id = super::bound_workspace_id_for_dml()?;
+        let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
+
+        // Verify the dataset exists in the active workspace
+        // before consuming it. RLS already filters cross-tenant
+        // ids, but a typed `NotFound` reads cleaner than a
+        // confusing "0 items" run.
+        let exists: Option<(Uuid,)> = sqlx::query_as(
+            "SELECT id FROM evaluation_datasets WHERE id = $1",
+        )
+        .bind(dataset_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(to_ox_error)?;
+        if exists.is_none() {
+            return Err(OxError::NotFound {
+                entity: format!("evaluation_datasets id={dataset_id}"),
+            });
+        }
+
+        let run_id = Uuid::now_v7();
+        let started_at = chrono::Utc::now();
+        let run_row: EvaluationRunRow = sqlx::query_as(
+            "INSERT INTO evaluation_runs
+                (id, workspace_id, ontology_version_id, dataset_id, name, description,
+                 status, started_at, completed_at, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6, 'running', $7, NULL, $8)
+             RETURNING id, workspace_id, ontology_version_id, dataset_id, name, description,
+                       status, started_at, completed_at, metadata",
+        )
+        .bind(run_id)
+        .bind(workspace_id)
+        .bind(ontology_version_id)
+        .bind(dataset_id)
+        .bind(run_name)
+        .bind(run_description)
+        .bind(started_at)
+        .bind(&run_metadata)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        // Materialise dataset items into cases. Single round-trip
+        // via `INSERT … SELECT` so a 10k-item dataset doesn't
+        // generate 10k network hops.
+        let case_count: (i64,) = sqlx::query_as(
+            "WITH inserted AS (
+                INSERT INTO evaluation_cases
+                    (id, run_id, workspace_id, case_key, input, expected, actual,
+                     error, latency_ms, metadata, created_at)
+                SELECT
+                    gen_random_uuid(), $2, $3, item.item_key, item.input,
+                    item.expected, NULL, NULL, NULL,
+                    '{}'::jsonb, now()
+                FROM evaluation_dataset_items item
+                WHERE item.dataset_id = $1
+                RETURNING 1
+             )
+             SELECT COUNT(*) FROM inserted",
+        )
+        .bind(dataset_id)
+        .bind(run_id)
+        .bind(workspace_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        tx.commit().await.map_err(to_ox_error)?;
+        Ok((run_row.into_domain()?, case_count.0 as u64))
+    }
+
     // --- Runs ----------------------------------------------------------
 
     #[tracing::instrument(level = "debug", skip_all, fields(run.name = %run.name))]
@@ -127,15 +460,16 @@ impl EvaluationStore for PostgresStore {
         let workspace_id = super::bound_workspace_id_for_dml()?;
         let row: EvaluationRunRow = sqlx::query_as(
             "INSERT INTO evaluation_runs
-                (id, workspace_id, ontology_version_id, name, description,
+                (id, workspace_id, ontology_version_id, dataset_id, name, description,
                  status, started_at, completed_at, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-             RETURNING id, workspace_id, ontology_version_id, name, description,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             RETURNING id, workspace_id, ontology_version_id, dataset_id, name, description,
                        status, started_at, completed_at, metadata",
         )
         .bind(run.id)
         .bind(workspace_id)
         .bind(run.ontology_version_id)
+        .bind(run.dataset_id)
         .bind(&run.name)
         .bind(&run.description)
         .bind(run.status.as_str())
@@ -152,7 +486,7 @@ impl EvaluationStore for PostgresStore {
     async fn get_evaluation_run(&self, id: Uuid) -> OxResult<Option<EvaluationRun>> {
         super::require_workspace_context()?;
         let row: Option<EvaluationRunRow> = sqlx::query_as(
-            "SELECT id, workspace_id, ontology_version_id, name, description,
+            "SELECT id, workspace_id, ontology_version_id, dataset_id, name, description,
                     status, started_at, completed_at, metadata
              FROM evaluation_runs WHERE id = $1",
         )
@@ -173,7 +507,7 @@ impl EvaluationStore for PostgresStore {
         let fetch_limit = limit + 1;
 
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
-            "SELECT id, workspace_id, ontology_version_id, name, description,
+            "SELECT id, workspace_id, ontology_version_id, dataset_id, name, description,
                     status, started_at, completed_at, metadata
              FROM evaluation_runs WHERE TRUE",
         );
@@ -212,7 +546,7 @@ impl EvaluationStore for PostgresStore {
             "UPDATE evaluation_runs
              SET status = $2, completed_at = now()
              WHERE id = $1
-             RETURNING id, workspace_id, ontology_version_id, name, description,
+             RETURNING id, workspace_id, ontology_version_id, dataset_id, name, description,
                        status, started_at, completed_at, metadata",
         )
         .bind(id)

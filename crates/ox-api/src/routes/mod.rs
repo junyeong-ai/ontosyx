@@ -363,6 +363,36 @@ pub fn router(state: AppState) -> Router {
             "/evaluation/cases/{case_id}/judge",
             post(evaluation::judge_evaluation_case),
         )
+        // Evaluation datasets — frozen Q+expected pairs reusable
+        // across runs (Phoenix / Braintrust / LangSmith pattern).
+        .route(
+            "/evaluation/datasets",
+            post(evaluation::upsert_evaluation_dataset),
+        )
+        .route(
+            "/evaluation/datasets",
+            get(evaluation::list_evaluation_datasets),
+        )
+        .route(
+            "/evaluation/datasets/{id}",
+            get(evaluation::get_evaluation_dataset),
+        )
+        .route(
+            "/evaluation/datasets/{id}",
+            delete(evaluation::delete_evaluation_dataset),
+        )
+        .route(
+            "/evaluation/datasets/{id}/items",
+            get(evaluation::list_evaluation_dataset_items),
+        )
+        .route(
+            "/evaluation/datasets/{id}/items",
+            put(evaluation::replace_evaluation_dataset_items),
+        )
+        .route(
+            "/evaluation/runs/from-dataset",
+            post(evaluation::create_run_from_dataset),
+        )
         // Perspectives
         .route("/perspectives", put(perspectives::save_perspective))
         .route(

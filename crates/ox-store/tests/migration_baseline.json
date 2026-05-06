@@ -8,5 +8,6 @@
   "0007_evaluation.sql": "c8e2a029c9d82c3c2a0743c2d07371b535a269fdd436309c6cd793035be6d09d",
   "0008_ontology_draft_committed_version.sql": "e08e52f39e7f281f23acf8e6b8eb05ef2e631bd6a0c3913c3b47a4a83bede250",
   "0009_audit_log_lexicon_backfill.sql": "7e5ce07617441c14ca74c18ab41a9a8b8115be1b3931c448554a82e77eb20802",
-  "0010_evaluation_case_metadata.sql": "910b23c0a1862ee98c4dce852a613d718e9cd16ba0111e51204148410d3efbe5"
+  "0010_evaluation_case_metadata.sql": "910b23c0a1862ee98c4dce852a613d718e9cd16ba0111e51204148410d3efbe5",
+  "0011_evaluation_datasets.sql": "002cb29679701dc28b533164f8154853b5449a4ef7db600e188ece82fbcc9917"
 }

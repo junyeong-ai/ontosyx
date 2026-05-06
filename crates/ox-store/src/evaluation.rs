@@ -123,6 +123,15 @@ pub struct EvaluationRun {
     /// during draft-stage evaluation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ontology_version_id: Option<Uuid>,
+    /// Lineage to the [`EvaluationDataset`] the run materialised
+    /// from. `None` for ad-hoc runs whose cases were inserted
+    /// directly via the bulk-upsert path. Run comparison + CI
+    /// regression require this — a diff between two runs only
+    /// makes sense when both reference the same dataset id.
+    /// `ON DELETE SET NULL` so historical runs survive a dataset
+    /// purge.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dataset_id: Option<Uuid>,
     pub name: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub description: String,
@@ -130,11 +139,53 @@ pub struct EvaluationRun {
     pub started_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<DateTime<Utc>>,
-    /// Run-level configuration envelope (model id, dataset
-    /// reference, judge id, …). Schema-less so a new
-    /// run-level dimension never needs DDL.
+    /// Run-level configuration envelope (model id, judge id, …).
+    /// Schema-less so a new run-level dimension never needs DDL.
     #[serde(default = "default_metadata")]
     pub metadata: serde_json::Value,
+}
+
+/// Frozen header for a reusable evaluation dataset. Mirrors the
+/// `evaluation_datasets` row. Datasets are the unit of input
+/// authoring — a curated collection of `(input, expected)`
+/// pairs reused across runs (model A vs B regression diff, CI
+/// golden gate, baseline pinning). The header carries no items
+/// directly; items live in [`EvaluationDatasetItem`] keyed on
+/// `dataset_id`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EvaluationDataset {
+    pub id: Uuid,
+    pub workspace_id: Uuid,
+    /// Workspace-unique identifier. The UPSERT-by-name flow on
+    /// dataset re-import collapses on this column.
+    pub name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub description: String,
+    pub created_at: DateTime<Utc>,
+}
+
+/// One frozen `(input, expected)` pair inside a dataset.
+/// Mirrors the `evaluation_dataset_items` row.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EvaluationDatasetItem {
+    pub id: Uuid,
+    pub dataset_id: Uuid,
+    pub workspace_id: Uuid,
+    /// Stable per-dataset identifier. UPSERT key alongside
+    /// `dataset_id`; re-importing the dataset from CSV / JSON
+    /// replaces previous rows on this key.
+    pub item_key: String,
+    /// Prompt / context envelope. Mirrors `EvaluationCase.input`
+    /// shape so `create_run_from_dataset` is a straight copy.
+    pub input: serde_json::Value,
+    /// Reference outcome. `None` for unsupervised datasets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected: Option<serde_json::Value>,
+    /// Free-form authoring metadata (tags, difficulty, locale, …).
+    /// Renders verbatim on the dataset detail panel.
+    #[serde(default = "default_metadata")]
+    pub metadata: serde_json::Value,
+    pub created_at: DateTime<Utc>,
 }
 
 /// One (input, expected, actual) tuple inside a run. Mirrors the
@@ -398,6 +449,7 @@ mod tests {
             id: Uuid::new_v4(),
             workspace_id: Uuid::new_v4(),
             ontology_version_id: None,
+            dataset_id: None,
             name: "rag-baseline".into(),
             description: String::new(),
             status: EvaluationRunStatus::Running,
