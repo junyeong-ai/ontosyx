@@ -307,24 +307,25 @@ pub(super) fn compile_op(
         }
 
         QueryOp::HybridSearch { request } => {
-            // The `graph_constraints` sub-pattern is the only
-            // remaining deferred path — Cypher's `CALL` doesn't
-            // accept an inline filter on the procedure-yielded
-            // node, so the constraint becomes a follow-up
-            // `WHERE` clause that rides on top of the YIELD
-            // stream. Vector-only and vector + fulltext + RRF
-            // both lower; vector + fulltext + WeightedSum is
-            // also deferred because the lowering shape is
-            // distinctly different (Cypher arithmetic on
-            // weighted scores rather than rank-based fusion).
-            if request.graph_constraints.is_some() {
+            // graph_constraints + fulltext + RRF combined is
+            // still deferred — the RRF fusion CTE rebinds
+            // `node` through UNWIND + group-by, and weaving
+            // a label filter through that pipeline asks for a
+            // distinct lowering shape (filter inside each list
+            // comprehension, with the empty-source edge case
+            // doubled). Vector-only paths take the constraint
+            // cleanly via WHERE on the YIELD stream below.
+            if request.graph_constraints.is_some()
+                && request.fulltext_query.is_some()
+            {
                 return Err(OxError::UnsupportedOperation {
                     target: "graph:cypher".into(),
                     operation: "QueryOp::HybridSearch with \
-                        graph_constraints — pattern-filtered \
-                        retrieval lands in a follow-up; the \
-                        constraint becomes a WHERE clause on \
-                        the YIELD stream"
+                        graph_constraints + fulltext_query — \
+                        constraint filtering across the RRF \
+                        fusion CTE lands in a follow-up; \
+                        vector-only requests support \
+                        graph_constraints today"
                         .into(),
                 });
             }
@@ -369,11 +370,36 @@ pub(super) fn compile_op(
             match &request.fulltext_query {
                 None => {
                     // Vector-only path — single procedure call
-                    // + score-desc projection.
+                    // + score-desc projection. When
+                    // `graph_constraints` carries a node
+                    // pattern, weave its label as a `WHERE
+                    // node:Label` filter on the YIELD stream so
+                    // the procedure's top-K candidates trim to
+                    // the structural cohort the operator
+                    // anchored. Property filters / multi-node
+                    // patterns are deferred — the first
+                    // pattern node's label is the operator's
+                    // primary intent; richer constraints land
+                    // when the lowering surface grows.
+                    let constraint_label_filter = request
+                        .graph_constraints
+                        .as_ref()
+                        .and_then(|p| p.nodes.first())
+                        .and_then(|n| n.label.as_ref())
+                        .map(|lbl| {
+                            format!(
+                                "WHERE node:{}",
+                                escape_identifier(lbl.as_str()),
+                            )
+                        });
+
                     parts.push(format!(
                         "CALL db.index.vector.queryNodes({vec_index_param}, {top_k_param}, {vector_param})",
                     ));
                     parts.push("YIELD node, score".to_string());
+                    if let Some(filter) = constraint_label_filter {
+                        parts.push(filter);
+                    }
                     parts.push("RETURN node, score".to_string());
                     parts.push("ORDER BY score DESC".to_string());
                 }

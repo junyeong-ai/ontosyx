@@ -2284,6 +2284,128 @@ fn hybrid_search_vector_plus_fulltext_rrf_emits_fusion_cte() {
 }
 
 #[test]
+fn hybrid_search_vector_only_with_graph_constraints_emits_label_filter() {
+    use ox_query_ir::hybrid_retrieval::{
+        Embedding, FusionStrategy, HybridSearchRequest,
+    };
+    use ox_query_ir::pattern::{PatternIR, PatternNode};
+
+    let compiler = CypherCompiler::neo4j();
+    let constraint = PatternIR {
+        schema_version: ox_query_ir::pattern::PATTERN_IR_SCHEMA_VERSION,
+        nodes: vec![PatternNode {
+            id: "n1".into(),
+            variable: "n".into(),
+            label: Some(gl("Customer")),
+            property_filters: vec![],
+            position: None,
+        }],
+        edges: vec![],
+        filters: vec![],
+        projections: vec![],
+        layout_hints: Default::default(),
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        read_only_reason: None,
+    };
+    let query = QueryIR {
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::HybridSearch {
+            request: HybridSearchRequest {
+                vector_query: Embedding::new(vec![0.1, 0.2], "test"),
+                fulltext_query: None,
+                graph_constraints: Some(constraint),
+                fuse: FusionStrategy::default(),
+                top_k: 10,
+            },
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        as_of: None,
+    };
+
+    let compiled = compiler
+        .compile_query(&query, None)
+        .expect("vector-only HybridSearch with graph_constraints compiles");
+    // Label filter rides on the YIELD stream so the
+    // procedure's top-K candidates trim to the cohort.
+    // Cypher emitter backtick-escapes labels via
+    // `escape_identifier` so the wire shape is
+    // `WHERE node:`Customer``.
+    assert!(
+        compiled.statement.contains("WHERE node:`Customer`"),
+        "missing label filter on YIELD stream:\n{}",
+        compiled.statement,
+    );
+    // The vector procedure call still lands first, ordering
+    // preserved (CALL → YIELD → WHERE → RETURN → ORDER BY).
+    assert!(
+        compiled.statement.contains("db.index.vector.queryNodes"),
+        "vector procedure call missing:\n{}",
+        compiled.statement,
+    );
+}
+
+#[test]
+fn hybrid_search_with_constraints_plus_fulltext_returns_unsupported() {
+    use ox_query_ir::hybrid_retrieval::{
+        Embedding, FusionStrategy, HybridSearchRequest,
+    };
+    use ox_query_ir::pattern::{PatternIR, PatternNode};
+
+    let compiler = CypherCompiler::neo4j();
+    let constraint = PatternIR {
+        schema_version: ox_query_ir::pattern::PATTERN_IR_SCHEMA_VERSION,
+        nodes: vec![PatternNode {
+            id: "n1".into(),
+            variable: "n".into(),
+            label: Some(gl("Customer")),
+            property_filters: vec![],
+            position: None,
+        }],
+        edges: vec![],
+        filters: vec![],
+        projections: vec![],
+        layout_hints: Default::default(),
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        read_only_reason: None,
+    };
+    let query = QueryIR {
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::HybridSearch {
+            request: HybridSearchRequest {
+                vector_query: Embedding::new(vec![0.1, 0.2], "test"),
+                fulltext_query: Some("customer churn".into()),
+                graph_constraints: Some(constraint),
+                fuse: FusionStrategy::default(),
+                top_k: 10,
+            },
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        as_of: None,
+    };
+
+    // graph_constraints + fulltext + RRF combination still
+    // deferred — the RRF fusion CTE rebinds `node` through
+    // UNWIND + group-by, so weaving label filtering through
+    // is its own lowering shape.
+    let err = compiler
+        .compile_query(&query, None)
+        .expect_err("constraint + fulltext path should be deferred");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("graph_constraints") && msg.contains("fulltext_query"),
+        "unexpected error: {msg}",
+    );
+}
+
+#[test]
 fn hybrid_search_with_weighted_sum_returns_unsupported() {
     use ox_query_ir::hybrid_retrieval::{
         Embedding, FusionStrategy, HybridSearchRequest,
