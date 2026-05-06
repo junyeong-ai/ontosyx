@@ -32,6 +32,11 @@ import {
   placeholder as placeholderExt,
 } from "@codemirror/view";
 import { EditorState, type Extension } from "@codemirror/state";
+import {
+  autocompletion,
+  completionKeymap,
+  type CompletionSource,
+} from "@codemirror/autocomplete";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { sql } from "@codemirror/lang-sql";
@@ -239,6 +244,14 @@ interface CodeEditorProps {
    * readers when the surrounding chrome doesn't already own a label.
    */
   ariaLabel?: string;
+  /**
+   * Optional autocomplete source. When set, the editor wires the
+   * `@codemirror/autocomplete` extension and uses this source as
+   * the suggestion provider. Caller composes it from the workspace
+   * ontology via `makeCypherCompletionSource(catalog)` so the
+   * editor primitive stays decoupled from the ontology shape.
+   */
+  completionSource?: CompletionSource;
 }
 
 export function CodeEditor({
@@ -250,6 +263,7 @@ export function CodeEditor({
   language = "markdown",
   hideLineNumbers = false,
   ariaLabel,
+  completionSource,
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -278,7 +292,7 @@ export function CodeEditor({
 
     const extensions: Extension[] = [
       history(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...completionKeymap]),
       ...languageExtensions(language, isDarkOnMount),
       isDarkOnMount ? oneDark : editorTheme,
       EditorView.lineWrapping,
@@ -289,6 +303,21 @@ export function CodeEditor({
       }),
     ];
 
+    if (completionSource) {
+      // Wire the autocomplete extension only when a source is
+      // supplied — bare callers (markdown / json prompt editor)
+      // don't pay the dropdown surface area.
+      extensions.push(
+        autocompletion({
+          override: [completionSource],
+          // `closeOnBlur: true` keeps the menu out of the user's
+          // way when they click outside the editor; the Cypher
+          // surface uses keyboard-only navigation when the menu's
+          // open.
+          closeOnBlur: true,
+        }),
+      );
+    }
     if (!hideLineNumbers) extensions.push(lineNumbers());
     if (readOnly) extensions.push(EditorState.readOnly.of(true));
     if (placeholder) extensions.push(placeholderExt(placeholder));
@@ -307,7 +336,15 @@ export function CodeEditor({
     // Re-mount when readOnly / language / line-number visibility changes —
     // these affect the extension list. `value` syncs through the next
     // effect so a typing burst doesn't re-mount.
-  }, [readOnly, language, hideLineNumbers, value, placeholder, isDarkOnMount]);
+  }, [
+    readOnly,
+    language,
+    hideLineNumbers,
+    value,
+    placeholder,
+    isDarkOnMount,
+    completionSource,
+  ]);
 
   useEffect(() => {
     const view = viewRef.current;

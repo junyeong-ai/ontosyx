@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Play, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
 import { WidgetToolbar } from "@/components/dashboard/widgets/widget-toolbar";
 import { ResponseBasis } from "@/components/dashboard/widgets/response-basis";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { rawQuery } from "@/lib/api";
+import {
+  buildCatalogFromOntology,
+  makeCypherCompletionSource,
+} from "@/lib/cypher/autocomplete";
 import type { QueryResult } from "@/types/api";
 
 export function QueryPanel() {
@@ -20,6 +25,24 @@ export function QueryPanel() {
   const [result, setResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const ontologyQuery = useWorkspaceOntology();
+  // Cypher autocomplete pulls labels + property names from the
+  // canonical ontology IR. `useMemo` so an unrelated state change
+  // (loading / error toast) doesn't rebuild the catalog. The
+  // greenfield case (`ontology_ir` absent) yields an empty catalog
+  // — the editor still shows keyword completions but skips
+  // schema-aware menus.
+  const completionSource = useMemo(() => {
+    const ir = ontologyQuery.data?.ontology_ir;
+    if (!ir) {
+      return makeCypherCompletionSource({
+        nodeLabels: [],
+        edgeLabels: [],
+        propertyNames: [],
+      });
+    }
+    return makeCypherCompletionSource(buildCatalogFromOntology(ir));
+  }, [ontologyQuery.data]);
 
   const handleExecute = async () => {
     if (!query.trim()) return;
@@ -70,6 +93,7 @@ export function QueryPanel() {
             language="cypher"
             height="160px"
             ariaLabel={t("title")}
+            completionSource={completionSource}
           />
           <p className="mt-1.5 text-2xs text-foreground-muted">
             {typeof navigator !== "undefined" &&
