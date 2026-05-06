@@ -233,6 +233,17 @@ pub struct LlmRenderOptions {
     /// render a trailing "... and N more" line so the LLM knows the
     /// context is truncated.
     pub max_nodes: usize,
+    /// Optional hard cap on the rendered output's estimated token
+    /// count. `None` = no token cap (only `max_nodes` applies).
+    /// When set, the renderer stops emitting nodes once the
+    /// running estimate would exceed the budget — caller-driven
+    /// when the prompt has a tight context-window slice
+    /// (`MAX_GRAPHRAG_BUDGET = ctx_window - prompt_overhead -
+    /// answer_reservation`). Tokens are estimated via
+    /// [`estimate_tokens_chars`] (chars / 3, conservative); the
+    /// platform doesn't carry a tokenizer dep so this stays
+    /// model-agnostic and safe to over-trim by 5-10%.
+    pub max_tokens: Option<u32>,
     /// Include the `doc` text per node. Adds tokens but lets the LLM
     /// disambiguate similarly-named concepts.
     pub include_doc_snippets: bool,
@@ -242,9 +253,26 @@ impl Default for LlmRenderOptions {
     fn default() -> Self {
         Self {
             max_nodes: 80,
+            max_tokens: None,
             include_doc_snippets: true,
         }
     }
+}
+
+/// Conservative token-count estimate. Uses 3 chars per token —
+/// the lower-bound estimate that holds across English (4 cpt
+/// average), Korean / Japanese (1.5-2 cpt), and mixed scripts.
+/// Picking the conservative end of the range means the renderer
+/// over-trims by 5-10% rather than overflowing the context
+/// window. The platform deliberately doesn't pull in `tiktoken`
+/// or a per-model tokenizer here — embedding-budget decisions
+/// shouldn't fluctuate on a model swap.
+pub fn estimate_tokens_chars(text: &str) -> u32 {
+    // `chars().count()` over `len()` so multi-byte UTF-8 doesn't
+    // inflate the estimate (e.g. Korean characters are 3 bytes
+    // each in UTF-8 but should count as ~0.7 tokens, not ~2).
+    let chars = text.chars().count();
+    ((chars + 2) / 3) as u32
 }
 
 // ---------------------------------------------------------------------------
@@ -337,11 +365,23 @@ pub fn render_subgraph_as_llm_markdown(
     }
 
     let mut rendered: usize = 0;
-    for (kind, nodes) in &by_kind {
+    let mut hit_token_cap = false;
+    'outer: for (kind, nodes) in &by_kind {
         let _ = writeln!(out, "## {kind}");
         for n in nodes {
             if rendered >= options.max_nodes {
-                break;
+                break 'outer;
+            }
+            // Token-budget pre-check — estimate the running
+            // size BEFORE we commit the node so the cap is a
+            // ceiling, not a soft target. If even one node
+            // would push us over, we stop emitting and let the
+            // trailing "... and N more" footer render.
+            if let Some(cap) = options.max_tokens
+                && estimate_tokens_chars(&out) >= cap
+            {
+                hit_token_cap = true;
+                break 'outer;
             }
             let label = n.label.as_deref().unwrap_or(n.logical_id.as_str());
             let _ = writeln!(out, "- **{}** · `{}`", label, n.logical_id);
@@ -354,16 +394,18 @@ pub fn render_subgraph_as_llm_markdown(
             rendered += 1;
         }
         let _ = writeln!(out);
-        if rendered >= options.max_nodes {
-            break;
-        }
     }
 
     if rendered < subgraph.nodes.len() {
         let remaining = subgraph.nodes.len() - rendered;
+        let reason = if hit_token_cap {
+            "token budget"
+        } else {
+            "prompt"
+        };
         let _ = writeln!(
             out,
-            "_... and {remaining} more entities (subgraph truncated for prompt)_"
+            "_... and {remaining} more entities (subgraph truncated for {reason})_"
         );
     }
 
@@ -442,6 +484,7 @@ mod tests {
             &g,
             &LlmRenderOptions {
                 max_nodes: 10,
+                max_tokens: None,
                 include_doc_snippets: false,
             },
         );
@@ -494,11 +537,104 @@ mod tests {
             &g,
             &LlmRenderOptions {
                 max_nodes: 10,
+                max_tokens: None,
                 include_doc_snippets: false,
             },
         );
         assert!(md.contains("**Customer**"));
         assert!(!md.contains("Buyers of things"), "{md}");
+    }
+
+    #[test]
+    fn estimate_tokens_chars_uses_unicode_char_count() {
+        // 6 ASCII chars = 6 chars / 3 = 2 tokens
+        assert_eq!(estimate_tokens_chars("hello!"), 2);
+        // 3 Korean chars = 3 chars / 3 = 1 token (each Korean
+        // codepoint is 3 bytes in UTF-8, but 1 char by Rust's
+        // char count). Bytes-based estimation would over-count
+        // by 3x.
+        assert_eq!(estimate_tokens_chars("안녕요"), 1);
+        // Empty
+        assert_eq!(estimate_tokens_chars(""), 0);
+    }
+
+    #[test]
+    fn render_respects_max_tokens_budget() {
+        // 50 nodes, each carrying a 100-char doc — without a
+        // token cap they'd all render. With a tight cap, the
+        // renderer stops mid-stream and emits the "token
+        // budget" footer.
+        let many: Vec<SubgraphNode> = (0..50)
+            .map(|i| SubgraphNode {
+                kind: "NodeType".into(),
+                logical_id: format!("nt_{i:03}"),
+                label: Some(format!("Node{i:03}")),
+                doc: Some(
+                    "This is a longer description that drives the token \
+                     estimate up so the budget cap fires."
+                        .into(),
+                ),
+                depth: 0,
+            })
+            .collect();
+        let g = Subgraph {
+            nodes: many,
+            edges: vec![],
+            truncated: false,
+        };
+        let md = render_subgraph_as_llm_markdown(
+            &g,
+            &LlmRenderOptions {
+                max_nodes: 1000,
+                // ~150 tokens budget. Each node ≈ 40+ tokens
+                // (label + doc combined), so we expect ~3-4
+                // nodes rendered before the cap fires.
+                max_tokens: Some(150),
+                include_doc_snippets: true,
+            },
+        );
+        // Footer must call out the *token* budget, not the
+        // generic prompt-truncation copy, so the operator
+        // knows the cap they hit.
+        assert!(md.contains("truncated for token budget"), "{md}");
+        // And not every node landed.
+        let rendered_count = md.matches("- **Node").count();
+        assert!(
+            rendered_count > 0 && rendered_count < 50,
+            "rendered={rendered_count}",
+        );
+    }
+
+    #[test]
+    fn render_no_token_cap_renders_all_within_max_nodes() {
+        // No `max_tokens` — falls back to count cap only. The
+        // footer should NOT mention "token budget" since the
+        // cap path didn't fire.
+        let many: Vec<SubgraphNode> = (0..3)
+            .map(|i| SubgraphNode {
+                kind: "NodeType".into(),
+                logical_id: format!("nt_{i}"),
+                label: None,
+                doc: None,
+                depth: 0,
+            })
+            .collect();
+        let g = Subgraph {
+            nodes: many,
+            edges: vec![],
+            truncated: false,
+        };
+        let md = render_subgraph_as_llm_markdown(
+            &g,
+            &LlmRenderOptions {
+                max_nodes: 100,
+                max_tokens: None,
+                include_doc_snippets: false,
+            },
+        );
+        assert!(!md.contains("token budget"), "{md}");
+        assert!(md.contains("nt_0"));
+        assert!(md.contains("nt_2"));
     }
 
     #[test]

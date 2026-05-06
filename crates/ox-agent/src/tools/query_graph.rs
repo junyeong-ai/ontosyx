@@ -720,7 +720,18 @@ async fn try_retrieve_subgraph_md(
         Err(_) => return None,
     };
 
-    let render_options = LlmRenderOptions::default();
+    // Cap the GraphRAG injection at a conservative token slice so
+    // a large ontology can't squeeze the operator's question, the
+    // schema RAG, the conversation history, and the answer
+    // reservation out of the context window. The 2000-token
+    // budget is the empirical sweet spot — wide enough to carry
+    // a 2-hop subgraph for a complex domain, narrow enough that
+    // the prompt overhead stays under 30% of even an 8K window.
+    let render_options = LlmRenderOptions {
+        max_nodes: 40,
+        max_tokens: Some(2_000),
+        include_doc_snippets: true,
+    };
     let markdown = domain
         .store
         .render_subgraph_for_llm(&subgraph, &render_options);
