@@ -1,9 +1,11 @@
 {
-  "0001_schema.sql": "7d9916e64414ff171a1b71f2a63278801e67a187918b4289cd5710ce669ba988",
+  "0001_schema.sql": "5e8db59d50ac0b040b7cbd42a279240193e1bfe98cbcbe00cf94d795711b6276",
   "0002_draft_cluster_checkpoints.sql": "0dffc13ad80f202d3a14aded50b3030fee5f7a8080b9f304eeb0fe50343d90bb",
   "0003_analysis_scope.sql": "73f8b3b339deb8a48d550be40b5bf01191e040e17b657d365e40cc58b253e901",
   "0004_workspace_isolation.sql": "44f06b792167812af1fb8e11c2f878cff7a9dcfa53bfb2a670aac690ace00569",
   "0005_ontology_draft_parent_version.sql": "2b7e0a370593495a9260ac3d0c275d7a4251bb78e0f7b98636c77ef3db42945a",
   "0006_workspace_ontology_singleton.sql": "dda78a9b14da5fab90b532c4214af0cc639f6b836aa03f1b075a816360419c22",
-  "0007_evaluation.sql": "c8e2a029c9d82c3c2a0743c2d07371b535a269fdd436309c6cd793035be6d09d"
+  "0007_evaluation.sql": "c8e2a029c9d82c3c2a0743c2d07371b535a269fdd436309c6cd793035be6d09d",
+  "0008_ontology_draft_committed_version.sql": "e08e52f39e7f281f23acf8e6b8eb05ef2e631bd6a0c3913c3b47a4a83bede250",
+  "0009_audit_log_lexicon_backfill.sql": "7e5ce07617441c14ca74c18ab41a9a8b8115be1b3931c448554a82e77eb20802"
 }

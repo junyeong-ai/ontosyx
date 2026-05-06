@@ -200,3 +200,104 @@ opentelemetry = { version = "0.31", features = ["trace"] }
 opentelemetry_sdk = { version = "0.31", features = ["rt-tokio", "trace"] }
 opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "trace"] }
 tracing-opentelemetry = "0.32"
+
+
+# ----------------------------------------------------------------------------
+# Build profiles
+# ----------------------------------------------------------------------------
+#
+# Three-axis design — iteration speed, disk footprint, runtime
+# performance — tuned independently per profile.
+#
+# **Workspace constraint:** the dependency graph is wide (DataFusion 49
+# + Arrow 55 + tokio "full" + sqlx + duckdb + onnx + reqwest) and
+# integration-test crates each statically link the entire graph. Default
+# Cargo dev settings (full DWARF + 256 codegen units + dev-debuginfo on
+# every transitive dep) push `target/` to ~150 GB on a clean build.
+# The profile shape below holds the same workspace at ~5–8 GB without
+# losing backtrace fidelity on workspace code.
+#
+# Profile axes:
+#
+#   `dev`     — `cargo build` / `cargo test` default. Fast incremental
+#               rebuilds, backtrace-friendly, minimal disk.
+#   `test`    — inherits `dev` so the on-disk artefact cache is shared
+#               across `cargo build` and `cargo test` invocations.
+#   `release` — production binary. LTO, single codegen unit, stripped.
+#
+# Workspace-code debug info stays as `line-tables-only` so panics still
+# carry file:line in stack traces. Variable inspection in `lldb` /
+# `rust-gdb` falls back to `<unavailable>` — for the rare debugger
+# session, override per-invocation:
+#
+#   RUSTFLAGS="-C debuginfo=2" cargo test -p <crate> -- <filter>
+
+[profile.dev]
+opt-level = 0
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+incremental = true
+codegen-units = 256
+
+# Third-party deps don't get edited mid-iteration, so their debug info
+# is dead weight. Drop it entirely — cuts the largest single
+# contributor to dev-build disk usage (~80% of the transitive graph
+# is non-workspace).
+[profile.dev.package."*"]
+opt-level = 0
+debug = false
+
+# Hot-path query execution layers (DataFusion + Arrow) — compile at
+# `opt-level = 1` so integration tests that exercise the federation
+# planner or the columnar pipeline finish in seconds rather than
+# minutes. The `arrow-*` siblings stay aligned so trait dispatch
+# inlining works across crate boundaries.
+[profile.dev.package.datafusion]
+opt-level = 1
+debug = false
+[profile.dev.package.arrow]
+opt-level = 1
+debug = false
+[profile.dev.package.arrow-array]
+opt-level = 1
+debug = false
+[profile.dev.package.arrow-buffer]
+opt-level = 1
+debug = false
+[profile.dev.package.arrow-data]
+opt-level = 1
+debug = false
+[profile.dev.package.arrow-schema]
+opt-level = 1
+debug = false
+[profile.dev.package.arrow-cast]
+opt-level = 1
+debug = false
+[profile.dev.package.arrow-select]
+opt-level = 1
+debug = false
+[profile.dev.package.arrow-arith]
+opt-level = 1
+debug = false
+[profile.dev.package.arrow-string]
+opt-level = 1
+debug = false
+[profile.dev.package.arrow-ord]
+opt-level = 1
+debug = false
+
+# Test profile mirrors `dev` so `cargo build` and `cargo test` warm
+# the same fingerprint cache. Without this, the test profile's
+# distinct `inherits = "test"` tree double-compiles every workspace
+# crate.
+[profile.test]
+inherits = "dev"
+
+[profile.release]
+opt-level = 3
+debug = "line-tables-only"
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+incremental = false
+overflow-checks = false
