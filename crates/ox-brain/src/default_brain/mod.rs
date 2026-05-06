@@ -11,4 +11,5 @@ mod explainer;
 mod judge;
 mod metadata;
 mod repo;
+mod safety_judge;
 mod translator;

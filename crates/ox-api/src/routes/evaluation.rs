@@ -1063,6 +1063,108 @@ pub(crate) async fn judge_evaluation_case(
     Ok(ApiResponse::of(JudgeEvaluationCaseResponse { metrics }))
 }
 
+// ---------------------------------------------------------------------------
+// Handler — judge a case along the safety axes
+//
+// Distinct from the RAGAS judge: scores the answer along
+// `safety.toxicity_safe`, `safety.pii_safe`,
+// `safety.factual_correctness`, `safety.harmfulness_safe`.
+// `1.0 = safest` for every axis so the dashboard's "higher is
+// better" colouring works without a per-axis flip. Independent
+// from the RAGAS axes — a case can carry both rubrics (the
+// `safety.*` prefix prevents UPSERT collisions on
+// `(case_id, name)`).
+// ---------------------------------------------------------------------------
+
+#[utoipa::path(
+    post,
+    path = "/api/evaluation/cases/{case_id}/judge_safety",
+    params(("case_id" = Uuid, Path, description = "Case id")),
+    responses(
+        (status = 200, description = "Safety judgement recorded", body = JudgeEvaluationCaseResponse),
+        (status = 400, description = "Case has no `actual` to judge",
+            body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Case not found",
+            body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+#[tracing::instrument(skip(state, principal))]
+pub(crate) async fn judge_safety_evaluation_case(
+    State(state): State<AppState>,
+    principal: Principal,
+    ws: WorkspaceContext,
+    Path(case_id): Path<Uuid>,
+) -> Result<Json<ApiResponse<JudgeEvaluationCaseResponse>>, AppError> {
+    principal.require_admin()?;
+
+    let case = state
+        .store
+        .get_evaluation_case(case_id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("EvaluationCase"))?;
+
+    let actual = case.actual.as_ref().ok_or_else(|| {
+        AppError::query_ir_invalid(
+            "case has no `actual` to judge — execute the case first".to_string(),
+        )
+    })?;
+
+    let parsed: ExecuteEvaluationCaseRequest = serde_json::from_value(case.input.clone())
+        .map_err(|e| {
+            AppError::query_ir_invalid(format!(
+                "case input does not match a known executable shape: {e}"
+            ))
+        })?;
+    // Retrieval cases skip the safety judge for the same reason
+    // they skip the RAGAS judge — there's no LLM-produced answer
+    // to score, just deterministic IR axes that landed at execute
+    // time.
+    if matches!(parsed, ExecuteEvaluationCaseRequest::RetrieveAnchors { .. }) {
+        return Err(AppError::query_ir_invalid(
+            "retrieve_anchors cases score deterministically at execute time \
+             and are not LLM-judgeable on the safety axes either"
+                .to_string(),
+        ));
+    }
+    let question = parsed.question().to_string();
+
+    let judgement = state
+        .brain
+        .judge_safety_evaluation_case(&question, actual)
+        .await
+        .map_err(AppError::from)?;
+
+    let mut metrics = Vec::with_capacity(4);
+    let now = chrono::Utc::now();
+    for (name, score, reasoning) in judgement.axes() {
+        let metric = EvaluationMetric {
+            id: Uuid::now_v7(),
+            case_id: case.id,
+            workspace_id: ws.workspace_id,
+            name: name.to_string(),
+            score,
+            reasoning: Some(reasoning.to_string()),
+            metadata: serde_json::json!({
+                "kind": "safety_judge",
+                "run_id": case.run_id,
+                "case_key": case.case_key,
+            }),
+            created_at: now,
+        };
+        let saved = state
+            .store
+            .upsert_evaluation_metric(&metric)
+            .await
+            .map_err(AppError::from)?;
+        metrics.push(saved);
+    }
+
+    Ok(ApiResponse::of(JudgeEvaluationCaseResponse { metrics }))
+}
+
 #[utoipa::path(
     get,
     path = "/api/evaluation/cases/{case_id}/metrics",
