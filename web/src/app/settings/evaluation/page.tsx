@@ -212,6 +212,7 @@ export default function EvaluationPage() {
               <tr>
                 <th className="px-4 py-2 text-start">{t("table.name")}</th>
                 <th className="px-4 py-2 text-start">{t("table.status")}</th>
+                <th className="px-4 py-2 text-start">{t("table.origin")}</th>
                 <th className="px-4 py-2 text-start">{t("table.startedAt")}</th>
                 <th className="px-4 py-2 text-start">{t("table.completedAt")}</th>
                 <th className="px-4 py-2 text-end">{t("table.actions")}</th>
@@ -240,6 +241,21 @@ export default function EvaluationPage() {
                       status={run.status}
                       label={t(`status.${run.status}`)}
                     />
+                  </td>
+                  <td className="px-4 py-2 text-2xs text-foreground-muted">
+                    {run.dataset_id ? (
+                      <Link
+                        href={`/settings/evaluation/datasets/${encodeURIComponent(run.dataset_id)}`}
+                        className="inline-flex items-center gap-1 rounded-full bg-info-surface px-2 py-0.5 text-info-foreground ring-1 ring-info-border hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {t("table.fromDataset")}
+                      </Link>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-surface-inset px-2 py-0.5 text-foreground-muted ring-1 ring-divider">
+                        {t("table.adHoc")}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-foreground-muted tabular-nums">
                     {formatTimestamp(run.started_at)}

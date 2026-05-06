@@ -2946,6 +2946,9 @@
       "table": {
         "name": "실행",
         "status": "상태",
+        "origin": "출처",
+        "fromDataset": "데이터셋 기반",
+        "adHoc": "단발성",
         "startedAt": "시작",
         "completedAt": "완료",
         "actions": "동작",

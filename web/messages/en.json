@@ -2946,6 +2946,9 @@
       "table": {
         "name": "Run",
         "status": "Status",
+        "origin": "Origin",
+        "fromDataset": "From dataset",
+        "adHoc": "Ad-hoc",
         "startedAt": "Started",
         "completedAt": "Completed",
         "actions": "Actions",
