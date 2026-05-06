@@ -3093,6 +3093,9 @@
         },
         "col": {
           "name": "Name",
+          "itemCount": "Items",
+          "itemCountValue": "{count, plural, one {# item} other {# items}}",
+          "itemCountEmpty": "Empty",
           "description": "Description",
           "id": "ID",
           "actions": "Actions"

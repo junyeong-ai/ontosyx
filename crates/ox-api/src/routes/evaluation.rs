@@ -24,8 +24,8 @@ use uuid::Uuid;
 
 use ox_store::evaluation::{
     scope_evaluation_context, EvaluationCase, EvaluationContext, EvaluationDataset,
-    EvaluationDatasetItem, EvaluationMetric, EvaluationRun, EvaluationRunStatus,
-    RunComparisonReport, RunSummary,
+    EvaluationDatasetItem, EvaluationDatasetSummary, EvaluationMetric, EvaluationRun,
+    EvaluationRunStatus, RunComparisonReport, RunSummary,
 };
 use ox_store::{CursorPage, CursorParams};
 
@@ -1421,7 +1421,7 @@ pub(crate) async fn list_evaluation_datasets(
     _principal: Principal,
     _ws: WorkspaceContext,
     Query(pagination): Query<CursorParams>,
-) -> Result<Json<ApiResponse<CursorPage<EvaluationDataset>>>, AppError> {
+) -> Result<Json<ApiResponse<CursorPage<EvaluationDatasetSummary>>>, AppError> {
     let page = state
         .store
         .list_evaluation_datasets(&pagination)

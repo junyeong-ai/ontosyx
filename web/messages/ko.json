@@ -3093,6 +3093,9 @@
         },
         "col": {
           "name": "이름",
+          "itemCount": "아이템",
+          "itemCountValue": "{count}개",
+          "itemCountEmpty": "비어 있음",
           "description": "설명",
           "id": "ID",
           "actions": "액션"

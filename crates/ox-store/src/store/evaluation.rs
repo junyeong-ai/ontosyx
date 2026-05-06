@@ -29,8 +29,8 @@ use uuid::Uuid;
 use ox_core::error::OxResult;
 
 use crate::evaluation::{
-    EvaluationCase, EvaluationDataset, EvaluationDatasetItem, EvaluationMetric, EvaluationRun,
-    EvaluationRunStatus, RunComparisonReport, RunSummary,
+    EvaluationCase, EvaluationDataset, EvaluationDatasetItem, EvaluationDatasetSummary,
+    EvaluationMetric, EvaluationRun, EvaluationRunStatus, RunComparisonReport, RunSummary,
 };
 
 use super::{CursorPage, CursorParams};
@@ -54,11 +54,16 @@ pub trait EvaluationStore: Send + Sync {
 
     /// List datasets visible to the active workspace, newest-
     /// created first. Cursor-paginated to match the rest of the
-    /// admin surface.
+    /// admin surface. Returns
+    /// [`EvaluationDatasetSummary`] (header + item_count) so
+    /// the FE renders the inline "12 items" pill without an
+    /// N+1 fetch. The canonical [`EvaluationDataset`] shape is
+    /// reachable via [`Self::get_evaluation_dataset`] when only
+    /// the header is needed.
     async fn list_evaluation_datasets(
         &self,
         pagination: &CursorParams,
-    ) -> OxResult<CursorPage<EvaluationDataset>>;
+    ) -> OxResult<CursorPage<EvaluationDatasetSummary>>;
 
     /// Cascade-delete a dataset + every item. Runs that referenced
     /// the dataset stay alive (`evaluation_runs.dataset_id` goes

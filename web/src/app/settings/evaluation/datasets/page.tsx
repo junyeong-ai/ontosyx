@@ -161,36 +161,51 @@ export default function EvaluationDatasetsPage() {
                 <thead>
                   <tr className="border-b border-divider text-start text-2xs font-medium uppercase tracking-wide text-foreground-muted">
                     <th className="px-3 py-2 text-start">{t("col.name")}</th>
+                    <th className="px-3 py-2 text-start">{t("col.itemCount")}</th>
                     <th className="px-3 py-2 text-start">{t("col.description")}</th>
                     <th className="px-3 py-2 text-start">{t("col.id")}</th>
                     <th className="px-3 py-2 text-end">{t("col.actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {datasets.map((d) => (
-                    <tr key={d.id} className="border-b border-divider last:border-b-0">
+                  {datasets.map((s) => (
+                    <tr
+                      key={s.dataset.id}
+                      className="border-b border-divider last:border-b-0"
+                    >
                       <td className="px-3 py-2 font-medium">
                         <Link
-                          href={`/settings/evaluation/datasets/${encodeURIComponent(d.id)}`}
+                          href={`/settings/evaluation/datasets/${encodeURIComponent(s.dataset.id)}`}
                           className="text-brand-foreground hover:underline"
                         >
-                          {d.name}
+                          {s.dataset.name}
                         </Link>
                       </td>
+                      <td className="px-3 py-2 text-2xs">
+                        {s.item_count > 0 ? (
+                          <span className="inline-flex items-center rounded-full bg-info-surface px-2 py-0.5 text-info-foreground ring-1 ring-info-border tabular-nums">
+                            {t("col.itemCountValue", { count: s.item_count })}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-surface-inset px-2 py-0.5 text-foreground-muted ring-1 ring-divider">
+                            {t("col.itemCountEmpty")}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-foreground-muted">
-                        {d.description || (
+                        {s.dataset.description || (
                           <span className="text-foreground-subtle">—</span>
                         )}
                       </td>
                       <td className="px-3 py-2 font-mono text-2xs text-foreground-muted">
-                        {d.id}
+                        {s.dataset.id}
                       </td>
                       <td className="px-3 py-2 text-end">
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => onDelete(d.id, d.name)}
+                          onClick={() => onDelete(s.dataset.id, s.dataset.name)}
                           disabled={remove.isPending}
                         >
                           {tCommon("delete")}

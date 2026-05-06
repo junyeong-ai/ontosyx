@@ -82,6 +82,21 @@ impl From<EvaluationDatasetRow> for EvaluationDataset {
     }
 }
 
+/// Row mirror for `evaluation_datasets` LEFT JOIN
+/// `evaluation_dataset_items`. The COUNT(*) lands as `bigint`
+/// in Postgres → `i64` in Rust; the conversion to the
+/// domain-level `u64` clamps negatives (impossible from
+/// COUNT but defensive).
+#[derive(sqlx::FromRow)]
+struct EvaluationDatasetWithCountRow {
+    id: Uuid,
+    workspace_id: Uuid,
+    name: String,
+    description: String,
+    created_at: chrono::DateTime<chrono::Utc>,
+    item_count: i64,
+}
+
 /// Row mirror for `evaluation_dataset_items`.
 #[derive(sqlx::FromRow)]
 struct EvaluationDatasetItemRow {
@@ -220,34 +235,57 @@ impl EvaluationStore for PostgresStore {
     async fn list_evaluation_datasets(
         &self,
         pagination: &CursorParams,
-    ) -> OxResult<CursorPage<EvaluationDataset>> {
+    ) -> OxResult<CursorPage<crate::evaluation::EvaluationDatasetSummary>> {
         super::require_workspace_context()?;
         let limit = pagination.effective_limit();
         let fetch_limit = limit + 1;
 
+        // Single round-trip: dataset header + LEFT JOIN
+        // COUNT(*) per dataset_id. The COUNT is grouped by
+        // every header column the SELECT projects, so the
+        // GROUP BY mirrors that — Postgres rejects an
+        // aggregate without grouping the non-aggregated
+        // columns. LEFT JOIN keeps datasets with zero items in
+        // the page (the COUNT collapses to 0 when no item
+        // rows match).
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
-            "SELECT id, workspace_id, name, description, created_at
-             FROM evaluation_datasets WHERE TRUE",
+            "SELECT d.id, d.workspace_id, d.name, d.description, d.created_at,
+                    COUNT(i.id)::bigint AS item_count
+             FROM evaluation_datasets d
+             LEFT JOIN evaluation_dataset_items i ON i.dataset_id = d.id
+             WHERE TRUE",
         );
         if let Some((cursor_ts, cursor_id)) = pagination.cursor_parts() {
-            qb.push(" AND (created_at, id) < (");
+            qb.push(" AND (d.created_at, d.id) < (");
             qb.push_bind(cursor_ts);
             qb.push(", ");
             qb.push_bind(cursor_id);
             qb.push(")");
         }
-        qb.push(" ORDER BY created_at DESC, id DESC LIMIT ");
+        qb.push(" GROUP BY d.id, d.workspace_id, d.name, d.description, d.created_at");
+        qb.push(" ORDER BY d.created_at DESC, d.id DESC LIMIT ");
         qb.push_bind(fetch_limit);
 
-        let rows: Vec<EvaluationDatasetRow> = qb
+        let rows: Vec<EvaluationDatasetWithCountRow> = qb
             .build_query_as()
             .fetch_all(&self.pool)
             .await
             .map_err(to_ox_error)?;
-        let items: Vec<EvaluationDataset> =
-            rows.into_iter().map(EvaluationDataset::from).collect();
-        Ok(super::build_cursor_page(items, limit, |d| {
-            (d.created_at, d.id)
+        let items: Vec<crate::evaluation::EvaluationDatasetSummary> = rows
+            .into_iter()
+            .map(|r| crate::evaluation::EvaluationDatasetSummary {
+                dataset: EvaluationDataset {
+                    id: r.id,
+                    workspace_id: r.workspace_id,
+                    name: r.name,
+                    description: r.description,
+                    created_at: r.created_at,
+                },
+                item_count: r.item_count.max(0) as u64,
+            })
+            .collect();
+        Ok(super::build_cursor_page(items, limit, |s| {
+            (s.dataset.created_at, s.dataset.id)
         }))
     }
 

@@ -324,6 +324,21 @@ pub struct RetrievalMetrics {
     pub ndcg_at_k: f64,
 }
 
+/// Dataset header + per-row aggregate. The list endpoint
+/// returns this shape rather than bare [`EvaluationDataset`] so
+/// the FE can surface "12 items" inline next to each row
+/// without an N+1 fetch. Headers stay separate from the
+/// aggregate; the canonical [`EvaluationDataset`] shape is
+/// unchanged for every other caller (get / upsert / delete).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EvaluationDatasetSummary {
+    pub dataset: EvaluationDataset,
+    /// Total `evaluation_dataset_items` rows under this
+    /// dataset. `0` for freshly-declared headers; the FE
+    /// renders a muted-tone "Empty" pill when zero.
+    pub item_count: u64,
+}
+
 /// One per-case axis-level diff between two runs over the same
 /// dataset. Carries both raw scores so the FE diff panel renders
 /// the comparison without re-fetching either side.

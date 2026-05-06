@@ -236,8 +236,18 @@ export interface EvaluationDataset {
   created_at: string;
 }
 
+/** Dataset header + per-row aggregate. The list endpoint
+ *  returns this shape so the FE renders inline item count
+ *  without an N+1 fetch. */
+export interface EvaluationDatasetSummary {
+  dataset: EvaluationDataset;
+  /** Total `evaluation_dataset_items` rows under this
+   *  dataset. `0` for freshly-declared headers. */
+  item_count: number;
+}
+
 export interface EvaluationDatasetListPage {
-  items: EvaluationDataset[];
+  items: EvaluationDatasetSummary[];
   next_cursor?: string;
 }
 
