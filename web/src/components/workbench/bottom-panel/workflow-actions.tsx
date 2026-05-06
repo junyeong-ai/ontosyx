@@ -265,13 +265,13 @@ export function WorkflowActions({
     // because there's no resource label worth typing in that case.
     const phrase = project.title?.trim() || "delete";
     const ok = await confirmDialog({
-      title: t("deleteProjectTitle"),
-      description: t("deleteProjectDescription"),
-      confirmLabel: t("deleteProjectConfirm"),
+      title: t("deleteDraftTitle"),
+      description: t("deleteDraftDescription"),
+      confirmLabel: t("deleteDraftConfirm"),
       variant: "danger",
       typeToConfirm: {
         phrase,
-        label: t("deleteProjectTypeLabel"),
+        label: t("deleteDraftTypeLabel"),
       },
     });
     if (!ok) return;
@@ -279,9 +279,9 @@ export function WorkflowActions({
     try {
       await deleteOntologyDraft(project.id);
       applyOntologyDraftSnapshot(null);
-      toast.success(t("projectDeleted"));
+      toast.success(t("draftDeleted"));
     } catch (err) {
-      if (await onApiError(err, t("deleteProjectFailed"))) return;
+      if (await onApiError(err, t("deleteDraftFailed"))) return;
     } finally {
       setLoading(false);
     }

@@ -42,7 +42,7 @@ const MOCK_RESOLVED = {
   requester_id: "u-2",
   requester_name: "Carol",
   action_type: "tool_run",
-  resource_type: "project",
+  resource_type: "ontology_draft",
   resource_id: "bbbbbbbb-1111-2222-3333-444444444444",
   status: "approved",
   reviewer_id: "u-admin",

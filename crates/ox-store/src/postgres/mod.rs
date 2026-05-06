@@ -87,8 +87,8 @@ tokio::task_local! {
 /// silently-skipped write looks like success to the caller.
 ///
 /// `kind` should describe the missing axis (`"workspace"` for the
-/// canonical case). Future axes (`"project"`, `"user"`) reuse the
-/// same `OxError::MissingContext` shape.
+/// canonical case). Future axes (`"ontology_draft"`, `"user"`)
+/// reuse the same `OxError::MissingContext` shape.
 pub fn require_workspace_context() -> OxResult<()> {
     if SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false) {
         return Ok(());

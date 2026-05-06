@@ -32,7 +32,7 @@
     "edit_operation_rejected": "An edit operation was rejected. {detail}",
     "ontology_not_committed": "Ontology '{lineage_id}' has no committed version yet. Save it first and retry.",
     "deploy_pending_approval": "Schema deployment is awaiting admin approval. Retry after the review completes.",
-    "ontology_draft_missing_source_schema": "The project has no source schema. {detail}",
+    "ontology_draft_missing_source_schema": "The ontology draft has no source schema. {detail}",
     "query_text_empty": "Type something to search.",
     "temporal_query_requires_ontology": "Temporal queries (`as_of`) need an ontology id so the server can resolve the lineage to walk back through.",
     "temporal_snapshot_missing": "No version was live at {as_of} for lineage '{lineage_id}'. The earliest committed version came after that timestamp, or the version was removed.",
@@ -63,12 +63,12 @@
     "reanalyze_no_modeled_tables": "No modeled tables. Promote at least one deferred table or use the regular reanalyze endpoint.",
     "source_type_mismatch": "This ontology draft was created with '{expected}' but reanalyze got '{got}'. Use the same source type.",
     "decision_invalid_schema_refs": "Some decisions reference schema elements that no longer exist. Re-check the analysis report.",
-    "ontology_draft_status_mismatch": "This action requires project status '{required}', but the project is currently '{actual}'. Refresh the page.",
+    "ontology_draft_status_mismatch": "This action requires draft status '{required}', but the draft is currently '{actual}'. Refresh the page.",
     "source_connection_failed": "Couldn't connect to the {source_type, select, postgresql {PostgreSQL} mysql {MySQL} mongodb {MongoDB} snowflake {Snowflake} bigquery {BigQuery} duckdb {DuckDB} other {{source_type}}} source. {detail}",
     "edit_queued_for_approval": "Automation policy gates this change. Open the approvals queue to request review.",
     "query_ir_invalid": "The query definition (query_ir) is malformed. {detail}",
     "cron_expression_invalid": "Couldn't parse cron expression '{value}'. (e.g. `0 9 * * MON`)",
-    "resource_not_owned": "{resource, select, session {That session belongs to another user.} project {That project belongs to another user.} dashboard {That dashboard belongs to another user.} other {That {resource} belongs to another user.}} You can only modify items you own.",
+    "resource_not_owned": "{resource, select, session {That session belongs to another user.} ontology_draft {That ontology draft belongs to another user.} dashboard {That dashboard belongs to another user.} other {That {resource} belongs to another user.}} You can only modify items you own.",
     "workspace_header_invalid": "{reason, select, missing {Specify a workspace. Call GET /workspaces to list available workspaces.} parse_failed {Couldn't read the X-Workspace-Id header.} not_uuid {X-Workspace-Id must be a valid UUID.} not_a_member {No workspace is accessible. Create one first.} other {The workspace header is invalid.}}",
     "analysis_baseline_required": "Extend / reduce analysis requires an existing baseline. Run a base analyze first.",
     "idempotency_streaming_unsupported": "Streaming endpoint ({path}) doesn't support Idempotency-Key. Drop the header and handle retries client-side.",
@@ -112,8 +112,8 @@
         "description": "You are not a member of this workspace. Ask an administrator for an invite."
       },
       "unauthorized_ontology_draft": {
-        "title": "Project access denied",
-        "description": "You do not have access to this project."
+        "title": "Ontology draft access denied",
+        "description": "You do not have access to this ontology draft."
       },
       "too_many_connections": {
         "title": "Too many concurrent sessions",
@@ -151,7 +151,7 @@
   },
   "errorBoundary": {
     "title": "Something went wrong",
-    "description": "Refresh the page or retry. If the problem keeps happening, re-run analysis on the project or open another one.",
+    "description": "Refresh the page or retry. If the problem keeps happening, re-run analysis on the draft or open another one.",
     "retry": "Retry"
   },
   "commandPalette": {
@@ -439,7 +439,7 @@
       },
       "staged": {
         "label": "Selected + acknowledge rest",
-        "hint": "Same cost as Selected, plus the unpicked tables get marked deferred so the project shows n / N progress and you can promote them later in one click."
+        "hint": "Same cost as Selected, plus the unpicked tables get marked deferred so the draft shows n / N progress and you can promote them later in one click."
       }
     },
     "selectionSummary": "{selected} of {total} tables selected",
@@ -566,15 +566,15 @@
         "rulesLabel": "Rule lines",
         "notSet": "Not set",
         "count": "{n}",
-        "nextStepHint": "Design agent will create the project, introspect the source, and propose ObjectMapping + LinkMapping entries. You confirm in the workbench."
+        "nextStepHint": "Design agent will create the draft, introspect the source, and propose ObjectMapping + LinkMapping entries. You confirm in the workbench."
       },
       "restart": "Start over",
       "toast": {
         "finished": "Pilot \"{name}\" ready — opening the design workbench",
-        "created": "Project \"{name}\" created — opening the design workbench",
+        "created": "Draft \"{name}\" created — opening the design workbench",
         "skippedCreate": "Source not connection-based — opening the design workbench; upload the file from there.",
-        "createFailed": "Project creation failed: {message}",
-        "createFailedUnknown": "Project creation failed (unknown error).",
+        "createFailed": "Draft creation failed: {message}",
+        "createFailedUnknown": "Draft creation failed (unknown error).",
         "glossarySeeded": "Glossary ontology seeded with {count} terms",
         "glossarySeedFailed": "Glossary seed failed: {message}",
         "glossarySeedFailedUnknown": "Glossary seed failed (unknown error)."
@@ -644,7 +644,7 @@
       "redo": "Redo",
       "changes": "{count, plural, one {# change} other {# changes}}",
       "unsaveable": "(unsaveable)",
-      "unsaveableHint": "No project — edits are local only. Open a project to enable saving.",
+      "unsaveableHint": "No draft — edits are local only. Open an ontology draft to enable saving.",
       "save": "Save to server",
       "saveTooltip": "Save to server (⌘S)"
     },
@@ -1014,15 +1014,15 @@
       "widgetCount": "{count, plural, one {# widget} other {# widgets}}"
     },
     "contextSelector": {
-      "newOntologyDraft": "New Project",
-      "noOntologyDrafts": "No projects",
-      "noOntologyDraft": "No project",
-      "guardSwitchOntologyDraft": "Switch Project",
-      "guardNewOntologyDraft": "New Project",
-      "guardForkOntologyDraft": "Fork Project",
+      "newOntologyDraft": "New draft",
+      "noOntologyDrafts": "No drafts",
+      "noOntologyDraft": "No draft",
+      "guardSwitchOntologyDraft": "Switch draft",
+      "guardNewOntologyDraft": "New draft",
+      "guardForkOntologyDraft": "Fork draft",
       "guardImportOntology": "Import Ontology",
-      "forkTitle": "Fork -- create new project from this ontology",
-      "forkAria": "Fork project",
+      "forkTitle": "Fork -- create new draft from this ontology",
+      "forkAria": "Fork draft",
       "forkedDescription": "From: {title}",
       "loadingOntology": "Loading ontology...",
       "noSavedOntology": "No saved ontology",
@@ -1036,13 +1036,13 @@
       "toast": {
         "forkFailed": "Fork failed",
         "unknownError": "Unknown error",
-        "loadOntologyDraftsFailed": "Failed to load projects",
-        "loadOntologyDraftFailed": "Failed to load project",
+        "loadOntologyDraftsFailed": "Failed to load drafts",
+        "loadOntologyDraftFailed": "Failed to load draft",
         "loadDashboardsFailed": "Failed to load dashboards",
         "loadOntologyFailed": "Failed to load ontology",
         "dashboardCreated": "Dashboard created",
         "dashboardCreateFailed": "Failed to create dashboard",
-        "forked": "Project forked"
+        "forked": "Draft forked"
       }
     },
     "modeActions": {
@@ -2354,7 +2354,7 @@
         "you": "you",
         "roleDescriptions": {
           "admin": "Full access to all features including system configuration and user management",
-          "designer": "Create and edit ontology designs, run queries, and manage projects",
+          "designer": "Create and edit ontology drafts, run queries, and govern releases",
           "viewer": "View ontologies, run chat queries, and browse query history"
         },
         "column": {
@@ -2555,7 +2555,7 @@
         "deleteAction": "Delete workspace",
         "deleted": "Workspace deleted",
         "deleteFailed": "Failed to delete workspace",
-        "deleteHint": "Removes every project, ontology, and audit record. Cannot be undone.",
+        "deleteHint": "Removes every draft, ontology, and audit record. Cannot be undone.",
         "deleteTitle": "Delete this workspace",
         "description": "Operations here are permanent and affect every member of this workspace.",
         "heading": "Danger zone"
@@ -2719,7 +2719,7 @@
           },
           "lifecycle": {
             "label": "Lifecycle",
-            "description": "WIP project archival and cleanup settings"
+            "description": "WIP draft archival and cleanup settings"
           }
         },
         "toast": {
@@ -2748,7 +2748,7 @@
         },
         "postgres": {
           "title": "PostgreSQL",
-          "description": "Application state database (projects, ontologies, query history)"
+          "description": "Application state database (drafts, ontologies, query history)"
         },
         "graph": {
           "title": "Graph Database",
@@ -3357,7 +3357,7 @@
       "draftsLabel": "Drafts",
       "untitledDraft": "(untitled draft)",
       "emptyTitle": "No drafts or commits yet",
-      "emptyDescription": "Create a draft from the Projects page — it will appear here once it's branched off a canonical version (or as a greenfield branch before the first commit).",
+      "emptyDescription": "Create a draft from the Ontology Drafts page — it will appear here once it's branched off a canonical version (or as a greenfield branch before the first commit).",
       "diffSummary": "{added} added · {removed} removed · {modified} modified",
       "diffNoChanges": "no diff vs canonical",
       "diffLabel": "Diff",
@@ -3609,7 +3609,7 @@
     "design": {
       "scope": {
         "summary": "Modeled {modeled} · Deferred {deferred}",
-        "tooltipTitle": "Project scope: {modeled} modeled, {deferred} deferred",
+        "tooltipTitle": "Draft scope: {modeled} modeled, {deferred} deferred",
         "includedLabel": "Modeled tables",
         "deferredLabel": "Deferred tables",
         "more": "+{n} more",
@@ -3633,7 +3633,7 @@
       "detail": {
         "backToCanvas": "Back to canvas",
         "validateCompleteness": "Validate completeness",
-        "noOntology": "No active ontology. Enter design mode and pick a project first.",
+        "noOntology": "No active ontology. Enter design mode and open a draft first.",
         "nodeNotFound": "No node type matched id `{id}`.",
         "definition": {
           "descriptionLabel": "Description",
@@ -3657,7 +3657,7 @@
         "mappings": {
           "emptyState": "This node type is not bound to a physical relation yet.",
           "createAction": "+ Create primary mapping",
-          "createBlockedNoSource": "Project has no source bound — can't create a mapping.",
+          "createBlockedNoSource": "Draft has no source bound — can't create a mapping.",
           "createdToast": "Mapping created",
           "deletedToast": "Mapping removed",
           "deleteTooltip": "Delete mapping",
@@ -3747,7 +3747,7 @@
         "removedToast": "Constraint removed"
       },
       "mappings": {
-        "createBlockedNoSource": "No data source on the project — connect one first.",
+        "createBlockedNoSource": "No data source on the draft — connect one first.",
         "createdToast": "Mapping created",
         "deletedToast": "Mapping deleted",
         "primaryLabel": "Primary mapping · {id}",
@@ -3804,7 +3804,7 @@
         "schemaHint": "Schema · click a node to expand"
       },
       "empty": {
-        "description": "Load a project to discover relationships across the graph.",
+        "description": "Open an ontology draft to discover relationships across the graph.",
         "switchToDesign": "Switch to Design",
         "title": "No data to explore"
       },
@@ -3846,7 +3846,7 @@
           "title": "No knowledge yet"
         },
         "footer": "Knowledge auto-saved during analysis",
-        "loadHint": "Load a project to see related knowledge"
+        "loadHint": "Open an ontology draft to see related knowledge"
       },
       "sessionBar": {
         "label": "Session",
@@ -4092,8 +4092,8 @@
         "readyHint": "Review the analysis in the Workflow panel below, then click <bold>Design Ontology</bold> to generate your knowledge graph schema.",
         "openWorkflow": "Open Workflow Panel",
         "startTitle": "Start Designing",
-        "startHint": "Create a project from a data source or import an existing ontology to begin designing your knowledge graph.",
-        "createOntologyDraft": "Create Project",
+        "startHint": "Create an ontology draft from a data source or import an existing ontology to begin designing your knowledge graph.",
+        "createOntologyDraft": "Create draft",
         "createOntologyDraftHint": "Database, CSV, JSON, or code repo",
         "or": "or",
         "importOntology": "Import Ontology",
@@ -4300,7 +4300,7 @@
         "enterFullscreen": "Fullscreen panel (⌘⇧\\)",
         "exitFullscreen": "Exit fullscreen (Esc)",
         "noQualityReport": "No quality report available",
-        "designFirst": "Design a project first."
+        "designFirst": "Open an ontology draft first."
       },
       "canonicalStatus": {
         "withVersion": "Current canonical version: v{version} — your next completed draft becomes the next canonical version.",
@@ -4369,7 +4369,7 @@
       },
       "createOntologyDraft": {
         "progress": {
-          "heading": "{count, plural, =0 {Creating project...} other {Creating — analysing {count} table(s) ({elapsed}s)}}",
+          "heading": "{count, plural, =0 {Creating draft...} other {Creating — analysing {count} table(s) ({elapsed}s)}}",
           "hintGeneric": "Schema analysis and column sampling are running on the backend. This usually completes within a few seconds.",
           "hintUsageBilled": "BigQuery / Snowflake analysis runs INFORMATION_SCHEMA queries and per-column sampling. Expect 5–30s depending on dataset size."
         },
@@ -4474,12 +4474,12 @@
         "selectTablesIntro": "Pick the tables to include in the analysis. On usage-billed backends (BigQuery, Snowflake) only the selected tables incur INFORMATION_SCHEMA and sampling queries.",
         "noTablesSelected": "Pick at least one table",
         "backToConnection": "← Back to connection",
-        "createButton": "Create Project",
+        "createButton": "Create draft",
         "creating": "Creating...",
-        "createSuccess": "Project created",
+        "createSuccess": "Draft created",
         "createSuccessDescription": "Status: {status} (rev {revision})",
         "toast": {
-          "createFailed": "Failed to create project",
+          "createFailed": "Failed to create draft",
           "unknownError": "Unknown error"
         }
       },
@@ -4563,10 +4563,10 @@
         "analysisReview": "Analysis Review",
         "unresolved": "{count} unresolved",
         "allResolved": "all resolved",
-        "phaseAria": "Project phase"
+        "phaseAria": "Draft phase"
       },
       "workflowActions": {
-        "untitledOntologyDraft": "Untitled Project",
+        "untitledOntologyDraft": "Untitled draft",
         "designGatesUnmetTitle": "Design action is gated",
         "designGatesUnmetDescription": "{count} prerequisite(s) not met — see the checklist on the right",
         "revMeta": "{source} · rev {revision}",
@@ -4583,26 +4583,26 @@
         "redesign": "Redesign from Source",
         "reanalyzeSource": "Reanalyze Source",
         "advanced": "Advanced",
-        "finalize": "Finalize Project",
+        "finalize": "Finalize draft",
         "ontologyNamePlaceholder": "Ontology name",
         "deployOnComplete": "Deploy schema to Neo4j on complete",
         "complete": "Complete & Save",
         "completeDesignedDescription": "{nodeCount} nodes, {edgeCount} edges",
         "ontologyDesigned": "Ontology designed",
         "designFailed": "Design failed",
-        "completeWithDeploy": "Project completed — ontology saved and schema deployed",
-        "deployFailedPartial": "Project completed but schema deploy failed: {error}",
-        "completeSuccess": "Project completed and ontology saved",
+        "completeWithDeploy": "Draft completed — ontology saved and schema deployed",
+        "deployFailedPartial": "Draft completed but schema deploy failed: {error}",
+        "completeSuccess": "Draft completed and ontology saved",
         "qualityGateWarningTitle": "Quality Gate Warning",
-        "qualityGateWarningDescription": "{message}\n\nComplete the project anyway?",
+        "qualityGateWarningDescription": "{message}\n\nComplete the draft anyway?",
         "qualityGateConfirmLabel": "Complete Anyway",
         "completeFailed": "Complete failed",
-        "completeNameRequired": "Name is required to complete the project",
-        "deleteProjectTitle": "Delete Project",
-        "deleteProjectDescription": "Delete this design project? This action is permanent and cannot be undone.",
-        "deleteProjectConfirm": "Delete",
-        "projectDeleted": "Project deleted",
-        "deleteProjectFailed": "Failed to delete project",
+        "completeNameRequired": "Name is required to complete the draft",
+        "deleteDraftTitle": "Delete draft",
+        "deleteDraftDescription": "Delete this design draft? This action is permanent and cannot be undone.",
+        "deleteDraftConfirm": "Delete",
+        "draftDeleted": "Draft deleted",
+        "deleteDraftFailed": "Failed to delete draft",
         "reanalyzeFailed": "Reanalyze failed",
         "reanalyzed": "Source reanalyzed",
         "reanalyzedDescription": "{count} decisions invalidated",
@@ -4615,11 +4615,11 @@
         "bigqueryExtendUnsupported": "BigQuery extend is not supported in this form",
         "extendFailed": "Extend failed",
         "extendSuccess": "Source added — review column clarifications for new tables",
-        "conflictTitle": "Conflict: project was modified elsewhere",
+        "conflictTitle": "Conflict: draft was modified elsewhere",
         "conflictDescription": "Reloading latest version.",
         "savedHeader": "Ontology Saved",
-        "savedDescription": "Ontology is finalized and saved. Use Analyze mode to query, or Fork from the project selector to create a new version.",
-        "completedDescription": "Project is completed.",
+        "savedDescription": "Ontology is finalized and saved. Use Analyze mode to query, or Fork from the draft selector to create a new version.",
+        "completedDescription": "Draft is completed.",
         "schemaDeployment": "Schema Deployment",
         "ddlStatements": "{count} DDL statement{plural} to execute:",
         "ddlStatementsPlural": "s",
@@ -4669,7 +4669,7 @@
           "designGatesUnmetTitle": "Design gates unmet",
           "designGatesUnmetDescription": "{count, plural, one {# design gate} other {# design gates}} need attention before designing."
         },
-        "deleteProjectTypeLabel": "Type the project name to confirm"
+        "deleteDraftTypeLabel": "Type the draft name to confirm"
       },
       "workflowForms": {
         "reanalyze": "Reanalyze",
