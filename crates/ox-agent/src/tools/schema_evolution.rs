@@ -109,7 +109,7 @@ impl SchemaTool for SchemaEvolutionTool {
             Some(s) => s,
             None => {
                 return ToolResult::error(
-                    "No source schema available. Load a project with a data source first.",
+                    "No source schema available. Open an ontology draft with a connected data source first.",
                 );
             }
         };
@@ -199,10 +199,10 @@ fn detect_drift(schema: &SourceSchema, ontology: &ox_ontology::ir::OntologyIR) -
     let source_tables: std::collections::HashSet<String> =
         schema.tables.iter().map(|t| t.name.clone()).collect();
 
-    // Extract ontology node labels and their source-table bindings via source_lineage.
-    // NodeTypeDef no longer carries a flat `source_table` field; the authoritative
-    // source binding lives on `SourceLineage` (or on `OntologyIR.object_mappings`
-    // at the project level).
+    // Extract ontology node labels and their source-table bindings via
+    // source_lineage. The authoritative source binding lives on
+    // `SourceLineage` (or on `OntologyIR.object_mappings` at the
+    // ontology level).
     let ontology_nodes: std::collections::HashMap<String, Option<String>> = ontology
         .node_types()
         .iter()

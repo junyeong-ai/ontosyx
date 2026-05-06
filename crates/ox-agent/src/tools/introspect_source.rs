@@ -46,7 +46,7 @@ impl SchemaTool for IntrospectSourceTool {
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let schema = match &self.domain.source_schema {
             Some(s) => s,
-            None => return ToolResult::error("No source schema available for this project"),
+            None => return ToolResult::error("No source schema available — connect a data source first"),
         };
 
         match input.action {

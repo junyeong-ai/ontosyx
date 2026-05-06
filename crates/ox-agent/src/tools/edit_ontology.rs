@@ -44,7 +44,7 @@ impl SchemaTool for EditOntologyTool {
             Some(o) => o,
             None => {
                 return ToolResult::error(
-                    "No ontology loaded. Create a project from a data source first.",
+                    "No ontology loaded. Create an ontology draft from a data source first.",
                 );
             }
         };

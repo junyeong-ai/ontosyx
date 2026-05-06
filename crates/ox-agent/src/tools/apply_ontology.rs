@@ -30,7 +30,7 @@ pub struct ApplyOntologyTool {
 impl SchemaTool for ApplyOntologyTool {
     type Input = ApplyOntologyInput;
     const NAME: &'static str = super::APPLY_ONTOLOGY;
-    const DESCRIPTION: &'static str = "Apply ontology edits directly to the current project (not a preview). \
+    const DESCRIPTION: &'static str = "Apply ontology edits directly to the current ontology draft (not a preview). \
          Creates a new revision; requires designer role.";
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
@@ -42,13 +42,13 @@ impl SchemaTool for ApplyOntologyTool {
             Some(id) => id,
             None => {
                 return ToolResult::error(
-                    "No project context — save the ontology to a project first",
+                    "No ontology draft context — save the ontology to a draft first",
                 );
             }
         };
         let revision = match self.domain.ontology_draft_revision {
             Some(r) => r,
-            None => return ToolResult::error("No project revision"),
+            None => return ToolResult::error("No ontology draft revision"),
         };
 
         // Generate edit commands via Brain
@@ -100,7 +100,7 @@ impl SchemaTool for ApplyOntologyTool {
             ));
         }
 
-        // Save to project store
+        // Persist into the ontology draft store
         let ontology_json = match serde_json::to_value(&updated) {
             Ok(v) => v,
             Err(e) => return ToolResult::error(format!("Failed to serialize ontology: {e}")),

@@ -66,11 +66,12 @@ pub struct DomainContext {
     pub ontology_id: Option<uuid::Uuid>,
     pub ontology_draft_id: Option<uuid::Uuid>,
     pub ontology_draft_revision: Option<i32>,
-    /// Source schema for introspection (available when project has been analyzed).
+    /// Source schema for introspection (available once the source has been analysed).
     pub source_schema: Option<ox_core::source_schema::SourceSchema>,
     /// Source profile (column statistics) for introspection.
     pub source_profile: Option<ox_core::source_schema::SourceProfile>,
-    /// Repo analysis summary (framework, domain notes, field hints) from project creation.
+    /// Repo analysis summary (framework, domain notes, field hints) from
+    /// the initial source analysis.
     pub repo_insights: Option<ox_ontology::repo_insights::RepoInsights>,
     /// Knowledge store for failure-driven learning corrections.
     pub knowledge_store: Option<Arc<dyn ox_store::KnowledgeStore>>,
@@ -204,7 +205,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
                 brain: Arc::clone(brain),
             });
 
-        // Apply ontology tool requires a project context to save changes
+        // Apply ontology tool requires an ontology-draft context to save changes
         if domain.ontology_draft_id.is_some() && domain.ontology.is_some() {
             builder = builder.tool(ApplyOntologyTool {
                 domain: Arc::clone(domain),

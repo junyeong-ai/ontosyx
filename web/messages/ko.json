@@ -3574,7 +3574,7 @@
         "rules": "규칙"
       }
     },
-    "projects": {
+    "ontologyDrafts": {
       "hub": {
         "heading": "초안",
         "subheading": "{count, plural, =0 {아직 초안 없음} other {초안 #개}}",
@@ -3596,12 +3596,12 @@
         },
         "empty": {
           "heading": "조건에 맞는 초안 없음",
-          "subheading": "필터를 해제하거나 새 초안를 시작하세요.",
+          "subheading": "필터를 해제하거나 새 초안을 시작하세요.",
           "cta": "초안 시작"
         },
         "filteredEmpty": {
           "clearFilters": "필터 지우기",
-          "heading": "일치하는 초안가 없어요",
+          "heading": "일치하는 초안이 없어요",
           "subheading": "다른 검색어를 시도하거나 필터를 지워보세요."
         }
       }
@@ -4349,7 +4349,7 @@
         "confidenceMedium": "보통",
         "confidenceHigh": "높음"
       },
-      "recentProjects": {
+      "recentOntologyDrafts": {
         "ariaLabel": "최근 초안",
         "heading": "최근 초안",
         "loading": "최근 초안 불러오는 중…",

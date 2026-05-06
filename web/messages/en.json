@@ -3574,16 +3574,16 @@
         "rules": "Rules"
       }
     },
-    "projects": {
+    "ontologyDrafts": {
       "hub": {
-        "heading": "Projects",
-        "subheading": "{count, plural, =0 {No projects yet} one {# project} other {# projects}}",
-        "createButton": "New project",
-        "searchLabel": "Search projects",
+        "heading": "Ontology drafts",
+        "subheading": "{count, plural, =0 {No drafts yet} one {# draft} other {# drafts}}",
+        "createButton": "New draft",
+        "searchLabel": "Search drafts",
         "searchPlaceholder": "Search by title…",
         "statusFilterLabel": "Filter by status",
-        "loading": "Loading projects…",
-        "untitled": "Untitled project",
+        "loading": "Loading drafts…",
+        "untitled": "Untitled draft",
         "cardMeta": "{source} · {updated}",
         "relativeJustNow": "just now",
         "relativeMinutes": "{count, plural, one {# minute ago} other {# minutes ago}}",
@@ -3595,13 +3595,13 @@
           "completed": "Completed"
         },
         "empty": {
-          "heading": "No projects match this filter",
-          "subheading": "Clear the filters to see every project, or start a new one.",
-          "cta": "Start a project"
+          "heading": "No drafts match this filter",
+          "subheading": "Clear the filters to see every draft, or start a new one.",
+          "cta": "Start a draft"
         },
         "filteredEmpty": {
           "clearFilters": "Clear filters",
-          "heading": "No projects match",
+          "heading": "No drafts match",
           "subheading": "Try a different search term or clear the filters."
         }
       }
@@ -4349,7 +4349,7 @@
         "confidenceMedium": "MEDIUM",
         "confidenceHigh": "HIGH"
       },
-      "recentProjects": {
+      "recentOntologyDrafts": {
         "ariaLabel": "Recent drafts",
         "heading": "Recent drafts",
         "loading": "Loading recent drafts…",

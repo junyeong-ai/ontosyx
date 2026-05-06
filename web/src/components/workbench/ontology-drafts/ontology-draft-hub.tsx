@@ -29,27 +29,27 @@ import { DynamicIcon } from "@/components/ui/dynamic-icon";
  * Three surfaces:
  *
  * - **Search**: free-text match against `title` (case-insensitive,
- *   substring). Falls back to "Untitled" so projects without a
- *   title stay reachable via the empty-search default order.
+ *   substring). Falls back to "Untitled" so drafts without a title
+ *   stay reachable via the empty-search default order.
  * - **Status filter**: `analyzed` / `designed` / `completed` chips
  *   that toggle a multi-select. Default is "all", reading the
  *   filter chips as muted; an active selection saturates them.
  * - **Card click**: hydrates the full `OntologyDraft` and pushes
- *   it through `applyOntologyDraftSnapshot` (the canonical project-mode
- *   entry point), then routes to `/design`. The transition keeps
- *   the active-project / ontology-cache invariant intact — same
- *   contract the recent-list `onResume` uses.
+ *   it through `applyOntologyDraftSnapshot` (the canonical
+ *   draft-mode entry point), then routes to `/design`. The
+ *   transition keeps the active-draft / ontology-cache invariant
+ *   intact — same contract the recent-list `onResume` uses.
  *
- * The compact `<RecentProjects />` list inside `/design` continues
- * to serve "resume the project I just left." This page answers
- * "browse / pick across the whole workspace."
+ * The compact `<RecentOntologyDrafts />` list inside `/design`
+ * continues to serve "resume the draft I just left." This page
+ * answers "browse / pick across the whole workspace."
  */
 export function OntologyDraftHub() {
-  const t = useTranslations("workbench.projects.hub");
+  const t = useTranslations("workbench.ontologyDrafts.hub");
   const tCommon = useTranslations("common");
   const router = useRouter();
-  const projectsQuery = useOntologyDrafts({ limit: 100 });
-  const { data, isLoading, isError, refetch } = projectsQuery;
+  const draftsQuery = useOntologyDrafts({ limit: 100 });
+  const { data, isLoading, isError, refetch } = draftsQuery;
   const applyOntologyDraftSnapshot = useAppStore((s) => s.applyOntologyDraftSnapshot);
 
   const [search, setSearch] = useState("");
@@ -71,15 +71,15 @@ export function OntologyDraftHub() {
   }, [items, search, statusFilter]);
 
   const onOpen = async (id: string) => {
-    const project = await getOntologyDraft(id);
-    applyOntologyDraftSnapshot(project);
+    const draft = await getOntologyDraft(id);
+    applyOntologyDraftSnapshot(draft);
     router.push("/design");
   };
 
   const onCreate = () => {
     // Push to /design — the design panel renders the create form
-    // when no active project is set, which is exactly the entry
-    // experience the hub's "new project" affordance should land on.
+    // when no active draft is set, which is exactly the entry
+    // experience the hub's "new draft" affordance should land on.
     router.push("/design");
   };
 
@@ -192,11 +192,11 @@ export function OntologyDraftHub() {
           }}
         >
           <div className="stagger-fade-in grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((p) => (
-              <ProjectCard
-                key={p.id}
-                project={p}
-                onOpen={() => void onOpen(p.id)}
+            {filtered.map((d) => (
+              <DraftCard
+                key={d.id}
+                draft={d}
+                onOpen={() => void onOpen(d.id)}
               />
             ))}
           </div>
@@ -206,14 +206,14 @@ export function OntologyDraftHub() {
   );
 }
 
-function ProjectCard({
-  project,
+function DraftCard({
+  draft,
   onOpen,
 }: {
-  project: OntologyDraftSummary;
+  draft: OntologyDraftSummary;
   onOpen: () => void;
 }) {
-  const t = useTranslations("workbench.projects.hub");
+  const t = useTranslations("workbench.ontologyDrafts.hub");
   return (
     <Card
       variant="raised"
@@ -222,19 +222,19 @@ function ProjectCard({
       className="flex flex-col items-stretch text-start"
     >
       <div className="flex items-center gap-2">
-        <StatusIcon status={project.status as OntologyDraftStatus} />
+        <StatusIcon status={draft.status as OntologyDraftStatus} />
         <span className="truncate text-sm font-semibold text-foreground-strong">
-          {project.title ?? t("untitled")}
+          {draft.title ?? t("untitled")}
         </span>
       </div>
       <p className="mt-3 truncate text-2xs text-foreground-muted">
         {t("cardMeta", {
-          source: stringifySource(project.source_config),
-          updated: relativeTime(project.updated_at, t),
+          source: stringifySource(draft.source_config),
+          updated: relativeTime(draft.updated_at, t),
         })}
       </p>
       <span className="mt-2 inline-flex w-fit items-center rounded-full bg-surface-inset px-2 py-0.5 text-2xs font-medium uppercase tracking-wide text-foreground-muted">
-        {t(`status.${project.status as OntologyDraftStatus}`)}
+        {t(`status.${draft.status as OntologyDraftStatus}`)}
       </span>
     </Card>
   );
@@ -262,7 +262,7 @@ function stringifySource(source_config: unknown): string {
 
 function relativeTime(
   iso: string,
-  t: ReturnType<typeof useTranslations<"workbench.projects.hub">>,
+  t: ReturnType<typeof useTranslations<"workbench.ontologyDrafts.hub">>,
 ): string {
   const target = new Date(iso).getTime();
   if (Number.isNaN(target)) return iso;

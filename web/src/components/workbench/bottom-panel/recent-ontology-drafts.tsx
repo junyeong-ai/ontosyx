@@ -17,24 +17,23 @@ import type {
 } from "@/types/api";
 
 /**
- * Compact "resume work" list rendered below the create-project form.
+ * Compact "resume work" list rendered below the create-draft form.
  *
- * Pulls the most recent projects (up to `MAX_DISPLAY`) so a returning
- * operator can pick a project up where they left off rather than
- * scrolling through a separate listing page. Hidden entirely when the
- * list is empty (first-time users see only the create form), so the
- * empty state of the workspace stays focused on "create your first
- * project."
+ * Pulls the most recent drafts (up to `MAX_DISPLAY`) so a returning
+ * operator can pick one up where they left off rather than scrolling
+ * through a separate listing page. Hidden entirely when the list is
+ * empty (first-time users see only the create form), so the empty
+ * state of the workspace stays focused on "create your first draft."
  *
  * Click → fetches the full `OntologyDraft` and pushes it into the
- * Zustand store (active project + ontology), which causes
- * `DesignPanel` to swap its view from the create form to the
- * project workflow without a page navigation.
+ * Zustand store (active draft + ontology), which causes `DesignPanel`
+ * to swap its view from the create form to the draft workflow
+ * without a page navigation.
  */
 const MAX_DISPLAY = 5;
 
-export function RecentProjects() {
-  const t = useTranslations("workbench.bottomPanel.recentProjects");
+export function RecentOntologyDrafts() {
+  const t = useTranslations("workbench.bottomPanel.recentOntologyDrafts");
   const { data, isLoading } = useOntologyDrafts({ limit: MAX_DISPLAY });
   const applyOntologyDraftSnapshot = useAppStore((s) => s.applyOntologyDraftSnapshot);
 
@@ -51,8 +50,8 @@ export function RecentProjects() {
   }
 
   const onResume = async (id: string) => {
-    const project = await getOntologyDraft(id);
-    applyOntologyDraftSnapshot(project);
+    const draft = await getOntologyDraft(id);
+    applyOntologyDraftSnapshot(draft);
   };
 
   return (
@@ -71,22 +70,22 @@ export function RecentProjects() {
         </span>
       </Card.Header>
       <ul className="divide-y divide-divider">
-        {items.map((p) => (
-          <li key={p.id}>
+        {items.map((d) => (
+          <li key={d.id}>
             <button
               type="button"
-              onClick={() => void onResume(p.id)}
+              onClick={() => void onResume(d.id)}
               className="group flex w-full items-center gap-3 px-3 py-2 text-start transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset"
             >
-              <OntologyDraftStatusIcon status={p.status} />
+              <OntologyDraftStatusIcon status={d.status} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-foreground-strong">
-                  {p.title ?? t("untitled")}
+                  {d.title ?? t("untitled")}
                 </p>
                 <p className="mt-0.5 truncate text-2xs text-foreground-muted">
                   {t("meta", {
-                    source: p.source_config.source_type,
-                    updated: relativeTime(p.updated_at, t),
+                    source: d.source_config.source_type,
+                    updated: relativeTime(d.updated_at, t),
                   })}
                 </p>
               </div>
@@ -98,7 +97,7 @@ export function RecentProjects() {
       {/* Link out to the full Ontology Draft Hub for browsing beyond
           the compact 5-row "resume" list. */}
       <Link
-        href="/projects"
+        href="/ontology-drafts"
         className="flex items-center justify-center gap-1 border-t border-divider px-3 py-2 text-2xs font-medium text-brand-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-brand-surface"
       >
         {t("viewAll")}
@@ -115,7 +114,7 @@ const STATUS_VISUAL: Record<OntologyDraftStatus, { icon: typeof TrendingUp; tone
 };
 
 function OntologyDraftStatusIcon({ status }: { status: OntologyDraftStatus }) {
-  const t = useTranslations("workbench.bottomPanel.recentProjects.status");
+  const t = useTranslations("workbench.bottomPanel.recentOntologyDrafts.status");
   const { icon, tone } = STATUS_VISUAL[status];
   const toneClass =
     tone === "warning" ? "bg-warning-surface text-warning-foreground"
@@ -139,7 +138,7 @@ function OntologyDraftStatusIcon({ status }: { status: OntologyDraftStatus }) {
  */
 function relativeTime(
   iso: string,
-  t: ReturnType<typeof useTranslations<"workbench.bottomPanel.recentProjects">>,
+  t: ReturnType<typeof useTranslations<"workbench.bottomPanel.recentOntologyDrafts">>,
 ): string {
   const target = new Date(iso).getTime();
   if (Number.isNaN(target)) return iso;
@@ -153,7 +152,7 @@ function relativeTime(
   return t("relativeDays", { count: days });
 }
 
-/** A `<OntologyDraftSummary>` with at least the fields RecentProjects reads. */
+/** A `<OntologyDraftSummary>` with at least the fields the recent list reads. */
 export type RecentOntologyDraftSummary = Pick<
   OntologyDraftSummary,
   "id" | "status" | "title" | "source_config" | "updated_at"

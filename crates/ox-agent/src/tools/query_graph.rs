@@ -111,7 +111,7 @@ impl SchemaTool for QueryGraphTool {
             Some(o) => o,
             None => {
                 return ToolResult::error(
-                    "No ontology loaded. Create a project from a data source first, \
+                    "No ontology loaded. Create an ontology draft from a data source first, \
                      or use introspect_source to connect to a database.",
                 );
             }
@@ -121,7 +121,7 @@ impl SchemaTool for QueryGraphTool {
             Some(r) => r,
             None => {
                 return ToolResult::error(
-                    "Graph database not connected. The project needs a deployed schema \
+                    "Graph database not connected. The workspace needs a deployed schema \
                      with loaded data before queries can execute.",
                 );
             }

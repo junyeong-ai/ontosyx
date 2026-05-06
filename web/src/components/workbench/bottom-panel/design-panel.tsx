@@ -6,7 +6,7 @@ import { CanonicalStatusBanner } from "./canonical-status-banner";
 import { CreateOntologyDraftForm } from "./create-ontology-draft-form";
 import { PhaseStepper } from "./phase-stepper";
 import { OntologyDraftWorkflow } from "./ontology-draft-workflow";
-import { RecentProjects } from "./recent-ontology-drafts";
+import { RecentOntologyDrafts } from "./recent-ontology-drafts";
 
 // ---------------------------------------------------------------------------
 // Design Panel — project-based ontology design lifecycle (orchestrator)
@@ -35,7 +35,7 @@ export function DesignPanel() {
             guardBeforeCreate={guardPendingEdits}
             onCreated={(p) => applyOntologyDraftSnapshot(p)}
           />
-          <RecentProjects />
+          <RecentOntologyDrafts />
         </div>
       </div>
     );
