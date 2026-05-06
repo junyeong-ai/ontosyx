@@ -1008,11 +1008,18 @@ async fn insert_search_vectors(
     use ox_ontology::storage::EntityKind;
     let mut kinds: Vec<String> = Vec::new();
     let mut lids: Vec<String> = Vec::new();
+    let mut labels: Vec<String> = Vec::new();
     let mut docs: Vec<String> = Vec::new();
 
-    let mut emit = |kind: EntityKind, lid: &str, doc: String| {
+    // The label column is the *canonical* short name — what the
+    // operator types when they want this entity. Distinct from
+    // `doc` which carries label + aliases + description for
+    // recall. Stored in its own column so the retrieval blend can
+    // weight label-match independently of description-match.
+    let mut emit = |kind: EntityKind, lid: &str, label: String, doc: String| {
         kinds.push(kind.as_str().to_string());
         lids.push(lid.to_string());
+        labels.push(label);
         docs.push(doc);
     };
 
@@ -1035,6 +1042,7 @@ async fn insert_search_vectors(
     emit(
         EntityKind::OntologyHeader,
         &ir.id,
+        ir.name.clone(),
         format!("{} {}", ir.name, localized_flat(&ir.description)),
     );
 
@@ -1042,6 +1050,7 @@ async fn insert_search_vectors(
         emit(
             EntityKind::NodeType,
             nt.id.as_str(),
+            nt.label.as_str().to_string(),
             format!(
                 "{} {}",
                 nt.label.as_str(),
@@ -1058,6 +1067,7 @@ async fn insert_search_vectors(
             emit(
                 EntityKind::Property,
                 prop.id.as_str(),
+                prop.name.as_str().to_string(),
                 format!(
                     "{} {} {} {}",
                     prop.name.as_str(),
@@ -1072,6 +1082,7 @@ async fn insert_search_vectors(
         emit(
             EntityKind::EdgeType,
             et.id.as_str(),
+            et.label.as_str().to_string(),
             format!(
                 "{} {}",
                 et.label.as_str(),
@@ -1083,6 +1094,7 @@ async fn insert_search_vectors(
         emit(
             EntityKind::CodeSystem,
             cs.id.as_str(),
+            cs.name.clone(),
             format!(
                 "{} {} {}",
                 cs.name,
@@ -1095,6 +1107,7 @@ async fn insert_search_vectors(
             emit(
                 EntityKind::CodedValue,
                 cv.id.as_str(),
+                cv.code.clone(),
                 format!(
                     "{} {} {} {} {}",
                     cv.code,
@@ -1110,6 +1123,7 @@ async fn insert_search_vectors(
         emit(
             EntityKind::ValueSet,
             vs.id.as_str(),
+            vs.name.clone(),
             format!(
                 "{} {} {}",
                 vs.name,
@@ -1122,6 +1136,7 @@ async fn insert_search_vectors(
         emit(
             EntityKind::NotationPattern,
             np.id.as_str(),
+            np.name.clone(),
             format!(
                 "{} {} {}",
                 np.name,
@@ -1137,9 +1152,17 @@ async fn insert_search_vectors(
             .map(localized_flat)
             .collect::<Vec<_>>()
             .join(" ");
+        // The glossary term's `term` field is the canonical
+        // short form — the operator-facing label. `display_name`
+        // is a longer human-readable variant; `description` is
+        // the prose definition. Picking `term` for the label
+        // column keeps the label-match boost firing on the
+        // semantic anchor an operator would type.
+        let term_label = localized_flat(&term.term);
         emit(
             EntityKind::GlossaryTerm,
             term.id.as_str(),
+            term_label,
             format!(
                 "{} {} {} {}",
                 localized_flat(&term.term),
@@ -1156,13 +1179,14 @@ async fn insert_search_vectors(
 
     sqlx::query(
         "INSERT INTO ontology_entity_search_vector \
-            (version_id, entity_kind, logical_id, doc, tsv) \
-         SELECT $1, k::ontology_entity_kind, l, d, to_tsvector('simple', d) \
-         FROM UNNEST($2::text[], $3::text[], $4::text[]) AS s(k, l, d)",
+            (version_id, entity_kind, logical_id, label, doc, tsv) \
+         SELECT $1, k::ontology_entity_kind, l, lab, d, to_tsvector('simple', d) \
+         FROM UNNEST($2::text[], $3::text[], $4::text[], $5::text[]) AS s(k, l, lab, d)",
     )
     .bind(version_id)
     .bind(&kinds)
     .bind(&lids)
+    .bind(&labels)
     .bind(&docs)
     .execute(&mut **tx)
     .await

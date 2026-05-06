@@ -200,15 +200,12 @@ fn golden_cases() -> &'static [GoldenCase] {
     // canonical id (NodeTypeDef.id / EdgeTypeDef.id /
     // GlossaryTermId), not the human-facing label.
     //
-    // Floors are calibrated from observed blend behaviour with a
-    // ~25% downward buffer so the gate fires on regression, not on
-    // ambient blend wobble. The current Level-3 blend (default
-    // 0.5/0.3/0.2 trigram/full-text/embedding weights) trades short-
-    // query precision for description-match recall — the
-    // glossary-term description containing "customer" can outrank
-    // the literal Customer node on a one-word query. T3's
-    // retrieval-quality work is the right place to tighten the
-    // blend; this gate just pins the floor against further drift.
+    // Floors calibrated against the label-boosted blend (migration
+    // 0012 adds a `label` column; the SQL adds
+    // `similarity(label, query)` to the score). Single-word
+    // queries that match a label exactly should now rank the
+    // structural row first — `mrr = 1.0` is the gate's expected
+    // floor for the unambiguous cases.
     &[
         GoldenCase {
             name: "node_type_label_match",
@@ -217,8 +214,12 @@ fn golden_cases() -> &'static [GoldenCase] {
             top_k: 5,
             min_precision: 0.15,
             min_recall: 1.0,
-            min_mrr: 0.15,
-            min_ndcg: 0.25,
+            // Label-boost guarantees the literal `Customer` node
+            // outranks any glossary term that mentions "customer"
+            // in its description. MRR == 1.0 = expected_id at
+            // rank 1.
+            min_mrr: 1.0,
+            min_ndcg: 0.95,
         },
         GoldenCase {
             name: "node_type_partial_match",
@@ -232,17 +233,19 @@ fn golden_cases() -> &'static [GoldenCase] {
         },
         GoldenCase {
             // Short multi-word queries stress the trigram weight.
-            // The current blend surfaces one of the two anchors;
-            // the gate pins both axes against the second dropping
-            // out entirely. T3 retrieval-quality work raises this.
+            // Label-boost helps both expected anchors but the
+            // ranking between them depends on alphabetic /
+            // similarity tie-breaks — keep the recall floor
+            // strict (both anchors must land in top-K) and don't
+            // over-constrain MRR.
             name: "glossary_term_match",
             question: "vip premium",
             expected_ids: &["glossary_term:gt_vip", "glossary_term:gt_premium"],
             top_k: 5,
-            min_precision: 0.15,
-            min_recall: 0.40,
-            min_mrr: 0.30,
-            min_ndcg: 0.30,
+            min_precision: 0.30,
+            min_recall: 0.90,
+            min_mrr: 0.50,
+            min_ndcg: 0.60,
         },
         GoldenCase {
             name: "edge_type_relationship",
@@ -251,8 +254,8 @@ fn golden_cases() -> &'static [GoldenCase] {
             top_k: 5,
             min_precision: 0.20,
             min_recall: 1.0,
-            min_mrr: 0.50,
-            min_ndcg: 0.60,
+            min_mrr: 1.0,
+            min_ndcg: 0.95,
         },
     ]
 }

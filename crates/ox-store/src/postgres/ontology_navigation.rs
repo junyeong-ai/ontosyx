@@ -28,19 +28,39 @@ impl crate::store::OntologyNavigationStore for PostgresStore {
         let kind_filter: Option<Vec<String>> = options.kinds.clone();
         let trigram_w = options.blend.trigram;
         let full_text_w = options.blend.full_text;
+        // Label-match boost — a query that's a prefix or contained
+        // substring of the canonical `label` should outrank a
+        // description-only match. Industry retrieval (Algolia,
+        // Typesense) all weight title-match higher than body-match
+        // for the same reason: an operator typing "customer" wants
+        // the `Customer` node, not a glossary term whose
+        // *description* mentions customers. Without this, the doc-
+        // trigram tie can let description-heavy rows outrank
+        // structural ones (the gold gate's
+        // `node_type_label_match` axis pinned this regression).
+        //
+        // The boost adds `1.0 * label_trigram` on top of the base
+        // blend so an exact label match (`similarity('customer',
+        // 'Customer') ≈ 0.6+`) can pull the row above
+        // doc-only matches with similar trigram scores. `COALESCE`
+        // protects rows from prior commits where `label` is NULL.
         sqlx::query_as::<_, crate::navigation::EntitySearchHit>(
             "SELECT entity_kind::text AS entity_kind, \
                     logical_id, \
                     doc, \
-                    GREATEST( \
-                        similarity(doc, $2)::real * $4, \
-                        COALESCE(ts_rank(tsv, plainto_tsquery('simple', $2)), 0) * $5 \
+                    ( \
+                        GREATEST( \
+                            similarity(doc, $2)::real * $4, \
+                            COALESCE(ts_rank(tsv, plainto_tsquery('simple', $2)), 0) * $5 \
+                        ) \
+                        + COALESCE(similarity(label, $2), 0)::real \
                     )::real AS score \
              FROM ontology_entity_search_vector \
              WHERE version_id = $1 \
                AND (doc ILIKE '%' || $2 || '%' \
                     OR similarity(doc, $2) > 0.1 \
-                    OR tsv @@ plainto_tsquery('simple', $2)) \
+                    OR tsv @@ plainto_tsquery('simple', $2) \
+                    OR (label IS NOT NULL AND similarity(label, $2) > 0.1)) \
                AND ($6::text[] IS NULL OR entity_kind::text = ANY($6)) \
              ORDER BY score DESC \
              LIMIT $3",
