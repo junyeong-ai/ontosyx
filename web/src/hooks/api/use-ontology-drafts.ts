@@ -29,7 +29,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 export const ontologyDraftsKeys = {
-  all: ["projects"] as const,
+  all: ["ontology-drafts"] as const,
   lists: () => [...ontologyDraftsKeys.all, "list"] as const,
   list: (params?: { limit?: number }) =>
     [...ontologyDraftsKeys.lists(), params ?? {}] as const,
@@ -42,11 +42,11 @@ export const ontologyDraftsKeys = {
 // ---------------------------------------------------------------------------
 
 /**
- * List projects (first page).
+ * List ontology drafts (first page).
  *
- * Why plain `useQuery`: the project picker shows top-N items (default limit
+ * Why plain `useQuery`: the draft picker shows top-N items (default limit
  * is the backend default). Design mode rarely requires paging through more
- * than ~50 projects. If that changes, swap for `useInfiniteQuery` without
+ * than ~50 drafts. If that changes, swap for `useInfiniteQuery` without
  * touching call sites of `useOntologyDraft(id)`.
  */
 export function useOntologyDrafts(
@@ -82,20 +82,20 @@ export function useOntologyDraft(
 // Mutations
 // ---------------------------------------------------------------------------
 
-export function useCreateProject() {
+export function useCreateOntologyDraft() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (req: CreateOntologyDraftRequest) => createOntologyDraft(req),
-    onSuccess: (project) => {
+    onSuccess: (draft) => {
       qc.invalidateQueries({ queryKey: ontologyDraftsKeys.lists() });
-      // Seed detail cache so immediate navigation to /projects/:id doesn't
-      // refetch. The returned OntologyDraft is authoritative.
-      qc.setQueryData(ontologyDraftsKeys.detail(project.id), project);
+      // Seed detail cache so immediate navigation to the draft route
+      // doesn't refetch. The returned OntologyDraft is authoritative.
+      qc.setQueryData(ontologyDraftsKeys.detail(draft.id), draft);
     },
   });
 }
 
-export function useDeleteProject() {
+export function useDeleteOntologyDraft() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteOntologyDraft(id),
@@ -108,7 +108,7 @@ export function useDeleteProject() {
 
 /**
  * Promote tables from `deferred` (or first-time-seen) into
- * `included`. Wraps `POST /api/projects/:id/scope/include`.
+ * `included`. Wraps `POST /api/ontology-drafts/:id/scope/include`.
  *
  * Per-table reclassification — does not introspect or redesign;
  * the staged-bootstrap flow's deferred entries land here for
@@ -119,7 +119,7 @@ export function useIncludeScopeTables(ontologyDraftId: string) {
   return useMutation<ScopeUpdateResponse, Error, IncludeScopeTablesRequest>({
     mutationFn: (req) => includeScopeTables(ontologyDraftId, req),
     onSuccess: (data) => {
-      qc.setQueryData(ontologyDraftsKeys.detail(ontologyDraftId), data.project);
+      qc.setQueryData(ontologyDraftsKeys.detail(ontologyDraftId), data.draft);
       qc.invalidateQueries({ queryKey: ontologyDraftsKeys.lists() });
     },
   });
@@ -127,16 +127,16 @@ export function useIncludeScopeTables(ontologyDraftId: string) {
 
 /**
  * Demote tables from `included` to `deferred`. Wraps
- * `POST /api/projects/:id/scope/defer`. Backend rejects with 409 if
- * the project's ontology still binds a NodeType to one of the
- * tables — the caller must retract those nodes first.
+ * `POST /api/ontology-drafts/:id/scope/defer`. Backend rejects
+ * with 409 if the draft's ontology still binds a NodeType to one
+ * of the tables — the caller must retract those nodes first.
  */
 export function useDeferScopeTables(ontologyDraftId: string) {
   const qc = useQueryClient();
   return useMutation<ScopeUpdateResponse, Error, DeferScopeTablesRequest>({
     mutationFn: (req) => deferScopeTables(ontologyDraftId, req),
     onSuccess: (data) => {
-      qc.setQueryData(ontologyDraftsKeys.detail(ontologyDraftId), data.project);
+      qc.setQueryData(ontologyDraftsKeys.detail(ontologyDraftId), data.draft);
       qc.invalidateQueries({ queryKey: ontologyDraftsKeys.lists() });
     },
   });

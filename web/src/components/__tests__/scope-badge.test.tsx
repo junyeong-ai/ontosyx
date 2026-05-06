@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 
 import messages from "../../../messages/en.json";
 import { ScopeBadge } from "@/components/workbench/design/scope-badge";
-import * as projectsApi from "@/lib/api/ontology-drafts";
+import * as draftsApi from "@/lib/api/ontology-drafts";
 import { useAppStore } from "@/lib/store";
 import type { OntologyDraft } from "@/types/api";
 
@@ -71,11 +71,11 @@ describe("ScopeBadge", () => {
     expect(screen.getByText("deferred at bootstrap")).toBeDefined();
   });
 
-  it("Promote on a deferred row fires includeScopeTables with project revision", async () => {
+  it("Promote on a deferred row fires includeScopeTables with draft revision", async () => {
     const includeSpy = vi
-      .spyOn(projectsApi, "includeScopeTables")
+      .spyOn(draftsApi, "includeScopeTables")
       .mockResolvedValue({
-        project: fixtureOntologyDraft(),
+        draft: fixtureOntologyDraft(),
       });
 
     renderBadge();
@@ -92,9 +92,9 @@ describe("ScopeBadge", () => {
 
   it("Defer + reason input fires deferScopeTables with the typed reason", async () => {
     const deferSpy = vi
-      .spyOn(projectsApi, "deferScopeTables")
+      .spyOn(draftsApi, "deferScopeTables")
       .mockResolvedValue({
-        project: fixtureOntologyDraft(),
+        draft: fixtureOntologyDraft(),
       });
 
     renderBadge();

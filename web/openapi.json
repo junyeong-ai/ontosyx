@@ -20340,10 +20340,10 @@
       "ScopeUpdateResponse": {
         "type": "object",
         "required": [
-          "project"
+          "draft"
         ],
         "properties": {
-          "project": {
+          "draft": {
             "$ref": "#/components/schemas/OntologyDraftView"
           }
         }

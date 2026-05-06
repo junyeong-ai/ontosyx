@@ -31,7 +31,7 @@ pub struct DeferScopeTablesRequest {
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ScopeUpdateResponse {
-    pub project: OntologyDraftView,
+    pub draft: OntologyDraftView,
 }
 
 /// Promote tables from deferred (or first-time) into included.
@@ -78,7 +78,7 @@ pub(crate) async fn include_scope_tables(
 
     let updated = reload_ontology_draft(&state, id).await?;
     Ok(ApiResponse::of(ScopeUpdateResponse {
-        project: OntologyDraftView::from_ontology_draft(updated),
+        draft: OntologyDraftView::from_ontology_draft(updated),
     }))
 }
 
@@ -157,6 +157,6 @@ pub(crate) async fn defer_scope_tables(
 
     let updated = reload_ontology_draft(&state, id).await?;
     Ok(ApiResponse::of(ScopeUpdateResponse {
-        project: OntologyDraftView::from_ontology_draft(updated),
+        draft: OntologyDraftView::from_ontology_draft(updated),
     }))
 }

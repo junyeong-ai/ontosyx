@@ -184,7 +184,7 @@ export interface DeferScopeTablesRequest {
 }
 
 export interface ScopeUpdateResponse {
-  project: OntologyDraft;
+  draft: OntologyDraft;
 }
 
 export async function includeScopeTables(

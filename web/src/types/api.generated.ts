@@ -7037,7 +7037,7 @@ export interface components {
          */
         ScopeKind: "code_count";
         ScopeUpdateResponse: {
-            project: components["schemas"]["OntologyDraftView"];
+            draft: components["schemas"]["OntologyDraftView"];
         };
         SearchGraphRequest: {
             /** @description Optional label filter — only match nodes with these labels. */
