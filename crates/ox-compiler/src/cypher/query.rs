@@ -321,21 +321,6 @@ pub(super) fn compile_op(
                 .and_then(|n| n.label.as_ref())
                 .map(|lbl| escape_identifier(lbl.as_str()));
 
-            if request.fulltext_query.is_some()
-                && matches!(request.fuse, FusionStrategy::WeightedSum { .. })
-            {
-                return Err(OxError::UnsupportedOperation {
-                    target: "graph:cypher".into(),
-                    operation: "QueryOp::HybridSearch with \
-                        fulltext_query + WeightedSum fusion — \
-                        weighted-sum lowering uses Cypher \
-                        arithmetic on per-source scores rather \
-                        than rank-based fusion; ships in a \
-                        follow-up. Default RRF lowers cleanly."
-                        .into(),
-                });
-            }
-
             // Vector-index name — convention
             // `entity_embedding_index` is the platform's
             // hardcoded default that the ontology materialise
@@ -380,36 +365,28 @@ pub(super) fn compile_op(
                     parts.push("ORDER BY score DESC".to_string());
                 }
                 Some(fulltext_query) => {
-                    // Vector + fulltext + RRF fusion. RRF
-                    // (Cormack et al. 2009): for each result
-                    // candidate the fused score is
-                    // `sum_over_sources(1 / (k + rank))` where
-                    // `k` is the smoothing constant (default
-                    // 60) and `rank` is the 1-indexed position
-                    // in the source's ranked list.
+                    // Two-source fusion. RRF (default) is rank-
+                    // based — each source's i-th result gets
+                    // `1 / (k + rank)` and the fused score is
+                    // the sum across sources. WeightedSum is
+                    // score-based — each source's raw score
+                    // is multiplied by the operator-supplied
+                    // weight before summing. The two paths
+                    // share the procedure-call shell + the
+                    // graph_constraints pre-filter; they
+                    // diverge only on the per-source `rrf:` /
+                    // `weighted:` projection inside the list
+                    // comprehension.
                     //
-                    // Cypher list comprehensions over
-                    // `range(0, size(vec_nodes) - 1)` produce
-                    // `{node, rrf}` records per source; UNWIND
-                    // unions them, group-by node sums the
-                    // rrf, then sort + LIMIT lands the top-K.
-                    //
-                    // Each procedure call expands to `top_k`
+                    // Per-source procedure expanded to `top_k`
                     // candidates so the fusion has room to
                     // re-rank — the final `LIMIT $top_k`
                     // trims back to the operator-requested
-                    // window. Without the per-source expansion,
-                    // a fusion that swaps a vector-rank-1 with
-                    // a fulltext-rank-1 has no headroom to
+                    // window. Without the expansion, a fusion
+                    // that swaps a vector-rank-1 with a
+                    // fulltext-rank-1 has no headroom to
                     // discover the true top-K under the
                     // operator's k.
-                    let rrf_k = match request.fuse {
-                        FusionStrategy::ReciprocalRankFusion { k } => k,
-                        // Unreachable — WeightedSum guarded
-                        // above. Default to standard 60.
-                        _ => 60,
-                    };
-                    let rrf_k_param = pc.push(PropertyValue::Int(rrf_k as i64));
                     let fulltext_index_param = pc.push(PropertyValue::String(
                         "entity_doc_index".into(),
                     ));
@@ -423,7 +400,7 @@ pub(super) fn compile_op(
                     // graph_constraints label filter weaves
                     // through *both* source streams via a list
                     // comprehension — `[n IN raw WHERE n:Label
-                    // | n]` pre-filters before the RRF
+                    // | n]` pre-filters before the fusion
                     // ranking lands. Without it the structural
                     // cohort would be lost across the
                     // UNWIND + group-by rebind. Vector and
@@ -431,34 +408,100 @@ pub(super) fn compile_op(
                     // node only contributes to the fused score
                     // when both sources see it under the
                     // anchor cohort.
-                    if let Some(label) = &constraint_label {
-                        parts.push(format!(
-                            "WITH [n IN collect(v_node) WHERE n:{label} | n] AS vec_nodes",
-                        ));
-                    } else {
-                        parts.push("WITH collect(v_node) AS vec_nodes".to_string());
-                    }
+                    //
+                    // RRF path collects nodes only (rank from
+                    // list position); WeightedSum path collects
+                    // {node, score} pairs (score from yield).
+                    let collect_vec = match request.fuse {
+                        FusionStrategy::ReciprocalRankFusion { .. } => {
+                            if let Some(label) = &constraint_label {
+                                format!(
+                                    "WITH [n IN collect(v_node) WHERE n:{label} | n] AS vec_nodes",
+                                )
+                            } else {
+                                "WITH collect(v_node) AS vec_nodes".to_string()
+                            }
+                        }
+                        FusionStrategy::WeightedSum { .. } => {
+                            if let Some(label) = &constraint_label {
+                                format!(
+                                    "WITH [r IN collect({{node: v_node, score: v_score}}) \
+                                     WHERE r.node:{label} | r] AS vec_data",
+                                )
+                            } else {
+                                "WITH collect({node: v_node, score: v_score}) AS vec_data"
+                                    .to_string()
+                            }
+                        }
+                    };
+                    parts.push(collect_vec);
+
                     parts.push(format!(
                         "CALL db.index.fulltext.queryNodes({fulltext_index_param}, {fulltext_query_param})",
                     ));
                     parts.push("YIELD node AS f_node, score AS f_score".to_string());
-                    if let Some(label) = &constraint_label {
-                        parts.push(format!(
-                            "WITH vec_nodes, [n IN collect(f_node) WHERE n:{label} | n] AS txt_nodes",
-                        ));
-                    } else {
-                        parts.push(
-                            "WITH vec_nodes, collect(f_node) AS txt_nodes".to_string(),
-                        );
+
+                    let collect_txt = match request.fuse {
+                        FusionStrategy::ReciprocalRankFusion { .. } => {
+                            if let Some(label) = &constraint_label {
+                                format!(
+                                    "WITH vec_nodes, [n IN collect(f_node) WHERE n:{label} | n] AS txt_nodes",
+                                )
+                            } else {
+                                "WITH vec_nodes, collect(f_node) AS txt_nodes"
+                                    .to_string()
+                            }
+                        }
+                        FusionStrategy::WeightedSum { .. } => {
+                            if let Some(label) = &constraint_label {
+                                format!(
+                                    "WITH vec_data, [r IN collect({{node: f_node, score: f_score}}) \
+                                     WHERE r.node:{label} | r] AS txt_data",
+                                )
+                            } else {
+                                "WITH vec_data, collect({node: f_node, score: f_score}) AS txt_data"
+                                    .to_string()
+                            }
+                        }
+                    };
+                    parts.push(collect_txt);
+
+                    match request.fuse {
+                        FusionStrategy::ReciprocalRankFusion { k } => {
+                            let rrf_k_param =
+                                pc.push(PropertyValue::Int(k as i64));
+                            parts.push(format!(
+                                "WITH [i IN range(0, size(vec_nodes) - 1) | \
+                                 {{node: vec_nodes[i], rrf: 1.0 / ({rrf_k_param} + i + 1)}}] AS vec_rrf, \
+                                 [j IN range(0, size(txt_nodes) - 1) | \
+                                 {{node: txt_nodes[j], rrf: 1.0 / ({rrf_k_param} + j + 1)}}] AS txt_rrf",
+                            ));
+                            parts.push("UNWIND vec_rrf + txt_rrf AS r".to_string());
+                            parts.push(
+                                "WITH r.node AS node, sum(r.rrf) AS score".to_string(),
+                            );
+                        }
+                        FusionStrategy::WeightedSum {
+                            vector_weight,
+                            fulltext_weight,
+                        } => {
+                            let v_weight_param =
+                                pc.push(PropertyValue::Float(vector_weight as f64));
+                            let f_weight_param =
+                                pc.push(PropertyValue::Float(fulltext_weight as f64));
+                            parts.push(format!(
+                                "WITH [v IN vec_data | \
+                                 {{node: v.node, weighted: v.score * {v_weight_param}}}] AS vec_w, \
+                                 [f IN txt_data | \
+                                 {{node: f.node, weighted: f.score * {f_weight_param}}}] AS txt_w",
+                            ));
+                            parts.push("UNWIND vec_w + txt_w AS r".to_string());
+                            parts.push(
+                                "WITH r.node AS node, sum(r.weighted) AS score".to_string(),
+                            );
+                        }
                     }
-                    parts.push(format!(
-                        "WITH [i IN range(0, size(vec_nodes) - 1) | \
-                         {{node: vec_nodes[i], rrf: 1.0 / ({rrf_k_param} + i + 1)}}] AS vec_rrf, \
-                         [j IN range(0, size(txt_nodes) - 1) | \
-                         {{node: txt_nodes[j], rrf: 1.0 / ({rrf_k_param} + j + 1)}}] AS txt_rrf",
-                    ));
-                    parts.push("UNWIND vec_rrf + txt_rrf AS r".to_string());
-                    parts.push("WITH r.node AS node, sum(r.rrf) AS score".to_string());
+
                     parts.push("RETURN node, score".to_string());
                     parts.push("ORDER BY score DESC".to_string());
                     parts.push(format!("LIMIT {top_k_param}"));

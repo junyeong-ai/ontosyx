@@ -2418,7 +2418,7 @@ fn hybrid_search_with_constraints_plus_fulltext_rrf_filters_both_sources() {
 }
 
 #[test]
-fn hybrid_search_with_weighted_sum_returns_unsupported() {
+fn hybrid_search_weighted_sum_emits_score_multiplied_fusion() {
     use ox_query_ir::hybrid_retrieval::{
         Embedding, FusionStrategy, HybridSearchRequest,
     };
@@ -2444,12 +2444,48 @@ fn hybrid_search_with_weighted_sum_returns_unsupported() {
         as_of: None,
     };
 
-    let err = compiler
+    let compiled = compiler
         .compile_query(&query, None)
-        .expect_err("weighted-sum path should still be deferred");
-    let msg = format!("{err}");
+        .expect("vector + fulltext + WeightedSum compiles");
+    // WeightedSum collects {node, score} pairs (raw score
+    // needed for the multiplicative fusion) — distinct from
+    // RRF which collects nodes only (rank from list position).
     assert!(
-        msg.contains("WeightedSum") || msg.contains("weighted-sum"),
-        "unexpected error: {msg}",
+        compiled.statement.contains("collect({node: v_node, score: v_score}) AS vec_data"),
+        "missing weighted vec_data collection:\n{}",
+        compiled.statement,
+    );
+    assert!(
+        compiled.statement.contains("collect({node: f_node, score: f_score}) AS txt_data"),
+        "missing weighted txt_data collection:\n{}",
+        compiled.statement,
+    );
+    // Per-source weighted projection — `score * weight` shape
+    // distinguishes this from RRF's `1.0 / (k + i + 1)`.
+    assert!(
+        compiled.statement.contains("v.score *"),
+        "missing vector-weight multiplication:\n{}",
+        compiled.statement,
+    );
+    assert!(
+        compiled.statement.contains("f.score *"),
+        "missing fulltext-weight multiplication:\n{}",
+        compiled.statement,
+    );
+    // Sum aggregate on the weighted projection — same group-
+    // by-node shape as RRF but the inner field is `weighted`.
+    assert!(
+        compiled.statement.contains("sum(r.weighted)"),
+        "missing sum aggregate on weighted projection:\n{}",
+        compiled.statement,
+    );
+    // 7 params: vec_idx, top_k, vector, ft_idx, ft_query,
+    // vec_weight, ft_weight.
+    assert_eq!(
+        compiled.params.len(),
+        7,
+        "expected 7 params (vec_idx, top_k, vector, ft_idx, ft_query, v_weight, f_weight) — got {}: {:?}",
+        compiled.params.len(),
+        compiled.params,
     );
 }
