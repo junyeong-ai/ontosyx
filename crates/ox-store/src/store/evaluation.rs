@@ -202,9 +202,15 @@ pub trait EvaluationStore: Send + Sync {
 
     /// Cross-workspace scan for cases ready to judge — cases with
     /// `actual` populated but no `evaluation_metrics` row tagged
-    /// `kind: 'judge'` yet. Drives the async judge worker; called
-    /// under SYSTEM_BYPASS so a single replica can fan out across
-    /// every workspace's queue.
+    /// `metadata.kind = '<metric_kind>'` yet. Drives the async
+    /// judge worker; called under SYSTEM_BYPASS so a single
+    /// replica can fan out across every workspace's queue.
+    ///
+    /// `metric_kind` parametrises the existence check so the
+    /// worker can drain the RAGAS rubric (`"judge"`) and the
+    /// safety rubric (`"safety_judge"`) independently — a case
+    /// missing only one rubric isn't re-judged on the other,
+    /// keeping the LLM bill bounded.
     ///
     /// Result is bounded by `limit` so a backlog spike doesn't OOM
     /// the worker — it picks the oldest first (`created_at ASC`)
@@ -212,7 +218,11 @@ pub trait EvaluationStore: Send + Sync {
     /// `retrieve_anchors` cases (their input shape carries `kind:
     /// "retrieve_anchors"` and they score deterministically at
     /// execute time — judging would noise the IR axes).
-    async fn list_unjudged_cases(&self, limit: u32) -> OxResult<Vec<EvaluationCase>>;
+    async fn list_unjudged_cases(
+        &self,
+        metric_kind: &str,
+        limit: u32,
+    ) -> OxResult<Vec<EvaluationCase>>;
 
     // --- Metrics -------------------------------------------------------
 

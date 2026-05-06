@@ -86,36 +86,61 @@ pub fn spawn_eval_judge_worker(
 }
 
 async fn run_tick(store: &dyn Store, brain: &dyn Brain) -> ox_core::error::OxResult<()> {
-    let cases = store.list_unjudged_cases(PER_TICK_BUDGET).await?;
-    if cases.is_empty() {
-        return Ok(());
-    }
-
-    let mut judged = 0usize;
-    let mut failures = 0usize;
-    for case in cases {
-        match judge_one(store, brain, &case).await {
-            Ok(_) => judged += 1,
+    // Drain both rubrics independently. A case missing only one
+    // rubric won't re-judge on the other — the existence check
+    // is rubric-specific, so the LLM bill stays bounded by the
+    // backlog plus retries on actual failures.
+    let mut ragas_judged = 0usize;
+    let mut ragas_failures = 0usize;
+    let ragas_cases = store.list_unjudged_cases("judge", PER_TICK_BUDGET).await?;
+    for case in ragas_cases {
+        match judge_one_ragas(store, brain, &case).await {
+            Ok(_) => ragas_judged += 1,
             Err(e) => {
-                failures += 1;
+                ragas_failures += 1;
                 warn!(
                     case_id = %case.id,
                     workspace_id = %case.workspace_id,
                     error = %e,
-                    "eval-judge worker: per-case judge failed",
+                    "eval-judge worker: per-case RAGAS judge failed",
                 );
             }
         }
     }
-    info!(
-        judged = judged,
-        failures = failures,
-        "eval-judge worker tick complete",
-    );
+
+    let mut safety_judged = 0usize;
+    let mut safety_failures = 0usize;
+    let safety_cases = store
+        .list_unjudged_cases("safety_judge", PER_TICK_BUDGET)
+        .await?;
+    for case in safety_cases {
+        match judge_one_safety(store, brain, &case).await {
+            Ok(_) => safety_judged += 1,
+            Err(e) => {
+                safety_failures += 1;
+                warn!(
+                    case_id = %case.id,
+                    workspace_id = %case.workspace_id,
+                    error = %e,
+                    "eval-judge worker: per-case safety judge failed",
+                );
+            }
+        }
+    }
+
+    if ragas_judged + ragas_failures + safety_judged + safety_failures > 0 {
+        info!(
+            ragas_judged = ragas_judged,
+            ragas_failures = ragas_failures,
+            safety_judged = safety_judged,
+            safety_failures = safety_failures,
+            "eval-judge worker tick complete",
+        );
+    }
     Ok(())
 }
 
-async fn judge_one(
+async fn judge_one_ragas(
     store: &dyn Store,
     brain: &dyn Brain,
     case: &EvaluationCase,
@@ -178,6 +203,70 @@ async fn judge_one(
                     reasoning: Some(reasoning.to_string()),
                     metadata: serde_json::json!({
                         "kind": "judge",
+                        "run_id": case.run_id,
+                        "case_key": case.case_key,
+                        "source": "async_worker",
+                    }),
+                    created_at: now,
+                };
+                store.upsert_evaluation_metric(&metric).await?;
+            }
+            Ok::<(), ox_core::error::OxError>(())
+        })
+        .await?;
+    Ok(())
+}
+
+/// Drains a single case through the safety judge. Mirrors the
+/// RAGAS path's shape so the dashboard / diff surfaces don't
+/// distinguish sync vs async judging — same `metadata.kind =
+/// "safety_judge"` envelope the synchronous endpoint writes.
+async fn judge_one_safety(
+    store: &dyn Store,
+    brain: &dyn Brain,
+    case: &EvaluationCase,
+) -> ox_core::error::OxResult<()> {
+    let parsed: ExecuteEvaluationCaseRequest = match serde_json::from_value(case.input.clone()) {
+        Ok(p) => p,
+        Err(e) => {
+            warn!(
+                case_id = %case.id,
+                error = %e,
+                "eval-judge worker (safety): case input does not match a known shape; skipping",
+            );
+            return Ok(());
+        }
+    };
+    let question = parsed.question().to_string();
+    let actual = case.actual.as_ref().ok_or_else(|| {
+        ox_core::error::OxError::Runtime {
+            message: "list_unjudged_cases returned a case without `actual`".into(),
+        }
+    })?;
+
+    let ctx = EvaluationContext {
+        run_id: case.run_id,
+        case_key: case.case_key.clone(),
+        case_id: case.id,
+    };
+    let judgement = scope_evaluation_context(ctx, async {
+        brain.judge_safety_evaluation_case(&question, actual).await
+    })
+    .await?;
+
+    let now = Utc::now();
+    ox_store::WORKSPACE_ID
+        .scope(case.workspace_id, async {
+            for (name, score, reasoning) in judgement.axes() {
+                let metric = EvaluationMetric {
+                    id: Uuid::now_v7(),
+                    case_id: case.id,
+                    workspace_id: case.workspace_id,
+                    name: name.to_string(),
+                    score,
+                    reasoning: Some(reasoning.to_string()),
+                    metadata: serde_json::json!({
+                        "kind": "safety_judge",
                         "run_id": case.run_id,
                         "case_key": case.case_key,
                         "source": "async_worker",
