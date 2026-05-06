@@ -816,6 +816,40 @@ impl EvaluationStore for PostgresStore {
         Ok(rows.into_iter().map(EvaluationCase::from).collect())
     }
 
+    #[tracing::instrument(level = "debug", skip_all, fields(limit = limit))]
+    async fn list_unjudged_cases(&self, limit: u32) -> OxResult<Vec<EvaluationCase>> {
+        // Cross-workspace surface — runs under SYSTEM_BYPASS so the
+        // worker fans out across every tenant in one tick. The
+        // anti-join via NOT EXISTS picks cases with `actual` set
+        // and zero judge-tagged metrics. `retrieve_anchors` cases
+        // skip via the input-shape probe — they're scored
+        // deterministically at execute time and don't benefit from
+        // an LLM judge round-trip. Hard cap of 500 prevents a
+        // backlog spike from OOM-ing the worker.
+        let capped = (limit.max(1)).min(500) as i64;
+        let rows: Vec<EvaluationCaseRow> = sqlx::query_as(
+            "SELECT c.id, c.run_id, c.workspace_id, c.case_key, c.input,
+                    c.expected, c.actual, c.error, c.latency_ms, c.metadata,
+                    c.created_at
+             FROM evaluation_cases c
+             WHERE c.actual IS NOT NULL
+               AND c.error IS NULL
+               AND COALESCE(c.input ->> 'kind', '') <> 'retrieve_anchors'
+               AND NOT EXISTS (
+                   SELECT 1 FROM evaluation_metrics m
+                    WHERE m.case_id = c.id
+                      AND m.metadata ->> 'kind' = 'judge'
+               )
+             ORDER BY c.created_at ASC
+             LIMIT $1",
+        )
+        .bind(capped)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(rows.into_iter().map(EvaluationCase::from).collect())
+    }
+
     // --- Metrics -------------------------------------------------------
 
     #[tracing::instrument(level = "debug", skip_all, fields(case_id = %metric.case_id, metric.name = %metric.name))]

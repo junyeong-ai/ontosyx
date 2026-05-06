@@ -604,7 +604,7 @@ impl ExecuteEvaluationCaseRequest {
         )
     }
 
-    fn question(&self) -> &str {
+    pub fn question(&self) -> &str {
         match self {
             Self::TranslateQuery { question, .. } => question,
             Self::Explain { question, .. } => question,

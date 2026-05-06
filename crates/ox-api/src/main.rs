@@ -465,6 +465,7 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
+
     // Rate limiter (optional, controlled by config)
     let rate_limiter = if config.rate_limit.enabled {
         let rl = Arc::new(RateLimiter::new(&config.rate_limit));
@@ -546,6 +547,21 @@ async fn main() -> anyhow::Result<()> {
                 .with_evaluation_capture(evaluation_capture),
         )
     };
+
+    // Async evaluation-judge worker — drains case-execute results
+    // into RAGAS metrics so a streaming dataset stays fresh
+    // without operator-driven judging on each row. Pinned to a
+    // single replica via advisory lock so the LLM bill doesn't
+    // double under multi-instance deploys. Spawned here (after
+    // brain construction, before the AppState consumes the Arc)
+    // so the worker shares the same memory + knowledge + capture
+    // configuration the request handlers see.
+    ox_api::background::spawn_eval_judge_worker(
+        Arc::clone(&store),
+        Arc::clone(&brain),
+        shared_pg_pool.clone(),
+        cancel_token.clone(),
+    );
 
     // Initialize OIDC providers (auto-discovers from issuer URLs)
     let oidc_providers = {

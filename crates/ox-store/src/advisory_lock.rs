@@ -66,6 +66,13 @@ pub static ADVISORY_LOCK_CRON_SOFT_DELETE: LazyLock<i64> =
 pub static ADVISORY_LOCK_CRON_DRAFT_CHECKPOINT: LazyLock<i64> =
     LazyLock::new(|| advisory_lock_key("ontosyx.cron.draft_checkpoint"));
 
+/// Eval async-judge worker singleton. Holds while the worker
+/// drains pending case-execute results into RAGAS metrics so two
+/// replicas don't double-judge the same case (each judge call is
+/// a paid LLM round-trip).
+pub static ADVISORY_LOCK_CRON_EVAL_JUDGE: LazyLock<i64> =
+    LazyLock::new(|| advisory_lock_key("ontosyx.cron.eval_judge"));
+
 /// Run a future under a PostgreSQL session-level advisory lock.
 /// Holds a single pool connection for the duration of the inner
 /// future so the lock survives `RESET ALL`. The inner future may
@@ -177,6 +184,7 @@ mod tests {
             *ADVISORY_LOCK_CRON_QUALITY_BASELINE,
             *ADVISORY_LOCK_CRON_SOFT_DELETE,
             *ADVISORY_LOCK_CRON_DRAFT_CHECKPOINT,
+            *ADVISORY_LOCK_CRON_EVAL_JUDGE,
         ];
         let mut sorted = keys.to_vec();
         sorted.sort_unstable();

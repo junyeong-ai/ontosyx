@@ -187,6 +187,20 @@ pub trait EvaluationStore: Send + Sync {
     /// loads.
     async fn list_evaluation_cases(&self, run_id: Uuid) -> OxResult<Vec<EvaluationCase>>;
 
+    /// Cross-workspace scan for cases ready to judge — cases with
+    /// `actual` populated but no `evaluation_metrics` row tagged
+    /// `kind: 'judge'` yet. Drives the async judge worker; called
+    /// under SYSTEM_BYPASS so a single replica can fan out across
+    /// every workspace's queue.
+    ///
+    /// Result is bounded by `limit` so a backlog spike doesn't OOM
+    /// the worker — it picks the oldest first (`created_at ASC`)
+    /// and the next tick handles whatever remains. Skips
+    /// `retrieve_anchors` cases (their input shape carries `kind:
+    /// "retrieve_anchors"` and they score deterministically at
+    /// execute time — judging would noise the IR axes).
+    async fn list_unjudged_cases(&self, limit: u32) -> OxResult<Vec<EvaluationCase>>;
+
     // --- Metrics -------------------------------------------------------
 
     /// Insert-or-update a metric on the `(case_id, name)` natural
