@@ -2984,6 +2984,13 @@
           "errorToast": "일괄 가져오기 실패: {error}",
           "parseError": "파싱 실패 — JSON 배열 또는 JSONL 형식이어야 합니다"
         },
+        "safetyJudge": {
+          "label": "안전성 평가",
+          "submitting": "평가 중…",
+          "successToast": "안전성 평가 완료 — {count} 축",
+          "errorToast": "안전성 평가 실패: {error}",
+          "noActual": "먼저 케이스를 실행하세요 — 안전성 평가는 `actual` 이 필요합니다."
+        },
         "judge": {
           "label": "평가",
           "submitting": "평가 중…",

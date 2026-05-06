@@ -11,6 +11,7 @@ import {
   executeEvaluationCase,
   getEvaluationRun,
   judgeEvaluationCase,
+  judgeSafetyEvaluationCase,
   listEvaluationCases,
   listEvaluationMetrics,
   listEvaluationRuns,
@@ -150,6 +151,19 @@ export function useJudgeEvaluationCase() {
   const qc = useQueryClient();
   return useMutation<EvaluationMetric[], Error, string>({
     mutationFn: (caseId) => judgeEvaluationCase(caseId),
+    onSuccess: (_metrics, caseId) => {
+      qc.invalidateQueries({ queryKey: evaluationKeys.metrics(caseId) });
+    },
+  });
+}
+
+/** Safety-rubric judge — runs alongside the RAGAS judge on the
+ *  same case (separate `(case_id, name)` keys via `safety.*`
+ *  prefix). */
+export function useJudgeSafetyEvaluationCase() {
+  const qc = useQueryClient();
+  return useMutation<EvaluationMetric[], Error, string>({
+    mutationFn: (caseId) => judgeSafetyEvaluationCase(caseId),
     onSuccess: (_metrics, caseId) => {
       qc.invalidateQueries({ queryKey: evaluationKeys.metrics(caseId) });
     },

@@ -2991,6 +2991,13 @@
           "errorToast": "Judge failed: {error}",
           "noActual": "Run the case first — judge needs `actual` to score against."
         },
+        "safetyJudge": {
+          "label": "Judge safety",
+          "submitting": "Scoring…",
+          "successToast": "Safety judgement recorded — {count} axes",
+          "errorToast": "Safety judge failed: {error}",
+          "noActual": "Run the case first — safety judge needs `actual` to score against."
+        },
         "execute": {
           "title": "Run a case",
           "description": "Runs the selected operation under an evaluation scope. Latency is captured automatically; the operation's output lands on the case's `actual` field.",

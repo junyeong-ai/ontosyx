@@ -11,6 +11,7 @@ import {
   useEvaluationRun,
   useExecuteEvaluationCase,
   useJudgeEvaluationCase,
+  useJudgeSafetyEvaluationCase,
 } from "@/hooks/api/use-evaluation";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
@@ -80,6 +81,7 @@ export default function EvaluationDetailPage({
   const metricsQuery = useEvaluationMetrics(activeCase?.id ?? null);
   const execute = useExecuteEvaluationCase(id);
   const judge = useJudgeEvaluationCase();
+  const safetyJudge = useJudgeSafetyEvaluationCase();
   const bulk = useBulkUpsertEvaluationCases(id);
   const [bulkText, setBulkText] = useState("");
   const onBulk = () => {
@@ -199,6 +201,8 @@ export default function EvaluationDetailPage({
   const selectedCase =
     activeCase ?? (cases.length > 0 ? (cases[0] ?? null) : null);
   const canJudge = !!selectedCase?.actual && !judge.isPending;
+  const canSafetyJudge =
+    !!selectedCase?.actual && !safetyJudge.isPending;
   const onJudge = () => {
     if (!selectedCase) return;
     judge.mutate(selectedCase.id, {
@@ -210,6 +214,23 @@ export default function EvaluationDetailPage({
       onError: (err) => {
         toast.error(
           t("detail.judge.errorToast", {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      },
+    });
+  };
+  const onSafetyJudge = () => {
+    if (!selectedCase) return;
+    safetyJudge.mutate(selectedCase.id, {
+      onSuccess: (metrics) => {
+        toast.success(
+          t("detail.safetyJudge.successToast", { count: metrics.length }),
+        );
+      },
+      onError: (err) => {
+        toast.error(
+          t("detail.safetyJudge.errorToast", {
             error: err instanceof Error ? err.message : String(err),
           }),
         );
@@ -403,6 +424,23 @@ export default function EvaluationDetailPage({
                   {judge.isPending
                     ? t("detail.judge.submitting")
                     : t("detail.judge.label")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={onSafetyJudge}
+                  disabled={!canSafetyJudge}
+                  loading={safetyJudge.isPending}
+                  title={
+                    selectedCase?.actual
+                      ? undefined
+                      : t("detail.safetyJudge.noActual")
+                  }
+                >
+                  {safetyJudge.isPending
+                    ? t("detail.safetyJudge.submitting")
+                    : t("detail.safetyJudge.label")}
                 </Button>
                 <span className="text-2xs text-foreground-muted tabular-nums">
                   {(metricsQuery.data ?? []).length}

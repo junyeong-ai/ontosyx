@@ -137,6 +137,20 @@ export async function judgeEvaluationCase(
   return res.metrics;
 }
 
+/** Safety-axis judge — toxicity / PII / factual / harmfulness.
+ *  Distinct from the RAGAS judge; both can run on the same
+ *  case without metric-row collisions because the safety axes
+ *  ride a `safety.*` name prefix. */
+export async function judgeSafetyEvaluationCase(
+  caseId: string,
+): Promise<EvaluationMetric[]> {
+  const res = await request<{ metrics: EvaluationMetric[] }>(
+    `/evaluation/cases/${encodeURIComponent(caseId)}/judge_safety`,
+    { method: "POST" },
+  );
+  return res.metrics;
+}
+
 /** Diff two runs over the same dataset. Backend is the
  *  `compare_evaluation_runs` Phoenix/Braintrust-style report —
  *  per-case delta rows + per-axis aggregate (mean delta,
