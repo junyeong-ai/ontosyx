@@ -21666,6 +21666,105 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "`sh:and` — every branch must hold. Cheap to author by hand\n(the underlying primitives already AND together when listed\nin `RuleDef.constraints`), but a first-class `And` keeps\nauthored alternation symmetric with `Or` / `Xone` and lets a\ncomposite rule serialise as a single tree rather than a flat\nlist whose conjunction is implicit. Empty `branches` is\nvacuously *true* (mirrors SHACL spec § 4.6.1).",
+            "required": [
+              "branches",
+              "kind"
+            ],
+            "properties": {
+              "branches": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "and"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "`sh:not` — the inner constraint must NOT hold. The natural\nsurface for negative-shape authoring (\"the value must NOT\nmatch this pattern\", \"the property MUST NOT be in this\nvalue-set\"). Pre-Stage-2 the only way to express this was\nvia `CrossEntityShape { predicate: \"NOT (...)\" }` — dialect-\ncoupled SQL strings the planner cannot rewrite. `Not` keeps\nnegation portable.",
+            "required": [
+              "inner",
+              "kind"
+            ],
+            "properties": {
+              "inner": {
+                "type": "object",
+                "description": "Boxed because Rust enums forbid direct recursion at the\nvariant level. utoipa schema treats this as `Object` —\nsame recursive-edge handling as `Or`/`And`/`Xone`."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "not"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "`sh:xone` — exactly one branch must hold. Models mutually-\nexclusive alternation (a price field is either an integer\n`cents` value OR a decimal `dollars` value, never both). An\nempty `branches` list is vacuously *false* (mirrors `Or`\nfailure semantics for the empty case).",
+            "required": [
+              "branches",
+              "kind"
+            ],
+            "properties": {
+              "branches": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "xone"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "`sh:qualifiedValueShape` — at least `qualified_min_count`\nand at most `qualified_max_count` *values of this property*\nsatisfy the inner shape. The classic regulatory-rule shape:\n\"exactly 2 phone numbers must be of kind 'work'\", \"at least\n1 address must be a verified address\". Without this variant\nauthors fall back to procedural checks that bypass the SHACL\nruntime.\n\n`qualified_min_count` defaults to `0` (no lower bound);\n`qualified_max_count = None` is \"no upper bound\". Both\nbeing `None`/`0` is degenerate and rejected by the\nvalidator's authoring-time check.",
+            "required": [
+              "shape",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "qualified_value_shape"
+                ]
+              },
+              "qualified_max_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "qualified_min_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "shape": {
+                "type": "object"
+              }
+            }
           }
         ],
         "description": "SHACL Core constraint component. The subset covers ~95% of\nreal-world rule usage; advanced components (`sh:and`, `sh:or`,\n`sh:xone`, recursion rules) are not yet implemented and land\nalongside the reasoning engine.\n\n`ShaclConstraint` lives at the **logical** layer — the SHACL\nvalidator pipeline checks each constraint at write/read time and\nproduces a structured violation report. For storage-engine\nconstraints that compile to graph-DB DDL (uniqueness, existence,\nnode keys), use [`crate::ir::NodeConstraint`] on `NodeTypeDef`\ninstead. The two surfaces deliberately do not overlap: DDL\nconstraints buy database-native enforcement at the cost of\nportability; SHACL constraints buy expressiveness at the cost of\nrequiring the validator on the write path."

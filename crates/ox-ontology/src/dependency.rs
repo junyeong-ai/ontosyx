@@ -760,7 +760,11 @@ fn constraint_target(c: &ShaclConstraint) -> Option<&ConstraintTarget> {
         ShaclConstraint::Closed { .. }
         | ShaclConstraint::Disjoint { .. }
         | ShaclConstraint::UniqueKey { .. }
-        | ShaclConstraint::Or { .. } => None,
+        | ShaclConstraint::Or { .. }
+        | ShaclConstraint::And { .. }
+        | ShaclConstraint::Not { .. }
+        | ShaclConstraint::Xone { .. }
+        | ShaclConstraint::QualifiedValueShape { .. } => None,
     }
 }
 

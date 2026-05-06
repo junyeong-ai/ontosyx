@@ -1223,7 +1223,10 @@
           "unknown_value_set_skipped": "규칙 `{rule_name}` 이 존재하지 않는 값 집합 `{value_set_id}` 을 참조하여 속성 `{property}` 검증을 건너뛰었습니다",
           "unknown_notation_pattern_skipped": "규칙 `{rule_name}` 이 존재하지 않는 표기 패턴 `{notation_pattern_id}` 을 참조하여 속성 `{property}` 검증을 건너뛰었습니다",
           "or_no_branch_satisfied": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 을 위반합니다 — Or 규칙의 {branch_count} 개 분기 중 어느 것도 값을 허용하지 않았습니다",
-          "or_empty_branches": "속성 `{property}` 쓰기가 규칙 `{rule_name}` 에 의해 거부되었습니다 — Or 규칙에 분기가 없습니다 (작성 오류)"
+          "or_empty_branches": "속성 `{property}` 쓰기가 규칙 `{rule_name}` 에 의해 거부되었습니다 — Or 규칙에 분기가 없습니다 (작성 오류)",
+          "not_violation": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 을 위반합니다 — 값이 금지된 제약을 만족합니다",
+          "xone_violation": "속성 `{property}` = {value} 가 규칙 `{rule_name}` 을 위반합니다 — Xone {branch_count} 개 분기 중 정확히 1개가 허용해야 하지만 {matched_count} 개가 허용했습니다",
+          "xone_empty_branches": "속성 `{property}` 쓰기가 규칙 `{rule_name}` 에 의해 거부되었습니다 — Xone 규칙에 분기가 없습니다 (작성 오류)"
         }
       }
     }

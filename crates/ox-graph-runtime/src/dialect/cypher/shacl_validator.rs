@@ -855,6 +855,108 @@ impl ShaclValidator {
                     Some(node.span),
                 ));
             }
+            ShaclConstraint::And { branches } => {
+                // Empty `branches` is vacuously *true* per SHACL
+                // spec § 4.6.1 — silently accept and return. A
+                // non-empty `And` recurses into every branch and
+                // every branch's diagnostics propagate up; the
+                // shape fails iff any one branch fails.
+                if branches.is_empty() {
+                    return;
+                }
+                for branch in branches {
+                    self.check_property_constraint(rule, prop, node, branch, issues);
+                }
+            }
+            ShaclConstraint::Not { inner } => {
+                // The inner constraint must NOT hold for the value.
+                // Recurse with a private buffer; if the inner check
+                // produces issues, the value violates `inner` so
+                // the outer `Not` succeeds. If the inner check is
+                // clean, `Not` fails and surfaces a single
+                // diagnostic (per-branch issues are dropped — the
+                // operator authored "must not", so the inner
+                // detail isn't actionable).
+                let mut inner_issues = Vec::new();
+                self.check_property_constraint(rule, prop, node, inner, &mut inner_issues);
+                if inner_issues.is_empty() {
+                    let rn = rule_label(rule);
+                    issues.push(build_issue(
+                        rule,
+                        diag("runtime.cypher.shacl.not_violation")
+                            .with("property", key)
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .with("value", value.unwrap_or("<missing>"))
+                            .message(format!(
+                                "property `{key}` write rejected by rule `{rn}` — \
+                                 value satisfies a forbidden constraint"
+                            )),
+                        Some(node.span),
+                    ));
+                }
+            }
+            ShaclConstraint::Xone { branches } => {
+                // Exactly one branch must accept. Empty branches
+                // is vacuously failing (mirrors `Or` empty-list
+                // semantics — there is no satisfying branch).
+                if branches.is_empty() {
+                    let rn = rule_label(rule);
+                    issues.push(build_issue(
+                        rule,
+                        diag("runtime.cypher.shacl.xone_empty_branches")
+                            .with("property", key)
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .message(format!(
+                                "property `{key}` write rejected by rule `{rn}` — Xone constraint has no branches"
+                            )),
+                        Some(node.span),
+                    ));
+                    return;
+                }
+                let mut accepted = 0u32;
+                for branch in branches {
+                    let mut buf = Vec::new();
+                    self.check_property_constraint(rule, prop, node, branch, &mut buf);
+                    if buf.is_empty() {
+                        accepted += 1;
+                    }
+                }
+                if accepted != 1 {
+                    let rn = rule_label(rule);
+                    let branch_count = branches.len();
+                    issues.push(build_issue(
+                        rule,
+                        diag("runtime.cypher.shacl.xone_violation")
+                            .with("property", key)
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .with("branch_count", branch_count as u64)
+                            .with("matched_count", accepted as u64)
+                            .with("value", value.unwrap_or("<missing>"))
+                            .message(format!(
+                                "property `{key}` write rejected by rule `{rn}` — \
+                                 expected exactly 1 of {branch_count} Xone branches to accept, \
+                                 got {accepted}"
+                            )),
+                        Some(node.span),
+                    ));
+                }
+            }
+            ShaclConstraint::QualifiedValueShape { .. } => {
+                // `sh:qualifiedValueShape` constrains the *count*
+                // of values on the property satisfying an inner
+                // shape — not whether one observed write satisfies
+                // it. The AST validator only sees one write at a
+                // time, so the cardinality cannot be decided
+                // pre-execute. Same rationale as `MaxCount`
+                // (cypher/CLAUDE.md "Deliberately not enforced at
+                // AST layer"): a future runtime-side companion
+                // check belongs in the bolt driver. Silent skip
+                // here keeps the AST validator from emitting false
+                // positives on every write to a qualified property.
+            }
         }
     }
 

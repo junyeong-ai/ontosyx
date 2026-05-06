@@ -1223,7 +1223,10 @@
           "unknown_value_set_skipped": "Rule `{rule_name}` references unknown value set `{value_set_id}` and was skipped for property `{property}`",
           "unknown_notation_pattern_skipped": "Rule `{rule_name}` references unknown notation pattern `{notation_pattern_id}` and was skipped for property `{property}`",
           "or_no_branch_satisfied": "Property `{property}` = {value} violates rule `{rule_name}` — none of the {branch_count} Or branches accepted the value",
-          "or_empty_branches": "Property `{property}` write rejected by rule `{rule_name}` — Or constraint has no branches (authoring mistake)"
+          "or_empty_branches": "Property `{property}` write rejected by rule `{rule_name}` — Or constraint has no branches (authoring mistake)",
+          "not_violation": "Property `{property}` = {value} violates rule `{rule_name}` — value satisfies a forbidden constraint",
+          "xone_violation": "Property `{property}` = {value} violates rule `{rule_name}` — expected exactly 1 of {branch_count} Xone branches to accept, but {matched_count} did",
+          "xone_empty_branches": "Property `{property}` write rejected by rule `{rule_name}` — Xone constraint has no branches (authoring mistake)"
         }
       }
     }

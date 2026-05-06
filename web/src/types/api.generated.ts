@@ -7431,6 +7431,31 @@ export interface components {
             branches: Record<string, never>[];
             /** @enum {string} */
             kind: "or";
+        } | {
+            branches: Record<string, never>[];
+            /** @enum {string} */
+            kind: "and";
+        } | {
+            /**
+             * @description Boxed because Rust enums forbid direct recursion at the
+             *     variant level. utoipa schema treats this as `Object` —
+             *     same recursive-edge handling as `Or`/`And`/`Xone`.
+             */
+            inner: Record<string, never>;
+            /** @enum {string} */
+            kind: "not";
+        } | {
+            branches: Record<string, never>[];
+            /** @enum {string} */
+            kind: "xone";
+        } | {
+            /** @enum {string} */
+            kind: "qualified_value_shape";
+            /** Format: int32 */
+            qualified_max_count?: number | null;
+            /** Format: int32 */
+            qualified_min_count?: number | null;
+            shape: Record<string, never>;
         };
         ShareDashboardRequest: {
             /**

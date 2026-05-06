@@ -451,6 +451,64 @@ pub enum ShaclConstraint {
         #[schemars(with = "Vec<serde_json::Value>")]
         branches: Vec<ShaclConstraint>,
     },
+    /// `sh:and` — every branch must hold. Cheap to author by hand
+    /// (the underlying primitives already AND together when listed
+    /// in `RuleDef.constraints`), but a first-class `And` keeps
+    /// authored alternation symmetric with `Or` / `Xone` and lets a
+    /// composite rule serialise as a single tree rather than a flat
+    /// list whose conjunction is implicit. Empty `branches` is
+    /// vacuously *true* (mirrors SHACL spec § 4.6.1).
+    And {
+        #[schema(value_type = Vec<Object>)]
+        #[schemars(with = "Vec<serde_json::Value>")]
+        branches: Vec<ShaclConstraint>,
+    },
+    /// `sh:not` — the inner constraint must NOT hold. The natural
+    /// surface for negative-shape authoring ("the value must NOT
+    /// match this pattern", "the property MUST NOT be in this
+    /// value-set"). Pre-Stage-2 the only way to express this was
+    /// via `CrossEntityShape { predicate: "NOT (...)" }` — dialect-
+    /// coupled SQL strings the planner cannot rewrite. `Not` keeps
+    /// negation portable.
+    Not {
+        /// Boxed because Rust enums forbid direct recursion at the
+        /// variant level. utoipa schema treats this as `Object` —
+        /// same recursive-edge handling as `Or`/`And`/`Xone`.
+        #[schema(value_type = Object)]
+        #[schemars(with = "serde_json::Value")]
+        inner: Box<ShaclConstraint>,
+    },
+    /// `sh:xone` — exactly one branch must hold. Models mutually-
+    /// exclusive alternation (a price field is either an integer
+    /// `cents` value OR a decimal `dollars` value, never both). An
+    /// empty `branches` list is vacuously *false* (mirrors `Or`
+    /// failure semantics for the empty case).
+    Xone {
+        #[schema(value_type = Vec<Object>)]
+        #[schemars(with = "Vec<serde_json::Value>")]
+        branches: Vec<ShaclConstraint>,
+    },
+    /// `sh:qualifiedValueShape` — at least `qualified_min_count`
+    /// and at most `qualified_max_count` *values of this property*
+    /// satisfy the inner shape. The classic regulatory-rule shape:
+    /// "exactly 2 phone numbers must be of kind 'work'", "at least
+    /// 1 address must be a verified address". Without this variant
+    /// authors fall back to procedural checks that bypass the SHACL
+    /// runtime.
+    ///
+    /// `qualified_min_count` defaults to `0` (no lower bound);
+    /// `qualified_max_count = None` is "no upper bound". Both
+    /// being `None`/`0` is degenerate and rejected by the
+    /// validator's authoring-time check.
+    QualifiedValueShape {
+        #[schema(value_type = Object)]
+        #[schemars(with = "serde_json::Value")]
+        shape: Box<ShaclConstraint>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        qualified_min_count: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        qualified_max_count: Option<u32>,
+    },
 }
 
 impl ShaclConstraint {
@@ -478,7 +536,13 @@ impl ShaclConstraint {
             | Self::Closed { target, .. }
             | Self::LessThan { target, .. }
             | Self::Equals { target, .. } => Some(target),
-            Self::Disjoint { .. } | Self::UniqueKey { .. } | Self::Or { .. } => None,
+            Self::Disjoint { .. }
+            | Self::UniqueKey { .. }
+            | Self::Or { .. }
+            | Self::And { .. }
+            | Self::Not { .. }
+            | Self::Xone { .. }
+            | Self::QualifiedValueShape { .. } => None,
         }
     }
 
@@ -514,7 +578,11 @@ impl ShaclConstraint {
             | Self::UniqueKey { .. }
             | Self::LessThan { .. }
             | Self::Equals { .. }
-            | Self::Or { .. } => None,
+            | Self::Or { .. }
+            | Self::And { .. }
+            | Self::Not { .. }
+            | Self::Xone { .. }
+            | Self::QualifiedValueShape { .. } => None,
         }
     }
 
@@ -545,6 +613,10 @@ impl ShaclConstraint {
             Self::LessThan { .. } => "less_than",
             Self::Equals { .. } => "equals",
             Self::Or { .. } => "or",
+            Self::And { .. } => "and",
+            Self::Not { .. } => "not",
+            Self::Xone { .. } => "xone",
+            Self::QualifiedValueShape { .. } => "qualified_value_shape",
         }
     }
 
@@ -570,10 +642,12 @@ impl ShaclConstraint {
             | Self::Equals { other_property, .. } => {
                 vec![ConstraintRef::PropertyId(other_property)]
             }
-            Self::Or { branches } => branches
+            Self::Or { branches } | Self::And { branches } | Self::Xone { branches } => branches
                 .iter()
                 .flat_map(|c| c.referenced_ids())
                 .collect(),
+            Self::Not { inner } => inner.referenced_ids(),
+            Self::QualifiedValueShape { shape, .. } => shape.referenced_ids(),
             Self::MinCount { .. }
             | Self::MaxCount { .. }
             | Self::Datatype { .. }
@@ -1233,5 +1307,116 @@ mod tests {
         }"#;
         let rule: RuleDef = serde_json::from_str(json).expect("legacy parse");
         assert_eq!(rule.origin, RuleOrigin::Authored);
+    }
+
+    // ----- And / Not / Xone / QualifiedValueShape — SHACL Core ----------
+
+    #[test]
+    fn and_constraint_round_trips_through_serde() {
+        let c = ShaclConstraint::And {
+            branches: vec![
+                ShaclConstraint::MinLength {
+                    target: ConstraintTarget::Inherit,
+                    min: 1,
+                },
+                ShaclConstraint::MaxLength {
+                    target: ConstraintTarget::Inherit,
+                    max: 256,
+                },
+            ],
+        };
+        let json = serde_json::to_string(&c).expect("ser");
+        let back: ShaclConstraint = serde_json::from_str(&json).expect("de");
+        assert_eq!(back.label_kind(), "and");
+        assert!(back.signature().is_none());
+    }
+
+    #[test]
+    fn not_constraint_round_trips_through_serde() {
+        let c = ShaclConstraint::Not {
+            inner: Box::new(ShaclConstraint::MatchesPattern {
+                target: ConstraintTarget::Inherit,
+                notation_pattern_id: NotationPatternId::new("np-deprecated-format"),
+            }),
+        };
+        let json = serde_json::to_string(&c).expect("ser");
+        let back: ShaclConstraint = serde_json::from_str(&json).expect("de");
+        assert_eq!(back.label_kind(), "not");
+        assert!(back.signature().is_none());
+        // Inner refs propagate through the integrity walk.
+        assert_eq!(back.referenced_ids().len(), 1);
+    }
+
+    #[test]
+    fn xone_constraint_round_trips_through_serde() {
+        let c = ShaclConstraint::Xone {
+            branches: vec![
+                ShaclConstraint::Datatype {
+                    target: ConstraintTarget::Inherit,
+                    expected: PropertyType::Int,
+                },
+                ShaclConstraint::Datatype {
+                    target: ConstraintTarget::Inherit,
+                    expected: PropertyType::Float,
+                },
+            ],
+        };
+        let json = serde_json::to_string(&c).expect("ser");
+        let back: ShaclConstraint = serde_json::from_str(&json).expect("de");
+        assert_eq!(back.label_kind(), "xone");
+        assert!(back.signature().is_none());
+    }
+
+    #[test]
+    fn qualified_value_shape_round_trips_through_serde() {
+        let c = ShaclConstraint::QualifiedValueShape {
+            shape: Box::new(ShaclConstraint::HasValue {
+                target: ConstraintTarget::Inherit,
+                value: "work".into(),
+            }),
+            qualified_min_count: Some(2),
+            qualified_max_count: Some(2),
+        };
+        let json = serde_json::to_string(&c).expect("ser");
+        let back: ShaclConstraint = serde_json::from_str(&json).expect("de");
+        assert_eq!(back.label_kind(), "qualified_value_shape");
+        assert!(back.signature().is_none());
+    }
+
+    #[test]
+    fn nested_referenced_ids_walk_through_composition_variants() {
+        // Verify the `referenced_ids` walk recurses through every
+        // composition variant — integrity pass relies on this for
+        // dangling-id detection on deeply nested rule trees.
+        let c = ShaclConstraint::And {
+            branches: vec![
+                ShaclConstraint::Or {
+                    branches: vec![
+                        ShaclConstraint::InValueSet {
+                            target: ConstraintTarget::Inherit,
+                            value_set_id: ValueSetId::new("vs-status"),
+                        },
+                        ShaclConstraint::Not {
+                            inner: Box::new(ShaclConstraint::MatchesPattern {
+                                target: ConstraintTarget::Inherit,
+                                notation_pattern_id: NotationPatternId::new("np-x"),
+                            }),
+                        },
+                    ],
+                },
+                ShaclConstraint::Xone {
+                    branches: vec![ShaclConstraint::QualifiedValueShape {
+                        shape: Box::new(ShaclConstraint::InValueSet {
+                            target: ConstraintTarget::Inherit,
+                            value_set_id: ValueSetId::new("vs-y"),
+                        }),
+                        qualified_min_count: Some(1),
+                        qualified_max_count: None,
+                    }],
+                },
+            ],
+        };
+        let refs = c.referenced_ids();
+        assert_eq!(refs.len(), 3, "And→Or→{{InValueSet, Not→MatchesPattern}}, And→Xone→QualifiedValueShape→InValueSet");
     }
 }
