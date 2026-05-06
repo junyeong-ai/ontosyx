@@ -1,19 +1,24 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { use } from "react";
+import { use, useState } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
 import {
   useEvaluationDataset,
   useEvaluationDatasetItems,
+  useReplaceEvaluationDatasetItems,
 } from "@/hooks/api/use-evaluation";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
+import { FormTextarea } from "@/components/ui/form-input";
+import { toast } from "@/components/ui/toast";
+import type { UpsertEvaluationDatasetItemEntry } from "@/types/evaluation";
 
 interface DatasetDetailPageProps {
   params: Promise<{ id: string }>;
@@ -45,6 +50,39 @@ function inputKind(input: unknown): string {
   return "—";
 }
 
+/// Parse a textarea blob as either a JSON array of dataset-item
+/// entries or JSONL (one entry per non-blank line). Mirrors the
+/// case-bulk parser shape on the run-detail page so operators
+/// see consistent semantics across surfaces. Returns `null`
+/// when neither shape lands cleanly so the caller surfaces a
+/// "could not parse" toast.
+function parseBulkInput(
+  raw: string,
+): UpsertEvaluationDatasetItemEntry[] | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return [];
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed) as UpsertEvaluationDatasetItemEntry[];
+      if (!Array.isArray(parsed)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+  const out: UpsertEvaluationDatasetItemEntry[] = [];
+  for (const line of trimmed.split(/\r?\n/)) {
+    const t = line.trim();
+    if (t.length === 0) continue;
+    try {
+      out.push(JSON.parse(t) as UpsertEvaluationDatasetItemEntry);
+    } catch {
+      return null;
+    }
+  }
+  return out;
+}
+
 export default function EvaluationDatasetDetailPage({
   params,
 }: DatasetDetailPageProps) {
@@ -54,6 +92,34 @@ export default function EvaluationDatasetDetailPage({
   const { isAdmin } = useAuth();
   const datasetQuery = useEvaluationDataset(id);
   const itemsQuery = useEvaluationDatasetItems(id);
+  const replace = useReplaceEvaluationDatasetItems(id);
+  const [bulkText, setBulkText] = useState("");
+  const onBulk = () => {
+    const parsed = parseBulkInput(bulkText);
+    if (parsed === null) {
+      toast.error(t("detail.bulk.parseError"));
+      return;
+    }
+    replace.mutate(
+      { items: parsed },
+      {
+        onSuccess: (res) => {
+          toast.success(
+            t("detail.bulk.successToast", { count: res.item_count }),
+          );
+          setBulkText("");
+        },
+        onError: (err) => {
+          toast.error(
+            t("detail.bulk.errorToast", {
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+        },
+      },
+    );
+  };
+  const canBulk = bulkText.trim().length > 0 && !replace.isPending;
 
   if (!isAdmin) {
     return (
@@ -113,6 +179,37 @@ export default function EvaluationDatasetDetailPage({
             </dl>
           </section>
         ) : null}
+
+        <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">
+          <Heading level={2} size={5}>
+            {t("detail.bulk.title")}
+          </Heading>
+          <p className="mt-1 text-xs text-warning-foreground">
+            {t("detail.bulk.replaceWarning")}
+          </p>
+          <div className="mt-3 flex flex-col gap-3">
+            <FormTextarea
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              placeholder={t("detail.bulk.placeholder")}
+              spellCheck={false}
+              rows={6}
+              className="w-full font-mono"
+            />
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={onBulk}
+                disabled={!canBulk}
+                loading={replace.isPending}
+              >
+                {replace.isPending
+                  ? t("detail.bulk.submitting")
+                  : t("detail.bulk.submit")}
+              </Button>
+            </div>
+          </div>
+        </section>
 
         <section className="rounded-xl border border-divider bg-surface-base p-4">
           <header className="mb-3 flex items-baseline justify-between">

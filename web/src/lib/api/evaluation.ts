@@ -13,6 +13,8 @@ import type {
   EvaluationRunListPage,
   ExecuteEvaluationCaseRequest,
   RecordEvaluationMetricRequest,
+  ReplaceEvaluationDatasetItemsRequest,
+  ReplaceEvaluationDatasetItemsResponse,
   RunComparisonReport,
   RunSummary,
   UpsertEvaluationCaseRequest,
@@ -234,6 +236,20 @@ export async function listEvaluationDatasetItems(
 ): Promise<EvaluationDatasetItem[]> {
   return request<EvaluationDatasetItem[]>(
     `${DATASETS}/${encodeURIComponent(datasetId)}/items`,
+  );
+}
+
+/** Atomic replace — items in the body land via UPSERT on
+ *  `(dataset_id, item_key)`; items in the DB but missing from
+ *  the body are deleted. Use carefully — passing an empty
+ *  list clears the dataset. */
+export async function replaceEvaluationDatasetItems(
+  datasetId: string,
+  req: ReplaceEvaluationDatasetItemsRequest,
+): Promise<ReplaceEvaluationDatasetItemsResponse> {
+  return request<ReplaceEvaluationDatasetItemsResponse>(
+    `${DATASETS}/${encodeURIComponent(datasetId)}/items`,
+    { method: "PUT", body: JSON.stringify(req) },
   );
 }
 

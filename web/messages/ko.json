@@ -3096,13 +3096,23 @@
           "headerTitle": "헤더",
           "itemsTitle": "아이템",
           "itemsDescription": "데이터셋이 freeze 한 (input, expected) 쌍. `create_run_from_dataset` 가 같은 `case_key` 로 케이스를 한 개씩 materialise.",
-          "emptyItems": "이 데이터셋에 아이템이 없습니다 — run-detail 페이지에서 chat sample 을 승격하거나 bulk import 엔드포인트로 가져오세요.",
+          "emptyItems": "이 데이터셋에 아이템이 없습니다 — run-detail 페이지에서 chat sample 을 승격하거나 위 bulk textarea 로 임포트하세요.",
           "expectedSet": "있음",
           "col": {
             "itemKey": "Item key",
             "kind": "Kind",
             "input": "입력 (요약)",
             "expected": "Expected"
+          },
+          "bulk": {
+            "title": "아이템 일괄 교체 (atomic)",
+            "replaceWarning": "PUT 는 모든 아이템을 교체합니다 — 빈 리스트 제출 시 데이터셋이 비워집니다. 본문에 없는 아이템은 삭제되고 `(dataset_id, item_key)` 일치 행은 upsert.",
+            "placeholder": "[\n  { \"item_key\": \"q01\", \"input\": { \"kind\": \"explain\", \"question\": \"X 가 뭔가요?\" } }\n]",
+            "submit": "아이템 교체",
+            "submitting": "교체 중…",
+            "successToast": "{count} 개 아이템 materialise 완료",
+            "errorToast": "일괄 교체 실패: {error}",
+            "parseError": "파싱 실패 — JSON 배열 또는 JSONL 형식이 필요"
           }
         }
       },

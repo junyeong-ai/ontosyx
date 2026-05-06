@@ -3096,13 +3096,23 @@
           "headerTitle": "Header",
           "itemsTitle": "Items",
           "itemsDescription": "Each (input, expected) pair the dataset froze. `create_run_from_dataset` materialises one EvaluationCase per item with the same `case_key`.",
-          "emptyItems": "No items in this dataset yet — promote chat samples from the run-detail page or import via the bulk endpoint.",
+          "emptyItems": "No items in this dataset yet — promote chat samples from the run-detail page or import via the bulk textarea above.",
           "expectedSet": "Set",
           "col": {
             "itemKey": "Item key",
             "kind": "Kind",
             "input": "Input (summary)",
             "expected": "Expected"
+          },
+          "bulk": {
+            "title": "Replace items (atomic)",
+            "replaceWarning": "PUT replaces every item — submitting an empty list clears the dataset. Items not in the body are deleted; items keyed on `(dataset_id, item_key)` are upserted.",
+            "placeholder": "[\n  { \"item_key\": \"q01\", \"input\": { \"kind\": \"explain\", \"question\": \"What is X?\" } }\n]",
+            "submit": "Replace items",
+            "submitting": "Replacing…",
+            "successToast": "{count} items materialised",
+            "errorToast": "Bulk replace failed: {error}",
+            "parseError": "Could not parse — expected JSON array or JSONL"
           }
         }
       },

@@ -21,6 +21,7 @@ import {
   listEvaluationMetrics,
   listEvaluationRuns,
   promoteCaseToDataset,
+  replaceEvaluationDatasetItems,
   upsertEvaluationDataset,
   type ListEvaluationDatasetsParams,
   type ListEvaluationRunsParams,
@@ -38,6 +39,8 @@ import type {
   EvaluationRun,
   EvaluationRunListPage,
   ExecuteEvaluationCaseRequest,
+  ReplaceEvaluationDatasetItemsRequest,
+  ReplaceEvaluationDatasetItemsResponse,
   RunComparisonReport,
   RunSummary,
   UpsertEvaluationDatasetRequest,
@@ -171,6 +174,27 @@ export function useEvaluationDatasetItems(id: string | null | undefined) {
     },
     enabled: !!id,
     staleTime: 30_000,
+  });
+}
+
+/** Atomic replace of every item under a dataset.
+ *  Invalidates both the items list (for the surface that just
+ *  ran the import) and the run-summary tree (no direct
+ *  dependency, but a future auto-import flow that creates a
+ *  run from the dataset would surface the new count). */
+export function useReplaceEvaluationDatasetItems(datasetId: string) {
+  const qc = useQueryClient();
+  return useMutation<
+    ReplaceEvaluationDatasetItemsResponse,
+    Error,
+    ReplaceEvaluationDatasetItemsRequest
+  >({
+    mutationFn: (req) => replaceEvaluationDatasetItems(datasetId, req),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: evaluationKeys.datasetItems(datasetId),
+      });
+    },
   });
 }
 

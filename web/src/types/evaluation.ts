@@ -251,3 +251,23 @@ export interface EvaluationDatasetItem {
   metadata: Record<string, unknown>;
   created_at: string;
 }
+
+/** One row in the `PUT /datasets/{id}/items` request body —
+ *  the bulk import shape. The server stamps `id` /
+ *  `dataset_id` / `workspace_id` / `created_at` so the
+ *  operator-facing payload is just the editable surface. */
+export interface UpsertEvaluationDatasetItemEntry {
+  item_key: string;
+  input: unknown;
+  expected?: unknown;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ReplaceEvaluationDatasetItemsRequest {
+  items: UpsertEvaluationDatasetItemEntry[];
+}
+
+export interface ReplaceEvaluationDatasetItemsResponse {
+  dataset_id: string;
+  item_count: number;
+}
