@@ -3000,6 +3000,16 @@
           "errorToast": "Safety judge failed: {error}",
           "noActual": "Run the case first — safety judge needs `actual` to score against."
         },
+        "promote": {
+          "label": "Promote",
+          "submitting": "Promoting…",
+          "title": "Promote case to dataset",
+          "description": "Paste the target dataset id. The case input is copied as a frozen item so future runs replay it.",
+          "datasetIdPlaceholder": "01934f0a-...",
+          "successToast": "Case promoted — dataset item created",
+          "errorToast": "Promotion failed: {error}",
+          "noCase": "Pick a case from the list first"
+        },
         "execute": {
           "title": "Run a case",
           "description": "Runs the selected operation under an evaluation scope. Latency is captured automatically; the operation's output lands on the case's `actual` field.",

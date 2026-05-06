@@ -12,7 +12,9 @@ import {
   useExecuteEvaluationCase,
   useJudgeEvaluationCase,
   useJudgeSafetyEvaluationCase,
+  usePromoteCaseToDataset,
 } from "@/hooks/api/use-evaluation";
+import { usePrompt } from "@/components/ui/prompt-dialog";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
@@ -82,6 +84,8 @@ export default function EvaluationDetailPage({
   const execute = useExecuteEvaluationCase(id);
   const judge = useJudgeEvaluationCase();
   const safetyJudge = useJudgeSafetyEvaluationCase();
+  const promote = usePromoteCaseToDataset();
+  const prompt = usePrompt();
   const bulk = useBulkUpsertEvaluationCases(id);
   const [bulkText, setBulkText] = useState("");
   const onBulk = () => {
@@ -236,6 +240,40 @@ export default function EvaluationDetailPage({
         );
       },
     });
+  };
+  const canPromote = !!selectedCase && !promote.isPending;
+  const onPromote = async () => {
+    if (!selectedCase) return;
+    // Two-step prompt: dataset id then promotion mode. The
+    // codebase's `usePrompt` is single-field, so the second
+    // toggle defaults conservatively (`use_actual_as_expected =
+    // false`). Operators who want the captured `actual` as the
+    // golden expected answer can flip the toggle on the dataset
+    // detail page after the item lands.
+    const datasetId = await prompt({
+      title: t("detail.promote.title"),
+      description: t("detail.promote.description"),
+      placeholder: t("detail.promote.datasetIdPlaceholder"),
+    });
+    if (!datasetId) return; // operator cancelled
+    promote.mutate(
+      {
+        caseId: selectedCase.id,
+        request: { dataset_id: datasetId.trim() },
+      },
+      {
+        onSuccess: () => {
+          toast.success(t("detail.promote.successToast"));
+        },
+        onError: (err) => {
+          toast.error(
+            t("detail.promote.errorToast", {
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+        },
+      },
+    );
   };
 
   return (
@@ -441,6 +479,23 @@ export default function EvaluationDetailPage({
                   {safetyJudge.isPending
                     ? t("detail.safetyJudge.submitting")
                     : t("detail.safetyJudge.label")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={onPromote}
+                  disabled={!canPromote}
+                  loading={promote.isPending}
+                  title={
+                    selectedCase
+                      ? undefined
+                      : t("detail.promote.noCase")
+                  }
+                >
+                  {promote.isPending
+                    ? t("detail.promote.submitting")
+                    : t("detail.promote.label")}
                 </Button>
                 <span className="text-2xs text-foreground-muted tabular-nums">
                   {(metricsQuery.data ?? []).length}

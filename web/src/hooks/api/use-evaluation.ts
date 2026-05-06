@@ -15,7 +15,9 @@ import {
   listEvaluationCases,
   listEvaluationMetrics,
   listEvaluationRuns,
+  promoteCaseToDataset,
   type ListEvaluationRunsParams,
+  type PromoteCaseToDatasetRequest,
 } from "@/lib/api/evaluation";
 import type {
   BulkUpsertEvaluationCasesRequest,
@@ -167,6 +169,21 @@ export function useJudgeSafetyEvaluationCase() {
     onSuccess: (_metrics, caseId) => {
       qc.invalidateQueries({ queryKey: evaluationKeys.metrics(caseId) });
     },
+  });
+}
+
+/** Promote a chat-sample case into a curated dataset item.
+ *  Pure server-side mutation; no list-level cache invalidation
+ *  needed because the dataset surface lives in its own
+ *  query tree. */
+export function usePromoteCaseToDataset() {
+  return useMutation<
+    unknown,
+    Error,
+    { caseId: string; request: PromoteCaseToDatasetRequest }
+  >({
+    mutationFn: ({ caseId, request }) =>
+      promoteCaseToDataset(caseId, request),
   });
 }
 
