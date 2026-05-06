@@ -83,6 +83,35 @@ fn glossary_term(id: &str, term: &str, description: &str) -> GlossaryTermDef {
     }
 }
 
+/// Glossary term with both Korean (canonical) + English (alt)
+/// labels, validating the materialiser's `localized_flat` join
+/// (which includes every translation in the doc) against
+/// CJK-tokenised retrieval. Korean is the platform's primary
+/// user-facing language; the gate must catch a regression that
+/// only surfaces on multi-byte UTF-8 token boundaries.
+fn bilingual_glossary_term(
+    id: &str,
+    ko: &str,
+    en: &str,
+    description: &str,
+) -> GlossaryTermDef {
+    GlossaryTermDef {
+        id: GlossaryTermId::new(id),
+        term: LocalizedText::bilingual(ko, en),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::new(description),
+        examples: Vec::new(),
+        aliases: Vec::new(),
+        related_terms: Vec::new(),
+        category: None,
+        governance: ox_ontology::glossary::TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: ox_ontology::glossary::TermLifecycle::default(),
+        concept_id: None,
+    }
+}
+
 fn node_type(id: &str, label: &str, description: &str) -> NodeTypeDef {
     NodeTypeDef {
         id: id.into(),
@@ -174,6 +203,24 @@ fn build_golden_ontology(lineage_id: &str) -> OntologyIR {
         "Group of customers sharing a defining attribute for analysis",
     ))
     .expect("add gt_cohort");
+    // Korean-canonical anchors. The materialiser folds every
+    // translation into the searchable doc; the gate validates the
+    // blend can match Korean queries against the Korean-canonical
+    // term + the English-alt term in the same row.
+    ir.add_glossary_term(bilingual_glossary_term(
+        "gt_customer_ko",
+        "고객",
+        "Customer (KO)",
+        "한국어 사용자가 검색하는 고객 개념의 한글 표기",
+    ))
+    .expect("add gt_customer_ko");
+    ir.add_glossary_term(bilingual_glossary_term(
+        "gt_order_ko",
+        "주문",
+        "Order (KO)",
+        "한국어 사용자가 입력하는 주문 개념의 한글 표기",
+    ))
+    .expect("add gt_order_ko");
     ir
 }
 
@@ -253,6 +300,34 @@ fn golden_cases() -> &'static [GoldenCase] {
             expected_ids: &["edge_type:et_contains"],
             top_k: 5,
             min_precision: 0.20,
+            min_recall: 1.0,
+            min_mrr: 1.0,
+            min_ndcg: 0.95,
+        },
+        GoldenCase {
+            // Korean canonical query — `고객` is the bilingual
+            // term's `default`, so both `label` (canonical short
+            // form) and `doc` (label + translations + description)
+            // carry it. The label-boost should fire on the
+            // Korean-side prefix match.
+            name: "korean_canonical_label_match",
+            question: "고객",
+            expected_ids: &["glossary_term:gt_customer_ko"],
+            top_k: 5,
+            // Multiple `gt_*` rows mention "Customer" in their
+            // descriptions — the Korean-canonical `gt_customer_ko`
+            // wins on label-trigram against the literal `고객`.
+            min_precision: 0.15,
+            min_recall: 1.0,
+            min_mrr: 1.0,
+            min_ndcg: 0.95,
+        },
+        GoldenCase {
+            name: "korean_partial_label_match",
+            question: "주문",
+            expected_ids: &["glossary_term:gt_order_ko"],
+            top_k: 5,
+            min_precision: 0.15,
             min_recall: 1.0,
             min_mrr: 1.0,
             min_ndcg: 0.95,
