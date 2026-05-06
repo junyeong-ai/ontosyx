@@ -3113,6 +3113,16 @@
             "successToast": "{count} 개 아이템 materialise 완료",
             "errorToast": "일괄 교체 실패: {error}",
             "parseError": "파싱 실패 — JSON 배열 또는 JSONL 형식이 필요"
+          },
+          "createRun": {
+            "label": "런 생성",
+            "submitting": "생성 중…",
+            "title": "이 데이터셋에서 새 런 생성",
+            "description": "새 런이 데이터셋의 모든 아이템을 `item_key` 로 evaluation case 에 복제합니다. 런 이름만 입력하세요; case-execute 준비 상태(Running) 로 시작합니다.",
+            "namePlaceholder": "rag-baseline-v1 run",
+            "noItems": "런을 만들려면 먼저 데이터셋에 아이템을 추가하세요",
+            "successToast": "런 `{name}` 생성 완료 — {count} 개 케이스 준비",
+            "errorToast": "런 생성 실패: {error}"
           }
         }
       },

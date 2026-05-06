@@ -4,6 +4,8 @@ import type {
   BulkUpsertEvaluationCasesResponse,
   CompleteEvaluationRunRequest,
   CreateEvaluationRunRequest,
+  CreateRunFromDatasetRequest,
+  CreateRunFromDatasetResponse,
   EvaluationCase,
   EvaluationDataset,
   EvaluationDatasetItem,
@@ -236,6 +238,19 @@ export async function listEvaluationDatasetItems(
 ): Promise<EvaluationDatasetItem[]> {
   return request<EvaluationDatasetItem[]>(
     `${DATASETS}/${encodeURIComponent(datasetId)}/items`,
+  );
+}
+
+/** Materialise a fresh run from an existing dataset. The
+ *  server clones every dataset item into an EvaluationCase
+ *  under the new run, with `case_key = item_key`. Atomic:
+ *  failed materialisation rolls the whole run back. */
+export async function createRunFromDataset(
+  req: CreateRunFromDatasetRequest,
+): Promise<CreateRunFromDatasetResponse> {
+  return request<CreateRunFromDatasetResponse>(
+    `${RUNS}/from-dataset`,
+    { method: "POST", body: JSON.stringify(req) },
   );
 }
 

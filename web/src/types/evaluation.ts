@@ -271,3 +271,18 @@ export interface ReplaceEvaluationDatasetItemsResponse {
   dataset_id: string;
   item_count: number;
 }
+
+/** `POST /api/evaluation/runs/from-dataset` body. */
+export interface CreateRunFromDatasetRequest {
+  dataset_id: string;
+  name: string;
+  description?: string;
+  ontology_version_id?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateRunFromDatasetResponse {
+  run: EvaluationRun;
+  /** Cases materialised — equals dataset item count. */
+  case_count: number;
+}

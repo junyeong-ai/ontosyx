@@ -3113,6 +3113,16 @@
             "successToast": "{count} items materialised",
             "errorToast": "Bulk replace failed: {error}",
             "parseError": "Could not parse — expected JSON array or JSONL"
+          },
+          "createRun": {
+            "label": "Materialise run",
+            "submitting": "Materialising…",
+            "title": "Materialise a run from this dataset",
+            "description": "The new run clones every dataset item into an EvaluationCase keyed on `item_key`. Pin the run name; it lands in `Running` state ready for case-execute.",
+            "namePlaceholder": "rag-baseline-v1 run",
+            "noItems": "Add items to this dataset before materialising a run",
+            "successToast": "Run `{name}` materialised — {count} cases ready",
+            "errorToast": "Materialise failed: {error}"
           }
         }
       },

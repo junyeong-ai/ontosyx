@@ -3,8 +3,12 @@
 import { useTranslations } from "next-intl";
 import { use, useState } from "react";
 
+import { useRouter } from "next/navigation";
+
 import { useAuth } from "@/hooks/use-auth";
+import { usePrompt } from "@/components/ui/prompt-dialog";
 import {
+  useCreateRunFromDataset,
   useEvaluationDataset,
   useEvaluationDatasetItems,
   useReplaceEvaluationDatasetItems,
@@ -93,6 +97,9 @@ export default function EvaluationDatasetDetailPage({
   const datasetQuery = useEvaluationDataset(id);
   const itemsQuery = useEvaluationDatasetItems(id);
   const replace = useReplaceEvaluationDatasetItems(id);
+  const createRun = useCreateRunFromDataset();
+  const router = useRouter();
+  const prompt = usePrompt();
   const [bulkText, setBulkText] = useState("");
   const onBulk = () => {
     const parsed = parseBulkInput(bulkText);
@@ -120,6 +127,52 @@ export default function EvaluationDatasetDetailPage({
     );
   };
   const canBulk = bulkText.trim().length > 0 && !replace.isPending;
+
+  /// Materialise a run from this dataset and navigate to the
+  /// new run's detail page. The prompt asks only for the run
+  /// name — description / ontology pin / metadata default to
+  /// sensible empty values; advanced operators who need them
+  /// hit the BE directly. The case_count returned by the
+  /// endpoint surfaces in the toast so the operator sees how
+  /// many cases were materialised before landing on the
+  /// detail page.
+  const onCreateRun = async () => {
+    if (!dataset) return;
+    const runName = await prompt({
+      title: t("detail.createRun.title"),
+      description: t("detail.createRun.description"),
+      placeholder: t("detail.createRun.namePlaceholder"),
+      defaultValue: `${dataset.name} run`,
+    });
+    if (!runName || runName.trim().length === 0) return;
+    createRun.mutate(
+      {
+        dataset_id: id,
+        name: runName.trim(),
+        description: "",
+      },
+      {
+        onSuccess: (res) => {
+          toast.success(
+            t("detail.createRun.successToast", {
+              name: res.run.name,
+              count: res.case_count,
+            }),
+          );
+          router.push(
+            `/settings/evaluation/${encodeURIComponent(res.run.id)}`,
+          );
+        },
+        onError: (err) => {
+          toast.error(
+            t("detail.createRun.errorToast", {
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+        },
+      },
+    );
+  };
 
   if (!isAdmin) {
     return (
@@ -160,9 +213,27 @@ export default function EvaluationDatasetDetailPage({
       >
         {dataset ? (
           <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">
-            <Heading level={2} size={5}>
-              {t("detail.headerTitle")}
-            </Heading>
+            <header className="flex items-baseline justify-between gap-3">
+              <Heading level={2} size={5}>
+                {t("detail.headerTitle")}
+              </Heading>
+              <Button
+                type="button"
+                size="sm"
+                onClick={onCreateRun}
+                disabled={items.length === 0 || createRun.isPending}
+                loading={createRun.isPending}
+                title={
+                  items.length === 0
+                    ? t("detail.createRun.noItems")
+                    : undefined
+                }
+              >
+                {createRun.isPending
+                  ? t("detail.createRun.submitting")
+                  : t("detail.createRun.label")}
+              </Button>
+            </header>
             <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-[max-content_1fr] text-sm">
               <dt className="text-foreground-muted">{t("col.name")}</dt>
               <dd className="font-medium">{dataset.name}</dd>

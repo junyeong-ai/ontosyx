@@ -7,6 +7,7 @@ import {
   cancelEvaluationRun,
   compareEvaluationRuns,
   createEvaluationRun,
+  createRunFromDataset,
   deleteEvaluationDataset,
   deleteEvaluationRun,
   executeEvaluationCase,
@@ -31,6 +32,8 @@ import type {
   BulkUpsertEvaluationCasesRequest,
   BulkUpsertEvaluationCasesResponse,
   CreateEvaluationRunRequest,
+  CreateRunFromDatasetRequest,
+  CreateRunFromDatasetResponse,
   EvaluationCase,
   EvaluationDataset,
   EvaluationDatasetItem,
@@ -174,6 +177,23 @@ export function useEvaluationDatasetItems(id: string | null | undefined) {
     },
     enabled: !!id,
     staleTime: 30_000,
+  });
+}
+
+/** Materialise a new EvaluationRun from a dataset. Invalidates
+ *  the run-list tree so the new run shows up immediately on
+ *  the index page. */
+export function useCreateRunFromDataset() {
+  const qc = useQueryClient();
+  return useMutation<
+    CreateRunFromDatasetResponse,
+    Error,
+    CreateRunFromDatasetRequest
+  >({
+    mutationFn: (req) => createRunFromDataset(req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: evaluationKeys.runs() });
+    },
   });
 }
 
