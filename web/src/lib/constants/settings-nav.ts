@@ -68,6 +68,11 @@ export const SETTINGS_NAV_GROUPS: readonly NavGroup[] = [
     href: "/settings/evaluation",
     items: [
       { labelKey: "runs", href: "/settings/evaluation", adminOnly: true },
+      {
+        labelKey: "datasets",
+        href: "/settings/evaluation/datasets",
+        adminOnly: true,
+      },
       { labelKey: "diff", href: "/settings/evaluation/diff", adminOnly: true },
     ],
   },

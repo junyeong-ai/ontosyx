@@ -5,6 +5,8 @@ import type {
   CompleteEvaluationRunRequest,
   CreateEvaluationRunRequest,
   EvaluationCase,
+  EvaluationDataset,
+  EvaluationDatasetListPage,
   EvaluationMetric,
   EvaluationRun,
   EvaluationRunListPage,
@@ -13,6 +15,7 @@ import type {
   RunComparisonReport,
   RunSummary,
   UpsertEvaluationCaseRequest,
+  UpsertEvaluationDatasetRequest,
 } from "@/types/evaluation";
 
 const RUNS = "/evaluation/runs";
@@ -178,6 +181,42 @@ export async function compareEvaluationRuns(
   return request<RunComparisonReport>(
     `${RUNS}/diff?${qs.toString()}`,
   );
+}
+
+const DATASETS = "/evaluation/datasets";
+
+export interface ListEvaluationDatasetsParams {
+  cursor?: string;
+  limit?: number;
+}
+
+export async function listEvaluationDatasets(
+  params: ListEvaluationDatasetsParams = {},
+): Promise<EvaluationDatasetListPage> {
+  const qs = new URLSearchParams();
+  if (params.cursor) qs.set("cursor", params.cursor);
+  if (params.limit) qs.set("limit", String(params.limit));
+  const suffix = qs.toString() ? `?${qs}` : "";
+  return request<EvaluationDatasetListPage>(`${DATASETS}${suffix}`);
+}
+
+/** Insert-or-update a dataset on `(workspace_id, name)`. The
+ *  natural-key UPSERT preserves `id` + `created_at` on re-import
+ *  under the same name; just `description` rolls forward. */
+export async function upsertEvaluationDataset(
+  req: UpsertEvaluationDatasetRequest,
+): Promise<EvaluationDataset> {
+  const res = await request<{ dataset: EvaluationDataset }>(DATASETS, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+  return res.dataset;
+}
+
+export async function deleteEvaluationDataset(id: string): Promise<void> {
+  await request(`${DATASETS}/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
 }
 
 /** Promote a chat-sample case into a curated dataset item. The

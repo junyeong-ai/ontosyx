@@ -2224,6 +2224,7 @@
         "quality": "Quality",
         "evaluation": "Evaluation",
         "runs": "Runs",
+        "datasets": "Datasets",
         "diff": "Compare runs",
         "governance": "Governance",
         "accessControl": "Access Control",
@@ -3057,6 +3058,38 @@
           "submitting": "Running…",
           "successToast": "Case `{caseKey}` executed",
           "errorToast": "Execute failed: {error}"
+        }
+      },
+      "datasets": {
+        "title": "Evaluation datasets",
+        "description": "Frozen (input, expected) pairs reusable across runs. The promote-to-dataset action lifts a chat sample into a curated regression fixture here.",
+        "adminOnly": "Admin role required",
+        "listTitle": "Datasets",
+        "emptyTitle": "No datasets yet",
+        "emptyDescription": "Declare a dataset header below; promote chat samples into it from the run-detail page.",
+        "create": {
+          "title": "Declare a dataset",
+          "description": "Re-declaring under the same name preserves `id` + `created_at` and updates description only.",
+          "nameLabel": "Name",
+          "namePlaceholder": "rag-baseline-v1",
+          "descriptionLabel": "Description",
+          "descriptionPlaceholder": "Frozen NL→QueryIR cases for the v1 ontology",
+          "submit": "Create",
+          "submitting": "Creating…",
+          "successToast": "Dataset `{name}` upserted",
+          "errorToast": "Create failed: {error}"
+        },
+        "delete": {
+          "confirmTitle": "Delete dataset `{name}`?",
+          "confirmDescription": "Cascade-deletes every dataset item. Runs that referenced the dataset stay alive — `evaluation_runs.dataset_id` goes NULL on those rows.",
+          "successToast": "Dataset deleted",
+          "errorToast": "Delete failed: {error}"
+        },
+        "col": {
+          "name": "Name",
+          "description": "Description",
+          "id": "ID",
+          "actions": "Actions"
         }
       },
       "diff": {

@@ -218,3 +218,24 @@ export interface RunSummary {
   /** Per-axis (mean, count). Sorted alphabetically by axis. */
   axis_means: AxisAggregate[];
 }
+
+/** Mirrors `ox_store::evaluation::EvaluationDataset` —
+ *  workspace-scoped, name-keyed via UPSERT so re-import
+ *  preserves `id` + `created_at`. */
+export interface EvaluationDataset {
+  id: string;
+  workspace_id: string;
+  name: string;
+  description: string;
+  created_at: string;
+}
+
+export interface EvaluationDatasetListPage {
+  items: EvaluationDataset[];
+  next_cursor?: string;
+}
+
+export interface UpsertEvaluationDatasetRequest {
+  name: string;
+  description?: string;
+}

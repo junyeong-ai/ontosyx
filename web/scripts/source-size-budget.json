@@ -8,7 +8,7 @@
     "app/globals.css": 30972,
     "app/login": 5879,
     "app/ontology": 9703,
-    "app/settings": 342810,
+    "app/settings": 360372,
     "app/shared": 6848,
     "app/workbench": 44204,
     "components/account": 3105,
@@ -34,14 +34,14 @@
     "components/workbench": 967586,
     "components/workspace": 15051,
     "extensions": 7770,
-    "hooks": 144397,
+    "hooks": 146711,
     "i18n": 4043,
-    "lib": 399854,
+    "lib": 401632,
     "proxy.ts": 1308,
     "test-setup.ts": 1849,
     "test-utils": 3224,
-    "types": 76073
+    "types": 77213
   },
-  "total": 3077780,
-  "fileCount": 526
+  "total": 3100574,
+  "fileCount": 527
 }

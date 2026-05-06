@@ -7,6 +7,7 @@ import {
   cancelEvaluationRun,
   compareEvaluationRuns,
   createEvaluationRun,
+  deleteEvaluationDataset,
   deleteEvaluationRun,
   executeEvaluationCase,
   getEvaluationRun,
@@ -14,9 +15,12 @@ import {
   judgeEvaluationCase,
   judgeSafetyEvaluationCase,
   listEvaluationCases,
+  listEvaluationDatasets,
   listEvaluationMetrics,
   listEvaluationRuns,
   promoteCaseToDataset,
+  upsertEvaluationDataset,
+  type ListEvaluationDatasetsParams,
   type ListEvaluationRunsParams,
   type PromoteCaseToDatasetRequest,
 } from "@/lib/api/evaluation";
@@ -25,12 +29,15 @@ import type {
   BulkUpsertEvaluationCasesResponse,
   CreateEvaluationRunRequest,
   EvaluationCase,
+  EvaluationDataset,
+  EvaluationDatasetListPage,
   EvaluationMetric,
   EvaluationRun,
   EvaluationRunListPage,
   ExecuteEvaluationCaseRequest,
   RunComparisonReport,
   RunSummary,
+  UpsertEvaluationDatasetRequest,
 } from "@/types/evaluation";
 
 // ---------------------------------------------------------------------------
@@ -54,6 +61,9 @@ export const evaluationKeys = {
     [...evaluationKeys.runs(), "diff", baselineId, candidateId] as const,
   runSummary: (id: string) =>
     [...evaluationKeys.runs(), "summary", id] as const,
+  datasets: () => [...evaluationKeys.all, "datasets"] as const,
+  datasetList: (params: ListEvaluationDatasetsParams) =>
+    [...evaluationKeys.datasets(), "list", params] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -96,6 +106,36 @@ export function useEvaluationCases(runId: string | null | undefined) {
     },
     enabled: !!runId,
     staleTime: 30_000,
+  });
+}
+
+export function useEvaluationDatasets(
+  params: ListEvaluationDatasetsParams = {},
+) {
+  return useQuery<EvaluationDatasetListPage>({
+    queryKey: evaluationKeys.datasetList(params),
+    queryFn: () => listEvaluationDatasets(params),
+    staleTime: 30_000,
+  });
+}
+
+export function useUpsertEvaluationDataset() {
+  const qc = useQueryClient();
+  return useMutation<EvaluationDataset, Error, UpsertEvaluationDatasetRequest>({
+    mutationFn: (req) => upsertEvaluationDataset(req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: evaluationKeys.datasets() });
+    },
+  });
+}
+
+export function useDeleteEvaluationDataset() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (id) => deleteEvaluationDataset(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: evaluationKeys.datasets() });
+    },
   });
 }
 
