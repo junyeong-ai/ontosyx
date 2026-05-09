@@ -11,10 +11,11 @@
 // is up. `role="region"` + `aria-label` is the right surface for
 // "important standing content" per ARIA APG.
 //
-// `pointer-events-none` while hidden so a mid-fade click can't
-// fire an action. The buttons inside re-enable pointer events
-// individually so they're hit-testable as soon as the slide-in
-// completes.
+// While idle the bar is `inert` (focus + interaction blocked) +
+// `aria-hidden` (assistive tech skips). `inert` alone keeps RTL
+// query helpers seeing the buttons; `aria-hidden` alone left
+// focusable descendants behind (axe `aria-hidden-focus` serious).
+// Both attributes flip atomically on the same `!visible` flag.
 
 import { Button, type ButtonVariant } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -77,7 +78,7 @@ export function BulkActionBar({
   return (
     <div
       className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-6 z-presence mx-auto flex max-w-2xl",
+        "fixed inset-x-0 bottom-6 z-presence mx-auto flex max-w-2xl",
         "items-center justify-between gap-3 rounded-xl border border-divider",
         "bg-surface-overlay px-4 py-3 shadow-2",
         "transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
@@ -86,6 +87,7 @@ export function BulkActionBar({
       role="region"
       aria-label={ariaLabel}
       aria-hidden={!visible}
+      inert={!visible}
     >
       <span className="text-sm font-medium text-foreground-strong">
         {countLabel}
@@ -96,7 +98,6 @@ export function BulkActionBar({
           size="sm"
           onClick={onClear}
           disabled={pending}
-          className="pointer-events-auto"
         >
           {clearLabel}
         </Button>
@@ -107,7 +108,6 @@ export function BulkActionBar({
             size="sm"
             onClick={action.onClick}
             disabled={pending}
-            className="pointer-events-auto"
           >
             {action.label}
           </Button>
