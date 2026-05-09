@@ -123,7 +123,7 @@ export function FilterEditor({ properties, filters, onChange }: FilterEditorProp
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-danger-surface hover:text-danger-foreground"
             title={t("removeTitle")}
           >
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
               <path d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>

@@ -89,7 +89,7 @@ export function ChatInput({
           className="flex h-7 w-7 items-center justify-center rounded-lg bg-danger-solid text-foreground-on-accent shadow-1 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] hover:bg-danger-solid-hover focus-visible:ring-2 focus-visible:ring-danger-foreground/40"
           aria-label={t("stopAria")}
         >
-          <Square className="h-3 w-3" strokeWidth={2.5} />
+          <Square className="h-3 w-3" strokeWidth={1.5} />
         </button>
       </Tooltip>
     ) : disabled && disabledReason ? (
@@ -100,7 +100,7 @@ export function ChatInput({
           className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-inset text-foreground-muted"
           aria-label={disabledReason}
         >
-          <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
+          <ArrowUp className="h-3.5 w-3.5" strokeWidth={1.5} />
         </button>
       </Tooltip>
     ) : (
@@ -116,7 +116,7 @@ export function ChatInput({
         )}
         aria-label={t("sendAria")}
       >
-        <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
+        <ArrowUp className="h-3.5 w-3.5" strokeWidth={1.5} />
       </button>
     );
 

@@ -108,8 +108,6 @@ function Connector({ active }: { active: boolean }) {
 
 function CheckGlyph() {
   return (
-    <Check className="h-3 w-3"
- 
- strokeWidth={2.5} />
+    <Check className="h-3 w-3" strokeWidth={1.5} />
   );
 }

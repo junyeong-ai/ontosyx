@@ -18,6 +18,21 @@
    =========================================================================== */
 
 :root {
+  /* --- Density root ------------------------------------------------------
+     Single multiplier the whole app re-densifies against. Spacing,
+     icon, and chrome-width tokens scale through `calc(<base> *
+     var(--scaling))`; toggling this one variable shifts every
+     component's metrics in lockstep. Radix Themes pattern.
+
+       0.95 → compact  (data-dense workspaces, 13" laptops)
+       1.00 → default
+       1.05 → comfortable
+
+     Operators flip it through a user-setting that writes a
+     `data-density="compact"` attribute on `<html>` (light-touch
+     selector below). */
+  --scaling: 1;
+
   /* --- Brand (primary action / active state) ----------------------------
      Cobalt cyan (OKLCH hue 230) anchors the platform's primary palette.
      Lightness picks pin AA contrast: `--brand-solid` carries white text
@@ -189,6 +204,26 @@
     --collab-presence-6: #be185d;
     --collab-presence-7: #0f766e;
     --collab-presence-8: #c2410c;
+
+    /* Dark-mode shadows — pure-black would vanish on a
+       near-black canvas. Substitute a brand-tinted ambient layer
+       (Material You tonal elevation) on each tier so depth reads
+       through cobalt-cyan luminance instead of black opacity. */
+    --shadow-1:
+      0 1px 1px 0 rgba(14, 127, 193, 0.10),
+      0 1px 2px 0 rgba(0, 0, 0, 0.40);
+    --shadow-2:
+      0 1px 2px 0 rgba(14, 127, 193, 0.08),
+      0 4px 8px -2px rgba(0, 0, 0, 0.45),
+      0 2px 4px -1px rgba(0, 0, 0, 0.30);
+    --shadow-3:
+      0 2px 4px -1px rgba(14, 127, 193, 0.10),
+      0 12px 24px -4px rgba(0, 0, 0, 0.55),
+      0 4px 8px -2px rgba(0, 0, 0, 0.40);
+    --shadow-4:
+      0 4px 8px -2px rgba(14, 127, 193, 0.12),
+      0 24px 48px -8px rgba(0, 0, 0, 0.65),
+      0 8px 16px -4px rgba(0, 0, 0, 0.45);
   }
 }
 
@@ -303,14 +338,14 @@
    * base with t-shirt jumps; nothing below 4 px is allowed because
    * sub-pixel padding stops being a hierarchy and starts being
    * accidental drift. */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-7: 32px;
-  --space-8: 48px;
+  --space-1: calc(4px  * var(--scaling));
+  --space-2: calc(8px  * var(--scaling));
+  --space-3: calc(12px * var(--scaling));
+  --space-4: calc(16px * var(--scaling));
+  --space-5: calc(20px * var(--scaling));
+  --space-6: calc(24px * var(--scaling));
+  --space-7: calc(32px * var(--scaling));
+  --space-8: calc(48px * var(--scaling));
 
   /* --- Type weights ----------------------------------------------------
    * Four canonical weights. `regular` is body text; `medium` is the
@@ -406,15 +441,35 @@
   --duration-slower:  500ms;
 
   /* --- Elevation --------------------------------------------------------
+   * Two-layer "smooth shadow" stacks — a tight ambient layer + a
+   * softer cast layer give depth without the harsh single-blur
+   * silhouette flat shadows produce. Each tier roughly 2× the
+   * spread of the previous; opacity tightens at higher tiers so
+   * modals don't drown the canvas.
+   *
    *   shadow-1  cards, subtle raised surfaces, button hover
    *   shadow-2  hover states for raised surfaces
    *   shadow-3  popovers, tooltips, dropdowns
    *   shadow-4  modals, command palette, full dialogs
-   * Each tier is roughly 2× the spread of the previous. */
-  --shadow-1: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-2: 0 4px 8px -2px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-  --shadow-3: 0 12px 24px -4px rgba(0, 0, 0, 0.10), 0 4px 8px -2px rgba(0, 0, 0, 0.05);
-  --shadow-4: 0 24px 48px -8px rgba(0, 0, 0, 0.14), 0 8px 16px -4px rgba(0, 0, 0, 0.08);
+   *
+   * Dark-mode pair below substitutes a brand-tinted ambient layer
+   * (Material You "tonal elevation") so depth reads correctly when
+   * a pure-black shadow would vanish on a near-black canvas. */
+  --shadow-1:
+    0 1px 1px 0 rgba(0, 0, 0, 0.04),
+    0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-2:
+    0 1px 2px 0 rgba(0, 0, 0, 0.04),
+    0 4px 8px -2px rgba(0, 0, 0, 0.08),
+    0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-3:
+    0 2px 4px -1px rgba(0, 0, 0, 0.05),
+    0 12px 24px -4px rgba(0, 0, 0, 0.10),
+    0 4px 8px -2px rgba(0, 0, 0, 0.05);
+  --shadow-4:
+    0 4px 8px -2px rgba(0, 0, 0, 0.06),
+    0 24px 48px -8px rgba(0, 0, 0, 0.14),
+    0 8px 16px -4px rgba(0, 0, 0, 0.08);
 
   /* --- Color: brand (primary affordance) -------------------------------- */
   --color-brand-foreground:        var(--brand-foreground);
@@ -566,9 +621,34 @@ body {
      Latin, so the default 1.5 looks cramped on bodies of text.
    - Optical kerning + `palt` opentype feature so digits and punctuation
      in Hangul lines (",", ".", "·") sit at proper visual weight.
-   - `font-variant-numeric: tabular-nums` for tables, kept as a utility
-     applied per-table rather than globally so prose digits stay
-     proportional. */
+   - `font-variant-numeric: tabular-nums` shipped as a base-layer
+     default on data-display tags (tables, code, kbd, pre); prose
+     paragraphs keep proportional digits. */
+
+/* Data-display tags carry tabular numbers by default so KG metrics,
+   table cells, and code blocks align across rows without per-call-site
+   utility classes. The `[data-tabular]` opt-out is for the rare
+   case (display headings with mixed-figure prose) where proportional
+   reads better. */
+@layer base {
+  table,
+  thead,
+  tbody,
+  tr,
+  th,
+  td,
+  code,
+  kbd,
+  pre,
+  samp,
+  output,
+  [data-tabular="true"] {
+    font-variant-numeric: tabular-nums;
+  }
+  [data-tabular="false"] {
+    font-variant-numeric: normal;
+  }
+}
 :lang(ko) {
   word-break: keep-all;
   overflow-wrap: anywhere;
