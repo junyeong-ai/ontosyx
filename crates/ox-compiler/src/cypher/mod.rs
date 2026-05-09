@@ -11,13 +11,11 @@ pub use migration::DataMigrationStep;
 mod tests;
 
 use ox_core::error::{OxError, OxResult};
-use ox_ontology::load_plan::{LoadPlan, LoadStep};
 use ox_ontology::ir::OntologyIR;
+use ox_ontology::load_plan::{LoadPlan, LoadStep};
 use ox_query_ir::query::QueryIR;
 
-use crate::concept_map_rewrite::{
-    build_translation_table_for_query, rewrite_concept_map_values,
-};
+use crate::concept_map_rewrite::{build_translation_table_for_query, rewrite_concept_map_values};
 use crate::{CompiledQuery, GraphCompiler};
 
 use expr::compile_order_by;
@@ -148,8 +146,7 @@ impl GraphCompiler for CypherCompiler {
                 if translation_table.is_empty() {
                     (query.clone(), Default::default())
                 } else {
-                    let (q, report) =
-                        rewrite_concept_map_values(query.clone(), &translation_table);
+                    let (q, report) = rewrite_concept_map_values(query.clone(), &translation_table);
                     tracing::debug!(
                         fired = report.translations.len(),
                         untranslated = report.untranslated.len(),

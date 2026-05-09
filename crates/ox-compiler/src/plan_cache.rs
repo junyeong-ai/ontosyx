@@ -58,8 +58,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use dashmap::DashMap;
 use ox_core::error::OxResult;
-use ox_ontology::load_plan::LoadPlan;
 use ox_ontology::ir::OntologyIR;
+use ox_ontology::load_plan::LoadPlan;
 use ox_query_ir::query::QueryIR;
 
 use crate::{CompiledQuery, GraphCompiler};
@@ -303,10 +303,8 @@ mod tests {
     use super::*;
     use crate::cypher::CypherCompiler;
     use ox_core::graph_label::GraphLabel;
-    use ox_query_ir::query::{
-        GraphPattern, Projection, QUERY_IR_SCHEMA_VERSION, QueryOp,
-    };
     use ox_core::variable_name::VariableName;
+    use ox_query_ir::query::{GraphPattern, Projection, QUERY_IR_SCHEMA_VERSION, QueryOp};
 
     fn vn(s: &'static str) -> VariableName {
         VariableName::new(s).expect("test variable")
@@ -358,9 +356,15 @@ mod tests {
     #[test]
     fn distinct_irs_produce_distinct_entries() {
         let cache = PlanCache::new(CypherCompiler::neo4j(), 16);
-        cache.compile_query(&simple_query("Person"), None).expect("c1");
-        cache.compile_query(&simple_query("Company"), None).expect("c2");
-        cache.compile_query(&simple_query("Person"), None).expect("c3");
+        cache
+            .compile_query(&simple_query("Person"), None)
+            .expect("c1");
+        cache
+            .compile_query(&simple_query("Company"), None)
+            .expect("c2");
+        cache
+            .compile_query(&simple_query("Person"), None)
+            .expect("c3");
 
         let stats = cache.stats();
         assert_eq!(stats.entries, 2, "two distinct IRs → two entries");
@@ -371,8 +375,12 @@ mod tests {
     #[test]
     fn capacity_zero_disables_caching() {
         let cache = PlanCache::new(CypherCompiler::neo4j(), 0);
-        cache.compile_query(&simple_query("Person"), None).expect("ok");
-        cache.compile_query(&simple_query("Person"), None).expect("ok");
+        cache
+            .compile_query(&simple_query("Person"), None)
+            .expect("ok");
+        cache
+            .compile_query(&simple_query("Person"), None)
+            .expect("ok");
         let stats = cache.stats();
         assert_eq!(stats.hits, 0, "capacity=0 never hits");
         assert_eq!(stats.misses, 2);
@@ -408,7 +416,9 @@ mod tests {
                 18 => "L18",
                 _ => "L19",
             };
-            cache.compile_query(&simple_query(label), None).expect("compile");
+            cache
+                .compile_query(&simple_query(label), None)
+                .expect("compile");
         }
 
         let stats = cache.stats();
@@ -423,8 +433,12 @@ mod tests {
     #[test]
     fn invalidate_all_clears_entries_but_keeps_counters() {
         let cache = PlanCache::new(CypherCompiler::neo4j(), 16);
-        cache.compile_query(&simple_query("Person"), None).expect("c1");
-        cache.compile_query(&simple_query("Person"), None).expect("c2");
+        cache
+            .compile_query(&simple_query("Person"), None)
+            .expect("c1");
+        cache
+            .compile_query(&simple_query("Person"), None)
+            .expect("c2");
         let before = cache.stats();
         cache.invalidate_all();
         let after = cache.stats();
@@ -442,9 +456,15 @@ mod tests {
     #[test]
     fn hit_rate_reflects_traffic() {
         let cache = PlanCache::new(CypherCompiler::neo4j(), 16);
-        cache.compile_query(&simple_query("Person"), None).expect("c1");
-        cache.compile_query(&simple_query("Person"), None).expect("c2");
-        cache.compile_query(&simple_query("Person"), None).expect("c3");
+        cache
+            .compile_query(&simple_query("Person"), None)
+            .expect("c1");
+        cache
+            .compile_query(&simple_query("Person"), None)
+            .expect("c2");
+        cache
+            .compile_query(&simple_query("Person"), None)
+            .expect("c3");
         // 1 miss, 2 hits → 0.667 rate
         let rate = cache.stats().hit_rate().expect("rate available");
         assert!((rate - 2.0 / 3.0).abs() < 1e-9, "hit_rate = {rate}");
@@ -478,7 +498,10 @@ mod tests {
         cache.compile_query(&q, Some(&ont_b)).expect("b");
 
         let stats = cache.stats();
-        assert_eq!(stats.entries, 2, "different ontologies → distinct cache entries");
+        assert_eq!(
+            stats.entries, 2,
+            "different ontologies → distinct cache entries"
+        );
         assert_eq!(stats.misses, 2);
         assert_eq!(stats.hits, 0);
     }
@@ -494,7 +517,10 @@ mod tests {
 
         let stats = cache.stats();
         assert_eq!(stats.entries, 1);
-        assert_eq!(stats.hits, 1, "second call against the same ontology must hit");
+        assert_eq!(
+            stats.hits, 1,
+            "second call against the same ontology must hit"
+        );
         assert_eq!(stats.misses, 1);
     }
 

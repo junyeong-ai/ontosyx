@@ -491,11 +491,11 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
+    use ox_core::types::PropertyType;
     use ox_ontology::diff::compute_diff;
     use ox_ontology::ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, PropertyDef,
     };
-    use ox_core::types::PropertyType;
 
     fn gl(s: &'static str) -> GraphLabel {
         GraphLabel::new(s).expect("test label literal must be valid")

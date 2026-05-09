@@ -6,12 +6,12 @@ use rio_turtle::TurtleParser;
 use tracing::warn;
 
 use ox_core::error::{OxError, OxResult};
+use ox_core::types::PropertyType;
 use ox_ontology::input::{
-    InputEdgeTypeDef, InputNodeConstraint, InputNodeTypeDef, InputPropertyDef, InputOntologyDef,
+    InputEdgeTypeDef, InputNodeConstraint, InputNodeTypeDef, InputOntologyDef, InputPropertyDef,
     normalize,
 };
 use ox_ontology::ir::{Cardinality, OntologyIR};
-use ox_core::types::PropertyType;
 
 // ---------------------------------------------------------------------------
 // Well-known IRI constants
@@ -346,16 +346,12 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<InputOntologyDef>
             for s in siblings {
                 match s.predicate.as_str() {
                     RDFS_LABEL => info.label = s.object.as_literal_value().map(|v| v.to_string()),
-                    RDFS_COMMENT => {
-                        // Use first comment as property description, skip relationship annotations
-                        if info.description.is_none() {
-                            let val = s.object.as_literal_value().map(|v| v.to_string());
-                            // Filter out "Property on relationship X" export annotations
-                            if let Some(ref v) = val
-                                && !v.starts_with("Property on relationship ")
-                            {
-                                info.description = Some(v.clone());
-                            }
+                    RDFS_COMMENT if info.description.is_none() => {
+                        let val = s.object.as_literal_value().map(|v| v.to_string());
+                        if let Some(ref v) = val
+                            && !v.starts_with("Property on relationship ")
+                        {
+                            info.description = Some(v.clone());
                         }
                     }
                     RDFS_DOMAIN => info.domain = s.object.as_iri().map(|v| v.to_string()),
@@ -756,11 +752,11 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
+    use ox_core::types::PropertyType;
     use ox_ontology::ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
     };
-    use ox_core::types::PropertyType;
 
     fn gl(s: &'static str) -> GraphLabel {
         GraphLabel::new(s).expect("test label literal must be valid")

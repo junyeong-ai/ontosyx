@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use ox_ontology::ir::{IndexDef, NodeConstraint, NodeTypeDef, OntologyIR, PropertyDef, PropertyId};
 use ox_core::property_key::PropertyKey;
 use ox_core::types::PropertyType;
+use ox_ontology::ir::{IndexDef, NodeConstraint, NodeTypeDef, OntologyIR, PropertyDef, PropertyId};
 
 use super::CypherDialect;
 use super::params::escape_identifier;

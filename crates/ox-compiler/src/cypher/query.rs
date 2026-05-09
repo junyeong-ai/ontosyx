@@ -129,8 +129,7 @@ pub(super) fn compile_op(
                 } else {
                     agg.field.variable.to_string()
                 };
-                let func =
-                    compile_agg_function(&agg.function, &field, agg.distinct, pc.dialect())?;
+                let func = compile_agg_function(&agg.function, &field, agg.distinct, pc.dialect())?;
                 projections.push(format!("{func} AS {}", agg.alias));
                 projected_names.push(agg.alias.clone());
             }
@@ -329,10 +328,8 @@ pub(super) fn compile_op(
             // field would let operators target a workspace-
             // specific index without a recompile; until then
             // the convention is the contract.
-            let vec_index_param =
-                pc.push(PropertyValue::String("entity_embedding_index".into()));
-            let top_k_param =
-                pc.push(PropertyValue::Int(request.top_k as i64));
+            let vec_index_param = pc.push(PropertyValue::String("entity_embedding_index".into()));
+            let top_k_param = pc.push(PropertyValue::Int(request.top_k as i64));
             // Vector → List(Float) — pgvector / Neo4j vector
             // ingestion both accept Cypher list-of-doubles, so
             // the f32 source widens to f64 cleanly.
@@ -387,9 +384,8 @@ pub(super) fn compile_op(
                     // fulltext-rank-1 has no headroom to
                     // discover the true top-K under the
                     // operator's k.
-                    let fulltext_index_param = pc.push(PropertyValue::String(
-                        "entity_doc_index".into(),
-                    ));
+                    let fulltext_index_param =
+                        pc.push(PropertyValue::String("entity_doc_index".into()));
                     let fulltext_query_param =
                         pc.push(PropertyValue::String(fulltext_query.clone()));
 
@@ -448,8 +444,7 @@ pub(super) fn compile_op(
                                     "WITH vec_nodes, [n IN collect(f_node) WHERE n:{label} | n] AS txt_nodes",
                                 )
                             } else {
-                                "WITH vec_nodes, collect(f_node) AS txt_nodes"
-                                    .to_string()
+                                "WITH vec_nodes, collect(f_node) AS txt_nodes".to_string()
                             }
                         }
                         FusionStrategy::WeightedSum { .. } => {
@@ -468,8 +463,7 @@ pub(super) fn compile_op(
 
                     match request.fuse {
                         FusionStrategy::ReciprocalRankFusion { k } => {
-                            let rrf_k_param =
-                                pc.push(PropertyValue::Int(k as i64));
+                            let rrf_k_param = pc.push(PropertyValue::Int(k as i64));
                             parts.push(format!(
                                 "WITH [i IN range(0, size(vec_nodes) - 1) | \
                                  {{node: vec_nodes[i], rrf: 1.0 / ({rrf_k_param} + i + 1)}}] AS vec_rrf, \
@@ -477,9 +471,7 @@ pub(super) fn compile_op(
                                  {{node: txt_nodes[j], rrf: 1.0 / ({rrf_k_param} + j + 1)}}] AS txt_rrf",
                             ));
                             parts.push("UNWIND vec_rrf + txt_rrf AS r".to_string());
-                            parts.push(
-                                "WITH r.node AS node, sum(r.rrf) AS score".to_string(),
-                            );
+                            parts.push("WITH r.node AS node, sum(r.rrf) AS score".to_string());
                         }
                         FusionStrategy::WeightedSum {
                             vector_weight,
@@ -496,9 +488,7 @@ pub(super) fn compile_op(
                                  {{node: f.node, weighted: f.score * {f_weight_param}}}] AS txt_w",
                             ));
                             parts.push("UNWIND vec_w + txt_w AS r".to_string());
-                            parts.push(
-                                "WITH r.node AS node, sum(r.weighted) AS score".to_string(),
-                            );
+                            parts.push("WITH r.node AS node, sum(r.weighted) AS score".to_string());
                         }
                     }
 

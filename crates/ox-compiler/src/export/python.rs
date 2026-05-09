@@ -1,5 +1,5 @@
-use ox_ontology::ir::OntologyIR;
 use ox_core::types::PropertyType;
+use ox_ontology::ir::OntologyIR;
 
 /// Generate Python dataclass definitions from an OntologyIR.
 ///

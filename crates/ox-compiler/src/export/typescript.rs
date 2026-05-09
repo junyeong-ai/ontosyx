@@ -1,5 +1,5 @@
-use ox_ontology::ir::{EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
 use ox_core::types::PropertyType;
+use ox_ontology::ir::{EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
 
 /// Generate TypeScript type definitions from an OntologyIR.
 ///

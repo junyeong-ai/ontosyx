@@ -113,10 +113,7 @@ pub fn build_provenance(query: &QueryIR, ctx: &ProvenanceContext<'_>) -> QueryPr
 /// All resolve `(query column) → (source table.column)` at
 /// compile/response time so the consumer can answer "where did this
 /// cell come from?" without walking the planner's internals.
-pub fn derive_column_lineage(
-    query: &QueryIR,
-    ontology: &OntologyIR,
-) -> Vec<ColumnLineage> {
+pub fn derive_column_lineage(query: &QueryIR, ontology: &OntologyIR) -> Vec<ColumnLineage> {
     let mut out = Vec::new();
     collect_column_lineage(&query.operation, ontology, &mut out);
     out
@@ -125,11 +122,7 @@ pub fn derive_column_lineage(
 /// Recursive walker — every `QueryOp::Match` projects, plus the
 /// composite operators (`Chain`, `Union`, `CallSubquery`,
 /// `Aggregate`) carry inner `QueryOp` nodes that may project too.
-fn collect_column_lineage(
-    op: &QueryOp,
-    ontology: &OntologyIR,
-    out: &mut Vec<ColumnLineage>,
-) {
+fn collect_column_lineage(op: &QueryOp, ontology: &OntologyIR, out: &mut Vec<ColumnLineage>) {
     match op {
         QueryOp::Match {
             patterns,
@@ -155,13 +148,7 @@ fn collect_column_lineage(
             }
 
             for projection in projections {
-                emit_projection_lineage(
-                    projection,
-                    &variable_label,
-                    ontology,
-                    None,
-                    out,
-                );
+                emit_projection_lineage(projection, &variable_label, ontology, None, out);
             }
         }
         QueryOp::Chain { steps } => {
@@ -228,9 +215,9 @@ fn emit_projection_lineage(
                 return;
             };
             let output_column = output_alias_override.unwrap_or_else(|| {
-                alias.clone().unwrap_or_else(|| {
-                    format!("{}.{}", variable.as_str(), field.as_str())
-                })
+                alias
+                    .clone()
+                    .unwrap_or_else(|| format!("{}.{}", variable.as_str(), field.as_str()))
             });
             for_each_property_mapping(node, prop, ontology, |om, pm| {
                 if let Some(row) = build_lineage_row(&output_column, om, pm) {
@@ -248,13 +235,7 @@ fn emit_projection_lineage(
             );
         }
         Projection::AllProperties { variable } => {
-            emit_all_properties(
-                variable.as_str(),
-                None,
-                variable_label,
-                ontology,
-                out,
-            );
+            emit_all_properties(variable.as_str(), None, variable_label, ontology, out);
         }
         Projection::Expression { expr, alias } => {
             // Walk the expression to collect every
@@ -398,7 +379,10 @@ fn emit_all_properties(
 
     // Group property mappings by their owning ObjectMapping so the
     // aggregate row is per-source-per-variable, not per-property.
-    type MappedProperties<'a> = (&'a ObjectMappingDef, Vec<(&'a PropertyDef, &'a PropertyMappingDef)>);
+    type MappedProperties<'a> = (
+        &'a ObjectMappingDef,
+        Vec<(&'a PropertyDef, &'a PropertyMappingDef)>,
+    );
     let mut per_mapping: std::collections::BTreeMap<&str, MappedProperties<'_>> =
         std::collections::BTreeMap::new();
     for om in ontology.object_mappings() {
@@ -483,13 +467,13 @@ fn build_lineage_row(
 
     let value_transform = match &pm.transform {
         PropertyTransform::Identity => None,
-        PropertyTransform::SqlExpr { expression } => {
-            Some(format!("sql({})", expression))
-        }
-        PropertyTransform::Derived { function_id } => {
-            Some(format!("derived({})", function_id))
-        }
-        PropertyTransform::Concat { parts, separator, skip_when_null } => {
+        PropertyTransform::SqlExpr { expression } => Some(format!("sql({})", expression)),
+        PropertyTransform::Derived { function_id } => Some(format!("derived({})", function_id)),
+        PropertyTransform::Concat {
+            parts,
+            separator,
+            skip_when_null,
+        } => {
             let cols = parts
                 .iter()
                 .map(|c| format!("{}.{}", c.relation, c.column))
@@ -545,7 +529,10 @@ fn compose_transform(outer: Option<&str>, inner: Option<&str>) -> String {
 /// projection's lineage to the source columns the expression reads.
 fn collect_expr_property_refs<'a>(
     expr: &'a Expr,
-    out: &mut Vec<(&'a ox_core::VariableName, Option<&'a ox_core::property_key::PropertyKey>)>,
+    out: &mut Vec<(
+        &'a ox_core::VariableName,
+        Option<&'a ox_core::property_key::PropertyKey>,
+    )>,
 ) {
     match expr {
         Expr::Property { variable, field } => {
@@ -581,10 +568,8 @@ fn collect_expr_property_refs<'a>(
                 collect_expr_property_refs(d, out);
             }
         }
-        Expr::Literal { .. }
-        | Expr::Param { .. }
-        | Expr::Exists { .. }
-        | Expr::Subquery { .. } => {}
+        Expr::Literal { .. } | Expr::Param { .. } | Expr::Exists { .. } | Expr::Subquery { .. } => {
+        }
     }
 }
 
@@ -610,9 +595,7 @@ fn agg_function_name(f: &ox_query_ir::query::AggFunction) -> &'static str {
 /// `OntologyIR`. A stable short name keys into a
 /// `BTreeMap<String, String>` so the serialised shape is both
 /// diff-friendly and self-documenting.
-fn registry_version_hashes(
-    ir: &OntologyIR,
-) -> std::collections::BTreeMap<String, String> {
+fn registry_version_hashes(ir: &OntologyIR) -> std::collections::BTreeMap<String, String> {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -654,10 +637,7 @@ fn registry_version_hashes(
 /// the ontology can declare — strictly tighter than "every adapter
 /// registered in the workspace" and still pure (no LogicalPlan
 /// inspection required).
-fn walk_op(
-    op: &QueryOp,
-    ontology: Option<&OntologyIR>,
-) -> (Vec<String>, Vec<String>, Vec<String>) {
+fn walk_op(op: &QueryOp, ontology: Option<&OntologyIR>) -> (Vec<String>, Vec<String>, Vec<String>) {
     let mut type_ids = Vec::new();
     let mut source_ids = Vec::new();
     let mut filters = Vec::new();
@@ -867,7 +847,10 @@ fn push_edge_source_ids(ontology: &OntologyIR, label: &str, out: &mut Vec<String
         }
         out.push(mapping.source_endpoint.source_id.to_string());
         out.push(mapping.target_endpoint.source_id.to_string());
-        if let LinkMappingKind::Bridge { bridge_relation, .. } = &mapping.kind {
+        if let LinkMappingKind::Bridge {
+            bridge_relation, ..
+        } = &mapping.kind
+        {
             out.push(bridge_relation.source_id.to_string());
         }
     }
@@ -908,7 +891,12 @@ fn describe_expr(expr: &Expr) -> String {
                 ComparisonOp::Gt => ">",
                 ComparisonOp::Gte => ">=",
             };
-            format!("({} {} {})", describe_expr(left), op_str, describe_expr(right))
+            format!(
+                "({} {} {})",
+                describe_expr(left),
+                op_str,
+                describe_expr(right)
+            )
         }
         Expr::Logical { op, left, right } => {
             let op_str = match op {
@@ -916,7 +904,11 @@ fn describe_expr(expr: &Expr) -> String {
                 LogicalOp::Or => "OR",
                 LogicalOp::Xor => "XOR",
             };
-            format!("({} {op_str} {})", describe_expr(left), describe_expr(right))
+            format!(
+                "({} {op_str} {})",
+                describe_expr(left),
+                describe_expr(right)
+            )
         }
         Expr::Not { inner } => format!("NOT {}", describe_expr(inner)),
         Expr::In { expr, values } => {
@@ -1105,9 +1097,12 @@ mod tests {
 
         let mut ontology = minimal_ontology_with_nodes(&["Customer"]);
         ontology
-            .add_object_mapping(
-                ObjectMappingDef::new("om_customer_pg", "nt_0", "pg-main", "customers"),
-            )
+            .add_object_mapping(ObjectMappingDef::new(
+                "om_customer_pg",
+                "nt_0",
+                "pg-main",
+                "customers",
+            ))
             .expect("attach ObjectMapping");
 
         let query = QueryIR {
@@ -1252,8 +1247,14 @@ mod tests {
         };
         let prov = build_provenance(&query, &ProvenanceContext::default());
         let summary = prov.filter_summary.expect("filter summary set");
-        assert!(summary.contains("status"), "summary mentions property: {summary}");
-        assert!(summary.contains("ACTIVE"), "summary mentions literal: {summary}");
+        assert!(
+            summary.contains("status"),
+            "summary mentions property: {summary}"
+        );
+        assert!(
+            summary.contains("ACTIVE"),
+            "summary mentions literal: {summary}"
+        );
     }
 
     // ----- column lineage -----
@@ -1261,11 +1262,11 @@ mod tests {
     #[test]
     fn derive_column_lineage_resolves_field_projection_through_object_mapping() {
         use ox_ontology::ir::PropertyDef;
+        use ox_ontology::mapping::refs::{ColumnRef, ObjectMappingId, SourceId};
         use ox_ontology::mapping::{
             CacheHintKind, ObjectMappingDef, PropertyLocation, PropertyMappingDef,
             PropertyTransform, SourceRelationKind,
         };
-        use ox_ontology::mapping::refs::{ColumnRef, ObjectMappingId, SourceId};
         use ox_query_ir::query::Projection;
 
         let mut ir = OntologyIR::new(
@@ -1311,9 +1312,7 @@ mod tests {
             property_mappings: vec![PropertyMappingDef {
                 property_id: "p-name".into(),
                 property_key: PropertyKey::new("name").unwrap(),
-                location: PropertyLocation::Column(ColumnRef::new(
-                    "customers", "full_name",
-                )),
+                location: PropertyLocation::Column(ColumnRef::new("customers", "full_name")),
                 transform: PropertyTransform::Identity,
                 concept_map_id: None,
             }],
@@ -1451,10 +1450,7 @@ mod tests {
                 PropertyMappingDef {
                     property_id: "p-name".into(),
                     property_key: PropertyKey::new("name").unwrap(),
-                    location: PropertyLocation::Column(ColumnRef::new(
-                        "customers",
-                        "full_name",
-                    )),
+                    location: PropertyLocation::Column(ColumnRef::new("customers", "full_name")),
                     transform: PropertyTransform::Identity,
                     concept_map_id: None,
                 },
@@ -1471,10 +1467,7 @@ mod tests {
                 PropertyMappingDef {
                     property_id: "p-tier".into(),
                     property_key: PropertyKey::new("tier").unwrap(),
-                    location: PropertyLocation::Column(ColumnRef::new(
-                        "customers",
-                        "raw_tier",
-                    )),
+                    location: PropertyLocation::Column(ColumnRef::new("customers", "raw_tier")),
                     transform: PropertyTransform::SqlExpr {
                         expression: "UPPER(raw_tier)".into(),
                     },
@@ -1486,9 +1479,7 @@ mod tests {
         ir
     }
 
-    fn match_query_with_projections(
-        projections: Vec<Projection>,
-    ) -> QueryIR {
+    fn match_query_with_projections(projections: Vec<Projection>) -> QueryIR {
         QueryIR {
             schema_version: QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
@@ -1510,7 +1501,8 @@ mod tests {
     }
 
     #[test]
-    fn variable_projection_emits_aggregate_plus_individuated_rows_only_for_non_trivial_transforms() {
+    fn variable_projection_emits_aggregate_plus_individuated_rows_only_for_non_trivial_transforms()
+    {
         // The fixture has three properties on Customer:
         //   name -> Identity Column        (trivial)
         //   zip  -> JsonPath               (non-trivial)
@@ -1527,8 +1519,7 @@ mod tests {
         }]);
         let lineage = derive_column_lineage(&q, &ir);
 
-        let outputs: Vec<&str> =
-            lineage.iter().map(|l| l.output_column.as_str()).collect();
+        let outputs: Vec<&str> = lineage.iter().map(|l| l.output_column.as_str()).collect();
         assert!(
             outputs.contains(&"c.*"),
             "aggregate row missing: {lineage:#?}"
@@ -1545,7 +1536,11 @@ mod tests {
             !outputs.contains(&"c.name"),
             "trivial Identity mapping must collapse into aggregate, not appear standalone: {lineage:#?}",
         );
-        assert_eq!(lineage.len(), 3, "1 aggregate + 2 individuated; got {lineage:#?}");
+        assert_eq!(
+            lineage.len(),
+            3,
+            "1 aggregate + 2 individuated; got {lineage:#?}"
+        );
 
         let aggregate = lineage
             .iter()
@@ -1559,9 +1554,7 @@ mod tests {
     #[test]
     fn all_properties_projection_matches_variable_semantics() {
         let ir = lineage_fixture();
-        let q = match_query_with_projections(vec![Projection::AllProperties {
-            variable: vn("c"),
-        }]);
+        let q = match_query_with_projections(vec![Projection::AllProperties { variable: vn("c") }]);
         let lineage = derive_column_lineage(&q, &ir);
         // Same shape contract as Projection::Variable — the difference
         // is alias semantics, not row count.
@@ -1737,8 +1730,7 @@ mod tests {
         assert_eq!(row.source_column, "customers.full_name");
         let t = row.transform.as_deref().unwrap_or_default();
         assert!(
-            t.contains("count(DISTINCT")
-                && t.contains("customers.full_name"),
+            t.contains("count(DISTINCT") && t.contains("customers.full_name"),
             "transform should wrap the inner column: {t}"
         );
     }
@@ -1790,8 +1782,7 @@ mod tests {
             alias: "match_flag".into(),
         }]);
         let lineage = derive_column_lineage(&q, &ir);
-        let cols: Vec<&str> =
-            lineage.iter().map(|l| l.source_column.as_str()).collect();
+        let cols: Vec<&str> = lineage.iter().map(|l| l.source_column.as_str()).collect();
         assert!(cols.contains(&"customers.full_name"), "{lineage:#?}");
         assert!(cols.contains(&"customers.raw_tier"), "{lineage:#?}");
         assert!(lineage.iter().all(|l| l.output_column == "match_flag"));

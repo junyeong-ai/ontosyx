@@ -156,19 +156,16 @@ pub fn generate_glossary_skos(ontology: &OntologyIR) -> String {
         // resolver below is O(1) per concept rather than O(N²)
         // across the term × concept cross product.
         use std::collections::HashMap;
-        let term_index: HashMap<&str, &ox_ontology::glossary::GlossaryTermDef> =
-            ontology
-                .glossary()
-                .iter()
-                .map(|t| (t.id.as_str(), t))
-                .collect();
+        let term_index: HashMap<&str, &ox_ontology::glossary::GlossaryTermDef> = ontology
+            .glossary()
+            .iter()
+            .map(|t| (t.id.as_str(), t))
+            .collect();
 
         out.push_str("# ---- Concept identity layer ----\n");
         for concept in ontology.concepts() {
             let concept_local = local_name(concept.id.as_str());
-            out.push_str(&format!(
-                ":{concept_local} a skos:Concept ;\n",
-            ));
+            out.push_str(&format!(":{concept_local} a skos:Concept ;\n",));
             out.push_str(&format!(
                 "    skos:inScheme <{base_ns}> ;\n",
                 base_ns = base_ns,
@@ -201,10 +198,7 @@ pub fn generate_glossary_skos(ontology: &OntologyIR) -> String {
             // broader walk.
             if let Some(parent) = &concept.broader {
                 let parent_str: &str = parent;
-                out.push_str(&format!(
-                    "    skos:broader :{} ;\n",
-                    local_name(parent_str),
-                ));
+                out.push_str(&format!("    skos:broader :{} ;\n", local_name(parent_str),));
             }
 
             // Concept-level description + examples — distinct
@@ -255,20 +249,18 @@ pub fn generate_glossary_skos(ontology: &OntologyIR) -> String {
     }
 
     // ---- Type-level realisations --------------------------------
-    // NodeType / EdgeType `glossary_anchors` lift the `Concept ↔
-    // Class/Property` SKOS link to the type tier so a downstream
-    // catalogue can navigate from a business concept directly to
-    // every concrete type that realises it. Emit each anchor as a
-    // `skos:exactMatch` between the type's URI and the concept,
-    // which is what TopBraid EDG / Stardog Designer consume when
-    // they overlay glossary onto class diagrams.
-    let type_ns = format!(
-        "http://ontosyx.io/ontology/{}",
-        uri_encode(&ontology.name),
-    );
+    // NodeType / EdgeType concept realisations lift the concept link
+    // to the type tier so a downstream catalogue can navigate from a
+    // business concept directly to every concrete type that realises it.
+    let type_ns = format!("http://ontosyx.io/ontology/{}", uri_encode(&ontology.name),);
     let mut wrote_any_realisation = false;
     for node in ontology.node_types() {
-        if node.glossary_anchors.is_empty() {
+        let mut concept_ids: Vec<&ox_ontology::concept::ConceptId> = Vec::new();
+        if let Some(concept_id) = &node.concept_id {
+            concept_ids.push(concept_id);
+        }
+        concept_ids.extend(node.concept_realizations.iter().map(|r| &r.concept_id));
+        if concept_ids.is_empty() {
             continue;
         }
         if !wrote_any_realisation {
@@ -279,17 +271,22 @@ pub fn generate_glossary_skos(ontology: &OntologyIR) -> String {
             "<{type_ns}/node/{}>\n",
             uri_encode(node.label.as_str()),
         ));
-        for term_id in &node.glossary_anchors {
+        for concept_id in concept_ids {
             out.push_str(&format!(
                 "    skos:exactMatch :{} ;\n",
-                local_name(term_id.as_str()),
+                local_name(concept_id.as_str()),
             ));
         }
         finalise_block(&mut out);
         out.push('\n');
     }
     for edge in ontology.edge_types() {
-        if edge.glossary_anchors.is_empty() {
+        let mut concept_ids: Vec<&ox_ontology::concept::ConceptId> = Vec::new();
+        if let Some(concept_id) = &edge.concept_id {
+            concept_ids.push(concept_id);
+        }
+        concept_ids.extend(edge.concept_realizations.iter().map(|r| &r.concept_id));
+        if concept_ids.is_empty() {
             continue;
         }
         if !wrote_any_realisation {
@@ -300,10 +297,10 @@ pub fn generate_glossary_skos(ontology: &OntologyIR) -> String {
             "<{type_ns}/edge/{}>\n",
             uri_encode(edge.label.as_str()),
         ));
-        for term_id in &edge.glossary_anchors {
+        for concept_id in concept_ids {
             out.push_str(&format!(
                 "    skos:exactMatch :{} ;\n",
-                local_name(term_id.as_str()),
+                local_name(concept_id.as_str()),
             ));
         }
         finalise_block(&mut out);
@@ -390,10 +387,8 @@ fn uri_encode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ox_ontology::glossary::{
-        GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle,
-    };
     use ox_core::i18n::{LanguageTag, LocalizedText};
+    use ox_ontology::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
 
     fn empty_term(id: &str, label: &str) -> GlossaryTermDef {
         GlossaryTermDef {
@@ -410,6 +405,18 @@ mod tests {
             valid_to: None,
             lifecycle: TermLifecycle::Active,
             concept_id: None,
+            term_pos: Default::default(),
+        }
+    }
+
+    fn concept_term(
+        id: &str,
+        label: &str,
+        concept_id: &ox_ontology::concept::ConceptId,
+    ) -> GlossaryTermDef {
+        GlossaryTermDef {
+            concept_id: Some(concept_id.clone()),
+            ..empty_term(id, label)
         }
     }
 
@@ -447,8 +454,7 @@ mod tests {
     #[test]
     fn term_with_translations_emits_per_locale_pref_labels() {
         let mut t = empty_term("gt-customer", "Customer");
-        t.term =
-            LocalizedText::new("Customer").with_translation(LanguageTag::ko(), "고객");
+        t.term = LocalizedText::new("Customer").with_translation(LanguageTag::ko(), "고객");
         let onto = ontology_with(vec![t]);
         let ttl = generate_glossary_skos(&onto);
         assert!(ttl.contains("skos:prefLabel \"Customer\""));
@@ -476,9 +482,7 @@ mod tests {
     #[test]
     fn aliases_emit_alt_labels_per_locale() {
         let mut t = empty_term("gt-customer", "Customer");
-        t.aliases = vec![
-            LocalizedText::new("Buyer").with_translation(LanguageTag::ko(), "구매자"),
-        ];
+        t.aliases = vec![LocalizedText::new("Buyer").with_translation(LanguageTag::ko(), "구매자")];
         let onto = ontology_with(vec![t]);
         let ttl = generate_glossary_skos(&onto);
         assert!(ttl.contains("skos:altLabel \"Buyer\""));
@@ -496,13 +500,16 @@ mod tests {
         // every alias term's `term` literal.
         use ox_ontology::concept::{ConceptDef, ConceptGovernance, ConceptId};
 
-        let canonical = empty_term("gt-customer", "Customer");
-        let alias = empty_term("gt-buyer", "Buyer");
-        let mut onto = ontology_with(vec![canonical, alias]);
+        let party_id = ConceptId::new("c-party");
+        let customer_id = ConceptId::new("c-customer");
+        let party = concept_term("gt-party", "Party", &party_id);
+        let canonical = concept_term("gt-customer", "Customer", &customer_id);
+        let alias = concept_term("gt-buyer", "Buyer", &customer_id);
+        let mut onto = ontology_with(vec![party, canonical, alias]);
         // Parent concept first so the broader pointer resolves.
         onto.add_concept(ConceptDef {
-            id: ConceptId::new("c-party"),
-            canonical_term_id: GlossaryTermId::new("gt-customer"),
+            id: party_id.clone(),
+            canonical_term_id: GlossaryTermId::new("gt-party"),
             alias_term_ids: Vec::new(),
             broader: None,
             description: LocalizedText::new("Generic party"),
@@ -517,10 +524,10 @@ mod tests {
         })
         .expect("add c-party");
         onto.add_concept(ConceptDef {
-            id: ConceptId::new("c-customer"),
+            id: customer_id,
             canonical_term_id: GlossaryTermId::new("gt-customer"),
             alias_term_ids: vec![GlossaryTermId::new("gt-buyer")],
-            broader: Some(ConceptId::new("c-party")),
+            broader: Some(party_id),
             description: LocalizedText::new("Buyer side of every order"),
             examples: Vec::new(),
             category: None,

@@ -1,6 +1,6 @@
 use ox_core::error::{OxError, OxResult};
-use ox_query_ir::query::{AggFunction, Expr, OrderClause, Projection, SortDirection};
 use ox_core::types::{PropertyValue, is_valid_graph_identifier};
+use ox_query_ir::query::{AggFunction, Expr, OrderClause, Projection, SortDirection};
 
 use super::params::{ParamCollector, escape_identifier};
 use super::pattern::compile_pattern;
@@ -230,9 +230,7 @@ pub(super) fn compile_agg_function(
     // opaque "unknown function" at execution. Refuse at compile
     // time so the caller swaps backends or computes the percentile
     // client-side.
-    if matches!(function, AggFunction::Percentile)
-        && dialect == super::CypherDialect::Memgraph
-    {
+    if matches!(function, AggFunction::Percentile) && dialect == super::CypherDialect::Memgraph {
         return Err(OxError::Compilation {
             message: "AggFunction::Percentile lowers to `percentileCont`, \
                       which Memgraph does not implement. Run this query \

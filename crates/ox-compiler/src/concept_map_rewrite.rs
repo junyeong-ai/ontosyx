@@ -20,10 +20,12 @@
 //! - **Direction** (`Forward` vs `Reverse`) — forward is
 //!   "source → target", reverse the inverse.
 //! - **Equivalence whitelist** — filters which equivalences are
-//!   eligible for automatic substitution. Defaults to
+//!   eligible for automatic forward substitution. Defaults to
 //!   `Equivalent` only; the caller may opt into
 //!   `NarrowerThanTarget` / `BroaderThanTarget` when losing
-//!   precision is acceptable.
+//!   precision is acceptable. Reverse substitution is intentionally
+//!   equivalent-only; lossy reverse mappings must be authored as an
+//!   explicit reverse-direction `ConceptMapDef`.
 //!
 //! The rewriter returns a `RewriteReport` alongside the new
 //! `QueryIR`, listing both fired translations and
@@ -190,9 +192,7 @@ pub fn build_translation_table_for_query<'a>(
                 });
 
             if let Some(cm_id) = explicit {
-                if let Some(cm) =
-                    ontology.concept_maps().iter().find(|cm| cm.id == *cm_id)
-                {
+                if let Some(cm) = ontology.concept_maps().iter().find(|cm| cm.id == *cm_id) {
                     table.insert(
                         (variable.clone(), prop.name.clone()),
                         (cm, TranslationPolicy::default()),
@@ -261,7 +261,9 @@ where
         }
         QueryOp::CallSubquery { inner, .. } => walk_match_patterns(&inner.operation, f),
         QueryOp::Mutate {
-            context, operations, ..
+            context,
+            operations,
+            ..
         } => {
             if let Some(ctx) = context {
                 walk_match_patterns(ctx, f);
@@ -314,11 +316,7 @@ where
     }
 }
 
-fn rewrite_op(
-    op: &mut QueryOp,
-    table: &TranslationTable<'_>,
-    report: &mut RewriteReport,
-) {
+fn rewrite_op(op: &mut QueryOp, table: &TranslationTable<'_>, report: &mut RewriteReport) {
     match op {
         QueryOp::Match {
             patterns,
@@ -435,9 +433,7 @@ fn rewrite_property_assignments(
     report: &mut RewriteReport,
 ) {
     for pa in assignments {
-        if let Some((concept_map, policy)) =
-            table.get(&(variable.clone(), pa.property.clone()))
-        {
+        if let Some((concept_map, policy)) = table.get(&(variable.clone(), pa.property.clone())) {
             rewrite_value_in_place(
                 variable,
                 &pa.property,
@@ -450,11 +446,7 @@ fn rewrite_property_assignments(
     }
 }
 
-fn rewrite_mutate_op(
-    op: &mut MutateOp,
-    table: &TranslationTable<'_>,
-    report: &mut RewriteReport,
-) {
+fn rewrite_mutate_op(op: &mut MutateOp, table: &TranslationTable<'_>, report: &mut RewriteReport) {
     match op {
         MutateOp::CreateNode {
             variable,
@@ -508,17 +500,8 @@ fn rewrite_mutate_op(
             property,
             value,
         } => {
-            if let Some((concept_map, policy)) =
-                table.get(&(variable.clone(), property.clone()))
-            {
-                rewrite_value_in_place(
-                    variable,
-                    property,
-                    value,
-                    concept_map,
-                    policy,
-                    report,
-                );
+            if let Some((concept_map, policy)) = table.get(&(variable.clone(), property.clone())) {
+                rewrite_value_in_place(variable, property, value, concept_map, policy, report);
             }
         }
         MutateOp::Delete { .. }
@@ -582,11 +565,7 @@ fn rewrite_property_filter(
     );
 }
 
-fn rewrite_expr(
-    expr: &mut Expr,
-    table: &TranslationTable<'_>,
-    report: &mut RewriteReport,
-) {
+fn rewrite_expr(expr: &mut Expr, table: &TranslationTable<'_>, report: &mut RewriteReport) {
     match expr {
         Expr::Comparison { left, op, right } => {
             rewrite_expr(left, table, report);
@@ -602,14 +581,15 @@ fn rewrite_expr(
             rewrite_expr(right, table, report);
         }
         Expr::Not { inner } => rewrite_expr(inner, table, report),
-        Expr::In { expr: inner, values } => {
+        Expr::In {
+            expr: inner,
+            values,
+        } => {
             if let Some((variable, property)) = extract_property_ref(inner.as_ref())
                 && let Some((concept_map, policy)) =
                     table.get(&(variable.clone(), property.clone()))
             {
-                rewrite_in_values(
-                    &variable, &property, values, concept_map, policy, report,
-                );
+                rewrite_in_values(&variable, &property, values, concept_map, policy, report);
             }
         }
         _ => {}
@@ -744,7 +724,7 @@ fn translate(
 mod tests {
     use super::*;
     use ox_core::graph_label::GraphLabel;
-    use ox_ontology::code_system::CodeSystemId;
+    use ox_ontology::code_system::{CodeSystemId, CodedValue, CodedValueId};
     use ox_ontology::concept_map::{ConceptMapId, ConceptMapping, Equivalence};
     use ox_query_ir::query::{GraphPattern, Projection, QueryIR, QueryOp};
 
@@ -754,6 +734,23 @@ mod tests {
 
     fn pk(s: &str) -> PropertyKey {
         PropertyKey::new(s).expect("valid property key")
+    }
+
+    fn coded_value(code: &str) -> CodedValue {
+        CodedValue {
+            id: CodedValueId::new(format!("cv-{code}")),
+            code: code.into(),
+            display: Default::default(),
+            definition: Default::default(),
+            aliases: Vec::new(),
+            broader_id: None,
+            examples: Vec::new(),
+            scope_note: Default::default(),
+            valid_from: None,
+            valid_to: None,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }
     }
 
     fn concept_map() -> ConceptMapDef {
@@ -809,7 +806,10 @@ mod tests {
                     }],
                 }],
                 filter: None,
-                projections: vec![Projection::Variable { variable: vn(variable), alias: None }],
+                projections: vec![Projection::Variable {
+                    variable: vn(variable),
+                    alias: None,
+                }],
                 optional: false,
                 group_by: Vec::new(),
             },
@@ -948,6 +948,29 @@ mod tests {
     }
 
     #[test]
+    fn reverse_direction_refuses_non_equivalent_even_when_whitelisted() {
+        let cm = concept_map();
+        let mut t = TranslationTable::new();
+        t.insert(
+            (vn("s"), pk("status")),
+            (
+                &cm,
+                TranslationPolicy {
+                    direction: TranslationDirection::Reverse,
+                    equivalence_whitelist: vec![
+                        Equivalence::Equivalent,
+                        Equivalence::BroaderThanTarget,
+                    ],
+                },
+            ),
+        );
+        let (rewritten, report) = rewrite_concept_map_values(build_match_query("s", "NEWB002"), &t);
+        assert!(report.translations.is_empty());
+        assert_eq!(report.untranslated.len(), 1);
+        assert_eq!(read_pattern_literal(&rewritten), "NEWB002");
+    }
+
+    #[test]
     fn where_comparison_literal_is_translated() {
         let cm = concept_map();
         let q = QueryIR {
@@ -968,7 +991,10 @@ mod tests {
                         value: PropertyValue::String("A001".into()),
                     }),
                 }),
-                projections: vec![Projection::Variable { variable: vn("s"), alias: None }],
+                projections: vec![Projection::Variable {
+                    variable: vn("s"),
+                    alias: None,
+                }],
                 optional: false,
                 group_by: Vec::new(),
             },
@@ -1023,9 +1049,7 @@ mod tests {
         use ox_core::i18n::LocalizedText;
         use ox_core::types::PropertyType;
         use ox_ontology::OntologyIR;
-        use ox_ontology::code_system::{
-            CodeSystemDef, CodeSystemId as CsId, CodeSystemKind, CodedValue, CodedValueId,
-        };
+        use ox_ontology::code_system::{CodeSystemDef, CodeSystemId as CsId, CodeSystemKind};
         use ox_ontology::ir::{NodeTypeDef, PropertyDef};
         use ox_ontology::value_set::{
             IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
@@ -1043,20 +1067,11 @@ mod tests {
             hierarchical: false,
             deprecated_at: None,
             replaced_by_id: None,
-            codes: vec![CodedValue {
-                id: CodedValueId::new("cv-A001"),
-                code: "A001".into(),
-                display: LocalizedText::default(),
-                definition: LocalizedText::default(),
-                aliases: Vec::new(),
-                broader_id: None,
-                examples: Vec::new(),
-                scope_note: LocalizedText::default(),
-                valid_from: None,
-                valid_to: None,
-                deprecated_at: None,
-                replaced_by_id: None,
-            }],
+            codes: vec![
+                coded_value("A001"),
+                coded_value("B002"),
+                coded_value("C003"),
+            ],
         };
         let vs = ValueSetDef {
             id: ValueSetId::new("vs-stock-status"),
@@ -1086,7 +1101,9 @@ mod tests {
                     name: pk("status"),
                     property_type: PropertyType::String,
                     nullable: false,
-                    bindings: vec![ox_ontology::PropertyBinding::value_set(ValueSetId::new("vs-stock-status"),)],
+                    bindings: vec![ox_ontology::PropertyBinding::value_set(ValueSetId::new(
+                        "vs-stock-status",
+                    ))],
                     ..Default::default()
                 }],
                 constraints: vec![],
@@ -1109,7 +1126,12 @@ mod tests {
             hierarchical: false,
             deprecated_at: None,
             replaced_by_id: None,
-            codes: Vec::new(),
+            codes: vec![
+                coded_value("NEWA001"),
+                coded_value("NEWB002"),
+                coded_value("NEWC003A"),
+                coded_value("NEWC003B"),
+            ],
         };
         ir.add_code_system(cs).expect("seed cs source");
         ir.add_code_system(cs_target).expect("seed cs target");
@@ -1136,9 +1158,7 @@ mod tests {
         use ox_core::i18n::LocalizedText;
         use ox_core::types::PropertyType;
         use ox_ontology::OntologyIR;
-        use ox_ontology::code_system::{
-            CodeSystemDef, CodeSystemId as CsId, CodeSystemKind,
-        };
+        use ox_ontology::code_system::{CodeSystemDef, CodeSystemId as CsId, CodeSystemKind};
         use ox_ontology::ir::{NodeTypeDef, PropertyDef};
         use ox_ontology::value_set::{
             IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
@@ -1164,8 +1184,10 @@ mod tests {
                     name: pk("status"),
                     property_type: PropertyType::String,
                     nullable: false,
-                    bindings: vec![ox_ontology::PropertyBinding::value_set(vs_id.clone())
-                    .with_concept_map(cm_id.clone())],
+                    bindings: vec![
+                        ox_ontology::PropertyBinding::value_set(vs_id.clone())
+                            .with_concept_map(cm_id.clone()),
+                    ],
                     ..Default::default()
                 }],
                 constraints: vec![],
@@ -1175,7 +1197,7 @@ mod tests {
             vec![],
         );
 
-        let make_cs = |id: CsId, name: &str| CodeSystemDef {
+        let make_cs = |id: CsId, name: &str, codes: Vec<&str>| CodeSystemDef {
             id,
             name: name.into(),
             display_name: LocalizedText::default(),
@@ -1186,10 +1208,20 @@ mod tests {
             hierarchical: false,
             deprecated_at: None,
             replaced_by_id: None,
-            codes: Vec::new(),
+            codes: codes.into_iter().map(coded_value).collect(),
         };
-        ir.add_code_system(make_cs(cs_id.clone(), "krx-2024")).unwrap();
-        ir.add_code_system(make_cs(cs_target, "krx-2026")).unwrap();
+        ir.add_code_system(make_cs(
+            cs_id.clone(),
+            "krx-2024",
+            vec!["A001", "B002", "C003"],
+        ))
+        .unwrap();
+        ir.add_code_system(make_cs(
+            cs_target,
+            "krx-2026",
+            vec!["NEWA001", "NEWB002", "NEWC003A", "NEWC003B"],
+        ))
+        .unwrap();
         ir.add_value_set(ValueSetDef {
             id: vs_id,
             name: "stock_status".into(),
@@ -1234,7 +1266,10 @@ mod tests {
                         PropertyValue::String("C003".into()),
                     ],
                 }),
-                projections: vec![Projection::Variable { variable: vn("s"), alias: None }],
+                projections: vec![Projection::Variable {
+                    variable: vn("s"),
+                    alias: None,
+                }],
                 optional: false,
                 group_by: Vec::new(),
             },

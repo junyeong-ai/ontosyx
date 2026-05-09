@@ -1,6 +1,6 @@
 use ox_core::error::OxResult;
-use ox_query_ir::query::{ChainStep, GraphPattern, PathElement, PropertyFilter};
 use ox_core::types::{Direction, sanitize_variable};
+use ox_query_ir::query::{ChainStep, GraphPattern, PathElement, PropertyFilter};
 
 use super::expr::{compile_expr, compile_projection};
 use super::params::{ParamCollector, escape_identifier};

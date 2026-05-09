@@ -1,5 +1,5 @@
-use ox_ontology::ir::{Cardinality, NodeConstraint, OntologyIR};
 use ox_core::types::PropertyType;
+use ox_ontology::ir::{Cardinality, NodeConstraint, OntologyIR};
 
 /// Generate an OWL ontology in Turtle format from an OntologyIR.
 ///
@@ -90,10 +90,7 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
             let concept_str: &str = concept_id;
             chain_triple(
                 &mut out,
-                &format!(
-                    "rdfs:isDefinedBy concept:{}",
-                    local_name(concept_str),
-                ),
+                &format!("rdfs:isDefinedBy concept:{}", local_name(concept_str),),
             );
         }
         out.push('\n');
@@ -150,10 +147,7 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
             let concept_str: &str = concept_id;
             chain_triple(
                 &mut out,
-                &format!(
-                    "rdfs:isDefinedBy concept:{}",
-                    local_name(concept_str),
-                ),
+                &format!("rdfs:isDefinedBy concept:{}", local_name(concept_str),),
             );
         }
         if let Some(replaced_by) = &edge.replaced_by_id
@@ -429,11 +423,11 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
+    use ox_core::types::PropertyType;
     use ox_ontology::ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
     };
-    use ox_core::types::PropertyType;
 
     fn gl(s: &'static str) -> GraphLabel {
         GraphLabel::new(s).expect("test label literal must be valid")

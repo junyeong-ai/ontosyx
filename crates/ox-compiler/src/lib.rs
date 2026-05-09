@@ -30,10 +30,10 @@ pub use temporal::{rewrite_temporal, rewrite_temporal_with_renames};
 use std::collections::HashMap;
 
 use ox_core::error::OxResult;
-use ox_ontology::load_plan::LoadPlan;
-use ox_ontology::ir::OntologyIR;
-use ox_query_ir::query::QueryIR;
 use ox_core::types::PropertyValue;
+use ox_ontology::ir::OntologyIR;
+use ox_ontology::load_plan::LoadPlan;
+use ox_query_ir::query::QueryIR;
 
 // ---------------------------------------------------------------------------
 // CompiledQuery — parameterized query output

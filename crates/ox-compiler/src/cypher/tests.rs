@@ -4,11 +4,11 @@ use crate::GraphCompiler;
 use ox_core::GraphLabel;
 use ox_core::LocalizedText;
 use ox_core::PropertyKey;
+use ox_core::types::*;
+use ox_ontology::ir::*;
 use ox_ontology::load_plan::PropertyMapping;
 use ox_ontology::load_plan::{ConflictStrategy, LoadMode, LoadOp, LoadPlan, LoadStep};
-use ox_ontology::ir::*;
 use ox_query_ir::query::*;
-use ox_core::types::*;
 
 fn gl(s: &'static str) -> GraphLabel {
     GraphLabel::new(s).expect("test label literal must be valid")
@@ -2149,19 +2149,14 @@ fn neo4j_lowers_percentile_aggregation_unchanged() {
 
 #[test]
 fn hybrid_search_vector_only_compiles_to_neo4j_index_call() {
-    use ox_query_ir::hybrid_retrieval::{
-        Embedding, FusionStrategy, HybridSearchRequest,
-    };
+    use ox_query_ir::hybrid_retrieval::{Embedding, FusionStrategy, HybridSearchRequest};
 
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::HybridSearch {
             request: HybridSearchRequest {
-                vector_query: Embedding::new(
-                    vec![0.1, 0.2, 0.3, 0.4],
-                    "test-model",
-                ),
+                vector_query: Embedding::new(vec![0.1, 0.2, 0.3, 0.4], "test-model"),
                 fulltext_query: None,
                 graph_constraints: None,
                 fuse: FusionStrategy::default(),
@@ -2181,7 +2176,9 @@ fn hybrid_search_vector_only_compiles_to_neo4j_index_call() {
     // bindings — the index name, top_k, and vector all ride
     // through the ParamCollector.
     assert!(
-        compiled.statement.contains("CALL db.index.vector.queryNodes("),
+        compiled
+            .statement
+            .contains("CALL db.index.vector.queryNodes("),
         "missing vector procedure call:\n{}",
         compiled.statement,
     );
@@ -2210,9 +2207,7 @@ fn hybrid_search_vector_only_compiles_to_neo4j_index_call() {
 
 #[test]
 fn hybrid_search_vector_plus_fulltext_rrf_emits_fusion_cte() {
-    use ox_query_ir::hybrid_retrieval::{
-        Embedding, FusionStrategy, HybridSearchRequest,
-    };
+    use ox_query_ir::hybrid_retrieval::{Embedding, FusionStrategy, HybridSearchRequest};
 
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
@@ -2285,9 +2280,7 @@ fn hybrid_search_vector_plus_fulltext_rrf_emits_fusion_cte() {
 
 #[test]
 fn hybrid_search_vector_only_with_graph_constraints_emits_label_filter() {
-    use ox_query_ir::hybrid_retrieval::{
-        Embedding, FusionStrategy, HybridSearchRequest,
-    };
+    use ox_query_ir::hybrid_retrieval::{Embedding, FusionStrategy, HybridSearchRequest};
     use ox_query_ir::pattern::{PatternIR, PatternNode};
 
     let compiler = CypherCompiler::neo4j();
@@ -2350,9 +2343,7 @@ fn hybrid_search_vector_only_with_graph_constraints_emits_label_filter() {
 
 #[test]
 fn hybrid_search_with_constraints_plus_fulltext_rrf_filters_both_sources() {
-    use ox_query_ir::hybrid_retrieval::{
-        Embedding, FusionStrategy, HybridSearchRequest,
-    };
+    use ox_query_ir::hybrid_retrieval::{Embedding, FusionStrategy, HybridSearchRequest};
     use ox_query_ir::pattern::{PatternIR, PatternNode};
 
     let compiler = CypherCompiler::neo4j();
@@ -2399,16 +2390,16 @@ fn hybrid_search_with_constraints_plus_fulltext_rrf_filters_both_sources() {
     // restriction needs to land before the rank-based fusion
     // or the WHERE would have nothing to filter against.
     assert!(
-        compiled.statement.contains(
-            "[n IN collect(v_node) WHERE n:`Customer` | n] AS vec_nodes"
-        ),
+        compiled
+            .statement
+            .contains("[n IN collect(v_node) WHERE n:`Customer` | n] AS vec_nodes"),
         "missing vector pre-filter:\n{}",
         compiled.statement,
     );
     assert!(
-        compiled.statement.contains(
-            "[n IN collect(f_node) WHERE n:`Customer` | n] AS txt_nodes"
-        ),
+        compiled
+            .statement
+            .contains("[n IN collect(f_node) WHERE n:`Customer` | n] AS txt_nodes"),
         "missing fulltext pre-filter:\n{}",
         compiled.statement,
     );
@@ -2419,9 +2410,7 @@ fn hybrid_search_with_constraints_plus_fulltext_rrf_filters_both_sources() {
 
 #[test]
 fn hybrid_search_weighted_sum_emits_score_multiplied_fusion() {
-    use ox_query_ir::hybrid_retrieval::{
-        Embedding, FusionStrategy, HybridSearchRequest,
-    };
+    use ox_query_ir::hybrid_retrieval::{Embedding, FusionStrategy, HybridSearchRequest};
 
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
@@ -2451,12 +2440,16 @@ fn hybrid_search_weighted_sum_emits_score_multiplied_fusion() {
     // needed for the multiplicative fusion) — distinct from
     // RRF which collects nodes only (rank from list position).
     assert!(
-        compiled.statement.contains("collect({node: v_node, score: v_score}) AS vec_data"),
+        compiled
+            .statement
+            .contains("collect({node: v_node, score: v_score}) AS vec_data"),
         "missing weighted vec_data collection:\n{}",
         compiled.statement,
     );
     assert!(
-        compiled.statement.contains("collect({node: f_node, score: f_score}) AS txt_data"),
+        compiled
+            .statement
+            .contains("collect({node: f_node, score: f_score}) AS txt_data"),
         "missing weighted txt_data collection:\n{}",
         compiled.statement,
     );

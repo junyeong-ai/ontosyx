@@ -152,19 +152,17 @@ pub fn estimate_cost(query: &QueryIR, ontology: &OntologyIR) -> QueryCost {
         ));
     }
 
-    let estimated_pattern_expansions =
-        estimate_pattern_expansions(&ctx, ontology);
+    let estimated_pattern_expansions = estimate_pattern_expansions(&ctx, ontology);
     // Wallclock estimate is suppressed at the cap because the
     // structural axis already classifies these queries as
     // RiskLevel::High; emitting a saturated number here would
     // be misleading.
-    let estimated_wallclock_ms = if estimated_pattern_expansions == 0
-        || estimated_pattern_expansions >= EXPANSION_CAP
-    {
-        None
-    } else {
-        Some(((estimated_pattern_expansions as f64) * WALLCLOCK_PER_EXPANSION_MS).ceil() as u64)
-    };
+    let estimated_wallclock_ms =
+        if estimated_pattern_expansions == 0 || estimated_pattern_expansions >= EXPANSION_CAP {
+            None
+        } else {
+            Some(((estimated_pattern_expansions as f64) * WALLCLOCK_PER_EXPANSION_MS).ceil() as u64)
+        };
     // estimated_rows is left None until the cost path consumes
     // ColumnProfile.row_count via the materialised side. Today the
     // IR has no per-label cardinality stats; the structural risk
@@ -304,10 +302,7 @@ fn classify_risk(
 /// declarations, then flag any whose source declares
 /// `partition_columns` but the query supplies no literal filter on
 /// one of them. Returns one entry per offending label.
-fn check_partition_filters(
-    ctx: &CostCtx,
-    ontology: &OntologyIR,
-) -> Vec<MissingPartitionFilter> {
+fn check_partition_filters(ctx: &CostCtx, ontology: &OntologyIR) -> Vec<MissingPartitionFilter> {
     let mut filtered_columns: HashMap<&str, HashSet<&str>> = HashMap::new();
     let mut all_labels: HashSet<&str> = HashSet::new();
     for label in &ctx.referenced_labels {
@@ -582,8 +577,7 @@ fn check_indexed_filters(filters: &[(String, String)], ontology: &OntologyIR) ->
 fn check_high_fanout(rel_labels: &[String], ontology: &OntologyIR) -> bool {
     rel_labels.iter().any(|label| {
         ontology.edge_types().iter().any(|e| {
-            e.label == *label
-                && matches!(e.cardinality, ox_ontology::ir::Cardinality::ManyToMany)
+            e.label == *label && matches!(e.cardinality, ox_ontology::ir::Cardinality::ManyToMany)
         })
     })
 }
@@ -663,11 +657,11 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
+    use ox_core::types::{Direction, PropertyType};
     use ox_ontology::ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, PropertyDef,
     };
     use ox_query_ir::query::*;
-    use ox_core::types::{Direction, PropertyType};
 
     fn gl(s: &'static str) -> GraphLabel {
         GraphLabel::new(s).expect("test label literal must be valid")
@@ -1055,19 +1049,19 @@ mod tests {
         use ox_ontology::mapping::{ColumnRef, ObjectMappingDef};
         let mut ont = ontology_with_index();
         let nt = ont.node_types()[0].id.clone();
-        let mut mapping = ObjectMappingDef::new(
-            "om-person",
-            nt,
-            "bigquery:warehouse",
-            "fact.persons",
-        );
+        let mut mapping =
+            ObjectMappingDef::new("om-person", nt, "bigquery:warehouse", "fact.persons");
         mapping.partition_columns = vec![ColumnRef::new("fact.persons", "stdrd_ymd")];
         ont.add_object_mapping(mapping)
             .expect("partition-aware fixture mapping must register");
         ont
     }
 
-    fn ir_match_node(label: &'static str, var: &'static str, filters: Vec<PropertyFilter>) -> QueryIR {
+    fn ir_match_node(
+        label: &'static str,
+        var: &'static str,
+        filters: Vec<PropertyFilter>,
+    ) -> QueryIR {
         QueryIR {
             schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {

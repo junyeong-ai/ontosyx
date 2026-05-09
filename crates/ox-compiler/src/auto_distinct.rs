@@ -105,7 +105,9 @@ fn walk_op(op: QueryOp, ontology: &OntologyIR) -> QueryOp {
 /// requiring — we do not have cardinality data to reason about it.
 fn pattern_crosses_many_link(op: &QueryOp, ontology: &OntologyIR) -> bool {
     match op {
-        QueryOp::Match { patterns, .. } => patterns.iter().any(|p| pattern_requires_distinct(p, ontology)),
+        QueryOp::Match { patterns, .. } => patterns
+            .iter()
+            .any(|p| pattern_requires_distinct(p, ontology)),
         QueryOp::PathFind { edge_types, .. } => edge_types
             .iter()
             .any(|lbl| edge_label_requires_distinct(lbl.as_str(), ontology)),
@@ -155,16 +157,16 @@ fn edge_label_requires_distinct(edge_label: &str, ontology: &OntologyIR) -> bool
     // link mappings takes the worst-case cardinality across them —
     // if any mapping fans out, the aggregation over that edge can
     // double-count, so DISTINCT is the safe default.
-    let Some(edge_type) = ontology.edge_types().iter().find(|e| e.label.as_str() == edge_label)
+    let Some(edge_type) = ontology
+        .edge_types()
+        .iter()
+        .find(|e| e.label.as_str() == edge_label)
     else {
         return false;
     };
-    ontology
-        .link_mappings()
-        .iter()
-        .any(|lm: &LinkMappingDef| {
-            lm.edge_type_id == edge_type.id && lm.cardinality.requires_distinct_on_aggregation()
-        })
+    ontology.link_mappings().iter().any(|lm: &LinkMappingDef| {
+        lm.edge_type_id == edge_type.id && lm.cardinality.requires_distinct_on_aggregation()
+    })
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
-use ox_ontology::ir::{Cardinality, NodeConstraint, NodeTypeDef, OntologyIR};
 use ox_core::types::PropertyType;
+use ox_ontology::ir::{Cardinality, NodeConstraint, NodeTypeDef, OntologyIR};
 
 /// Generate a GraphQL schema from an OntologyIR.
 ///

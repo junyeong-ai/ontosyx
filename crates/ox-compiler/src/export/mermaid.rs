@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use ox_ontology::ir::{Cardinality, NodeConstraint, NodeTypeDef, OntologyIR};
 use ox_core::types::PropertyType;
+use ox_ontology::ir::{Cardinality, NodeConstraint, NodeTypeDef, OntologyIR};
 
 /// Generate a Mermaid ER diagram from an OntologyIR.
 ///

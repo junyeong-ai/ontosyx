@@ -1,5 +1,5 @@
-use ox_ontology::ir::{Cardinality, NodeConstraint, OntologyIR};
 use ox_core::types::PropertyType;
+use ox_ontology::ir::{Cardinality, NodeConstraint, OntologyIR};
 
 /// Generate SHACL shapes in Turtle format from an OntologyIR.
 ///
@@ -188,7 +188,7 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
 /// - `CodeSystem` → `sh:in (...)` over every code in the system.
 /// - `NotationPattern` → `sh:pattern "..."` regex synthesised from
 ///   the pattern's component template.
-/// - `ValueRange` and `Glossary` carry no value-domain constraint a
+/// - `ValueRange` and `Concept` carry no value-domain constraint a
 ///   SHACL validator can enforce; they're skipped here (the
 ///   admin-side display still honours them).
 fn emit_required_binding(
@@ -200,10 +200,8 @@ fn emit_required_binding(
     match binding {
         PropertyBinding::ValueSet { id, .. } => {
             if let Some(vs) = ontology.value_set_by_id(id) {
-                let expanded = ox_ontology::value_set::expand_value_set(
-                    vs,
-                    ontology.code_systems(),
-                );
+                let expanded =
+                    ox_ontology::value_set::expand_value_set(vs, ontology.code_systems());
                 if expanded.codes.is_empty() {
                     return;
                 }
@@ -259,10 +257,10 @@ fn emit_required_binding(
                 lines.push(format!("sh:pattern {}", turtle_literal(&re)));
             }
         }
-        // ValueRange / Glossary variants don't carry strength at all
+        // ValueRange / Concept variants don't carry strength at all
         // (their shape excludes the field) — they're never emitted as
         // value-domain constraints.
-        PropertyBinding::ValueRange { .. } | PropertyBinding::Glossary { .. } => {}
+        PropertyBinding::ValueRange { .. } | PropertyBinding::Concept { .. } => {}
     }
 }
 
@@ -380,11 +378,11 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
+    use ox_core::types::PropertyType;
     use ox_ontology::ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
     };
-    use ox_core::types::PropertyType;
 
     fn gl(s: &'static str) -> GraphLabel {
         GraphLabel::new(s).expect("test label literal must be valid")

@@ -60,13 +60,13 @@ use chrono::{DateTime, Utc};
 
 use ox_core::error::{OxError, OxResult};
 use ox_core::graph_label::GraphLabel;
-use ox_ontology::ir::{EdgeTypeDef, EdgeTypeId, NodeTypeId, OntologyIR};
 use ox_core::property_key::PropertyKey;
+use ox_core::variable_name::VariableName;
+use ox_ontology::ir::{EdgeTypeDef, EdgeTypeId, NodeTypeId, OntologyIR};
 use ox_query_ir::query::{
     AnalyticsSource, Expr, GraphPattern, MutateOp, NodeRef, PathElement, PropertyAssignment,
     PropertyFilter, QueryIR, QueryOp,
 };
-use ox_core::variable_name::VariableName;
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -155,10 +155,7 @@ impl RenameCtx<'_> {
 /// Returns the query unchanged when `as_of` is `None` (the common
 /// path). Errors when the supplied snapshot's validity window does not
 /// contain the requested timestamp.
-pub fn rewrite_temporal(
-    query: QueryIR,
-    snapshot: &OntologyIR,
-) -> OxResult<QueryIR> {
+pub fn rewrite_temporal(query: QueryIR, snapshot: &OntologyIR) -> OxResult<QueryIR> {
     let Some(as_of) = query.as_of else {
         // No-op fast path: non-temporal queries traverse the rewriter
         // without allocating. Keeping this branch cheap means we can
@@ -409,9 +406,7 @@ fn collect_variable_owners(
             bind_node_var(&start.variable, start.label.as_ref(), current, map);
             bind_node_var(&end.variable, end.label.as_ref(), current, map);
         }
-        QueryOp::Aggregate {
-            source, having, ..
-        } => {
+        QueryOp::Aggregate { source, having, .. } => {
             collect_variable_owners(&source.operation, current, map);
             if let Some(expr) = having {
                 collect_expr_vars(expr, current, map);
@@ -481,11 +476,7 @@ fn collect_variable_owners(
 /// function arguments). Called from `collect_variable_owners` whenever
 /// a filter/having/case can host an `Expr::Subquery` that declares new
 /// pattern variables.
-fn collect_expr_vars(
-    expr: &Expr,
-    current: &OntologyIR,
-    map: &mut HashMap<VariableName, OwnerRef>,
-) {
+fn collect_expr_vars(expr: &Expr, current: &OntologyIR, map: &mut HashMap<VariableName, OwnerRef>) {
     match expr {
         Expr::Comparison { left, right, .. }
         | Expr::Logical { left, right, .. }
@@ -635,9 +626,7 @@ fn apply_renames(op: &mut QueryOp, ctx: &RenameCtx<'_>) -> OxResult<()> {
                 swap_if_renamed(l, ctx.edge_labels);
             }
         }
-        QueryOp::Aggregate {
-            source, having, ..
-        } => {
+        QueryOp::Aggregate { source, having, .. } => {
             apply_renames(&mut source.operation, ctx)?;
             if let Some(expr) = having {
                 rename_expr(expr, ctx)?;
@@ -1029,11 +1018,9 @@ mod tests {
     use chrono::TimeZone;
     use ox_core::graph_label::GraphLabel;
     use ox_core::i18n::LocalizedText;
-    use ox_ontology::ir::{NodeTypeDef, OntologyVersion};
-    use ox_query_ir::query::{
-        GraphPattern, QUERY_IR_SCHEMA_VERSION, QueryOp,
-    };
     use ox_core::variable_name::VariableName;
+    use ox_ontology::ir::{NodeTypeDef, OntologyVersion};
+    use ox_query_ir::query::{GraphPattern, QUERY_IR_SCHEMA_VERSION, QueryOp};
 
     fn vn(s: &'static str) -> VariableName {
         VariableName::new(s).expect("test variable")
@@ -1116,11 +1103,7 @@ mod tests {
     #[test]
     fn temporal_within_window_clears_as_of() {
         // Snapshot valid [2026-01-01, 2026-06-01); as_of mid-window.
-        let snap = snapshot_with_window(
-            2,
-            Some(ts(2026, 1, 1)),
-            Some(ts(2026, 6, 1)),
-        );
+        let snap = snapshot_with_window(2, Some(ts(2026, 1, 1)), Some(ts(2026, 6, 1)));
         let q = simple_query(Some(ts(2026, 3, 15)));
         let out = rewrite_temporal(q, &snap).expect("in-window");
         assert!(
@@ -1148,11 +1131,7 @@ mod tests {
 
     #[test]
     fn temporal_at_or_past_valid_to_fails() {
-        let snap = snapshot_with_window(
-            1,
-            Some(ts(2026, 1, 1)),
-            Some(ts(2026, 6, 1)),
-        );
+        let snap = snapshot_with_window(1, Some(ts(2026, 1, 1)), Some(ts(2026, 6, 1)));
         // `>= valid_to` should fail — the window is half-open.
         let q = simple_query(Some(ts(2026, 6, 1)));
         let err = rewrite_temporal(q, &snap).expect_err("at upper bound");
@@ -1241,8 +1220,7 @@ mod tests {
             as_of: Some(ts(2026, 3, 15)),
         };
 
-        let out = rewrite_temporal_with_renames(query, &snap, &current)
-            .expect("rewrite ok");
+        let out = rewrite_temporal_with_renames(query, &snap, &current).expect("rewrite ok");
         assert!(out.as_of.is_none());
         let QueryOp::Match { patterns, .. } = &out.operation else {
             panic!("expected Match");
@@ -1288,8 +1266,7 @@ mod tests {
             order_by: vec![],
             as_of: None,
         };
-        let out = rewrite_temporal_with_renames(query, &snap, &current)
-            .expect("rewrite ok");
+        let out = rewrite_temporal_with_renames(query, &snap, &current).expect("rewrite ok");
         let QueryOp::Match { patterns, .. } = &out.operation else {
             panic!("expected Match");
         };
@@ -1332,8 +1309,7 @@ mod tests {
             order_by: vec![],
             as_of: Some(ts(2026, 3, 15)),
         };
-        let out = rewrite_temporal_with_renames(query, &snap, &current)
-            .expect("rewrite ok");
+        let out = rewrite_temporal_with_renames(query, &snap, &current).expect("rewrite ok");
         let QueryOp::Match { patterns, .. } = &out.operation else {
             panic!("expected Match");
         };
@@ -1357,13 +1333,7 @@ mod tests {
             "Customer",
         );
         let current = {
-            let mut ont = snapshot_with_label(
-                2,
-                Some(ts(2026, 6, 1)),
-                None,
-                "nt1",
-                "Customer",
-            );
+            let mut ont = snapshot_with_label(2, Some(ts(2026, 6, 1)), None, "nt1", "Customer");
             ont.add_node_type(NodeTypeDef {
                 id: "nt2".into(),
                 label: gl("Order"),
@@ -1393,8 +1363,7 @@ mod tests {
             order_by: vec![],
             as_of: Some(ts(2026, 3, 15)),
         };
-        let out = rewrite_temporal_with_renames(query, &snap, &current)
-            .expect("rewrite ok");
+        let out = rewrite_temporal_with_renames(query, &snap, &current).expect("rewrite ok");
         let QueryOp::Match { patterns, .. } = &out.operation else {
             panic!("expected Match");
         };
@@ -1435,10 +1404,10 @@ mod tests {
     // and must be rewritten to `c.email`.
     // ---------------------------------------------------------------
 
-    use ox_ontology::ir::PropertyDef;
     use ox_core::property_key::PropertyKey;
-    use ox_query_ir::query::{ComparisonOp, Expr, PropertyFilter};
     use ox_core::types::{PropertyType, PropertyValue};
+    use ox_ontology::ir::PropertyDef;
+    use ox_query_ir::query::{ComparisonOp, Expr, PropertyFilter};
 
     fn pk(s: &'static str) -> PropertyKey {
         PropertyKey::new(s).expect("property key")
@@ -1905,8 +1874,8 @@ mod tests {
         // field. The inline filter must be rewritten using the ref's
         // own label to resolve the owner type, mirroring the Match
         // pattern path.
-        use ox_query_ir::query::{NodeRef, PathAlgorithm};
         use ox_core::types::Direction;
+        use ox_query_ir::query::{NodeRef, PathAlgorithm};
 
         let snap = snapshot_with_node_property(
             1,
