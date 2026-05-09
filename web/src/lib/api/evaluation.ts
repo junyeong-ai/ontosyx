@@ -13,7 +13,7 @@ import type {
   EvaluationMetric,
   EvaluationRun,
   EvaluationRunListPage,
-  ExecuteEvaluationCaseRequest,
+  EvaluationCaseInput,
   RecordEvaluationMetricRequest,
   ReplaceEvaluationDatasetItemsRequest,
   ReplaceEvaluationDatasetItemsResponse,
@@ -22,6 +22,7 @@ import type {
   UpsertEvaluationCaseRequest,
   UpsertEvaluationDatasetRequest,
 } from "@/types/evaluation";
+import type { components } from "@/types/api.generated";
 
 const RUNS = "/evaluation/runs";
 
@@ -108,7 +109,7 @@ export async function bulkUpsertEvaluationCases(
 export async function executeEvaluationCase(
   runId: string,
   caseKey: string,
-  req: ExecuteEvaluationCaseRequest,
+  req: EvaluationCaseInput,
 ): Promise<EvaluationCase> {
   const res = await request<{ case: EvaluationCase }>(
     `${RUNS}/${encodeURIComponent(runId)}/cases/${encodeURIComponent(caseKey)}/execute`,
@@ -268,21 +269,16 @@ export async function replaceEvaluationDatasetItems(
   );
 }
 
-/** Promote a chat-sample case into a curated dataset item. The
- *  online sampler lands cases in `live_chat_samples`; this is
- *  the operator-driven path to lift one into a regression
- *  fixture. */
-export interface PromoteCaseToDatasetRequest {
-  dataset_id: string;
-  use_actual_as_expected?: boolean;
-  item_key?: string;
-}
+export type PromoteCaseToDatasetRequest =
+  components["schemas"]["PromoteCaseToDatasetRequest"];
+export type PromoteCaseToDatasetResponse =
+  components["schemas"]["PromoteCaseToDatasetResponse"];
 
 export async function promoteCaseToDataset(
   caseId: string,
   req: PromoteCaseToDatasetRequest,
-): Promise<unknown> {
-  const res = await request<{ item: unknown }>(
+): Promise<PromoteCaseToDatasetResponse["item"]> {
+  const res = await request<PromoteCaseToDatasetResponse>(
     `/evaluation/cases/${encodeURIComponent(caseId)}/promote-to-dataset`,
     { method: "POST", body: JSON.stringify(req) },
   );

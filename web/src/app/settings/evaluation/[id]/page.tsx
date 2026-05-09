@@ -30,8 +30,7 @@ import { cn } from "@/lib/cn";
 import type {
   BulkUpsertEvaluationCaseEntry,
   EvaluationCase,
-  ExecuteEvaluationCaseRequest,
-  ExecuteOperationKind,
+  EvaluationCaseInput,
   RunSummary,
 } from "@/types/evaluation";
 
@@ -288,7 +287,7 @@ export default function EvaluationDetailPage({
   };
   const canBulk = bulkText.trim().length > 0 && !bulk.isPending;
   const [executeKind, setExecuteKind] =
-    useState<ExecuteOperationKind>("translate_query");
+    useState<EvaluationCaseInput["kind"]>("translate_query");
   const [executeCaseKey, setExecuteCaseKey] = useState("");
   const [executeQuestion, setExecuteQuestion] = useState("");
   // Retrieval-only inputs. Surface alongside the question textbox
@@ -307,7 +306,7 @@ export default function EvaluationDetailPage({
   const onExecute = () => {
     const caseKey = executeCaseKey.trim();
     const question = executeQuestion.trim();
-    let request: ExecuteEvaluationCaseRequest;
+    let request: EvaluationCaseInput;
     if (executeKind === "translate_query") {
       request = { kind: "translate_query", question };
     } else if (executeKind === "explain") {
@@ -412,7 +411,7 @@ export default function EvaluationDetailPage({
   const canPromote = !!selectedCase && !promote.isPending;
   /// Re-runs a failed case using its persisted `input` envelope.
   /// The `EvaluationCase.input` already carries the full
-  /// `ExecuteEvaluationCaseRequest` shape (kind + question + per-
+  /// `EvaluationCaseInput` shape (kind + question + per-
   /// kind fields), so retry is a one-line dispatch — no operator
   /// re-input needed. The case_key stays the same so the natural-
   /// key UPSERT (`run_id, case_key`) replaces the failed row in
@@ -424,9 +423,9 @@ export default function EvaluationDetailPage({
     // doesn't also flip `selectedCase`. Operators clicking the
     // body row vs the retry pill is the discriminator.
     evt.stopPropagation();
-    let parsed: ExecuteEvaluationCaseRequest;
+    let parsed: EvaluationCaseInput;
     try {
-      parsed = c.input as ExecuteEvaluationCaseRequest;
+      parsed = c.input as EvaluationCaseInput;
     } catch {
       toast.error(t("detail.retry.parseError"));
       return;
@@ -497,16 +496,16 @@ export default function EvaluationDetailPage({
           retryLabel: tCommon("retry"),
         }}
       >
-        {run?.dataset_id ? (
+        {run?.fingerprint?.dataset_id ? (
           <div className="mb-4 flex items-center gap-2 rounded-md border border-divider bg-surface-inset px-3 py-2 text-xs">
             <span className="text-foreground-muted">
               {t("detail.lineage.fromDataset")}
             </span>
             <Link
-              href={`/settings/evaluation/datasets/${encodeURIComponent(run.dataset_id)}`}
+              href={`/settings/evaluation/datasets/${encodeURIComponent(run.fingerprint.dataset_id)}`}
               className="font-mono text-2xs text-brand-foreground hover:underline"
             >
-              {run.dataset_id}
+              {run.fingerprint.dataset_id}
             </Link>
           </div>
         ) : null}
@@ -527,7 +526,7 @@ export default function EvaluationDetailPage({
               label={t("detail.execute.kindLabel")}
               value={executeKind}
               onChange={(e) =>
-                setExecuteKind(e.target.value as ExecuteOperationKind)
+                setExecuteKind(e.target.value as EvaluationCaseInput["kind"])
               }
             >
               <option value="translate_query">

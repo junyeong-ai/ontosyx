@@ -7,7 +7,6 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useCancelEvaluationRun,
-  useCreateEvaluationRun,
   useDeleteEvaluationRun,
   useEvaluationRuns,
 } from "@/hooks/api/use-evaluation";
@@ -19,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
-import { SettingsInput } from "@/components/ui/form-input";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import type { EvaluationRunStatus } from "@/types/evaluation";
@@ -88,36 +86,9 @@ export default function EvaluationPage() {
   const tCommon = useTranslations("common");
   const { isAdmin } = useAuth();
   const query = useEvaluationRuns();
-  const create = useCreateEvaluationRun();
   const cancel = useCancelEvaluationRun();
   const remove = useDeleteEvaluationRun();
   const confirm = useConfirm();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const canCreate = name.trim().length > 0 && !create.isPending;
-  const onCreate = () => {
-    const trimmedName = name.trim();
-    create.mutate(
-      {
-        name: trimmedName,
-        description: description.trim(),
-      },
-      {
-        onSuccess: () => {
-          toast.success(t("create.successToast", { name: trimmedName }));
-          setName("");
-          setDescription("");
-        },
-        onError: (err) => {
-          toast.error(
-            t("create.errorToast", {
-              error: err instanceof Error ? err.message : String(err),
-            }),
-          );
-        },
-      },
-    );
-  };
 
   const onCancel = (id: string) => {
     cancel.mutate(id, {
@@ -170,27 +141,16 @@ export default function EvaluationPage() {
         <Heading level={2} size={5}>
           {t("create.title")}
         </Heading>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_2fr_auto] md:items-end">
-          <SettingsInput
-            label={t("create.nameLabel")}
-            placeholder={t("create.namePlaceholder")}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <SettingsInput
-            label={t("create.descriptionLabel")}
-            placeholder={t("create.descriptionPlaceholder")}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-          <Button
-            type="button"
-            onClick={onCreate}
-            disabled={!canCreate}
-            loading={create.isPending}
+        <p className="mt-2 text-sm text-foreground-muted">
+          {t("create.fingerprintGuidance")}
+        </p>
+        <div className="mt-3">
+          <Link
+            href="/settings/evaluation/datasets"
+            className="inline-flex items-center gap-1 rounded-md border border-divider bg-surface-inset px-3 py-1.5 text-xs font-medium text-foreground-strong hover:bg-surface-base"
           >
-            {create.isPending ? t("create.submitting") : t("create.submit")}
-          </Button>
+            {t("create.openDatasets")}
+          </Link>
         </div>
       </section>
       <PageStateView
@@ -243,9 +203,9 @@ export default function EvaluationPage() {
                     />
                   </td>
                   <td className="px-4 py-2 text-2xs text-foreground-muted">
-                    {run.dataset_id ? (
+                    {run.fingerprint?.dataset_id ? (
                       <Link
-                        href={`/settings/evaluation/datasets/${encodeURIComponent(run.dataset_id)}`}
+                        href={`/settings/evaluation/datasets/${encodeURIComponent(run.fingerprint.dataset_id)}`}
                         className="inline-flex items-center gap-1 rounded-full bg-info-surface px-2 py-0.5 text-info-foreground ring-1 ring-info-border hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >

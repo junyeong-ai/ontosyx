@@ -13,6 +13,8 @@ import {
   useEvaluationDatasetItems,
   useReplaceEvaluationDatasetItems,
 } from "@/hooks/api/use-evaluation";
+import { useModelConfigs } from "@/hooks/api/use-models";
+import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
@@ -30,7 +32,7 @@ interface DatasetDetailPageProps {
 
 /// Truncate a JSON-shaped value to a short prose summary for the
 /// items table. Heuristic: if it's an object with a `question`
-/// field (the `ExecuteEvaluationCaseRequest` shape every dataset
+/// field (the `EvaluationCaseInput` shape every dataset
 /// item carries), surface that. Otherwise stringify with a hard
 /// truncation. Keeps the table readable without forcing the
 /// operator to expand each row to inspect the input.
@@ -100,6 +102,14 @@ export default function EvaluationDatasetDetailPage({
   const createRun = useCreateRunFromDataset();
   const router = useRouter();
   const prompt = usePrompt();
+  // Φ8.x EvaluationFingerprint — every run pins reproducibility
+  // context. Read the workspace's canonical ontology version + the
+  // first enabled model config as the default fingerprint;
+  // operators that need explicit pins still hit the BE directly.
+  // A future inline fingerprint editor on this page lifts those
+  // defaults into form fields.
+  const workspaceOntology = useWorkspaceOntology();
+  const modelConfigs = useModelConfigs();
   const [bulkText, setBulkText] = useState("");
   const onBulk = () => {
     const parsed = parseBulkInput(bulkText);
@@ -138,6 +148,17 @@ export default function EvaluationDatasetDetailPage({
   /// detail page.
   const onCreateRun = async () => {
     if (!dataset) return;
+    const ontologyVersionId =
+      workspaceOntology.data?.current_version?.version_id;
+    const modelId = modelConfigs.data?.find((m) => m.enabled)?.model_id;
+    if (!ontologyVersionId) {
+      toast.error(t("detail.createRun.noOntology"));
+      return;
+    }
+    if (!modelId) {
+      toast.error(t("detail.createRun.noModel"));
+      return;
+    }
     const runName = await prompt({
       title: t("detail.createRun.title"),
       description: t("detail.createRun.description"),
@@ -147,9 +168,13 @@ export default function EvaluationDatasetDetailPage({
     if (!runName || runName.trim().length === 0) return;
     createRun.mutate(
       {
-        dataset_id: id,
         name: runName.trim(),
         description: "",
+        fingerprint: {
+          dataset_id: id,
+          model_id: modelId,
+          ontology_version_id: ontologyVersionId,
+        },
       },
       {
         onSuccess: (res) => {

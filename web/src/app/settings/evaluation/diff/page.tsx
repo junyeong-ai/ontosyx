@@ -100,7 +100,7 @@ function PerAxisRow({ row, t }: PerAxisRowProps) {
         {row.win_rate_pct.toFixed(1)}%
       </td>
       <td className="px-4 py-2 text-end tabular-nums text-foreground-muted">
-        {formatCohenD(t, row.cohen_d)}
+        {formatCohenD(t, row.cohen_d ?? undefined)}
       </td>
     </tr>
   );
