@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 
-import { FormSelect } from "@/components/ui/form-input";
+import { Select, SelectOption } from "@/components/ui/select";
 import { useThemePreference, type ThemePreference } from "@/hooks/use-theme";
 
 const PREFERENCES: readonly ThemePreference[] = ["system", "light", "dark"];
@@ -14,9 +14,10 @@ const PREFERENCES: readonly ThemePreference[] = ["system", "light", "dark"];
  * switcher in the user-menu popover so the two preferences read as
  * a single "personalisation" panel.
  *
- * Matches `LocaleSwitcher` in shape — compact `<select>` with an
- * uppercase eyebrow label — so adding more chrome preferences
- * (timezone, density, motion) lands in the same visual register.
+ * Built on the design-system `Select` so the popup matches the
+ * platform chrome (shadow / radius / dark-mode pair). Native
+ * `<select>` would punch through to OS-styled menus and break the
+ * brand register.
  */
 export function ThemeSwitcher() {
   const t = useTranslations("theme");
@@ -25,26 +26,23 @@ export function ThemeSwitcher() {
 
   return (
     <div className="px-3 py-2">
-      <label
+      <span
         id={labelId}
-        htmlFor={`${labelId}-select`}
         className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-foreground-muted"
       >
         {t("switcher")}
-      </label>
-      <FormSelect
-        id={`${labelId}-select`}
-        density="compact"
-        aria-labelledby={labelId}
+      </span>
+      <Select
         value={preference}
-        onChange={(e) => setPreference(e.target.value as ThemePreference)}
+        onValueChange={(v) => v && setPreference(v as ThemePreference)}
+        ariaLabelledBy={labelId}
       >
         {PREFERENCES.map((pref) => (
-          <option key={pref} value={pref}>
+          <SelectOption key={pref} value={pref}>
             {t(`option.${pref}`)}
-          </option>
+          </SelectOption>
         ))}
-      </FormSelect>
+      </Select>
     </div>
   );
 }

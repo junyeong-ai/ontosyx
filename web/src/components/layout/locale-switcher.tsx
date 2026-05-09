@@ -1,9 +1,9 @@
 "use client";
 
-import { useLocale, useTranslations } from "next-intl";
 import { useId, useTransition } from "react";
+import { useLocale, useTranslations } from "next-intl";
 
-import { FormSelect } from "@/components/ui/form-input";
+import { Select, SelectOption } from "@/components/ui/select";
 import {
   LOCALE_LABELS,
   SUPPORTED_LOCALES,
@@ -15,10 +15,12 @@ import { setLocaleAction } from "@/i18n/actions";
  * Locale switcher — flips the `ontosyx_locale` cookie via a server
  * action and lets next.js re-render the tree with the new messages.
  *
- * Uses a compact `<select>` so the dropdown scales to any number of
- * locales — adding a new entry to `SUPPORTED_LOCALES` lights it up
- * here without rewriting layout. Inline button groups would visibly
- * crowd the popover at 4+ locales.
+ * Built on the design-system `Select` (Base UI Popover) so the menu
+ * carries the same brand chrome as every other dropdown — native
+ * `<select>` would render the OS popup at this scope, breaking the
+ * dark-mode / brand-color register. Forms keep `<select>` for mobile
+ * platform conventions; chrome dropdowns like this one go through the
+ * tokenised primitive.
  */
 export function LocaleSwitcher() {
   const current = useLocale() as Locale;
@@ -26,40 +28,37 @@ export function LocaleSwitcher() {
   const [isPending, startTransition] = useTransition();
   const labelId = useId();
 
-  const handleChange = (next: Locale) => {
-    if (next === current) return;
+  const handleChange = (next: string | null) => {
+    if (!next || next === current) return;
     startTransition(async () => {
-      await setLocaleAction(next);
-      // Server action revalidates the layout; the client router
-      // cache also drops with a hard reload — least-surprising way
-      // to swap every text node at once.
+      await setLocaleAction(next as Locale);
+      // Server action revalidates the layout; a hard reload also
+      // drops the client router cache so every text node swaps in
+      // a single paint.
       window.location.reload();
     });
   };
 
   return (
     <div className="px-3 py-2">
-      <label
+      <span
         id={labelId}
-        htmlFor={`${labelId}-select`}
         className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-foreground-muted"
       >
         {t("switcher")}
-      </label>
-      <FormSelect
-        id={`${labelId}-select`}
-        density="compact"
-        aria-labelledby={labelId}
+      </span>
+      <Select
         value={current}
+        onValueChange={handleChange}
         disabled={isPending}
-        onChange={(e) => handleChange(e.target.value as Locale)}
+        ariaLabelledBy={labelId}
       >
         {SUPPORTED_LOCALES.map((loc) => (
-          <option key={loc} value={loc}>
+          <SelectOption key={loc} value={loc}>
             {LOCALE_LABELS[loc]}
-          </option>
+          </SelectOption>
         ))}
-      </FormSelect>
+      </Select>
     </div>
   );
 }

@@ -24,6 +24,17 @@ interface SelectProps {
   className?: string;
   /** Label → value map so Select.Value can display the label */
   items?: Record<string, React.ReactNode>;
+  /**
+   * Accessible name for the trigger when no visible `<label>`
+   * is associated. Chrome menus where the eyebrow text is purely
+   * visual (no form-control semantic) use this to satisfy
+   * `button-name` without coercing the eyebrow into an `htmlFor`
+   * / `id` pair that does not match the underlying button.
+   */
+  ariaLabel?: string;
+  /** Forward an external label's id when the visible eyebrow is
+   *  rendered as a `<span id>` outside the Select. */
+  ariaLabelledBy?: string;
 }
 
 export function Select({
@@ -35,6 +46,8 @@ export function Select({
   children,
   className,
   items,
+  ariaLabel,
+  ariaLabelledBy,
 }: SelectProps) {
   return (
     <BaseSelect.Root
@@ -46,6 +59,8 @@ export function Select({
       items={items}
     >
       <BaseSelect.Trigger
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
         className={cn(
           "inline-flex w-full items-center justify-between rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs text-foreground-strong transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
           "outline-none focus-visible:border-brand-foreground focus-visible:ring-2 focus-visible:ring-brand-foreground/40",
