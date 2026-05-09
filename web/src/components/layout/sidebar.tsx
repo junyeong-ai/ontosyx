@@ -10,6 +10,8 @@ import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
+import { NotificationBadge } from "@/components/ui/notification-badge";
+import type { NotificationCount } from "@/lib/store/types";
 import {
   listModesByCategory,
   workbenchModeById,
@@ -26,14 +28,21 @@ function ModeLink({
   active,
   label,
   expanded,
+  notification,
 }: {
   mode: WorkbenchMode;
   active: boolean;
   label: string;
   expanded: boolean;
+  notification?: NotificationCount;
 }) {
   const glyph = mode.shortcut?.glyph;
-  const ariaLabel = glyph ? `${label} (${glyph})` : label;
+  const ariaLabel = (() => {
+    const parts = [label];
+    if (glyph) parts.push(`(${glyph})`);
+    if (notification) parts.push(`— ${notification.count} pending`);
+    return parts.join(" ");
+  })();
   const link = (
     <Link
       href={mode.href}
@@ -54,8 +63,24 @@ function ModeLink({
       {expanded && (
         <span className="flex-1 truncate text-xs font-medium">{label}</span>
       )}
-      {expanded && glyph && (
+      {expanded && notification && (
+        <NotificationBadge
+          count={notification.count}
+          tone={notification.tone}
+          variant="pill"
+          ariaLabel={`${notification.count} pending`}
+        />
+      )}
+      {expanded && glyph && !notification && (
         <KeyboardShortcut glyph={glyph} variant="outline" />
+      )}
+      {!expanded && notification && (
+        <NotificationBadge
+          count={notification.count}
+          tone={notification.tone}
+          variant="dot"
+          ariaLabel={`${notification.count} pending`}
+        />
       )}
     </Link>
   );
@@ -65,6 +90,13 @@ function ModeLink({
       content={
         <span className="flex items-center gap-2">
           <span>{label}</span>
+          {notification && (
+            <NotificationBadge
+              count={notification.count}
+              tone={notification.tone}
+              variant="pill"
+            />
+          )}
           {glyph && <KeyboardShortcut glyph={glyph} variant="outline" />}
         </span>
       }
@@ -125,6 +157,7 @@ export function Sidebar() {
   const toggleExplorer = useAppStore((s) => s.toggleExplorer);
   const inspectorOpen = useAppStore((s) => s.isInspectorOpen);
   const toggleInspector = useAppStore((s) => s.toggleInspector);
+  const modeCounts = useAppStore((s) => s.modeCounts);
   const sidebarMode = useAppStore((s) => s.sidebarMode);
   const expanded = sidebarMode === "expanded";
 
@@ -150,8 +183,9 @@ export function Sidebar() {
       ),
     [hasCanonical],
   );
-  // Operations modes route under `/settings/*`; their active state
-  // matches by URL prefix rather than the workspace-mode store.
+  // Operations modes match active state by URL prefix rather than
+  // the workspace-mode store, since they sit outside the canonical
+  // workbench-mode rotation.
   const activeOperationsId = useMemo(() => {
     if (!pathname) return null;
     const match = visibleOperationsModes.find(
@@ -211,16 +245,17 @@ export function Sidebar() {
             active={!onSettings && workspaceMode === m.id}
             label={t(m.labelKey)}
             expanded={expanded}
+            notification={modeCounts[m.id]}
           />
         ))}
       </nav>
 
       {/* Operations modes — workspace-level monitoring + action
           queues. Daily-visit surfaces (evaluation / approvals /
-          audit / quality / knowledge base) get top-level navigation
-          parity with workbench tools so they're not buried in
-          settings. URLs still resolve under `/settings/*` until a
-          follow-up route migration. */}
+          audit / quality / knowledge base) sit at the same
+          top-level depth as workbench tools so the navigation
+          hierarchy mirrors the mental model — operate verbs
+          beside build verbs. */}
       {visibleOperationsModes.length > 0 && (
         <>
           {expanded ? (
@@ -241,6 +276,7 @@ export function Sidebar() {
                 active={activeOperationsId === m.id}
                 label={t(m.labelKey)}
                 expanded={expanded}
+                notification={modeCounts[m.id]}
               />
             ))}
           </nav>

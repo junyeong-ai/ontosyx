@@ -8,7 +8,10 @@ import {
   setWorkspaceRole,
 } from "@/lib/workspace";
 
-export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (set) => ({
+export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (
+  set,
+  get,
+) => ({
   // Active workspace — synced with localStorage
   workspaceId: null,
   workspaceName: null,
@@ -44,10 +47,31 @@ export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (s
   },
 
   setActiveWorkspace: (id, name, role) => {
+    get().resetWorkspaceState();
     setWorkspaceId(id);
     setWorkspaceName(name);
     setWorkspaceRole(role);
     set({ workspaceId: id, workspaceName: name });
+  },
+
+  resetWorkspaceState: () => {
+    // Workspace-scoped in-memory state cannot survive a workspace
+    // change — ontology graph, draft stack, chat history, selection,
+    // dashboard filters, sidebar badges, and analyze-mode pinned
+    // ontology all belong to the previous workspace. Each slice
+    // owns its initial-state shape via its own reset action; this
+    // hub fans out to all of them so new slices register their
+    // reset here instead of inside `setActiveWorkspace` and
+    // friends.
+    const s = get();
+    s.applyOntologyDraftSnapshot(null);
+    s.clearMessages();
+    s.clearSelection();
+    s.clearDashboardFilters();
+    s.clearVerifications();
+    s.clearAllModeCounts();
+    s.setActiveDashboardId(null);
+    s.setOntologyId(null);
   },
 
   designBottomTab: "workflow",
@@ -56,6 +80,8 @@ export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (s
   isExplorerOpen: true,
   isInspectorOpen: true,
   isBottomPanelOpen: true,
+  isShortcutsOpen: false,
+  setShortcutsOpen: (open) => set({ isShortcutsOpen: open }),
   isSearchOpen: false,
   isCommandPaletteOpen: false,
   toggleExplorer: () => set((s) => ({ isExplorerOpen: !s.isExplorerOpen })),
@@ -84,6 +110,9 @@ export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (s
   sidebarMode: "rail",
   toggleSidebarMode: () =>
     set((s) => ({ sidebarMode: s.sidebarMode === "rail" ? "expanded" : "rail" })),
+
+  isMobileNavOpen: false,
+  setMobileNavOpen: (next) => set({ isMobileNavOpen: next }),
 
   inspectorTabByKind: {},
   setInspectorTab: (kind, tab) =>

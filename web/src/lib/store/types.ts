@@ -237,6 +237,17 @@ export interface ChromeSlice {
    * Cmd/Ctrl+K toggles, Esc closes — keybindings remain in
    * `DesignLayout` since that's where the dialog mounts.
    */
+  isShortcutsOpen: boolean;
+  setShortcutsOpen: (open: boolean) => void;
+
+  /**
+   * Reset every workspace-scoped slice to its initial state. Owned
+   * by chrome-slice (the workspace identity holder) but routed
+   * through a named action so new slices can wire their reset here
+   * without each call site of `setActiveWorkspace` knowing the
+   * complete cascade.
+   */
+  resetWorkspaceState: () => void;
   isSearchOpen: boolean;
   /**
    * Global command-palette visibility. Cmd/Ctrl+Shift+P toggles
@@ -279,6 +290,17 @@ export interface ChromeSlice {
    */
   sidebarMode: "rail" | "expanded";
   toggleSidebarMode: () => void;
+
+  /**
+   * Mobile / narrow-viewport navigation drawer. Below the `md`
+   * breakpoint the persistent sidebar is hidden by default; the
+   * header's hamburger button toggles this flag and the layout
+   * renders the sidebar as an off-canvas drawer with a backdrop.
+   * Not persisted — drawers should always start closed on a fresh
+   * route.
+   */
+  isMobileNavOpen: boolean;
+  setMobileNavOpen: (next: boolean) => void;
 
   /**
    * Inspector tab memory keyed by entity kind (`node_type`,
@@ -367,6 +389,29 @@ export interface VerificationSlice {
   clearVerifications: () => void;
 }
 
+/**
+ * Workbench-mode unread / pending counts. Each operations surface
+ * publishes its own count so the sidebar entries can render badges
+ * without needing a parallel server endpoint.
+ *
+ * `tone` lets a count surface as "warning" (pending review) or
+ * "danger" (regression / failure) — the badge primitive picks tones
+ * via the StatusBadge token map.
+ */
+export type NotificationTone = "neutral" | "info" | "warning" | "danger";
+
+export interface NotificationCount {
+  count: number;
+  tone: NotificationTone;
+}
+
+export interface NotificationSlice {
+  modeCounts: Record<string, NotificationCount>;
+  publishModeCount: (modeId: string, count: NotificationCount) => void;
+  clearModeCount: (modeId: string) => void;
+  clearAllModeCounts: () => void;
+}
+
 // Combined store type
 export type AppStore = OntologySlice &
   ChatSlice &
@@ -374,4 +419,5 @@ export type AppStore = OntologySlice &
   ChromeSlice &
   SelectionSlice &
   DashboardSlice &
-  VerificationSlice;
+  VerificationSlice &
+  NotificationSlice;

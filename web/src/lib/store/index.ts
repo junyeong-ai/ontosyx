@@ -10,6 +10,7 @@ import { createChromeSlice } from "./chrome-slice";
 import { createSelectionSlice } from "./selection-slice";
 import { createDashboardSlice } from "./dashboard-slice";
 import { createVerificationSlice } from "./verification-slice";
+import { createNotificationSlice } from "./notification-slice";
 
 export type {
   AppStore,
@@ -33,6 +34,9 @@ export type {
   SelectionSlice,
   DashboardSlice,
   VerificationSlice,
+  NotificationSlice,
+  NotificationCount,
+  NotificationTone,
 } from "./types";
 
 export {
@@ -59,6 +63,7 @@ export const useAppStore = create<AppStore>()(
       ...createSelectionSlice(...a),
       ...createDashboardSlice(...a),
       ...createVerificationSlice(...a),
+      ...createNotificationSlice(...a),
     }),
     {
       name: "ontosyx-ui",

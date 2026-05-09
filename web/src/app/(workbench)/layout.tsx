@@ -5,6 +5,9 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { MobileNavRoot } from "@/components/layout/mobile-nav-root";
+import { WorkspaceNotificationProbe } from "@/components/layout/workspace-notification-probe";
+import { PageTransition } from "@/components/motion/page-transition";
 import { GlobalCommandSource } from "@/components/layout/global-command-source";
 import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts-dialog";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -97,7 +100,7 @@ export default function WorkbenchLayout({
 
   useShortcut({
     id: "workbench.toggleSidebar",
-    keys: ["["],
+    keys: ["[", "Mod+b"],
     group: "keyboardShortcuts.sections.global",
     description: "keyboardShortcuts.shortcuts.toggleSidebar",
     handler: (e) => {
@@ -140,7 +143,9 @@ export default function WorkbenchLayout({
           )}
         </nav>
         <div className="flex h-dvh overflow-hidden" aria-busy={!hydrated}>
-          {hydrated ? <Sidebar /> : <SidebarRailSkeleton />}
+          <MobileNavRoot>
+            {hydrated ? <Sidebar /> : <SidebarRailSkeleton />}
+          </MobileNavRoot>
           <div className="flex flex-1 flex-col overflow-hidden">
             {hydrated ? <Header /> : <HeaderSkeleton />}
             {hydrated && workspaceReady && <QualityBanner />}
@@ -155,7 +160,9 @@ export default function WorkbenchLayout({
               className="flex-1 overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/50 focus-visible:ring-inset"
             >
               {hydrated && (
-                <div className="h-full overflow-hidden">{children}</div>
+                <div className="h-full overflow-hidden">
+                  <PageTransition motionKey={pathname}>{children}</PageTransition>
+                </div>
               )}
             </main>
           </div>
@@ -165,6 +172,7 @@ export default function WorkbenchLayout({
         <CollaborationErrorToaster />
         <WelcomeModal />
         <SessionExpiredOverlay />
+        {hydrated && workspaceReady && <WorkspaceNotificationProbe />}
       </TooltipProvider>
     </ErrorBoundary>
     </AuthGuard>

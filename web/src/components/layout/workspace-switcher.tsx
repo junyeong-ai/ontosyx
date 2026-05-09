@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/lib/store";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
@@ -74,11 +76,25 @@ export function WorkspaceSwitcher() {
   }, [workspaces, currentId, cachedName]);
 
   const setActiveWorkspace = useAppStore((s) => s.setActiveWorkspace);
+  const queryClient = useQueryClient();
+  const router = useRouter();
 
   const handleSwitch = (ws: (typeof workspaces)[number]) => {
     setOpen(false);
+    // 1. In-memory store flips to the new workspace + resets every
+    //    workspace-scoped slice (ontology / draft / chat / selection
+    //    / dashboard / verifications / mode badges).
     setActiveWorkspace(ws.id, ws.name, ws.role);
-    window.location.reload();
+    // 2. Drop every cached server response — RLS scopes data per
+    //    workspace, so prior caches are stale by definition. The
+    //    next mount triggers fresh fetches.
+    queryClient.clear();
+    // 3. `router.refresh()` re-runs RSC for the current segment so
+    //    server-rendered chrome (locale + bootstrap) re-derives
+    //    against the new workspace cookie. No full reload, so
+    //    chunks stay in memory and the React tree shape is
+    //    preserved across the swap.
+    router.refresh();
   };
 
   const label = cachedName || t("defaultLabel");

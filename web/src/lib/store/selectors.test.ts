@@ -9,6 +9,7 @@ import { createSelectionSlice } from "./selection-slice";
 import { createDashboardSlice } from "./dashboard-slice";
 import { createOntologyDraftSlice } from "./ontology-draft-slice";
 import { createVerificationSlice } from "./verification-slice";
+import { createNotificationSlice } from "./notification-slice";
 import {
   selectStateHasOntology,
   selectStateHasUnsavedEdits,
@@ -27,6 +28,7 @@ function createTestStore() {
     ...createSelectionSlice(...a),
     ...createDashboardSlice(...a),
     ...createVerificationSlice(...a),
+    ...createNotificationSlice(...a),
   }));
 }
 
