@@ -75,7 +75,7 @@ impl EvaluationRunStatus {
     /// Stable wire string — used by the SQL persistence layer and
     /// the parity test in `crates/ox-store/tests` to assert that
     /// every variant round-trips.
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Running => "running",
             Self::Succeeded => "succeeded",
@@ -84,23 +84,34 @@ impl EvaluationRunStatus {
         }
     }
 
+    /// Every variant in declaration order. Same `ALL` pattern
+    /// the retrieval-comparison enums use — single source of
+    /// truth for `from_wire_str` + `all_wire_strings`.
+    pub const ALL: &'static [Self] = &[
+        Self::Running,
+        Self::Succeeded,
+        Self::Failed,
+        Self::Cancelled,
+    ];
+
     /// Inverse of [`Self::as_str`]. Returns `None` on an
     /// unrecognised tag — the caller decides whether that is a
     /// store-corruption error or a forward-compat skip.
     pub fn from_wire_str(s: &str) -> Option<Self> {
-        Some(match s {
-            "running" => Self::Running,
-            "succeeded" => Self::Succeeded,
-            "failed" => Self::Failed,
-            "cancelled" => Self::Cancelled,
-            _ => return None,
-        })
+        Self::ALL.iter().copied().find(|v| v.as_str() == s)
     }
 
-    /// True for the two terminal states (`Succeeded`, `Failed`,
-    /// `Cancelled`). The dashboard uses this to dim still-running
-    /// rows.
-    pub fn is_terminal(&self) -> bool {
+    /// Wire-string bag for SQL `= ANY($N::text[])` binds + the
+    /// parity audit. Mirrors the retrieval-comparison enums'
+    /// shape so adding a new variant lands in one place.
+    pub fn all_wire_strings() -> Vec<&'static str> {
+        Self::ALL.iter().copied().map(Self::as_str).collect()
+    }
+
+    /// True for the three terminal states (`Succeeded`,
+    /// `Failed`, `Cancelled`). The dashboard uses this to dim
+    /// still-running rows.
+    pub const fn is_terminal(self) -> bool {
         !matches!(self, Self::Running)
     }
 }
@@ -383,6 +394,9 @@ impl RetrievalLeg {
     pub fn all_wire_strings() -> Vec<&'static str> {
         Self::ALL.iter().copied().map(Self::as_str).collect()
     }
+    pub fn from_wire_str(s: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.as_str() == s)
+    }
 }
 
 /// Retrieval IR axis — the four canonical metrics
@@ -416,6 +430,9 @@ impl RetrievalAxis {
     ];
     pub fn all_wire_strings() -> Vec<&'static str> {
         Self::ALL.iter().copied().map(Self::as_str).collect()
+    }
+    pub fn from_wire_str(s: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.as_str() == s)
     }
 }
 
@@ -762,11 +779,12 @@ pub struct RunSummary {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RetrievalComparisonAggregate {
     pub surface: RetrievalSurface,
-    /// Axis tail of the metric name — `precision_at_k` /
-    /// `recall_at_k` / `mrr` / `ndcg_at_k`. The retrieval IR
-    /// scorer pins the closed set; new axes land here without
-    /// schema migration.
-    pub axis: String,
+    /// Closed set — extending requires a [`RetrievalAxis`]
+    /// variant + the matching `RetrievalMetrics` field. The
+    /// SQL aggregator lifts the dotted-name axis tail and
+    /// converts via [`RetrievalAxis::from_wire_str`]; an
+    /// unknown axis drops the row from the typed aggregate.
+    pub axis: RetrievalAxis,
     /// Cases where both `<surface>.hybrid.<axis>` and
     /// `<surface>.trigram.<axis>` landed. Denominator for
     /// `mean_lift` / `win_rate_pct`.
@@ -833,7 +851,7 @@ pub struct RunComparisonReport {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RetrievalLiftRegressionAlert {
     pub surface: RetrievalSurface,
-    pub axis: String,
+    pub axis: RetrievalAxis,
     /// `candidate_lift − baseline_lift`. Negative since the
     /// alert only fires when this crossed the negative
     /// threshold.
@@ -1038,7 +1056,7 @@ pub struct RetrievalComparisonOutlier {
     pub case_id: Uuid,
     pub case_key: String,
     pub surface: RetrievalSurface,
-    pub axis: String,
+    pub axis: RetrievalAxis,
     pub hybrid_score: f64,
     pub trigram_score: f64,
     /// `hybrid_score − trigram_score`. Negative = hybrid lost
@@ -1060,7 +1078,7 @@ pub struct RetrievalComparisonOutlier {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RetrievalComparisonDelta {
     pub surface: RetrievalSurface,
-    pub axis: String,
+    pub axis: RetrievalAxis,
     pub baseline_lift: f64,
     pub candidate_lift: f64,
     /// `candidate_lift − baseline_lift`. Positive = hybrid
@@ -1566,7 +1584,7 @@ mod tests {
             retrieval_comparisons: vec![
                 RetrievalComparisonAggregate {
                     surface: RetrievalSurface::VerifiedQuery,
-                    axis: "recall_at_k".into(),
+                    axis: RetrievalAxis::RecallAtK,
                     paired_case_count: 4,
                     hybrid_mean: 0.72,
                     trigram_mean: 0.55,
@@ -1575,7 +1593,7 @@ mod tests {
                 },
                 RetrievalComparisonAggregate {
                     surface: RetrievalSurface::CommunitySummary,
-                    axis: "ndcg_at_k".into(),
+                    axis: RetrievalAxis::NdcgAtK,
                     paired_case_count: 4,
                     hybrid_mean: 0.61,
                     trigram_mean: 0.61,
@@ -1597,7 +1615,7 @@ mod tests {
     fn retrieval_comparison_aggregate_round_trips() {
         let a = RetrievalComparisonAggregate {
             surface: RetrievalSurface::KnowledgeEntry,
-            axis: "mrr".into(),
+            axis: RetrievalAxis::Mrr,
             paired_case_count: 8,
             hybrid_mean: 0.55,
             trigram_mean: 0.40,
@@ -1661,7 +1679,7 @@ mod tests {
             per_axis: vec![],
             retrieval_comparison_deltas: vec![RetrievalComparisonDelta {
                 surface: RetrievalSurface::VerifiedQuery,
-                axis: "recall_at_k".into(),
+                axis: RetrievalAxis::RecallAtK,
                 baseline_lift: 0.10,
                 candidate_lift: 0.18,
                 lift_delta: 0.08,
@@ -1773,7 +1791,7 @@ mod tests {
     fn retrieval_lift_regression_alert_round_trips() {
         let alert = RetrievalLiftRegressionAlert {
             surface: RetrievalSurface::CommunitySummary,
-            axis: "ndcg_at_k".into(),
+            axis: RetrievalAxis::NdcgAtK,
             lift_delta: -0.08,
             baseline_lift: 0.18,
             candidate_lift: 0.10,

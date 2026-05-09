@@ -785,6 +785,7 @@ impl EvaluationStore for PostgresStore {
                     // crashing the run-summary call. Operators
                     // still see the raw rows in `axis_means`.
                     let surface = RetrievalSurface::from_wire_str(&surface)?;
+                    let axis = RetrievalAxis::from_wire_str(&axis)?;
                     Some(RetrievalComparisonAggregate {
                         surface,
                         axis,
@@ -1068,6 +1069,7 @@ impl EvaluationStore for PostgresStore {
                     )| {
                         let surface =
                             crate::evaluation::RetrievalSurface::from_wire_str(&surface)?;
+                        let axis = crate::evaluation::RetrievalAxis::from_wire_str(&axis)?;
                         Some(crate::evaluation::RetrievalComparisonDelta {
                             surface,
                             axis,
@@ -1095,7 +1097,7 @@ impl EvaluationStore for PostgresStore {
                     {
                         Some(crate::evaluation::RetrievalLiftRegressionAlert {
                             surface: d.surface,
-                            axis: d.axis.clone(),
+                            axis: d.axis,
                             lift_delta: d.lift_delta,
                             baseline_lift: d.baseline_lift,
                             candidate_lift: d.candidate_lift,
@@ -1201,6 +1203,7 @@ impl EvaluationStore for PostgresStore {
                 |(case_id, case_key, surface_str, axis, hybrid_score, trigram_score, case_lift)| {
                     let surface =
                         crate::evaluation::RetrievalSurface::from_wire_str(&surface_str)?;
+                    let axis = crate::evaluation::RetrievalAxis::from_wire_str(&axis)?;
                     Some(crate::evaluation::RetrievalComparisonOutlier {
                         case_id,
                         case_key,
