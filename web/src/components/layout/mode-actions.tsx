@@ -176,7 +176,7 @@ function DesignActions() {
           <PopoverTrigger aria-label={t("exportAria")} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset hover:text-foreground-muted">
             <Download className="h-3.5 w-3.5" />
           </PopoverTrigger>
-          <PopoverContent className="z-popover w-48 rounded-lg border border-divider bg-surface-base p-1 shadow-3 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]">
+          <PopoverContent className="popup-pop z-popover w-48 rounded-lg border border-divider bg-surface-base p-1 shadow-3">
             <button
               type="button"
               onClick={() => handleExportFormat("json")}

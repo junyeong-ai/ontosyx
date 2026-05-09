@@ -99,10 +99,7 @@ export function Select({
               // its `<Item>` children. `outline-none` here just hides
               // the browser's default focus ring on the listbox; the
               // ring lives on each item.
-              "z-popover max-h-60 overflow-y-auto rounded-lg border border-divider bg-surface-base py-1 shadow-3 outline-none focus-visible:ring-0",
-              "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
-              "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
-              "transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]",
+              "popup-pop z-popover max-h-60 overflow-y-auto rounded-lg border border-divider bg-surface-base py-1 shadow-3 outline-none focus-visible:ring-0",
             )}
           >
             {children}

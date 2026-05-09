@@ -95,11 +95,8 @@ export function PromptProvider({ children }: { children: React.ReactNode }) {
           />
           <Dialog.Popup
             className={cn(
-              "fixed left-1/2 top-1 z-modal w-full max-w-md -translate-x-1/2 -translate-y-1/2",
+              "popup-pop fixed left-1/2 top-1 z-modal w-full max-w-md -translate-x-1/2 -translate-y-1/2",
               "rounded-xl border border-divider bg-surface-base p-6 shadow-3",
-              "transition-[opacity,transform] duration-[var(--duration-base)] ease-[var(--ease-out)]",
-              "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
-              "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
             )}
           >
             <Dialog.Title className="text-base font-semibold text-foreground-strong">

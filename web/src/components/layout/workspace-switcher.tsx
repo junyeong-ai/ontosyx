@@ -25,7 +25,7 @@ const TRIGGER_CLASS =
   "flex min-w-0 items-center gap-1.5 rounded-md border border-divider bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset";
 
 const POPOVER_CLASS =
-  "z-popover w-72 rounded-lg border border-divider bg-surface-base shadow-3 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]";
+  "popup-pop z-popover w-72 rounded-lg border border-divider bg-surface-base shadow-3";
 
 // ---------------------------------------------------------------------------
 

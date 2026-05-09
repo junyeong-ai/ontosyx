@@ -82,7 +82,7 @@ export function PromptProvider({ children }: { children: React.ReactNode }) {
       >
         <Dialog.Portal>
           <Dialog.Backdrop className="fixed inset-0 z-overlay bg-surface-scrim-strong backdrop-blur-sm transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] data-[starting-style]:opacity-0 data-[ending-style]:opacity-0" />
-          <Dialog.Popup className="fixed left-1/2 top-1/2 z-modal w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-divider bg-surface-base p-6 shadow-4 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0">
+          <Dialog.Popup className="popup-pop fixed left-1/2 top-1/2 z-modal w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-divider bg-surface-base p-6 shadow-4">
             <Dialog.Title className="text-base font-semibold text-foreground-strong">
               {options.title}
             </Dialog.Title>

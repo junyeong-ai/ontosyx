@@ -376,16 +376,6 @@
   --opacity-muted:    0.7;
   --opacity-subtle:   0.85;
 
-  /* --- Icon size --------------------------------------------------------
-   * Three-tier inline icon sizes paired with the type scale. `inline`
-   * matches the cap-height of body text for icons inside running copy;
-   * `sm` / `md` / `lg` are the standalone affordance sizes used by
-   * IconButton, list-row indicators, and section headers. */
-  --icon-inline: 1em;
-  --icon-sm:     14px;
-  --icon-md:     16px;
-  --icon-lg:     20px;
-
   /* --- Z-index hierarchy ------------------------------------------------
    * Semantic stacking order. Surfaces never set raw `z-50` — they pick
    * the layer that matches their *role*, so re-ordering the visible
@@ -554,6 +544,28 @@
     var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
     "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), "D2Coding", ui-monospace, Menlo, monospace;
+}
+
+/* ===========================================================================
+   Popup pop-in / pop-out — the canonical entrance/exit motion for every
+   floating surface (Modal, Popover, Tooltip, Select, PromptDialog,
+   CommandPalette). Base UI exposes `data-starting-style` /
+   `data-ending-style` attributes on portal-mounted children; the class
+   below pairs a fade with a subtle scale so the surface reads as
+   intentional, not a default browser fade.
+
+   Adopt by adding `popup-pop` next to the surface's existing classes —
+   the utility applies `transition-all duration-base ease-out`, so a
+   surface no longer needs to spell that triplet inline.
+   =========================================================================== */
+@utility popup-pop {
+  transition: all var(--duration-base) var(--ease-out);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 /* ===========================================================================

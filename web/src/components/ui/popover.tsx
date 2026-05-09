@@ -55,7 +55,7 @@ export function PopoverContent({
         <BasePopover.Popup
           className={
             className ??
-            "z-popover rounded-lg border border-divider bg-surface-base shadow-3 outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0"
+            "popup-pop z-popover rounded-lg border border-divider bg-surface-base shadow-3 outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40"
           }
         >
           {children}

@@ -39,7 +39,7 @@ export function UserMenu() {
           {user.name}
         </span>
       </PopoverTrigger>
-      <PopoverContent className="z-popover w-60 rounded-lg border border-divider bg-surface-base p-1 shadow-3 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]">
+      <PopoverContent className="popup-pop z-popover w-60 rounded-lg border border-divider bg-surface-base p-1 shadow-3">
         {/* Identity header — persona block sits above account
             actions so the menu opens with the operator's eye on
             "who am I logged in as". */}
