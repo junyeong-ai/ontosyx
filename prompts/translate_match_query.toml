@@ -266,6 +266,7 @@ Ontology:
 {{ontology}}
 {{ontology_subgraph_md}}
 {{knowledge}}
+{{verified_examples}}
 Translate this question into a MatchQueryIR.
 
 Question: {{question}}
