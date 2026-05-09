@@ -5,7 +5,6 @@
 // description / fuzzy) so callers can render the ranking rationale.
 
 import { request } from "./client";
-import type { LocalizedText } from "@/types/ontology";
 import type { components } from "@/types/api.generated";
 
 // ---------------------------------------------------------------------------
@@ -17,82 +16,50 @@ export type OwnerKind = "node" | "edge";
 export type BindingSignal = components["schemas"]["BindingSignal"];
 
 export type BindingPolicy = components["schemas"]["BindingPolicy"];
-
-// ---------------------------------------------------------------------------
-// Term → property ranking
-// ---------------------------------------------------------------------------
-
-export interface PropertyCandidate {
+export type PropertyCandidate = components["schemas"]["PropertyCandidate"] & {
   owner_kind: OwnerKind;
-  owner_type_id: string;
-  owner_label: string;
-  property_id: string;
-  property_name: string;
-  score: number;
-  signals: BindingSignal[];
-}
+};
+export type ConceptCandidate = components["schemas"]["ConceptCandidate"];
 
-export interface SuggestBindingsRequest {
-  /** Canonical term name. `LocalizedText` so a draft term carries
-   *  the same multi-locale shape as a saved one — the scorer matches
-   *  against every locale variant, not just the active chain's
-   *  display string. */
-  term: LocalizedText;
-  /** Per-locale alternate names. Each element is a `LocalizedText`
-   *  with one or more locale entries, all of which the alias scorer
-   *  treats as candidate matches. */
-  aliases?: readonly LocalizedText[];
-  description?: LocalizedText;
-  /** Passed through when the term is already saved — keeps the
-   *  response pointing at the persisted id rather than a fresh
-   *  draft id. */
-  term_id?: string;
-  policy?: BindingPolicy;
-}
+// ---------------------------------------------------------------------------
+// Concept label → property ranking
+// ---------------------------------------------------------------------------
 
-export interface SuggestBindingsResponse {
-  ontology_id: string;
+export type SuggestBindingsRequest = components["schemas"]["SuggestBindingsRequest"];
+export type SuggestBindingsResponse = Omit<
+  components["schemas"]["SuggestBindingsResponse"],
+  "candidates"
+> & {
   candidates: PropertyCandidate[];
-}
+};
 
-export async function suggestGlossaryBindings(
-  ontologyId: string,
+export async function suggestConceptPropertyBindings(
+  _ontologyId: string,
   body: SuggestBindingsRequest,
 ): Promise<SuggestBindingsResponse> {
-  return request(
-    `/ontologies/${encodeURIComponent(ontologyId)}/glossary/suggest-bindings`,
-    { method: "POST", body: JSON.stringify(body) },
-  );
+  return request("/ontology/concepts/suggest-property-bindings", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Property → term ranking (inverse direction)
+// Property → concept ranking (inverse direction)
 // ---------------------------------------------------------------------------
 
-export interface TermCandidate {
-  term_id: string;
-  term: string;
-  score: number;
-  signals: BindingSignal[];
-}
+export type SuggestConceptsResponse = components["schemas"]["SuggestConceptsResponse"];
 
-export interface SuggestTermsResponse {
-  ontology_id: string;
-  candidates: TermCandidate[];
-}
-
-export async function suggestTermsForProperty(
-  ontologyId: string,
+export async function suggestConceptsForProperty(
+  _ontologyId: string,
   ownerKind: OwnerKind,
   ownerTypeId: string,
   propertyId: string,
   policy?: BindingPolicy,
-): Promise<SuggestTermsResponse> {
+): Promise<SuggestConceptsResponse> {
   const path =
-    `/ontologies/${encodeURIComponent(ontologyId)}` +
-    `/properties/${encodeURIComponent(ownerKind)}` +
+    `/ontology/properties/${encodeURIComponent(ownerKind)}` +
     `/${encodeURIComponent(ownerTypeId)}` +
-    `/${encodeURIComponent(propertyId)}/suggest-terms`;
+    `/${encodeURIComponent(propertyId)}/suggest-concepts`;
   return request(path, {
     method: "POST",
     body: JSON.stringify({ policy }),

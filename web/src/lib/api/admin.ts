@@ -1,10 +1,11 @@
 import type {
   AgentEvent,
   AgentSession,
+  AgentSessionPage,
   AnalysisRecipe,
+  AnalysisRecipePage,
   ConfigResponse,
   ConfigUpdateRequest,
-  CursorPage,
   HealthResponse,
   PromptTemplate,
   QueryResult,
@@ -12,8 +13,10 @@ import type {
   SessionMessage,
   UiConfig,
   UserInfo,
+  UserInfoPage,
   ReportCreateRequest,
   SavedReport,
+  SavedReportPage,
   ReportUpdateRequest,
 } from "@/types/api";
 import type { components } from "@/types/api.generated";
@@ -52,7 +55,7 @@ export async function updateConfig(
 export async function listUsers(params?: {
   cursor?: string;
   limit?: number;
-}): Promise<CursorPage<UserInfo>> {
+}): Promise<UserInfoPage> {
   const qs = new URLSearchParams();
   if (params?.cursor) qs.set("cursor", params.cursor);
   if (params?.limit) qs.set("limit", String(params.limit));
@@ -86,7 +89,7 @@ export async function createPromptTemplate(req: {
   name: string;
   version: string;
   content: string;
-  variables?: unknown[];
+  variables?: string[];
   metadata?: Record<string, unknown>;
 }): Promise<PromptTemplate> {
   return request("/admin/prompts", {
@@ -97,7 +100,7 @@ export async function createPromptTemplate(req: {
 
 export async function updatePromptTemplate(
   id: string,
-  req: { content?: string; variables?: unknown[]; is_active?: boolean },
+  req: { content?: string; variables?: string[]; is_active?: boolean },
 ): Promise<void> {
   await request(`/admin/prompts/${encodeURIComponent(id)}`, {
     method: "PATCH",
@@ -118,7 +121,7 @@ export async function deletePromptTemplate(id: string): Promise<void> {
 export async function listAgentSessions(params?: {
   limit?: number;
   cursor?: string;
-}): Promise<CursorPage<AgentSession>> {
+}): Promise<AgentSessionPage> {
   const search = new URLSearchParams();
   if (params?.limit) search.set("limit", String(params.limit));
   if (params?.cursor) search.set("cursor", params.cursor);
@@ -166,7 +169,7 @@ export async function respondToolReview(
 export async function listRecipes(params?: {
   limit?: number;
   cursor?: string;
-}): Promise<CursorPage<AnalysisRecipe>> {
+}): Promise<AnalysisRecipePage> {
   const search = new URLSearchParams();
   if (params?.limit) search.set("limit", String(params.limit));
   if (params?.cursor) search.set("cursor", params.cursor);
@@ -237,7 +240,7 @@ export async function listReports(params: {
   ontology_lineage_id: string;
   limit?: number;
   cursor?: string;
-}): Promise<CursorPage<SavedReport>> {
+}): Promise<SavedReportPage> {
   const qs = new URLSearchParams();
   qs.set("ontology_lineage_id", params.ontology_lineage_id);
   if (params.limit) qs.set("limit", String(params.limit));
@@ -275,7 +278,7 @@ export async function executeReport(
     `/reports/${encodeURIComponent(id)}/execute`,
     {
       method: "POST",
-      body: JSON.stringify(params),
+      body: JSON.stringify({ parameters: params }),
     },
   );
   return normalizeQueryResult(raw) ?? { columns: [], rows: [] };
@@ -318,26 +321,19 @@ export async function deleteScheduledTask(id: string): Promise<void> {
 // Federation adapters (VOL)
 // ---------------------------------------------------------------------------
 
-export type FederationAdapterSummary = {
-  source_id: string;
-  source_type: string;
-};
+export type FederationAdapterSummary = components["schemas"]["AdapterSummary"];
 
 // Discriminated on `kind`. `inline` carries the raw value; `secret_ref`
 // carries an opaque reference string (`env:VAR_NAME` today, with
 // `vault:` / `aws-sm:` coming later). The server rejects any shape
 // that does not match one of these variants at deserialization time,
 // so the frontend never has to enforce the "exactly one" invariant.
-export type Credential =
-  | { kind: "inline"; value: string }
-  | { kind: "secret_ref"; value: string };
+export type Credential = components["schemas"]["Credential"];
 
 // GET response omits inline values by design — an inline credential
 // surfaces only as `{kind: "inline"}` with no `value`, so curious
 // clients cannot read back a raw secret.
-export type CredentialSource =
-  | { kind: "inline" }
-  | { kind: "secret_ref"; value: string };
+export type CredentialSource = components["schemas"]["CredentialSource"];
 
 // GET response shape. Mirrors RegisterFederationAdapterRequest
 // exactly, except `credential` is the redacted CredentialSource
@@ -345,36 +341,15 @@ export type CredentialSource =
 // the variant-specific fields (schema_name where present) are
 // flat at the object's top level via serde(flatten) on the server
 // side, so the wire form round-trips with the register request.
-export type FederationAdapterDetail = { source_id: string } & (
-  | { kind: "csv"; credential: CredentialSource }
-  | { kind: "json"; credential: CredentialSource }
-  | { kind: "postgres"; credential: CredentialSource; schema_name?: string }
-  | { kind: "mysql"; credential: CredentialSource; schema_name: string }
-  | { kind: "bigquery"; credential: CredentialSource }
-);
+export type FederationAdapterDetail = components["schemas"]["AdapterDetail"];
 
-export type FederationHealthResponse = {
-  workspace_id: string;
-  resolver_hydrated: boolean;
-  resolver_count: number;
-  store_count: number;
-  in_sync: boolean;
-  orphans_in_resolver: string[];
-  missing_from_resolver: string[];
-};
+export type FederationHealthResponse = components["schemas"]["FederationHealthResponse"];
 
-export type RegisterFederationAdapterRequest = { source_id: string } & (
-  | { kind: "csv"; credential: Credential }
-  | { kind: "json"; credential: Credential }
-  | { kind: "postgres"; credential: Credential; schema_name?: string }
-  | { kind: "mysql"; credential: Credential; schema_name: string }
-  | { kind: "bigquery"; credential: Credential }
-);
+export type RegisterFederationAdapterRequest =
+  components["schemas"]["RegisterAdapterRequest"];
 
-export type RegisterFederationAdapterResponse = {
-  replaced: boolean;
-  adapter: FederationAdapterSummary;
-};
+export type RegisterFederationAdapterResponse =
+  components["schemas"]["RegisterAdapterResponse"];
 
 export async function listFederationAdapters(): Promise<FederationAdapterSummary[]> {
   return request("/admin/federation/adapters");
@@ -422,27 +397,14 @@ export async function getFederationHealth(): Promise<FederationHealthResponse> {
 // ---------------------------------------------------------------------------
 
 export type PreviewFederationAdapterRequest =
-  | { kind: "csv"; credential: Credential }
-  | { kind: "json"; credential: Credential }
-  | { kind: "postgres"; credential: Credential; schema_name?: string }
-  | { kind: "mysql"; credential: Credential; schema_name: string }
-  | { kind: "bigquery"; credential: Credential };
+  components["schemas"]["PreviewAdapterRequest"];
 
-export type PreviewFederationColumn = {
-  name: string;
-  data_type: string;
-  nullable: boolean;
-};
+export type PreviewFederationColumn = components["schemas"]["PreviewColumn"];
 
-export type PreviewFederationTable = {
-  name: string;
-  columns: PreviewFederationColumn[];
-};
+export type PreviewFederationTable = components["schemas"]["PreviewTable"];
 
-export type PreviewFederationAdapterResponse = {
-  source_type: string;
-  tables: PreviewFederationTable[];
-};
+export type PreviewFederationAdapterResponse =
+  components["schemas"]["PreviewAdapterResponse"];
 
 export async function previewFederationAdapter(
   req: PreviewFederationAdapterRequest,

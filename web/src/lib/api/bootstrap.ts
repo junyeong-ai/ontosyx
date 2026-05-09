@@ -4,7 +4,7 @@
 // textarea-to-rows parser for the wizard's free-form `glossaryDraft`
 // field. `6-validate` consumes the parsed rows and maps each into an
 // `OntologyEditOp::CreateGlossaryTerm` op before POSTing to the
-// unified `/api/ontologies` creation endpoint, so no network call
+// unified `/api/ontology` creation endpoint, so no network call
 // lives here — network I/O is concentrated in `api/ontology.ts`.
 
 /**

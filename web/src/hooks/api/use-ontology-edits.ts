@@ -4,13 +4,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   submitOntologyEdits,
+  type EditOntologyResponse,
   type OntologyEditOp,
-  type OntologyEditReceipt,
 } from "@/lib/api/edit-ops";
 import { workspaceOntologyKeys } from "./use-workspace-ontology";
 
 /**
- * Apply a batch of `OntologyEditOp` ops against the named ontology
+ * Apply a batch of `OntologyEditOp` ops against the workspace ontology
  * and refresh the cache so dependent UI (the detail view, vocabulary
  * lists, navigation panels) re-renders against the new committed
  * version.
@@ -24,10 +24,10 @@ import { workspaceOntologyKeys } from "./use-workspace-ontology";
  * passes the version they read from. A racing edit lands first → the
  * server returns 409 and the caller refetches.
  */
-export function useApplyOntologyEdits(ontologyId: string | null | undefined) {
+export function useApplyOntologyEdits(_ontologyId?: string | null) {
   const qc = useQueryClient();
   return useMutation<
-    OntologyEditReceipt,
+    EditOntologyResponse,
     Error,
     {
       operations: OntologyEditOp[];
@@ -37,10 +37,7 @@ export function useApplyOntologyEdits(ontologyId: string | null | undefined) {
     }
   >({
     mutationFn: ({ operations, expected_version, message, dry_run }) => {
-      if (!ontologyId) {
-        return Promise.reject(new Error("Ontology id required"));
-      }
-      return submitOntologyEdits(ontologyId, {
+      return submitOntologyEdits("workspace", {
         operations,
         expected_version,
         message,

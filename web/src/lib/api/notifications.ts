@@ -1,34 +1,13 @@
 import type { components } from "@/types/api.generated";
 import { request } from "./client";
 
-// `NotificationChannel` / `NotificationLog` flow through `ox_store` and
-// the OpenAPI surface keeps them opaque (`body = Object`); this module
-// owns the FE-side typed contract for both shapes.
-
-export interface NotificationChannel {
-  id: string;
-  workspace_id: string;
-  name: string;
-  channel_type: string;
-  config: Record<string, unknown>;
-  events: string[];
-  enabled: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface NotificationLog {
-  id: string;
-  workspace_id: string;
-  channel_id: string;
-  event_type: string;
-  subject: string;
-  body: string;
-  status: string;
-  error: string | null;
-  created_at: string;
-}
-
+export type NotificationChannel =
+  components["schemas"]["NotificationChannel"];
+export type NotificationChannelType =
+  components["schemas"]["NotificationChannelType"];
+export type NotificationLog = components["schemas"]["NotificationLog"];
+export type WebhookNotificationConfig =
+  components["schemas"]["WebhookNotificationConfig"];
 export type CreateChannelRequest =
   components["schemas"]["CreateChannelRequest"];
 export type UpdateChannelRequest =

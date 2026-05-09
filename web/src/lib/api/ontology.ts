@@ -4,13 +4,15 @@ import type {
   OntologyDetail,
   OntologyIR,
 } from "@/types/api";
-import type { GlossaryTermDef } from "@/lib/api/edit-ops";
-import type { BindingEditOp } from "@/lib/api/binding-suggestions";
+import type { OntologyEditOp } from "@/lib/api/edit-ops";
+import type { components } from "@/types/api.generated";
 import { request, requestText } from "./client";
 import {
   OntologyDetailSchema,
   OntologyIRSchema,
 } from "@/lib/validation";
+
+export type { OntologyEditOp } from "@/lib/api/edit-ops";
 
 // ---------------------------------------------------------------------------
 // Workspace ontology — singleton (workspace × ontology = 1:1).
@@ -33,10 +35,9 @@ export async function getWorkspaceOntology(): Promise<OntologyDetail | null> {
   if (ontology === null) return null;
   const result = OntologyDetailSchema.safeParse(ontology);
   if (!result.success) {
-    console.warn("Ontology detail validation failed:", result.error.issues);
-    return ontology as OntologyDetail;
+    throw new Error("Workspace ontology detail did not match the OntologyDetail schema");
   }
-  return result.data as OntologyDetail;
+  return result.data;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,45 +49,13 @@ export async function getWorkspaceOntology(): Promise<OntologyDetail | null> {
 // 409 when the workspace already has a canonical.
 // ---------------------------------------------------------------------------
 
-/**
- * Frontend subset of the Rust `OntologyEditOp` enum — covers only
- * the variants the current UI can construct (property bindings,
- * type deprecations, glossary-term creation). The Rust enum has
- * 30+ variants (code systems, value sets, rules, …); a TS caller
- * that needs one of those must first add its shape here.
- *
- * Naming note: we intentionally keep the `OntologyEditOp` name so
- * a caller can see at the call site that it mirrors the backend
- * vocabulary. The JSDoc above is the contract for "subset only" —
- * the union is closed, so a typo like `{ op: "create_rule" }` will
- * fail TS checks at compile time rather than at the server's
- * serde layer.
- *
- * `GlossaryTermDef` re-exports the canonical OpenAPI-generated
- * shape from `edit-ops.ts` so bootstrap and admin paths share one
- * wire contract.
- */
-export type OntologyEditOp =
-  | BindingEditOp
-  | { op: "create_glossary_term"; def: GlossaryTermDef };
-
-/** Request body for `POST /api/ontology`. */
-export interface CreateOntologyRequest {
-  name: string;
-  description?: string;
-  lineage_id?: string;
-  initial_operations: OntologyEditOp[];
-  message?: string;
-}
-
-/** Response body returned by `POST /api/ontology`. */
-export interface CreateOntologyResponse {
-  ontology_id: string;
-  version_id: string;
-  version: number;
-  applied_operations: number;
-  committed_at: string;
-}
+export type CreateOntologyRequest = Omit<
+  components["schemas"]["CreateOntologyRequest"],
+  "initial_operations"
+> & {
+  initial_operations?: OntologyEditOp[];
+};
+export type CreateOntologyResponse = components["schemas"]["CreateOntologyResponse"];
 
 /**
  * Create the workspace's canonical ontology. Validates + routes
@@ -109,17 +78,19 @@ export async function createOntology(
 
 export async function normalizeOntology(
   input: Record<string, unknown>,
-): Promise<{ ontology: OntologyIR; warnings: { kind: string; message: string }[] }> {
-  const data = await request("/ontology/normalize", {
+): Promise<{
+  ontology: OntologyIR;
+  warnings: components["schemas"]["NormalizeWarning"][];
+}> {
+  const data = await request<components["schemas"]["NormalizeOntologyResponse"]>("/ontology/normalize", {
     method: "POST",
     body: JSON.stringify(input),
-  }) as { ontology: unknown; warnings?: unknown[] };
+  });
   const result = OntologyIRSchema.safeParse(data.ontology);
   if (!result.success) {
-    console.warn("OntologyIR validation failed:", result.error.issues);
-    return { ontology: data.ontology as OntologyIR, warnings: (data.warnings ?? []) as { kind: string; message: string }[] };
+    throw new Error("Normalized ontology did not match the OntologyIR schema");
   }
-  return { ontology: result.data as OntologyIR, warnings: (data.warnings ?? []) as { kind: string; message: string }[] };
+  return { ontology: result.data, warnings: data.warnings };
 }
 
 export async function exportOntology(
@@ -227,16 +198,7 @@ export async function revokeVerification(elementId: string): Promise<void> {
 // Graph Audit & Adopt
 // ---------------------------------------------------------------------------
 
-export interface GraphAuditReport {
-  matched_nodes: string[];
-  orphan_graph_nodes: string[];
-  missing_graph_nodes: string[];
-  matched_edges: string[];
-  orphan_graph_edges: string[];
-  missing_graph_edges: string[];
-  sync_status: "synced" | "partial" | "unsynced";
-  sync_percentage: number;
-}
+export type GraphAuditReport = components["schemas"]["GraphAuditReport"];
 
 export async function auditGraph(): Promise<GraphAuditReport> {
   return request("/ontology/audit", { method: "POST" });

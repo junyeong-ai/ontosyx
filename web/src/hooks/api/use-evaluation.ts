@@ -41,7 +41,7 @@ import type {
   EvaluationMetric,
   EvaluationRun,
   EvaluationRunListPage,
-  ExecuteEvaluationCaseRequest,
+  EvaluationCaseInput,
   ReplaceEvaluationDatasetItemsRequest,
   ReplaceEvaluationDatasetItemsResponse,
   RunComparisonReport,
@@ -348,7 +348,7 @@ export function useExecuteEvaluationCase(runId: string) {
   return useMutation<
     EvaluationCase,
     Error,
-    { caseKey: string; request: ExecuteEvaluationCaseRequest }
+    { caseKey: string; request: EvaluationCaseInput }
   >({
     mutationFn: ({ caseKey, request }) =>
       executeEvaluationCase(runId, caseKey, request),

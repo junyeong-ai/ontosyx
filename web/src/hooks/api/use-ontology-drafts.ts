@@ -19,9 +19,8 @@ import {
 } from "@/lib/api/ontology-drafts";
 import type {
   CreateOntologyDraftRequest,
-  CursorPage,
   OntologyDraft,
-  OntologyDraftSummary,
+  OntologyDraftSummaryPage,
 } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -52,7 +51,7 @@ export const ontologyDraftsKeys = {
 export function useOntologyDrafts(
   params?: { limit?: number },
   options?: Omit<
-    UseQueryOptions<CursorPage<OntologyDraftSummary>>,
+    UseQueryOptions<OntologyDraftSummaryPage>,
     "queryKey" | "queryFn"
   >,
 ) {

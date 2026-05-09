@@ -33,7 +33,7 @@ export const qualityKeys = {
     [...qualityKeys.all, "stale-proposals", includeDecided] as const,
 };
 
-export function useQualityMetrics(window: MetricWindow = "7d") {
+export function useQualityMetrics(window: MetricWindow = "last7d") {
   return useQuery({
     queryKey: qualityKeys.metrics(window),
     queryFn: () => getQualityMetrics(window),
@@ -56,7 +56,7 @@ export function useQualityBaseline() {
   });
 }
 
-export function useShaclFailures(window: MetricWindow = "7d") {
+export function useShaclFailures(window: MetricWindow = "last7d") {
   return useQuery({
     queryKey: qualityKeys.shaclFailures(window),
     queryFn: () => listShaclFailures(window),

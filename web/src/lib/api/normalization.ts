@@ -1,4 +1,7 @@
-import type { QueryResult } from "@/types/api";
+import type { PropertyValue, QueryResult } from "@/types/api";
+import type { components } from "@/types/api.generated";
+
+export type WireQueryResult = components["schemas"]["QueryResult"];
 
 // ---------------------------------------------------------------------------
 // Type guards
@@ -24,7 +27,7 @@ export function isPendingReconcile(data: unknown): data is import("@/types/api")
  * - List:   {type: "list", value: [...]} -> unwrapped array
  * - Map:    {type: "map", value: {k: pv, ...}} -> unwrapped object
  */
-export function unwrapPropertyValue(cell: unknown): unknown {
+export function unwrapPropertyValue(cell: PropertyValue | unknown): unknown {
   if (cell == null) return null;
   if (typeof cell !== "object") return cell;
   if (Array.isArray(cell)) return cell.map(unwrapPropertyValue);
@@ -114,7 +117,7 @@ export function extractNodeProperties(obj: Record<string, unknown>): Record<stri
  * This function normalizes the result, unwrapping PropertyValue wrappers
  * and flattening single-column node results into multi-column rows.
  */
-export function normalizeQueryResult(raw: unknown): QueryResult | undefined {
+export function normalizeQueryResult(raw: WireQueryResult | unknown): QueryResult | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const r = raw as { columns?: string[]; rows?: unknown[]; metadata?: Record<string, unknown> };
   if (!r.columns || !r.rows) return undefined;

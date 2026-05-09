@@ -2,10 +2,10 @@
 
 // TanStack hooks around the binding-suggestions + /edits surface:
 //
-//  - `useSuggestBindings` — Glossary term → ranked property
+//  - `useSuggestBindings` — concept label → ranked property
 //    candidates.
-//  - `useSuggestTerms` — one property → top-N candidate glossary
-//    terms (inline "Link to existing term" dropdown).
+//  - `useSuggestConcepts` — one property → top-N candidate
+//    concepts (inline "Link to concept" dropdown).
 //  - `useApplyBindingEdits` — fires `OntologyEditOp::BindPropertyTo*`
 //    via `/edits` and invalidates the ontology detail cache.
 
@@ -16,15 +16,16 @@ import {
 } from "@tanstack/react-query";
 
 import {
-  suggestGlossaryBindings,
-  suggestTermsForProperty,
+  suggestConceptPropertyBindings,
+  suggestConceptsForProperty,
   type SuggestBindingsRequest,
   type SuggestBindingsResponse,
-  type SuggestTermsResponse,
+  type SuggestConceptsResponse,
   type OwnerKind,
   type BindingPolicy,
 } from "@/lib/api/binding-suggestions";
 import {
+  isOntologyEditReceipt,
   submitOntologyEdits,
   type EditOntologyRequest,
   type OntologyEditReceipt,
@@ -33,11 +34,11 @@ import {
 import { workspaceOntologyKeys } from "./use-workspace-ontology";
 
 // ---------------------------------------------------------------------------
-// Term → property candidates
+// Concept label → property candidates
 // ---------------------------------------------------------------------------
 
 export function useSuggestBindings(
-  ontologyId: string,
+  _ontologyId: string,
   options?: UseMutationOptions<
     SuggestBindingsResponse,
     Error,
@@ -45,30 +46,30 @@ export function useSuggestBindings(
   >,
 ) {
   return useMutation<SuggestBindingsResponse, Error, SuggestBindingsRequest>({
-    mutationFn: (body) => suggestGlossaryBindings(ontologyId, body),
+    mutationFn: (body) => suggestConceptPropertyBindings("workspace", body),
     ...options,
   });
 }
 
 // ---------------------------------------------------------------------------
-// Property → term candidates
+// Property → concept candidates
 // ---------------------------------------------------------------------------
 
-export interface SuggestTermsVariables {
+export interface SuggestConceptsVariables {
   ownerKind: OwnerKind;
   ownerTypeId: string;
   propertyId: string;
   policy?: BindingPolicy;
 }
 
-export function useSuggestTerms(
-  ontologyId: string,
-  options?: UseMutationOptions<SuggestTermsResponse, Error, SuggestTermsVariables>,
+export function useSuggestConcepts(
+  _ontologyId: string,
+  options?: UseMutationOptions<SuggestConceptsResponse, Error, SuggestConceptsVariables>,
 ) {
-  return useMutation<SuggestTermsResponse, Error, SuggestTermsVariables>({
+  return useMutation<SuggestConceptsResponse, Error, SuggestConceptsVariables>({
     mutationFn: ({ ownerKind, ownerTypeId, propertyId, policy }) =>
-      suggestTermsForProperty(
-        ontologyId,
+      suggestConceptsForProperty(
+        "workspace",
         ownerKind,
         ownerTypeId,
         propertyId,
@@ -83,14 +84,20 @@ export function useSuggestTerms(
 // ---------------------------------------------------------------------------
 
 export function useApplyBindingEdits(
-  ontologyId: string,
+  _ontologyId: string,
   options?: UseMutationOptions<OntologyEditReceipt, Error, EditOntologyRequest>,
 ) {
   const queryClient = useQueryClient();
   const { onSuccess, ...rest } = options ?? {};
   return useMutation<OntologyEditReceipt, Error, EditOntologyRequest>({
     ...rest,
-    mutationFn: (body) => submitOntologyEdits(ontologyId, body),
+    mutationFn: async (body) => {
+      const response = await submitOntologyEdits("workspace", body);
+      if (!isOntologyEditReceipt(response)) {
+        throw new Error("Binding edits must be submitted as a commit, not a dry run");
+      }
+      return response;
+    },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
         queryKey: workspaceOntologyKeys.all,

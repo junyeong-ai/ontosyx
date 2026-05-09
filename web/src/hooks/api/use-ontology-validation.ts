@@ -9,30 +9,24 @@ export type DiagnosticMessage = components["schemas"]["DiagnosticMessage"];
 
 export const ontologyValidationKeys = {
   all: ["ontology-validation"] as const,
-  detail: (ontologyId: string) =>
-    [...ontologyValidationKeys.all, ontologyId] as const,
+  detail: () => [...ontologyValidationKeys.all, "workspace"] as const,
 };
 
-async function fetchOntologyValidation(
-  ontologyId: string,
-): Promise<DiagnosticMessage[]> {
-  return request<DiagnosticMessage[]>(
-    `/ontologies/${encodeURIComponent(ontologyId)}/validate`,
-  );
+async function fetchOntologyValidation(): Promise<DiagnosticMessage[]> {
+  return request<DiagnosticMessage[]>("/ontology/validate");
 }
 
 /**
- * Fetch the structural validation diagnostics for the named
+ * Fetch the structural validation diagnostics for the workspace
  * ontology's current version. Cached aggressively — diagnostics
  * derive from the committed IR snapshot, so they only change on
  * commit; admin-form mutations should invalidate the key on
  * success.
  */
-export function useOntologyValidation(ontologyId: string | null | undefined) {
+export function useOntologyValidation(_ontologyId?: string | null) {
   return useQuery<DiagnosticMessage[]>({
-    queryKey: ontologyValidationKeys.detail(ontologyId ?? "__none__"),
-    queryFn: () => fetchOntologyValidation(ontologyId!),
-    enabled: !!ontologyId,
+    queryKey: ontologyValidationKeys.detail(),
+    queryFn: fetchOntologyValidation,
     staleTime: 5 * 60 * 1000,
   });
 }

@@ -1,22 +1,12 @@
 import { request } from "./client";
+import type { components } from "@/types/api.generated";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export interface TestConnectionRequest {
-  source_type: string;
-  connection_string?: string;
-  schema_name?: string;
-}
-
-export interface TestConnectionResponse {
-  success: boolean;
-  table_count?: number;
-  tables?: string[];
-  error?: string;
-  error_type?: string;
-}
+export type TestConnectionRequest = components["schemas"]["TestConnectionRequest"];
+export type TestConnectionResponse = components["schemas"]["TestConnectionResponse"];
 
 // ---------------------------------------------------------------------------
 // Sources

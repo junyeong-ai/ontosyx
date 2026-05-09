@@ -17,9 +17,8 @@ import {
 } from "@/lib/api/knowledge";
 import { useOptimisticMutation } from "@/hooks/api/use-optimistic-mutation";
 import type {
-  CursorPage,
   KnowledgeCreateRequest,
-  KnowledgeEntry,
+  KnowledgeEntryPage,
   KnowledgeStats,
   KnowledgeStatus,
 } from "@/types/api";
@@ -54,7 +53,7 @@ export const knowledgeKeys = {
 export function useKnowledge(
   filters?: KnowledgeListFilters,
   options?: Omit<
-    UseQueryOptions<CursorPage<KnowledgeEntry>>,
+    UseQueryOptions<KnowledgeEntryPage>,
     "queryKey" | "queryFn"
   >,
 ) {
@@ -190,7 +189,7 @@ export function useBulkReviewKnowledge(filters?: KnowledgeListFilters) {
  * a guard that rejects non-list shapes lets the stats key flow
  * through unchanged without a separate transform.
  */
-function isKnowledgePage(value: unknown): value is CursorPage<KnowledgeEntry> {
+function isKnowledgePage(value: unknown): value is KnowledgeEntryPage {
   return (
     typeof value === "object" &&
     value !== null &&

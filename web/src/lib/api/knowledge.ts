@@ -1,6 +1,6 @@
 import type {
-  CursorPage,
   KnowledgeEntry,
+  KnowledgeEntryPage,
   KnowledgeCreateRequest,
   KnowledgeUpdateRequest,
   KnowledgeStats,
@@ -13,7 +13,7 @@ export async function listKnowledge(params?: {
   status?: string;
   limit?: number;
   cursor?: string;
-}): Promise<CursorPage<KnowledgeEntry>> {
+}): Promise<KnowledgeEntryPage> {
   const qs = new URLSearchParams();
   if (params?.ontology_name) qs.set("ontology_name", params.ontology_name);
   if (params?.kind) qs.set("kind", params.kind);
@@ -21,7 +21,7 @@ export async function listKnowledge(params?: {
   if (params?.limit) qs.set("limit", String(params.limit));
   if (params?.cursor) qs.set("cursor", params.cursor);
   const query = qs.toString();
-  return request<CursorPage<KnowledgeEntry>>(`/knowledge${query ? `?${query}` : ""}`);
+  return request<KnowledgeEntryPage>(`/knowledge${query ? `?${query}` : ""}`);
 }
 
 export async function getKnowledge(id: string): Promise<KnowledgeEntry> {
@@ -62,8 +62,8 @@ export async function updateKnowledgeStatus(
   });
 }
 
-export async function listStaleKnowledge(): Promise<CursorPage<KnowledgeEntry>> {
-  return request<CursorPage<KnowledgeEntry>>("/knowledge/stale");
+export async function listStaleKnowledge(): Promise<KnowledgeEntryPage> {
+  return request<KnowledgeEntryPage>("/knowledge/stale");
 }
 
 export async function knowledgeStats(): Promise<KnowledgeStats> {

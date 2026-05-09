@@ -116,6 +116,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/federation/adapters/{source_id}/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_adapter_analysis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/federation/adapters/{source_id}/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["analyze_adapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/federation/adapters/{source_id}/tables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_adapter_tables"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/federation/health": {
         parameters: {
             query?: never;
@@ -194,6 +242,86 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["update_prompt_template"];
+        trace?: never;
+    };
+    "/api/ambiguities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_ambiguities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ambiguities/bulk-revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["bulk_revoke_ambiguities"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ambiguities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_ambiguity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ambiguities/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resolve_ambiguity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ambiguities/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revoke_ambiguity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/approvals": {
@@ -289,6 +417,81 @@ export interface paths {
             cookie?: never;
         };
         get: operations["list_audit_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke the caller's current platform JWT so it can no longer be
+         *     presented as proof of identity. Inserts a row in `revoked_jwts`
+         *     keyed by the token's `jti`, and drops the cached negative-result
+         *     in [`JwtRevocationCache`] so the next request from any holder of
+         *     the same token sees the revocation immediately.
+         * @description Idempotent — repeated calls are safe and return the same shape.
+         *     API-key principals short-circuit: API keys don't have a JWT
+         *     surface to revoke, so the endpoint surfaces a `400` so the client
+         *     can route them to the admin "delete API key" path instead.
+         */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/ws-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ws_token"];
         put?: never;
         post?: never;
         delete?: never;
@@ -425,6 +628,318 @@ export interface paths {
         patch: operations["update_widget"];
         trace?: never;
     };
+    "/api/evaluation/cases/{case_id}/judge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["judge_evaluation_case"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/cases/{case_id}/judge_safety": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["judge_safety_evaluation_case"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/cases/{case_id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_evaluation_metrics"];
+        put: operations["upsert_evaluation_metric"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/cases/{case_id}/promote-to-dataset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["promote_case_to_dataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/datasets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/evaluation/datasets` — list datasets in the active
+         *     workspace, newest-created first.
+         */
+        get: operations["list_evaluation_datasets"];
+        put?: never;
+        /**
+         * `POST /api/evaluation/datasets` — upsert a dataset by
+         *     `(workspace_id, name)`. Re-importing under the same name
+         *     preserves `id` + `created_at` and updates `description` only;
+         *     every downstream FK (runs that referenced this id, items
+         *     keyed on this id) survives the re-import.
+         */
+        post: operations["upsert_evaluation_dataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/datasets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/evaluation/datasets/{id}` — fetch a single dataset
+         *     header. Items live behind the sibling
+         *     `/api/evaluation/datasets/{id}/items` endpoint to keep this
+         *     path lightweight when the FE only needs the header.
+         */
+        get: operations["get_evaluation_dataset"];
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/evaluation/datasets/{id}` — cascade-delete the
+         *     dataset + items. Runs that referenced the dataset stay alive
+         *     (`evaluation_runs.dataset_id` `SET NULL`).
+         */
+        delete: operations["delete_evaluation_dataset"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/datasets/{id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/evaluation/datasets/{id}/items` — list every frozen
+         *     `(input, expected)` pair in the dataset, ordered by
+         *     `item_key`.
+         */
+        get: operations["list_evaluation_dataset_items"];
+        /**
+         * `PUT /api/evaluation/datasets/{id}/items` — replace every
+         *     item under `dataset_id` with the supplied set in one
+         *     transaction. Items not in the request body are deleted; items
+         *     in both DB + request body are upserted on `(dataset_id,
+         *     item_key)`. Atomic — partial import never lands.
+         */
+        put: operations["replace_evaluation_dataset_items"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_evaluation_runs"];
+        put?: never;
+        post: operations["create_evaluation_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/runs/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/evaluation/runs/diff?baseline=<id>&candidate=<id>` —
+         *     per-axis delta + per-case row diff between two runs that
+         *     materialised from the same dataset. Returns a typed
+         *     `validation_error` 400 when the runs don't share a dataset
+         *     (the case_key correspondence the diff requires).
+         */
+        get: operations["compare_evaluation_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/runs/from-dataset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/evaluation/runs/from-dataset` — materialise a fresh
+         *     run from a dataset. Atomic dataset-read + run-insert + bulk
+         *     case-insert in one transaction. Returns the created run plus
+         *     the case count for the FE response panel.
+         */
+        post: operations["create_run_from_dataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_evaluation_run"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_evaluation_run"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/runs/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["complete_evaluation_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/runs/{run_id}/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_evaluation_cases"];
+        put: operations["upsert_evaluation_case"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/runs/{run_id}/cases/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["bulk_upsert_evaluation_cases"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/runs/{run_id}/cases/{case_key}/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["execute_evaluation_case"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/runs/{run_id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/evaluation/runs/{run_id}/summary` — case counts +
+         *     per-axis aggregate. Drives the run-list "judged 5/12 ·
+         *     faithfulness 0.78" badge so operators triage without
+         *     drilling into each detail page. RAGAS axes (`faithfulness`
+         *     / `answer_relevance` / …) and safety axes
+         *     (`safety.toxicity_safe` / …) ride together; the
+         *     `axis_means[]` ordering is alphabetic for stable rendering.
+         */
+        get: operations["evaluation_run_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/governance/audit": {
         parameters: {
             query?: never;
@@ -433,6 +948,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["list_audit_records"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/graph/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["graph_overview"];
         put?: never;
         post?: never;
         delete?: never;
@@ -665,6 +1196,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/load/checkpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_load_checkpoints"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/load/checkpoints/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_load_checkpoint"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/load/execute": {
         parameters: {
             query?: never;
@@ -711,6 +1274,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["update_model_config"];
+        trace?: never;
+    };
+    "/api/models/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_model_operations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/models/routing-rules": {
@@ -819,166 +1398,6 @@ export interface paths {
         get: operations["list_logs"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontologies/export": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_ontology"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontologies/export/cypher": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_cypher"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontologies/export/graphql": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_graphql"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontologies/export/mermaid": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_mermaid"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontologies/export/owl": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_owl"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontologies/export/python": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_python"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontologies/export/shacl": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_shacl"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontologies/export/typescript": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_typescript"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontologies/import/owl": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["import_owl"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontologies/normalize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["normalize_ontology"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1097,6 +1516,22 @@ export interface paths {
         patch: operations["update_decisions"];
         trace?: never;
     };
+    "/api/ontology-drafts/{id}/deploy-schema": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deploy_schema"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ontology-drafts/{id}/design": {
         parameters: {
             query?: never;
@@ -1129,6 +1564,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ontology-drafts/{id}/diff/canonical": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["diff_canonical"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology-drafts/{id}/diff/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["diff_current"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ontology-drafts/{id}/edit": {
         parameters: {
             query?: never;
@@ -1155,6 +1622,54 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["extend_ontology_draft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology-drafts/{id}/load-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["generate_load_plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology-drafts/{id}/load/compile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["compile_load"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology-drafts/{id}/load/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["execute_load_from_source"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1209,6 +1724,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ontology-drafts/{id}/rebase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["rebase_draft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology-drafts/{id}/rebase/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["rebase_preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ontology-drafts/{id}/refine": {
         parameters: {
             query?: never;
@@ -1257,6 +1804,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ontology-drafts/{id}/revisions/{rev1}/diff/{rev2}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["diff_revisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ontology-drafts/{id}/revisions/{rev}": {
         parameters: {
             query?: never;
@@ -1267,6 +1830,22 @@ export interface paths {
         get: operations["get_revision"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology-drafts/{id}/revisions/{rev}/migrate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["migrate_schema"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1327,6 +1906,157 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ontology/adopt-graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adopt_graph"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["graph_audit_report"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/axis-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_axis_items"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/communities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/ontology/communities` — list every community
+         *     summary attached to the workspace's canonical version.
+         *     Sorted `(level ASC, community_id ASC)` for deterministic
+         *     hierarchical FE rendering.
+         */
+        get: operations["list_community_summaries"];
+        put?: never;
+        /**
+         * `POST /api/ontology/communities` — upsert on
+         *     `(ontology_version_id, community_id)`. Re-summarising under
+         *     the same id replaces in place; lineage / reverse-index
+         *     queries against the id continue to resolve.
+         */
+        post: operations["upsert_community_summary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/communities/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/ontology/communities/search?q=…&top_k=10` —
+         *     trigram-blended search over title + summary. Drives the
+         *     future FE preview pane that lets operators sanity-check
+         *     retrieval before committing summaries.
+         */
+        get: operations["search_community_summaries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/communities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/ontology/communities/{id}` — remove a single
+         *     summary by primary key. Returns 404 when the row doesn't
+         *     exist (or RLS hides it cross-workspace).
+         */
+        delete: operations["delete_community_summary"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/concepts/suggest-property-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["suggest_concept_property_bindings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/cross-refs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_cross_refs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ontology/dependencies": {
         parameters: {
             query?: never;
@@ -1343,7 +2073,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/ontology/glossary/suggest-bindings": {
+    "/api/ontology/edits": {
         parameters: {
             query?: never;
             header?: never;
@@ -1352,7 +2082,199 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["suggest_glossary_bindings"];
+        post: operations["apply_ontology_edits"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/enrich": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["enrich_ontology"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_ontology"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/export/cypher": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_cypher"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/export/graphql": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_graphql"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/export/mermaid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_mermaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/export/owl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_owl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/export/python": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_python"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/export/shacl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_shacl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/export/typescript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_typescript"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/import/owl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["import_owl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/map-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["map_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/normalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["normalize_ontology"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1375,7 +2297,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/ontology/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms": {
+    "/api/ontology/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-concepts": {
         parameters: {
             query?: never;
             header?: never;
@@ -1384,7 +2306,39 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["suggest_glossary_terms_for_property"];
+        post: operations["suggest_concepts_for_property"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/reindex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reindex_schema"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["suggest_insights"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1475,6 +2429,22 @@ export interface paths {
         post?: never;
         /** DELETE /api/ontology/verifications/{element_id} — revoke verification */
         delete: operations["delete_verification"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontology/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_canonical_versions"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1915,6 +2885,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/query/history/{id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["update_feedback"];
+        trace?: never;
+    };
     "/api/query/pattern/compile": {
         parameters: {
             query?: never;
@@ -2171,6 +3157,38 @@ export interface paths {
         patch: operations["update_schedule"];
         trace?: never;
     };
+    "/api/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["search_graph"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search/expand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["expand_node"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sessions": {
         parameters: {
             query?: never;
@@ -2235,7 +3253,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/sessions/{id}/tools/{tool_id}/respond": {
+    "/api/sessions/{session_id}/tools/{tool_id}/respond": {
         parameters: {
             query?: never;
             header?: never;
@@ -2261,6 +3279,22 @@ export interface paths {
         get: operations["get_shared_dashboard"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sources/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["test_source_connection"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2315,6 +3349,54 @@ export interface paths {
         patch: operations["update_user_role"];
         trace?: never;
     };
+    "/api/verified-queries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_verified_queries"];
+        put?: never;
+        post: operations["promote_verified_query"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/verified-queries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_verified_query"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_verified_query"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/verified-queries/{id}/transition-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["transition_verified_query_status"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces": {
         parameters: {
             query?: never;
@@ -2327,6 +3409,30 @@ export interface paths {
         put?: never;
         /** POST /workspaces — create a new workspace. */
         post: operations["create_workspace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /workspaces/me — return the active workspace context.
+         * @description `WorkspaceContext` is set by the middleware after authentication;
+         *     the handler enriches it with the workspace row's `name`,
+         *     `primary_locale`, `admin_locale_fallback`, and
+         *     `llm_locale_fallback` so the FE doesn't make a second
+         *     round-trip.
+         */
+        get: operations["workspace_me"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2411,109 +3517,34 @@ export interface paths {
         patch: operations["update_member_role"];
         trace?: never;
     };
-    "/auth/logout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Revoke the caller's current platform JWT so it can no longer be
-         *     presented as proof of identity. Inserts a row in `revoked_jwts`
-         *     keyed by the token's `jti`, and drops the cached negative-result
-         *     in [`JwtRevocationCache`] so the next request from any holder of
-         *     the same token sees the revocation immediately.
-         * @description Idempotent — repeated calls are safe and return the same shape.
-         *     API-key principals short-circuit: API keys don't have a JWT
-         *     surface to revoke, so the endpoint surfaces a `400` so the client
-         *     can route them to the admin "delete API key" path instead.
-         */
-        post: operations["logout"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["me"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["create_token"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/ws-token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["ws_token"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/workspaces/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * GET /workspaces/me — return the active workspace context.
-         * @description `WorkspaceContext` is set by the middleware after authentication;
-         *     the handler enriches it with the workspace row's `name`,
-         *     `primary_locale`, `admin_locale_fallback`, and
-         *     `llm_locale_fallback` so the FE doesn't make a second
-         *     round-trip.
-         */
-        get: operations["workspace_me"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AclPolicy: {
+            action: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            created_by?: string | null;
+            description?: string | null;
+            /** Format: uuid */
+            id: string;
+            is_active: boolean;
+            mask_pattern?: string | null;
+            name: string;
+            /** Format: int32 */
+            priority: number;
+            properties?: string[] | null;
+            resource_type: string;
+            resource_value?: string | null;
+            subject_type: string;
+            subject_value: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
         /** @description Named, approval-aware mutation. */
         ActionDef: {
             /** @description Approval contract. See `ApprovalPolicy`. */
@@ -2560,6 +3591,25 @@ export interface components {
             /** @enum {string} */
             kind: "edge_type";
         };
+        AdapterAnalysisDriftEntry: {
+            kind: string;
+            live_hash: string;
+            stored_hash?: string | null;
+            table: string;
+        };
+        AdapterAnalysisResponse: {
+            /**
+             * @description Per-table drift between the stored fingerprint map and the
+             *     adapter's live fingerprint. Empty when there is nothing to
+             *     flag.
+             */
+            drift: components["schemas"]["AdapterAnalysisDriftEntry"][];
+            /** Format: date-time */
+            last_analyzed_at?: string | null;
+            snapshot?: null | components["schemas"]["AnalysisResult"];
+            source_id: string;
+            source_type: string;
+        };
         /**
          * @description Detail view of one registered adapter.
          *
@@ -2577,12 +3627,13 @@ export interface components {
          * @description Per-kind detail body. Mirrors [`RegisterAdapterKind`] with
          *     [`CredentialSource`] in place of [`Credential`].
          *
-         *     `schema_name` appears on the variants that actually use it —
+         *     `schema_name` appears on the variants that actually use it:
          *     `Option<String>` on `Postgres` (defaults to `"public"` at build
-         *     time), required `String` on `Mysql`, absent on the other three.
+         *     time), required `String` on `Mysql`, absent on file-backed
+         *     adapters and feature-gated adapters that do not expose schemas.
          *     The old flat `Option<String>` field on `AdapterDetail` is gone;
-         *     csv / json / bigquery detail responses no longer carry a
-         *     nullable `schema_name: null` that meant nothing.
+         *     schema-less detail responses no longer carry a nullable
+         *     `schema_name: null` that meant nothing.
          *
          *     Adding a new adapter kind updates both this enum and
          *     `RegisterAdapterKind`. The `From<&RegisterAdapterKind>`
@@ -2608,10 +3659,6 @@ export interface components {
             /** @enum {string} */
             kind: "mysql";
             schema_name: string;
-        } | {
-            credential: components["schemas"]["CredentialSource"];
-            /** @enum {string} */
-            kind: "bigquery";
         };
         AdapterSummary: {
             source_id: string;
@@ -2626,11 +3673,121 @@ export interface components {
              */
             supports_scan: boolean;
         };
+        AdapterTableListResponse: {
+            source_id: string;
+            source_type: string;
+            tables: components["schemas"]["AdapterTableSummary"][];
+        };
+        AdapterTableSummary: {
+            /** Format: int32 */
+            column_count: number;
+            /** Format: int64 */
+            estimated_row_count?: number | null;
+            /** Format: date-time */
+            last_modified?: string | null;
+            name: string;
+        };
         AddMemberRequest: {
             role?: string;
             /** Format: uuid */
             user_id: string;
         };
+        AdoptGraphRequest: {
+            name?: string | null;
+            /** @description If true, persist the adopted ontology to database for use in Analyze mode. */
+            save?: boolean | null;
+        };
+        AgentEvent: {
+            /** Format: date-time */
+            created_at: string;
+            event_type: string;
+            /** Format: uuid */
+            id: string;
+            payload: components["schemas"]["AgentEventPayload"];
+            /** Format: int32 */
+            sequence: number;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description Canonical persisted agent timeline payload. The stream adapter,
+         *     audit trail, and session reconstruction all use this shape so
+         *     replay does not depend on branchforge's private serde layout.
+         */
+        AgentEventPayload: {
+            delta: string;
+            /** @enum {string} */
+            type: "text";
+        } | {
+            content: string;
+            /** @enum {string} */
+            type: "thinking";
+        } | {
+            id: string;
+            input: {
+                [key: string]: unknown;
+            };
+            name: string;
+            /** @enum {string} */
+            type: "tool_start";
+        } | {
+            /** Format: int64 */
+            duration_ms?: number | null;
+            id: string;
+            is_error: boolean;
+            name: string;
+            output: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            type: "tool_complete";
+        } | {
+            /** Format: int64 */
+            duration_ms?: number | null;
+            metadata: {
+                [key: string]: unknown;
+            };
+            status: string;
+            step: string;
+            tool_call_id: string;
+            /** @enum {string} */
+            type: "tool_progress";
+        } | {
+            id: string;
+            name: string;
+            reason: string;
+            /** @enum {string} */
+            type: "tool_blocked";
+        } | {
+            id: string;
+            input: {
+                [key: string]: unknown;
+            };
+            name: string;
+            /** @enum {string} */
+            type: "tool_review";
+        } | {
+            /** Format: int64 */
+            input_tokens: number;
+            /** Format: int64 */
+            output_tokens: number;
+            /** @enum {string} */
+            type: "turn_usage";
+        } | {
+            /** Format: int32 */
+            iterations: number;
+            session_id: string;
+            text: string;
+            tool_calls: {
+                [key: string]: unknown;
+            }[];
+            /** @enum {string} */
+            type: "complete";
+        };
+        /** @enum {string} */
+        AgentExecutionMode: "auto" | "plan" | "supervised";
         /** @description Who ran the activity. */
         AgentRef: {
             /** @enum {string} */
@@ -2647,6 +3804,37 @@ export interface components {
         } | {
             /** @enum {string} */
             kind: "system";
+        };
+        AgentSession: {
+            /** Format: date-time */
+            completed_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            final_text?: string | null;
+            /** Format: uuid */
+            id: string;
+            model_config: components["schemas"]["AgentSessionModelConfig"];
+            model_id: string;
+            ontology_lineage_id?: string | null;
+            prompt_hash: string;
+            tool_schema_hash: string;
+            user_id: string;
+            user_message: string;
+        };
+        AgentSessionModelConfig: {
+            execution_mode: components["schemas"]["AgentExecutionMode"];
+        };
+        AgentSessionPage: {
+            items: components["schemas"]["AgentSession"][];
+            next_cursor?: string | null;
+        };
+        /** @enum {string} */
+        AggFunction: "count" | "sum" | "avg" | "min" | "max" | "collect" | "std_dev" | "percentile" | "collect_list";
+        AggregationExpr: {
+            alias: string;
+            distinct: boolean;
+            field: components["schemas"]["FieldRef"];
+            function: components["schemas"]["AggFunction"];
         };
         /**
          * @description Π-1: Analytical role of a property in a NL2SQL query — drives
@@ -2667,13 +3855,286 @@ export interface components {
          */
         AggregationRole: "measure" | "dimension" | "attribute" | "identifier";
         /**
+         * @description A column whose values cannot be interpreted from schema alone.
+         *
+         *     Persisted at source-analysis time; one row per
+         *     `(workspace_id, source_id, relation, column)`. Re-running analysis
+         *     replaces the row (same natural key), and `detection_source_hash`
+         *     invalidates stale resolutions that were attached to an earlier
+         *     schema shape.
+         */
+        AmbiguityContext: {
+            /**
+             * @description Human-readable question the admin / LLM sees. Authored once by
+             *     the detector; stable across re-runs so a resolution in flight
+             *     doesn't lose its prompt context when the hash rolls.
+             */
+            clarification_prompt: string;
+            column: components["schemas"]["ColumnRef"];
+            /** Format: date-time */
+            detected_at: string;
+            /**
+             * @description Snapshot hash of the underlying schema + profile fingerprint
+             *     used at detection time. Any resolution whose
+             *     `context_source_hash` differs is treated as stale.
+             */
+            detection_source_hash: string;
+            /**
+             * Format: int64
+             * @description Approximate distinct cardinality reported by the profiler —
+             *     `None` when the source adapter couldn't estimate.
+             */
+            distinct_estimate?: number | null;
+            id: components["schemas"]["AmbiguityId"];
+            kind: components["schemas"]["AmbiguityKind"];
+            /**
+             * @description Did any sample row carry a NULL? Used by the resolver UI to
+             *     propose an implicit "missing" value mapping.
+             */
+            nullable?: boolean;
+            repo_hint?: null | components["schemas"]["RepoHint"];
+            /**
+             * @description Distinct-value samples pulled from the source profile.
+             *     Order-preserving, de-duplicated, capped at 20 entries.
+             */
+            sample_values?: string[];
+            source_id: components["schemas"]["SourceId"];
+        };
+        AmbiguityDetailResponse: {
+            context: components["schemas"]["AmbiguityContext"];
+            /**
+             * @description Resolution chain, newest first. The first row whose
+             *     `revoked_at` is null is the currently-active one; a fully
+             *     revoked chain leaves the context "unresolved".
+             */
+            history: components["schemas"]["AmbiguityResolution"][];
+        };
+        AmbiguityId: string;
+        /**
+         * @description Kind of ambiguity observed. Extending this enum is additive — no
+         *     existing `AmbiguityResolution` becomes invalid when a new variant
+         *     ships, because resolutions key off `context_id`, not `kind`.
+         */
+        AmbiguityKind: {
+            /** @enum {string} */
+            kind: "numeric_code";
+        } | {
+            /** @enum {string} */
+            kind: "opaque_short_code";
+        } | {
+            /** @enum {string} */
+            kind: "overloaded_name";
+        };
+        AmbiguityListResponse: {
+            items: components["schemas"]["AmbiguitySummary"][];
+        };
+        /** @description The actual semantic binding the admin / agent chose. */
+        AmbiguityMapping: {
+            entries: components["schemas"]["ValueMapEntry"][];
+            /** @enum {string} */
+            kind: "value_map";
+        } | {
+            code_system_id: components["schemas"]["CodeSystemId"];
+            /** @enum {string} */
+            kind: "code_system_ref";
+        } | {
+            concept_id: components["schemas"]["ConceptId"];
+            /** @enum {string} */
+            kind: "concept_ref";
+        };
+        /**
+         * @description A resolved interpretation for an [`AmbiguityContext`]. At most one
+         *     resolution is active per context; creating a new one sets the old
+         *     one's `supersedes` pointer so the resolution chain is reviewable.
+         */
+        AmbiguityResolution: {
+            context_id: components["schemas"]["AmbiguityId"];
+            /**
+             * @description Hash of the context at resolution time. A later context whose
+             *     `detection_source_hash` diverges is considered stale and the
+             *     query planner will re-ask.
+             */
+            context_source_hash: string;
+            id: components["schemas"]["AmbiguityResolutionId"];
+            mapping: components["schemas"]["AmbiguityMapping"];
+            /** Format: date-time */
+            resolved_at: string;
+            /**
+             * Format: uuid
+             * @description User uuid when a human resolved it, or `None` when the agent
+             *     auto-resolved via an accepted repo hint.
+             */
+            resolved_by_user_id?: string | null;
+            /**
+             * Format: date-time
+             * @description Soft-delete marker. Revoking without replacement returns the
+             *     context to "unresolved" state.
+             */
+            revoked_at?: string | null;
+            supersedes?: null | components["schemas"]["AmbiguityResolutionId"];
+        };
+        AmbiguityResolutionId: string;
+        AmbiguitySummary: {
+            active_resolution?: null | components["schemas"]["AmbiguityResolution"];
+            context: components["schemas"]["AmbiguityContext"];
+        };
+        /** @enum {string} */
+        AnalysisCompleteness: "complete" | "partial";
+        /** @enum {string} */
+        AnalysisPhase: "schema_introspection" | "data_profiling";
+        AnalysisRecipe: {
+            algorithm_type: string;
+            code_template: string;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            description: string;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            output_description: string;
+            parameters: {
+                [key: string]: unknown;
+            };
+            /**
+             * Format: uuid
+             * @description Previous version's ID (for version chain)
+             */
+            parent_id?: string | null;
+            required_columns: string[];
+            status: components["schemas"]["RecipeStatus"];
+            /** Format: int32 */
+            version: number;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        AnalysisRecipePage: {
+            items: components["schemas"]["AnalysisRecipe"][];
+            next_cursor?: string | null;
+        };
+        /**
          * @description Health of the persisted analysis-report row.
          * @enum {string}
          */
         AnalysisReportStatus: "missing" | "current" | "stale";
+        /**
+         * @description Result of a full source analysis: schema, profile, and any warnings
+         *     encountered during introspection or profiling.
+         *
+         *     Produced by [`IntrospectionKernel::analyze`]. Adapters themselves never
+         *     emit this directly — they expose atomic primitives and the kernel
+         *     orchestrates them into a full analysis, attaching warnings as
+         *     individual primitive calls succeed or fail.
+         */
+        AnalysisResult: {
+            profile: components["schemas"]["SourceProfile"];
+            schema: components["schemas"]["SourceSchema"];
+            warnings: components["schemas"]["AnalysisWarning"][];
+        };
+        AnalysisScope: {
+            deferred?: components["schemas"]["DeferredTable"][];
+            excluded_by_policy?: string[];
+            fingerprints?: {
+                [key: string]: string;
+            };
+            included?: string[];
+            /** Format: date-time */
+            last_introspected_at?: string | null;
+        };
+        /**
+         * @description Single warning emitted by an adapter or the kernel during
+         *     analysis.
+         *
+         *     The wire shape is **language-neutral**: backend never produces
+         *     user-facing prose. The FE renders a localised summary and hint by
+         *     looking up `class` in its i18n catalogue and interpolating
+         *     `params` (e.g. `params.partition_column`).
+         *
+         *     `detail` carries the raw provider error for an expand-on-demand
+         *     drilldown — operator/debug copy, not user copy. `group_key` is
+         *     server-computed (`class:scope.table` or `class:source`) so the FE
+         *     can collapse warnings sharing a fingerprint into a single card
+         *     without re-implementing the grouping rule.
+         */
+        AnalysisWarning: {
+            class: components["schemas"]["WarningClass"];
+            /**
+             * @description Raw provider error text, English. Surfaces in the
+             *     expand-on-demand drilldown for operators; never the primary
+             *     user-facing copy.
+             */
+            detail?: string | null;
+            group_key: string;
+            level: components["schemas"]["WarningLevel"];
+            /**
+             * @description Interpolation arguments for the FE-side i18n message lookup
+             *     (e.g. `{"partition_column": "stdrd_ym"}`). Keys are stable
+             *     across FE locale switches; values are short identifiers, not
+             *     localised prose.
+             */
+            params?: {
+                [key: string]: string;
+            };
+            phase: components["schemas"]["AnalysisPhase"];
+            scope: components["schemas"]["WarningScope"];
+        };
+        /** @description Source for analytics computation. */
+        AnalyticsSource: {
+            /** @enum {string} */
+            kind: "whole_graph";
+        } | {
+            /** @enum {string} */
+            kind: "labels";
+            labels: components["schemas"]["GraphLabel"][];
+        } | {
+            filter: components["schemas"]["QueryOp"];
+            /** @enum {string} */
+            kind: "subgraph";
+        };
+        /**
+         * @description Body of `POST /api/admin/federation/adapters/{source_id}/analyze`.
+         *
+         *     `selection` carries the user's intent through a single tagged
+         *     enum — `all` for a full sweep, `subset` for a standalone pick,
+         *     `extend` to grow the source's stored baseline. The wire shape
+         *     reads `{"selection": {"kind": "extend", "tables": [...]}}`.
+         */
+        AnalyzeAdapterRequest: {
+            selection: components["schemas"]["AnalyzeSelection"];
+        };
+        AnalyzeAdapterResponse: {
+            /** Format: date-time */
+            last_analyzed_at?: string | null;
+            mode: string;
+            source_id: string;
+            source_type: string;
+            tables_analyzed: number;
+            warnings: number;
+        };
+        /** @description User-facing intent for a source analysis run. */
+        AnalyzeSelection: {
+            /** @enum {string} */
+            kind: "all";
+        } | {
+            /** @enum {string} */
+            kind: "subset";
+            tables: string[];
+        } | {
+            /** @enum {string} */
+            kind: "extend";
+            tables: string[];
+        } | {
+            /** @enum {string} */
+            kind: "reduce";
+            tables: string[];
+        } | {
+            /** @enum {string} */
+            kind: "staged";
+            tables: string[];
+        };
         ApplyOntologyCommandsRequest: {
             /** @description List of ontology mutation commands. */
-            commands: Record<string, never>[];
+            commands: components["schemas"]["OntologyCommand"][];
             /** Format: int32 */
             revision: number;
         };
@@ -2793,6 +4254,58 @@ export interface components {
             threshold: number;
         };
         /**
+         * @description Outcome of one attempt — the Refine fold reads this to build
+         *     the next try's ICL block.
+         */
+        AttemptOutcome: {
+            /** @enum {string} */
+            kind: "success";
+        } | {
+            classification: components["schemas"]["ErrorClassification"];
+            /** @enum {string} */
+            kind: "validation_error";
+            message: string;
+        } | {
+            classification: components["schemas"]["ErrorClassification"];
+            /** @enum {string} */
+            kind: "runtime_error";
+            message: string;
+        } | {
+            /** @enum {string} */
+            kind: "timeout";
+        } | {
+            /** @enum {string} */
+            kind: "out_of_budget";
+        };
+        AuditEntry: {
+            action: string;
+            /**
+             * Format: uuid
+             * @description Workspace impacted by the action. Differs from `workspace_id`
+             *     only for SYSTEM_BYPASS maintenance tasks that operate across
+             *     workspaces. When `None`, the affected workspace equals
+             *     `workspace_id` (the common case).
+             */
+            affected_workspace_id?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            details: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            id: string;
+            resource_id?: string | null;
+            resource_type: string;
+            /** Format: uuid */
+            user_id?: string | null;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        AuditEntryPage: {
+            items: components["schemas"]["AuditEntry"][];
+            next_cursor?: string | null;
+        };
+        /**
          * @description One record in the audit stream. The `provenance` payload is the
          *     content-addressed PROV-O entity (`ProvenanceDef`) emitted at IR
          *     commit time; the surrounding fields attribute it to the source
@@ -2806,7 +4319,7 @@ export interface components {
             ontology_id: string;
             ontology_lineage_id: string;
             ontology_name: string;
-            provenance: unknown;
+            provenance: components["schemas"]["ProvenanceDef"];
         };
         /**
          * @description Approval request — a queued gated operation awaiting review.
@@ -2827,6 +4340,71 @@ export interface components {
         };
         AuthMeResponse: {
             user: components["schemas"]["UserInfo"];
+        };
+        /**
+         * @description Six-axis labels, matching the Complete Map dashboard. Every
+         *     variant is a public wire contract — the FE filters / groups
+         *     edges by axis — so variants with no current emitter stay in the
+         *     enum rather than being removed; `#[allow(dead_code)]` is what
+         *     keeps that public surface honest without a linter nag.
+         * @enum {string}
+         */
+        Axis: "topology" | "vocabulary" | "registry" | "strategy" | "vol" | "governance";
+        /**
+         * @description One axis aggregate for [`RunSummary`]. Per-axis mean across
+         *     every case scored on that axis. `count` is the denominator the
+         *     FE renders alongside the mean ("0.78 over 12 cases") so the
+         *     number isn't read in isolation — a 1.0 mean from one case is
+         *     not the same signal as a 0.78 mean from twelve.
+         */
+        AxisAggregate: {
+            axis: string;
+            /** Format: int64 */
+            count: number;
+            /** Format: double */
+            mean: number;
+        };
+        AxisCounts: {
+            entries: components["schemas"]["AxisEntry"][];
+        };
+        AxisEntry: {
+            count: number;
+            kind: string;
+        };
+        AxisItem: {
+            /**
+             * @description Optional free-form description. May be empty even when the
+             *     entity type normally carries one; the FE treats `""` as
+             *     "omit the description line".
+             */
+            description: string;
+            /** @description Stable id string for the entity. */
+            id: string;
+            /**
+             * @description Human-readable label. Falls back to `id` when no richer
+             *     text is available on the entity.
+             */
+            label: string;
+        };
+        AxisItemsParams: {
+            /**
+             * @description One of the kind strings the `/map-summary` endpoint emits —
+             *     `"node_types" | "edge_types" | "indexes" | "glossary_terms" |
+             *     "interfaces" | "code_systems" | "value_sets" |
+             *     "notation_patterns" | "concept_maps" | "value_range_sets" |
+             *     "rules" | "actions" | "functions" | "metrics" |
+             *     "object_mappings" | "link_mappings" | "provenances" |
+             *     "data_qualities" | "enrichments"`.
+             */
+            kind: string;
+        };
+        BatchConfig: {
+            /** @description Number of records per batch */
+            batch_size: number;
+            /** @description Number of parallel batches (for large loads) */
+            parallelism: number;
+            /** @description Whether to wrap each batch in a transaction */
+            transactional: boolean;
         };
         /**
          * @description Reason a property opts out of the "physical mapping must carry a
@@ -2860,6 +4438,11 @@ export interface components {
              */
             value: string;
         };
+        /**
+         * @description Which kind of query operation produced this binding.
+         * @enum {string}
+         */
+        BindingKind: "match" | "path_find" | "chain" | "exists" | "mutation";
         BindingPolicy: {
             /** Format: float */
             fuzzy_min_ratio?: number | null;
@@ -2948,7 +4531,7 @@ export interface components {
         BulkReviewApprovalsRequest: {
             ids: string[];
             review_notes?: string | null;
-            status: string;
+            status: components["schemas"]["KnowledgeStatus"];
         };
         BulkReviewApprovalsResponse: {
             /**
@@ -2960,6 +4543,46 @@ export interface components {
              *     a normal "double-click safe" outcome, not an error.
              */
             reviewed: number;
+        };
+        BulkRevokeAmbiguitiesRequest: {
+            /**
+             * @description Context ids to revoke. Capped at 100 per call by the
+             *     `bulk_limit_exceeded` typed gate; clients split into
+             *     multiple calls when the cohort is larger.
+             */
+            ids: string[];
+        };
+        BulkRevokeAmbiguitiesResponse: {
+            /**
+             * Format: int64
+             * @description Count of contexts that actually transitioned. Contexts
+             *     without an active resolution are silently skipped (matches
+             *     single-id semantics), so `revoked` may be less than
+             *     `ids.len()` when the cohort overlaps already-revoked or
+             *     unresolved contexts.
+             */
+            revoked: number;
+        };
+        BulkUpsertEvaluationCaseEntry: {
+            case_key: string;
+            expected?: null | components["schemas"]["EvaluationExpected"];
+            input: components["schemas"]["EvaluationCaseInput"];
+        };
+        BulkUpsertEvaluationCaseError: {
+            case_key: string;
+            message: string;
+        };
+        BulkUpsertEvaluationCasesRequest: {
+            cases: components["schemas"]["BulkUpsertEvaluationCaseEntry"][];
+        };
+        BulkUpsertEvaluationCasesResponse: {
+            /**
+             * @description Per-row errors. Empty when every row succeeded; a
+             *     non-empty list means partial success — the caller can
+             *     retry just the failed `case_key`s.
+             */
+            errors: components["schemas"]["BulkUpsertEvaluationCaseError"][];
+            upserted_count: number;
         };
         /**
          * @description Per-mapping hint for the graph-cache backend. The planner treats
@@ -2981,6 +4604,20 @@ export interface components {
             /** Format: int64 */
             ttl_seconds?: number;
         };
+        CanvasPosition: {
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+        };
+        CanvasViewport: {
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+            /** Format: double */
+            zoom: number;
+        };
         /**
          * @description Edge multiplicity, expressed as one of the four canonical
          *     shorthand variants. Each variant lowers to numeric `(min, max)`
@@ -2999,17 +4636,18 @@ export interface components {
          * @enum {string}
          */
         Cardinality: "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many";
+        ChainStep: {
+            operation: components["schemas"]["QueryOp"];
+            pass_through: components["schemas"]["Projection"][];
+        };
         /**
          * @description Wire shape returned by the list / upsert endpoints. The
-         *     `change_type` round-trips through serde so the wire string
-         *     matches the storage format exactly (snake_case discriminator).
-         *     `routing` and `risk_level` come straight off the IR types —
-         *     no parallel schema, the FE consumes them through the
-         *     `OntologyEditOp` TS union alongside the rest of the matrix.
+         *     `change_type`, `routing`, and `risk_level` come straight off the
+         *     IR types — no parallel schema, the FE consumes the generated
+         *     `ChangeType` union alongside the rest of the matrix.
          */
         ChangeRoutingRuleResponse: {
-            /** @description `ChangeType` discriminator as a snake_case string. */
-            change_type: string;
+            change_type: components["schemas"]["ChangeType"];
             /** Format: int32 */
             priority: number;
             risk_level: components["schemas"]["RiskLevel"];
@@ -3027,13 +4665,13 @@ export interface components {
          *     classifies into exactly one of these.
          * @enum {string}
          */
-        ChangeType: "coded_value_create" | "coded_value_deprecate" | "glossary_term_create" | "glossary_alias_add" | "notation_pattern_create" | "customer_segment_create" | "column_rename" | "table_merge" | "data_source_register" | "stale_concept_deprecate" | "ontology_version_rollback" | "rule_create" | "rule_modify" | "rule_delete";
+        ChangeType: "coded_value_create" | "coded_value_deprecate" | "terminology_registry_update" | "semantic_binding_update" | "notation_pattern_create" | "customer_segment_create" | "column_rename" | "table_merge" | "data_source_register" | "stale_concept_deprecate" | "ontology_version_rollback" | "rule_create" | "rule_modify" | "rule_delete";
         ChatStreamRequest: {
-            execution_mode?: string | null;
+            execution_mode?: null | components["schemas"]["AgentExecutionMode"];
             message: string;
             /** @description Override the LLM model for this request (e.g., "claude-opus-4-6"). */
             model_override?: string | null;
-            ontology: Record<string, never>;
+            ontology: components["schemas"]["OntologyIR"];
             /** Format: uuid */
             ontology_draft_id?: string | null;
             /** Format: int32 */
@@ -3235,6 +4873,38 @@ export interface components {
          *     id even if they share its `code` string.
          */
         CodedValueId: string;
+        /** @description A domain clarification for a specific column. */
+        ColumnClarification: {
+            column: string;
+            hint: string;
+            table: string;
+        };
+        /**
+         * @description One output-column ↔ source-column attribution edge surfaced on
+         *     [`QueryProvenance`]. Authors of the federation planner pin one
+         *     of these per projected column whose origin can be statically
+         *     resolved (a direct `SELECT col FROM t` projection) so the admin
+         *     UI / downstream lineage tools never have to reverse-engineer the
+         *     scan-to-projection mapping from the rendered Cypher / SQL.
+         */
+        ColumnLineage: {
+            /** @description The result-set column the consumer sees. */
+            output_column: string;
+            /**
+             * @description Physical column on the source side (table-qualified when
+             *     the source is multi-table; bare when the source is a single
+             *     inline payload like a CSV).
+             */
+            source_column: string;
+            /** @description `ObjectMappingDef.source_id` the value was sourced from. */
+            source_id: string;
+            /**
+             * @description Optional textual transform applied on the way out (e.g.
+             *     `"UPPER(col)"`, `"concept_map(cs-2024 → cs-2026)"`). `None`
+             *     when the value is the source column verbatim.
+             */
+            transform?: string | null;
+        };
         /**
          * @description One column's distribution snapshot, taken from a specific source
          *     at a specific time. Wraps the same [`ColumnStats`] the
@@ -3284,6 +4954,17 @@ export interface components {
             column: string;
             relation: string;
         };
+        /** @description A single column/field in the source data */
+        ColumnSpec: {
+            /** @description Whether this column contains null values */
+            has_nulls: boolean;
+            /** @description Inferred or declared data type */
+            inferred_type: components["schemas"]["PropertyType"];
+            /** @description Column name as it appears in the source */
+            name: string;
+            /** @description Sample values (for LLM analysis / dry-run preview) */
+            sample_values: string[];
+        };
         ColumnStats: {
             column_name: string;
             /** Format: int64 */
@@ -3308,13 +4989,121 @@ export interface components {
              */
             sample_values: string[];
         };
+        /**
+         * @description Detection policy — drives the offline cron that materialises
+         *     `CommunitySummary` rows the retrieval layer consumes.
+         *     Workspace-scoped per `(workspace_id, name)` UNIQUE.
+         *
+         *     Orthogonal to [`RetrievalProfile`] — a workspace can define
+         *     one detection policy and many retrieval profiles, or vice
+         *     versa. The eval surface fingerprints retrieval profile +
+         *     detection policy independently so an A/B over detection
+         *     algorithm doesn't perturb retrieval, and vice versa.
+         *     Workspace-scoped configuration for the Leiden community
+         *     detection cron (Microsoft GraphRAG canonical, Traag-Waltman-
+         *     van Eck 2019). The platform commits to Leiden as the
+         *     foundational community-detection algorithm; the policy carries
+         *     its tuning surface directly rather than indirecting through an
+         *     algorithm enum.
+         *
+         *     Operators upsert under `name = "default"` to override the
+         *     auto-seeded workspace row (Φ10.5); the bootstrap helper
+         *     [`Self::workspace_default`] returns the conservative defaults
+         *     new workspaces start with.
+         */
+        CommunityDetectionPolicy: {
+            /** Format: date-time */
+            created_at: string;
+            description?: string;
+            id: components["schemas"]["CommunityDetectionPolicyId"];
+            /**
+             * Format: int32
+             * @description Hierarchical depth cap. Leiden recurses by aggregating
+             *     the refined partition into super-nodes; `levels` bounds
+             *     how deep the recursion goes. `1` means flat (single
+             *     modularity-optimised partition); the platform default is
+             *     3 (Microsoft GraphRAG convention).
+             */
+            levels: number;
+            /**
+             * Format: int32
+             * @description Smallest cluster the cron retains as a published summary.
+             *     Below this threshold the cluster is dropped from the
+             *     emitted set at every level.
+             */
+            min_cluster_size: number;
+            name: string;
+            /**
+             * Format: float
+             * @description Modularity resolution γ. Higher → more, smaller
+             *     communities; lower → fewer, larger ones. Microsoft
+             *     GraphRAG ships 1.0; experiments tune within [0.5, 2.0].
+             */
+            resolution: number;
+            /**
+             * Format: int64
+             * @description RNG seed for the local-moving and refinement phases.
+             *     Two runs against the same ontology version with the same
+             *     seed return byte-identical partitions — the operator
+             *     trust contract.
+             */
+            seed: number;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description Stable identifier for a [`CommunityDetectionPolicy`].
+         *     Workspace-scoped per natural key `(workspace_id, name)`.
+         */
+        CommunityDetectionPolicyId: string;
+        CommunitySummaryDto: {
+            community_id: string;
+            /** Format: date-time */
+            generated_at: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: int32 */
+            level: number;
+            member_entity_kinds: string[];
+            member_logical_ids: string[];
+            /** Format: uuid */
+            ontology_version_id: string;
+            summary: string;
+            title: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        CommunitySummaryResponse: {
+            summary: components["schemas"]["CommunitySummaryDto"];
+        };
+        /** @enum {string} */
+        ComparisonOp: "eq" | "neq" | "lt" | "lte" | "gt" | "gte";
+        CompileOntologyDraftLoadPlanRequest: {
+            /** @description The load plan to compile */
+            plan: components["schemas"]["LoadPlan"];
+        };
+        CompileOntologyDraftLoadPlanResponse: {
+            /** @description Compiled load statements (parameterized — $batch must be bound at execution time) */
+            statements: string[];
+        };
         CompilePatternRequest: {
             /** @description The canvas PatternIR to lower. */
-            pattern_ir: Record<string, never>;
+            pattern_ir: components["schemas"]["PatternIR"];
         };
         CompilePatternResponse: {
             /** @description The lowered QueryIR, ready to execute via `/api/query/from-ir`. */
-            query_ir: Record<string, never>;
+            query_ir: components["schemas"]["QueryIR"];
+        };
+        CompleteEvaluationRunRequest: {
+            /**
+             * @description Terminal state — `succeeded`, `failed`, or `cancelled`. The
+             *     handler rejects `running` because a complete-call must
+             *     always pin a finished status. Wire shape is the snake_case
+             *     string (matches the storage enum's wire form).
+             */
+            status: string;
         };
         CompleteOntologyDraftRequest: {
             /**
@@ -3329,15 +5118,33 @@ export interface components {
             revision: number;
         };
         /**
+         * @description Complexity bucket pinned at promote time.
+         *
+         *     Closed enum — every variant maps to a distinct ICL inclusion
+         *     rule on the Brain side. Adding a class is one variant + one
+         *     arm in the Brain's exemplar-selection policy.
+         * @enum {string}
+         */
+        ComplexityClass: "trivial" | "simple" | "composite" | "complex";
+        ConceptCandidate: {
+            concept_id: string;
+            /** Format: float */
+            score: number;
+            signals: components["schemas"]["BindingSignal"][];
+            term: components["schemas"]["LocalizedText"];
+            term_id: string;
+        };
+        /**
          * @description Workspace-canonical business concept — the identity layer above
          *     any lexicalization the glossary records.
          *
-         *     Implementer pin: `NodeTypeDef.concept_id` /
-         *     `EdgeTypeDef.concept_id` reference exactly one `ConceptDef`. The
-         *     canonical pre-label lives on the referenced `GlossaryTermDef` (via
-         *     `canonical_term_id`); aliases fan out across `alias_term_ids` so a
-         *     multilingual deployment can ship the Korean and English term
-         *     records side-by-side without inventing a second concept.
+         *     Implementer pin: graph types reference the primary `ConceptDef`
+         *     through `concept_id` and optional additional realizations through
+         *     `concept_realizations`. The canonical prefLabel lives on the
+         *     referenced `GlossaryTermDef` (via `canonical_term_id`); aliases fan
+         *     out across `alias_term_ids` so a multilingual deployment can ship
+         *     the Korean and English term records side-by-side without inventing
+         *     a second concept.
          */
         ConceptDef: {
             /**
@@ -3476,17 +5283,100 @@ export interface components {
             /** @description Raw code string in the target system (e.g., `"ACTIVE"`). */
             target_code: string;
         };
+        ConceptRealization: {
+            concept_id: components["schemas"]["ConceptId"];
+            role?: components["schemas"]["ConceptRealizationRole"];
+        };
+        /** @enum {string} */
+        ConceptRealizationRole: "secondary" | "classification" | "interface" | "analytical";
         ConfigEntry: {
             data_type: string;
             description: string;
             key: string;
             value: string;
         };
+        /**
+         * @description Hexadecimal SHA-256 digest of canonical JSON over a typed
+         *     configuration block. Used by [`EvaluationFingerprint`] to fold
+         *     extensible decoding parameters (temperature, top_p, max_tokens,
+         *     system prompt prefix, …) into a single equality token; new
+         *     parameters extend the JSONB without forcing a column add.
+         */
+        ConfigHash: string;
+        ConfigResponse: {
+            categories: {
+                [key: string]: components["schemas"]["ConfigEntry"][];
+            };
+        };
         ConfigUpdate: {
             category: string;
             key: string;
             value: string;
         };
+        ConfigUpdateResponse: {
+            updated: number;
+        };
+        ConfirmedRelationship: {
+            from_column: string;
+            from_table: string;
+            to_column: string;
+            to_table: string;
+        };
+        /**
+         * @description One overlapping atomic axis on a Modify/Modify conflict.
+         *     Carries the canonical and draft values so the operator picks
+         *     without an extra fetch.
+         */
+        ConflictAxis: {
+            /** @enum {string} */
+            axis: "label";
+            draft: string;
+            head: string;
+        } | {
+            /** @enum {string} */
+            axis: "description";
+            draft: string;
+            head: string;
+        } | {
+            /** @enum {string} */
+            axis: "source";
+            draft: string;
+            head: string;
+        } | {
+            /** @enum {string} */
+            axis: "target";
+            draft: string;
+            head: string;
+        } | {
+            /** @enum {string} */
+            axis: "cardinality";
+            draft: string;
+            head: string;
+        } | {
+            /**
+             * @description One entry per atomic property axis (type / nullability
+             *     / default / description) that both sides touched.
+             */
+            atoms: components["schemas"]["PropertyConflictAxis"][];
+            /** @enum {string} */
+            axis: "property_overlap";
+            property_name: string;
+        } | {
+            /** @enum {string} */
+            axis: "property_modify_remove";
+            modifier: components["schemas"]["ConflictSide"];
+            property_name: string;
+        } | {
+            /** @enum {string} */
+            axis: "property_add_add";
+            property_name: string;
+        };
+        /** @enum {string} */
+        ConflictEntityKind: "node" | "edge";
+        /** @enum {string} */
+        ConflictSide: "draft" | "head";
+        /** @enum {string} */
+        ConflictStrategy: "update" | "skip" | "error" | "merge_non_null";
         ConstraintDef: components["schemas"]["NodeConstraint"] & {
             /** @description Stable UUID for this constraint */
             id: components["schemas"]["ConstraintId"];
@@ -3530,8 +5420,8 @@ export interface components {
             user: components["schemas"]["UserInfo"];
         };
         CreateChannelRequest: {
-            channel_type: string;
-            config: components["schemas"]["WebhookChannelConfig"];
+            channel_type: components["schemas"]["NotificationChannelType"];
+            config: components["schemas"]["WebhookNotificationConfig"];
             events?: string[];
             name: string;
         };
@@ -3539,13 +5429,30 @@ export interface components {
             description?: string | null;
             name: string;
         };
+        CreateEvaluationRunRequest: {
+            description?: string;
+            /**
+             * @description Reproducibility pins for the run — committed ontology
+             *     version, dataset, model, prompt template, decoding config.
+             *     Required: a run that cannot answer "which configuration
+             *     produced these scores?" is uninterpretable, and the
+             *     platform refuses to author one.
+             */
+            fingerprint: components["schemas"]["EvaluationFingerprintInput"];
+            /**
+             * @description Free-form audit envelope (operator notes, run labels).
+             *     Reproducibility components live on `fingerprint`.
+             */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            name: string;
+        };
         CreateInsightRequest: {
             /**
-             * @description `GlossaryTermId` strings — the typed concept anchors per the
-             *     1-pager's "용어 사전이 다리" axis. Distinct from `tags`
-             *     (freeform shorthand) so cross-team filtering by concept stays
-             *     stable as tag wording drifts. Empty when no glossary terms
-             *     apply.
+             * @description `ConceptId` strings. Distinct from `tags` (freeform
+             *     shorthand) so cross-team filtering by concept stays stable as
+             *     glossary wording and tag wording drift.
              */
             concept_anchors?: string[];
             /**
@@ -3555,26 +5462,22 @@ export interface components {
              *     request DTO optional avoids producer/consumer asymmetry where
              *     the response always carries the field.
              */
-            description: Record<string, never>;
+            description: components["schemas"]["LocalizedText"];
             /** Format: date-time */
             expires_at?: string | null;
-            /**
-             * @description Provenance the insight was originally computed against —
-             *     the platform's response basis at save time.
-             */
-            original_provenance?: Record<string, never> | null;
+            original_provenance?: null | components["schemas"]["QueryProvenance"];
             /**
              * @description Logical query the insight executes. Validated as
              *     `QueryIR` on submit so a malformed IR is rejected up-front.
              */
-            query_ir: Record<string, never>;
-            question: Record<string, never>;
+            query_ir: components["schemas"]["QueryIR"];
+            question: components["schemas"]["LocalizedText"];
             tags?: string[];
         };
         CreateKnowledgeEntryRequest: {
             affected_labels?: string[];
             content: string;
-            kind: string;
+            kind: components["schemas"]["KnowledgeKind"];
             ontology_name: string;
             /** Format: int32 */
             ontology_version_min?: number | null;
@@ -3583,11 +5486,11 @@ export interface components {
             };
             title: string;
         };
-        CreateOntologyDraftRequest: Record<string, never> & {
+        CreateOntologyDraftRequest: components["schemas"]["OntologyDraftOrigin"] & {
             title?: string | null;
         };
         /**
-         * @description Request body for `POST /api/ontologies`.
+         * @description Request body for `POST /api/ontology`.
          *
          *     `initial_operations` is optional — callers that only need the
          *     shell (empty ontology with a pilot name) can omit it. When
@@ -3607,12 +5510,8 @@ export interface components {
              *     Must contain at least one op — the handler rejects empty
              *     batches with 400 so the endpoint stays symmetric with
              *     `/edits`, which never accepts an empty operations list.
-             *     OpenAPI surfaces this as a free-form array — clients
-             *     discriminate on the internal `op` tag
-             *     (`create_glossary_term`, etc.) from [`OntologyEditOp`]'s
-             *     serde representation.
              */
-            initial_operations?: Record<string, never>[];
+            initial_operations?: components["schemas"]["OntologyEditOp"][];
             /**
              * @description Optional caller-supplied lineage id. When omitted a fresh
              *     UUID seeds the lineage so cross-version references remain
@@ -3652,7 +5551,9 @@ export interface components {
             query_execution_id: string;
             title?: string | null;
             /** @description Widget specification JSON. */
-            widget_spec: unknown;
+            widget_spec: {
+                [key: string]: unknown;
+            };
         };
         CreatePolicyRequest: {
             action: string;
@@ -3669,9 +5570,11 @@ export interface components {
         };
         CreatePromptRequest: {
             content: string;
-            metadata?: unknown;
+            metadata?: {
+                [key: string]: unknown;
+            };
             name: string;
-            variables?: unknown;
+            variables?: string[];
             version: string;
             /**
              * Format: uuid
@@ -3703,7 +5606,7 @@ export interface components {
             description?: string | null;
             is_public?: boolean;
             ontology_lineage_id: string;
-            parameters?: components["schemas"]["ReportParameter"][];
+            parameters?: components["schemas"]["SavedReportParameter"][];
             query_template: string;
             title: string;
             widget_type?: string | null;
@@ -3724,23 +5627,39 @@ export interface components {
             /** Format: double */
             threshold?: number | null;
         };
+        CreateRunFromDatasetRequest: {
+            description?: string;
+            /**
+             * @description Reproducibility pins. `fingerprint.dataset_id` names the
+             *     dataset whose items are materialised into cases.
+             */
+            fingerprint: components["schemas"]["EvaluationFingerprintInput"];
+            metadata?: {
+                [key: string]: unknown;
+            };
+            name: string;
+        };
+        CreateRunFromDatasetResponse: {
+            /**
+             * Format: int64
+             * @description Number of dataset items materialised into cases. Allows
+             *     the FE to surface "12 cases ready to execute" without a
+             *     follow-up `list_evaluation_cases` call.
+             */
+            case_count: number;
+            run: components["schemas"]["EvaluationRun"];
+        };
         CreateSavedPatternRequest: {
             /** @description Optional free-form note. */
             description?: string | null;
             /** @description Unique name within (user, ontology) — UI uses it as a handle. */
             name: string;
             /**
-             * @description Ontology the pattern was built against. The saved pattern is tied
-             *     to an ontology; reopening against a different ontology requires
-             *     the caller to decide how to reconcile unknown labels.
-             */
-            ontology_lineage_id: string;
-            /**
              * @description The full PatternIR — nodes with positions, edges, filters, and
              *     layout hints (zoom + pan). QueryIR is computed on demand from
              *     `pattern_ir.compile()` and does not need to be stored.
              */
-            pattern_ir: Record<string, never>;
+            pattern_ir: components["schemas"]["PatternIR"];
         };
         CreateScheduleRequest: {
             cron_expression: string;
@@ -3749,13 +5668,15 @@ export interface components {
             webhook_url?: string | null;
         };
         CreateWidgetRequest: {
-            position?: unknown;
+            position?: components["schemas"]["DashboardWidgetPosition"];
             query?: string | null;
             /** Format: int32 */
             refresh_interval_secs?: number | null;
-            thresholds?: Record<string, never> | null;
+            thresholds?: null | components["schemas"]["DashboardWidgetThresholds"];
             title: string;
-            widget_spec?: unknown;
+            widget_spec?: {
+                [key: string]: unknown;
+            };
             widget_type: string;
         };
         CreateWorkspaceRequest: {
@@ -3800,6 +5721,34 @@ export interface components {
             kind: "secret_ref";
             value: string;
         };
+        CrossRefEdge: {
+            /**
+             * @description Kind of relation — `"binds_to"`, `"maps"`, `"constrains"`,
+             *     etc. Future filters on the FE key on this value.
+             */
+            edge_kind: string;
+            /**
+             * @description Axis that owns `source_id`. Drives node placement on the
+             *     FE grouped layout.
+             */
+            source_axis: components["schemas"]["Axis"];
+            /**
+             * @description Stable string id of the source entity. Compound ids like
+             *     `"node:Customer/tier"` point at a property inside its
+             *     owning node — the FE can split on `"/"` when it needs to
+             *     zoom past the node grouping.
+             */
+            source_id: string;
+            /**
+             * @description Entity kind (`"property"`, `"node_type"`, etc.). The FE maps
+             *     this to an icon / label style independent of the axis.
+             */
+            source_kind: string;
+            /** @description Axis that owns `target_id`. */
+            target_axis: components["schemas"]["Axis"];
+            target_id: string;
+            target_kind: string;
+        };
         CurrentVersionSummary: {
             commit_message: string;
             committed_by: string;
@@ -3808,6 +5757,65 @@ export interface components {
             version: string;
             /** Format: uuid */
             version_id: string;
+        };
+        /** @description Cursor-paginated result. */
+        CursorPage_InsightDef: {
+            items: {
+                /**
+                 * Format: uuid
+                 * @description Author user id — owner of the insight; gates edit/delete in
+                 *     the admin UI.
+                 */
+                author_id: string;
+                /**
+                 * @description Concepts the insight realises. The wire payload is a
+                 *     `Vec<String>` of `ConceptId`s — typed at the consumer
+                 *     boundary so this crate does not depend on the full ontology
+                 *     crate. The semantic axis: `tags` is freeform admin shorthand;
+                 *     `concept_anchors` ties the insight to stable workspace
+                 *     concepts, so cross-team filtering remains consistent even as
+                 *     glossary wording and tags drift.
+                 */
+                concept_anchors?: string[];
+                /** Format: date-time */
+                created_at: string;
+                /**
+                 * @description Optional richer description / context — what the insight
+                 *     reveals, why it matters. Localised.
+                 */
+                description?: components["schemas"]["LocalizedText"];
+                /**
+                 * Format: date-time
+                 * @description When the insight stops being trustworthy. `None` = no
+                 *     expiry. Useful for rolling KPIs that only matter for a
+                 *     quarter; the dashboard hides expired insights from the
+                 *     default surface.
+                 */
+                expires_at?: string | null;
+                id: components["schemas"]["InsightId"];
+                original_provenance?: null | components["schemas"]["QueryProvenance"];
+                /**
+                 * @description The query the insight runs (logical IR — survives backend /
+                 *     dialect changes). Wire shape = canonical `QueryIR` JSON.
+                 */
+                query_ir: components["schemas"]["QueryIR"];
+                /**
+                 * @description Human-readable question — surfaces as the card title in the
+                 *     dashboard / inspector. Localised so a multi-region tenant
+                 *     can serve the same insight in the viewer's language.
+                 */
+                question: components["schemas"]["LocalizedText"];
+                /**
+                 * @description Open-ended tag set the admin UI uses for filtering. Common
+                 *     values: `"trend"`, `"distribution"`, `"anomaly"`,
+                 *     `"relationship"`, `"summary"`.
+                 */
+                tags?: string[];
+                /** Format: date-time */
+                updated_at: string;
+            }[];
+            /** @description Pass this value as `cursor` in the next request. `None` means no more pages. */
+            next_cursor?: string | null;
         };
         /** @description Cursor-based pagination parameters. */
         CursorParams: {
@@ -3826,6 +5834,11 @@ export interface components {
             /** Format: double */
             y: number;
         };
+        DanglerEntry: {
+            kind: string;
+            missing_id: string;
+            source_path: string;
+        };
         Dashboard: {
             /** Format: date-time */
             created_at: string;
@@ -3833,7 +5846,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             is_public: boolean;
-            layout: unknown;
+            layout: components["schemas"]["DashboardLayoutItem"][];
             name: string;
             /**
              * Format: date-time
@@ -3850,6 +5863,22 @@ export interface components {
             /** Format: uuid */
             workspace_id: string;
         };
+        DashboardLayoutItem: {
+            /** Format: int32 */
+            h: number;
+            /** Format: int32 */
+            w: number;
+            /** Format: uuid */
+            widget_id: string;
+            /** Format: int32 */
+            x: number;
+            /** Format: int32 */
+            y: number;
+        };
+        DashboardPage: {
+            items: components["schemas"]["Dashboard"][];
+            next_cursor?: string | null;
+        };
         DashboardWidget: {
             /** Format: date-time */
             created_at: string;
@@ -3859,17 +5888,38 @@ export interface components {
             id: string;
             /** Format: date-time */
             last_refreshed?: string | null;
-            last_result?: unknown;
-            position: unknown;
+            last_result?: {
+                [key: string]: unknown;
+            } | null;
+            position: components["schemas"]["DashboardWidgetPosition"];
             query?: string | null;
             /** Format: int32 */
             refresh_interval_secs?: number | null;
-            thresholds?: unknown;
+            thresholds?: null | components["schemas"]["DashboardWidgetThresholds"];
             title: string;
-            widget_spec: unknown;
+            widget_spec: {
+                [key: string]: unknown;
+            };
             widget_type: string;
             /** Format: uuid */
             workspace_id: string;
+        };
+        DashboardWidgetPosition: {
+            /** Format: int32 */
+            h: number;
+            /** Format: int32 */
+            w: number;
+            /** Format: int32 */
+            x: number;
+            /** Format: int32 */
+            y: number;
+        };
+        DashboardWidgetThresholds: {
+            /** Format: double */
+            critical?: number | null;
+            direction?: null | components["schemas"]["ThresholdDirection"];
+            /** Format: double */
+            warning?: number | null;
         };
         /** @enum {string} */
         DataClassification: "public" | "internal" | "confidential" | "restricted";
@@ -3943,85 +5993,28 @@ export interface components {
             property_id: components["schemas"]["PropertyId"];
         };
         DataSourceSpec: {
-            data: string;
+            /** @description Detected/declared columns */
+            columns: components["schemas"]["ColumnSpec"][];
+            /** @description Column delimiter */
+            delimiter: string;
             /** @enum {string} */
-            type: "text";
+            format: "csv";
+            /** @description Whether the first row is a header */
+            has_header: boolean;
         } | {
-            data: string;
+            /** @description Detected/declared fields */
+            fields: components["schemas"]["ColumnSpec"][];
             /** @enum {string} */
-            type: "csv";
+            format: "json";
+            /** @description JSONPath to the array of records (e.g. "$.data[*]") */
+            root_path?: string | null;
         } | {
-            data: string;
+            /** @description Columns */
+            columns: components["schemas"]["ColumnSpec"][];
             /** @enum {string} */
-            type: "json";
-        } | {
-            connection_string: string;
-            schema?: string;
-            /** @enum {string} */
-            type: "postgresql";
-        } | {
-            connection_string: string;
-            /** @description MySQL "schema" is the database name */
-            schema: string;
-            /** @enum {string} */
-            type: "mysql";
-        } | {
-            connection_string: string;
-            /** @description MongoDB database name */
-            database: string;
-            /** @enum {string} */
-            type: "mongodb";
-        } | {
-            /** @description Snowflake account identifier (e.g., `xy12345.us-east-1`) */
-            account: string;
-            /** @description Target database */
-            database: string;
-            /** @description Login password */
-            password: string;
-            /** @description Target schema within the database */
-            schema?: string;
-            /** @enum {string} */
-            type: "snowflake";
-            /** @description Login username */
-            user: string;
-            /** @description Compute warehouse name */
-            warehouse?: string;
-        } | {
-            /**
-             * @description Project that runs and is billed for the BigQuery jobs.
-             *     Defaults to `project_id`. Required when the caller has
-             *     `bigquery.tables.list` on the data project but lacks
-             *     `bigquery.jobs.create` there (typical for shared data
-             *     projects), or when a VPC Service Controls perimeter forces
-             *     jobs to run from a specific project.
-             */
-            billing_project_id?: string | null;
-            /**
-             * @description Optional path to a credentials file. Accepts either a
-             *     service-account JSON key or an authorized-user secret
-             *     (the file `gcloud auth application-default login` writes).
-             *     Falls back to ADC chain (`GOOGLE_APPLICATION_CREDENTIALS`,
-             *     gcloud default file, workload-identity metadata server)
-             *     when omitted.
-             */
-            credentials_path?: string | null;
-            /** @description BigQuery dataset name. */
-            dataset: string;
-            /**
-             * @description Data project — the GCP project that owns the dataset. Used
-             *     to fully-qualify identifiers in `INFORMATION_SCHEMA` queries.
-             */
-            project_id: string;
-            /** @enum {string} */
-            type: "bigquery";
-        } | {
-            file_path: string;
-            /** @enum {string} */
-            type: "duckdb";
-        } | {
-            /** @enum {string} */
-            type: "code_repository";
-            url: string;
+            format: "relational";
+            /** @description Table name */
+            table_name: string;
         };
         DecideStaleProposalRequest: {
             /**
@@ -4037,7 +6030,7 @@ export interface components {
         };
         DecompilePatternRequest: {
             /** @description The QueryIR to reconstruct onto the canvas. */
-            query_ir: Record<string, never>;
+            query_ir: components["schemas"]["QueryIR"];
         };
         DecompilePatternResponse: {
             /**
@@ -4051,13 +6044,32 @@ export interface components {
              * @description The reconstructed PatternIR. Positions are always `None` — the
              *     UI runs its own layout pass before rendering.
              */
-            pattern_ir: Record<string, never>;
+            pattern_ir: components["schemas"]["PatternIR"];
         };
         DeferScopeTablesRequest: {
             /** Format: int32 */
             expected_revision: number;
             reason: string;
             tables: string[];
+        };
+        DeferredTable: {
+            /** Format: date-time */
+            deferred_at: string;
+            reason: string;
+            /** Format: date-time */
+            revisit_at?: string | null;
+            table: string;
+        };
+        DeletePerspectiveResponse: {
+            deleted: boolean;
+        };
+        DeleteWorkspaceResponse: {
+            deleted: boolean;
+        };
+        DeletedEntity: {
+            entity_kind: components["schemas"]["ReconcileEntityKind"];
+            id: string;
+            label: string;
         };
         /**
          * @description One entry in either index of [`SchemaDependencyGraph`] — a target
@@ -4103,6 +6115,16 @@ export interface components {
          * @enum {string}
          */
         DependencyKind: "property_of" | "edge_source" | "edge_target" | "interface_implementation" | "property_binding_ref" | "function_derivation" | "unit_reference" | "rule_constraint" | "rule_activation" | "rule_vocabulary" | "metric_scope" | "action_target" | "action_rule" | "enrichment_target" | "object_mapping_target" | "link_mapping_target" | "property_mapping_target" | "value_set_composition" | "concept_map_endpoint" | "data_quality_target";
+        DeployOntologyDraftSchemaRequest: {
+            /** @description If true, return DDL statements without executing them */
+            dry_run?: boolean;
+        };
+        DeployOntologyDraftSchemaResponse: {
+            /** @description Whether the statements were actually executed */
+            executed: boolean;
+            /** @description Generated DDL statements */
+            statements: string[];
+        };
         /**
          * @description One condition the operator must satisfy before designing.
          *
@@ -4134,8 +6156,50 @@ export interface components {
             revision: number;
         };
         DesignOntologyDraftResponse: {
-            project: Record<string, never>;
+            project: components["schemas"]["OntologyDraftView"];
         };
+        /**
+         * @description Operator-confirmed inputs that override or supplement automatic
+         *     analysis. Submitted via `PATCH /api/ontology-drafts/:id/decisions` after
+         *     reviewing [`SourceAnalysisReport`].
+         */
+        DesignOptions: {
+            /** @description Free-text clarifications for ambiguous columns. */
+            column_clarifications?: components["schemas"]["ColumnClarification"][];
+            /** @description Implied relationships the operator confirmed as real FKs. */
+            confirmed_relationships?: components["schemas"]["ConfirmedRelationship"][];
+            /**
+             * @description Source columns withheld from ontology design entirely. The
+             *     LLM never sees the column's metadata or sample values.
+             */
+            excluded_columns?: components["schemas"]["ExcludedColumn"][];
+            /** @description Tables to exclude from ontology design. */
+            excluded_tables?: string[];
+            /**
+             * @description Operator explicitly acknowledges designing against a schema
+             *     that exceeds [`LARGE_SCHEMA_GATE_THRESHOLD`].
+             */
+            large_schema_acknowledged?: boolean;
+            /**
+             * @description Operator explicitly acknowledges proceeding with an incomplete
+             *     source analysis (analyzer warnings present).
+             */
+            partial_analysis_acknowledged?: boolean;
+            /**
+             * @description PII annotations carried into ontology design. Each entry
+             *     flows into the resulting [`crate::ir::PropertyDef::pii_kind`]
+             *     and triggers redaction of sample values before they reach
+             *     the LLM.
+             */
+            pii_annotations?: components["schemas"]["PiiAnnotation"][];
+        };
+        /**
+         * @description Wire-stable severity for [`QueryDiagnostic`]. Lowercase-serialised
+         *     so JSON clients can string-compare without knowing Rust enum
+         *     conventions.
+         * @enum {string}
+         */
+        DiagnosticLevel: "error" | "warning" | "info";
         /**
          * @description Structured diagnostic — `code` + English `message` + `params`.
          *
@@ -4163,6 +6227,79 @@ export interface components {
             params?: {
                 [key: string]: unknown;
             };
+        };
+        DiffSummary: {
+            edges_added: number;
+            edges_modified: number;
+            edges_removed: number;
+            nodes_added: number;
+            nodes_modified: number;
+            nodes_removed: number;
+            properties_added: number;
+            properties_removed: number;
+            total_changes: number;
+        };
+        /** @enum {string} */
+        Direction: "outgoing" | "incoming" | "both";
+        EdgeBinding: {
+            binding_kind: components["schemas"]["BindingKind"];
+            edge_id: string;
+            label: components["schemas"]["GraphLabel"];
+            pattern_index: number;
+            scope_path: components["schemas"]["ScopeSegment"][];
+            source_node_id: string;
+            target_node_id: string;
+            variable?: null | components["schemas"]["VariableName"];
+        };
+        EdgeChange: {
+            new: components["schemas"]["GraphLabel"];
+            old: components["schemas"]["GraphLabel"];
+            /** @enum {string} */
+            type: "label_changed";
+        } | {
+            new: components["schemas"]["LocalizedText"];
+            old: components["schemas"]["LocalizedText"];
+            /** @enum {string} */
+            type: "description_changed";
+        } | {
+            new: components["schemas"]["GraphLabel"];
+            /**
+             * @description Source node-type labels identify the endpoint entities, so we
+             *     carry them as `GraphLabel` for identifier validity; the label
+             *     is the user-visible artefact in diff reports rather than the
+             *     internal node id.
+             */
+            old: components["schemas"]["GraphLabel"];
+            /** @enum {string} */
+            type: "source_changed";
+        } | {
+            new: components["schemas"]["GraphLabel"];
+            old: components["schemas"]["GraphLabel"];
+            /** @enum {string} */
+            type: "target_changed";
+        } | {
+            new: components["schemas"]["Cardinality"];
+            old: components["schemas"]["Cardinality"];
+            /** @enum {string} */
+            type: "cardinality_changed";
+        } | {
+            property: components["schemas"]["PropertyDef"];
+            /** @enum {string} */
+            type: "property_added";
+        } | {
+            property: components["schemas"]["PropertyDef"];
+            /** @enum {string} */
+            type: "property_removed";
+        } | {
+            changes: components["schemas"]["PropertyChange"][];
+            property_name: components["schemas"]["PropertyKey"];
+            /** @enum {string} */
+            type: "property_modified";
+        };
+        EdgeDiff: {
+            changes: components["schemas"]["EdgeChange"][];
+            edge_id: components["schemas"]["EdgeTypeId"];
+            label: components["schemas"]["GraphLabel"];
         };
         /**
          * @description UML / OMG-aligned edge classification.
@@ -4193,6 +6330,11 @@ export interface components {
             cardinality?: components["schemas"]["Cardinality"];
             concept_id?: null | components["schemas"]["ConceptId"];
             /**
+             * @description Additional concepts this EdgeType realises beyond its primary
+             *     relationship concept.
+             */
+            concept_realizations?: components["schemas"]["ConceptRealization"][];
+            /**
              * Format: date-time
              * @description Deprecation timestamp. See [`NodeTypeDef::deprecated_at`].
              */
@@ -4201,14 +6343,6 @@ export interface components {
             description?: components["schemas"]["LocalizedText"];
             /** @description Localized display name shown in the UI. */
             display_name?: components["schemas"]["LocalizedText"];
-            /**
-             * @description Glossary terms this edge type realises. Same semantic anchor
-             *     surface as [`NodeTypeDef::glossary_anchors`] — `Concept ↔
-             *     Relationship` SKOS link emitted as `skos:exactMatch` by the
-             *     glossary exporter and rendered as a "realises" chip in the
-             *     inspector. Validator rejects unresolved ids.
-             */
-            glossary_anchors?: components["schemas"]["GlossaryTermId"][];
             /** @description Stable UUID for this edge type. */
             id: components["schemas"]["EdgeTypeId"];
             inverse_of?: null | components["schemas"]["EdgeTypeId"];
@@ -4262,11 +6396,96 @@ export interface components {
         };
         EditOntologyDraftResponse: {
             /** @description Generated ontology mutation commands. */
-            commands: Record<string, never>[];
+            commands: components["schemas"]["OntologyCommand"][];
             /** @description LLM explanation of what was changed and why. */
             explanation: string;
-            /** @description Updated project (null in dry_run mode). */
-            project?: Record<string, never> | null;
+            project?: null | components["schemas"]["OntologyDraftView"];
+        };
+        /**
+         * @description Admin edit request. `expected_version` is an optimistic-lock
+         *     guard — when the current ontology version doesn't match, the
+         *     handler returns 409 Conflict so the caller can refetch and retry.
+         *     Operations apply atomically: an error on any op rolls the whole
+         *     batch back.
+         */
+        EditOntologyRequest: {
+            /**
+             * @description When `true` the handler applies the operations to a **cloned**
+             *     IR, runs `OntologyIR::validate()`, and returns the resulting
+             *     [`OntologyEditPreCheck`] instead of committing a new version.
+             *     No audit row, no approval routing, no version bump. Useful for
+             *     "would this edit break anything?" previews in the admin UI.
+             */
+            dry_run?: boolean;
+            /** Format: int32 */
+            expected_version: number;
+            /** @description Free-text commit message. Surfaces in audit log + lineage UI. */
+            message?: string | null;
+            operations: components["schemas"]["OntologyEditOp"][];
+        };
+        /**
+         * @description Handler response — either a commit receipt or a dry-run
+         *     pre-check report. Serialised untagged so the JSON shape depends
+         *     on which variant the request carried (`dry_run=false` → receipt,
+         *     `dry_run=true` → pre-check).
+         *
+         *     OpenAPI exposes this as a free-form object; callers should
+         *     discriminate on the presence of `new_version_id` (commit) vs.
+         *     `classified_changes` (pre-check).
+         */
+        EditOntologyResponse: components["schemas"]["OntologyEditReceipt"] | components["schemas"]["OntologyEditPreCheck"];
+        ElementVerification: {
+            /** Format: date-time */
+            created_at: string;
+            element_id: string;
+            element_kind: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            invalidated_at?: string | null;
+            invalidation_reason?: string | null;
+            ontology_lineage_id: string;
+            review_notes?: string | null;
+            /** Format: uuid */
+            verified_by: string;
+            /** @description Resolved user display name (from users JOIN). Not stored in DB. */
+            verified_by_name?: string | null;
+        };
+        /**
+         * @description Embedded representation of an operator question (or sub-
+         *     question from the translation pipeline). Carried as a typed
+         *     vector so the planner can pass it to per-engine vector-index
+         *     readers without round-tripping through a string.
+         *
+         *     Stored as a `Vec<f32>` rather than a fixed-size array because
+         *     embedding dimension is model-dependent (1536 for OpenAI's
+         *     `text-embedding-3-small`, 384 for `all-MiniLM-L6-v2`, 1024
+         *     for Cohere's `embed-multilingual-v3`); the platform stores
+         *     the source model alongside the vector so consumers know
+         *     which index to query against.
+         */
+        Embedding: {
+            /**
+             * Format: int32
+             * @description Vector dimension count, redundant with `vector.len()`
+             *     but cheaper to read in validators. The
+             *     `validate_dimension` test pins the consistency.
+             */
+            dim: number;
+            /**
+             * @description Source model identifier (e.g. `"text-embedding-3-small"`,
+             *     `"all-MiniLM-L6-v2"`). Consumers route the vector to the
+             *     matching dimension's index — querying a 1536-dim vector
+             *     against a 384-dim index is a typed compile-time error.
+             */
+            model_id: string;
+            /**
+             * @description Dense vector representation. Per-dimension `f32` is the
+             *     industry-standard precision for retrieval embeddings;
+             *     the storage cost scales linearly with dimension count
+             *     (1536 dims × 4 bytes = ~6KB per vector).
+             */
+            vector: number[];
         };
         /**
          * @description Resolvable reference to an endpoint of a link. Either `ObjectMappingId`
@@ -4288,6 +6507,29 @@ export interface components {
          * @enum {string}
          */
         EnforcementKind: "write" | "read" | "batch";
+        EnrichChange: {
+            entity_kind: string;
+            entity_label: string;
+            new_description: string;
+            /**
+             * @description Previous description resolved to plain text (pre-enrichment). `None`
+             *     when the property had no prior description.
+             */
+            old_description?: string | null;
+            property_name: string;
+        };
+        EnrichRequest: {
+            /** @description If true, save the enriched ontology. If false, preview only (dry run). */
+            apply?: boolean;
+        };
+        EnrichResponse: {
+            applied: boolean;
+            changes: components["schemas"]["EnrichChange"][];
+            /** Format: uuid */
+            ontology_id: string;
+            profiled_edges: number;
+            profiled_nodes: number;
+        };
         /** @description External augmentation. */
         EnrichmentDef: {
             description?: components["schemas"]["LocalizedText"];
@@ -4340,13 +6582,21 @@ export interface components {
          */
         Equivalence: "equivalent" | "narrower_than_target" | "broader_than_target" | "related" | "disjoint";
         ErrorBody: {
-            /** @description Optional additional details */
-            details?: unknown;
-            /** @description Human-readable error message */
-            message: string;
-            /** @description Machine-readable error type (e.g., "not_found", "bad_request") */
-            type: string;
+            /** @description Error class: `client_error` for 4xx, `server_error` for 5xx. */
+            class: string;
+            /** @description Machine-readable error code (e.g., "not_found", "bad_request"). */
+            code: string;
+            /** @description Interpolation parameters consumed by the frontend i18n catalog. */
+            params: unknown;
         };
+        /**
+         * @description Why a failure happened — sub-classification carried on the
+         *     `InferenceAttempt.outcome` enum. The classification routes
+         *     retry policy at the agent layer (e.g. `OutOfBudget` skips
+         *     `Refine` because retry cannot recover budget).
+         * @enum {string}
+         */
+        ErrorClassification: "validation_failure" | "runtime_error" | "timeout" | "out_of_budget" | "safety_reject" | "internal";
         /**
          * @description Stable identifier for collaboration error conditions. The FE
          *     catalogue maps each variant to a localised message.
@@ -4356,6 +6606,452 @@ export interface components {
         ErrorResponse: {
             error: components["schemas"]["ErrorBody"];
         };
+        /** @description Observed outcome attached to an evaluation case after execution. */
+        EvaluationActual: {
+            /** @enum {string} */
+            kind: "query_ir";
+            query_ir: components["schemas"]["QueryIR"];
+        } | {
+            content: string;
+            /** @enum {string} */
+            kind: "explanation";
+            model: string;
+        } | {
+            anchor_ids: string[];
+            hits: components["schemas"]["EvaluationRetrievedAnchor"][];
+            /** @enum {string} */
+            kind: "retrieved_anchors";
+            metrics: components["schemas"]["RetrievalMetrics"];
+        };
+        /**
+         * @description Axis tag for [`EvaluationMetricMetadata::Capture`] rows. One
+         *     `record_call` invocation lands one row per axis; splitting the
+         *     token axis into input / output / cached_input lets the operator
+         *     pivot per-axis without re-parsing a composite name.
+         * @enum {string}
+         */
+        EvaluationCaptureAxis: "latency_ms" | "input_tokens" | "output_tokens" | "cached_input_tokens" | "cost_micro_usd";
+        /**
+         * @description One (input, expected, actual) tuple inside a run. Mirrors the
+         *     `evaluation_cases` row.
+         */
+        EvaluationCase: {
+            actual?: null | components["schemas"]["EvaluationActual"];
+            /** @description Stable per-run identifier. UPSERT key alongside `run_id`. */
+            case_key: string;
+            /** Format: date-time */
+            created_at: string;
+            error?: string | null;
+            expected?: null | components["schemas"]["EvaluationExpected"];
+            /** Format: uuid */
+            id: string;
+            /** @description Prompt / context envelope. */
+            input: components["schemas"]["EvaluationCaseInput"];
+            /**
+             * Format: int64
+             * @description Wall-clock latency from invocation to completion. None
+             *     when the case has not yet run or threw before timing
+             *     could be measured.
+             */
+            latency_ms?: number | null;
+            /** @description Audit envelope stamped by the executor or sampler. */
+            metadata?: components["schemas"]["EvaluationCaseMetadata"];
+            /** Format: uuid */
+            run_id: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description Closed set of executable evaluation inputs. This is the
+         *     persisted case input and the dataset authoring surface, not just
+         *     an HTTP request DTO, so stored cases remain self-describing.
+         */
+        EvaluationCaseInput: {
+            expected_query_ir?: null | components["schemas"]["QueryIR"];
+            /** @enum {string} */
+            kind: "translate_query";
+            question: string;
+        } | {
+            expected_answer?: string | null;
+            /** @enum {string} */
+            kind: "explain";
+            question: string;
+        } | {
+            expected_anchor_ids?: string[];
+            /** @enum {string} */
+            kind: "retrieve_anchors";
+            question: string;
+            /** Format: int32 */
+            top_k: number;
+        };
+        /**
+         * @description Case-level metadata. Kept closed because these envelopes drive
+         *     replay/audit UI, not arbitrary user annotations.
+         *
+         *     Per-case audit data is the *render hash* — the SHA-256 of the
+         *     fully-interpolated prompt body that fed the model for THIS case.
+         *     Run-level pins (prompt template id, template version, model id,
+         *     decoding config) live on [`EvaluationRun::fingerprint`] because
+         *     they're invariant across every case in the run; per-case Call
+         *     metadata only carries the dimension that actually varies per
+         *     case.
+         */
+        EvaluationCaseMetadata: {
+            /** @enum {string} */
+            kind: "none";
+        } | {
+            /** @enum {string} */
+            kind: "call";
+            /**
+             * @description SHA-256 of the system + user prompt after template
+             *     interpolation. Replays the exact bytes that fed the
+             *     model for this case; the run-level fingerprint pins
+             *     the template id + version, this pins the rendered
+             *     output.
+             */
+            prompt_render_hash: string;
+        } | {
+            /** @enum {string} */
+            kind: "online_sampler";
+        };
+        EvaluationCaseResponse: {
+            case: components["schemas"]["EvaluationCase"];
+        };
+        /**
+         * @description Frozen header for a reusable evaluation dataset. Mirrors the
+         *     `evaluation_datasets` row. Datasets are the unit of input
+         *     authoring — a curated collection of `(input, expected)`
+         *     pairs reused across runs (model A vs B regression diff, CI
+         *     golden gate, baseline pinning). The header carries no items
+         *     directly; items live in [`EvaluationDatasetItem`] keyed on
+         *     `dataset_id`.
+         */
+        EvaluationDataset: {
+            /** Format: date-time */
+            created_at: string;
+            description?: string;
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Workspace-unique identifier. The UPSERT-by-name flow on
+             *     dataset re-import collapses on this column.
+             */
+            name: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description One frozen `(input, expected)` pair inside a dataset.
+         *     Mirrors the `evaluation_dataset_items` row.
+         */
+        EvaluationDatasetItem: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            dataset_id: string;
+            expected?: null | components["schemas"]["EvaluationExpected"];
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Prompt / context envelope. Mirrors `EvaluationCase.input`
+             *     shape so `create_run_from_dataset` is a straight copy.
+             */
+            input: components["schemas"]["EvaluationCaseInput"];
+            /**
+             * @description Stable per-dataset identifier. UPSERT key alongside
+             *     `dataset_id`; re-importing the dataset from CSV / JSON
+             *     replaces previous rows on this key.
+             */
+            item_key: string;
+            /**
+             * @description Free-form authoring metadata (tags, difficulty, locale, …).
+             *     Renders verbatim on the dataset detail panel.
+             */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        EvaluationDatasetResponse: {
+            dataset: components["schemas"]["EvaluationDataset"];
+        };
+        /**
+         * @description Dataset header + per-row aggregate. The list endpoint
+         *     returns this shape rather than bare [`EvaluationDataset`] so
+         *     the FE can surface "12 items" inline next to each row
+         *     without an N+1 fetch. Headers stay separate from the
+         *     aggregate; the canonical [`EvaluationDataset`] shape is
+         *     unchanged for every other caller (get / upsert / delete).
+         */
+        EvaluationDatasetSummary: {
+            dataset: components["schemas"]["EvaluationDataset"];
+            /**
+             * Format: int64
+             * @description Total `evaluation_dataset_items` rows under this
+             *     dataset. `0` for freshly-declared headers; the FE
+             *     renders a muted-tone "Empty" pill when zero.
+             */
+            item_count: number;
+        };
+        /**
+         * @description Cursor-paginated evaluation dataset summary page. Mirrors the
+         *     frontend-facing page shape after the universal API envelope is
+         *     unwrapped.
+         */
+        EvaluationDatasetSummaryPage: {
+            items: components["schemas"]["EvaluationDatasetSummary"][];
+            next_cursor?: string | null;
+        };
+        /** @description Golden/reference outcome attached to an evaluation case. */
+        EvaluationExpected: {
+            /** @enum {string} */
+            kind: "query_ir";
+            query_ir: components["schemas"]["QueryIR"];
+        } | {
+            answer: string;
+            /** @enum {string} */
+            kind: "answer";
+        } | {
+            anchor_ids: string[];
+            /** @enum {string} */
+            kind: "anchor_set";
+        };
+        /**
+         * @description The typed bundle every evaluation run pins for reproducibility.
+         *
+         *     Every field except the explicitly-optional ones is required —
+         *     the whole point of the bundle is forcing the call site to
+         *     answer every reproducibility question at construction time.
+         *     `Option<T>` fields name dimensions that genuinely do not apply
+         *     for every run (e.g. deterministic retrieval-only scoring uses
+         *     no prompt template).
+         */
+        EvaluationFingerprint: {
+            /**
+             * Format: uuid
+             * @description Dataset every case derives from. Drives the case_key
+             *     correspondence two runs need to be diff-able. ON DELETE
+             *     RESTRICT — a referenced dataset cannot be removed while
+             *     runs depend on it.
+             */
+            dataset_id: string;
+            decoding_config_hash?: null | components["schemas"]["ConfigHash"];
+            /**
+             * @description Model that produced the candidate output. For deterministic
+             *     retrieval-only scoring (no LLM invocation), the operator
+             *     passes a sentinel id — the digest still pins the choice so
+             *     the run is comparable to itself across re-executions.
+             */
+            model_id: components["schemas"]["ModelId"];
+            /**
+             * Format: uuid
+             * @description Committed ontology version the run scored against. Pre-
+             *     canonical workspaces commit a draft before evaluating —
+             *     drafts cannot be evaluated as-is because the schema may
+             *     shift mid-run. The persistence layer enforces ON DELETE
+             *     RESTRICT so a snapshot referenced by a run cannot be
+             *     garbage-collected.
+             */
+            ontology_version_id: string;
+            prompt_template_id?: null | components["schemas"]["PromptTemplateId"];
+            /**
+             * @description Semver of the prompt template that ran. Pairs 1:1 with
+             *     `prompt_template_id` — both `Some` or both `None`.
+             */
+            prompt_template_version?: string | null;
+            retrieval_profile_id?: null | components["schemas"]["RetrievalProfileId"];
+        };
+        /**
+         * @description Pre-validation request shape for constructing an
+         *     [`EvaluationFingerprint`]. Carries raw decoding configuration as
+         *     free-form JSON; the canonicaliser hashes it on the way through.
+         *     This is the wire shape an HTTP / cron / sampler caller submits;
+         *     the canonical [`EvaluationFingerprint`] only escapes from
+         *     `into_fingerprint`.
+         */
+        EvaluationFingerprintInput: {
+            /** Format: uuid */
+            dataset_id: string;
+            /**
+             * @description Free-form decoding configuration — the canonicaliser hashes
+             *     it into [`EvaluationFingerprint::decoding_config_hash`]. Two
+             *     inputs that differ only in JSON key ordering hash
+             *     identically; per-call deterministic replay relies on this.
+             */
+            decoding_config?: {
+                [key: string]: unknown;
+            };
+            model_id: string;
+            /** Format: uuid */
+            ontology_version_id: string;
+            prompt_template_id?: string | null;
+            prompt_template_version?: string | null;
+            retrieval_profile_id?: string | null;
+        };
+        /** @enum {string} */
+        EvaluationJudgeSource: "async_worker";
+        /**
+         * @description One score on one rubric axis for one case. Mirrors the
+         *     `evaluation_metrics` row.
+         */
+        EvaluationMetric: {
+            /** Format: uuid */
+            case_id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            /** @description Per-metric provenance and capture context. */
+            metadata?: components["schemas"]["EvaluationMetricMetadata"];
+            /**
+             * @description Free-form rubric name. RAGAS canonicals
+             *     (`faithfulness`, `answer_relevance`, `context_precision`,
+             *     `context_recall`) plus tenant-defined names.
+             */
+            name: string;
+            /**
+             * Format: uuid
+             * @description PROV-O activity that produced this score. `Some` for
+             *     LLM-judged rows (RAGAS / safety judge); `None` for
+             *     capture-axis observations (latency / tokens / cost) whose
+             *     provenance is attached to the underlying case via
+             *     [`EvaluationCaseMetadata::Call`]. `ON DELETE RESTRICT` —
+             *     the audit trail outlives the metric.
+             */
+            provenance_id?: string | null;
+            /**
+             * @description Optional natural-language reasoning emitted by an LLM
+             *     judge. Absent for code-side rubrics.
+             */
+            reasoning?: string | null;
+            /**
+             * Format: double
+             * @description Normalised to `[0.0, 1.0]`. Validation is the caller's
+             *     concern — the storage layer keeps the column unbounded so
+             *     rubrics with a different domain (latency p95 ms,
+             *     hallucination count) can ride on the same column without
+             *     a forced rescale.
+             */
+            score: number;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description Metric-level provenance. The enum is intentionally finite so
+         *     dashboards can group and filter metric rows without probing
+         *     arbitrary JSON keys.
+         */
+        EvaluationMetricMetadata: {
+            /** @enum {string} */
+            kind: "none";
+        } | {
+            case_key: string;
+            /** @enum {string} */
+            kind: "judge";
+            /** Format: uuid */
+            run_id: string;
+            source?: null | components["schemas"]["EvaluationJudgeSource"];
+        } | {
+            case_key: string;
+            /** @enum {string} */
+            kind: "safety_judge";
+            /** Format: uuid */
+            run_id: string;
+            source?: null | components["schemas"]["EvaluationJudgeSource"];
+        } | {
+            /** Format: int32 */
+            expected_count: number;
+            /** Format: int32 */
+            k: number;
+            /** @enum {string} */
+            kind: "retrieval";
+            /** Format: int32 */
+            topk_hit_count: number;
+        } | {
+            axis: components["schemas"]["EvaluationCaptureAxis"];
+            case_key: string;
+            /** @enum {string} */
+            kind: "capture";
+            operation: string;
+            /** Format: uuid */
+            run_id: string;
+        };
+        EvaluationMetricResponse: {
+            metric: components["schemas"]["EvaluationMetric"];
+        };
+        /** @description One ranked retrieval hit captured on a graph-RAG evaluation case. */
+        EvaluationRetrievedAnchor: {
+            doc: string;
+            entity_kind: string;
+            logical_id: string;
+            /** Format: double */
+            score: number;
+        };
+        /**
+         * @description One evaluation batch. Mirrors the `evaluation_runs` row.
+         *
+         *     Reproducibility components (ontology version, dataset, model,
+         *     prompt template, decoding config, retrieval profile) live in
+         *     [`EvaluationFingerprint`] — the typed bundle every run pins at
+         *     construction. The legacy nullable `ontology_version_id` /
+         *     `dataset_id` columns are gone: a run that cannot answer the
+         *     question "which ontology version did I score against?" is
+         *     uninterpretable, and the platform refuses to author one.
+         */
+        EvaluationRun: {
+            /** Format: date-time */
+            completed_at?: string | null;
+            description?: string;
+            /**
+             * @description Typed reproducibility bundle. Persisted as
+             *     `evaluation_runs.fingerprint_components JSONB NOT NULL`;
+             *     the digest below carries the equality token for fast
+             *     "same configuration" lookups.
+             */
+            fingerprint: components["schemas"]["EvaluationFingerprint"];
+            /**
+             * @description SHA-256 of [`EvaluationFingerprint::digest`], persisted as
+             *     `evaluation_runs.fingerprint_digest VARCHAR(64) NOT NULL`.
+             *     Two runs are configured identically iff their digests match.
+             */
+            fingerprint_digest: string;
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Free-form audit envelope. Reproducibility components live
+             *     on [`Self::fingerprint`] — operator notes, run labels, and
+             *     other non-configuration tags ride here.
+             */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            name: string;
+            /** Format: date-time */
+            started_at: string;
+            status: components["schemas"]["EvaluationRunStatus"];
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description Cursor-paginated evaluation run page. The runtime envelope is
+         *     `ApiResponse::page`, which the FE client unwraps to this shape.
+         */
+        EvaluationRunPage: {
+            items: components["schemas"]["EvaluationRun"][];
+            next_cursor?: string | null;
+        };
+        EvaluationRunResponse: {
+            run: components["schemas"]["EvaluationRun"];
+        };
+        /**
+         * @description Status of an [`EvaluationRun`]. Wire shape is the snake_case
+         *     string ("running" / "succeeded" / …) so adding a future variant
+         *     is a Rust-side change with no migration; the catalog parity
+         *     test pins the string set.
+         * @enum {string}
+         */
+        EvaluationRunStatus: "running" | "succeeded" | "failed" | "cancelled";
         EvidenceBody: {
             /** Format: int64 */
             distinct_count: number;
@@ -4367,6 +7063,19 @@ export interface components {
             /** Format: int64 */
             row_count: number;
         };
+        /**
+         * @description Source column the operator wants withheld from ontology design
+         *     entirely. The column's metadata and sample values never reach
+         *     the LLM, and the resulting ontology contains no
+         *     [`crate::ir::PropertyDef`] for it.
+         */
+        ExcludedColumn: {
+            column: string;
+            table: string;
+        };
+        ExecuteEvaluationCaseResponse: {
+            case: components["schemas"]["EvaluationCase"];
+        };
         ExecuteFromIrRequest: {
             /**
              * Format: uuid
@@ -4377,7 +7086,7 @@ export interface components {
              */
             ontology_id?: string | null;
             /** @description The QueryIR to compile and execute. */
-            query_ir: Record<string, never>;
+            query_ir: components["schemas"]["QueryIR"];
         };
         ExecuteFromIrResponse: {
             /** @description The compiled query statement in the target language. */
@@ -4385,17 +7094,17 @@ export interface components {
             /** @description The compilation target (e.g. "cypher"). */
             compiled_target: string;
             /** @description Query result rows and metadata. */
-            result: Record<string, never>;
-            /** @description Widget hint for optimal result visualization. */
-            widget_hint?: unknown;
+            result: components["schemas"]["QueryResult"];
+            widget_hint?: null | components["schemas"]["WidgetHint"];
         };
         ExecuteLoadRequest: {
             /** @description Data batches to load. Each element is a JSON object representing one record. */
-            data: unknown[];
+            data: {
+                [key: string]: unknown;
+            }[];
             /** @description OntologyIR for the target graph schema. */
-            ontology: Record<string, never>;
-            /** @description Optional pre-computed load plan. If omitted, the plan is generated via LLM. */
-            plan?: Record<string, never> | null;
+            ontology: components["schemas"]["OntologyIR"];
+            plan?: null | components["schemas"]["LoadPlan"];
             /** @description Description of the data source. */
             source_description: string;
         };
@@ -4403,11 +7112,33 @@ export interface components {
             /** @description Compiled statements executed. */
             compiled_statements: string[];
             /** @description Load plan used. */
-            plan: Record<string, never>;
+            plan: components["schemas"]["LoadPlan"];
             /** @description Execution results. */
-            result: Record<string, never>;
+            result: components["schemas"]["LoadExecutionResult"];
             /** @description Compiler target language. */
             target: string;
+        };
+        ExecuteOntologyDraftLoadRequest: {
+            /**
+             * Format: int64
+             * @description Batch size for fetching rows (default: 1000)
+             */
+            batch_size?: number;
+            /** @description Source database connection string (required for fetching data) */
+            connection_string: string;
+            /** @description Pre-computed load plan (from generate_load_plan or manual) */
+            plan: components["schemas"]["LoadPlan"];
+        };
+        ExecuteOntologyDraftLoadResponse: {
+            /** @description Load execution result */
+            result: components["schemas"]["LoadResultResponse"];
+            /**
+             * Format: int64
+             * @description Total rows fetched from source
+             */
+            rows_fetched: number;
+            /** @description Number of load steps executed */
+            steps_executed: number;
         };
         ExecuteRawQueryRequest: {
             /**
@@ -4425,10 +7156,14 @@ export interface components {
         ExecuteRawQueryResponse: {
             /** @description The query that was executed. */
             query: string;
-            /** @description Query result rows and metadata. */
-            results?: Record<string, never> | null;
+            results?: null | components["schemas"]["QueryResult"];
             /** @description Compiler target language (e.g., "cypher"). */
             target: string;
+        };
+        ExecuteReportRequest: {
+            parameters: {
+                [key: string]: unknown;
+            };
         };
         ExpandGraphRequest: {
             /** @description Graph element ID of the node to expand. */
@@ -4442,8 +7177,78 @@ export interface components {
             direction: string;
             element_id: string;
             labels: string[];
-            props: Record<string, never>;
+            props: {
+                [key: string]: unknown;
+            };
             relationship_type: string;
+        };
+        Expr: {
+            /** @enum {string} */
+            expr_type: "literal";
+            value: components["schemas"]["PropertyValue"];
+        } | {
+            /** @enum {string} */
+            expr_type: "param";
+            name: string;
+        } | {
+            /** @enum {string} */
+            expr_type: "property";
+            field?: null | components["schemas"]["PropertyKey"];
+            variable: components["schemas"]["VariableName"];
+        } | {
+            /** @enum {string} */
+            expr_type: "comparison";
+            left: components["schemas"]["Expr"];
+            op: components["schemas"]["ComparisonOp"];
+            right: components["schemas"]["Expr"];
+        } | {
+            /** @enum {string} */
+            expr_type: "logical";
+            left: components["schemas"]["Expr"];
+            op: components["schemas"]["LogicalOp"];
+            right: components["schemas"]["Expr"];
+        } | {
+            /** @enum {string} */
+            expr_type: "not";
+            inner: components["schemas"]["Expr"];
+        } | {
+            expr: components["schemas"]["Expr"];
+            /** @enum {string} */
+            expr_type: "in";
+            values: components["schemas"]["PropertyValue"][];
+        } | {
+            expr: components["schemas"]["Expr"];
+            /** @enum {string} */
+            expr_type: "is_null";
+            negated: boolean;
+        } | {
+            /** @enum {string} */
+            expr_type: "string_op";
+            left: components["schemas"]["Expr"];
+            op: components["schemas"]["StringOp"];
+            right: components["schemas"]["Expr"];
+        } | {
+            args?: components["schemas"]["Expr"][];
+            /** @enum {string} */
+            expr_type: "function_call";
+            function: components["schemas"]["GraphFunction"];
+        } | {
+            /** @enum {string} */
+            expr_type: "exists";
+            pattern: components["schemas"]["GraphPattern"];
+        } | {
+            else_result?: null | components["schemas"]["Expr"];
+            /** @enum {string} */
+            expr_type: "case";
+            operand?: null | components["schemas"]["Expr"];
+            /** @description WHEN condition THEN result pairs */
+            when_clauses: components["schemas"]["WhenClause"][];
+        } | {
+            /** @enum {string} */
+            expr_type: "subquery";
+            /** @description Variables from outer scope to import into subquery */
+            import_variables: string[];
+            query: components["schemas"]["QueryIR"];
         };
         ExtendOntologyDraftRequest: {
             /** Format: int32 */
@@ -4454,14 +7259,14 @@ export interface components {
              *     for a curated list, `kind: "extend"` to grow the existing
              *     baseline with the named tables.
              */
-            selection: Record<string, never>;
+            selection: components["schemas"]["AnalyzeSelection"];
             /** @description New data source to merge into the project. */
-            source: components["schemas"]["DataSourceSpec"];
+            source: components["schemas"]["OntologyDraftDataSourceSpec"];
         };
         ExtendOntologyDraftResponse: {
-            project: Record<string, never>;
+            project: components["schemas"]["OntologyDraftView"];
             /** @description Report on ID reconciliation between existing and new ontology entities. */
-            reconcile_report: Record<string, never>;
+            reconcile_report: components["schemas"]["ReconcileReport"];
         };
         /**
          * @description Pointer to the external service.
@@ -4495,6 +7300,28 @@ export interface components {
             store_count: number;
             /** Format: uuid */
             workspace_id: string;
+        };
+        FieldHint: {
+            field: string;
+            /** @description Description or domain hint (e.g., "ISO 4217 currency code", "Unix timestamp in ms") */
+            hint: string;
+            model: string;
+            source: string;
+        };
+        FieldRef: {
+            field?: null | components["schemas"]["PropertyKey"];
+            variable: components["schemas"]["VariableName"];
+        };
+        ForeignKeyDef: {
+            from_column: string;
+            from_table: string;
+            /**
+             * @description True if this relationship was inferred from document structure (e.g., JSON nesting)
+             *     rather than declared in the source schema (e.g., DB foreign key constraint).
+             */
+            inferred?: boolean;
+            to_column: string;
+            to_table: string;
         };
         /** @description Named derivation / UDF. */
         FunctionDef: {
@@ -4561,6 +7388,32 @@ export interface components {
          */
         FunctionPurity: "pure" | "impure";
         /**
+         * @description Per-side score-fusion strategy. `ReciprocalRankFusion` is
+         *     the v1 default — the most well-studied + stable hybrid
+         *     fusion method (Cormack et al. 2009); weighted-sum is a
+         *     future option once the platform's cost model has the data
+         *     to pick weights informed by per-workspace retrieval
+         *     quality stats.
+         */
+        FusionStrategy: {
+            /**
+             * Format: int32
+             * @description Smoothing constant. Higher values flatten the
+             *     per-source weight; lower values let the top-k
+             *     candidates dominate.
+             */
+            k?: number;
+            /** @enum {string} */
+            kind: "reciprocal_rank_fusion";
+        } | {
+            /** Format: float */
+            fulltext_weight: number;
+            /** @enum {string} */
+            kind: "weighted_sum";
+            /** Format: float */
+            vector_weight: number;
+        };
+        /**
          * @description Stable identifier for a single gate the operator must satisfy
          *     before invoking the design action. New variants are additive —
          *     the FE i18n catalogue keys gate copy by `GateId`.
@@ -4571,7 +7424,7 @@ export interface components {
         GateStatus: "met" | "unmet";
         GenerateLoadPlanRequest: {
             /** @description OntologyIR for the target graph schema. */
-            ontology: Record<string, never>;
+            ontology: components["schemas"]["OntologyIR"];
             /** @description Description of the data source for the LLM. */
             source_description: string;
         };
@@ -4579,9 +7432,18 @@ export interface components {
             /** @description Compiled statements in the target language. */
             compiled_statements: string[];
             /** @description Generated load plan. */
-            plan: Record<string, never>;
+            plan: components["schemas"]["LoadPlan"];
             /** @description Compiler target language (e.g., "cypher"). */
             target: string;
+        };
+        GenerateOntologyDraftLoadPlanResponse: {
+            /** @description The generated load plan */
+            plan: components["schemas"]["LoadPlan"];
+        };
+        GeneratedEntity: {
+            entity_kind: components["schemas"]["ReconcileEntityKind"];
+            id: string;
+            label: string;
         };
         /** @description Atomic unit of the glossary. */
         GlossaryTermDef: {
@@ -4671,6 +7533,40 @@ export interface components {
             tags?: string[];
         };
         /**
+         * @description Graph algorithm type — backend-agnostic.
+         *     Each compiler maps these to native calls (e.g., Neo4j GDS, Neptune Analytics).
+         * @enum {string}
+         */
+        GraphAlgorithm: "page_rank" | "community_detection" | "betweenness_centrality" | "shortest_path" | "node_similarity";
+        /** @description Result of comparing ontology against live graph data. */
+        GraphAuditReport: {
+            /** @description Edge labels that exist in both ontology and graph. */
+            matched_edges: string[];
+            /** @description Node labels that exist in both ontology and graph. */
+            matched_nodes: string[];
+            /** @description Edge labels in ontology but not in graph. */
+            missing_graph_edges: string[];
+            /** @description Node labels in ontology but not in graph. */
+            missing_graph_nodes: string[];
+            /** @description Edge labels in graph but not in ontology. */
+            orphan_graph_edges: string[];
+            /** @description Node labels in graph but not in ontology. */
+            orphan_graph_nodes: string[];
+            /**
+             * Format: int32
+             * @description Percentage of ontology labels found in graph (0-100).
+             */
+            sync_percentage: number;
+            /** @description Overall sync status. */
+            sync_status: components["schemas"]["SyncStatus"];
+        };
+        /**
+         * @description Named graph functions. Each variant maps to a specific Cypher
+         *     function via [`GraphFunction::cypher_name`].
+         * @enum {string}
+         */
+        GraphFunction: "count" | "sum" | "avg" | "min" | "max" | "collect" | "to_upper" | "to_lower" | "trim" | "replace" | "substring" | "abs" | "ceil" | "floor" | "round" | "sign" | "rand" | "size" | "head" | "last" | "range" | "keys" | "labels" | "type" | "id" | "nodes" | "relationships" | "length" | "to_string" | "to_integer" | "to_float" | "to_boolean" | "coalesce" | "date" | "date_time" | "duration_fn";
+        /**
          * @description A validated graph label. See the module docs for the invariants.
          *
          *     Displayed and compared as the wrapped string; hashes as the string
@@ -4678,6 +7574,27 @@ export interface components {
          *     previous `HashMap<String, _>` at lookup time.
          */
         GraphLabel: string;
+        GraphPattern: {
+            /** @enum {string} */
+            kind: "node";
+            label?: null | components["schemas"]["GraphLabel"];
+            property_filters: components["schemas"]["PropertyFilter"][];
+            variable: components["schemas"]["VariableName"];
+        } | {
+            direction: components["schemas"]["Direction"];
+            /** @enum {string} */
+            kind: "relationship";
+            label?: null | components["schemas"]["GraphLabel"];
+            property_filters: components["schemas"]["PropertyFilter"][];
+            source: components["schemas"]["VariableName"];
+            target: components["schemas"]["VariableName"];
+            var_length?: null | components["schemas"]["VarLength"];
+            variable?: null | components["schemas"]["VariableName"];
+        } | {
+            elements: components["schemas"]["PathElement"][];
+            /** @enum {string} */
+            kind: "path";
+        };
         /** @description High-level overview of the graph schema. */
         GraphSchemaOverview: {
             labels: components["schemas"]["LabelStat"][];
@@ -4700,6 +7617,13 @@ export interface components {
         HealthLlm: {
             model: string;
             provider: string;
+            /**
+             * @description Configuration-level status. This is intentionally not a live provider
+             *     probe: liveness/readiness endpoints must not spend LLM tokens or depend
+             *     on an external model vendor. Use `/api/models/test` for an explicit
+             *     connectivity probe.
+             */
+            status: string;
         };
         /**
          * @description Wire shape of both `/api/health` (wrapped in `ApiResponse`) and
@@ -4710,6 +7634,36 @@ export interface components {
             service: string;
             status: string;
             version: string;
+        };
+        /**
+         * @description Hybrid-retrieval request payload. Will be carried inside
+         *     the future `QueryOp::HybridSearch` variant; the variant
+         *     itself is deferred (see module-level doc) but the payload
+         *     type ships now so consumers can reference it.
+         */
+        HybridSearchRequest: {
+            /**
+             * @description Lexical full-text query — narrows the candidate pool
+             *     before vector ranking. `None` = vector-only retrieval.
+             */
+            fulltext_query?: string | null;
+            /**
+             * @description Score-fusion strategy. Defaults to
+             *     `ReciprocalRankFusion { k: 60 }`.
+             */
+            fuse?: components["schemas"]["FusionStrategy"];
+            graph_constraints?: null | components["schemas"]["PatternIR"];
+            /**
+             * Format: int32
+             * @description Top-k retrieval count. The reader returns at most
+             *     `top_k` candidates after fusion.
+             */
+            top_k?: number;
+            /**
+             * @description Vector query — embeddings of the operator's question
+             *     (or a sub-question from the translation pipeline).
+             */
+            vector_query: components["schemas"]["Embedding"];
         };
         /**
          * @description Idempotency contract.
@@ -4733,6 +7687,24 @@ export interface components {
              *     ages out in normal operation.
              */
             window_seconds: number;
+        };
+        /** @enum {string} */
+        ImpliedFkPattern: "entity_id_suffix";
+        /** @description A foreign key relationship inferred programmatically (not declared in schema). */
+        ImpliedRelationship: {
+            /**
+             * Format: float
+             * @description 0.0–1.0 confidence (0.85 for pattern match, 0.98 if ORM-confirmed)
+             */
+            confidence: number;
+            from_column: string;
+            from_table: string;
+            pattern: components["schemas"]["ImpliedFkPattern"];
+            reason: string;
+            /** @description True if an ORM model or migration confirmed this relationship */
+            repo_confirmed: boolean;
+            to_column: string;
+            to_table: string;
         };
         ImportOntologyRequest: {
             /** @description OWL ontology in Turtle format. */
@@ -4777,8 +7749,270 @@ export interface components {
             /** @enum {string} */
             type: "vector";
         };
+        /**
+         * @description One attempt within a session — the typed unit `Refine` folds
+         *     over to construct ICL for the next try.
+         *
+         *     Attempts chain via `parent_attempt_id`; the root attempt has
+         *     `parent_attempt_id = None`. The `attempt_index` (0-based)
+         *     gives a stable per-session numbering for UI rendering and
+         *     pass@k metric computation.
+         */
+        InferenceAttempt: {
+            /**
+             * Format: int32
+             * @description 0 for the first attempt, +1 per retry. `(session_id,
+             *     attempt_index)` is `UNIQUE` on the persistence layer —
+             *     re-running a session does not silently overwrite history.
+             */
+            attempt_index: number;
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * @description Which stage emitted this attempt. Most attempts come from
+             *     `Compile` (LLM round-trip); some from `Validate` (pre-flight
+             *     reject without an LLM call) or `Select` (multi-candidate
+             *     winner picked deterministically).
+             */
+            emitted_at_stage: components["schemas"]["PipelineStage"];
+            /** Format: uuid */
+            id: string;
+            outcome: components["schemas"]["AttemptOutcome"];
+            /**
+             * Format: uuid
+             * @description Predecessor attempt id. `None` only for the root attempt.
+             *     Walking the chain back to the root reconstructs the full
+             *     retry history without scanning the whole session.
+             */
+            parent_attempt_id?: string | null;
+            /**
+             * Format: uuid
+             * @description PROV-O activity row for this attempt. `Some` whenever the
+             *     attempt invoked an LLM (Compile / Refine); `None` for
+             *     purely deterministic attempts that did not produce a
+             *     fact (a pre-LLM Validate rejection has no LLM call to
+             *     audit). When `Some`, FK → `provenance_records.id`,
+             *     `ON DELETE RESTRICT`.
+             */
+            provenance_id?: string | null;
+            /**
+             * @description JSON-serialised `QueryIR` candidate the attempt produced.
+             *     `None` when the attempt failed before producing a
+             *     candidate (LLM refused, network outage, validator rejected
+             *     pre-LLM). Stored as `serde_json::Value` so this layer does
+             *     not pull `ox-query-ir`; consumers (Brain, Agent)
+             *     deserialise via the typed shape.
+             */
+            query_ir_candidate?: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description One end-to-end inference run. Owns the attempt chain via
+         *     `session_id` foreign key (in `inference_attempts`); workspace-
+         *     scoped via the `workspace_id` column + RLS.
+         */
+        InferenceSession: {
+            /** Format: date-time */
+            ended_at?: string | null;
+            final_outcome?: null | components["schemas"]["SessionOutcome"];
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Who initiated the inference — operator user, automated
+             *     cron, chat session, etc.
+             */
+            initiator: components["schemas"]["AgentRef"];
+            /** @description What the user asked. Free-form natural language. */
+            question: string;
+            /** Format: date-time */
+            started_at: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        InputEdgeTypeDef: {
+            cardinality?: components["schemas"]["Cardinality"];
+            description?: components["schemas"]["LocalizedText"];
+            id?: string | null;
+            /**
+             * @description UML / OMG relationship classification. Operators / LLM
+             *     authoring leave this absent (defaults to
+             *     [`crate::ir::EdgeKind::Association`]) and explicitly opt into
+             *     `composition` / `aggregation` for part-whole relationships.
+             */
+            kind?: components["schemas"]["EdgeKind"];
+            label: string;
+            properties?: components["schemas"]["InputPropertyDef"][];
+            /** @description Source node type label or ID (resolved to node UUID during normalize) */
+            source_type: string;
+            /** @description Target node type label or ID (resolved to node UUID during normalize) */
+            target_type: string;
+        };
+        InputIndexDef: {
+            id?: string | null;
+            label: string;
+            property: string;
+            /** @enum {string} */
+            type: "single";
+        } | {
+            id?: string | null;
+            label: string;
+            properties: string[];
+            /** @enum {string} */
+            type: "composite";
+        } | {
+            id?: string | null;
+            label: string;
+            name: string;
+            properties: string[];
+            /** @enum {string} */
+            type: "full_text";
+        } | {
+            dimensions: number;
+            id?: string | null;
+            label: string;
+            property: string;
+            similarity: components["schemas"]["VectorSimilarity"];
+            /** @enum {string} */
+            type: "vector";
+        };
+        InputNodeConstraint: {
+            id?: string | null;
+            properties: string[];
+            /** @enum {string} */
+            type: "unique";
+        } | {
+            id?: string | null;
+            property: string;
+            /** @enum {string} */
+            type: "exists";
+        } | {
+            id?: string | null;
+            properties: string[];
+            /** @enum {string} */
+            type: "node_key";
+        };
+        InputNodeTypeDef: {
+            constraints?: components["schemas"]["InputNodeConstraint"][];
+            description?: components["schemas"]["LocalizedText"];
+            id?: string | null;
+            label: string;
+            properties?: components["schemas"]["InputPropertyDef"][];
+            /**
+             * @description Source table name this node was derived from (e.g., "products").
+             *     Turned into an `ObjectMappingDef.relation` on the normalized
+             *     `OntologyIR`; not retained on `NodeTypeDef` itself.
+             */
+            source_table?: string | null;
+        };
+        /** @description LLM output / external JSON / legacy load. Label/name based references. */
+        InputOntologyDef: {
+            description?: components["schemas"]["LocalizedText"];
+            edge_types?: components["schemas"]["InputEdgeTypeDef"][];
+            /** Format: int32 */
+            format_version?: number;
+            id?: string | null;
+            indexes?: components["schemas"]["InputIndexDef"][];
+            name: string;
+            node_types: components["schemas"]["InputNodeTypeDef"][];
+            /** Format: int32 */
+            version: number;
+        };
+        InputPropertyDef: {
+            default_value?: null | components["schemas"]["PropertyValue"];
+            description?: components["schemas"]["LocalizedText"];
+            id?: string | null;
+            name: string;
+            nullable?: boolean;
+            property_type: components["schemas"]["PropertyType"];
+            /**
+             * @description Source column name this property was derived from (e.g., "cust_nm").
+             *     Turned into a `PropertyMappingDef` on the enclosing
+             *     `ObjectMappingDef` during normalization; not retained on
+             *     `PropertyDef` itself.
+             */
+            source_column?: string | null;
+        };
+        /**
+         * @description Persisted insight definition.
+         *
+         *     `query_ir` and `original_provenance` are stored as JSONB so the
+         *     persistence layer can round-trip historical payloads, but the
+         *     public wire contract is the canonical `QueryIR` /
+         *     `QueryProvenance` schema. Rust callers keep typed accessors via
+         *     [`InsightDef::query`] / [`InsightDef::provenance`].
+         */
+        InsightDef: {
+            /**
+             * Format: uuid
+             * @description Author user id — owner of the insight; gates edit/delete in
+             *     the admin UI.
+             */
+            author_id: string;
+            /**
+             * @description Concepts the insight realises. The wire payload is a
+             *     `Vec<String>` of `ConceptId`s — typed at the consumer
+             *     boundary so this crate does not depend on the full ontology
+             *     crate. The semantic axis: `tags` is freeform admin shorthand;
+             *     `concept_anchors` ties the insight to stable workspace
+             *     concepts, so cross-team filtering remains consistent even as
+             *     glossary wording and tags drift.
+             */
+            concept_anchors?: string[];
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * @description Optional richer description / context — what the insight
+             *     reveals, why it matters. Localised.
+             */
+            description?: components["schemas"]["LocalizedText"];
+            /**
+             * Format: date-time
+             * @description When the insight stops being trustworthy. `None` = no
+             *     expiry. Useful for rolling KPIs that only matter for a
+             *     quarter; the dashboard hides expired insights from the
+             *     default surface.
+             */
+            expires_at?: string | null;
+            id: components["schemas"]["InsightId"];
+            original_provenance?: null | components["schemas"]["QueryProvenance"];
+            /**
+             * @description The query the insight runs (logical IR — survives backend /
+             *     dialect changes). Wire shape = canonical `QueryIR` JSON.
+             */
+            query_ir: components["schemas"]["QueryIR"];
+            /**
+             * @description Human-readable question — surfaces as the card title in the
+             *     dashboard / inspector. Localised so a multi-region tenant
+             *     can serve the same insight in the viewer's language.
+             */
+            question: components["schemas"]["LocalizedText"];
+            /**
+             * @description Open-ended tag set the admin UI uses for filtering. Common
+             *     values: `"trend"`, `"distribution"`, `"anomaly"`,
+             *     `"relationship"`, `"summary"`.
+             */
+            tags?: string[];
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** @description A proactive insight suggestion generated from ontology structure. */
+        InsightHint: {
+            /** @description Category: "trend", "distribution", "anomaly", "relationship", "summary". */
+            category: string;
+            /** @description Natural language question a data analyst would ask. */
+            question: string;
+            /** @description Suggested tool: "query_graph" or "execute_analysis". */
+            suggested_tool: string;
+        };
+        /** @description Stable identifier for an [`InsightDef`]. */
+        InsightId: string;
         InsightResponse: {
-            insight: Record<string, never>;
+            insight: components["schemas"]["InsightDef"];
         };
         /** @description Declarative interface over node types. */
         InterfaceDef: {
@@ -4851,10 +8085,77 @@ export interface components {
          * @enum {string}
          */
         JoinCostHint: "unknown" | "indexed" | "scan" | "cartesian";
+        JudgeEvaluationCaseResponse: {
+            /**
+             * @description One row per recorded axis. Returned in canonical RAGAS
+             *     order (faithfulness → answer_relevance → context_precision
+             *     → context_recall) so the FE can render a stable column
+             *     ordering without re-sorting.
+             */
+            metrics: components["schemas"]["EvaluationMetric"][];
+        };
         KnowledgeBulkReviewResponse: {
             /** Format: int64 */
             reviewed: number;
         };
+        /**
+         * @description A knowledge entry: correction from query failure or admin-created hint.
+         *
+         *     Knowledge is workspace-scoped and ontology-version-aware:
+         *     - `ontology_name` spans versions (knowledge survives across
+         *       ontology commits that keep the name + workspace stable)
+         *     - `affected_labels` enables label-based GIN lookup and staleness detection
+         *     - `version_checked` tracks the last ontology version where validity was confirmed
+         */
+        KnowledgeEntry: {
+            affected_labels: string[];
+            affected_properties: string[];
+            /** Format: double */
+            confidence: number;
+            content: string;
+            content_hash: string;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            embedding?: number[] | null;
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["KnowledgeKind"];
+            /** Format: date-time */
+            last_used_at?: string | null;
+            ontology_name: string;
+            /** Format: int32 */
+            ontology_version_max?: number | null;
+            /** Format: int32 */
+            ontology_version_min: number;
+            review_notes?: string | null;
+            /** Format: date-time */
+            reviewed_at?: string | null;
+            /** Format: uuid */
+            reviewed_by?: string | null;
+            source_execution_ids: string[];
+            /** Format: uuid */
+            source_session_id?: string | null;
+            status: components["schemas"]["KnowledgeStatus"];
+            structured_data: {
+                [key: string]: unknown;
+            };
+            title: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: int64 */
+            use_count: number;
+            /** Format: int32 */
+            version_checked: number;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        KnowledgeEntryPage: {
+            items: components["schemas"]["KnowledgeEntry"][];
+            next_cursor?: string | null;
+        };
+        /** @enum {string} */
+        KnowledgeKind: "correction" | "hint";
         KnowledgeStats: {
             by_kind: {
                 [key: string]: number;
@@ -4865,11 +8166,72 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        /** @enum {string} */
+        KnowledgeStatus: "draft" | "approved" | "stale" | "deprecated";
         /** @description Statistics for a single node label. */
         LabelStat: {
             /** Format: int64 */
             count: number;
             label: string;
+        };
+        LargeSchemaWarning: {
+            recommended_max: number;
+            table_count: number;
+        };
+        /**
+         * @description Canvas view-state. None of these fields round-trip through
+         *     `compile` — a loaded QueryIR hands back `LayoutHints::default()`.
+         */
+        LayoutHints: {
+            /** Format: double */
+            pan_x?: number | null;
+            /** Format: double */
+            pan_y?: number | null;
+            /** Format: double */
+            zoom?: number | null;
+        };
+        LineageEntry: {
+            /** Format: date-time */
+            completed_at?: string | null;
+            error_message?: string | null;
+            graph_element_type: string;
+            graph_label: string;
+            /** Format: uuid */
+            id: string;
+            load_plan_hash?: string | null;
+            /** Format: uuid */
+            loaded_by?: string | null;
+            /** Format: uuid */
+            ontology_draft_id?: string | null;
+            /**
+             * @description Column-level property mappings: source_column -> graph_property + transform.
+             *     Stored as JSON array of `{source_column, graph_property, transform?}`.
+             */
+            property_mappings?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Format: int64 */
+            record_count: number;
+            source_columns?: string[] | null;
+            source_name: string;
+            source_table?: string | null;
+            source_type: string;
+            /** Format: date-time */
+            started_at: string;
+            status: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /** @description Summary of lineage per graph label. */
+        LineageSummary: {
+            graph_element_type: string;
+            graph_label: string;
+            /** Format: date-time */
+            last_loaded_at?: string | null;
+            /** Format: int64 */
+            source_count: number;
+            /** Format: int64 */
+            total_records: number;
         };
         /**
          * @description Π-2: Semantic cardinality of a link (edge) — drives compiler
@@ -4963,6 +8325,128 @@ export interface components {
             source_match_column: components["schemas"]["ColumnRef"];
             target_match_column: components["schemas"]["ColumnRef"];
         };
+        ListCommunitySummariesResponse: {
+            items: components["schemas"]["CommunitySummaryDto"][];
+        };
+        /**
+         * @description Tracks the last successfully loaded watermark value for
+         *     incremental (delta) loads. Unique per
+         *     `(workspace, project, source_table, graph_label)`.
+         *
+         *     `id` and `workspace_id` reflect persistence state: `None` on a
+         *     freshly-authored checkpoint (the store mints `id` via the
+         *     column DEFAULT and stamps `workspace_id` from the active
+         *     task-local on insert), `Some(_)` on a checkpoint read back from
+         *     the store. Use [`Self::draft`] to author fresh entries.
+         */
+        LoadCheckpoint: {
+            graph_label: string;
+            /** Format: uuid */
+            id?: string | null;
+            /** Format: date-time */
+            loaded_at: string;
+            /** Format: uuid */
+            ontology_draft_id: string;
+            /** Format: int64 */
+            record_count: number;
+            source_table: string;
+            watermark_column: string;
+            watermark_value: string;
+            /** Format: uuid */
+            workspace_id?: string | null;
+        };
+        LoadErrorResponse: {
+            batch_index: number;
+            message: string;
+        };
+        LoadExecutionError: {
+            batch_index: number;
+            message: string;
+        };
+        LoadExecutionResult: {
+            batches_failed: number;
+            batches_processed: number;
+            edges_created: number;
+            edges_updated: number;
+            errors: components["schemas"]["LoadExecutionError"][];
+            nodes_created: number;
+            nodes_updated: number;
+        };
+        LoadMode: {
+            /** @enum {string} */
+            mode: "full";
+        } | {
+            /** @enum {string} */
+            mode: "incremental";
+            /** @description Column to use as watermark (e.g., "updated_at", "id"). */
+            watermark_column: string;
+        };
+        LoadOp: {
+            /** @description Fields used to MATCH existing nodes (identity) */
+            match_fields: components["schemas"]["PropertyMapping"][];
+            /** @description What to do when a matching node already exists */
+            on_conflict: components["schemas"]["ConflictStrategy"];
+            /** @enum {string} */
+            op: "upsert_node";
+            /** @description Fields to SET on both create and update */
+            set_fields: components["schemas"]["PropertyMapping"][];
+            /** @description Target node label in the ontology */
+            target_label: string;
+        } | {
+            /** @description What to do when a matching edge already exists */
+            on_conflict: components["schemas"]["ConflictStrategy"];
+            /** @enum {string} */
+            op: "upsert_edge";
+            /** @description Properties to set on the edge */
+            set_fields: components["schemas"]["PropertyMapping"][];
+            /** @description How to find the source node */
+            source_match: components["schemas"]["NodeMatch"];
+            /** @description Target edge label in the ontology */
+            target_label: string;
+            /** @description How to find the target node */
+            target_match: components["schemas"]["NodeMatch"];
+        };
+        LoadPlan: {
+            /** @description Batch execution configuration */
+            batch_config: components["schemas"]["BatchConfig"];
+            /** @description Unique identifier */
+            id: string;
+            /** @description Loading mode: full replacement or incremental (watermark-based). */
+            mode?: components["schemas"]["LoadMode"];
+            /** @description Lineage identifier (OntologyIR.id) the plan targets. */
+            ontology_lineage_id: string;
+            /**
+             * Format: int32
+             * @description Ontology version this plan was generated for
+             */
+            ontology_version: number;
+            /** @description Description of the data source */
+            source: components["schemas"]["DataSourceSpec"];
+            /** @description Ordered list of load steps (respects dependencies) */
+            steps: components["schemas"]["LoadStep"][];
+        };
+        LoadResultResponse: {
+            batches_failed: number;
+            batches_processed: number;
+            edges_created: number;
+            edges_updated: number;
+            errors: components["schemas"]["LoadErrorResponse"][];
+            nodes_created: number;
+            nodes_updated: number;
+        };
+        LoadStep: {
+            /** @description Steps that must complete before this one */
+            depends_on: number[];
+            /** @description Human-readable description for dry-run display */
+            description: string;
+            /** @description The operation to perform */
+            operation: components["schemas"]["LoadOp"];
+            /**
+             * Format: int32
+             * @description Execution order (0-based)
+             */
+            order: number;
+        };
         /**
          * @description Language-tagged text with a canonical `default` and optional per-locale
          *     `translations`.
@@ -5012,6 +8496,8 @@ export interface components {
             expires_at: string;
             held_by: string;
         };
+        /** @enum {string} */
+        LogicalOp: "and" | "or" | "xor";
         LogoutResponse: {
             /**
              * @description Always `true` on success — the response shape mirrors other
@@ -5019,6 +8505,50 @@ export interface components {
              *     status alone.
              */
             revoked: boolean;
+        };
+        MapSummaryResponse: {
+            /**
+             * @description Dangling registry references — empty when every pointer
+             *     resolves.
+             */
+            danglers: components["schemas"]["DanglerEntry"][];
+            /**
+             * @description Governance axis — provenance / data quality / enrichment
+             *     counts.
+             */
+            governance: components["schemas"]["AxisCounts"];
+            /** Format: uuid */
+            ontology_id: string;
+            /**
+             * @description Registry axis — code system / value set / notation pattern /
+             *     concept map counts.
+             */
+            registry: components["schemas"]["AxisCounts"];
+            /**
+             * @description Strategy axis — rule / segment / action / function / metric
+             *     counts.
+             */
+            strategy: components["schemas"]["AxisCounts"];
+            /** @description Topology axis — node / edge / index counts. */
+            topology: components["schemas"]["AxisCounts"];
+            version?: string | null;
+            /** @description Vocabulary axis — glossary / interface counts. */
+            vocabulary: components["schemas"]["AxisCounts"];
+            /**
+             * @description VOL axis — object mapping / link mapping / property mapping
+             *     counts.
+             */
+            vol: components["schemas"]["AxisCounts"];
+        };
+        /** @description User decision for an uncertain match during reconcile. */
+        MatchDecision: {
+            /**
+             * @description Accept = confirm match (keep original_id with new data).
+             *     Reject = not a match (treat as new entity with generated id).
+             */
+            accept: boolean;
+            /** @description The original entity id (from UncertainMatch.original_id) */
+            original_id: string;
         };
         MemberResponse: {
             email: string;
@@ -5078,6 +8608,353 @@ export interface components {
             kind: "global";
         };
         /**
+         * @description Single metric cell in the dashboard report. Bound fields carry a
+         *     95% Wilson score interval so tiny samples read as "noisy" in the
+         *     UI instead of false-positives.
+         */
+        MetricValue: {
+            /** Format: double */
+            lower_bound_95: number;
+            /** Format: double */
+            trend_delta: number;
+            /** Format: double */
+            upper_bound_95: number;
+            /** Format: double */
+            value: number;
+        };
+        /**
+         * @description Rolling time window for aggregation. Expressed as whole days so
+         *     the SQL side is straightforward `captured_at > now() - interval
+         *     '{n} days'`.
+         * @enum {string}
+         */
+        MetricWindow: "last7d" | "last30d" | "last90d";
+        MigrateOntologyDraftSchemaRequest: {
+            /** @description If true, return migration plan without executing it */
+            dry_run?: boolean;
+        };
+        MigrateOntologyDraftSchemaResponse: {
+            /** @description Breaking changes requiring confirmation */
+            breaking_changes: string[];
+            /** @description Rollback DDL statements */
+            down: string[];
+            /** @description Whether the migration was executed */
+            executed: boolean;
+            /** @description Forward DDL statements */
+            up: string[];
+            /** @description Non-breaking warnings */
+            warnings: string[];
+        };
+        /**
+         * @description One observation of an LLM call. Every numeric axis the
+         *     evaluation surface cares about lives in one struct so the
+         *     capture API takes one self-describing observation, not three.
+         *
+         *     Carries the resolved [`ModelId`] so the storage impl can resolve
+         *     the active [`ModelPrices`] row at write time without an out-of-
+         *     band lookup. The model id is the same one pinned in the run
+         *     fingerprint; mismatch between the two at write time is a
+         *     divergence the storage impl flags rather than silently swallows.
+         */
+        ModelCall: {
+            /**
+             * Format: int64
+             * @description Subset of `input_tokens` that hit a prompt cache (Anthropic
+             *     `cache_read_input_tokens`, OpenAI / Bedrock equivalents).
+             *     Always satisfies `cached_input_tokens <= input_tokens`. The
+             *     cost derivation discounts these at
+             *     [`ModelPrices::cached_input_price_usd_per_million`].
+             */
+            cached_input_tokens: number;
+            /**
+             * Format: int64
+             * @description Tokens the model received as input — system prompt + user
+             *     message + any tool / context block. Provider-reported
+             *     upstream; the platform does not re-tokenise.
+             */
+            input_tokens: number;
+            /**
+             * Format: int32
+             * @description Wall-clock latency from invocation to completion. Captured
+             *     at the application layer (provider SDK boundary), not
+             *     inside the SDK's HTTP layer — the operator's observability
+             *     matches the latency a user sees, not the raw network leg.
+             */
+            latency_ms: number;
+            /**
+             * @description Resolved model id — same shape as
+             *     [`crate::eval_fingerprint::EvaluationFingerprint::model_id`].
+             */
+            model_id: components["schemas"]["ModelId"];
+            /**
+             * Format: int64
+             * @description Tokens the model produced as output. Includes any structured
+             *     JSON tokens — providers count those identically to free-form
+             *     completion tokens.
+             */
+            output_tokens: number;
+        };
+        ModelConfig: {
+            api_key_env?: string | null;
+            base_url?: string | null;
+            /** Format: double */
+            cost_per_1m_input?: number | null;
+            /** Format: double */
+            cost_per_1m_output?: number | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: double */
+            daily_budget_usd?: number | null;
+            enabled: boolean;
+            /** Format: uuid */
+            id: string;
+            /** Format: int32 */
+            max_tokens: number;
+            model_id: string;
+            name: string;
+            /** Format: int32 */
+            priority: number;
+            provider: string;
+            provider_meta: {
+                [key: string]: unknown;
+            };
+            region?: string | null;
+            /** Format: float */
+            temperature?: number | null;
+            /** Format: int32 */
+            timeout_secs: number;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: uuid */
+            workspace_id?: string | null;
+        };
+        ModelConfigUpdate: {
+            api_key_env?: string | null;
+            base_url?: string | null;
+            /** Format: double */
+            cost_per_1m_input?: number | null;
+            /** Format: double */
+            cost_per_1m_output?: number | null;
+            /** Format: double */
+            daily_budget_usd?: number | null;
+            enabled?: boolean | null;
+            /** Format: int32 */
+            max_tokens?: number | null;
+            model_id?: string | null;
+            name?: string | null;
+            /** Format: int32 */
+            priority?: number | null;
+            provider?: string | null;
+            provider_meta?: {
+                [key: string]: unknown;
+            };
+            region?: string | null;
+            /** Format: float */
+            temperature?: number | null;
+            /** Format: int32 */
+            timeout_secs?: number | null;
+        };
+        /**
+         * @description Stable identifier for an LLM model + version. Wire form:
+         *     provider-prefixed version string
+         *     (`anthropic/claude-opus-4-7`, `openai/gpt-4o-2024-08-06`).
+         *     Replaces the bare `String` previously threaded through the
+         *     Brain / evaluation surface so a model id can never be
+         *     confused with another stable identifier.
+         */
+        ModelId: string;
+        ModelOperation: {
+            description: string;
+            key: string;
+            tier: string;
+        };
+        /**
+         * @description One row of the per-model price catalogue. Stored as
+         *     `model_prices` (not workspace-scoped — pricing is platform-wide
+         *     reference data). Tariffs are USD per million tokens, stored as
+         *     `DOUBLE PRECISION` to match the workspace convention for
+         *     monetary fields (per `crates/ox-store/CLAUDE.md`).
+         */
+        ModelPrices: {
+            /**
+             * Format: double
+             * @description Tariff for cache-read input tokens. Anthropic discounts
+             *     these to ~10% of the miss rate; provider-specific.
+             */
+            cached_input_price_usd_per_million: number;
+            /**
+             * Format: double
+             * @description Tariff for full-rate input tokens (cache miss).
+             */
+            input_price_usd_per_million: number;
+            model_id: components["schemas"]["ModelId"];
+            /**
+             * Format: double
+             * @description Tariff for output tokens.
+             */
+            output_price_usd_per_million: number;
+            /**
+             * Format: date-time
+             * @description First instant the row is authoritative. Range is
+             *     half-open `[valid_from, valid_to)` so a tariff revision is
+             *     simply (a) close the old row's `valid_to`, (b) insert a new
+             *     row whose `valid_from` matches.
+             */
+            valid_from: string;
+            /**
+             * Format: date-time
+             * @description Open-ended when `None` (the row applies forward indefinitely).
+             *     On revision, the prior row gets its `valid_to` set to the
+             *     new row's `valid_from`.
+             */
+            valid_to?: string | null;
+        };
+        ModelRoutingRule: {
+            /** Format: date-time */
+            created_at: string;
+            enabled: boolean;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            model_config_id: string;
+            operation: string;
+            /** Format: int32 */
+            priority: number;
+            /** Format: uuid */
+            workspace_id?: string | null;
+        };
+        MutateOp: {
+            label: components["schemas"]["GraphLabel"];
+            /** @enum {string} */
+            mutation: "create_node";
+            properties: components["schemas"]["PropertyAssignment"][];
+            variable: components["schemas"]["VariableName"];
+        } | {
+            label: components["schemas"]["GraphLabel"];
+            /** @enum {string} */
+            mutation: "create_edge";
+            properties: components["schemas"]["PropertyAssignment"][];
+            source: components["schemas"]["VariableName"];
+            target: components["schemas"]["VariableName"];
+            variable?: null | components["schemas"]["VariableName"];
+        } | {
+            label: components["schemas"]["GraphLabel"];
+            match_properties: components["schemas"]["PropertyAssignment"][];
+            /** @enum {string} */
+            mutation: "merge_node";
+            on_create: components["schemas"]["PropertyAssignment"][];
+            on_match: components["schemas"]["PropertyAssignment"][];
+            variable: components["schemas"]["VariableName"];
+        } | {
+            label: components["schemas"]["GraphLabel"];
+            match_properties: components["schemas"]["PropertyAssignment"][];
+            /** @enum {string} */
+            mutation: "merge_edge";
+            on_create: components["schemas"]["PropertyAssignment"][];
+            on_match: components["schemas"]["PropertyAssignment"][];
+            source: components["schemas"]["VariableName"];
+            target: components["schemas"]["VariableName"];
+            variable?: null | components["schemas"]["VariableName"];
+        } | {
+            /** @enum {string} */
+            mutation: "set_property";
+            property: components["schemas"]["PropertyKey"];
+            value: components["schemas"]["Expr"];
+            variable: components["schemas"]["VariableName"];
+        } | {
+            detach: boolean;
+            /** @enum {string} */
+            mutation: "delete";
+            variable: components["schemas"]["VariableName"];
+        } | {
+            /** @enum {string} */
+            mutation: "remove_property";
+            property: components["schemas"]["PropertyKey"];
+            variable: components["schemas"]["VariableName"];
+        } | {
+            label: components["schemas"]["GraphLabel"];
+            /** @enum {string} */
+            mutation: "remove_label";
+            variable: components["schemas"]["VariableName"];
+        };
+        NewModelConfig: {
+            api_key_env?: string | null;
+            base_url?: string | null;
+            /** Format: double */
+            cost_per_1m_input?: number | null;
+            /** Format: double */
+            cost_per_1m_output?: number | null;
+            /** Format: double */
+            daily_budget_usd?: number | null;
+            enabled?: boolean | null;
+            /** Format: int32 */
+            max_tokens?: number | null;
+            model_id: string;
+            name: string;
+            /** Format: int32 */
+            priority?: number | null;
+            provider: string;
+            provider_meta?: {
+                [key: string]: unknown;
+            };
+            region?: string | null;
+            /** Format: float */
+            temperature?: number | null;
+            /** Format: int32 */
+            timeout_secs?: number | null;
+            /** Format: uuid */
+            workspace_id?: string | null;
+        };
+        NewRoutingRule: {
+            /** Format: uuid */
+            model_config_id: string;
+            operation: string;
+            /** Format: int32 */
+            priority?: number | null;
+            /** Format: uuid */
+            workspace_id?: string | null;
+        };
+        NodeBinding: {
+            binding_kind: components["schemas"]["BindingKind"];
+            label: components["schemas"]["GraphLabel"];
+            node_id: string;
+            pattern_index: number;
+            scope_path: components["schemas"]["ScopeSegment"][];
+            variable: components["schemas"]["VariableName"];
+        };
+        NodeChange: {
+            new: components["schemas"]["GraphLabel"];
+            old: components["schemas"]["GraphLabel"];
+            /** @enum {string} */
+            type: "label_changed";
+        } | {
+            new: components["schemas"]["LocalizedText"];
+            old: components["schemas"]["LocalizedText"];
+            /** @enum {string} */
+            type: "description_changed";
+        } | {
+            property: components["schemas"]["PropertyDef"];
+            /** @enum {string} */
+            type: "property_added";
+        } | {
+            property: components["schemas"]["PropertyDef"];
+            /** @enum {string} */
+            type: "property_removed";
+        } | {
+            changes: components["schemas"]["PropertyChange"][];
+            property_name: components["schemas"]["PropertyKey"];
+            /** @enum {string} */
+            type: "property_modified";
+        } | {
+            constraint: string;
+            /** @enum {string} */
+            type: "constraint_added";
+        } | {
+            constraint: string;
+            /** @enum {string} */
+            type: "constraint_removed";
+        };
+        /**
          * @description Storage-engine constraint that compiles to native graph-DB DDL.
          *
          *     `NodeConstraint` lives at the **physical** layer — the schema
@@ -5108,10 +8985,28 @@ export interface components {
             /** @enum {string} */
             type: "node_key";
         };
+        NodeDiff: {
+            changes: components["schemas"]["NodeChange"][];
+            label: components["schemas"]["GraphLabel"];
+            node_id: components["schemas"]["NodeTypeId"];
+        };
         /** @description Result of expanding a node's neighborhood. */
         NodeExpansion: {
             neighbors: components["schemas"]["ExpandNeighbor"][];
             source_id: string;
+        };
+        NodeMatch: {
+            /** @description The node label to match */
+            label: string;
+            /** @description The property on the node to match against */
+            match_property: string;
+            /** @description The source field whose value is used for matching */
+            source_field: string;
+        };
+        NodeRef: {
+            label?: null | components["schemas"]["GraphLabel"];
+            property_filters: components["schemas"]["PropertyFilter"][];
+            variable: components["schemas"]["VariableName"];
         };
         NodeTypeDef: {
             /**
@@ -5121,6 +9016,12 @@ export interface components {
              */
             actions?: components["schemas"]["ActionId"][];
             concept_id?: null | components["schemas"]["ConceptId"];
+            /**
+             * @description Additional concepts this NodeType realises beyond its primary
+             *     identity. This preserves multi-concept modelling without tying
+             *     type semantics to glossary labels.
+             */
+            concept_realizations?: components["schemas"]["ConceptRealization"][];
             /** @description Constraints on this node type. */
             constraints?: components["schemas"]["ConstraintDef"][];
             /**
@@ -5137,19 +9038,6 @@ export interface components {
              *     typically fall back to `label` when the display name is empty.
              */
             display_name?: components["schemas"]["LocalizedText"];
-            /**
-             * @description Glossary terms this node type realises. Direct
-             *     `Concept ↔ Class` semantic anchor — the SKOS-style equivalent
-             *     of `PropertyBinding::Glossary` lifted to the type level. When
-             *     the SKOS exporter walks the IR, every anchor here emits a
-             *     `skos:exactMatch` between the type's URI and the glossary
-             *     concept; admin UI renders the bound terms as a "realises"
-             *     chip on the node detail surface. Multiple anchors are
-             *     allowed (one term may concretise into several types — and
-             *     vice versa). The IR validator rejects anchors that don't
-             *     resolve in `OntologyIR::glossary`.
-             */
-            glossary_anchors?: components["schemas"]["GlossaryTermId"][];
             governance?: null | components["schemas"]["Governance"];
             /** @description Stable UUID for this node type. */
             id: components["schemas"]["NodeTypeId"];
@@ -5183,6 +9071,14 @@ export interface components {
         };
         /** @description Type-safe identifier for node types in an ontology. */
         NodeTypeId: string;
+        NormalizeOntologyResponse: {
+            ontology: components["schemas"]["OntologyIR"];
+            warnings: components["schemas"]["NormalizeWarning"][];
+        };
+        NormalizeWarning: {
+            kind: string;
+            message: string;
+        };
         /** @description One component of a notation pattern. */
         NotationComponent: {
             display?: components["schemas"]["LocalizedText"];
@@ -5276,7 +9172,7 @@ export interface components {
              * @description Full `NotationPatternDef` JSON — kept flat so the admin UI can
              *     post it verbatim to `/edits` without re-deriving the id.
              */
-            pattern_json: unknown;
+            pattern_json: components["schemas"]["NotationPatternDef"];
             relation: string;
             separator: string;
             template: string;
@@ -5285,6 +9181,38 @@ export interface components {
             column: string;
             reason: string;
             relation: string;
+        };
+        NotificationChannel: {
+            channel_type: components["schemas"]["NotificationChannelType"];
+            config: components["schemas"]["WebhookNotificationConfig"];
+            /** Format: date-time */
+            created_at: string;
+            enabled: boolean;
+            events: string[];
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /** @enum {string} */
+        NotificationChannelType: "slack_webhook" | "generic_webhook";
+        NotificationLog: {
+            body: string;
+            /** Format: uuid */
+            channel_id: string;
+            /** Format: date-time */
+            created_at: string;
+            error?: string | null;
+            event_type: string;
+            /** Format: uuid */
+            id: string;
+            status: string;
+            subject: string;
+            /** Format: uuid */
+            workspace_id: string;
         };
         /** @description Binding from a `NodeTypeDef` to a physical relation. */
         ObjectMappingDef: {
@@ -5387,6 +9315,127 @@ export interface components {
          *     on the same source and the rule needs disambiguation.
          */
         ObjectMappingId: string;
+        OntologyCommand: {
+            description?: components["schemas"]["LocalizedText"];
+            id: components["schemas"]["NodeTypeId"];
+            label: components["schemas"]["GraphLabel"];
+            /** @enum {string} */
+            op: "add_node";
+        } | {
+            node: components["schemas"]["NodeTypeDef"];
+            /** @enum {string} */
+            op: "create_node_type";
+        } | {
+            node_id: components["schemas"]["NodeTypeId"];
+            /** @enum {string} */
+            op: "delete_node";
+        } | {
+            new_label: components["schemas"]["GraphLabel"];
+            node_id: components["schemas"]["NodeTypeId"];
+            /** @enum {string} */
+            op: "rename_node";
+        } | {
+            description?: components["schemas"]["LocalizedText"];
+            node_id: components["schemas"]["NodeTypeId"];
+            /** @enum {string} */
+            op: "update_node_description";
+        } | {
+            cardinality: components["schemas"]["Cardinality"];
+            id: components["schemas"]["EdgeTypeId"];
+            label: components["schemas"]["GraphLabel"];
+            /** @enum {string} */
+            op: "add_edge";
+            source_node_id: components["schemas"]["NodeTypeId"];
+            target_node_id: components["schemas"]["NodeTypeId"];
+        } | {
+            edge: components["schemas"]["EdgeTypeDef"];
+            /** @enum {string} */
+            op: "create_edge_type";
+        } | {
+            edge_id: components["schemas"]["EdgeTypeId"];
+            /** @enum {string} */
+            op: "delete_edge";
+        } | {
+            edge_id: components["schemas"]["EdgeTypeId"];
+            new_label: components["schemas"]["GraphLabel"];
+            /** @enum {string} */
+            op: "rename_edge";
+        } | {
+            cardinality: components["schemas"]["Cardinality"];
+            edge_id: components["schemas"]["EdgeTypeId"];
+            /** @enum {string} */
+            op: "update_edge_cardinality";
+        } | {
+            description?: components["schemas"]["LocalizedText"];
+            edge_id: components["schemas"]["EdgeTypeId"];
+            /** @enum {string} */
+            op: "update_edge_description";
+        } | {
+            /** @enum {string} */
+            op: "add_property";
+            owner: components["schemas"]["PropertyOwner"];
+            property: components["schemas"]["PropertyDef"];
+        } | {
+            /** @enum {string} */
+            op: "delete_property";
+            owner: components["schemas"]["PropertyOwner"];
+            property_id: components["schemas"]["PropertyId"];
+        } | {
+            /** @enum {string} */
+            op: "update_property";
+            owner: components["schemas"]["PropertyOwner"];
+            patch: components["schemas"]["PropertyPatch"];
+            property_id: components["schemas"]["PropertyId"];
+        } | {
+            constraint: components["schemas"]["ConstraintDef"];
+            node_id: components["schemas"]["NodeTypeId"];
+            /** @enum {string} */
+            op: "add_constraint";
+        } | {
+            constraint_id: components["schemas"]["ConstraintId"];
+            node_id: components["schemas"]["NodeTypeId"];
+            /** @enum {string} */
+            op: "remove_constraint";
+        } | {
+            index: components["schemas"]["IndexDef"];
+            /** @enum {string} */
+            op: "add_index";
+        } | {
+            index_id: string;
+            /** @enum {string} */
+            op: "remove_index";
+        } | {
+            mapping: components["schemas"]["ObjectMappingDef"];
+            /** @enum {string} */
+            op: "create_object_mapping";
+        } | {
+            id: components["schemas"]["ObjectMappingId"];
+            mapping: components["schemas"]["ObjectMappingDef"];
+            /** @enum {string} */
+            op: "update_object_mapping";
+        } | {
+            id: components["schemas"]["ObjectMappingId"];
+            /** @enum {string} */
+            op: "delete_object_mapping";
+        } | {
+            mapping: components["schemas"]["LinkMappingDef"];
+            /** @enum {string} */
+            op: "create_link_mapping";
+        } | {
+            id: components["schemas"]["LinkMappingId"];
+            mapping: components["schemas"]["LinkMappingDef"];
+            /** @enum {string} */
+            op: "update_link_mapping";
+        } | {
+            id: components["schemas"]["LinkMappingId"];
+            /** @enum {string} */
+            op: "delete_link_mapping";
+        } | {
+            commands: components["schemas"]["OntologyCommand"][];
+            description: string;
+            /** @enum {string} */
+            op: "batch";
+        };
         OntologyDetail: {
             /** Format: date-time */
             created_at: string;
@@ -5405,11 +9454,19 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        OntologyDiff: {
+            added_edges: components["schemas"]["EdgeTypeDef"][];
+            added_nodes: components["schemas"]["NodeTypeDef"][];
+            modified_edges: components["schemas"]["EdgeDiff"][];
+            modified_nodes: components["schemas"]["NodeDiff"][];
+            removed_edges: components["schemas"]["EdgeTypeDef"][];
+            removed_nodes: components["schemas"]["NodeTypeDef"][];
+            summary: components["schemas"]["DiffSummary"];
+        };
         OntologyDraft: {
-            /** @description SourceAnalysisReport snapshot from analysis */
-            analysis_report?: unknown;
+            analysis_report?: null | components["schemas"]["SourceAnalysisReport"];
             /**
-             * @description Draft-lifecycle [`ox_source::AnalysisScope`] — included
+             * @description Draft-lifecycle [`ox_core::source_scope::AnalysisScope`] — included
              *     tables, deferred tables (with reason + revisit), policy-
              *     excluded tables, per-table fingerprints, and the timestamp of
              *     the last introspection. Accumulates across every analyze /
@@ -5417,7 +9474,7 @@ export interface components {
              *     modeled / deferred / drifted" view survives the full project
              *     lifecycle.
              */
-            analysis_scope: unknown;
+            analysis_scope: components["schemas"]["AnalysisScope"];
             /** Format: date-time */
             analyzed_at?: string | null;
             /**
@@ -5433,15 +9490,10 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             /** @description User decisions (DesignOptions) */
-            design_options: unknown;
+            design_options: components["schemas"]["DesignOptions"];
             /** Format: uuid */
             id: string;
-            /**
-             * @description Generated OntologyIR. Canonical `object_mappings` (node→table,
-             *     property→column bindings) live inside this value; there is
-             *     no separate persisted blob.
-             */
-            ontology?: unknown;
+            ontology?: null | components["schemas"]["OntologyIR"];
             /**
              * Format: uuid
              * @description FK to `ontology_version_snapshots.id` — the canonical version
@@ -5455,19 +9507,18 @@ export interface components {
              *     *version* axis.
              */
             parent_version_id?: string | null;
-            /** @description OntologyQualityReport */
-            quality_report?: unknown;
+            quality_report?: null | components["schemas"]["OntologyQualityReport"];
             /**
              * Format: int32
              * @description Monotonically increasing on every mutation; used for optimistic concurrency.
              */
             revision: number;
             /** @description SourceConfig JSON (source_type, schema_name — no secrets) */
-            source_config: unknown;
+            source_config: components["schemas"]["SourceConfig"];
             /** @description Raw source data (text/csv/json input; null for postgresql) */
             source_data?: string | null;
             /** @description History of data sources added to this draft */
-            source_history: unknown;
+            source_history: components["schemas"]["SourceHistoryEntry"][];
             /**
              * @description Canonical source identity derived via
              *     `SourceId::from_source_config` at project creation. Stable
@@ -5477,10 +9528,8 @@ export interface components {
              *     deterministically.
              */
             source_id: string;
-            /** @description SourceProfile snapshot from analysis */
-            source_profile?: unknown;
-            /** @description SourceSchema snapshot from analysis */
-            source_schema?: unknown;
+            source_profile?: null | components["schemas"]["SourceProfile"];
+            source_schema?: null | components["schemas"]["SourceSchema"];
             /** @description "analyzed", "designed", "completed" */
             status: string;
             title?: string | null;
@@ -5488,17 +9537,98 @@ export interface components {
             updated_at: string;
             user_id: string;
         };
+        OntologyDraftDataSourceSpec: {
+            data: string;
+            /** @enum {string} */
+            type: "text";
+        } | {
+            data: string;
+            /** @enum {string} */
+            type: "csv";
+        } | {
+            data: string;
+            /** @enum {string} */
+            type: "json";
+        } | {
+            connection_string: string;
+            schema?: string;
+            /** @enum {string} */
+            type: "postgresql";
+        } | {
+            connection_string: string;
+            /** @description MySQL "schema" is the database name */
+            schema: string;
+            /** @enum {string} */
+            type: "mysql";
+        } | {
+            connection_string: string;
+            /** @description MongoDB database name */
+            database: string;
+            /** @enum {string} */
+            type: "mongodb";
+        } | {
+            /** @description Snowflake account identifier (e.g., `xy12345.us-east-1`) */
+            account: string;
+            /** @description Target database */
+            database: string;
+            /** @description Login password */
+            password: string;
+            /** @description Target schema within the database */
+            schema?: string;
+            /** @enum {string} */
+            type: "snowflake";
+            /** @description Login username */
+            user: string;
+            /** @description Compute warehouse name */
+            warehouse?: string;
+        } | {
+            /**
+             * @description Project that runs and is billed for the BigQuery jobs.
+             *     Defaults to `project_id`. Required when the caller has
+             *     `bigquery.tables.list` on the data project but lacks
+             *     `bigquery.jobs.create` there (typical for shared data
+             *     projects), or when a VPC Service Controls perimeter forces
+             *     jobs to run from a specific project.
+             */
+            billing_project_id?: string | null;
+            /**
+             * @description Optional path to a credentials file. Accepts either a
+             *     service-account JSON key or an authorized-user secret
+             *     (the file `gcloud auth application-default login` writes).
+             *     Falls back to ADC chain (`GOOGLE_APPLICATION_CREDENTIALS`,
+             *     gcloud default file, workload-identity metadata server)
+             *     when omitted.
+             */
+            credentials_path?: string | null;
+            /** @description BigQuery dataset name. */
+            dataset: string;
+            /**
+             * @description Data project — the GCP project that owns the dataset. Used
+             *     to fully-qualify identifiers in `INFORMATION_SCHEMA` queries.
+             */
+            project_id: string;
+            /** @enum {string} */
+            type: "bigquery";
+        } | {
+            file_path: string;
+            /** @enum {string} */
+            type: "duckdb";
+        } | {
+            /** @enum {string} */
+            type: "code_repository";
+            url: string;
+        };
         OntologyDraftOrigin: {
             /** @enum {string} */
             origin_type: "source";
-            repo_source?: Record<string, never> | null;
+            repo_source?: null | components["schemas"]["RepoSource"];
             /**
              * @description Which tables of the source to introspect. The caller picks
              *     `{"kind": "all"}` deliberately or names a `subset` /
              *     `extend` list — there is no implicit full-warehouse sweep.
              */
-            selection: Record<string, never>;
-            source: components["schemas"]["DataSourceSpec"];
+            selection: components["schemas"]["AnalyzeSelection"];
+            source: components["schemas"]["OntologyDraftDataSourceSpec"];
         } | {
             /** @enum {string} */
             origin_type: "base_ontology";
@@ -5532,12 +9662,16 @@ export interface components {
             parent_version_id?: string | null;
             /** Format: int32 */
             revision: number;
-            source_config: unknown;
+            source_config: components["schemas"]["SourceConfig"];
             status: string;
             title?: string | null;
             /** Format: date-time */
             updated_at: string;
             user_id: string;
+        };
+        OntologyDraftSummaryPage: {
+            items: components["schemas"]["OntologyDraftSummary"][];
+            next_cursor?: string | null;
         };
         /**
          * @description Wire shape for any endpoint that returns a project. Carries the
@@ -5559,6 +9693,221 @@ export interface components {
              */
             analysis_report_status: components["schemas"]["AnalysisReportStatus"];
             design_gates: components["schemas"]["DesignGate"][];
+        };
+        /**
+         * @description Typed ontology edit. Each variant names exactly one entity kind;
+         *     a batch of variants applies atomically (all-or-nothing) and is
+         *     validated together at the end.
+         */
+        OntologyEditOp: {
+            def: components["schemas"]["CodeSystemDef"];
+            /** @enum {string} */
+            op: "create_code_system";
+        } | {
+            def: components["schemas"]["CodeSystemDef"];
+            id: components["schemas"]["CodeSystemId"];
+            /** @enum {string} */
+            op: "update_code_system";
+        } | {
+            id: components["schemas"]["CodeSystemId"];
+            /** @enum {string} */
+            op: "delete_code_system";
+        } | {
+            code_system_id: components["schemas"]["CodeSystemId"];
+            /** @enum {string} */
+            op: "create_coded_value";
+            value: components["schemas"]["CodedValue"];
+        } | {
+            code_system_id: components["schemas"]["CodeSystemId"];
+            id: components["schemas"]["CodedValueId"];
+            /** @enum {string} */
+            op: "update_coded_value";
+            value: components["schemas"]["CodedValue"];
+        } | {
+            code_system_id: components["schemas"]["CodeSystemId"];
+            id: components["schemas"]["CodedValueId"];
+            /** @enum {string} */
+            op: "delete_coded_value";
+        } | {
+            def: components["schemas"]["ConceptDef"];
+            /** @enum {string} */
+            op: "create_concept";
+        } | {
+            def: components["schemas"]["ConceptDef"];
+            id: components["schemas"]["ConceptId"];
+            /** @enum {string} */
+            op: "update_concept";
+        } | {
+            id: components["schemas"]["ConceptId"];
+            /** @enum {string} */
+            op: "delete_concept";
+        } | {
+            def: components["schemas"]["GlossaryTermDef"];
+            /** @enum {string} */
+            op: "create_glossary_term";
+        } | {
+            def: components["schemas"]["GlossaryTermDef"];
+            id: components["schemas"]["GlossaryTermId"];
+            /** @enum {string} */
+            op: "update_glossary_term";
+        } | {
+            id: components["schemas"]["GlossaryTermId"];
+            /** @enum {string} */
+            op: "delete_glossary_term";
+        } | {
+            mapping: components["schemas"]["ObjectMappingDef"];
+            /** @enum {string} */
+            op: "create_object_mapping";
+        } | {
+            id: components["schemas"]["ObjectMappingId"];
+            mapping: components["schemas"]["ObjectMappingDef"];
+            /** @enum {string} */
+            op: "update_object_mapping";
+        } | {
+            id: components["schemas"]["ObjectMappingId"];
+            /** @enum {string} */
+            op: "delete_object_mapping";
+        } | {
+            mapping: components["schemas"]["LinkMappingDef"];
+            /** @enum {string} */
+            op: "create_link_mapping";
+        } | {
+            id: components["schemas"]["LinkMappingId"];
+            mapping: components["schemas"]["LinkMappingDef"];
+            /** @enum {string} */
+            op: "update_link_mapping";
+        } | {
+            id: components["schemas"]["LinkMappingId"];
+            /** @enum {string} */
+            op: "delete_link_mapping";
+        } | {
+            def: components["schemas"]["NotationPatternDef"];
+            /** @enum {string} */
+            op: "create_notation_pattern";
+        } | {
+            def: components["schemas"]["NotationPatternDef"];
+            id: components["schemas"]["NotationPatternId"];
+            /** @enum {string} */
+            op: "update_notation_pattern";
+        } | {
+            id: components["schemas"]["NotationPatternId"];
+            /** @enum {string} */
+            op: "delete_notation_pattern";
+        } | {
+            def: components["schemas"]["ConceptMapDef"];
+            /** @enum {string} */
+            op: "create_concept_map";
+        } | {
+            def: components["schemas"]["ConceptMapDef"];
+            id: components["schemas"]["ConceptMapId"];
+            /** @enum {string} */
+            op: "update_concept_map";
+        } | {
+            id: components["schemas"]["ConceptMapId"];
+            /** @enum {string} */
+            op: "delete_concept_map";
+        } | {
+            def: components["schemas"]["ValueSetDef"];
+            /** @enum {string} */
+            op: "create_value_set";
+        } | {
+            def: components["schemas"]["ValueSetDef"];
+            id: components["schemas"]["ValueSetId"];
+            /** @enum {string} */
+            op: "update_value_set";
+        } | {
+            id: components["schemas"]["ValueSetId"];
+            /** @enum {string} */
+            op: "delete_value_set";
+        } | {
+            def: components["schemas"]["RuleDef"];
+            /** @enum {string} */
+            op: "create_rule";
+        } | {
+            def: components["schemas"]["RuleDef"];
+            id: components["schemas"]["RuleId"];
+            /** @enum {string} */
+            op: "update_rule";
+        } | {
+            id: components["schemas"]["RuleId"];
+            /** @enum {string} */
+            op: "delete_rule";
+        } | {
+            id: components["schemas"]["NodeTypeId"];
+            /** @enum {string} */
+            op: "deprecate_node_type";
+            replaced_by_id?: null | components["schemas"]["NodeTypeId"];
+        } | {
+            id: components["schemas"]["EdgeTypeId"];
+            /** @enum {string} */
+            op: "deprecate_edge_type";
+            replaced_by_id?: null | components["schemas"]["EdgeTypeId"];
+        } | {
+            binding: components["schemas"]["PropertyBinding"];
+            /** @enum {string} */
+            op: "bind_property";
+            owner: components["schemas"]["PropertyOwnerPath"];
+            property_id: components["schemas"]["PropertyId"];
+        } | {
+            /** @enum {string} */
+            op: "unbind_property";
+            owner: components["schemas"]["PropertyOwnerPath"];
+            property_id: components["schemas"]["PropertyId"];
+            target: components["schemas"]["PropertyBindingHandle"];
+        };
+        /**
+         * @description Response for a `dry_run=true` edit. Surfaces validation outcome
+         *     without touching storage, so the admin UI can render a "would
+         *     produce N errors" banner before the operator commits.
+         */
+        OntologyEditPreCheck: {
+            /**
+             * @description Number of operations that would apply cleanly to the in-memory
+             *     IR. An operation that fails its `apply_to` step halts the
+             *     preview just like a real commit would.
+             */
+            applied_operations: number;
+            /**
+             * @description Classified `ChangeType` per operation — same classification
+             *     the approval-routing layer uses. Lets the UI highlight
+             *     "breaking change" previews differently from "safe" ones.
+             */
+            classified_changes: string[];
+            /** @description Index of the first failing operation, if any. */
+            failed_operation_index?: number | null;
+            /**
+             * @description Human-readable error from the failed apply step, or `None`
+             *     when every op applied.
+             */
+            failure_message?: string | null;
+            /**
+             * @description Whole-IR validation errors (`OntologyIR::validate()`),
+             *     including dangling registry references. Each entry is a
+             *     structured [`ox_core::DiagnosticMessage`] — the FE renders
+             *     `code` + `params` through its i18n catalogue.
+             */
+            validation_errors: components["schemas"]["DiagnosticMessage"][];
+            /**
+             * @description `true` when every op applied and validate() returned an empty
+             *     error list — equivalent to "safe to commit".
+             */
+            would_commit: boolean;
+        };
+        /**
+         * @description Response from a successful commit. Carries enough data for the UI
+         *     to update its version pointer without a round-trip refetch of
+         *     the whole ontology.
+         */
+        OntologyEditReceipt: {
+            applied_operations: number;
+            /** Format: date-time */
+            committed_at: string;
+            /** Format: int32 */
+            new_version: number;
+            /** Format: uuid */
+            new_version_id: string;
+            /** Format: uuid */
+            parent_version_id?: string | null;
         };
         OntologyIR: {
             actions?: components["schemas"]["ActionDef"][];
@@ -5668,7 +10017,7 @@ export interface components {
              *     (`SegmentDef` — "Active Customer", "Lapsed Subscriber",
              *     "VIP"). First-class so segment references from
              *     `PropertyBinding`, `RuleDef`, and the glossary realisation
-             *     surface resolve through `OntologyLookup` without
+             *     surface resolve through `OntologyIndices` without
              *     round-tripping a side artifact.
              *     Validated by `validate()`: `target_node_type_id` must
              *     resolve, every `referenced_properties()` entry must exist
@@ -5697,16 +10046,24 @@ export interface components {
             /** @description Version metadata (number + temporal window + provenance). */
             version: components["schemas"]["OntologyVersion"];
         };
+        OntologyQualityReport: {
+            confidence: components["schemas"]["QualityConfidence"];
+            /**
+             * @description Identified gaps that may reduce query accuracy or semantic correctness.
+             *     Ordered by severity (high first).
+             */
+            gaps: components["schemas"]["QualityGap"][];
+        };
         OntologySnapshot: {
             /** Format: date-time */
             created_at: string;
             /** Format: uuid */
             id: string;
             /** @description OntologyIR JSON — includes canonical `object_mappings`. */
-            ontology: unknown;
+            ontology: components["schemas"]["OntologyIR"];
             /** Format: uuid */
             ontology_draft_id: string;
-            quality_report?: unknown;
+            quality_report?: null | components["schemas"]["OntologyQualityReport"];
             /** Format: int32 */
             revision: number;
             /** Format: uuid */
@@ -5771,6 +10128,11 @@ export interface components {
         OntologyVersionsResponse: {
             versions: components["schemas"]["OntologyVersionEntry"][];
         };
+        OrderClause: {
+            direction: components["schemas"]["SortDirection"];
+            /** @description What to order by — a full projection (variable, field, aggregation, etc.) */
+            projection: components["schemas"]["Projection"];
+        };
         /**
          * @description Whether an instance may belong to multiple segments at once.
          *     `Allow` is the default — segments are orthogonal views, an
@@ -5798,8 +10160,120 @@ export interface components {
              */
             next_cursor?: string | null;
         };
+        /** @enum {string} */
+        PathAlgorithm: "shortest_path" | "all_shortest_paths" | "all_paths";
+        /** @description A single element in a path pattern */
+        PathElement: {
+            /** @enum {string} */
+            kind: "node";
+            label?: null | components["schemas"]["GraphLabel"];
+            variable: components["schemas"]["VariableName"];
+        } | {
+            direction: components["schemas"]["Direction"];
+            /** @enum {string} */
+            kind: "edge";
+            label?: null | components["schemas"]["GraphLabel"];
+            variable?: null | components["schemas"]["VariableName"];
+        };
+        /**
+         * @description A relationship edge on the canvas. References nodes by their
+         *     `PatternNode::id` (not by variable name) so renaming a variable
+         *     doesn't break the visual link.
+         */
+        PatternEdge: {
+            direction: components["schemas"]["Direction"];
+            id: string;
+            label?: null | components["schemas"]["GraphLabel"];
+            property_filters?: components["schemas"]["PropertyFilter"][];
+            source_node_id: string;
+            target_node_id: string;
+            var_length?: null | components["schemas"]["VarLength"];
+            variable?: string | null;
+        };
+        /**
+         * @description A single WHERE-like predicate. Carries a full [`Expr`] so complex
+         *     expressions survive the round-trip; a multi-predicate WHERE splits
+         *     into several `PatternFilter`s so the UI can surface each one as an
+         *     independent row.
+         */
+        PatternFilter: {
+            expr: components["schemas"]["Expr"];
+            id: string;
+        };
+        /**
+         * @description Root of the canvas representation. Each component (nodes, edges,
+         *     filters, projections) is a flat list with stable per-entry ids so a
+         *     frontend can address them individually in edit operations.
+         */
+        PatternIR: {
+            /**
+             * @description Edges between placed nodes. `source_node_id` / `target_node_id`
+             *     reference [`PatternNode::id`] — never variable names.
+             */
+            edges?: components["schemas"]["PatternEdge"][];
+            /**
+             * @description Standalone filter rows. A WHERE clause in QueryIR is split into
+             *     one entry per AND-connected leaf so the UI can remove / edit
+             *     each predicate in isolation.
+             */
+            filters?: components["schemas"]["PatternFilter"][];
+            /** @description Canvas-wide view state (zoom, pan). Never emitted by `compile`. */
+            layout_hints?: components["schemas"]["LayoutHints"];
+            /** @description LIMIT clause — round-trips with QueryIR. */
+            limit?: number | null;
+            /** @description Nodes the user has placed on the canvas. */
+            nodes?: components["schemas"]["PatternNode"][];
+            /**
+             * @description ORDER BY clauses. Round-trip with QueryIR so a saved canvas
+             *     reopens with the same sort order the user configured.
+             */
+            order_by?: components["schemas"]["OrderClause"][];
+            /**
+             * @description Output projections (RETURN clause). Carried as full
+             *     [`Projection`] values — the canvas surfaces their shape in a
+             *     "Return" panel rather than trying to render them as nodes.
+             */
+            projections?: components["schemas"]["PatternProjection"][];
+            read_only_reason?: null | components["schemas"]["ReadOnlyReason"];
+            /**
+             * Format: int32
+             * @description On-wire struct shape version.
+             */
+            schema_version?: number;
+            /** @description SKIP clause — round-trips with QueryIR. */
+            skip?: number | null;
+        };
+        /**
+         * @description A single node on the canvas. `id` is the UI identity (stable across
+         *     renames of `variable` / `label`); `variable` is the query binding
+         *     that the edge's `source` / `target` will reference.
+         */
+        PatternNode: {
+            id: string;
+            label?: null | components["schemas"]["GraphLabel"];
+            position?: null | components["schemas"]["Position"];
+            property_filters?: components["schemas"]["PropertyFilter"][];
+            variable: string;
+        };
+        /** @description A RETURN-clause projection with a canvas-stable id. */
+        PatternProjection: {
+            id: string;
+            projection: components["schemas"]["Projection"];
+        };
         PerspectiveFindParams: {
             topology_signature: string;
+        };
+        /**
+         * @description User-confirmed PII annotation for a source column. Carries the
+         *     classifier's role from suggestion to commitment: at design
+         *     time, every entry here is treated as authoritative for both the
+         *     resulting [`crate::ir::PropertyDef::pii_kind`] and any sample-
+         *     value redaction performed before the LLM sees the column.
+         */
+        PiiAnnotation: {
+            column: string;
+            kind: components["schemas"]["PiiKind"];
+            table: string;
         };
         /**
          * @description PII (Personally Identifiable Information) classification.
@@ -5889,6 +10363,22 @@ export interface components {
             value: string;
         };
         /**
+         * @description Classifier output. Returned from [`PiiClassifier::classify`] when
+         *     the inputs raise the classifier's confidence above the
+         *     emit-threshold.
+         */
+        PiiSuggestion: {
+            column: string;
+            /**
+             * Format: float
+             * @description 0.0–1.0 self-rated confidence.
+             */
+            confidence: number;
+            kind: components["schemas"]["PiiKind"];
+            reason: string;
+            table: string;
+        };
+        /**
          * @description Heuristic PII pattern detected by name at sample-collection time.
          *
          *     Mirrors the high-confidence subset of `ox_ontology::PiiKind` so
@@ -5936,7 +10426,32 @@ export interface components {
             query_execution_id: string;
             title?: string | null;
             user_id: string;
-            widget_spec: unknown;
+            widget_spec: {
+                [key: string]: unknown;
+            };
+        };
+        PinboardItemPage: {
+            items: components["schemas"]["PinboardItem"][];
+            next_cursor?: string | null;
+        };
+        /**
+         * @description One stage in the NL→Query inference pipeline. The runtime
+         *     invokes stages in the order [`TRANSITIONS`] dictates; a stage's
+         *     outcome decides the next stage. Closed enum — every variant is
+         *     covered by the transition table and the const-fn assertion at
+         *     the bottom of the module.
+         *
+         *     `#[repr(u8)]` pins the layout so the const-fn equality used by
+         *     the assertion compiles.
+         * @enum {string}
+         */
+        PipelineStage: "safety_gate" | "retrieve" | "ground" | "compile" | "validate" | "refine" | "select" | "compose" | "done";
+        /** @description A 2-D canvas coordinate. */
+        Position: {
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
         };
         PresenceInfo: {
             cursor?: null | components["schemas"]["CursorPosition"];
@@ -5944,6 +10459,11 @@ export interface components {
             joined_at: string;
             user_id: string;
             user_name: string;
+        };
+        PreservedEntity: {
+            entity_kind: components["schemas"]["ReconcileEntityKind"];
+            id: string;
+            label: string;
         };
         PreviewAdapterRequest: components["schemas"]["RegisterAdapterKind"];
         PreviewAdapterResponse: {
@@ -5955,7 +10475,7 @@ export interface components {
             name: string;
             nullable: boolean;
         };
-        PreviewSourceRequest: Record<string, never>;
+        PreviewSourceRequest: components["schemas"]["OntologyDraftDataSourceSpec"];
         PreviewSourceResponse: {
             /**
              * @description Source kind — useful for the UI to render type-specific
@@ -5987,10 +10507,95 @@ export interface components {
             last_modified?: string | null;
             name: string;
         };
+        Projection: {
+            alias?: string | null;
+            field: components["schemas"]["PropertyKey"];
+            /** @enum {string} */
+            kind: "field";
+            variable: components["schemas"]["VariableName"];
+        } | {
+            alias?: string | null;
+            /** @enum {string} */
+            kind: "variable";
+            variable: components["schemas"]["VariableName"];
+        } | {
+            alias: string;
+            expr: components["schemas"]["Expr"];
+            /** @enum {string} */
+            kind: "expression";
+        } | {
+            alias: string;
+            argument?: null | components["schemas"]["Projection"];
+            distinct?: boolean;
+            function: components["schemas"]["AggFunction"];
+            /** @enum {string} */
+            kind: "aggregation";
+        } | {
+            /** @enum {string} */
+            kind: "all_properties";
+            variable: components["schemas"]["VariableName"];
+        };
+        PromoteCaseToDatasetRequest: {
+            /** Format: uuid */
+            dataset_id: string;
+            /**
+             * @description Optional override for the generated `item_key`. Default
+             *     (`None`) generates `sample-{case.case_key}` so the
+             *     promoted item traces back to its origin.
+             */
+            item_key?: string | null;
+            /**
+             * @description When true, the case's captured `actual` payload becomes
+             *     the dataset item's `expected`. Useful when operator
+             *     already manually verified the answer is correct and wants
+             *     to pin it as the regression target. Default false — the
+             *     item lands `expected`-less, leaving the gold answer to
+             *     be authored separately.
+             */
+            use_actual_as_expected?: boolean;
+        };
+        PromoteCaseToDatasetResponse: {
+            item: components["schemas"]["EvaluationDatasetItem"];
+        };
+        PromoteVerifiedQueryRequest: {
+            complexity_class: components["schemas"]["ComplexityClass"];
+            description?: string;
+            /**
+             * @description Optional explicit id. Absent → server generates
+             *     `vq-{question_hash}` (deterministic per workspace +
+             *     canonical question).
+             */
+            id?: string | null;
+            /**
+             * @description `QueryIR` JSON envelope. Server does not re-validate the
+             *     IR's semantic correctness — that's the designer's
+             *     responsibility at promotion time. The freshness cron
+             *     later flags rows whose IR references unknown labels.
+             */
+            query_ir: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Free-text question — the natural-language wording the
+             *     operator validated. Persisted verbatim; the canonical
+             *     `question_hash` is computed server-side from
+             *     `canonicalize_question(question)`.
+             */
+            question: string;
+            status?: null | components["schemas"]["VerifiedQueryStatus"];
+        };
         PromptInfo: {
             name: string;
             version: string;
         };
+        /**
+         * @description Stable identifier for a prompt template — the
+         *     `prompts/<name>.toml` filename without the extension. Pairs
+         *     with a separate `prompt_template_version` semver field on
+         *     the fingerprint so the template id stays stable across
+         *     versions.
+         */
+        PromptTemplateId: string;
         /**
          * @description Design project — ontology design lifecycle.
          *     Design project summary (lightweight, for list endpoints).
@@ -6016,12 +10621,18 @@ export interface components {
             /** Format: uuid */
             id: string;
             is_active: boolean;
-            metadata: unknown;
+            metadata: {
+                [key: string]: unknown;
+            };
             name: string;
-            variables: unknown;
+            variables: string[];
             version: string;
             /** Format: uuid */
             workspace_id?: string | null;
+        };
+        PropertyAssignment: {
+            property: components["schemas"]["PropertyKey"];
+            value: components["schemas"]["Expr"];
         };
         /**
          * @description One semantic constraint on a property — discriminated by the
@@ -6034,7 +10645,7 @@ export interface components {
          *       vocabulary translation)
          *     - `ValueRange` — temporal window only (the IR treats ranges as
          *       classifiers, not rejectors; strength would have no enforcement)
-         *     - `Glossary` — temporal window only (semantic anchor; strength
+         *     - `Concept` — temporal window only (semantic anchor; strength
          *       carries no enforcement semantics for "this property realises
          *       this concept")
          *
@@ -6082,13 +10693,40 @@ export interface components {
             /** Format: date-time */
             valid_to?: string | null;
         } | {
-            id: components["schemas"]["GlossaryTermId"];
+            id: components["schemas"]["ConceptId"];
             /** @enum {string} */
-            kind: "glossary";
+            kind: "concept";
             /** Format: date-time */
             valid_from?: string | null;
             /** Format: date-time */
             valid_to?: string | null;
+        };
+        /**
+         * @description Lightweight identity for a [`PropertyBinding`] — `(kind, id)`
+         *     only. Used by edit operations and dedup keys that select a
+         *     binding without caring about strength/concept_map/temporal
+         *     metadata. `PropertyBinding::handle()` projects to this shape.
+         */
+        PropertyBindingHandle: {
+            id: components["schemas"]["ValueSetId"];
+            /** @enum {string} */
+            kind: "value_set";
+        } | {
+            id: components["schemas"]["CodeSystemId"];
+            /** @enum {string} */
+            kind: "code_system";
+        } | {
+            id: components["schemas"]["NotationPatternId"];
+            /** @enum {string} */
+            kind: "notation_pattern";
+        } | {
+            id: components["schemas"]["ValueRangeSetId"];
+            /** @enum {string} */
+            kind: "value_range";
+        } | {
+            id: components["schemas"]["ConceptId"];
+            /** @enum {string} */
+            kind: "concept";
         };
         PropertyCandidate: {
             owner_kind: string;
@@ -6099,6 +10737,48 @@ export interface components {
             /** Format: float */
             score: number;
             signals: components["schemas"]["BindingSignal"][];
+        };
+        PropertyChange: {
+            new: string;
+            old: string;
+            /** @enum {string} */
+            type: "type_changed";
+        } | {
+            new: boolean;
+            old: boolean;
+            /** @enum {string} */
+            type: "nullability_changed";
+        } | {
+            new: components["schemas"]["LocalizedText"];
+            old: components["schemas"]["LocalizedText"];
+            /** @enum {string} */
+            type: "description_changed";
+        } | {
+            new?: string | null;
+            old?: string | null;
+            /** @enum {string} */
+            type: "default_value_changed";
+        };
+        PropertyConflictAxis: {
+            /** @enum {string} */
+            axis: "type";
+            draft: string;
+            head: string;
+        } | {
+            /** @enum {string} */
+            axis: "nullability";
+            draft: boolean;
+            head: boolean;
+        } | {
+            /** @enum {string} */
+            axis: "description";
+            draft: string;
+            head: string;
+        } | {
+            /** @enum {string} */
+            axis: "default_value";
+            draft?: string | null;
+            head?: string | null;
         };
         PropertyDef: {
             aggregation_role?: null | components["schemas"]["AggregationRole"];
@@ -6178,6 +10858,11 @@ export interface components {
             node_type_id: components["schemas"]["NodeTypeId"];
             property_id: components["schemas"]["PropertyId"];
         };
+        /** @description Inline property filter within a pattern: {name: "Alice", age: 30} */
+        PropertyFilter: {
+            property: components["schemas"]["PropertyKey"];
+            value: components["schemas"]["Expr"];
+        };
         /** @description Type-safe identifier for property definitions. */
         PropertyId: string;
         /**
@@ -6207,6 +10892,13 @@ export interface components {
             /** @description Column or field the path is anchored on. */
             root_column: string;
         };
+        PropertyMapping: {
+            /** @description Target property name in the graph */
+            graph_property: string;
+            /** @description Source column/field name */
+            source_column: string;
+            transform?: null | components["schemas"]["Transform"];
+        };
         /** @description Binding from an ontology property to a physical value location. */
         PropertyMappingDef: {
             concept_map_id?: null | components["schemas"]["ConceptMapId"];
@@ -6232,6 +10924,39 @@ export interface components {
              *     by pattern-matching on `Identity`.
              */
             transform?: components["schemas"]["PropertyTransform"];
+        };
+        /** @description Type-safe reference to the owner of a property — node or edge. */
+        PropertyOwner: {
+            /** @enum {string} */
+            kind: "node";
+            type_id: components["schemas"]["NodeTypeId"];
+        } | {
+            /** @enum {string} */
+            kind: "edge";
+            type_id: components["schemas"]["EdgeTypeId"];
+        };
+        /**
+         * @description Which side of the ontology topology a property lives on.
+         *
+         *     Used by the property-level registry-binding edits so the
+         *     operation carries both the type kind and the type id without
+         *     threading two separate enum variants per op.
+         */
+        PropertyOwnerPath: {
+            /** @enum {string} */
+            kind: "node";
+            type_id: components["schemas"]["NodeTypeId"];
+        } | {
+            /** @enum {string} */
+            kind: "edge";
+            type_id: components["schemas"]["EdgeTypeId"];
+        };
+        PropertyPatch: {
+            default_value?: null | components["schemas"]["PropertyValue"];
+            description?: null | components["schemas"]["LocalizedText"];
+            name?: string | null;
+            nullable?: boolean | null;
+            property_type?: null | components["schemas"]["PropertyType"];
         };
         /** @description A property discovered from the graph schema. */
         PropertySchema: {
@@ -6279,18 +11004,99 @@ export interface components {
              */
             skip_when_null?: boolean;
         };
-        /** @description Property type: bool, int, float, string, date, datetime, duration, bytes, map */
-        PropertyType: string;
+        /** @description Tagged property type. Examples: {"type":"string"} or {"type":"list","element":{"type":"int"}} */
+        PropertyType: {
+            /** @enum {string} */
+            type: "bool";
+        } | {
+            /** @enum {string} */
+            type: "int";
+        } | {
+            /** @enum {string} */
+            type: "float";
+        } | {
+            /** @enum {string} */
+            type: "string";
+        } | {
+            /** @enum {string} */
+            type: "date";
+        } | {
+            /** @enum {string} */
+            type: "date_time";
+        } | {
+            /** @enum {string} */
+            type: "duration";
+        } | {
+            /** @enum {string} */
+            type: "bytes";
+        } | {
+            element: components["schemas"]["PropertyType"];
+            /** @enum {string} */
+            type: "list";
+        } | {
+            /** @enum {string} */
+            type: "map";
+        };
+        /**
+         * @description Where in the AST a property reference was encountered.
+         * @enum {string}
+         */
+        PropertyUsageHint: "pattern_filter" | "where_filter" | "projection" | "order_by" | "group_by" | "aggregation" | "mutation" | "general";
         /** @description Typed property value, e.g. {"type": "string", "value": "hello"} or null */
-        PropertyValue: Record<string, never>;
+        PropertyValue: {
+            /** @enum {string} */
+            type: "null";
+        } | {
+            /** @enum {string} */
+            type: "bool";
+            value: boolean;
+        } | {
+            /** @enum {string} */
+            type: "int";
+            value: number;
+        } | {
+            /** @enum {string} */
+            type: "float";
+            value: number;
+        } | {
+            /** @enum {string} */
+            type: "string";
+            value: string;
+        } | {
+            /** @enum {string} */
+            type: "date";
+            value: string;
+        } | {
+            /** @enum {string} */
+            type: "date_time";
+            value: string;
+        } | {
+            /** @enum {string} */
+            type: "duration";
+            value: string;
+        } | {
+            /** @enum {string} */
+            type: "bytes";
+            value: number[];
+        } | {
+            /** @enum {string} */
+            type: "list";
+            value: components["schemas"]["PropertyValue"][];
+        } | {
+            /** @enum {string} */
+            type: "map";
+            value: {
+                [key: string]: components["schemas"]["PropertyValue"];
+            };
+        };
         ProposalBody: {
             code_system_id: string;
             /**
-             * @description The full `CodeSystemDef` / `ValueSetDef` JSON — kept flat so
+             * @description The full `CodeSystemDef` / `ValueSetDef` payload — kept flat so
              *     the admin UI can post them verbatim to `/edits` without
              *     re-deriving ids.
              */
-            code_system_json: unknown;
+            code_system_json: components["schemas"]["CodeSystemDef"];
             column: string;
             /** Format: float */
             confidence: number;
@@ -6298,7 +11104,7 @@ export interface components {
             relation: string;
             suggested_codes: string[];
             value_set_id: string;
-            value_set_json: unknown;
+            value_set_json: components["schemas"]["ValueSetDef"];
         };
         ProposeNotationPatternsRequest: {
             policy?: null | components["schemas"]["NotationPolicyBody"];
@@ -6306,13 +11112,13 @@ export interface components {
              * @description Profile snapshot (row counts + column stats). Wire-shape is
              *     defined by `ox_core::source_schema::SourceProfile`.
              */
-            profile: Record<string, never>;
+            profile: components["schemas"]["SourceProfile"];
             /**
              * @description Source schema snapshot — usually the `project.source_schema`
              *     column of a design project. Wire-shape is defined by
              *     `ox_core::source_schema::SourceSchema`.
              */
-            schema: Record<string, never>;
+            schema: components["schemas"]["SourceSchema"];
         };
         ProposeNotationPatternsResponse: {
             /** Format: uuid */
@@ -6335,14 +11141,14 @@ export interface components {
              * @description Profile snapshot (row counts + column stats). Wire-shape is
              *     defined by `ox_core::source_schema::SourceProfile`.
              */
-            profile: Record<string, never>;
+            profile: components["schemas"]["SourceProfile"];
             /**
              * @description Source schema snapshot — usually the `project.source_schema`
              *     column of a design project, but any snapshot produced by the
              *     introspection kernel is acceptable. Wire-shape is defined by
              *     `ox_core::source_schema::SourceSchema`.
              */
-            schema: Record<string, never>;
+            schema: components["schemas"]["SourceSchema"];
         };
         ProposeValueSetsResponse: {
             /** Format: uuid */
@@ -6398,6 +11204,70 @@ export interface components {
             format: string;
             /** @enum {string} */
             kind: "export";
+        };
+        /**
+         * @description Pre-validation input for stamping a [`ProvenanceDef`]. Every
+         *     mutation that produces a fact accepts a `ProvenanceCapture` as a
+         *     required argument; the platform refuses to mutate without one.
+         *
+         *     ## Why required, not optional
+         *
+         *     The audit trail is only useful when it covers every mutation —
+         *     "every committed ontology version has a provenance row, every
+         *     judged evaluation case carries the prompt fingerprint that
+         *     produced its scores, every action invocation is attributed to
+         *     its caller". Make capture optional and 95% of the time it stays
+         *     `None`; the audit becomes a thin scattered set rather than the
+         *     authoritative DAG PROV-O is meant to provide.
+         *
+         *     Required at the function-signature level — the compiler refuses
+         *     to call a mutation without a capture. New mutations inherit the
+         *     invariant by construction.
+         *
+         *     ## What the function fills in
+         *
+         *     `ProvenanceCapture` carries every PROV-O field except the three
+         *     the producer knows for itself:
+         *
+         *     - `id` — the store stamps a fresh [`ProvenanceId`] at insert time.
+         *     - `subject` — the entity the activity just produced (the
+         *       committed version's id, the judged metric's id, …). Only the
+         *       producer knows the exact subject.
+         *     - `at_time` — the wall-clock moment of the activity, captured by
+         *       the store at the insert boundary.
+         */
+        ProvenanceCapture: {
+            /** @description What activity produced the subject. PROV-O: `prov:Activity`. */
+            activity: components["schemas"]["ProvenanceActivityKind"];
+            /** @description Who ran the activity. PROV-O: `prov:wasAssociatedWith`. */
+            agent: components["schemas"]["AgentRef"];
+            /**
+             * Format: date-time
+             * @description Data time the subject was valid under (bitemporal axis).
+             */
+            data_valid_at?: string | null;
+            /**
+             * @description Entities the subject was derived from. PROV-O:
+             *     `prov:wasDerivedFrom`. For an ontology-edit commit, the
+             *     parent version snapshot id.
+             */
+            derived_from?: components["schemas"]["EntityRef"][];
+            /**
+             * Format: date-time
+             * @description Ontology time the subject was valid under (bitemporal axis).
+             *     `None` means "current".
+             */
+            ontology_valid_at?: string | null;
+            plan?: null | components["schemas"]["ProvenancePlan"];
+            /** @description Input entities the activity used. PROV-O: `prov:used`. */
+            used?: components["schemas"]["EntityRef"][];
+            /**
+             * @description Earlier activities whose output informed this one. PROV-O:
+             *     `prov:wasInformedBy`. Used by judge cascades — a safety
+             *     judge invocation inherits the RAGAS judge's id when scoring
+             *     the same case.
+             */
+            was_informed_by?: components["schemas"]["ProvenanceId"][];
         };
         /** @description Origin record for one fact the platform produced. */
         ProvenanceDef: {
@@ -6472,6 +11342,178 @@ export interface components {
             template_version: string;
         };
         /**
+         * @description Overall confidence in the generated ontology's ability to support correct query generation.
+         * @enum {string}
+         */
+        QualityConfidence: "high" | "medium" | "low";
+        /** @description Dashboard-oriented view: each rule + its latest evaluation result. */
+        QualityDashboardEntry: {
+            /** Format: date-time */
+            latest_evaluated_at?: string | null;
+            latest_passed?: boolean | null;
+            /** Format: double */
+            latest_value?: number | null;
+            name: string;
+            /** Format: uuid */
+            rule_id: string;
+            rule_type: string;
+            severity: string;
+            target_label: string;
+            /** Format: double */
+            threshold: number;
+        };
+        /**
+         * @description One quality finding produced by [`super::assessment::assess_quality`].
+         *
+         *     `category` + `location.ref_type` together pick the FE i18n key
+         *     (`qualityGap.<category>.<ref_type>.issue` /
+         *     `qualityGap.<category>.<ref_type>.suggestion`); `params` carries the
+         *     interpolation values. The backend never produces user-facing prose
+         *     itself — every locale lives in the FE catalogue.
+         */
+        QualityGap: {
+            category: components["schemas"]["QualityGapCategory"];
+            /** @description Structured reference to the entity where the gap is located. */
+            location: components["schemas"]["QualityGapRef"];
+            /** @description Interpolation values for the FE i18n catalogue. */
+            params?: {
+                [key: string]: string;
+            };
+            severity: components["schemas"]["QualityGapSeverity"];
+        };
+        /** @enum {string} */
+        QualityGapCategory: "opaque_enum_value" | "numeric_enum_code" | "single_value_bias" | "small_sample" | "missing_description" | "sparse_property" | "unmapped_source_table" | "missing_foreign_key_edge" | "missing_containment_edge" | "unmapped_source_column" | "duplicate_edge" | "orphan_node" | "property_type_inconsistency" | "hub_node" | "overloaded_property" | "self_referential_edge";
+        /**
+         * @description Structured reference to the entity affected by a quality gap.
+         *     Carries entity IDs for direct graph canvas matching.
+         */
+        QualityGapRef: {
+            label: string;
+            node_id: string;
+            /** @enum {string} */
+            ref_type: "node";
+        } | {
+            label: string;
+            node_id: string;
+            property_id: string;
+            property_name: string;
+            /** @enum {string} */
+            ref_type: "node_property";
+        } | {
+            edge_id: string;
+            label: string;
+            /** @enum {string} */
+            ref_type: "edge";
+        } | {
+            edge_id: string;
+            label: string;
+            property_id: string;
+            property_name: string;
+            /** @enum {string} */
+            ref_type: "edge_property";
+        } | {
+            /** @enum {string} */
+            ref_type: "source_table";
+            table: string;
+        } | {
+            column: string;
+            /** @enum {string} */
+            ref_type: "source_column";
+            table: string;
+        } | {
+            from_column: string;
+            from_table: string;
+            /** @enum {string} */
+            ref_type: "source_foreign_key";
+            to_column: string;
+            to_table: string;
+        };
+        /** @enum {string} */
+        QualityGapSeverity: "high" | "medium" | "low";
+        /** @description Aggregated dashboard report — one row, six tiles. */
+        QualityMetricsReport: {
+            anchor_match_rate: components["schemas"]["MetricValue"];
+            clarification_success_rate: components["schemas"]["MetricValue"];
+            concept_hit_rate: components["schemas"]["MetricValue"];
+            query_reproducibility: components["schemas"]["MetricValue"];
+            /** Format: int64 */
+            sample_size: number;
+            shacl_pass_rate: components["schemas"]["MetricValue"];
+            stale_concept_ratio: components["schemas"]["MetricValue"];
+            window: components["schemas"]["MetricWindow"];
+        };
+        QualityResult: {
+            /** Format: double */
+            actual_value?: number | null;
+            details: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            evaluated_at: string;
+            /** Format: uuid */
+            id: string;
+            passed: boolean;
+            /** Format: uuid */
+            rule_id: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        QualityRule: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            created_by?: string | null;
+            cypher_check?: string | null;
+            description?: string | null;
+            /** Format: uuid */
+            id: string;
+            is_active: boolean;
+            name: string;
+            /**
+             * @description Lineage the rule is scoped to. Two ontologies in the same
+             *     workspace that share a label (e.g., both have `Person`) keep
+             *     their quality rules distinct because the evaluator filters by
+             *     this field before running each sweep.
+             */
+            ontology_lineage_id: string;
+            rule_type: string;
+            severity: string;
+            target_label: string;
+            target_property?: string | null;
+            /** Format: double */
+            threshold: number;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description A single advisory diagnostic produced by the pre-execute validator
+         *     pipeline and surfaced on the response envelope. Mirrors the shape
+         *     of `ox_graph_runtime::cypher::ValidationIssue` without creating an
+         *     `ox-query-ir → ox-graph-runtime` dependency.
+         *
+         *     Frontends pattern-match on `validator` to route diagnostics to the
+         *     right help link and on `level` to choose colour / iconography.
+         *     `message` is a structured [`ox_core::DiagnosticMessage`]
+         *     (RFC 7807 / gRPC `Status` shape): the FE renders `code` + `params`
+         *     through its i18n catalogue, the BE logs / fallbacks consume the
+         *     English `message` rendering. Adding a UI language never requires
+         *     touching emit sites.
+         */
+        QueryDiagnostic: {
+            /** @description Severity tier. */
+            level: components["schemas"]["DiagnosticLevel"];
+            /** @description Structured diagnostic — `code` + English `message` + `params`. */
+            message: components["schemas"]["DiagnosticMessage"];
+            /**
+             * @description Which validator emitted the diagnostic. Matches
+             *     `CypherValidator::name()` (e.g. `"complexity"`,
+             *     `"semantic-guard"`, `"ontology"`, `"safety"`).
+             */
+            validator: string;
+        };
+        /**
          * @description A single query execution record: NL question → QueryIR → compiled → results.
          *
          *     Ontology reproducibility: when `ontology_id` is set, the ontology identity
@@ -6492,8 +11534,10 @@ export interface components {
             feedback?: string | null;
             /** Format: uuid */
             id: string;
-            /** @description LLM model used */
+            /** @description LLM model used. */
             model: string;
+            /** @description LLM provider used. */
+            model_provider: string;
             /**
              * Format: uuid
              * @description FK to `ontologies.id` — the committed ontology identity this query
@@ -6506,17 +11550,16 @@ export interface components {
              *     executions under one ontology even when its version changes.
              */
             ontology_lineage_id: string;
-            /** @description Full OntologyIR snapshot (NULL when ontology_id is set) */
-            ontology_snapshot?: unknown;
+            ontology_snapshot?: null | components["schemas"]["OntologyIR"];
             /** Format: int32 */
             ontology_version: number;
             /** @description Resolved query bindings for graph highlighting (binding-aware provenance) */
-            query_bindings?: unknown;
-            query_ir: unknown;
+            query_bindings?: components["schemas"]["ResolvedQueryBindings"];
+            query_ir: components["schemas"]["QueryIR"];
             question: string;
-            results: unknown;
+            results: components["schemas"]["QueryResult"];
             user_id: string;
-            widget?: unknown;
+            widget?: null | components["schemas"]["WidgetHint"];
         };
         /** @description Lightweight projection for list endpoints (excludes large JSONB blobs). */
         QueryExecutionSummary: {
@@ -6529,6 +11572,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             model: string;
+            model_provider: string;
             ontology_lineage_id: string;
             /** Format: int32 */
             ontology_version: number;
@@ -6536,21 +11580,265 @@ export interface components {
             /** Format: int64 */
             row_count: number;
         };
+        QueryExecutionSummaryPage: {
+            items: components["schemas"]["QueryExecutionSummary"][];
+            next_cursor?: string | null;
+        };
+        /** @enum {string} */
+        QueryFeedbackValue: "positive" | "negative";
+        QueryIR: {
+            /**
+             * Format: date-time
+             * @description Temporal AS-OF pivot.
+             *
+             *     When `Some`, the query evaluates against the ontology version
+             *     that was live at `as_of`, not the latest committed schema. Lets
+             *     Foundry-style "show me how this dashboard looked last Tuesday"
+             *     workflows round-trip through a single saved PatternIR — the UI
+             *     toggles the timestamp, the compiler consults the corresponding
+             *     [`ox_ontology::ir::OntologyVersion`] snapshot, and the live
+             *     graph data is filtered by the same instant.
+             *
+             *     Compiler support is deferred to a dedicated Temporal pass; today
+             *     the runtime rejects any `as_of`-tagged QueryIR with a clear
+             *     `OxError::Compilation("temporal queries not yet supported")`.
+             *     The field is additive — every existing call site keeps compiling
+             *     because `serde(default)` and `Default` both collapse to `None`.
+             */
+            as_of?: string | null;
+            /** @description LIMIT clause */
+            limit?: number | null;
+            /** @description The core query operation */
+            operation: components["schemas"]["QueryOp"];
+            /** @description ORDER BY clauses */
+            order_by: components["schemas"]["OrderClause"][];
+            /**
+             * Format: int32
+             * @description On-wire struct shape version. Future incompatible layout changes
+             *     bump it; deserialisation rejects newer values so a stale server
+             *     never silently drops fields a newer writer added.
+             */
+            schema_version?: number;
+            /** @description SKIP clause */
+            skip?: number | null;
+        };
+        QueryMetadata: {
+            /** @description Number of relationships created/modified (for mutations) */
+            edges_affected?: number | null;
+            /**
+             * Format: int64
+             * @description Execution time in milliseconds
+             */
+            execution_time_ms: number;
+            /** @description Number of nodes created/modified (for mutations) */
+            nodes_affected?: number | null;
+            provenance?: null | components["schemas"]["QueryProvenance"];
+            /** @description Number of rows returned */
+            rows_returned: number;
+            /**
+             * @description Non-blocking diagnostics produced during pre-execute validation.
+             *
+             *     Populated by the HTTP route / agent tool layer after the runtime
+             *     returns. The graph runtime itself leaves this empty since the
+             *     validation pass happens inside `run_pre_execute` and its output
+             *     is currently logged, not returned; downstream callers re-run the
+             *     strict validator against the compiled statement to capture the
+             *     diagnostics via
+             *     [`ox_graph_runtime::cypher::strict_advisory_diagnostics`].
+             *
+             *     Structured rather than pre-formatted so UI consumers can filter
+             *     by `level` or `validator` without string-parsing a single
+             *     canonical format. Kept named `warnings` to match the field's
+             *     typical severity, but `Error`-level diagnostics from the strict
+             *     re-pass do appear here: they represent patterns the permissive
+             *     runtime allowed through but that a stricter lint would have
+             *     blocked.
+             */
+            warnings?: components["schemas"]["QueryDiagnostic"][];
+        };
+        QueryOp: {
+            filter?: null | components["schemas"]["Expr"];
+            group_by?: components["schemas"]["Projection"][];
+            /** @enum {string} */
+            op: "match";
+            optional: boolean;
+            patterns: components["schemas"]["GraphPattern"][];
+            projections: components["schemas"]["Projection"][];
+        } | {
+            algorithm: components["schemas"]["PathAlgorithm"];
+            direction: components["schemas"]["Direction"];
+            edge_types: components["schemas"]["GraphLabel"][];
+            end: components["schemas"]["NodeRef"];
+            max_depth?: number | null;
+            /** @enum {string} */
+            op: "path_find";
+            start: components["schemas"]["NodeRef"];
+        } | {
+            aggregations: components["schemas"]["AggregationExpr"][];
+            group_by: components["schemas"]["FieldRef"][];
+            having?: null | components["schemas"]["Expr"];
+            /** @enum {string} */
+            op: "aggregate";
+            source: components["schemas"]["QueryIR"];
+        } | {
+            all: boolean;
+            /** @enum {string} */
+            op: "union";
+            queries: components["schemas"]["QueryIR"][];
+        } | {
+            /** @enum {string} */
+            op: "chain";
+            steps: components["schemas"]["ChainStep"][];
+        } | {
+            /** @description Variables to pass from outer to inner scope */
+            import_variables: string[];
+            inner: components["schemas"]["QueryIR"];
+            /** @enum {string} */
+            op: "call_subquery";
+        } | {
+            context?: null | components["schemas"]["QueryOp"];
+            /** @enum {string} */
+            op: "mutate";
+            operations: components["schemas"]["MutateOp"][];
+            returning: components["schemas"]["Projection"][];
+        } | {
+            algorithm: components["schemas"]["GraphAlgorithm"];
+            /** @enum {string} */
+            op: "analytics";
+            params: {
+                [key: string]: components["schemas"]["Expr"];
+            };
+            projections: components["schemas"]["Projection"][];
+            source: components["schemas"]["AnalyticsSource"];
+        } | {
+            /** @enum {string} */
+            op: "hybrid_search";
+            request: components["schemas"]["HybridSearchRequest"];
+        };
+        QueryPropertyBinding: {
+            binding_kind: components["schemas"]["BindingKind"];
+            owner_id: string;
+            owner_variable?: null | components["schemas"]["VariableName"];
+            property_id: string;
+            property_name: components["schemas"]["PropertyKey"];
+            scope_path: components["schemas"]["ScopeSegment"][];
+            /** @description AST location hint for UI disambiguation (e.g. "filter", "projection", "order_by"). */
+            usage_hint: components["schemas"]["PropertyUsageHint"];
+        };
+        /**
+         * @description Π-3: Per-response provenance carried on every
+         *     [`QueryResult`]. Populated opportunistically by each planner /
+         *     runtime layer on its way through; consumed by response
+         *     explainability UIs and by the LLM when asked to justify a
+         *     result.
+         *
+         *     Industry reference: Snowflake Cortex Analyst "show reasoning"
+         *     surface, Looker drill-down, Palantir Foundry "how computed".
+         */
+        QueryProvenance: {
+            /**
+             * Format: date-time
+             * @description Business-time anchor the temporal rewriter used. `None` =
+             *     "current".
+             */
+            as_of?: string | null;
+            /**
+             * @description Per-output-column attribution back to the source column that
+             *     supplied the value. Populated by the federation planner once
+             *     a scan plus its projection is known; raw-Cypher and from-IR
+             *     paths leave this empty (their lineage is the query text
+             *     itself).
+             *
+             *     Industry reference: Snowflake column lineage in `ACCOUNT_USAGE
+             *     .OBJECT_DEPENDENCIES`, BigQuery `INFORMATION_SCHEMA.COLUMN
+             *     _LINEAGE`, Palantir Foundry "data lineage" view. Carrying
+             *     the trail on the query response (not just on stored views)
+             *     makes "why is this cell what it is?" answerable from a single
+             *     payload.
+             */
+            column_lineage?: components["schemas"]["ColumnLineage"][];
+            /** @description Human-readable summary of the filters that were applied. */
+            filter_summary?: string | null;
+            /** @description The ontology IR id this query ran against. */
+            ontology_id?: string | null;
+            /**
+             * @description Semantic version of the ontology IR. Two queries at
+             *     different versions may see different types / mappings /
+             *     value sets.
+             */
+            ontology_version?: string | null;
+            /**
+             * @description Content-addressed hashes for every registry collection the
+             *     query may have read from — code systems, glossary terms,
+             *     value sets, notation patterns, concept maps. Two queries with
+             *     identical text but different registry versions can produce
+             *     different results (a glossary rename, a value-set update, a
+             *     concept-map rewrite) and this map is the re-run anchor the
+             *     reproducibility pass uses. Keyed by a stable short name
+             *     (`"code_systems"`, `"glossary"`, etc.) so the wire shape is
+             *     self-documenting without forcing every caller to import a
+             *     per-kind enum.
+             */
+            registry_versions?: {
+                [key: string]: string;
+            };
+            /**
+             * @description Backend dispatch attribution from the `PlanRouter`. Stable,
+             *     FE-renderable string ("graph runtime — single-source pattern
+             *     execution", "federation runtime — cross-source traversal
+             *     detected"). Surfaces on the result panel's "response basis"
+             *     section so the operator sees *why* the platform picked the
+             *     route. `None` for paths that bypass the router (the
+             *     `from-raw-cypher` admin escape, system-bypass cron loads).
+             */
+            routing?: string | null;
+            /** @description External `source_id`s the federation planner touched. */
+            source_ids?: string[];
+            /** @description Node type ids that participated in this query. */
+            type_ids?: string[];
+        };
+        QueryResult: {
+            /** @description Column names */
+            columns: string[];
+            /** @description Execution metadata */
+            metadata: components["schemas"]["QueryMetadata"];
+            /** @description Rows of values */
+            rows: components["schemas"]["PropertyValue"][][];
+        };
+        /**
+         * @description Why a decompiled PatternIR is not editable on the canvas.
+         *
+         *     `compile` is lossless for every `QueryIR::Match` shape, so `decompile`
+         *     of a `Match` always produces a fully editable canvas. Non-`Match`
+         *     operations (`Aggregate`, `Union`, `Chain`, `PathFind`, `Mutate`,
+         *     `Analytics`, `CallSubquery`) can't be round-tripped through the
+         *     canvas structure — instead of collapsing them to an empty canvas
+         *     (which the UI used to mistake for "this query has no nodes yet")
+         *     the decompiler now returns a `ReadOnlyReason` so the UI can render
+         *     a clear "not editable: Aggregate query" state.
+         */
+        ReadOnlyReason: {
+            /**
+             * @description The QueryIR operation variant this PatternIR was decompiled
+             *     from, spelled as the Rust variant name (`"Aggregate"`,
+             *     `"Union"`, ...). The frontend maps this to localised labels;
+             *     the backend keeps the canonical identifier here.
+             */
+            original_op: string;
+        };
         /**
          * @description Modeled-only reanalyze: selection is derived from
          *     `analysis_scope.included`. Rejected with 400 when `included`
          *     is empty.
          */
         ReanalyzeModeledOntologyDraftRequest: {
-            /** @description Optional repository source for enrichment. */
-            repo_source?: Record<string, never> | null;
+            repo_source?: null | components["schemas"]["RepoSource"];
             /** Format: int32 */
             revision: number;
-            source: components["schemas"]["DataSourceSpec"];
+            source: components["schemas"]["OntologyDraftDataSourceSpec"];
         };
         ReanalyzeOntologyDraftRequest: {
-            /** @description Optional repository source for enrichment. */
-            repo_source?: Record<string, never> | null;
+            repo_source?: null | components["schemas"]["RepoSource"];
             /** Format: int32 */
             revision: number;
             /**
@@ -6558,27 +11846,178 @@ export interface components {
              *     Required and explicit — `kind: "all"` for a full sweep,
              *     `kind: "subset"` to narrow.
              */
-            selection: Record<string, never>;
+            selection: components["schemas"]["AnalyzeSelection"];
             /** @description Data source to re-analyze (must match original source type). */
-            source: components["schemas"]["DataSourceSpec"];
+            source: components["schemas"]["OntologyDraftDataSourceSpec"];
         };
         ReanalyzeOntologyDraftResponse: {
             /** @description Design decisions that were invalidated by the schema change. */
             invalidated_decisions?: string[];
-            project: Record<string, never>;
+            project: components["schemas"]["OntologyDraftView"];
         };
+        RebaseAnalysis: {
+            /**
+             * @description Diff from the draft's parent version to the draft's
+             *     in-flight ontology. Captures what the draft has done.
+             */
+            base_to_draft: components["schemas"]["OntologyDiff"];
+            /**
+             * @description Diff from the draft's parent version to the canonical head.
+             *     Captures what the canonical has done since the draft was
+             *     forked.
+             */
+            base_to_head: components["schemas"]["OntologyDiff"];
+            /**
+             * @description Per-entity conflicts — a non-empty list means the operator
+             *     must reconcile before rebasing. Empty list = clean rebase.
+             */
+            conflicts: components["schemas"]["RebaseConflict"][];
+        };
+        RebaseConflict: {
+            entity_id: string;
+            entity_kind: components["schemas"]["ConflictEntityKind"];
+            /** @enum {string} */
+            kind: "add_add";
+            label: string;
+        } | {
+            entity_id: string;
+            entity_kind: components["schemas"]["ConflictEntityKind"];
+            /** @enum {string} */
+            kind: "modify_remove";
+            label: string;
+            /**
+             * @description `"draft"` when the draft holds the modify and the
+             *     canonical removed; `"head"` when the canonical
+             *     modified and the draft removed.
+             */
+            modifier: components["schemas"]["ConflictSide"];
+        } | {
+            /**
+             * @description One entry per overlapping atomic axis. Order matches
+             *     the canonical change variant order so the FE renders
+             *     stably.
+             */
+            axes: components["schemas"]["ConflictAxis"][];
+            entity_id: string;
+            entity_kind: components["schemas"]["ConflictEntityKind"];
+            /** @enum {string} */
+            kind: "modify_modify";
+            label: string;
+        };
+        RebaseOntologyDraftRequest: {
+            /**
+             * @description When `true`, the operator has reviewed the rebase preview
+             *     and accepts the listed conflicts. The pin still goes
+             *     through; the draft's content stays under operator
+             *     control to reconcile by hand. When `false` (default), a
+             *     non-empty conflict set causes the endpoint to return
+             *     `409` so the FE can route the operator to the preview
+             *     surface first.
+             */
+            acknowledge_conflicts?: boolean;
+        };
+        RebaseOntologyDraftResponse: {
+            project: components["schemas"]["OntologyDraftView"];
+        };
+        RebasePreviewResponse: {
+            /**
+             * @description `true` when the canonical has not advanced (draft already
+             *     pinned to head). The FE skips the rebase call in that case.
+             */
+            already_at_head: boolean;
+            /**
+             * @description Full rebase analysis — `base_to_head`, `base_to_draft`,
+             *     `conflicts`. Wire shape mirrors `ox_ontology::rebase::RebaseAnalysis`.
+             */
+            analysis: components["schemas"]["RebaseAnalysis"];
+            /**
+             * Format: uuid
+             * @description Canonical head id at the time of analysis. The rebase
+             *     confirm call must echo this back so a sibling commit
+             *     landing between preview and rebase doesn't silently land
+             *     on a fresher head than the operator inspected.
+             */
+            head_version_id?: string | null;
+        };
+        RecipeExecutionResult: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            duration_ms: number;
+            /** Format: uuid */
+            id: string;
+            input_hash: string;
+            ontology_lineage_id?: string | null;
+            output: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            recipe_id?: string | null;
+        };
+        /** @enum {string} */
+        RecipeStatus: "draft" | "approved" | "deprecated";
         RecipeStatusUpdateRequest: {
-            status: string;
+            status: components["schemas"]["RecipeStatus"];
         };
+        /** @enum {string} */
+        ReconcileConfidence: "high" | "medium" | "low";
+        /**
+         * @description Entity kinds the reconcile pipeline can re-stamp ids on when
+         *     the LLM lost track of an existing entity's identifier.
+         *
+         *     Scoped to topology (Node / Edge / Property) because the LLM
+         *     design path that feeds reconcile only emits those three. Other
+         *     IR collections — constraints, indices, governance, vocabulary,
+         *     mapping, lineage — flow through dedicated paths that preserve
+         *     ids without the fuzzy match. Listing only the actionable kinds
+         *     keeps `apply_match_decisions` exhaustive.
+         *
+         *     `storage::EntityKind` is a sibling discriminator with a much
+         *     wider surface (every persisted IR entity); the two intentionally
+         *     stay separate so a reconcile-flow change doesn't ripple through
+         *     the content-addressed storage layer.
+         * @enum {string}
+         */
+        ReconcileEntityKind: "node" | "edge" | "property";
         ReconcileOntologyDraftRequest: {
             /** @description User accept/reject decisions for uncertain matches. */
-            decisions: Record<string, never>[];
+            decisions: components["schemas"]["MatchDecision"][];
             /** @description Reconciled ontology with user decisions applied. */
-            reconciled_ontology: Record<string, never>;
+            reconciled_ontology: components["schemas"]["OntologyIR"];
             /** Format: int32 */
             revision: number;
             /** @description The uncertain matches being decided upon. */
-            uncertain_matches: Record<string, never>[];
+            uncertain_matches: components["schemas"]["UncertainMatch"][];
+        };
+        ReconcileReport: {
+            /** @description Overall confidence */
+            confidence: components["schemas"]["ReconcileConfidence"];
+            /** @description Entities present in original but missing from refined */
+            deleted_entities: components["schemas"]["DeletedEntity"][];
+            /** @description Entities where id was missing and auto-generated */
+            generated_ids: components["schemas"]["GeneratedEntity"][];
+            /** @description Entities where the LLM preserved the id correctly */
+            preserved_ids: components["schemas"]["PreservedEntity"][];
+            /** @description Label/name fallback matches (id was lost but matched by label) */
+            uncertain_matches: components["schemas"]["UncertainMatch"][];
+        };
+        RecordEvaluationMetricRequest: {
+            metadata?: components["schemas"]["EvaluationMetricMetadata"];
+            /**
+             * @description Rubric axis name. RAGAS canonicals
+             *     (`faithfulness` / `answer_relevance` / `context_precision`
+             *     / `context_recall`) plus tenant-defined names ride on the
+             *     same column.
+             */
+            name: string;
+            reasoning?: string | null;
+            /**
+             * Format: double
+             * @description Score on the rubric axis. Conventionally `[0.0, 1.0]` but
+             *     the column is unbounded so a latency-style rubric (ms) can
+             *     reuse the same surface.
+             */
+            score: number;
         };
         RefineOntologyDraftRequest: {
             /** @description Additional context for the LLM refinement. */
@@ -6589,9 +12028,9 @@ export interface components {
         RefineOntologyDraftResponse: {
             /** @description Summary of graph profiling results. */
             profile_summary: string;
-            project: Record<string, never>;
+            project: components["schemas"]["OntologyDraftView"];
             /** @description Report on ID reconciliation between original and refined ontology. */
-            reconcile_report: Record<string, never>;
+            reconcile_report: components["schemas"]["ReconcileReport"];
         };
         RefreshAdaptersResponse: {
             count: number;
@@ -6643,10 +12082,6 @@ export interface components {
             /** @enum {string} */
             kind: "mysql";
             schema_name: string;
-        } | {
-            credential: components["schemas"]["Credential"];
-            /** @enum {string} */
-            kind: "bigquery";
         };
         /**
          * @description Request body for `POST /api/admin/federation/adapters`.
@@ -6695,13 +12130,221 @@ export interface components {
             rel_type: string;
             to_label: string;
         };
-        ReportParameter: {
-            default?: Record<string, never> | null;
-            name: string;
+        RemoveMemberResponse: {
+            removed: boolean;
+        };
+        ReplaceEvaluationDatasetItemsRequest: {
+            items: components["schemas"]["UpsertEvaluationDatasetItemEntry"][];
+        };
+        ReplaceEvaluationDatasetItemsResponse: {
+            /** Format: uuid */
+            dataset_id: string;
+            /** Format: int64 */
+            item_count: number;
+        };
+        /**
+         * @description Outcome of repo enrichment analysis.
+         * @enum {string}
+         */
+        RepoAnalysisStatus: "complete" | "partial" | "skipped" | "failed";
+        RepoAnalysisSummary: {
+            /** @description Ambiguous columns for which repo analysis found a suggestion (not yet user-accepted) */
+            columns_with_suggestions: number;
+            /** @description Git commit SHA the analysis was pinned to (present only for git URL sources) */
+            commit_sha?: string | null;
+            /** @description General domain notes from repo analysis (e.g., "multi-tenant SaaS", "soft-delete pattern") */
+            domain_notes?: string[];
+            enums_found: number;
+            failure_reason?: null | components["schemas"]["RepoFailureKind"];
+            /** @description Free-form field hints from repo analysis (e.g., "ISO 4217 currency code") */
+            field_hints?: components["schemas"]["FieldHint"][];
+            /** @description Files actually read and analyzed (may be fewer due to size/binary limits) */
+            files_analyzed: number;
+            /** @description Files the LLM selected for analysis */
+            files_requested: number;
+            /** @description Implied FK relationships upgraded from heuristic (0.85) to ORM-confirmed (0.98) confidence */
+            fk_confidence_upgraded: number;
+            framework?: string | null;
+            relationships_found: number;
+            /** @description Overall outcome of the repo enrichment attempt. */
+            status: components["schemas"]["RepoAnalysisStatus"];
+            /** @description Whether the file tree exceeded the max entries limit and was truncated */
+            tree_truncated: boolean;
+        };
+        /**
+         * @description A suggestion for an ambiguous column derived from repo analysis.
+         *     Becomes actionable only when the user explicitly accepts it as a column_clarification.
+         */
+        RepoColumnSuggestion: {
+            column: string;
+            source_file: string;
+            /** @description Suggested enum definition (e.g., "0=inactive, 1=active, 2=suspended") */
+            suggested_values: string;
+            table: string;
+        };
+        /**
+         * @description Structured cause of a repo-enrichment failure or skip. Replaces
+         *     the previous free-form `status_reason: String` so the FE can
+         *     render a localised "왜 실패했나" hint without parsing prose. The
+         *     emit site additionally `tracing::warn!`s the underlying error
+         *     for developer-facing observability.
+         * @enum {string}
+         */
+        RepoFailureKind: "git_clone_failed" | "local_repo_unreadable" | "policy_rejected" | "file_tree_failed" | "llm_navigation_failed" | "llm_analysis_failed" | "timeout" | "no_readable_files" | "no_relevant_files";
+        /**
+         * @description Repo-derived hint attached to a detected context. Carries the
+         *     declaration site so the admin can open the file and confirm.
+         */
+        RepoHint: {
+            /**
+             * @description File where the declaration was found (e.g.
+             *     `app/models/order.rb:42`). Caller uses this for a link-back.
+             */
+            source_file: string;
+            /**
+             * @description Pre-formatted `code=label, ...` suggestion from the repo
+             *     scan. UI parses this back into `ValueMapEntry`s when the
+             *     admin clicks "accept" — storing it as text keeps the
+             *     contract robust to changes in the repo scanner output shape.
+             */
+            suggested_values: string;
+        };
+        /**
+         * @description Abstraction for repo access. Local path for development,
+         *     git URL for multi-pod production.
+         */
+        RepoSource: {
+            path: string;
+            /** @enum {string} */
+            type: "local";
+        } | {
+            branch?: string | null;
+            /** @enum {string} */
+            type: "git_url";
+            url: string;
+        };
+        ResolveAmbiguityRequest: {
+            mapping: components["schemas"]["AmbiguityMapping"];
+        };
+        ResolvedQueryBindings: {
+            edge_bindings: components["schemas"]["EdgeBinding"][];
+            node_bindings: components["schemas"]["NodeBinding"][];
+            property_bindings: components["schemas"]["QueryPropertyBinding"][];
         };
         RestoreOntologyDraftRevisionResponse: {
-            project: Record<string, never>;
+            project: components["schemas"]["OntologyDraftView"];
         };
+        /**
+         * @description Closed budget for one retrieval invocation. Splitting
+         *     node-count + token-count is intentional — a graph that fits in
+         *     the node cap but blows the token budget after rendering still
+         *     gets truncated to the token ceiling. Both axes guard
+         *     independently.
+         */
+        RetrievalLimits: {
+            /**
+             * Format: int32
+             * @description Anchor top-k for `search_entry_points`. The first hop into
+             *     the graph — too few misses relevant entry points, too many
+             *     pollutes downstream traversal.
+             */
+            anchor_top_k: number;
+            /**
+             * Format: int32
+             * @description Community summary top-k for the global retrieval pass
+             *     (Microsoft GraphRAG-style). `0` skips community fetch
+             *     entirely — useful for narrow questions that don't benefit
+             *     from a global summary.
+             */
+            community_top_k: number;
+            /**
+             * Format: int32
+             * @description Maximum nodes returned by neighbour expansion. Beyond this
+             *     the retrieval layer truncates; the truncation is logged
+             *     against the active `InferenceSession` so the operator can
+             *     see when the budget bit.
+             */
+            max_nodes: number;
+            /**
+             * Format: int32
+             * @description Maximum tokens after the LLM-render pass. Smaller than
+             *     `max_nodes × per-node-render` would imply because long
+             *     labels / descriptions dominate token count.
+             */
+            max_tokens: number;
+        };
+        /**
+         * @description IR-flavoured deterministic retrieval metrics. Each axis lands
+         *     as a separate `evaluation_metrics` row keyed
+         *     `retrieval.<axis>` so the existing dashboard / diff surfaces
+         *     pick them up uniformly with the LLM-judged axes.
+         */
+        RetrievalMetrics: {
+            /** Format: int32 */
+            expected_count: number;
+            /** Format: int32 */
+            k: number;
+            /** Format: double */
+            mrr: number;
+            /** Format: double */
+            ndcg_at_k: number;
+            /** Format: double */
+            precision_at_k: number;
+            /** Format: double */
+            recall_at_k: number;
+            /** Format: int32 */
+            topk_hit_count: number;
+        };
+        /**
+         * @description Typed retrieval policy. One profile = one named answer to "how
+         *     should the graph be walked?".
+         *
+         *     Workspace-scoped per `(workspace_id, name)` UNIQUE key. The
+         *     platform supports an arbitrary count per workspace; `Perspective`
+         *     (a sibling FE concept) holds an `Option<RetrievalProfileId>`
+         *     FK so different ontology views can pin different retrieval
+         *     shapes (a Customer-centric perspective wants different edge
+         *     weights than a Product-centric one).
+         */
+        RetrievalProfile: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: float */
+            default_edge_weight: number;
+            description?: string;
+            /**
+             * @description Per-edge-type weight overrides. Edges absent from the map
+             *     inherit [`Self::default_edge_weight`]. Weights are
+             *     non-negative `f32`; the traversal strategy interprets `0.0`
+             *     as "skip this edge type" (effective edge type filter
+             *     without a separate field).
+             */
+            edge_weights: {
+                [key: string]: number;
+            };
+            id: components["schemas"]["RetrievalProfileId"];
+            limits: components["schemas"]["RetrievalLimits"];
+            /**
+             * @description Workspace-unique human-readable name. Operators reference
+             *     the profile by name on the FE; the id is stable across
+             *     renames (rename = `update_retrieval_profile` preserving
+             *     id, not `delete + create`).
+             */
+            name: string;
+            traversal: components["schemas"]["TraversalStrategy"];
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description Stable identifier for a [`crate::retrieval::RetrievalProfile`].
+         *     The profile struct itself lands in Φ10 (GraphRAG retrieval as
+         *     data); the id type is declared early so [`EvaluationFingerprint`]
+         *     can pin the retrieval policy without a forward-declaration churn
+         *     when Φ10 lands.
+         */
+        RetrievalProfileId: string;
         ReviewApprovalRequest: {
             approved: boolean;
             /**
@@ -6713,6 +12356,9 @@ export interface components {
         ReviewApprovalResponse: {
             /** @description `"approved"` or `"rejected"`. */
             status: string;
+        };
+        RevokeAmbiguityResponse: {
+            revoked: boolean;
         };
         /**
          * @description Risk tier — metadata for UI badging and audit filtering. Does
@@ -6726,6 +12372,14 @@ export interface components {
          * @enum {string}
          */
         RoleRef: "admin" | "data_steward" | "analyst";
+        RoutingRuleUpdate: {
+            enabled?: boolean | null;
+            /** Format: uuid */
+            model_config_id?: string | null;
+            operation?: string | null;
+            /** Format: int32 */
+            priority?: number | null;
+        };
         /** @description When the rule is live at all. */
         RuleActivationKind: {
             /** @enum {string} */
@@ -6767,8 +12421,8 @@ export interface components {
              * @description Provenance of the rule. Authored rules accept edits; derived
              *     rules are regenerated from the source binding and must not be
              *     hand-edited (the editor disables controls; exporters skip
-             *     them to avoid double-emit). Defaults to `Authored` when
-             *     missing on the wire.
+             *     them to avoid double-emit). Omitted origin is treated as
+             *     `Authored`, matching the canonical authored-rule constructor.
              */
             origin?: components["schemas"]["RuleOrigin"];
             /**
@@ -6897,6 +12551,141 @@ export interface components {
             migration_note: string;
             previous_id: components["schemas"]["RuleId"];
         };
+        /**
+         * @description Per-axis aggregate roll-up across every `(case_key, axis)`
+         *     pair both runs share. Surfaces the operator-facing summary on
+         *     the diff page header — "candidate beats baseline by 0.04 mean
+         *     faithfulness with Cohen's d 0.62 and 73% win rate over 30
+         *     cases".
+         */
+        RunAxisSummary: {
+            axis: string;
+            /** Format: double */
+            baseline_mean: number;
+            /** Format: double */
+            candidate_mean: number;
+            /**
+             * Format: double
+             * @description Cohen's d effect size — `(mean_c - mean_b) / pooled_std`.
+             *     Industry interpretation: `|d| < 0.2` negligible, `0.5`
+             *     medium, `0.8` large. `None` when both runs produced
+             *     identical scores (zero variance — `pooled_std == 0`); the
+             *     FE renders a "—" in that cell.
+             */
+            cohen_d?: number | null;
+            /**
+             * Format: double
+             * @description `candidate_mean - baseline_mean`. Positive = candidate
+             *     improved.
+             */
+            mean_delta: number;
+            /**
+             * Format: int64
+             * @description Number of cases where both runs produced a score on this
+             *     axis. The denominator for `mean_delta` / `win_rate_pct` /
+             *     `cohen_d`.
+             */
+            paired_case_count: number;
+            /**
+             * Format: double
+             * @description Percentage of paired cases where `candidate_score >
+             *     baseline_score`. `[0.0, 100.0]`. Ties (delta == 0.0) count
+             *     as half a win — symmetric "beats baseline" measure.
+             */
+            win_rate_pct: number;
+        };
+        /**
+         * @description Two-run comparison report. Returned by
+         *     [`crate::EvaluationStore::compare_evaluation_runs`]. Per-case
+         *     row diffs ride on `per_case`; aggregate summaries on `per_axis`.
+         *     Both ordered for deterministic FE rendering — case_key ASC,
+         *     axis ASC.
+         */
+        RunComparisonReport: {
+            /** Format: uuid */
+            baseline_run_id: string;
+            /** Format: uuid */
+            candidate_run_id: string;
+            /**
+             * Format: uuid
+             * @description Pinned dataset both runs reference. The store enforces
+             *     matching `dataset_id` and rejects with `OxError::Validation`
+             *     otherwise — diff between runs over different datasets is
+             *     not meaningful.
+             */
+            dataset_id: string;
+            per_axis: components["schemas"]["RunAxisSummary"][];
+            per_case: components["schemas"]["RunMetricDelta"][];
+        };
+        /**
+         * @description One per-case axis-level diff between two runs over the same
+         *     dataset. Carries both raw scores so the FE diff panel renders
+         *     the comparison without re-fetching either side.
+         */
+        RunMetricDelta: {
+            /**
+             * @description Rubric axis (`faithfulness`, `answer_relevance`, …).
+             *     Mirrors `EvaluationMetric.name`.
+             */
+            axis: string;
+            /** Format: double */
+            baseline_score: number;
+            /** Format: double */
+            candidate_score: number;
+            /**
+             * @description Stable per-dataset identifier — the same `case_key` is
+             *     present in both runs because both materialised from the
+             *     same dataset. Renders as the row label on the FE diff
+             *     table.
+             */
+            case_key: string;
+            /**
+             * Format: double
+             * @description `candidate_score - baseline_score`. Positive = candidate
+             *     improved; negative = regression. Sign convention chosen so
+             *     the FE green-on-positive / red-on-negative styling is
+             *     trivial.
+             */
+            delta: number;
+        };
+        /**
+         * @description Run-level summary returned by
+         *     [`crate::EvaluationStore::evaluation_run_summary`]. Drives
+         *     the run-list badge and the run-detail header card without
+         *     fanning out into per-case + per-metric round trips.
+         */
+        RunSummary: {
+            /**
+             * @description Per-axis aggregate, sorted by `axis ASC` for stable
+             *     FE rendering. Includes both RAGAS axes
+             *     (`faithfulness` / `answer_relevance` / …) and safety
+             *     axes (`safety.toxicity_safe` / …) when present.
+             */
+            axis_means: components["schemas"]["AxisAggregate"][];
+            /**
+             * Format: int64
+             * @description Cases with `error IS NOT NULL` — the case-execute path
+             *     raised before producing `actual`. The judge can't
+             *     score them, the dashboard renders them in red.
+             */
+            failed_cases: number;
+            /**
+             * Format: int64
+             * @description Cases with at least one metric tagged
+             *     `metadata.kind = 'judge'` (RAGAS rubric). Operators
+             *     surfacing "judged 5/12" want the RAGAS denominator,
+             *     not the safety one — the safety judge is opt-in and
+             *     reading both would conflate distinct signals.
+             */
+            judged_cases: number;
+            /** Format: uuid */
+            run_id: string;
+            /**
+             * Format: int64
+             * @description Every case attached to the run.
+             */
+            total_cases: number;
+        };
         SavedPatternResponse: {
             /** Format: date-time */
             created_at: string;
@@ -6905,9 +12694,60 @@ export interface components {
             id: string;
             name: string;
             ontology_lineage_id: string;
-            pattern_ir: Record<string, never>;
+            pattern_ir: components["schemas"]["PatternIR"];
             /** Format: date-time */
             updated_at: string;
+        };
+        SavedPatternResponsePage: {
+            items: components["schemas"]["SavedPatternResponse"][];
+            next_cursor?: string | null;
+        };
+        SavedReport: {
+            /** Format: date-time */
+            created_at: string;
+            description?: string | null;
+            /** Format: uuid */
+            id: string;
+            is_public: boolean;
+            ontology_lineage_id: string;
+            parameters: components["schemas"]["SavedReportParameter"][];
+            query_template: string;
+            title: string;
+            /** Format: date-time */
+            updated_at: string;
+            user_id: string;
+            widget_type?: string | null;
+        };
+        SavedReportPage: {
+            items: components["schemas"]["SavedReport"][];
+            next_cursor?: string | null;
+        };
+        SavedReportParameter: {
+            default?: unknown;
+            label: string;
+            name: string;
+            type: components["schemas"]["SavedReportParameterType"];
+        };
+        /** @enum {string} */
+        SavedReportParameterType: "string" | "number" | "boolean";
+        ScheduledTask: {
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            cron_expression: string;
+            description?: string | null;
+            enabled: boolean;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            last_run_at?: string | null;
+            last_status?: string | null;
+            /** Format: date-time */
+            next_run_at: string;
+            ontology_lineage_id?: string | null;
+            /** Format: uuid */
+            recipe_id: string;
+            webhook_url?: string | null;
         };
         /**
          * @description Bidirectional inverted index of every schema-level reference in
@@ -6960,6 +12800,10 @@ export interface components {
             id: string;
             /** @enum {string} */
             kind: "interface";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "concept";
         } | {
             id: string;
             /** @enum {string} */
@@ -7022,6 +12866,13 @@ export interface components {
             /** @enum {string} */
             kind: "coded_value";
         };
+        SchemaStats: {
+            column_count: number;
+            declared_fk_count: number;
+            table_count: number;
+            /** Format: int64 */
+            total_row_count: number;
+        };
         /**
          * @description Dimension a [`ApprovalSkipPredicate::ChangeScopeBelow`]
          *     predicate measures against. Each op that cares about size
@@ -7035,8 +12886,30 @@ export interface components {
          * @enum {string}
          */
         ScopeKind: "code_count";
+        /** @description Scope path segment for nested query constructs. */
+        ScopeSegment: {
+            /** @enum {string} */
+            type: "root";
+        } | {
+            index: number;
+            /** @enum {string} */
+            type: "union_branch";
+        } | {
+            depth: number;
+            /** @enum {string} */
+            type: "exists_subquery";
+        } | {
+            index: number;
+            /** @enum {string} */
+            type: "chain_step";
+        };
         ScopeUpdateResponse: {
             draft: components["schemas"]["OntologyDraftView"];
+        };
+        SearchCommunitySummariesQuery: {
+            q: string;
+            /** Format: int32 */
+            top_k?: number;
         };
         SearchGraphRequest: {
             /** @description Optional label filter — only match nodes with these labels. */
@@ -7050,7 +12923,9 @@ export interface components {
         SearchResultNode: {
             element_id: string;
             labels: string[];
-            props: Record<string, never>;
+            props: {
+                [key: string]: unknown;
+            };
         };
         /** @description A named subset of a single `NodeType`. */
         SegmentDef: {
@@ -7284,13 +13159,8 @@ export interface components {
             author_user_name: string;
             /** Format: int32 */
             base_revision: number;
-            /**
-             * @description `OntologyCommand` is internally tagged JSON; utoipa can't
-             *     derive a static schema for the runtime variant set, so the
-             *     wire shape surfaces as `Vec<Object>` in OpenAPI and the FE
-             *     reads it through the typed `OntologyCommand` union.
-             */
-            commands: Record<string, never>[];
+            /** @description Ordered ontology mutation commands applied by the author. */
+            commands: components["schemas"]["OntologyCommand"][];
             /** Format: int32 */
             new_revision: number;
             /** Format: uuid */
@@ -7305,16 +13175,74 @@ export interface components {
             /** @enum {string} */
             type: "error";
         };
+        SessionChatMessage: {
+            content: string;
+            role: components["schemas"]["SessionMessageRole"];
+            thinking?: string | null;
+            tool_calls?: components["schemas"]["SessionToolCall"][];
+            usage?: null | components["schemas"]["SessionUsage"];
+        };
+        /** @enum {string} */
+        SessionMessageRole: "user" | "assistant";
+        SessionMessagesResponse: {
+            messages: components["schemas"]["SessionChatMessage"][];
+        };
+        /**
+         * @description Closed set of session terminal states. The wire shape is the
+         *     snake_case `kind` discriminator — adding a future variant is a
+         *     Rust-side change that downstream JSON consumers see as a new
+         *     tag, never a silent reshape.
+         */
+        SessionOutcome: {
+            /** @enum {string} */
+            kind: "success";
+            /** Format: uuid */
+            winning_attempt_id: string;
+        } | {
+            /** @enum {string} */
+            kind: "exhausted";
+            reason: string;
+        } | {
+            classification: components["schemas"]["ErrorClassification"];
+            /** @enum {string} */
+            kind: "rejected";
+            reason: string;
+        } | {
+            /** @enum {string} */
+            kind: "cancelled";
+        };
+        SessionToolCall: {
+            /** Format: int64 */
+            duration_ms?: number | null;
+            id: string;
+            input?: {
+                [key: string]: unknown;
+            } | null;
+            is_error?: boolean | null;
+            name: string;
+            output?: string | null;
+            reason?: string | null;
+            status: components["schemas"]["SessionToolCallStatus"];
+        };
+        /** @enum {string} */
+        SessionToolCallStatus: "running" | "done" | "error" | "review";
+        SessionUsage: {
+            /** Format: int64 */
+            input_tokens: number;
+            /** Format: int64 */
+            output_tokens: number;
+        };
         /**
          * @description Violation severity.
          * @enum {string}
          */
         Severity: "violation" | "warning" | "info";
         /**
-         * @description SHACL Core constraint component. The subset covers ~95% of
-         *     real-world rule usage; advanced components (`sh:and`, `sh:or`,
-         *     `sh:xone`, recursion rules) are not yet implemented and land
-         *     alongside the reasoning engine.
+         * @description SHACL Core constraint component. The model keeps common primitive
+         *     property constraints and composition operators (`sh:and`, `sh:or`,
+         *     `sh:not`, `sh:xone`, `sh:qualifiedValueShape`) in one typed tree so
+         *     rule authors can express portable validation intent without falling
+         *     back to dialect-specific predicates.
          *
          *     `ShaclConstraint` lives at the **logical** layer — the SHACL
          *     validator pipeline checks each constraint at write/read time and
@@ -7421,31 +13349,19 @@ export interface components {
             other_property: components["schemas"]["PropertyId"];
             target: components["schemas"]["ConstraintTarget"];
         } | {
-            /**
-             * @description `Vec<ShaclConstraint>` — `value_type = Object` keeps
-             *     utoipa's schema generator from infinitely inlining the
-             *     recursive variant into its own definition. Wire shape
-             *     stays the same; only the OpenAPI document references
-             *     `ShaclConstraint` by name on the recursive edge.
-             */
-            branches: Record<string, never>[];
+            branches: components["schemas"]["ShaclConstraint"][];
             /** @enum {string} */
             kind: "or";
         } | {
-            branches: Record<string, never>[];
+            branches: components["schemas"]["ShaclConstraint"][];
             /** @enum {string} */
             kind: "and";
         } | {
-            /**
-             * @description Boxed because Rust enums forbid direct recursion at the
-             *     variant level. utoipa schema treats this as `Object` —
-             *     same recursive-edge handling as `Or`/`And`/`Xone`.
-             */
-            inner: Record<string, never>;
+            inner: components["schemas"]["ShaclConstraint"];
             /** @enum {string} */
             kind: "not";
         } | {
-            branches: Record<string, never>[];
+            branches: components["schemas"]["ShaclConstraint"][];
             /** @enum {string} */
             kind: "xone";
         } | {
@@ -7455,8 +13371,21 @@ export interface components {
             qualified_max_count?: number | null;
             /** Format: int32 */
             qualified_min_count?: number | null;
-            shape: Record<string, never>;
+            shape: components["schemas"]["ShaclConstraint"];
         };
+        /** @description SHACL failure distribution row for the "실패 유형 분포" chart. */
+        ShaclFailureCount: {
+            /** Format: int64 */
+            count: number;
+            kind: components["schemas"]["ShaclFailureKind"];
+        };
+        /**
+         * @description Typed SHACL failure kind. The taxonomy is deliberately small —
+         *     every UI filter / telemetry gauge keys off a finite set, not a
+         *     freeform reason string. Unknown causes ⇒ Other.
+         * @enum {string}
+         */
+        ShaclFailureKind: "cardinality_violation" | "measure_group_by" | "unknown_coded_value" | "mandatory_property_missing" | "temporal_grain_mismatch" | "other";
         ShareDashboardRequest: {
             /**
              * Format: int32
@@ -7478,7 +13407,7 @@ export interface components {
             description?: string | null;
             /** Format: uuid */
             id: string;
-            layout: Record<string, never>;
+            layout: components["schemas"]["DashboardLayoutItem"][];
             name: string;
             widgets: components["schemas"]["SharedWidgetResponse"][];
         };
@@ -7488,17 +13417,91 @@ export interface components {
             id: string;
             /** Format: date-time */
             last_refreshed?: string | null;
-            last_result?: Record<string, never> | null;
-            position: Record<string, never>;
-            thresholds?: Record<string, never> | null;
+            last_result?: {
+                [key: string]: unknown;
+            } | null;
+            position: components["schemas"]["DashboardWidgetPosition"];
+            thresholds?: null | components["schemas"]["DashboardWidgetThresholds"];
             title: string;
-            widget_spec: Record<string, never>;
+            widget_spec: {
+                [key: string]: unknown;
+            };
             widget_type: string;
         };
         SkipBody: {
             column: string;
             reason: string;
             relation: string;
+        };
+        /** @enum {string} */
+        SortDirection: "asc" | "desc";
+        /**
+         * @description Full analysis report produced by analyzing schema + profile before ontology design.
+         *     Contains findings ordered by actionability: implied FKs, PII, ambiguous columns, etc.
+         */
+        SourceAnalysisReport: {
+            /**
+             * @description Columns whose values are ambiguous and need user clarification.
+             *     Each entry is a persistent [`crate::ambiguity::AmbiguityContext`]
+             *     — the resolver path picks one of these up and attaches a
+             *     resolution when the admin or agent decides the meaning.
+             */
+            ambiguous_columns: components["schemas"]["AmbiguityContext"][];
+            /** @description Whether the underlying source analysis was complete or partial */
+            analysis_completeness: components["schemas"]["AnalysisCompleteness"];
+            /**
+             * @description Explicit warnings for skipped tables/columns or omitted stats during analysis.
+             *     Each warning carries a stable `class` + `scope` so consumers can
+             *     group, filter, and surface actionable hints without parsing
+             *     free-text messages.
+             */
+            analysis_warnings?: components["schemas"]["AnalysisWarning"][];
+            /** @description Potential foreign key relationships not declared in the schema */
+            implied_relationships: components["schemas"]["ImpliedRelationship"][];
+            large_schema_warning?: null | components["schemas"]["LargeSchemaWarning"];
+            /**
+             * @description Columns the classifier suggests carry PII. Suggestions are
+             *     advisory; the operator confirms each by submitting a
+             *     matching [`crate::pii::PiiAnnotation`] in [`DesignOptions`].
+             */
+            pii_suggestions: components["schemas"]["PiiSuggestion"][];
+            /** @description Repo-sourced suggestions for ambiguous columns (user must explicitly accept) */
+            repo_suggestions: components["schemas"]["RepoColumnSuggestion"][];
+            repo_summary?: null | components["schemas"]["RepoAnalysisSummary"];
+            /** @description Summary statistics about the schema */
+            schema_stats: components["schemas"]["SchemaStats"];
+            /** @description Tables suggested for exclusion from the ontology */
+            table_exclusion_suggestions: components["schemas"]["TableExclusionSuggestion"][];
+        };
+        SourceColumnDef: {
+            /** @description Original DB type (e.g., "varchar", "int4", "jsonb", "timestamp") */
+            data_type: string;
+            name: string;
+            nullable: boolean;
+        };
+        /**
+         * @description Describes which source type was used, without storing credentials.
+         *     Stored in the design project for display and reanalysis source-type matching.
+         */
+        SourceConfig: {
+            /** @description Schema name (postgresql) or database name (mysql, mongodb) */
+            schema_name?: string | null;
+            /**
+             * @description Identity fingerprint of the data source (e.g., hash of PG host+db, JSON structure hash).
+             *     Used to detect when reanalyze targets a different source instance with the same schema shape,
+             *     which invalidates structural decisions (excluded_tables, confirmed_relationships).
+             */
+            source_fingerprint?: string | null;
+            source_type: components["schemas"]["SourceTypeKind"];
+        };
+        /** @description A record of a data source that was used to build or extend the project's ontology. */
+        SourceHistoryEntry: {
+            /** Format: date-time */
+            added_at: string;
+            fingerprint?: string | null;
+            schema_name?: string | null;
+            source_type: components["schemas"]["SourceTypeKind"];
+            url?: string | null;
         };
         /**
          * @description Stable identifier for a configured data source (a Postgres
@@ -7528,6 +13531,10 @@ export interface components {
             /** @description Source table or collection name. */
             table: string;
         };
+        /** @description Statistics collected from actual data in the source */
+        SourceProfile: {
+            table_profiles: components["schemas"]["TableProfile"][];
+        };
         /**
          * @description Source-side shape a mapping can bind to. `Table` is the default,
          *     `View` keeps a strong distinction from it so the planner can
@@ -7548,22 +13555,98 @@ export interface components {
             relation: string;
             source_id: components["schemas"]["SourceId"];
         };
+        /** @description Schema information extracted from a data source (RDBMS, document DB, etc.) */
+        SourceSchema: {
+            /** @description Foreign key relationships (critical for graph edge inference) */
+            foreign_keys: components["schemas"]["ForeignKeyDef"][];
+            /** @description Data source type (e.g., "postgresql", "mysql", "mongodb") */
+            source_type: string;
+            /** @description Tables/collections discovered */
+            tables: components["schemas"]["SourceTableDef"][];
+        };
+        SourceTableDef: {
+            columns: components["schemas"]["SourceColumnDef"][];
+            name: string;
+            primary_key: string[];
+        };
+        /** @enum {string} */
+        SourceTypeKind: "text" | "csv" | "json" | "postgresql" | "mysql" | "mongodb" | "snowflake" | "bigquery" | "duckdb" | "code_repository" | "ontology";
+        /**
+         * @description What a stage produced. Closed set so the transition table can
+         *     pin every (Stage, Outcome) → next.
+         * @enum {string}
+         */
+        StageOutcome: "pass" | "fail" | "skip";
+        /**
+         * @description One durable deprecation proposal. `decided_at` + `decided_by_user_id`
+         *     are `None` on fresh rows; decisions land via
+         *     [`crate::StaleConceptProposalStore::record_decision`].
+         */
+        StaleConceptProposal: {
+            /** Format: int64 */
+            days_since_last_use: number;
+            /** Format: date-time */
+            decided_at?: string | null;
+            /** Format: uuid */
+            decided_by_user_id?: string | null;
+            decision: components["schemas"]["StaleProposalDecision"];
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            last_used_at?: string | null;
+            /** Format: date-time */
+            proposed_at: string;
+            reason?: string | null;
+            /** Format: uuid */
+            type_id: string;
+            type_kind: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description Admin decision on a stale-concept proposal. `Pending` is the
+         *     default; the two terminal states carry `decided_at` + optional
+         *     `reason` text.
+         * @enum {string}
+         */
+        StaleProposalDecision: "pending" | "approved" | "dismissed";
+        /**
+         * @description Stale-type scan result. `last_used_at == None` means the type
+         *     has never been referenced since the tracker started recording —
+         *     candidate for deprecation after admin review.
+         */
+        StaleTypeEntry: {
+            /** Format: int64 */
+            days_since_last_use: number;
+            /** Format: date-time */
+            last_used_at?: string | null;
+            /** Format: uuid */
+            type_id: string;
+            type_kind: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
         /** @description Named state transition inside a `StateMachine` rule. */
         StateTransition: {
             /** @description `None` → initial creation (no prior state). */
             from?: string | null;
             to: string;
         };
+        /** @enum {string} */
+        StringOp: "starts_with" | "ends_with" | "contains" | "regex";
+        SubmitQueryFeedbackRequest: {
+            feedback?: null | components["schemas"]["QueryFeedbackValue"];
+        };
         SuggestBindingsRequest: {
-            aliases?: Record<string, never>[];
-            description?: Record<string, never>;
+            aliases?: components["schemas"]["LocalizedText"][];
+            description?: null | components["schemas"]["LocalizedText"];
             policy?: null | components["schemas"]["BindingPolicy"];
             /**
              * @description Canonical term name. `LocalizedText` so a draft term carries
              *     the same multi-locale shape as a saved one — the scorer matches
              *     against every locale variant.
              */
-            term: Record<string, never>;
+            term: components["schemas"]["LocalizedText"];
             /**
              * @description Pre-existing term id if the term is already saved. When
              *     provided, the endpoint confirms it refers to the saved
@@ -7576,13 +13659,26 @@ export interface components {
             /** Format: uuid */
             ontology_id: string;
         };
-        SuggestTermsRequest: {
+        SuggestConceptsRequest: {
             policy?: null | components["schemas"]["BindingPolicy"];
         };
-        SuggestTermsResponse: {
-            candidates: components["schemas"]["TermCandidate"][];
+        SuggestConceptsResponse: {
+            candidates: components["schemas"]["ConceptCandidate"][];
             /** Format: uuid */
             ontology_id: string;
+        };
+        /**
+         * @description Sync status between ontology and graph data.
+         * @enum {string}
+         */
+        SyncStatus: "synced" | "partial" | "unsynced";
+        /** @enum {string} */
+        TableExclusionReason: "audit_log" | "temporary" | "empty";
+        TableExclusionSuggestion: {
+            reason: components["schemas"]["TableExclusionReason"];
+            /** Format: int64 */
+            row_count?: number | null;
+            table_name: string;
         };
         /**
          * @description One row of the project's source-table inventory.
@@ -7640,6 +13736,12 @@ export interface components {
          * @enum {string}
          */
         TableInventoryStatus: "imported" | "available_but_not_imported" | "retracted";
+        TableProfile: {
+            column_stats: components["schemas"]["ColumnStats"][];
+            /** Format: int64 */
+            row_count: number;
+            table_name: string;
+        };
         /**
          * @description Snapshot / series choice.
          *
@@ -7650,13 +13752,6 @@ export interface components {
          * @enum {string}
          */
         TemporalGrain: "snapshot" | "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
-        TermCandidate: {
-            /** Format: float */
-            score: number;
-            signals: components["schemas"]["BindingSignal"][];
-            term: Record<string, never>;
-            term_id: string;
-        };
         /**
          * @description One entry in a term's append-only change log.
          *
@@ -7753,9 +13848,8 @@ export interface components {
             kind: "imported_from";
         };
         /**
-         * @description Executable realisation of a glossary term that names a business
-         *     concept — how the runtime decides membership / value at query
-         *     time.
+         * @description Executable realisation of a business concept — how the runtime
+         *     decides membership / value at query time.
          *
          *     `Segment` is the canonical case: "Active Customer = Customer whose
          *     last_order < 90 days" lowers to a `SegmentDef`. `Function` covers
@@ -7811,6 +13905,18 @@ export interface components {
             error?: string | null;
             success: boolean;
         };
+        TestConnectionRequest: {
+            connection_string?: string | null;
+            schema_name?: string | null;
+            source_type: string;
+        };
+        TestConnectionResponse: {
+            error?: string | null;
+            error_type?: string | null;
+            success: boolean;
+            table_count?: number | null;
+            tables?: string[] | null;
+        };
         TestModelRequest: {
             api_key_env?: string | null;
             base_url?: string | null;
@@ -7822,13 +13928,88 @@ export interface components {
             message: string;
             ok: boolean;
         };
+        /** @enum {string} */
+        ThresholdDirection: "above" | "below";
         ToolRespondRequest: {
             approved: boolean;
-            modified_input?: Record<string, never> | null;
+            modified_input?: {
+                [key: string]: unknown;
+            } | null;
             reason?: string | null;
         };
         ToolRespondResponse: {
             status: string;
+        };
+        /** @description Data transformation to apply during mapping */
+        Transform: {
+            /** @enum {string} */
+            transform: "to_string";
+        } | {
+            /** @enum {string} */
+            transform: "to_int";
+        } | {
+            /** @enum {string} */
+            transform: "to_float";
+        } | {
+            /** @enum {string} */
+            transform: "to_bool";
+        } | {
+            format: string;
+            /** @enum {string} */
+            transform: "to_date";
+        } | {
+            format: string;
+            /** @enum {string} */
+            transform: "to_date_time";
+        } | {
+            /** @enum {string} */
+            transform: "trim";
+        } | {
+            /** @enum {string} */
+            transform: "to_lower";
+        } | {
+            /** @enum {string} */
+            transform: "to_upper";
+        } | {
+            delimiter: string;
+            index: number;
+            /** @enum {string} */
+            transform: "split";
+        } | {
+            expression: string;
+            /** @enum {string} */
+            transform: "custom";
+        };
+        TransitionVerifiedQueryStatusRequest: {
+            status: components["schemas"]["VerifiedQueryStatus"];
+        };
+        /**
+         * @description Traversal strategy — the algorithm shape applied during
+         *     neighbor expansion. Closed enum: every variant maps to a
+         *     distinct backend code path in the GraphRAG retrieval emitter.
+         *     Adding a strategy is one variant + one emitter arm.
+         */
+        TraversalStrategy: {
+            /** @enum {string} */
+            kind: "bfs";
+            /** Format: int32 */
+            max_depth: number;
+        } | {
+            /** Format: int32 */
+            iterations: number;
+            /** @enum {string} */
+            kind: "ppr";
+            /** Format: int32 */
+            max_depth: number;
+            /** Format: float */
+            restart_probability: number;
+        } | {
+            /** @enum {string} */
+            kind: "beam_search";
+            /** Format: int32 */
+            max_depth: number;
+            /** Format: int32 */
+            width: number;
         };
         TypeCandidate: {
             /**
@@ -7864,8 +14045,15 @@ export interface components {
             /** Format: int64 */
             worker_timeout_ms: number;
         };
+        UncertainMatch: {
+            entity_kind: components["schemas"]["ReconcileEntityKind"];
+            match_reason: string;
+            matched_label: string;
+            original_id: string;
+            original_label: string;
+        };
         UpdateChannelRequest: {
-            config?: null | components["schemas"]["WebhookChannelConfig"];
+            config?: null | components["schemas"]["WebhookNotificationConfig"];
             enabled?: boolean | null;
             events?: string[] | null;
             name?: string | null;
@@ -7876,13 +14064,13 @@ export interface components {
         UpdateDashboardRequest: {
             description?: string | null;
             is_public?: boolean | null;
-            layout?: Record<string, never> | null;
+            layout?: components["schemas"]["DashboardLayoutItem"][] | null;
             name?: string | null;
         };
         UpdateInsightRequest: {
             concept_anchors?: string[];
             /** @description Required on the wire (see `CreateInsightRequest::description`). */
-            description: Record<string, never>;
+            description: components["schemas"]["LocalizedText"];
             /**
              * Format: date-time
              * @description Optimistic-concurrency handle: must match the row's current
@@ -7892,9 +14080,9 @@ export interface components {
             expected_updated_at: string;
             /** Format: date-time */
             expires_at?: string | null;
-            original_provenance?: Record<string, never> | null;
-            query_ir: Record<string, never>;
-            question: Record<string, never>;
+            original_provenance?: null | components["schemas"]["QueryProvenance"];
+            query_ir: components["schemas"]["QueryIR"];
+            question: components["schemas"]["LocalizedText"];
             tags?: string[];
         };
         UpdateKnowledgeEntryRequest: {
@@ -7908,14 +14096,14 @@ export interface components {
         };
         UpdateKnowledgeStatusRequest: {
             review_notes?: string | null;
-            status: string;
+            status: components["schemas"]["KnowledgeStatus"];
         };
         UpdateMemberRoleRequest: {
             role: string;
         };
         UpdateOntologyDraftDecisionsRequest: {
             /** @description User design decisions. */
-            design_options: Record<string, never>;
+            design_options: components["schemas"]["DesignOptions"];
             /** Format: int32 */
             revision: number;
         };
@@ -7931,12 +14119,12 @@ export interface components {
         UpdatePromptRequest: {
             content?: string | null;
             is_active?: boolean | null;
-            variables?: unknown;
+            variables?: string[] | null;
         };
         UpdateReportRequest: {
             description?: string | null;
             is_public?: boolean | null;
-            parameters?: components["schemas"]["ReportParameter"][] | null;
+            parameters?: components["schemas"]["SavedReportParameter"][] | null;
             query_template?: string | null;
             title?: string | null;
             widget_type?: string | null;
@@ -7950,7 +14138,7 @@ export interface components {
         UpdateSavedPatternRequest: {
             description?: string | null;
             name: string;
-            pattern_ir: Record<string, never>;
+            pattern_ir: components["schemas"]["PatternIR"];
         };
         UpdateScheduleRequest: {
             enabled: boolean;
@@ -7978,23 +14166,69 @@ export interface components {
         };
         UpdateWorkspaceRequest: {
             name: string;
-            settings?: Record<string, never>;
+            settings?: {
+                [key: string]: unknown;
+            };
+        };
+        UpsertCommunitySummaryRequest: {
+            community_id: string;
+            /** Format: int32 */
+            level?: number;
+            member_entity_kinds?: string[];
+            member_logical_ids?: string[];
+            summary: string;
+            title: string;
+        };
+        UpsertEvaluationCaseRequest: {
+            actual?: null | components["schemas"]["EvaluationActual"];
+            /**
+             * @description Stable per-run identifier. Required so the natural-key
+             *     UPSERT replaces the same case on re-runs.
+             */
+            case_key: string;
+            error?: string | null;
+            expected?: null | components["schemas"]["EvaluationExpected"];
+            input: components["schemas"]["EvaluationCaseInput"];
+            /** Format: int64 */
+            latency_ms?: number | null;
+        };
+        UpsertEvaluationDatasetItemEntry: {
+            expected?: null | components["schemas"]["EvaluationExpected"];
+            input: components["schemas"]["EvaluationCaseInput"];
+            item_key: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        UpsertEvaluationDatasetRequest: {
+            description?: string;
+            name: string;
         };
         UpsertPerspectiveRequest: {
             /** @description Collapsed group settings JSON. */
-            collapsed_groups?: unknown;
+            collapsed_groups?: string[];
             /** @description Filter settings JSON. */
-            filters?: unknown;
+            filters?: {
+                [key: string]: unknown;
+            };
             is_default?: boolean;
             lineage_id: string;
             name: string;
             /** Format: uuid */
             ontology_draft_id?: string | null;
             /** @description Node positions JSON. */
-            positions: unknown;
+            positions: {
+                [key: string]: components["schemas"]["CanvasPosition"];
+            };
+            /**
+             * @description Optional retrieval profile pin (Φ10.5). `None` falls back
+             *     to the workspace `default` profile auto-seeded on
+             *     workspace creation.
+             */
+            retrieval_profile_id?: string | null;
             topology_signature: string;
             /** @description Viewport state JSON. */
-            viewport: unknown;
+            viewport: components["schemas"]["CanvasViewport"];
         };
         UpsertRoutingRuleRequest: {
             /**
@@ -8012,6 +14246,18 @@ export interface components {
             risk_level?: components["schemas"]["RiskLevel"];
             routing: components["schemas"]["ApprovalRouting"];
         };
+        /** @description Aggregated usage summary for a time period. */
+        UsageSummary: {
+            /** Format: int64 */
+            request_count: number;
+            resource_type: string;
+            /** Format: double */
+            total_cost_usd: number;
+            /** Format: int64 */
+            total_input_tokens: number;
+            /** Format: int64 */
+            total_output_tokens: number;
+        };
         UserInfo: {
             email: string;
             /** Format: uuid */
@@ -8019,6 +14265,10 @@ export interface components {
             name?: string | null;
             picture?: string | null;
             role: string;
+        };
+        UserInfoPage: {
+            items: components["schemas"]["UserInfo"][];
+            next_cursor?: string | null;
         };
         UserRoleUpdateResponse: {
             user: components["schemas"]["UserInfo"];
@@ -8050,6 +14300,15 @@ export interface components {
              */
             min?: number | null;
             severity?: null | components["schemas"]["Severity"];
+        };
+        /** @description Single entry in a [`AmbiguityMapping::ValueMap`]. */
+        ValueMapEntry: {
+            /** @description Longer definition for Glossary-style search. Optional. */
+            definition?: string | null;
+            /** @description Human-readable label to show in results / prompts. */
+            display: string;
+            /** @description Raw source value as it appears in the column. */
+            value: string;
         };
         /** @description A named set of numeric interpretive bands. */
         ValueRangeSetDef: {
@@ -8134,8 +14393,119 @@ export interface components {
             kind: "code_pattern";
             pattern: string;
         };
+        /** @description Variable-length path specification */
+        VarLength: {
+            max?: number | null;
+            min?: number | null;
+        };
+        /**
+         * @description A validated Cypher variable name. See the module docs for the rule.
+         *
+         *     Displayed and compared as the wrapped string; hashes as the string
+         *     too, so `HashMap<VariableName, _>` is interchangeable with a
+         *     previous `HashMap<String, _>` at lookup time.
+         */
+        VariableName: string;
         /** @enum {string} */
         VectorSimilarity: "cosine" | "euclidean";
+        /**
+         * @description Operator-validated `(question, IR)` pair the Brain retrieves
+         *     at translate-query time.
+         *
+         *     Workspace-scoped per `(workspace_id, question_hash)` UNIQUE
+         *     — the same question authored twice collapses to one row, so
+         *     re-promoting an already-verified query is idempotent.
+         */
+        VerifiedQueryDef: {
+            /**
+             * @description Who promoted the query. `User` for chat-driven
+             *     SaveAsVqr; `Service` for cron-extracted patterns;
+             *     `LlmModel` is forbidden — verified queries must have
+             *     human / service review.
+             */
+            author: components["schemas"]["AgentRef"];
+            /**
+             * @description Complexity bucket — gates ICL injection. Trivial queries
+             *     (single label match, no joins) are intentionally **not**
+             *     injected as exemplars: they carry too little structural
+             *     signal and risk anchoring the LLM on a degenerate pattern
+             *     that doesn't generalise. ontive's experience: trivial
+             *     few-shots produced over-literal outputs on novel
+             *     questions.
+             */
+            complexity_class: components["schemas"]["ComplexityClass"];
+            /**
+             * @description Optional operator note. Renders on the verified-query
+             *     admin surface; not included in ICL exemplar bodies (the
+             *     Brain only injects the Q + IR pair, not the reviewer's
+             *     commentary).
+             */
+            description?: string;
+            /**
+             * @description Φ11.5 — optional dense embedding for semantic NN retrieval.
+             *
+             *     `None` when the embedder hadn't been attached at promote
+             *     time (cold-start) or when the dimension didn't match the
+             *     schema (the column is `vector(1024)` so a mismatched batch
+             *     can't enter the bank). The Brain's ICL retriever falls
+             *     back to the trigram path when the row has no embedding,
+             *     so cold rows still surface — they just don't benefit from
+             *     the paraphrase-recall lift.
+             *
+             *     Skipped on the wire when absent so admin / list endpoints
+             *     don't ship 4 KB of f32s per row when the FE only needs
+             *     the textual surface.
+             */
+            embedding?: number[] | null;
+            id: components["schemas"]["VerifiedQueryId"];
+            /**
+             * @description `QueryIR` JSON. Stored as `serde_json::Value` so this
+             *     layer does not pull `ox-query-ir` (the layering arrow
+             *     `ox-core ← ox-ontology ← ox-query-ir` stays); consumers
+             *     (Brain, Agent) deserialise via the typed shape.
+             */
+            query_ir: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Natural-language question the verified IR answers. Free
+             *     text the operator typed or pulled from a chat session.
+             */
+            question: string;
+            /**
+             * @description SHA-256 of the canonicalised question
+             *     (`canonicalize_question`). UPSERT collapses duplicate
+             *     authorings on this field — the same question worded
+             *     identically (after trim + lowercase + collapse-whitespace)
+             *     hashes the same.
+             */
+            question_hash: string;
+            status: components["schemas"]["VerifiedQueryStatus"];
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: date-time */
+            verified_at: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description Stable identifier for a [`VerifiedQueryDef`]. Workspace-
+         *     scoped per natural key `(workspace_id, question_hash)`.
+         */
+        VerifiedQueryId: string;
+        VerifiedQueryListResponse: {
+            rows: components["schemas"]["VerifiedQueryDef"][];
+        };
+        /**
+         * @description Lifecycle state of a verified query.
+         *
+         *     `Verified` is the steady state — eligible for ICL retrieval
+         *     (subject to [`ComplexityClass::is_icl_eligible`]). Other
+         *     states park the row out of the retrieval pool but keep the
+         *     audit trail.
+         * @enum {string}
+         */
+        VerifiedQueryStatus: "verified" | "under_review" | "deprecated" | "stale";
         VerifyElementRequest: {
             element_id: string;
             element_kind: string;
@@ -8144,6 +14514,34 @@ export interface components {
         VerifyElementResponse: {
             /** Format: uuid */
             id: string;
+        };
+        /**
+         * @description Stable warning classification. New backend-specific failure modes
+         *     are added as new variants — the discriminant survives wire format,
+         *     drives FE grouping, and binds to actionable hints.
+         * @enum {string}
+         */
+        WarningClass: "table_skipped" | "column_sample_skipped" | "foreign_keys_unavailable" | "sample_values_omitted" | "big_query_partition_filter_required" | "big_query_clustering_filter_required" | "big_query_jobs_create_denied" | "postgres_permission_denied" | "snowflake_warehouse_suspended" | "value_set_drift_detected" | "table_schema_drift" | "other";
+        /** @enum {string} */
+        WarningLevel: "info" | "warning" | "error";
+        /**
+         * @description Where in the source the warning originated. Structured so the FE
+         *     can render scoped UI (per-table sections, per-column drilldowns)
+         *     without parsing the free-text `location` strings the previous
+         *     shape carried.
+         */
+        WarningScope: {
+            /** @enum {string} */
+            kind: "source";
+        } | {
+            /** @enum {string} */
+            kind: "table";
+            name: string;
+        } | {
+            column: string;
+            /** @enum {string} */
+            kind: "column";
+            table: string;
         };
         /**
          * @description Short-lived JWT minted for the collaboration WebSocket. Browsers
@@ -8157,27 +14555,49 @@ export interface components {
             expires_at: string;
             token: string;
         };
-        WebhookChannelConfig: {
-            /**
-             * @description Webhook endpoint URL. HTTP(S) only; private network ranges are
-             *     blocked at validation time.
-             */
+        WebhookNotificationConfig: {
+            headers?: {
+                [key: string]: string;
+            };
             url: string;
         };
+        WhenClause: {
+            condition: components["schemas"]["Expr"];
+            result: components["schemas"]["Expr"];
+        };
+        /** @description Simple hint about which widget family should render a query result. */
+        WidgetHint: {
+            /**
+             * @description Brief reason for the selection. Useful for diagnostics, not
+             *     intended as primary user-facing copy.
+             */
+            reason?: string | null;
+            /** @description Optional title for the widget. */
+            title?: string | null;
+            /** @description Which widget type to render. */
+            widget_type: components["schemas"]["WidgetType"];
+        };
+        /**
+         * @description Available visualization widget families for query results.
+         * @enum {string}
+         */
+        WidgetType: "bar_chart" | "combo_chart" | "pie_chart" | "line_chart" | "stat_card" | "table" | "graph" | "heatmap" | "timeline" | "treemap" | "funnel" | "none";
         WidgetUpdateRequest: {
             query?: string | null;
             /** Format: int32 */
             refresh_interval_secs?: number | null;
-            thresholds?: Record<string, never> | null;
+            thresholds?: null | components["schemas"]["DashboardWidgetThresholds"];
             title?: string | null;
             widget_type?: string | null;
         };
         /** @description A saved workbench perspective: node positions, viewport, filters, etc. */
         WorkbenchPerspective: {
-            collapsed_groups: unknown;
+            collapsed_groups: string[];
             /** Format: date-time */
             created_at: string;
-            filters: unknown;
+            filters: {
+                [key: string]: unknown;
+            };
             /** Format: uuid */
             id: string;
             is_default: boolean;
@@ -8185,12 +14605,15 @@ export interface components {
             name: string;
             /** Format: uuid */
             ontology_draft_id?: string | null;
-            positions: unknown;
+            positions: {
+                [key: string]: components["schemas"]["CanvasPosition"];
+            };
+            retrieval_profile_id?: null | components["schemas"]["RetrievalProfileId"];
             topology_signature: string;
             /** Format: date-time */
             updated_at: string;
             user_id: string;
-            viewport: unknown;
+            viewport: components["schemas"]["CanvasViewport"];
             /** Format: uuid */
             workspace_id: string;
         };
@@ -8234,6 +14657,42 @@ export interface components {
         WorkspaceOntologyResponse: {
             ontology?: null | components["schemas"]["OntologyDetail"];
         };
+        /**
+         * @description Nightly snapshot of a workspace's quality-metric median + MAD
+         *     rollup, shaped so the banner's alert engine can swap from the
+         *     hardcoded prior to workspace-specific thresholds at render time
+         *     (Phase B).
+         *
+         *     `thresholds` is a JSONB map keyed by metric name
+         *     (`shacl_pass_rate`, `query_reproducibility`, …); each value
+         *     carries `{ median, mad, warn, critical }`. Keeping the shape
+         *     JSON means adding a new metric (e.g. Phase C `anchor_top_score`)
+         *     requires only a cron-computation extension, not a migration.
+         */
+        WorkspaceQualityBaseline: {
+            /** Format: date-time */
+            computed_at: string;
+            /**
+             * Format: int64
+             * @description Sample count that fed the computation. The banner treats
+             *     baselines below its `MIN_SAMPLE_SIZE` as insufficient
+             *     evidence and falls back to the hardcoded prior.
+             */
+            sample_size: number;
+            /** @description `{ metric_key: { median, mad, warn, critical } }` bundle. */
+            thresholds: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description `"7d"` / `"30d"` / `"90d"` — the window the cron summarised.
+             *     Named `window_label` (not `window`) because `WINDOW` is a
+             *     reserved keyword in PostgreSQL and using it bare as a
+             *     column name trips the DDL parser.
+             */
+            window_label: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
         WorkspaceResponse: {
             admin_locale_fallback: string[];
             /** Format: date-time */
@@ -8245,7 +14704,9 @@ export interface components {
             /** Format: uuid */
             owner_id: string;
             primary_locale: string;
-            settings: Record<string, never>;
+            settings: {
+                [key: string]: unknown;
+            };
             slug: string;
         };
         WorkspaceSummaryResponse: {
@@ -8285,7 +14746,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["AclPolicy"][];
                 };
             };
         };
@@ -8308,7 +14769,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["AclPolicy"][];
                 };
             };
         };
@@ -8332,7 +14793,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["AclPolicy"];
                 };
             };
         };
@@ -8355,7 +14816,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["AclPolicy"];
                 };
             };
             /** @description Policy not found */
@@ -8417,7 +14878,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["AclPolicy"];
                 };
             };
             /** @description Policy not found */
@@ -8671,6 +15132,145 @@ export interface operations {
             };
         };
     };
+    get_adapter_analysis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description SourceId to inspect */
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cached analysis snapshot + live drift */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdapterAnalysisResponse"];
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description No adapter registered for that source_id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    analyze_adapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description SourceId to analyse */
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyzeAdapterRequest"];
+            };
+        };
+        responses: {
+            /** @description Analysis complete + cached */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyzeAdapterResponse"];
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description No adapter registered for that source_id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    list_adapter_tables: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description SourceId of the adapter */
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cheap table listing for selection UIs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdapterTableListResponse"];
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description No adapter registered for that source_id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
     federation_health: {
         parameters: {
             query?: never;
@@ -8736,7 +15336,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Snake-case ChangeType discriminator (e.g. `glossary_term_create`). */
+                /** @description Snake-case ChangeType discriminator (e.g. `terminology_registry_update`). */
                 change_type: string;
             };
             cookie?: never;
@@ -8978,6 +15578,155 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_ambiguities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All contexts + their active resolution */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AmbiguityListResponse"];
+                };
+            };
+        };
+    };
+    bulk_revoke_ambiguities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkRevokeAmbiguitiesRequest"];
+            };
+        };
+        responses: {
+            /** @description Bulk revoke recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkRevokeAmbiguitiesResponse"];
+                };
+            };
+            /** @description Empty or oversized ids list */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Designer required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_ambiguity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description AmbiguityContext id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Context + resolution history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AmbiguityDetailResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    resolve_ambiguity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description AmbiguityContext id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveAmbiguityRequest"];
+            };
+        };
+        responses: {
+            /** @description Resolution recorded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AmbiguityResolution"];
+                };
+            };
+            /** @description Context not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    revoke_ambiguity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description AmbiguityContext id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked (or noop if no active) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokeAmbiguityResponse"];
                 };
             };
         };
@@ -9225,7 +15974,157 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["AuditEntryPage"];
+                };
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description JWT revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoutResponse"];
+                };
+            };
+            /** @description API key principals cannot self-logout */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current user info */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthMeResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    create_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAuthTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Token created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAuthTokenResponse"];
+                };
+            };
+            /** @description Invalid ID token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    ws_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Short-lived WS auth token */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebSocketTokenResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description JWT subsystem disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
                 };
             };
         };
@@ -9280,7 +16179,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["ConfigResponse"];
                 };
             };
         };
@@ -9304,7 +16203,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["ConfigUpdateResponse"];
                 };
             };
             /** @description No updates provided */
@@ -9360,7 +16259,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["DashboardPage"];
                 };
             };
         };
@@ -9384,7 +16283,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["Dashboard"];
                 };
             };
         };
@@ -9407,7 +16306,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["Dashboard"];
                 };
             };
             /** @description Not found or not accessible */
@@ -9476,7 +16375,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["Dashboard"];
                 };
             };
             /** @description Not the dashboard owner */
@@ -9589,7 +16488,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["DashboardWidget"][];
                 };
             };
         };
@@ -9616,7 +16515,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["DashboardWidget"];
                 };
             };
             /** @description Not the dashboard owner */
@@ -9713,6 +16612,729 @@ export interface operations {
             };
         };
     };
+    judge_evaluation_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case id */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Judgement recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JudgeEvaluationCaseResponse"];
+                };
+            };
+            /** @description Case has no `actual` to judge */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Case not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    judge_safety_evaluation_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case id */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Safety judgement recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JudgeEvaluationCaseResponse"];
+                };
+            };
+            /** @description Case has no `actual` to judge */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Case not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    list_evaluation_metrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case id */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Metrics for the case */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationMetric"][];
+                };
+            };
+        };
+    };
+    upsert_evaluation_metric: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case id */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordEvaluationMetricRequest"];
+            };
+        };
+        responses: {
+            /** @description Recorded metric */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationMetricResponse"];
+                };
+            };
+        };
+    };
+    promote_case_to_dataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case id */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromoteCaseToDatasetRequest"];
+            };
+        };
+        responses: {
+            /** @description Case promoted to dataset item */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromoteCaseToDatasetResponse"];
+                };
+            };
+            /** @description Case or dataset not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    list_evaluation_datasets: {
+        parameters: {
+            query?: {
+                /** @description Page size (default 50, max 100) */
+                limit?: number;
+                /** @description Opaque cursor */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dataset page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationDatasetSummaryPage"];
+                };
+            };
+        };
+    };
+    upsert_evaluation_dataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertEvaluationDatasetRequest"];
+            };
+        };
+        responses: {
+            /** @description Dataset upserted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationDatasetResponse"];
+                };
+            };
+        };
+    };
+    get_evaluation_dataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dataset */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationDatasetResponse"];
+                };
+            };
+            /** @description Dataset not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    delete_evaluation_dataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dataset not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    list_evaluation_dataset_items: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Items */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationDatasetItem"][];
+                };
+            };
+        };
+    };
+    replace_evaluation_dataset_items: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceEvaluationDatasetItemsRequest"];
+            };
+        };
+        responses: {
+            /** @description Items replaced */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplaceEvaluationDatasetItemsResponse"];
+                };
+            };
+        };
+    };
+    list_evaluation_runs: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated run list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationRunPage"];
+                };
+            };
+        };
+    };
+    create_evaluation_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEvaluationRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Created run */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationRunResponse"];
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    compare_evaluation_runs: {
+        parameters: {
+            query: {
+                /** @description Baseline run id */
+                baseline: string;
+                /** @description Candidate run id */
+                candidate: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Diff */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunComparisonReport"];
+                };
+            };
+            /** @description Runs don't share a dataset */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    create_run_from_dataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRunFromDatasetRequest"];
+            };
+        };
+        responses: {
+            /** @description Run created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateRunFromDatasetResponse"];
+                };
+            };
+            /** @description Dataset not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    get_evaluation_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Run detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationRunResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    delete_evaluation_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    complete_evaluation_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteEvaluationRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationRunResponse"];
+                };
+            };
+            /** @description Status must be terminal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    list_evaluation_cases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cases for the run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationCase"][];
+                };
+            };
+        };
+    };
+    upsert_evaluation_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertEvaluationCaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Upserted case */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationCaseResponse"];
+                };
+            };
+        };
+    };
+    bulk_upsert_evaluation_cases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkUpsertEvaluationCasesRequest"];
+            };
+        };
+        responses: {
+            /** @description Bulk upsert outcome — partial success returns errors[] */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkUpsertEvaluationCasesResponse"];
+                };
+            };
+        };
+    };
+    execute_evaluation_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                run_id: string;
+                /** @description Stable per-run case identifier */
+                case_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluationCaseInput"];
+            };
+        };
+        responses: {
+            /** @description Case executed and persisted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecuteEvaluationCaseResponse"];
+                };
+            };
+            /** @description Workspace has no canonical ontology yet */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    evaluation_run_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Run summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunSummary"];
+                };
+            };
+        };
+    };
     list_audit_records: {
         parameters: {
             query?: {
@@ -9748,6 +17370,40 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AuditRecordPage"];
                 };
+            };
+        };
+    };
+    graph_overview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Graph schema overview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphSchemaOverview"];
+                };
+            };
+            /** @description Graph database not connected */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -9800,8 +17456,8 @@ export interface operations {
                  */
                 me?: boolean;
                 /**
-                 * @description Filter by typed concept anchors (`GlossaryTermId` strings).
-                 *     Multi-value: `?concept_anchor=gt-x&concept_anchor=gt-y` returns
+                 * @description Filter by typed concept anchors (`ConceptId` strings).
+                 *     Multi-value: `?concept_anchor=c-x&concept_anchor=c-y` returns
                  *     any insight that carries at least one of those anchors.
                  */
                 concept_anchor?: string[];
@@ -9827,7 +17483,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["CursorPage_InsightDef"];
                 };
             };
         };
@@ -9997,8 +17653,8 @@ export interface operations {
         parameters: {
             query?: {
                 ontology_name?: string | null;
-                kind?: string | null;
-                status?: string | null;
+                kind?: null | components["schemas"]["KnowledgeKind"];
+                status?: null | components["schemas"]["KnowledgeStatus"];
                 limit?: number | null;
                 cursor?: string | null;
             };
@@ -10014,7 +17670,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["KnowledgeEntryPage"];
                 };
             };
         };
@@ -10038,7 +17694,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["KnowledgeEntry"];
                 };
             };
             /** @description Validation failure */
@@ -10096,7 +17752,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["KnowledgeEntryPage"];
                 };
             };
         };
@@ -10139,7 +17795,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["KnowledgeEntry"];
                 };
             };
             /** @description Entry not found */
@@ -10251,7 +17907,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["LineageSummary"][];
                 };
             };
         };
@@ -10274,7 +17930,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["LineageEntry"][];
                 };
             };
         };
@@ -10297,7 +17953,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["LineageEntry"][];
                 };
             };
         };
@@ -10345,6 +18001,57 @@ export interface operations {
                         error: components["schemas"]["ErrorBody"];
                     };
                 };
+            };
+        };
+    };
+    list_load_checkpoints: {
+        parameters: {
+            query: {
+                /** @description Ontology draft ID to list checkpoints for. */
+                ontology_draft_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of load checkpoints */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoadCheckpoint"][];
+                };
+            };
+        };
+    };
+    delete_load_checkpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Checkpoint ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Checkpoint deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Checkpoint not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -10422,7 +18129,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["ModelConfig"][];
                 };
             };
         };
@@ -10436,7 +18143,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": components["schemas"]["NewModelConfig"];
             };
         };
         responses: {
@@ -10446,7 +18153,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["ModelConfig"];
                 };
             };
         };
@@ -10491,7 +18198,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": components["schemas"]["ModelConfigUpdate"];
             };
         };
         responses: {
@@ -10501,7 +18208,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["ModelConfig"];
+                };
+            };
+        };
+    };
+    list_model_operations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Known model routing operations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOperation"][];
                 };
             };
         };
@@ -10523,7 +18250,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["ModelRoutingRule"][];
                 };
             };
         };
@@ -10537,7 +18264,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": components["schemas"]["NewRoutingRule"];
             };
         };
         responses: {
@@ -10547,7 +18274,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["ModelRoutingRule"];
                 };
             };
         };
@@ -10592,7 +18319,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": components["schemas"]["RoutingRuleUpdate"];
             };
         };
         responses: {
@@ -10602,7 +18329,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["ModelRoutingRule"];
                 };
             };
         };
@@ -10646,7 +18373,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["NotificationChannel"][];
                 };
             };
         };
@@ -10670,7 +18397,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["NotificationChannel"];
                 };
             };
         };
@@ -10775,278 +18502,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
-                };
-            };
-        };
-    };
-    export_ontology: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description OntologyIR to export */
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description InputOntologyDef exchange format */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-        };
-    };
-    export_cypher: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description OntologyIR */
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description Cypher DDL statements */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": unknown;
-                };
-            };
-        };
-    };
-    export_graphql: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description OntologyIR */
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description GraphQL schema */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": unknown;
-                };
-            };
-        };
-    };
-    export_mermaid: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description OntologyIR */
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description Mermaid ER diagram */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": unknown;
-                };
-            };
-        };
-    };
-    export_owl: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description OntologyIR */
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description OWL/Turtle ontology */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": unknown;
-                };
-            };
-        };
-    };
-    export_python: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description OntologyIR */
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description Python dataclass definitions */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": unknown;
-                };
-            };
-        };
-    };
-    export_shacl: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description OntologyIR */
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description SHACL shapes in Turtle format */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": unknown;
-                };
-            };
-        };
-    };
-    export_typescript: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description OntologyIR */
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description TypeScript interface definitions */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": unknown;
-                };
-            };
-        };
-    };
-    import_owl: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ImportOntologyRequest"];
-            };
-        };
-        responses: {
-            /** @description Parsed OntologyIR */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Parse or validation errors */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["ErrorBody"];
-                    };
-                };
-            };
-        };
-    };
-    normalize_ontology: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description InputOntologyDef to normalize */
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description Normalized OntologyIR */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation errors */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["ErrorBody"];
-                    };
+                    "application/json": components["schemas"]["NotificationLog"][];
                 };
             };
         };
@@ -11134,7 +18590,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["OntologyDraftSummaryPage"];
                 };
             };
         };
@@ -11158,7 +18614,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["OntologyDraftView"];
                 };
             };
             /** @description Invalid input */
@@ -11249,7 +18705,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["OntologyDraftView"];
                 };
             };
             /** @description Ontology draft not found */
@@ -11379,7 +18835,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["OntologyDraftView"];
                 };
             };
             /** @description Ontology draft has no ontology */
@@ -11439,7 +18895,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["OntologyDraftView"];
                 };
             };
             /** @description Ontology draft not found */
@@ -11455,6 +18911,66 @@ export interface operations {
             };
             /** @description Revision conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    deploy_schema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology draft ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeployOntologyDraftSchemaRequest"];
+            };
+        };
+        responses: {
+            /** @description Schema deployed or DDL preview returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeployOntologyDraftSchemaResponse"];
+                };
+            };
+            /** @description Ontology draft has no ontology */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Ontology draft not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Graph database not connected */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11563,6 +19079,96 @@ export interface operations {
                 };
             };
             /** @description Ontology draft not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    diff_canonical: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Draft ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Diff between draft ontology and workspace canonical head */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OntologyDiff"];
+                };
+            };
+            /** @description Draft has no ontology */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Draft not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    diff_current: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology draft ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Diff between current ontology and latest snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OntologyDiff"];
+                };
+            };
+            /** @description Ontology draft has no ontology */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Ontology draft not found or no snapshots */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11695,6 +19301,149 @@ export interface operations {
             };
             /** @description LLM timeout */
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    generate_load_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology draft ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Load plan generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerateOntologyDraftLoadPlanResponse"];
+                };
+            };
+            /** @description Ontology draft has no ontology or source mapping */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Ontology draft not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    compile_load: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology draft ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompileOntologyDraftLoadPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Compiled load statements */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompileOntologyDraftLoadPlanResponse"];
+                };
+            };
+            /** @description Ontology draft not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    execute_load_from_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology draft ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecuteOntologyDraftLoadRequest"];
+            };
+        };
+        responses: {
+            /** @description Data loaded from source into graph */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecuteOntologyDraftLoadResponse"];
+                };
+            };
+            /** @description Missing ontology or source mapping */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Ontology draft not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Graph runtime not connected */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11864,6 +19613,111 @@ export interface operations {
             };
         };
     };
+    rebase_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Draft ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RebaseOntologyDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Rebased — parent_version_id pinned to canonical head */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RebaseOntologyDraftResponse"];
+                };
+            };
+            /** @description Workspace has no canonical to rebase onto */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Draft not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Conflicts present — preview first then resubmit with `acknowledge_conflicts: true` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    rebase_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Draft ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rebase analysis — conflicts, base→head, base→draft */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RebasePreviewResponse"];
+                };
+            };
+            /** @description Draft has no ontology yet */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Draft not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
     refine_ontology_draft: {
         parameters: {
             query?: never;
@@ -12002,10 +19856,48 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["OntologySnapshotSummary"][];
                 };
             };
             /** @description Ontology draft not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    diff_revisions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology draft ID */
+                id: string;
+                /** @description Base revision number */
+                rev1: number;
+                /** @description Target revision number */
+                rev2: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ontology diff between two revisions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OntologyDiff"];
+                };
+            };
+            /** @description Revision not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12038,11 +19930,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["OntologySnapshot"];
                 };
             };
             /** @description Revision not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    migrate_schema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology draft ID */
+                id: string;
+                /** @description Base revision (deployed state) — migration goes FROM this revision TO current ontology */
+                rev: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MigrateOntologyDraftSchemaRequest"];
+            };
+        };
+        responses: {
+            /** @description Migration plan or execution result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigrateOntologyDraftSchemaResponse"];
+                };
+            };
+            /** @description No ontology in project or revision */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Ontology draft or revision not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Graph database not connected */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12210,7 +20164,38 @@ export interface operations {
             };
         };
     };
-    get_ontology_dependencies: {
+    adopt_graph: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdoptGraphRequest"];
+            };
+        };
+        responses: {
+            /** @description Ontology created from graph schema */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OntologyIR"];
+                };
+            };
+            /** @description Graph database not connected */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    graph_audit_report: {
         parameters: {
             query?: never;
             header?: never;
@@ -12219,14 +20204,66 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Schema dependency graph */
+            /** @description Audit report comparing ontology vs graph */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["GraphAuditReport"];
                 };
+            };
+            /** @description Workspace has no ontology */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Graph database not connected */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_axis_items: {
+        parameters: {
+            query: {
+                /**
+                 * @description One of the kind strings the `/map-summary` endpoint emits —
+                 *     `"node_types" | "edge_types" | "indexes" | "glossary_terms" |
+                 *     "interfaces" | "code_systems" | "value_sets" |
+                 *     "notation_patterns" | "concept_maps" | "value_range_sets" |
+                 *     "rules" | "actions" | "functions" | "metrics" |
+                 *     "object_mappings" | "link_mappings" | "provenances" |
+                 *     "data_qualities" | "enrichments"`.
+                 */
+                kind: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Axis items list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AxisItem"][];
+                };
+            };
+            /** @description Unknown kind string */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Workspace has no ontology, or ontology has no committed version */
             404: {
@@ -12237,7 +20274,141 @@ export interface operations {
             };
         };
     };
-    suggest_glossary_bindings: {
+    list_community_summaries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Community summaries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCommunitySummariesResponse"];
+                };
+            };
+            /** @description Workspace has no canonical ontology yet */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    upsert_community_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertCommunitySummaryRequest"];
+            };
+        };
+        responses: {
+            /** @description Community summary upserted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunitySummaryResponse"];
+                };
+            };
+            /** @description Workspace has no canonical ontology yet */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    search_community_summaries: {
+        parameters: {
+            query: {
+                /** @description Search query */
+                q: string;
+                /** @description Max results (default 10) */
+                top_k?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching community summaries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListCommunitySummariesResponse"];
+                };
+            };
+            /** @description Workspace has no canonical ontology yet */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    delete_community_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Community summary id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    suggest_concept_property_bindings: {
         parameters: {
             query?: never;
             header?: never;
@@ -12257,6 +20428,427 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuggestBindingsResponse"];
+                };
+            };
+        };
+    };
+    list_cross_refs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cross-axis reference edges */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrossRefEdge"][];
+                };
+            };
+            /** @description Workspace has no ontology, or ontology has no committed version */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_ontology_dependencies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schema dependency graph */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchemaDependencyGraph"];
+                };
+            };
+            /** @description Workspace has no ontology, or ontology has no committed version */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    apply_ontology_edits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditOntologyRequest"];
+            };
+        };
+        responses: {
+            /** @description Dry-run pre-check report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditOntologyResponse"];
+                };
+            };
+            /** @description Edit applied — returns new version receipt */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditOntologyResponse"];
+                };
+            };
+            /** @description Workspace has no ontology, or ontology has no committed version yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Version conflict — refetch and retry */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Edit produced an invalid IR (SHACL / referential integrity) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    enrich_ontology: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrichRequest"];
+            };
+        };
+        responses: {
+            /** @description Enrichment result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrichResponse"];
+                };
+            };
+        };
+    };
+    export_ontology: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OntologyIR"];
+            };
+        };
+        responses: {
+            /** @description InputOntologyDef exchange format */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InputOntologyDef"];
+                };
+            };
+        };
+    };
+    export_cypher: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OntologyIR"];
+            };
+        };
+        responses: {
+            /** @description Cypher DDL statements */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": unknown;
+                };
+            };
+        };
+    };
+    export_graphql: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OntologyIR"];
+            };
+        };
+        responses: {
+            /** @description GraphQL schema */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": unknown;
+                };
+            };
+        };
+    };
+    export_mermaid: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OntologyIR"];
+            };
+        };
+        responses: {
+            /** @description Mermaid ER diagram */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": unknown;
+                };
+            };
+        };
+    };
+    export_owl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OntologyIR"];
+            };
+        };
+        responses: {
+            /** @description OWL/Turtle ontology */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": unknown;
+                };
+            };
+        };
+    };
+    export_python: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OntologyIR"];
+            };
+        };
+        responses: {
+            /** @description Python dataclass definitions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": unknown;
+                };
+            };
+        };
+    };
+    export_shacl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OntologyIR"];
+            };
+        };
+        responses: {
+            /** @description SHACL shapes in Turtle format */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": unknown;
+                };
+            };
+        };
+    };
+    export_typescript: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OntologyIR"];
+            };
+        };
+        responses: {
+            /** @description TypeScript interface definitions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": unknown;
+                };
+            };
+        };
+    };
+    import_owl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportOntologyRequest"];
+            };
+        };
+        responses: {
+            /** @description Parsed OntologyIR */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OntologyIR"];
+                };
+            };
+            /** @description Parse or validation errors */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    map_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Six-axis summary + dangling references */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapSummaryResponse"];
+                };
+            };
+            /** @description Workspace has no ontology, or ontology has no committed version */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    normalize_ontology: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InputOntologyDef"];
+            };
+        };
+        responses: {
+            /** @description Normalized OntologyIR */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NormalizeOntologyResponse"];
+                };
+            };
+            /** @description Validation errors */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
                 };
             };
         };
@@ -12285,7 +20877,7 @@ export interface operations {
             };
         };
     };
-    suggest_glossary_terms_for_property: {
+    suggest_concepts_for_property: {
         parameters: {
             query?: never;
             header?: never;
@@ -12301,17 +20893,72 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SuggestTermsRequest"];
+                "application/json": components["schemas"]["SuggestConceptsRequest"];
             };
         };
         responses: {
-            /** @description Candidate glossary terms */
+            /** @description Candidate concepts */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SuggestTermsResponse"];
+                    "application/json": components["schemas"]["SuggestConceptsResponse"];
+                };
+            };
+        };
+    };
+    reindex_schema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Re-indexing triggered */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        nodes_indexed: number;
+                        /** Format: uuid */
+                        ontology_id: string;
+                    };
+                };
+            };
+            /** @description Workspace has no ontology */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    suggest_insights: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OntologyIR"];
+            };
+        };
+        responses: {
+            /** @description List of insight suggestions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightHint"][];
                 };
             };
         };
@@ -12422,7 +21069,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["ElementVerification"][];
                 };
             };
         };
@@ -12479,6 +21126,26 @@ export interface operations {
             };
         };
     };
+    list_canonical_versions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Canonical version history, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OntologyVersionsResponse"];
+                };
+            };
+        };
+    };
     save_perspective: {
         parameters: {
             query?: never;
@@ -12498,7 +21165,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["WorkbenchPerspective"];
                 };
             };
         };
@@ -12521,7 +21188,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["WorkbenchPerspective"][];
                 };
             };
         };
@@ -12547,7 +21214,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": null | components["schemas"]["WorkbenchPerspective"];
                 };
             };
         };
@@ -12570,7 +21237,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": null | components["schemas"]["WorkbenchPerspective"];
                 };
             };
         };
@@ -12593,7 +21260,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["DeletePerspectiveResponse"];
                 };
             };
             /** @description Perspective not found */
@@ -12629,7 +21296,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["PinboardItemPage"];
                 };
             };
         };
@@ -12653,7 +21320,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["PinboardItem"];
                 };
             };
         };
@@ -12725,7 +21392,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never> | null;
+                    "application/json": null | components["schemas"]["WorkspaceQualityBaseline"];
                 };
             };
         };
@@ -12745,7 +21412,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["QualityDashboardEntry"][];
                 };
             };
         };
@@ -12765,7 +21432,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["QualityResult"][];
                 };
             };
             /** @description Graph runtime not configured */
@@ -12795,7 +21462,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["QualityMetricsReport"];
                 };
             };
         };
@@ -12822,7 +21489,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["QualityRule"][];
                 };
             };
         };
@@ -12846,7 +21513,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["QualityRule"];
                 };
             };
         };
@@ -12869,7 +21536,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["QualityRule"];
                 };
             };
             /** @description Rule not found */
@@ -12931,7 +21598,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["QualityRule"];
                 };
             };
             /** @description Rule not found */
@@ -12961,7 +21628,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["QualityResult"];
                 };
             };
             /** @description Rule not found */
@@ -13000,7 +21667,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["QualityResult"][];
                 };
             };
         };
@@ -13023,7 +21690,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["ShaclFailureCount"][];
                 };
             };
         };
@@ -13049,7 +21716,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["StaleConceptProposal"][];
                 };
             };
         };
@@ -13107,7 +21774,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["StaleConceptProposal"];
                 };
             };
             /** @description Invalid decision value */
@@ -13140,7 +21807,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["StaleTypeEntry"][];
                 };
             };
         };
@@ -13235,7 +21902,7 @@ export interface operations {
                     "application/json": components["schemas"]["ExecuteFromIrResponse"];
                 };
             };
-            /** @description Missing ontology_id or invalid QueryIR */
+            /** @description Invalid QueryIR */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13279,7 +21946,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["QueryExecutionSummaryPage"];
                 };
             };
         };
@@ -13302,7 +21969,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["QueryExecution"];
                 };
             };
             /** @description Execution not found */
@@ -13315,6 +21982,45 @@ export interface operations {
                         error: components["schemas"]["ErrorBody"];
                     };
                 };
+            };
+        };
+    };
+    update_feedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Query execution ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitQueryFeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Feedback recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid feedback value */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Execution not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -13368,8 +22074,7 @@ export interface operations {
     };
     list_saved_patterns: {
         parameters: {
-            query: {
-                ontology_lineage_id: string;
+            query?: {
                 limit?: number | null;
                 cursor?: string | null;
             };
@@ -13385,7 +22090,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["SavedPatternResponsePage"];
                 };
             };
         };
@@ -13597,7 +22302,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["AnalysisRecipePage"];
                 };
             };
         };
@@ -13621,7 +22326,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["AnalysisRecipe"];
                 };
             };
             /** @description Validation failure */
@@ -13651,7 +22356,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["AnalysisRecipe"];
                 };
             };
             /** @description Recipe not found */
@@ -13716,7 +22421,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["RecipeExecutionResult"][];
                 };
             };
         };
@@ -13743,7 +22448,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["ScheduledTask"];
                 };
             };
             /** @description Invalid cron expression */
@@ -13819,7 +22524,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["AnalysisRecipe"][];
                 };
             };
         };
@@ -13846,7 +22551,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["AnalysisRecipe"];
                 };
             };
             /** @description Parent recipe not found */
@@ -13877,7 +22582,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["SavedReportPage"];
                 };
             };
         };
@@ -13901,7 +22606,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["SavedReport"];
                 };
             };
             /** @description Validation failure */
@@ -13931,7 +22636,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["SavedReport"];
                 };
             };
             /** @description Report not found */
@@ -14000,7 +22705,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["SavedReport"];
                 };
             };
             /** @description Caller does not own the report */
@@ -14031,7 +22736,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": components["schemas"]["ExecuteReportRequest"];
             };
         };
         responses: {
@@ -14041,7 +22746,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["QueryResult"];
                 };
             };
             /** @description Report not found */
@@ -14077,7 +22782,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["ScheduledTask"][];
                 };
             };
         };
@@ -14100,7 +22805,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["ScheduledTask"];
                 };
             };
             /** @description Task not found */
@@ -14186,6 +22891,108 @@ export interface operations {
             };
         };
     };
+    search_graph: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchGraphRequest"];
+            };
+        };
+        responses: {
+            /** @description Search results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResultNode"][];
+                };
+            };
+            /** @description Empty query */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Graph database not connected */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Query timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    expand_node: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpandGraphRequest"];
+            };
+        };
+        responses: {
+            /** @description Neighbors of the node */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeExpansion"];
+                };
+            };
+            /** @description Missing element_id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Graph database not connected */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_sessions: {
         parameters: {
             query?: {
@@ -14204,7 +23011,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["AgentSessionPage"];
                 };
             };
         };
@@ -14227,7 +23034,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["AgentSession"];
                 };
             };
             /** @description Session not found */
@@ -14285,7 +23092,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["AgentEvent"][];
                 };
             };
             /** @description Session not found */
@@ -14315,7 +23122,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["SessionMessagesResponse"];
                 };
             };
             /** @description Session not found */
@@ -14333,7 +23140,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description Agent session ID */
-                id: string;
+                session_id: string;
                 /** @description Tool call ID awaiting approval */
                 tool_id: string;
             };
@@ -14407,6 +23214,41 @@ export interface operations {
             };
         };
     };
+    test_source_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Connection test result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestConnectionResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
     get_usage_summary: {
         parameters: {
             query?: {
@@ -14427,7 +23269,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["UsageSummary"][];
                 };
             };
         };
@@ -14452,7 +23294,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserInfo"][];
+                    "application/json": components["schemas"]["UserInfoPage"];
                 };
             };
             /** @description Not authenticated */
@@ -14509,6 +23351,199 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_verified_queries: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Filter to a single status (e.g. `verified` for the
+                 *     retrievable bank, `under_review` for the admin queue).
+                 *     Absent → return every status.
+                 */
+                status?: null | components["schemas"]["VerifiedQueryStatus"];
+                /**
+                 * @description Page size. Server caps at 1000 (matches store layer
+                 *     enforcement); absent → 100.
+                 */
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Verified query list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifiedQueryListResponse"];
+                };
+            };
+        };
+    };
+    promote_verified_query: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromoteVerifiedQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description Verified query promoted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifiedQueryDef"];
+                };
+            };
+            /** @description Designer role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    get_verified_query: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Verified query id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Verified query detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifiedQueryDef"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    delete_verified_query: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Verified query id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Designer role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    transition_verified_query_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Verified query id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransitionVerifiedQueryStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Status transitioned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifiedQueryDef"];
+                };
+            };
+            /** @description Designer role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
             };
         };
     };
@@ -14570,6 +23605,37 @@ export interface operations {
             };
         };
     };
+    workspace_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active workspace context */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceMeResponse"];
+                };
+            };
+            /** @description Workspace row missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
     get_workspace: {
         parameters: {
             query?: never;
@@ -14617,7 +23683,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DeleteWorkspaceResponse"];
+                };
             };
             /** @description Cannot delete the default workspace */
             400: {
@@ -14814,7 +23882,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RemoveMemberResponse"];
+                };
             };
             /** @description Cannot remove the workspace owner */
             400: {
@@ -14886,187 +23956,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-        };
-    };
-    logout: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description JWT revoked */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LogoutResponse"];
-                };
-            };
-            /** @description API key principals cannot self-logout */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["ErrorBody"];
-                    };
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["ErrorBody"];
-                    };
-                };
-            };
-        };
-    };
-    me: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Current user info */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthMeResponse"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["ErrorBody"];
-                    };
-                };
-            };
-        };
-    };
-    create_token: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateAuthTokenRequest"];
-            };
-        };
-        responses: {
-            /** @description Token created */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CreateAuthTokenResponse"];
-                };
-            };
-            /** @description Invalid ID token */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["ErrorBody"];
-                    };
-                };
-            };
-        };
-    };
-    ws_token: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Short-lived WS auth token */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WebSocketTokenResponse"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["ErrorBody"];
-                    };
-                };
-            };
-            /** @description JWT subsystem disabled */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["ErrorBody"];
-                    };
-                };
-            };
-        };
-    };
-    workspace_me: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Active workspace context */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkspaceMeResponse"];
-                };
-            };
-            /** @description Workspace row missing */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["ErrorBody"];
-                    };
-                };
             };
         };
     };

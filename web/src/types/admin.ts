@@ -2,228 +2,62 @@
 // Admin/system types — config, users, prompts, sessions, recipes, reports
 // ---------------------------------------------------------------------------
 
+import type { components } from "./api.generated";
+import type { ClientPage } from "./pagination";
+
 // --- System configuration (runtime-tunable from DB) ---
 
-export interface UiConfig {
-  elk_direction: string;
-  elk_node_spacing: number;
-  elk_layer_spacing: number;
-  elk_edge_routing: string;
-  worker_timeout_ms: number;
-}
-
-export interface ConfigEntry {
-  key: string;
-  value: string;
-  data_type: string;
-  description: string;
-}
+export type UiConfig = components["schemas"]["UiConfig"];
+export type ConfigEntry = components["schemas"]["ConfigEntry"];
 
 /** GET /api/config response: config entries grouped by category */
-export type ConfigResponse = Record<string, ConfigEntry[]>;
+export type ConfigResponse = components["schemas"]["ConfigResponse"];
 
-export interface ConfigUpdateItem {
-  category: string;
-  key: string;
-  value: string;
-}
-
-export interface ConfigUpdateRequest {
-  updates: ConfigUpdateItem[];
-}
+export type ConfigUpdateItem = components["schemas"]["ConfigUpdate"];
+export type ConfigUpdateRequest = components["schemas"]["UpdateConfigRequest"];
 
 // --- User Management ---
 
-export interface UserInfo {
-  id: string;
-  email: string;
-  name: string | null;
-  picture: string | null;
-  role: string;
-}
+export type UserInfo = components["schemas"]["UserInfo"];
+export type UserInfoPage = ClientPage<components["schemas"]["UserInfoPage"]>;
 
 // --- Prompt Templates (Admin) ---
 
-export interface PromptTemplate {
-  id: string;
-  name: string;
-  version: string;
-  content: string;
-  variables: unknown[];
-  metadata: Record<string, unknown>;
-  created_by: string;
-  created_at: string;
-  is_active: boolean;
-}
+export type PromptTemplate = components["schemas"]["PromptTemplateRow"];
 
 // --- Agent Sessions (Audit) ---
 
-export interface AgentSession {
-  id: string;
-  user_id: string;
-  ontology_lineage_id: string | null;
-  prompt_hash: string;
-  tool_schema_hash: string;
-  model_id: string;
-  model_config: Record<string, unknown>;
-  user_message: string;
-  final_text: string | null;
-  created_at: string;
-  completed_at: string | null;
-}
+export type AgentSession = components["schemas"]["AgentSession"];
+export type AgentEvent = components["schemas"]["AgentEvent"];
+export type AgentSessionPage = ClientPage<components["schemas"]["AgentSessionPage"]>;
 
-export interface AgentEvent {
-  id: string;
-  session_id: string;
-  sequence: number;
-  event_type: string;
-  payload: Record<string, unknown>;
-  created_at: string;
-}
+export type RecipeStatus = components["schemas"]["RecipeStatus"];
 
-export type RecipeStatus = "draft" | "approved" | "deprecated";
-
-export interface AnalysisRecipe {
-  id: string;
-  name: string;
-  description: string;
-  algorithm_type: string;
-  code_template: string;
-  parameters: Record<string, unknown>;
-  required_columns: string[];
-  output_description: string;
-  created_by: string;
-  created_at: string;
-  version: number;
-  status: RecipeStatus;
-  parent_id: string | null;
-}
+export type AnalysisRecipe = components["schemas"]["AnalysisRecipe"];
+export type AnalysisRecipePage =
+  ClientPage<components["schemas"]["AnalysisRecipePage"]>;
 
 // --- Saved Reports ---
 
-export interface ReportParameter {
-  name: string;
-  type: "string" | "number" | "boolean";
-  default: unknown;
-  label: string;
-}
-
-export interface SavedReport {
-  id: string;
-  user_id: string;
-  ontology_lineage_id: string;
-  title: string;
-  description: string | null;
-  query_template: string;
-  parameters: ReportParameter[];
-  widget_type: string | null;
-  is_public: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ReportCreateRequest {
-  ontology_lineage_id: string;
-  title: string;
-  description?: string;
-  query_template: string;
-  parameters?: ReportParameter[];
-  widget_type?: string;
-  is_public?: boolean;
-}
-
-export interface ReportUpdateRequest {
-  title?: string;
-  description?: string;
-  query_template?: string;
-  parameters?: ReportParameter[];
-  widget_type?: string;
-  is_public?: boolean;
-}
+export type ReportParameter = components["schemas"]["SavedReportParameter"];
+export type SavedReport = components["schemas"]["SavedReport"];
+export type SavedReportPage = ClientPage<components["schemas"]["SavedReportPage"]>;
+export type ReportCreateRequest = components["schemas"]["CreateReportRequest"];
+export type ReportUpdateRequest = components["schemas"]["UpdateReportRequest"];
 
 // --- Scheduled Tasks ---
 
-export type ScheduledTaskStatus = "completed" | "error" | "running";
-
-export interface ScheduledTask {
-  id: string;
-  recipe_id: string;
-  ontology_lineage_id: string | null;
-  cron_expression: string;
-  description: string | null;
-  enabled: boolean;
-  last_run_at: string | null;
-  next_run_at: string;
-  last_status: ScheduledTaskStatus | null;
-  webhook_url: string | null;
-  created_by: string;
-  created_at: string;
-}
-
-export interface ScheduleCreateRequest {
-  cron_expression: string;
-  ontology_lineage_id?: string;
-  description?: string;
-  webhook_url?: string;
-}
-
-export interface ScheduleUpdateRequest {
-  enabled: boolean;
-}
+export type ScheduledTaskStatus = NonNullable<components["schemas"]["ScheduledTask"]["last_status"]>;
+export type ScheduledTask = components["schemas"]["ScheduledTask"];
+export type ScheduleCreateRequest = components["schemas"]["CreateScheduleRequest"];
+export type ScheduleUpdateRequest = components["schemas"]["UpdateScheduleRequest"];
 
 // --- Knowledge Base ---
 
-export type KnowledgeKind = "correction" | "hint";
-export type KnowledgeStatus = "draft" | "approved" | "stale" | "deprecated";
-
-export interface KnowledgeEntry {
-  id: string;
-  workspace_id: string;
-  ontology_name: string;
-  ontology_version_min: number;
-  ontology_version_max: number | null;
-  kind: KnowledgeKind;
-  status: KnowledgeStatus;
-  confidence: number;
-  title: string;
-  content: string;
-  structured_data: Record<string, unknown>;
-  version_checked: number;
-  content_hash: string;
-  source_execution_ids: string[];
-  source_session_id: string | null;
-  affected_labels: string[];
-  affected_properties: string[];
-  use_count: number;
-  last_used_at: string | null;
-  created_by: string;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  review_notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface KnowledgeCreateRequest {
-  ontology_name: string;
-  kind: KnowledgeKind;
-  title: string;
-  content: string;
-  structured_data?: Record<string, unknown>;
-  affected_labels?: string[];
-  ontology_version_min?: number;
-}
-
-export interface KnowledgeUpdateRequest {
-  title: string;
-  content: string;
-  structured_data?: Record<string, unknown>;
-  affected_labels?: string[];
-  affected_properties?: string[];
-}
-
-export interface KnowledgeStats {
-  total: number;
-  by_status: Record<string, number>;
-  by_kind: Record<string, number>;
-}
+export type KnowledgeKind = components["schemas"]["KnowledgeKind"];
+export type KnowledgeStatus = components["schemas"]["KnowledgeStatus"];
+export type KnowledgeEntry = components["schemas"]["KnowledgeEntry"];
+export type KnowledgeEntryPage = ClientPage<components["schemas"]["KnowledgeEntryPage"]>;
+export type KnowledgeCreateRequest = components["schemas"]["CreateKnowledgeEntryRequest"];
+export type KnowledgeUpdateRequest = components["schemas"]["UpdateKnowledgeEntryRequest"];
+export type KnowledgeStats = components["schemas"]["KnowledgeStats"];

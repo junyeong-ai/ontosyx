@@ -4,8 +4,10 @@ import {
   useQuery,
   type UseQueryOptions,
 } from "@tanstack/react-query";
-import { listSavedPatterns, type SavedPattern } from "@/lib/api/queries";
-import type { CursorPage } from "@/types/api";
+import {
+  listSavedPatterns,
+  type SavedPatternPage,
+} from "@/lib/api/queries";
 
 // ---------------------------------------------------------------------------
 // Query keys
@@ -14,8 +16,8 @@ import type { CursorPage } from "@/types/api";
 export const savedPatternsKeys = {
   all: ["saved-patterns"] as const,
   lists: () => [...savedPatternsKeys.all, "list"] as const,
-  list: (ontologyId: string, params?: { limit?: number }) =>
-    [...savedPatternsKeys.lists(), ontologyId, params ?? {}] as const,
+  list: (params?: { limit?: number }) =>
+    [...savedPatternsKeys.lists(), "workspace", params ?? {}] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -23,19 +25,16 @@ export const savedPatternsKeys = {
 // ---------------------------------------------------------------------------
 
 export function useSavedPatterns(
-  ontologyId: string | null | undefined,
+  _ontologyId?: string | null,
   params?: { limit?: number },
   options?: Omit<
-    UseQueryOptions<CursorPage<SavedPattern>>,
+    UseQueryOptions<SavedPatternPage>,
     "queryKey" | "queryFn"
   >,
 ) {
   return useQuery({
-    queryKey: savedPatternsKeys.list(ontologyId ?? "", params),
-    queryFn: () => listSavedPatterns(ontologyId as string, params),
-    // Caller controls `enabled` via `options`; default is "enabled when
-    // the ontology id is present".
-    enabled: !!ontologyId,
+    queryKey: savedPatternsKeys.list(params),
+    queryFn: () => listSavedPatterns(params),
     ...options,
   });
 }

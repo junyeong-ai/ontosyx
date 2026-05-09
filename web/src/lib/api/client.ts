@@ -2,11 +2,9 @@ import { getPrincipalId } from "@/lib/principal";
 import { getWorkspaceId } from "@/lib/workspace";
 import type { components } from "@/types/api.generated";
 
-// Sample type-only import from the generated OpenAPI types. Proves that the
-// code-gen pipeline (scripts/gen-openapi-types.sh) wires the backend spec
-// into the frontend type system. Reference this from real call sites as we
-// migrate handcrafted types (src/types/api.ts etc.) to generated ones.
-export type GeneratedErrorResponse = components["schemas"]["ErrorResponse"];
+type WireErrorResponse = components["schemas"]["ErrorResponse"];
+type WireErrorBody = WireErrorResponse["error"];
+type ParsedWireError = Omit<WireErrorBody, "class"> & { class: ApiErrorClass };
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -226,6 +224,28 @@ export function isApiError(value: unknown): value is ApiError {
   return value instanceof ApiError;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
+
+function parseWireError(body: unknown): ParsedWireError | null {
+  if (!isRecord(body) || !isRecord(body.error)) {
+    return null;
+  }
+  const { code, class: errorClass, params } = body.error;
+  if (
+    typeof code !== "string" ||
+    (errorClass !== "client_error" && errorClass !== "server_error")
+  ) {
+    return null;
+  }
+  return {
+    code,
+    class: errorClass,
+    params,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Internal request helpers (exported for sibling modules, NOT from barrel)
 // ---------------------------------------------------------------------------
@@ -258,12 +278,12 @@ async function requestInternal<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const err = body?.error ?? {};
+    const err = parseWireError(body);
     throw new ApiError({
       status: res.status,
-      code: typeof err.code === "string" ? err.code : undefined,
-      class: err.class === "server_error" ? "server_error" : "client_error",
-      params: err.params && typeof err.params === "object" ? err.params : {},
+      code: err?.code,
+      class: err?.class ?? (res.status >= 500 ? "server_error" : "client_error"),
+      params: isRecord(err?.params) ? err.params : {},
     });
   }
 
@@ -287,13 +307,14 @@ export async function requestText(path: string, init?: RetryOptions): Promise<st
 /**
  * Unwrap the `ApiResponse<T>` envelope: `{ data, pagination?, meta? }`.
  *
- * Cursor-paginated payloads are flattened back to the legacy
- * `{ items, next_cursor }` shape so existing list components keep
- * working without per-component edits. Single-resource responses
+ * Cursor-paginated payloads are flattened to the frontend
+ * `{ items, next_cursor }` page shape. Single-resource responses
  * return `data` directly.
  *
- * Defensive fallback: if the body isn't an envelope (legacy bare JSON,
- * mocked tests, or third-party endpoints), return it as-is.
+ * Backend JSON endpoints are expected to use the envelope. A missing
+ * envelope is treated as a malformed upstream response so mocks and
+ * proxy regressions fail at the API boundary instead of leaking an
+ * untyped shape into feature code.
  */
 function unwrapEnvelope<T>(body: unknown): T {
   if (
@@ -301,7 +322,12 @@ function unwrapEnvelope<T>(body: unknown): T {
     typeof body !== "object" ||
     !Object.hasOwn(body, "data")
   ) {
-    return body as T;
+    throw new ApiError({
+      status: 502,
+      code: "api_response_invalid",
+      class: "server_error",
+      params: {},
+    });
   }
 
   const obj = body as { data: unknown; pagination?: { next_cursor?: string } };
@@ -310,7 +336,7 @@ function unwrapEnvelope<T>(body: unknown): T {
   // → frontend `{ items: [...], next_cursor }`. Backend skips
   // `next_cursor` when there's no next page (`skip_serializing_if =
   // "Option::is_none"`), so the field is absent — never null — on
-  // the wire. The consumer-facing `CursorPage<T>.next_cursor` is
+  // the wire. The consumer-facing `ClientPage<T>.next_cursor` is
   // `?: string`, matching that shape.
   if (Array.isArray(obj.data) && obj.pagination !== undefined) {
     return {

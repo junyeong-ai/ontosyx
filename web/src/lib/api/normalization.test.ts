@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { unwrapPropertyValue, extractNodeProperties, normalizeQueryResult } from "./normalization";
+import { unwrapPropertyValue, extractNodeProperties, normalizeQueryResult, type WireQueryResult } from "./normalization";
 
 describe("unwrapPropertyValue", () => {
   it("passes through primitives", () => {
@@ -110,12 +110,16 @@ describe("normalizeQueryResult", () => {
   });
 
   it("normalizes array-format rows", () => {
-    const raw = {
+    const raw: WireQueryResult = {
       columns: ["name", "age"],
       rows: [
         [{ type: "string", value: "Alice" }, { type: "int", value: 30 }],
         [{ type: "string", value: "Bob" }, { type: "int", value: 25 }],
       ],
+      metadata: {
+        execution_time_ms: 12,
+        rows_returned: 2,
+      },
     };
     const result = normalizeQueryResult(raw)!;
     expect(result.columns).toEqual(["name", "age"]);
@@ -123,6 +127,7 @@ describe("normalizeQueryResult", () => {
       { name: "Alice", age: 30 },
       { name: "Bob", age: 25 },
     ]);
+    expect(result.metadata?.rows_returned).toBe(2);
   });
 
   it("normalizes object-format rows", () => {

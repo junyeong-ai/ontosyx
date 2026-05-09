@@ -5,33 +5,55 @@ import type {
   InsightListPage,
   UpdateInsightRequest,
 } from "@/types/api";
+import type { components } from "@/types/api.generated";
 
 const BASE = "/insights";
 
+type WireInsightDef = components["schemas"]["InsightDef"];
+type WireInsightResponse = components["schemas"]["InsightResponse"];
+type WireInsightListPage = components["schemas"]["CursorPage_InsightDef"];
+
+function normalizeInsight(raw: WireInsightDef): InsightDef {
+  return {
+    ...raw,
+    concept_anchors: raw.concept_anchors ?? [],
+    description: raw.description ?? { default: "" },
+    original_provenance: raw.original_provenance ?? null,
+    tags: raw.tags ?? [],
+  };
+}
+
+function normalizeInsightPage(raw: WireInsightListPage): InsightListPage {
+  return {
+    items: raw.items.map(normalizeInsight),
+    next_cursor: raw.next_cursor ?? undefined,
+  };
+}
+
 export async function createInsight(req: CreateInsightRequest): Promise<InsightDef> {
-  const res = await request<{ insight: InsightDef }>(BASE, {
+  const res = await request<WireInsightResponse>(BASE, {
     method: "POST",
     body: JSON.stringify(req),
   });
-  return res.insight;
+  return normalizeInsight(res.insight);
 }
 
 export async function updateInsight(
   id: string,
   req: UpdateInsightRequest,
 ): Promise<InsightDef> {
-  const res = await request<{ insight: InsightDef }>(
+  const res = await request<WireInsightResponse>(
     `${BASE}/${encodeURIComponent(id)}`,
     { method: "PUT", body: JSON.stringify(req) },
   );
-  return res.insight;
+  return normalizeInsight(res.insight);
 }
 
 export async function getInsight(id: string): Promise<InsightDef> {
-  const res = await request<{ insight: InsightDef }>(
+  const res = await request<WireInsightResponse>(
     `${BASE}/${encodeURIComponent(id)}`,
   );
-  return res.insight;
+  return normalizeInsight(res.insight);
 }
 
 export interface ListInsightsParams {
@@ -61,7 +83,7 @@ export async function listInsights(
   if (params.cursor) qs.set("cursor", params.cursor);
   if (params.limit) qs.set("limit", String(params.limit));
   const suffix = qs.toString() ? `?${qs}` : "";
-  return request<InsightListPage>(`${BASE}${suffix}`);
+  return normalizeInsightPage(await request<WireInsightListPage>(`${BASE}${suffix}`));
 }
 
 export async function deleteInsight(id: string): Promise<void> {

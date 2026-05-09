@@ -1,45 +1,26 @@
+import type { components } from "@/types/api.generated";
 import { request } from "./client";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ModelConfig {
-  id: string;
-  workspace_id: string | null;
-  name: string;
-  provider: string;
-  model_id: string;
-  max_tokens: number;
-  temperature: number | null;
-  timeout_secs: number;
-  cost_per_1m_input: number | null;
-  cost_per_1m_output: number | null;
-  daily_budget_usd: number | null;
-  priority: number;
-  enabled: boolean;
-  api_key_env: string | null;
-  region: string | null;
-  base_url: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type ModelConfig = components["schemas"]["ModelConfig"];
+export type NewModelConfig = components["schemas"]["NewModelConfig"];
+export type ModelConfigUpdate = components["schemas"]["ModelConfigUpdate"];
+export type ModelRoutingRule = components["schemas"]["ModelRoutingRule"];
+export type NewRoutingRule = components["schemas"]["NewRoutingRule"];
+export type RoutingRuleUpdate = components["schemas"]["RoutingRuleUpdate"];
+export type TestModelRequest = components["schemas"]["TestModelRequest"];
+export type TestModelResponse = components["schemas"]["TestModelResponse"];
+export type ModelOperation = components["schemas"]["ModelOperation"];
 
-export interface ModelRoutingRule {
-  id: string;
-  workspace_id: string | null;
-  operation: string;
-  model_config_id: string;
-  priority: number;
-  enabled: boolean;
-  created_at: string;
-}
+// ---------------------------------------------------------------------------
+// Operation Registry
+// ---------------------------------------------------------------------------
 
-export interface ModelTestResult {
-  success: boolean;
-  latency_ms: number;
-  model_id: string;
-  error: string | null;
+export async function listModelOperations(): Promise<ModelOperation[]> {
+  return request<ModelOperation[]>("/models/operations");
 }
 
 // ---------------------------------------------------------------------------
@@ -51,7 +32,7 @@ export async function listModelConfigs(): Promise<ModelConfig[]> {
 }
 
 export async function createModelConfig(
-  req: Omit<ModelConfig, "id" | "workspace_id" | "created_at" | "updated_at">,
+  req: NewModelConfig,
 ): Promise<ModelConfig> {
   return request<ModelConfig>("/models/configs", {
     method: "POST",
@@ -61,7 +42,7 @@ export async function createModelConfig(
 
 export async function updateModelConfig(
   id: string,
-  req: Partial<Omit<ModelConfig, "id" | "workspace_id" | "created_at" | "updated_at">>,
+  req: ModelConfigUpdate,
 ): Promise<ModelConfig> {
   return request<ModelConfig>(`/models/configs/${encodeURIComponent(id)}`, {
     method: "PATCH",
@@ -84,7 +65,7 @@ export async function listRoutingRules(): Promise<ModelRoutingRule[]> {
 }
 
 export async function createRoutingRule(
-  req: Omit<ModelRoutingRule, "id" | "workspace_id" | "created_at">,
+  req: NewRoutingRule,
 ): Promise<ModelRoutingRule> {
   return request<ModelRoutingRule>("/models/routing-rules", {
     method: "POST",
@@ -94,7 +75,7 @@ export async function createRoutingRule(
 
 export async function updateRoutingRule(
   id: string,
-  req: Partial<Omit<ModelRoutingRule, "id" | "workspace_id" | "created_at">>,
+  req: RoutingRuleUpdate,
 ): Promise<ModelRoutingRule> {
   return request<ModelRoutingRule>(`/models/routing-rules/${encodeURIComponent(id)}`, {
     method: "PATCH",
@@ -112,9 +93,9 @@ export async function deleteRoutingRule(id: string): Promise<void> {
 // Test
 // ---------------------------------------------------------------------------
 
-export async function testModelConfig(id: string): Promise<ModelTestResult> {
-  return request<ModelTestResult>("/models/test", {
+export async function testModelConfig(req: TestModelRequest): Promise<TestModelResponse> {
+  return request<TestModelResponse>("/models/test", {
     method: "POST",
-    body: JSON.stringify({ model_config_id: id }),
+    body: JSON.stringify(req),
   });
 }

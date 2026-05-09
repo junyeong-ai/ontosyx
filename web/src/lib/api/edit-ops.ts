@@ -1,7 +1,7 @@
 // Discriminated-union mirror of `ox_ontology::OntologyEditOp`.
 //
 // CRUD callers construct ops from this union and submit them via
-// `submitOntologyEdits` (POST `/api/ontologies/{id}/edits`). Wire
+// `submitOntologyEdits` (POST `/api/ontology/edits`). Wire
 // format: `serde(tag = "op", rename_all = "snake_case")` →
 // `{"op": "create_glossary_term", "def": {...}}`.
 //
@@ -11,7 +11,6 @@
 
 import type {
   ConceptMapDef,
-  LocalizedText,
   PropertyBinding,
   PropertyBindingHandle,
 } from "@/types/ontology";
@@ -38,162 +37,23 @@ export type TermGovernance = components["schemas"]["TermGovernance"];
 export type TermOrigin = components["schemas"]["TermOrigin"];
 export type TermChangeNote = components["schemas"]["TermChangeNote"];
 export type GlossaryTermDef = components["schemas"]["GlossaryTermDef"];
+export type ConceptDef = components["schemas"]["ConceptDef"];
 
-export type CodeSystemKind = "international" | "standard" | "internal" | "custom";
+export type CodeSystemKind = components["schemas"]["CodeSystemKind"];
+export type CodedValue = components["schemas"]["CodedValue"];
+export type CodeSystemDef = components["schemas"]["CodeSystemDef"];
+export type ValueSetDef = components["schemas"]["ValueSetDef"];
+export type NotationPatternDef = components["schemas"]["NotationPatternDef"];
 
-export type CodedValue = {
-  id: string;
-  code: string;
-  display?: LocalizedText;
-  definition?: LocalizedText;
-  aliases?: string[];
-  broader_id?: string;
-  examples?: LocalizedText[];
-  scope_note?: LocalizedText;
-  valid_from?: string;
-  valid_to?: string;
-  deprecated_at?: string;
-  replaced_by_id?: string;
-};
-
-export type CodeSystemDef = {
-  id: string;
-  name: string;
-  display_name?: LocalizedText;
-  description?: LocalizedText;
-  version: string;
-  kind: CodeSystemKind;
-  uri?: string;
-  hierarchical?: boolean;
-  deprecated_at?: string;
-  replaced_by_id?: string;
-  codes: CodedValue[];
-};
-
-export type ValueSetDef = {
-  id: string;
-  name: string;
-  display_name?: LocalizedText;
-  description?: LocalizedText;
-  version: string;
-  composition?: Array<{
-    system_id: string;
-    selector: { kind: "all" } | { kind: "explicit"; codes: string[] };
-    mode: "include" | "exclude";
-  }>;
-};
-
-export type NotationPatternDef = {
-  id: string;
-  name: string;
-  display_name?: LocalizedText;
-  description?: LocalizedText;
-  template: string;
-  separator?: string;
-  components: Array<Record<string, unknown>>;
-  examples?: string[];
-};
-
-// ---------------------------------------------------------------------------
-// Rule wire shapes — mirror the OpenAPI-generated `components["schemas"]`
-// projection of `ox_ontology::rule`. Hand-rolled here (rather than aliased
-// from `api.generated`) so the edit-ops surface stays self-contained for the
-// admin CRUD pages: every editor reads + writes the same `RuleDef` shape.
-// ---------------------------------------------------------------------------
-
-export type Severity = "violation" | "warning" | "info";
-export type EnforcementKind = "write" | "read" | "batch";
-
-export type RuleActivationKind =
-  | { kind: "always" }
-  | { kind: "on_action"; action_id: string }
-  | { kind: "on_schedule"; cron_expression: string };
-
-export type RuleKind =
-  | { kind: "node_shape"; target_node_type_id: string }
-  | {
-      kind: "property_shape";
-      target_node_type_id: string;
-      target_property_id: string;
-    }
-  | { kind: "edge_shape"; target_edge_type_id: string }
-  | { kind: "cross_entity_shape"; predicate: string }
-  | {
-      kind: "state_machine";
-      target_node_type_id: string;
-      state_property_id: string;
-      transitions: Array<{ from?: string; to: string }>;
-    };
-
-export type RuleOrigin =
-  | { kind: "authored" }
-  | {
-      kind: "derived_from_binding";
-      node_type_id: string;
-      property_id: string;
-    };
-
-export type ConstraintTarget =
-  | { kind: "inherit" }
-  | {
-      kind: "property";
-      node_type_id: string;
-      property_id: string;
-    }
-  | { kind: "node_type"; node_type_id: string }
-  | { kind: "edge_label"; edge_label: string };
-
-/**
- * SHACL constraint variants — AND'd together inside a single
- * [`RuleDef.constraints`] list. The editor forms one variant at a time
- * via the constraint-kind-pluggable form registry.
- */
-export type ShaclConstraint =
-  | { kind: "min_count"; target: ConstraintTarget; min: number }
-  | { kind: "max_count"; target: ConstraintTarget; max: number }
-  | { kind: "datatype"; target: ConstraintTarget; expected: string }
-  | {
-      kind: "matches_pattern";
-      target: ConstraintTarget;
-      notation_pattern_id: string;
-    }
-  | {
-      kind: "in_value_set";
-      target: ConstraintTarget;
-      value_set_id: string;
-    }
-  | { kind: "has_value"; target: ConstraintTarget; value: string }
-  | { kind: "min_inclusive"; target: ConstraintTarget; min: number }
-  | { kind: "max_inclusive"; target: ConstraintTarget; max: number }
-  | { kind: "min_length"; target: ConstraintTarget; min: number }
-  | { kind: "max_length"; target: ConstraintTarget; max: number }
-  | { kind: "unique_lang"; target: ConstraintTarget }
-  | {
-      kind: "closed";
-      target: ConstraintTarget;
-      allowed_properties: string[];
-    }
-  | { kind: "disjoint"; a: ConstraintTarget; b: ConstraintTarget }
-  | {
-      kind: "unique_key";
-      target_node_type_id: string;
-      property_keys: string[];
-    };
-
-export type RuleDef = {
-  id: string;
-  name: LocalizedText;
-  description?: LocalizedText;
-  rationale?: LocalizedText;
-  kind: RuleKind;
-  severity?: Severity;
-  enforcement?: EnforcementKind;
-  activation?: RuleActivationKind;
-  origin?: RuleOrigin;
-  constraints?: ShaclConstraint[];
-  valid_from?: string;
-  valid_to?: string;
-};
+export type Severity = components["schemas"]["Severity"];
+export type EnforcementKind = components["schemas"]["EnforcementKind"];
+export type RuleActivationKind = components["schemas"]["RuleActivationKind"];
+export type RuleKind = components["schemas"]["RuleKind"];
+export type RuleOrigin = components["schemas"]["RuleOrigin"];
+export type ConstraintTarget = components["schemas"]["ConstraintTarget"];
+export type ShaclConstraint = components["schemas"]["ShaclConstraint"];
+export type PropertyType = components["schemas"]["PropertyType"];
+export type RuleDef = components["schemas"]["RuleDef"];
 
 export type ObjectMappingDef = components["schemas"]["ObjectMappingDef"];
 export type LinkMappingDef = components["schemas"]["LinkMappingDef"];
@@ -211,7 +71,7 @@ export type PropertyOwnerPath =
   | { kind: "edge"; type_id: string };
 
 // ---------------------------------------------------------------------------
-// OntologyEditOp — the full discriminated union (24 variants).
+// OntologyEditOp — the full discriminated union.
 //
 // Grouped by entity kind so the eye finds the variant for a given
 // CRUD action quickly. Wire-format snake_case names match
@@ -232,6 +92,10 @@ export type OntologyEditOp =
       value: CodedValue;
     }
   | { op: "delete_coded_value"; code_system_id: string; id: string }
+  // Concept
+  | { op: "create_concept"; def: ConceptDef }
+  | { op: "update_concept"; id: string; def: ConceptDef }
+  | { op: "delete_concept"; id: string }
   // GlossaryTerm
   | { op: "create_glossary_term"; def: GlossaryTermDef }
   | { op: "update_glossary_term"; id: string; def: GlossaryTermDef }
@@ -281,32 +145,30 @@ export type OntologyEditOp =
 // Request / response wrappers.
 // ---------------------------------------------------------------------------
 
-export interface EditOntologyRequest {
-  expected_version: number;
+export type EditOntologyRequest = Omit<
+  components["schemas"]["EditOntologyRequest"],
+  "operations"
+> & {
   operations: OntologyEditOp[];
-  message?: string;
-  /** Pre-check without committing. Server runs the apply + validate
-   *  pass against a clone and returns the diagnostics; nothing
-   *  persists. Useful for "would this break the IR?" form previews. */
-  dry_run?: boolean;
-}
+};
+export type OntologyEditReceipt = components["schemas"]["OntologyEditReceipt"];
+export type OntologyEditPreCheck = components["schemas"]["OntologyEditPreCheck"];
+export type EditOntologyResponse = components["schemas"]["EditOntologyResponse"];
 
-export interface OntologyEditReceipt {
-  new_version: number;
-  new_version_id: string;
-  parent_version_id: string | null;
-  applied_operations: number;
-  committed_at: string;
+export function isOntologyEditReceipt(
+  response: EditOntologyResponse,
+): response is OntologyEditReceipt {
+  return "new_version_id" in response;
 }
 
 /** Submit a batch of edit operations against an ontology. The
  *  server validates each op + the post-batch IR; on success returns
  *  the new committed version. */
 export async function submitOntologyEdits(
-  ontologyId: string,
+  _ontologyId: string,
   body: EditOntologyRequest,
-): Promise<OntologyEditReceipt> {
-  return request(`/ontologies/${encodeURIComponent(ontologyId)}/edits`, {
+): Promise<EditOntologyResponse> {
+  return request("/ontology/edits", {
     method: "POST",
     body: JSON.stringify(body),
   });

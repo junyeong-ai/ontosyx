@@ -11,6 +11,7 @@ import {
   createRoutingRule,
   deleteModelConfig,
   deleteRoutingRule,
+  listModelOperations,
   listModelConfigs,
   listRoutingRules,
   testModelConfig,
@@ -18,14 +19,23 @@ import {
   updateRoutingRule,
   type ModelConfig,
   type ModelRoutingRule,
-  type ModelTestResult,
+  type TestModelRequest,
+  type TestModelResponse,
 } from "@/lib/api/models";
 
 export const modelsKeys = {
   all: ["models"] as const,
+  operations: () => [...modelsKeys.all, "operations"] as const,
   configs: () => [...modelsKeys.all, "configs"] as const,
   rules: () => [...modelsKeys.all, "rules"] as const,
 };
+
+export function useModelOperations() {
+  return useQuery({
+    queryKey: modelsKeys.operations(),
+    queryFn: () => listModelOperations(),
+  });
+}
 
 export function useModelConfigs() {
   return useQuery({
@@ -59,7 +69,7 @@ export function useUpdateModelConfig() {
   return useMutation<
     ModelConfig,
     Error,
-    { id: string; patch: Partial<ConfigInput> }
+    { id: string; patch: Parameters<typeof updateModelConfig>[1] }
   >({
     mutationFn: ({ id, patch }) => updateModelConfig(id, patch),
     onSuccess: () => {
@@ -80,8 +90,8 @@ export function useDeleteModelConfig() {
 }
 
 export function useTestModelConfig() {
-  return useMutation<ModelTestResult, Error, string>({
-    mutationFn: (id) => testModelConfig(id),
+  return useMutation<TestModelResponse, Error, TestModelRequest>({
+    mutationFn: (req) => testModelConfig(req),
   });
 }
 
@@ -100,7 +110,7 @@ export function useUpdateRoutingRule() {
   return useMutation<
     ModelRoutingRule,
     Error,
-    { id: string; patch: Partial<RuleInput> }
+    { id: string; patch: Parameters<typeof updateRoutingRule>[1] }
   >({
     mutationFn: ({ id, patch }) => updateRoutingRule(id, patch),
     onSuccess: () => {

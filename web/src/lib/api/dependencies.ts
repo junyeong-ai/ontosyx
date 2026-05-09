@@ -25,11 +25,9 @@ export type SchemaDependencyGraph =
  * client-side via [`dependentsOf`] / [`referencesOf`].
  */
 export async function getDependencyGraph(
-  ontologyId: string,
+  _ontologyId: string,
 ): Promise<SchemaDependencyGraph> {
-  return request<SchemaDependencyGraph>(
-    `/ontologies/${encodeURIComponent(ontologyId)}/dependencies`,
-  );
+  return request<SchemaDependencyGraph>("/ontology/dependencies");
 }
 
 /**

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { ApiError, isApiError } from "../client";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError, isApiError, request } from "../client";
 
 describe("ApiError.kind", () => {
   it("maps 0 to network", () => {
@@ -100,5 +100,51 @@ describe("isApiError", () => {
     expect(isApiError("x")).toBe(false);
     expect(isApiError(null)).toBe(false);
     expect(isApiError({})).toBe(false);
+  });
+});
+
+describe("request error wire parsing", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    window.sessionStorage.setItem("ontosyx.auth_enabled", "true");
+    window.localStorage.setItem("ontosyx.workspace_id", "ws-test");
+  });
+
+  it("parses the canonical typed error envelope", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: {
+            code: "service_unavailable",
+            class: "server_error",
+            params: { detail: "Backend unreachable." },
+          },
+        }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await expect(request("/ontology")).rejects.toMatchObject({
+      status: 503,
+      code: "service_unavailable",
+      class: "server_error",
+      params: { detail: "Backend unreachable." },
+    });
+  });
+
+  it("rejects malformed success envelopes at the API boundary", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(request("/ontology")).rejects.toMatchObject({
+      status: 502,
+      code: "api_response_invalid",
+      class: "server_error",
+    });
   });
 });

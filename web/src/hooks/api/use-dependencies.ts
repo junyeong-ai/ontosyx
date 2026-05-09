@@ -9,21 +9,19 @@ import {
 
 export const dependencyKeys = {
   all: ["dependencies"] as const,
-  graph: (ontologyId: string) =>
-    [...dependencyKeys.all, "graph", ontologyId] as const,
+  graph: () => [...dependencyKeys.all, "graph", "workspace"] as const,
 };
 
 /**
  * Fetch and cache the schema-level dependency graph for an
- * ontology. Cached aggressively — the graph derives from the
+ * workspace ontology. Cached aggressively — the graph derives from the
  * committed IR snapshot, so it only changes on commit; mutators
- * invalidate `dependencyKeys.graph(id)` after a successful edit.
+ * invalidate `dependencyKeys.graph()` after a successful edit.
  */
-export function useDependencyGraph(ontologyId: string | null | undefined) {
+export function useDependencyGraph(_ontologyId?: string | null) {
   return useQuery<SchemaDependencyGraph>({
-    queryKey: dependencyKeys.graph(ontologyId ?? "__none__"),
-    queryFn: () => getDependencyGraph(ontologyId!),
-    enabled: !!ontologyId,
+    queryKey: dependencyKeys.graph(),
+    queryFn: () => getDependencyGraph("workspace"),
     staleTime: 5 * 60 * 1000,
   });
 }

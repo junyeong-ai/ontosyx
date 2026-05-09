@@ -1,27 +1,62 @@
 import type {
-  CursorPage,
   PinCreateRequest,
   PinboardItem,
+  PinboardItemPage,
+  ClientPage,
   QueryExecution,
-  QueryExecutionSummary,
+  QueryExecutionSummaryPage,
   QueryResult,
   QueryRawRequest,
 } from "@/types/api";
 import type { components } from "@/types/api.generated";
 import { request, DEFAULT_TIMEOUT } from "./client";
-import { normalizeQueryResult } from "./normalization";
+import { normalizeQueryResult, type WireQueryResult } from "./normalization";
+import { OntologyIRSchema } from "@/lib/validation";
+
+interface RawQueryEnvelope {
+  results?: WireQueryResult;
+}
+
+type WireQueryExecution = components["schemas"]["QueryExecution"];
+type WireExecuteFromIrResponse = components["schemas"]["ExecuteFromIrResponse"];
+
+function hasResultsEnvelope(raw: WireQueryResult | RawQueryEnvelope): raw is RawQueryEnvelope {
+  return "results" in raw;
+}
+
+function normalizeQueryExecution(raw: WireQueryExecution): QueryExecution {
+  const ontologySnapshot =
+    raw.ontology_snapshot == null
+      ? null
+      : OntologyIRSchema.parse(raw.ontology_snapshot);
+  return {
+    ...raw,
+    ontology_id: raw.ontology_id ?? null,
+    ontology_snapshot: ontologySnapshot,
+    query_ir: raw.query_ir,
+    results: normalizeQueryResult(raw.results) ?? { columns: [], rows: [] },
+    widget: raw.widget ?? null,
+    query_bindings: raw.query_bindings,
+    feedback: raw.feedback ?? undefined,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Raw Query
 // ---------------------------------------------------------------------------
 
 export async function rawQuery(req: QueryRawRequest): Promise<QueryResult> {
-  const raw = await request<Record<string, unknown>>("/query/raw", {
+  const raw = await request<
+    | WireQueryResult
+    | {
+        results?: WireQueryResult;
+      }
+  >("/query/raw", {
     method: "POST",
     body: JSON.stringify(req),
   });
   // Backend wraps results: { query, target, results: { columns, rows } }
-  const results = raw.results ?? raw;
+  const results = hasResultsEnvelope(raw) ? raw.results : raw;
   return normalizeQueryResult(results) ?? { columns: [], rows: [] };
 }
 
@@ -32,22 +67,19 @@ export async function rawQuery(req: QueryRawRequest): Promise<QueryResult> {
 export async function listExecutions(params?: {
   cursor?: string;
   limit?: number;
-}): Promise<CursorPage<QueryExecutionSummary>> {
+}): Promise<QueryExecutionSummaryPage> {
   const qs = new URLSearchParams();
   if (params?.cursor) qs.set("cursor", params.cursor);
   if (params?.limit) qs.set("limit", String(params.limit));
   const query = qs.toString();
-  return request(`/query/history${query ? `?${query}` : ""}`);
+  return request<QueryExecutionSummaryPage>(`/query/history${query ? `?${query}` : ""}`);
 }
 
 export async function getExecution(id: string): Promise<QueryExecution> {
-  const raw = await request<QueryExecution>(`/query/history/${encodeURIComponent(id)}`);
-  // Backend stores results as raw PropertyValue-wrapped rows; normalize for display
-  const normalized = normalizeQueryResult(raw.results);
-  if (normalized) {
-    raw.results = normalized;
-  }
-  return raw;
+  const raw = await request<WireQueryExecution>(
+    `/query/history/${encodeURIComponent(id)}`,
+  );
+  return normalizeQueryExecution(raw);
 }
 
 // ---------------------------------------------------------------------------
@@ -130,12 +162,12 @@ export async function createPin(req: PinCreateRequest): Promise<PinboardItem> {
 export async function listPins(params?: {
   cursor?: string;
   limit?: number;
-}): Promise<CursorPage<PinboardItem>> {
+}): Promise<PinboardItemPage> {
   const qs = new URLSearchParams();
   if (params?.cursor) qs.set("cursor", params.cursor);
   if (params?.limit) qs.set("limit", String(params.limit));
   const query = qs.toString();
-  return request(`/pins${query ? `?${query}` : ""}`);
+  return request<PinboardItemPage>(`/pins${query ? `?${query}` : ""}`);
 }
 
 export async function deletePin(id: string): Promise<void> {
@@ -153,28 +185,18 @@ export async function deletePin(id: string): Promise<void> {
 // `layout_hints`) so re-opening a saved pattern restores the canvas
 // layout without a re-layout pass.
 
-/** Full PatternIR round-trip shape. Kept as `unknown` because the
- *  frontend already builds the backend-compatible JSON from its own
- *  `PatternNode` / `PatternEdge` types in the query-builder module
- *  and there's no single canonical TypeScript definition yet. */
-export type PatternIRJson = unknown;
+export type PatternIRJson = components["schemas"]["PatternIR"];
+export type SavedPattern = components["schemas"]["SavedPatternResponse"];
+export type SavedPatternPage =
+  ClientPage<components["schemas"]["SavedPatternResponsePage"]>;
+export type CreateSavedPatternRequest =
+  components["schemas"]["CreateSavedPatternRequest"];
+export type UpdateSavedPatternRequest =
+  components["schemas"]["UpdateSavedPatternRequest"];
 
-export interface SavedPattern {
-  id: string;
-  name: string;
-  description?: string;
-  ontology_lineage_id: string;
-  pattern_ir: PatternIRJson;
-  created_at: string;
-  updated_at: string;
-}
-
-export async function createSavedPattern(req: {
-  name: string;
-  description?: string;
-  ontology_lineage_id: string;
-  pattern_ir: PatternIRJson;
-}): Promise<SavedPattern> {
+export async function createSavedPattern(
+  req: CreateSavedPatternRequest,
+): Promise<SavedPattern> {
   return request<SavedPattern>("/query/pattern/saved", {
     method: "POST",
     body: JSON.stringify(req),
@@ -182,13 +204,13 @@ export async function createSavedPattern(req: {
 }
 
 export async function listSavedPatterns(
-  ontologyId: string,
   params?: { cursor?: string; limit?: number },
-): Promise<CursorPage<SavedPattern>> {
-  const qs = new URLSearchParams({ ontology_lineage_id: ontologyId });
+): Promise<SavedPatternPage> {
+  const qs = new URLSearchParams();
   if (params?.cursor) qs.set("cursor", params.cursor);
   if (params?.limit) qs.set("limit", String(params.limit));
-  return request(`/query/pattern/saved?${qs.toString()}`);
+  const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
+  return request<SavedPatternPage>(`/query/pattern/saved${suffix}`);
 }
 
 export async function getSavedPattern(id: string): Promise<SavedPattern> {
@@ -197,7 +219,7 @@ export async function getSavedPattern(id: string): Promise<SavedPattern> {
 
 export async function updateSavedPattern(
   id: string,
-  req: { name: string; description?: string; pattern_ir: PatternIRJson },
+  req: UpdateSavedPatternRequest,
 ): Promise<void> {
   await request(`/query/pattern/saved/${encodeURIComponent(id)}`, {
     method: "PATCH",
@@ -216,21 +238,11 @@ export async function deleteSavedPattern(id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function executeFromIr(
-  queryIr: unknown,
-  ontologyId?: string,
-): Promise<{
-  compiled_query: string;
-  compiled_target: string;
-  result: { columns: string[]; rows: unknown[][] };
-  widget_hint?: unknown;
-}> {
-  return request<{
-    compiled_query: string;
-    compiled_target: string;
-    result: { columns: string[]; rows: unknown[][] };
-    widget_hint?: unknown;
-  }>("/query/from-ir", {
+  queryIr: components["schemas"]["QueryIR"],
+  _ontologyId?: string,
+): Promise<WireExecuteFromIrResponse> {
+  return request<WireExecuteFromIrResponse>("/query/from-ir", {
     method: "POST",
-    body: JSON.stringify({ query_ir: queryIr, ontology_id: ontologyId }),
+    body: JSON.stringify({ query_ir: queryIr }),
   });
 }

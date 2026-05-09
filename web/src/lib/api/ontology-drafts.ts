@@ -2,12 +2,11 @@ import type {
   ReconcileOntologyDraftRequest,
   CompleteOntologyDraftRequest,
   CreateOntologyDraftRequest,
-  CursorPage,
   DeployOntologyDraftSchemaRequest,
   DeployOntologyDraftSchemaResponse,
   OntologyDraft,
   DesignOntologyDraftRequest,
-  OntologyDraftSummary,
+  OntologyDraftSummaryPage,
   DesignOntologyDraftResponse,
   EditOntologyDraftRequest,
   EditOntologyDraftResponse,
@@ -26,15 +25,20 @@ import type {
   UpdateOntologyDraftDecisionsRequest,
 } from "@/types/api";
 import type { DataSourceSpec } from "@/types/ontology-drafts";
+import type { components } from "@/types/api.generated";
 import { getPrincipalId } from "@/lib/principal";
 import { getWorkspaceId } from "@/lib/workspace";
 import { fetchWithTimeout, PROXY_BASE, DESIGN_TIMEOUT, request } from "./client";
 import { consumeSSEStream } from "./sse";
 import {
-  CursorPageSchema,
+  ClientPageSchema,
   OntologyDraftSchema,
   OntologyDraftSummarySchema,
 } from "@/lib/validation";
+import {
+  normalizeOntologyCommands,
+  type WireOntologyCommand,
+} from "@/lib/ontology-command-normalize";
 
 // ---------------------------------------------------------------------------
 // Ontology Draft CRUD
@@ -52,26 +56,28 @@ export async function createOntologyDraft(
 export async function listOntologyDrafts(params?: {
   cursor?: string;
   limit?: number;
-}): Promise<CursorPage<OntologyDraftSummary>> {
+}): Promise<OntologyDraftSummaryPage> {
   const qs = new URLSearchParams();
   if (params?.cursor) qs.set("cursor", params.cursor);
   if (params?.limit) qs.set("limit", String(params.limit));
   const query = qs.toString();
-  const data = await request(`/projects${query ? `?${query}` : ""}`);
-  const result = CursorPageSchema(OntologyDraftSummarySchema).safeParse(data);
+  const data = await request<OntologyDraftSummaryPage>(
+    `/projects${query ? `?${query}` : ""}`,
+  );
+  const result = ClientPageSchema(OntologyDraftSummarySchema).safeParse(data);
   if (!result.success) {
-    console.warn("Ontology draft list validation failed:", result.error.issues);
-    return data as ReturnType<typeof CursorPageSchema<typeof OntologyDraftSummarySchema>>["_output"];
+    throw new Error("Ontology draft list did not match the expected schema");
   }
   return result.data;
 }
 
 export async function getOntologyDraft(id: string): Promise<OntologyDraft> {
-  const data = await request(`/ontology-drafts/${encodeURIComponent(id)}`);
+  const data = await request<OntologyDraft>(
+    `/ontology-drafts/${encodeURIComponent(id)}`,
+  );
   const result = OntologyDraftSchema.safeParse(data);
   if (!result.success) {
-    console.warn("Ontology draft validation failed:", result.error.issues);
-    return data as OntologyDraft;
+    throw new Error("Ontology draft did not match the expected schema");
   }
   return result.data;
 }
@@ -136,10 +142,20 @@ export async function editOntologyDraft(
   ontologyDraftId: string,
   req: EditOntologyDraftRequest,
 ): Promise<EditOntologyDraftResponse> {
-  return request(`/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/edit`, {
+  const resp = await request<
+    Omit<EditOntologyDraftResponse, "commands" | "project"> & {
+      commands: WireOntologyCommand[];
+      project?: EditOntologyDraftResponse["project"];
+    }
+  >(`/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/edit`, {
     method: "POST",
     body: JSON.stringify(req),
   });
+  return {
+    ...resp,
+    project: resp.project ?? null,
+    commands: normalizeOntologyCommands(resp.commands),
+  };
 }
 
 export async function applyReconcile(
@@ -172,20 +188,16 @@ export async function completeOntologyDraft(
   });
 }
 
-export interface IncludeScopeTablesRequest {
-  tables: string[];
-  expected_revision: number;
-}
-
-export interface DeferScopeTablesRequest {
-  tables: string[];
-  reason: string;
-  expected_revision: number;
-}
-
-export interface ScopeUpdateResponse {
+export type IncludeScopeTablesRequest =
+  components["schemas"]["IncludeScopeTablesRequest"];
+export type DeferScopeTablesRequest =
+  components["schemas"]["DeferScopeTablesRequest"];
+export type ScopeUpdateResponse = Omit<
+  components["schemas"]["ScopeUpdateResponse"],
+  "draft"
+> & {
   draft: OntologyDraft;
-}
+};
 
 export async function includeScopeTables(
   id: string,
@@ -211,9 +223,16 @@ export async function deferScopeTables(
 // Ontology Commands (save boundary)
 // ---------------------------------------------------------------------------
 
+export type ApplyOntologyCommandsRequest = Omit<
+  components["schemas"]["ApplyOntologyCommandsRequest"],
+  "commands"
+> & {
+  commands: OntologyCommand[];
+};
+
 export async function applyOntologyCommands(
   ontologyDraftId: string,
-  req: { revision: number; commands: OntologyCommand[] },
+  req: ApplyOntologyCommandsRequest,
 ): Promise<{ project: OntologyDraft }> {
   return request(`/ontology-drafts/${encodeURIComponent(ontologyDraftId)}/ontology`, {
     method: "PATCH",

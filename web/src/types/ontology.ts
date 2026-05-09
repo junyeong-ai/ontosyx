@@ -35,12 +35,6 @@ export type Cardinality = "one_to_one" | "one_to_many" | "many_to_one" | "many_t
 
 export type DataClassification = "public" | "internal" | "confidential" | "restricted";
 
-/** Cursor-based pagination wrapper. */
-export interface CursorPage<T> {
-  items: T[];
-  next_cursor?: string;
-}
-
 // Optionality below tracks the *wire shape*, not loose
 // over-permissiveness. The rule:
 //   - `T` (required, no `?`): backend always serialises (no Option,
@@ -67,6 +61,7 @@ export interface OntologyVersion {
 export interface OntologyIR {
   id: string;
   name: string;
+  display_name?: LocalizedText;
   /** `LocalizedText` defaults to `{default: "", translations: {}}`,
    *  so the wire always carries the field — empty when no
    *  description is set. */
@@ -80,6 +75,9 @@ export interface OntologyIR {
   /** Backend `Vec<IndexDef>` with `skip_serializing_if =
    *  "Vec::is_empty"` — omitted when empty. */
   indexes?: IndexDef[];
+  concepts?: components["schemas"]["ConceptDef"][];
+  segments?: components["schemas"]["SegmentDef"][];
+  table_inventory?: components["schemas"]["TableInventoryEntry"][];
   glossary?: components["schemas"]["GlossaryTermDef"][];
   code_systems?: components["schemas"]["CodeSystemDef"][];
   value_sets?: components["schemas"]["ValueSetDef"][];
@@ -101,10 +99,8 @@ export interface NodeTypeDef {
   properties: PropertyDef[];
   /** `Vec<ConstraintDef>` with skip — omitted when empty. */
   constraints?: ConstraintDef[];
-  /** Concept anchors — every id must resolve in
-   *  `OntologyIR.glossary`. `Vec<GlossaryTermId>` with skip on the
-   *  wire (omitted when empty). */
-  glossary_anchors?: string[];
+  concept_id?: string;
+  concept_realizations?: ConceptRealization[];
 }
 
 export interface EdgeTypeDef {
@@ -120,10 +116,13 @@ export interface EdgeTypeDef {
    *  (filled diamond for `composition`, hollow for `aggregation`).
    *  Defaults to `"association"` when omitted. */
   kind?: EdgeKind;
-  /** Concept anchors — every id must resolve in
-   *  `OntologyIR.glossary`. `Vec<GlossaryTermId>` with skip on the
-   *  wire (omitted when empty). */
-  glossary_anchors?: string[];
+  concept_id?: string;
+  concept_realizations?: ConceptRealization[];
+}
+
+export interface ConceptRealization {
+  concept_id: string;
+  role?: "secondary" | "classification" | "interface" | "analytical";
 }
 
 /**
@@ -144,8 +143,20 @@ export interface SourceLineage {
   primary_key?: string[];
 }
 
+export type PropertyTypeKind = components["schemas"]["PropertyType"]["type"];
+
 /** Tagged property type from backend: `{"type": "string"}`, `{"type": "list", "element": {...}}` */
-export type PropertyType = { type: string; element?: PropertyType };
+export type PropertyType =
+  | Exclude<components["schemas"]["PropertyType"], { type: "list" }>
+  | { type: "list"; element: PropertyType };
+
+export type PropertyValue =
+  | Exclude<
+      components["schemas"]["PropertyValue"],
+      { type: "list" } | { type: "map" }
+    >
+  | { type: "list"; value: PropertyValue[] }
+  | { type: "map"; value: Record<string, PropertyValue> };
 
 /** Display a PropertyType as a human-readable string, e.g. "string", "list<int>" */
 export function formatPropertyType(pt: PropertyType): string {
@@ -167,8 +178,8 @@ export type BindingStrength =
  * the registry kind it points at. Each variant carries only the
  * fields meaningful for that target: `strength` and
  * `concept_map_id` apply where vocabulary enforcement /
- * translation makes sense; `value_range` and `glossary` carry
- * neither (ranges classify; glossary is a semantic anchor).
+ * translation makes sense; `value_range` and `concept`
+ * carry neither (ranges classify; concepts are semantic anchors).
  */
 export type PropertyBinding =
   | {
@@ -201,7 +212,7 @@ export type PropertyBinding =
       valid_to?: string;
     }
   | {
-      kind: "glossary";
+      kind: "concept";
       id: string;
       valid_from?: string;
       valid_to?: string;
@@ -217,7 +228,7 @@ export type PropertyBindingHandle =
   | { kind: "code_system"; id: string }
   | { kind: "notation_pattern"; id: string }
   | { kind: "value_range"; id: string }
-  | { kind: "glossary"; id: string };
+  | { kind: "concept"; id: string };
 
 /** Wire shape of `ox_ontology::ConceptMapDef` — translation table
  *  between two `CodeSystem`s. The IR carries these so a property
@@ -231,7 +242,7 @@ export interface ConceptMapping {
     | "narrower_than_target"
     | "broader_than_target"
     | "related"
-    | "not_related";
+    | "disjoint";
   comment?: LocalizedText;
 }
 
@@ -254,7 +265,7 @@ export interface PropertyDef {
   property_type: PropertyType;
   nullable?: boolean;
   /** Backend `Option<PropertyValue>` with skip — omitted when absent. */
-  default_value?: unknown;
+  default_value?: PropertyValue;
   /** Always serialised (`LocalizedText` non-Option on backend). */
   description: LocalizedText;
   source_column?: string;
@@ -279,25 +290,9 @@ export interface IndexDef {
   similarity?: string;
 }
 
-// ---------------------------------------------------------------------------
-// QueryIR — UI-side shape (separate from wire QueryIR in lib/api)
-// ---------------------------------------------------------------------------
-
-export interface QueryIR {
-  operation: QueryOp;
-  limit?: number | null;
-  skip?: number | null;
-  order_by: OrderClause[];
-}
-
-export type QueryOp = Record<string, unknown> & {
-  op: string;
-};
-
-export interface OrderClause {
-  projection: Record<string, unknown>;
-  direction: "asc" | "desc";
-}
+export type PropertyOwner =
+  | { kind: "node"; type_id: string }
+  | { kind: "edge"; type_id: string };
 
 export interface QueryResult {
   columns: string[];
@@ -433,20 +428,20 @@ export interface ColorMapping {
 // ---------------------------------------------------------------------------
 
 export type OntologyCommand =
-  | { op: "add_node"; id: string; label: string; description?: LocalizedText; source_table?: string }
+  | { op: "add_node"; id: string; label: string; description?: LocalizedText }
+  | { op: "create_node_type"; node: NodeTypeDef }
   | { op: "delete_node"; node_id: string }
   | { op: "rename_node"; node_id: string; new_label: string }
   | { op: "update_node_description"; node_id: string; description?: LocalizedText }
-  | { op: "set_node_glossary_anchors"; node_id: string; anchors: string[] }
   | { op: "add_edge"; id: string; label: string; source_node_id: string; target_node_id: string; cardinality: Cardinality }
+  | { op: "create_edge_type"; edge: EdgeTypeDef }
   | { op: "delete_edge"; edge_id: string }
   | { op: "rename_edge"; edge_id: string; new_label: string }
   | { op: "update_edge_cardinality"; edge_id: string; cardinality: Cardinality }
   | { op: "update_edge_description"; edge_id: string; description?: LocalizedText }
-  | { op: "set_edge_glossary_anchors"; edge_id: string; anchors: string[] }
-  | { op: "add_property"; owner_id: string; property: PropertyDef }
-  | { op: "delete_property"; owner_id: string; property_id: string }
-  | { op: "update_property"; owner_id: string; property_id: string; patch: PropertyPatch }
+  | { op: "add_property"; owner: PropertyOwner; property: PropertyDef }
+  | { op: "delete_property"; owner: PropertyOwner; property_id: string }
+  | { op: "update_property"; owner: PropertyOwner; property_id: string; patch: PropertyPatch }
   | { op: "add_constraint"; node_id: string; constraint: ConstraintDef }
   | { op: "remove_constraint"; node_id: string; constraint_id: string }
   | { op: "add_index"; index: IndexDef }
@@ -454,6 +449,9 @@ export type OntologyCommand =
   | { op: "create_object_mapping"; mapping: components["schemas"]["ObjectMappingDef"] }
   | { op: "update_object_mapping"; id: string; mapping: components["schemas"]["ObjectMappingDef"] }
   | { op: "delete_object_mapping"; id: string }
+  | { op: "create_link_mapping"; mapping: components["schemas"]["LinkMappingDef"] }
+  | { op: "update_link_mapping"; id: string; mapping: components["schemas"]["LinkMappingDef"] }
+  | { op: "delete_link_mapping"; id: string }
   | { op: "batch"; description: string; commands: OntologyCommand[] };
 
 /**
@@ -482,7 +480,7 @@ export interface PropertyPatch {
   name?: string;
   property_type?: PropertyType;
   nullable?: boolean;
-  default_value?: unknown;
+  default_value?: PropertyValue;
   description?: LocalizedText;
 }
 

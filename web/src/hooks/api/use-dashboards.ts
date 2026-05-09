@@ -14,9 +14,9 @@ import {
   updateDashboard,
 } from "@/lib/api/dashboards";
 import type {
-  CursorPage,
   Dashboard,
   DashboardCreateRequest,
+  DashboardPage,
   DashboardUpdateRequest,
 } from "@/types/api";
 
@@ -46,7 +46,7 @@ export const dashboardsKeys = {
 export function useDashboards(
   params?: { limit?: number },
   options?: Omit<
-    UseQueryOptions<CursorPage<Dashboard>>,
+    UseQueryOptions<DashboardPage>,
     "queryKey" | "queryFn"
   >,
 ) {

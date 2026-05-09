@@ -13,7 +13,7 @@ import {
   updateRecipeStatus,
   type CreateRecipeRequest,
 } from "@/lib/api/admin";
-import type { AnalysisRecipe, CursorPage, RecipeStatus } from "@/types/api";
+import type { AnalysisRecipePage, RecipeStatus } from "@/types/api";
 import { useOptimisticMutation } from "@/hooks/api/use-optimistic-mutation";
 
 // ---------------------------------------------------------------------------
@@ -34,7 +34,7 @@ export const recipesKeys = {
 export function useRecipes(
   params?: { limit?: number },
   options?: Omit<
-    UseQueryOptions<CursorPage<AnalysisRecipe>>,
+    UseQueryOptions<AnalysisRecipePage>,
     "queryKey" | "queryFn"
   >,
 ) {
@@ -97,7 +97,7 @@ export function useUpdateRecipeStatus(params?: { limit?: number }) {
   });
 }
 
-function isRecipePage(value: unknown): value is CursorPage<AnalysisRecipe> {
+function isRecipePage(value: unknown): value is AnalysisRecipePage {
   return (
     typeof value === "object" &&
     value !== null &&

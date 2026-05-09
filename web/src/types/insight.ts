@@ -1,55 +1,25 @@
-// Wire shape for `ox_query_ir::insight::InsightDef`. Server owns
-// `id`, `created_at`, `updated_at` — clients read them, never set.
-
 import type { LocalizedText } from "./ontology";
+import type { ClientPage } from "./pagination";
+import type { components } from "./api.generated";
 
-export interface InsightDef {
-  id: string;
-  question: LocalizedText;
-  description: LocalizedText;
-  tags: string[];
-  /** `GlossaryTermId` strings — typed concept anchors per the
-   *  1-pager's "용어 사전이 다리" axis. Cross-team filtering by
-   *  concept stays consistent even as `tags` shorthand drifts. */
+export type InsightQueryIR = components["schemas"]["QueryIR"];
+export type InsightProvenance = components["schemas"]["QueryProvenance"];
+
+export type InsightDef = Omit<
+  components["schemas"]["InsightDef"],
+  "concept_anchors" | "description" | "original_provenance" | "tags"
+> & {
   concept_anchors: string[];
-  /** Logical query — wire shape is canonical `QueryIR` JSON. */
-  query_ir: unknown;
-  /** Provenance the insight was originally computed against —
-   *  ontology + registry version + column-lineage trail. */
-  original_provenance?: unknown;
-  author_id: string;
-  expires_at?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-/** POST /api/insights — server stamps id + timestamps.
- *  `description` is required (mirrors the canonical `InsightDef`
- *  shape). Send `{ default: "" }` when the user leaves it blank. */
-export interface CreateInsightRequest {
-  question: LocalizedText;
   description: LocalizedText;
-  tags?: string[];
-  concept_anchors?: string[];
-  query_ir: unknown;
-  original_provenance?: unknown;
-  expires_at?: string;
-}
+  original_provenance?: InsightProvenance | null;
+  tags: string[];
+};
 
-/** PUT /api/insights/{id} — `expected_updated_at` is the
- *  optimistic-CAS handle. Stale writes return 409. */
-export interface UpdateInsightRequest {
-  question: LocalizedText;
-  description: LocalizedText;
-  tags?: string[];
-  concept_anchors?: string[];
-  query_ir: unknown;
-  original_provenance?: unknown;
-  expires_at?: string;
-  expected_updated_at: string;
-}
+export type CreateInsightRequest = components["schemas"]["CreateInsightRequest"];
+export type UpdateInsightRequest = components["schemas"]["UpdateInsightRequest"];
 
-export interface InsightListPage {
+export type InsightListPage = ClientPage<
+  Omit<components["schemas"]["CursorPage_InsightDef"], "items"> & {
   items: InsightDef[];
-  next_cursor?: string;
-}
+  }
+>;
