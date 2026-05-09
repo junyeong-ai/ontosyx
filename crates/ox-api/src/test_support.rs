@@ -41,7 +41,10 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 use ox_core::error::OxResult;
-use ox_store::{ApprovalComment, ApprovalRequest, ApprovalStore};
+use ox_store::{
+    ApprovalComment, ApprovalRequest, ApprovalStore, NotificationChannel, NotificationEventType,
+    NotificationLog, NotificationStore, WebhookNotificationConfig,
+};
 
 use crate::middleware::AuthClaims;
 use crate::workspace::{WorkspaceContext, WorkspaceRole};
@@ -84,6 +87,96 @@ mock! {
         ) -> OxResult<u64>;
 
         async fn expire_old_approvals(&self) -> OxResult<Vec<(Uuid, u64)>>;
+    }
+}
+
+/// Hand-rolled `NotificationStore` stub. Used by
+/// `notifications::tests` to drive [`dispatch_event`] through
+/// the channel-listing + log-persisting paths without standing
+/// up Postgres. We deliberately avoid `mockall::mock!` here —
+/// the `Option<&T>` parameters on `update_notification_channel`
+/// hit a known elision limit in the mock macro that requires
+/// explicit `'static` lifetimes, which would force unrealistic
+/// constraints onto the real signature. The state model is
+/// small enough that a hand-rolled stub is clearer anyway.
+pub struct StubNotificationStore {
+    channels_for_event: OxResult<Vec<NotificationChannel>>,
+    logged: tokio::sync::Mutex<Vec<NotificationLog>>,
+}
+
+impl StubNotificationStore {
+    pub fn returning_channels(channels: Vec<NotificationChannel>) -> Self {
+        Self {
+            channels_for_event: Ok(channels),
+            logged: tokio::sync::Mutex::new(Vec::new()),
+        }
+    }
+
+    pub fn returning_lookup_error(message: &str) -> Self {
+        Self {
+            channels_for_event: Err(ox_core::error::OxError::Runtime {
+                message: message.to_string(),
+            }),
+            logged: tokio::sync::Mutex::new(Vec::new()),
+        }
+    }
+
+    pub async fn logged(&self) -> Vec<NotificationLog> {
+        self.logged.lock().await.clone()
+    }
+}
+
+#[async_trait]
+impl NotificationStore for StubNotificationStore {
+    async fn create_notification_channel(&self, _: &NotificationChannel) -> OxResult<()> {
+        unimplemented!("create_notification_channel is not exercised by dispatcher tests")
+    }
+
+    async fn get_notification_channel(
+        &self,
+        _: Uuid,
+    ) -> OxResult<Option<NotificationChannel>> {
+        unimplemented!("get_notification_channel is not exercised by dispatcher tests")
+    }
+
+    async fn list_notification_channels(&self) -> OxResult<Vec<NotificationChannel>> {
+        unimplemented!("list_notification_channels is not exercised by dispatcher tests")
+    }
+
+    async fn update_notification_channel(
+        &self,
+        _: Uuid,
+        _: Option<&str>,
+        _: Option<&WebhookNotificationConfig>,
+        _: Option<&[NotificationEventType]>,
+        _: Option<bool>,
+    ) -> OxResult<()> {
+        unimplemented!("update_notification_channel is not exercised by dispatcher tests")
+    }
+
+    async fn delete_notification_channel(&self, _: Uuid) -> OxResult<bool> {
+        unimplemented!("delete_notification_channel is not exercised by dispatcher tests")
+    }
+
+    async fn list_channels_for_event(
+        &self,
+        _: NotificationEventType,
+    ) -> OxResult<Vec<NotificationChannel>> {
+        match &self.channels_for_event {
+            Ok(channels) => Ok(channels.clone()),
+            Err(e) => Err(ox_core::error::OxError::Runtime {
+                message: format!("{e}"),
+            }),
+        }
+    }
+
+    async fn create_notification_log(&self, log: &NotificationLog) -> OxResult<()> {
+        self.logged.lock().await.push(log.clone());
+        Ok(())
+    }
+
+    async fn list_notification_logs(&self, _: i64) -> OxResult<Vec<NotificationLog>> {
+        unimplemented!("list_notification_logs is not exercised by dispatcher tests")
     }
 }
 

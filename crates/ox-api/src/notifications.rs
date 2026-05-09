@@ -180,9 +180,13 @@ pub(crate) async fn send_test_message(
 ///    ([`event_type`](Self::event_type)).
 /// 2. The human-readable subject persisted on the
 ///    [`NotificationLog`] row ([`subject`](Self::subject)).
-/// 3. The wire payload per channel type
-///    ([`render`](Self::render)) — Slack Block Kit vs generic
-///    JSON envelope.
+/// 3. The wire payload for the destination channel
+///    ([`render`](Self::render)). The channel value carries
+///    both the discriminant (Slack Block Kit vs generic JSON
+///    envelope) and the metadata needed to identify the
+///    destination — `channel.name` is woven into the generic
+///    envelope so a downstream listener that fans in multiple
+///    channels can attribute each delivery.
 ///
 /// The trait is `pub(crate)` because the only legitimate
 /// callers are the route handlers in this crate that produce
@@ -191,7 +195,7 @@ pub(crate) async fn send_test_message(
 pub(crate) trait EventPayload {
     fn event_type(&self) -> NotificationEventType;
     fn subject(&self) -> String;
-    fn render(&self, channel_type: NotificationChannelType) -> serde_json::Value;
+    fn render(&self, channel: &NotificationChannel) -> serde_json::Value;
 }
 
 /// Truncate a Slack section body at the closest char boundary
@@ -250,8 +254,13 @@ async fn send_payload(
 /// succeeded or failed. The caller MUST run inside
 /// `WORKSPACE_ID.scope` (typically through `spawn_scoped`) so
 /// the RLS-backed channel + log queries succeed.
+///
+/// The function takes the narrow [`NotificationStore`]
+/// supertrait — every other store capability is irrelevant
+/// here, so demanding `&dyn Store` would over-state the
+/// dependency and prevent unit-testing through a focused mock.
 pub(crate) async fn dispatch_event<P: EventPayload>(
-    store: &dyn ox_store::store::Store,
+    store: &dyn ox_store::store::NotificationStore,
     workspace_id: Uuid,
     payload: &P,
 ) {
@@ -276,7 +285,7 @@ pub(crate) async fn dispatch_event<P: EventPayload>(
     let subject = payload.subject();
 
     for channel in &channels {
-        let body = payload.render(channel.channel_type);
+        let body = payload.render(channel);
         let send_result = send_payload(channel, &body).await;
 
         let (status, error) = match send_result {
@@ -350,7 +359,7 @@ impl EventPayload for QualityRulePayload {
         )
     }
 
-    fn render(&self, channel_type: NotificationChannelType) -> serde_json::Value {
+    fn render(&self, channel: &NotificationChannel) -> serde_json::Value {
         let body = match self.actual_value {
             Some(val) => format!(
                 "Quality rule \"{name}\" {status} (score: {val:.1}%)",
@@ -363,12 +372,13 @@ impl EventPayload for QualityRulePayload {
                 status = self.status_text(),
             ),
         };
-        match channel_type {
+        match channel.channel_type {
             NotificationChannelType::SlackWebhook => json!({
                 "text": clamp_slack_text(format!("*{}*\n{}", self.subject(), body)),
             }),
             NotificationChannelType::GenericWebhook => json!({
                 "event": self.event_type().as_str(),
+                "channel_name": channel.name,
                 "rule_name": self.rule_name,
                 "passed": self.passed,
                 "actual_value": self.actual_value,
@@ -416,8 +426,8 @@ impl EventPayload for RetrievalLiftRegressionPayload {
         )
     }
 
-    fn render(&self, channel_type: NotificationChannelType) -> serde_json::Value {
-        match channel_type {
+    fn render(&self, channel: &NotificationChannel) -> serde_json::Value {
+        match channel.channel_type {
             NotificationChannelType::SlackWebhook => {
                 let summary = format!(
                     ":rotating_light: Hybrid retrieval lift regression — {} cell(s)",
@@ -470,6 +480,7 @@ impl EventPayload for RetrievalLiftRegressionPayload {
                     .collect();
                 json!({
                     "event": self.event_type().as_str(),
+                    "channel_name": channel.name,
                     "baseline_run_id": self.baseline_run_id,
                     "candidate_run_id": self.candidate_run_id,
                     "at": self.at.to_rfc3339(),
@@ -485,7 +496,7 @@ impl EventPayload for RetrievalLiftRegressionPayload {
 // ---------------------------------------------------------------------------
 
 pub(crate) async fn dispatch_quality_notification(
-    store: &dyn ox_store::store::Store,
+    store: &dyn ox_store::store::NotificationStore,
     workspace_id: Uuid,
     rule_name: &str,
     passed: bool,
@@ -496,7 +507,7 @@ pub(crate) async fn dispatch_quality_notification(
 }
 
 pub(crate) async fn dispatch_retrieval_lift_regression(
-    store: &dyn ox_store::store::Store,
+    store: &dyn ox_store::store::NotificationStore,
     workspace_id: Uuid,
     baseline_run_id: Uuid,
     candidate_run_id: Uuid,
@@ -533,6 +544,24 @@ mod tests {
             Uuid::new_v4(),
             std::iter::repeat_with(sample_alert).take(n).collect(),
         )
+    }
+
+    fn mk_channel(kind: NotificationChannelType, name: &str) -> NotificationChannel {
+        let now = Utc::now();
+        NotificationChannel {
+            id: Uuid::new_v4(),
+            workspace_id: Uuid::new_v4(),
+            name: name.to_string(),
+            channel_type: kind,
+            config: ox_store::WebhookNotificationConfig {
+                url: "https://example.invalid/hook".to_string(),
+                headers: Default::default(),
+            },
+            events: vec![NotificationEventType::RetrievalLiftRegression],
+            enabled: true,
+            created_at: now,
+            updated_at: now,
+        }
     }
 
     // -- shared helpers --
@@ -577,17 +606,20 @@ mod tests {
     #[test]
     fn quality_payload_slack_renders_bold_subject_above_body() {
         let p = QualityRulePayload::new("nullability".into(), false, Some(72.5));
-        let v = p.render(NotificationChannelType::SlackWebhook);
+        let ch = mk_channel(NotificationChannelType::SlackWebhook, "ops-alerts");
+        let v = p.render(&ch);
         let text = v["text"].as_str().expect("Slack payload requires text");
         assert!(text.contains("*Quality Rule FAILED: nullability*"));
         assert!(text.contains("score: 72.5%"));
     }
 
     #[test]
-    fn quality_payload_generic_carries_typed_envelope_with_timestamp() {
+    fn quality_payload_generic_carries_typed_envelope_with_channel_and_timestamp() {
         let p = QualityRulePayload::new("nullability".into(), true, Some(99.0));
-        let v = p.render(NotificationChannelType::GenericWebhook);
+        let ch = mk_channel(NotificationChannelType::GenericWebhook, "ops-router");
+        let v = p.render(&ch);
         assert_eq!(v["event"], "quality_rule_passed");
+        assert_eq!(v["channel_name"], "ops-router");
         assert_eq!(v["rule_name"], "nullability");
         assert_eq!(v["passed"], true);
         assert!(v.get("at").and_then(|x| x.as_str()).is_some());
@@ -610,7 +642,8 @@ mod tests {
     #[test]
     fn retrieval_lift_slack_carries_text_blocks_and_one_bullet_per_alert() {
         let p = lift_payload(3);
-        let v = p.render(NotificationChannelType::SlackWebhook);
+        let ch = mk_channel(NotificationChannelType::SlackWebhook, "alerts");
+        let v = p.render(&ch);
         let text = v["text"].as_str().expect("Slack payload requires text");
         assert!(text.contains("Hybrid retrieval lift regression"));
         assert!(text.contains("3 cell"));
@@ -628,17 +661,20 @@ mod tests {
         // rejects the payload and the operator never sees the
         // alarm.
         let p = lift_payload(200);
-        let v = p.render(NotificationChannelType::SlackWebhook);
+        let ch = mk_channel(NotificationChannelType::SlackWebhook, "alerts");
+        let v = p.render(&ch);
         let body = v["blocks"][1]["text"]["text"].as_str().unwrap();
         assert!(body.len() <= SLACK_SECTION_TEXT_LIMIT);
         assert!(body.ends_with('…'));
     }
 
     #[test]
-    fn retrieval_lift_generic_emits_typed_envelope_with_timestamp() {
+    fn retrieval_lift_generic_emits_typed_envelope_with_channel_and_timestamp() {
         let p = lift_payload(1);
-        let v = p.render(NotificationChannelType::GenericWebhook);
+        let ch = mk_channel(NotificationChannelType::GenericWebhook, "alerts-router");
+        let v = p.render(&ch);
         assert_eq!(v["event"], "retrieval_lift_regression");
+        assert_eq!(v["channel_name"], "alerts-router");
         assert!(v.get("at").and_then(|x| x.as_str()).is_some());
         assert_eq!(v["alerts"][0]["surface"], "verified_query");
         assert_eq!(v["alerts"][0]["axis"], "recall_at_k");
@@ -732,16 +768,142 @@ mod tests {
         }
     }
 
+    // -- dispatch_event integration --
+
+    #[tokio::test]
+    async fn dispatch_event_skips_when_channel_list_is_empty() {
+        // No subscribed channels → dispatcher must NOT write a
+        // log row (otherwise the audit table fills with no-op
+        // rows and operators can't tell "fired with zero
+        // listeners" from "fired and skipped"). The contract
+        // is enforced here.
+        let store = crate::test_support::StubNotificationStore::returning_channels(vec![]);
+        let payload = lift_payload(1);
+        dispatch_event(&store, Uuid::new_v4(), &payload).await;
+        assert!(
+            store.logged().await.is_empty(),
+            "empty subscription must not persist a log row",
+        );
+    }
+
+    #[tokio::test]
+    async fn dispatch_event_skips_when_channel_lookup_errors() {
+        // Store error during channel listing must NOT cause
+        // any partial state to be persisted. The dispatcher
+        // is fire-and-forget; failure to enumerate is a
+        // hard-skip, not a half-fan-out.
+        let store = crate::test_support::StubNotificationStore::returning_lookup_error(
+            "database unreachable",
+        );
+        let payload = lift_payload(1);
+        dispatch_event(&store, Uuid::new_v4(), &payload).await;
+        assert!(
+            store.logged().await.is_empty(),
+            "lookup error must not persist a log row",
+        );
+    }
+
+    #[tokio::test]
+    async fn dispatch_event_persists_one_log_per_channel_with_typed_fields() {
+        // Two channels resolved, both pointing to invalid
+        // hosts (DNS won't resolve / immediate transport
+        // failure). The dispatcher must still record one log
+        // row PER channel with `status = Failed` and the
+        // correct typed `event_type`. This pins the
+        // log-row-per-channel invariant — if a future change
+        // batches sends or short-circuits on first failure,
+        // this test catches it.
+        let ws_id = Uuid::new_v4();
+        let mut slack = mk_channel(NotificationChannelType::SlackWebhook, "alerts-slack");
+        slack.workspace_id = ws_id;
+        slack.config.url = "http://invalid.local.invalid/hook".to_string();
+        let mut generic = mk_channel(NotificationChannelType::GenericWebhook, "alerts-generic");
+        generic.workspace_id = ws_id;
+        generic.config.url = "http://invalid.local.invalid/hook".to_string();
+
+        let store = crate::test_support::StubNotificationStore::returning_channels(vec![
+            slack.clone(),
+            generic.clone(),
+        ]);
+        let payload = lift_payload(1);
+        dispatch_event(&store, ws_id, &payload).await;
+        let logged = store.logged().await;
+        assert_eq!(logged.len(), 2, "one log row per channel");
+        for row in &logged {
+            assert_eq!(row.workspace_id, ws_id);
+            assert_eq!(
+                row.event_type,
+                NotificationLogEventType::RetrievalLiftRegression,
+            );
+            assert_eq!(row.status, NotificationLogStatus::Failed);
+            assert!(row.error.is_some(), "transport error must surface in log");
+            assert!(
+                row.subject.contains("Hybrid retrieval lift regression"),
+                "log subject must mirror payload subject",
+            );
+        }
+        // Channel-id correspondence — each channel gets exactly
+        // one row, not two slack rows or vice versa.
+        let mut channel_ids: Vec<Uuid> = logged.iter().map(|l| l.channel_id).collect();
+        channel_ids.sort();
+        let mut expected = vec![slack.id, generic.id];
+        expected.sort();
+        assert_eq!(channel_ids, expected);
+    }
+
+    #[tokio::test]
+    async fn dispatch_quality_notification_routes_through_quality_event_tag() {
+        // The thin-wrapper public entry-point must produce
+        // the right NotificationLogEventType — passed → Passed,
+        // failed → Failed.
+        let ws_id = Uuid::new_v4();
+        let mut ch = mk_channel(NotificationChannelType::GenericWebhook, "ops");
+        ch.workspace_id = ws_id;
+        ch.config.url = "http://invalid.local.invalid/hook".to_string();
+        ch.events = vec![NotificationEventType::QualityRuleFailed];
+
+        let store = crate::test_support::StubNotificationStore::returning_channels(vec![ch]);
+        dispatch_quality_notification(&store, ws_id, "nullability", false, Some(72.5)).await;
+        let logged = store.logged().await;
+        assert_eq!(logged.len(), 1);
+        assert_eq!(
+            logged[0].event_type,
+            NotificationLogEventType::QualityRuleFailed,
+        );
+    }
+
+    #[tokio::test]
+    async fn dispatch_retrieval_lift_regression_no_op_on_empty_alerts() {
+        // The wrapper guards on empty alerts before fanning
+        // out. Without the guard, every compare-runs call
+        // would allocate the channel-list query for nothing.
+        // Pinned here so a refactor can't accidentally drop
+        // the early-return.
+        let store = crate::test_support::StubNotificationStore::returning_channels(vec![
+            mk_channel(NotificationChannelType::SlackWebhook, "x"),
+        ]);
+        dispatch_retrieval_lift_regression(&store, Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), &[])
+            .await;
+        assert!(store.logged().await.is_empty());
+    }
+
     #[test]
     fn render_dispatches_on_channel_type() {
         let p = lift_payload(1);
-        let slack = p.render(NotificationChannelType::SlackWebhook);
-        let generic = p.render(NotificationChannelType::GenericWebhook);
+        let slack_ch = mk_channel(NotificationChannelType::SlackWebhook, "s");
+        let generic_ch = mk_channel(NotificationChannelType::GenericWebhook, "g");
+        let slack = p.render(&slack_ch);
+        let generic = p.render(&generic_ch);
         // Slack carries `blocks`; generic does not.
         assert!(slack.get("blocks").is_some());
         assert!(generic.get("blocks").is_none());
         // Generic carries `event`; Slack does not.
         assert!(generic.get("event").is_some());
         assert!(slack.get("event").is_none());
+        // Generic envelope MUST carry channel_name (every event,
+        // not only this one) — pinned so a future renderer that
+        // forgets the field gets caught here.
+        assert_eq!(generic["channel_name"], "g");
+        assert!(slack.get("channel_name").is_none());
     }
 }
