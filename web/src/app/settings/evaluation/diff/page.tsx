@@ -1,21 +1,24 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
 import {
+  useEvaluationRunComparisonOutliers,
   useEvaluationRunDiff,
   useEvaluationRuns,
 } from "@/hooks/api/use-evaluation";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
 import { SettingsSelect } from "@/components/ui/form-input";
 import { cn } from "@/lib/cn";
+import { toCsv, triggerCsvDownload } from "@/lib/csv";
 import type { components } from "@/types/api.generated";
 import type {
   EvaluationRun,
@@ -25,6 +28,10 @@ import type {
 
 type RetrievalComparisonDelta =
   components["schemas"]["RetrievalComparisonDelta"];
+type RetrievalComparisonOutlier =
+  components["schemas"]["RetrievalComparisonOutlier"];
+type RetrievalLiftRegressionAlert =
+  components["schemas"]["RetrievalLiftRegressionAlert"];
 
 /** Map a `mean_delta` to a style hint — green improvement,
  *  red regression, neutral when the delta is below the
@@ -73,6 +80,80 @@ function formatCohenD(t: ReturnType<typeof useTranslations>, d?: number): string
   return `${d.toFixed(2)} (${t(`bandLabel.${band}`)})`;
 }
 
+/// Auto-alarm banner for hybrid lift regressions detected in
+/// the candidate run. Each alert is one (surface, axis) cell
+/// whose `lift_delta` crossed the BE threshold AND landed on
+/// enough paired cases to clear the noise floor. The threshold
+/// is echoed onto each alert so the FE renders both the
+/// observed delta and the cut without re-deriving the
+/// constant.
+///
+/// Renders nothing when no regression is detected — the BE
+/// skip-if-empty serde gate keeps the field absent in that
+/// case, so the FE switch reads as length-based.
+function RetrievalLiftRegressionBanner({
+  alerts,
+}: {
+  alerts: readonly RetrievalLiftRegressionAlert[];
+}) {
+  const t = useTranslations("settings.evaluation.diff");
+  if (alerts.length === 0) return null;
+  return (
+    <section
+      role="alert"
+      aria-labelledby="retrieval-lift-regression-heading"
+      className="mb-6 rounded-xl border border-danger-border bg-danger-surface p-4"
+    >
+      <Heading
+        level={2}
+        size={5}
+        className="text-danger-foreground"
+        id="retrieval-lift-regression-heading"
+      >
+        {t("retrievalLiftRegression.title", { count: alerts.length })}
+      </Heading>
+      <p className="mt-1 text-xs text-danger-foreground">
+        {t("retrievalLiftRegression.description", {
+          threshold: alerts[0].threshold.toFixed(3),
+        })}
+      </p>
+      <ul className="mt-3 space-y-1.5">
+        {alerts.map((a) => (
+          <li
+            key={`${a.surface}\x1f${a.axis}`}
+            className="grid grid-cols-[1fr_auto_auto] items-baseline gap-3 rounded-md bg-surface-base px-3 py-2"
+          >
+            <span className="font-medium text-foreground-strong">
+              {t(
+                `retrievalLiftDelta.surface.${
+                  a.surface === "verified_query"
+                    ? "verifiedQuery"
+                    : a.surface === "community_summary"
+                      ? "communitySummary"
+                      : "knowledgeEntry"
+                }`,
+              )}
+              <span className="ms-2 text-2xs text-foreground-muted">
+                {a.axis}
+              </span>
+            </span>
+            <span className="tabular-nums text-foreground-muted">
+              {t("retrievalLiftRegression.observedDelta", {
+                delta: a.lift_delta.toFixed(3),
+              })}
+            </span>
+            <span className="tabular-nums text-2xs text-foreground-muted">
+              {t("retrievalLiftRegression.pairedNCases", {
+                n: a.candidate_paired_case_count,
+              })}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /// Render the run-vs-run hybrid retrieval lift delta. Each row
 /// is one (surface, axis) cell carrying both runs' average lift
 /// + the inter-run delta. Tone keys off `lift_delta` so a
@@ -82,16 +163,83 @@ function formatCohenD(t: ReturnType<typeof useTranslations>, d?: number): string
 /// retrieval_comparison cases (BE skips the field).
 function RetrievalLiftDeltaSection({
   rows,
+  baselineRunId,
+  candidateRunId,
 }: {
   rows: readonly RetrievalComparisonDelta[];
+  baselineRunId: string;
+  candidateRunId: string;
 }) {
   const t = useTranslations("settings.evaluation.diff");
+  const [outliersOpen, setOutliersOpen] = useState(false);
+  // Drill into the candidate run's outliers — that's the run
+  // operators inspect for regressions. Fetched lazily so the
+  // page doesn't pay the round-trip until the operator actually
+  // wants the drill-down.
+  const outliersQuery = useEvaluationRunComparisonOutliers(
+    candidateRunId,
+    { limit: 10 },
+    outliersOpen,
+  );
+  const onDownloadCsv = useCallback(() => {
+    const header = [
+      "surface",
+      "axis",
+      "baseline_lift",
+      "candidate_lift",
+      "lift_delta",
+      "baseline_paired",
+      "candidate_paired",
+    ];
+    const sorted = [...rows].sort((a, b) => {
+      if (a.surface !== b.surface) return a.surface < b.surface ? -1 : 1;
+      return a.axis < b.axis ? -1 : a.axis > b.axis ? 1 : 0;
+    });
+    const body = sorted.map((r) => [
+      r.surface,
+      r.axis,
+      r.baseline_lift.toFixed(6),
+      r.candidate_lift.toFixed(6),
+      r.lift_delta.toFixed(6),
+      r.baseline_paired_case_count,
+      r.candidate_paired_case_count,
+    ]);
+    const csv = toCsv(header, body);
+    triggerCsvDownload(
+      `retrieval-lift-diff-${baselineRunId}-${candidateRunId}.csv`,
+      csv,
+    );
+  }, [rows, baselineRunId, candidateRunId]);
+
   if (rows.length === 0) return null;
   return (
     <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">
-      <Heading level={2} size={5}>
-        {t("retrievalLiftDelta.title")}
-      </Heading>
+      <header className="flex items-baseline justify-between gap-3">
+        <Heading level={2} size={5}>
+          {t("retrievalLiftDelta.title")}
+        </Heading>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setOutliersOpen((open) => !open)}
+            aria-expanded={outliersOpen}
+          >
+            {outliersOpen
+              ? t("retrievalLiftDelta.hideOutliers")
+              : t("retrievalLiftDelta.showOutliers")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onDownloadCsv}
+          >
+            {t("retrievalLiftDelta.downloadCsv")}
+          </Button>
+        </div>
+      </header>
       <p className="mt-1 text-xs text-foreground-muted">
         {t("retrievalLiftDelta.description")}
       </p>
@@ -130,7 +278,83 @@ function RetrievalLiftDeltaSection({
           </tbody>
         </table>
       </div>
+      {outliersOpen ? (
+        <RetrievalOutlierPanel
+          isLoading={outliersQuery.isLoading}
+          outliers={outliersQuery.data?.outliers ?? []}
+        />
+      ) : null}
     </section>
+  );
+}
+
+/// Drill-down list — worst-case (hybrid - trigram) lifts in the
+/// candidate run. Surfaces "which specific cases dragged the
+/// hybrid mean down?" so an operator can click into one and
+/// inspect the actual ranked legs. Lazily loaded — the parent
+/// section only mounts this when the operator toggles the
+/// outliers panel open.
+function RetrievalOutlierPanel({
+  isLoading,
+  outliers,
+}: {
+  isLoading: boolean;
+  outliers: readonly RetrievalComparisonOutlier[];
+}) {
+  const t = useTranslations("settings.evaluation.diff");
+  return (
+    <div className="mt-4 rounded-lg border border-divider bg-surface-inset p-3">
+      <div className="text-2xs font-medium uppercase tracking-wide text-foreground-muted">
+        {t("retrievalLiftDelta.outliersTitle")}
+      </div>
+      <p className="mt-1 text-xs text-foreground-muted">
+        {t("retrievalLiftDelta.outliersDescription")}
+      </p>
+      {isLoading ? (
+        <p className="mt-2 text-xs text-foreground-muted">
+          {t("retrievalLiftDelta.outliersLoading")}
+        </p>
+      ) : outliers.length === 0 ? (
+        <p className="mt-2 text-xs text-foreground-muted">
+          {t("retrievalLiftDelta.outliersEmpty")}
+        </p>
+      ) : (
+        <ul className="mt-2 space-y-1.5">
+          {outliers.map((o) => (
+            <li
+              key={o.case_id}
+              className="grid grid-cols-[1fr_auto_auto_auto_auto] items-baseline gap-3 rounded-md bg-surface-base px-2.5 py-1.5"
+            >
+              <span className="truncate font-medium text-foreground-strong">
+                {o.case_key}
+              </span>
+              <span className="text-2xs text-foreground-muted">
+                {o.surface} · {o.axis}
+              </span>
+              <span className="tabular-nums text-foreground-muted">
+                H {o.hybrid_score.toFixed(3)}
+              </span>
+              <span className="tabular-nums text-foreground-muted">
+                T {o.trigram_score.toFixed(3)}
+              </span>
+              <span
+                className={cn(
+                  "tabular-nums font-medium",
+                  o.case_lift < -1e-6
+                    ? "text-danger-foreground"
+                    : o.case_lift > 1e-6
+                      ? "text-success-foreground"
+                      : "text-foreground-muted",
+                )}
+              >
+                {o.case_lift > 0 ? "+" : ""}
+                {o.case_lift.toFixed(3)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -410,8 +634,14 @@ export default function EvaluationDiffPage() {
               )}
             </section>
 
+            <RetrievalLiftRegressionBanner
+              alerts={diffQuery.data.retrieval_lift_regressions ?? []}
+            />
+
             <RetrievalLiftDeltaSection
               rows={diffQuery.data.retrieval_comparison_deltas ?? []}
+              baselineRunId={diffQuery.data.baseline_run_id}
+              candidateRunId={diffQuery.data.candidate_run_id}
             />
 
             <section className="rounded-xl border border-divider bg-surface-base p-4">

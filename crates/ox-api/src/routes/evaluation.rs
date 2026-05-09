@@ -28,8 +28,8 @@ use ox_store::evaluation::{
     EvaluationActual, EvaluationCase, EvaluationCaseInput, EvaluationCaseMetadata,
     EvaluationContext, EvaluationDataset, EvaluationDatasetItem, EvaluationDatasetSummary,
     EvaluationExpected, EvaluationMetric, EvaluationMetricMetadata, EvaluationRetrievedAnchor,
-    EvaluationRun, EvaluationRunStatus, RunComparisonReport, RunSummary,
-    scope_evaluation_context,
+    EvaluationRun, EvaluationRunStatus, RetrievalComparisonOutlier, RetrievalSurface,
+    RunComparisonReport, RunSummary, scope_evaluation_context,
 };
 
 use crate::error::AppError;
@@ -1684,6 +1684,70 @@ pub(crate) async fn evaluation_run_summary(
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(summary))
+}
+
+// ---------------------------------------------------------------------------
+// Comparison outlier drill-down — worst-case lifts per (surface, axis)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+pub struct ComparisonOutliersQuery {
+    /// Optional surface filter — `verified_query` /
+    /// `community_summary` / `knowledge_entry`. Absent →
+    /// every surface.
+    #[serde(default)]
+    pub surface: Option<RetrievalSurface>,
+    /// Optional axis filter — `precision_at_k` / `recall_at_k`
+    /// / `mrr` / `ndcg_at_k`. Absent → every axis.
+    #[serde(default)]
+    pub axis: Option<String>,
+    /// Maximum rows returned. Server caps at 100; default 10.
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct ComparisonOutliersResponse {
+    pub outliers: Vec<RetrievalComparisonOutlier>,
+}
+
+/// `GET /api/evaluation/runs/{run_id}/comparison-outliers` —
+/// worst-first list of case-level retrieval-comparison outliers.
+/// Drives the dashboard's per-cell drill-down: the operator
+/// clicks a (surface, axis) cell whose mean lift is low, and
+/// this endpoint surfaces the bad-actor cases dragging the
+/// average down.
+#[utoipa::path(
+    get,
+    path = "/api/evaluation/runs/{run_id}/comparison-outliers",
+    params(
+        ("run_id" = Uuid, Path, description = "Run id"),
+        ComparisonOutliersQuery,
+    ),
+    responses(
+        (status = 200, description = "Worst-first comparison outliers", body = ComparisonOutliersResponse),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn list_run_comparison_outliers(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Path(run_id): Path<Uuid>,
+    Query(req): Query<ComparisonOutliersQuery>,
+) -> Result<Json<ApiResponse<ComparisonOutliersResponse>>, AppError> {
+    let outliers = state
+        .store
+        .list_run_comparison_outliers(
+            run_id,
+            req.surface,
+            req.axis.as_deref(),
+            req.limit.unwrap_or(10),
+        )
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(ComparisonOutliersResponse { outliers }))
 }
 
 // ---------------------------------------------------------------------------

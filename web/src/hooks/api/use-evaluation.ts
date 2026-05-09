@@ -21,13 +21,16 @@ import {
   listEvaluationDatasets,
   listEvaluationMetrics,
   listEvaluationRuns,
+  listRunComparisonOutliers,
   promoteCaseToDataset,
   replaceEvaluationDatasetItems,
   upsertEvaluationDataset,
+  type ComparisonOutliersParams,
   type ListEvaluationDatasetsParams,
   type ListEvaluationRunsParams,
   type PromoteCaseToDatasetRequest,
 } from "@/lib/api/evaluation";
+import type { components } from "@/types/api.generated";
 import type {
   BulkUpsertEvaluationCasesRequest,
   BulkUpsertEvaluationCasesResponse,
@@ -233,6 +236,35 @@ export function useEvaluationRunSummary(id: string | null | undefined) {
       return getEvaluationRunSummary(id);
     },
     enabled: !!id,
+    staleTime: 30_000,
+  });
+}
+
+/** Worst-first comparison outliers for a run. Drives the
+ *  dashboard's drill-down: which cases dragged the mean lift
+ *  down? Disabled until `runId` lands AND the caller flips
+ *  `enabled` true (typical pattern: don't fetch until the
+ *  modal opens). */
+export function useEvaluationRunComparisonOutliers(
+  runId: string | null | undefined,
+  params: ComparisonOutliersParams = {},
+  enabled: boolean = true,
+) {
+  return useQuery<components["schemas"]["ComparisonOutliersResponse"]>({
+    queryKey: [
+      ...evaluationKeys.runSummary(runId ?? ""),
+      "comparison-outliers",
+      params.surface ?? null,
+      params.axis ?? null,
+      params.limit ?? null,
+    ],
+    queryFn: () => {
+      if (!runId) {
+        throw new Error("evaluation run id is required");
+      }
+      return listRunComparisonOutliers(runId, params);
+    },
+    enabled: !!runId && enabled,
     staleTime: 30_000,
   });
 }

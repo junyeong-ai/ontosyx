@@ -717,6 +717,99 @@ pub struct RunComparisonReport {
     /// `len() > 0`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub retrieval_comparison_deltas: Vec<RetrievalComparisonDelta>,
+    /// Regression alerts — cells whose `lift_delta` crossed the
+    /// configured threshold AND have enough paired cases to
+    /// trust the signal. Drives the diff-page alarm banner.
+    /// Empty when no regression OR no `retrieval_comparison`
+    /// cases at all.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retrieval_lift_regressions: Vec<RetrievalLiftRegressionAlert>,
+}
+
+/// A single (surface, axis) regression alert. Detected when a
+/// run-vs-run hybrid lift change crosses the configured
+/// threshold with enough paired cases to clear the noise floor.
+/// The diff page renders these as a danger-toned banner above
+/// the lift table so an operator viewing the comparison sees
+/// the alarm immediately.
+///
+/// `threshold` is echoed onto the wire so the FE renders "lift
+/// dropped 0.08 (threshold −0.05)" without re-deriving the cut.
+/// Future workspace-level threshold customisation lands as a
+/// settings field; the wire shape is already prepared.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct RetrievalLiftRegressionAlert {
+    pub surface: RetrievalSurface,
+    pub axis: String,
+    /// `candidate_lift − baseline_lift`. Negative since the
+    /// alert only fires when this crossed the negative
+    /// threshold.
+    pub lift_delta: f64,
+    pub baseline_lift: f64,
+    pub candidate_lift: f64,
+    /// Threshold the alert cleared (e.g. `-0.05`). Echoed so
+    /// the FE renders both the observed delta and the cut
+    /// without re-deriving the constant.
+    pub threshold: f64,
+    /// Paired-case denominator on the candidate run — the
+    /// statistic the alert was computed on. Surfaced so a
+    /// reader can gauge significance.
+    pub candidate_paired_case_count: u64,
+}
+
+/// Threshold for the run-vs-run hybrid lift regression alarm.
+/// Negative — the alert fires when `lift_delta < threshold`
+/// (candidate retreated by more than 0.05 lift points). A
+/// future workspace setting will override this default.
+pub const RETRIEVAL_LIFT_REGRESSION_THRESHOLD: f64 = -0.05;
+
+/// Minimum paired-case count on the candidate run before the
+/// regression alert fires. Suppresses noise from runs with
+/// too few `retrieval_comparison` cases — a single bad-actor
+/// case in a 2-case run shouldn't trigger an alarm.
+pub const RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N: u64 = 3;
+
+// Compile-time invariants on the regression alarm constants.
+// `const _: ()` is the canonical Rust pattern for constant-
+// value contracts — the build refuses to ship if a future
+// edit pushes either constant outside its honest range, which
+// is strictly better than a runtime test catching it.
+const _: () = assert!(
+    RETRIEVAL_LIFT_REGRESSION_THRESHOLD < 0.0,
+    "regression threshold must be negative — alarm fires when lift_delta drops below it",
+);
+const _: () = assert!(
+    RETRIEVAL_LIFT_REGRESSION_THRESHOLD > -1.0,
+    "regression threshold must be within (-1.0, 0.0)",
+);
+const _: () = assert!(
+    RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N >= 2,
+    "min-N must be >= 2 so single-case runs never trigger",
+);
+
+/// One case-level retrieval-comparison outlier — the case
+/// whose `(hybrid − trigram)` lift dragged a (surface, axis)
+/// cell's mean. Returned by
+/// [`crate::EvaluationStore::list_run_comparison_outliers`]
+/// for cell-level drill-down: the operator clicks "why did
+/// hybrid retreat on community_summary.recall_at_k?" and the
+/// dashboard surfaces this list of bad-actor cases.
+///
+/// `case_lift` is the per-case delta. Cases that lack one of
+/// the legs (the metric pair didn't land) are filtered out at
+/// the SQL gate — same paired contract the run-level
+/// aggregate uses.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct RetrievalComparisonOutlier {
+    pub case_id: Uuid,
+    pub case_key: String,
+    pub surface: RetrievalSurface,
+    pub axis: String,
+    pub hybrid_score: f64,
+    pub trigram_score: f64,
+    /// `hybrid_score − trigram_score`. Negative = hybrid lost
+    /// on this case. The drill-down endpoint orders worst-first.
+    pub case_lift: f64,
 }
 
 /// One run-vs-run lift delta for a `(surface, axis)` cell. The
@@ -1314,6 +1407,7 @@ mod tests {
             }],
             per_axis: vec![],
             retrieval_comparison_deltas: vec![],
+            retrieval_lift_regressions: vec![],
         };
         let v = serde_json::to_value(&r).unwrap();
         // Empty deltas skip on the wire so reports without
@@ -1340,6 +1434,7 @@ mod tests {
                 baseline_paired_case_count: 12,
                 candidate_paired_case_count: 12,
             }],
+            retrieval_lift_regressions: vec![],
         };
         let v = serde_json::to_value(&r).unwrap();
         assert_eq!(
@@ -1350,6 +1445,26 @@ mod tests {
         let back: RunComparisonReport = serde_json::from_value(v).unwrap();
         assert_eq!(back, r);
     }
+
+    #[test]
+    fn retrieval_lift_regression_alert_round_trips() {
+        let alert = RetrievalLiftRegressionAlert {
+            surface: RetrievalSurface::CommunitySummary,
+            axis: "ndcg_at_k".into(),
+            lift_delta: -0.08,
+            baseline_lift: 0.18,
+            candidate_lift: 0.10,
+            threshold: RETRIEVAL_LIFT_REGRESSION_THRESHOLD,
+            candidate_paired_case_count: 12,
+        };
+        let v = serde_json::to_value(&alert).unwrap();
+        assert_eq!(v["surface"], "community_summary");
+        assert_eq!(v["lift_delta"], -0.08);
+        assert_eq!(v["threshold"], -0.05);
+        let back: RetrievalLiftRegressionAlert = serde_json::from_value(v).unwrap();
+        assert_eq!(back, alert);
+    }
+
 
     #[test]
     fn retrieval_surface_wire_string_pinned() {

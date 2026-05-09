@@ -173,6 +173,33 @@ export async function getEvaluationRunSummary(
   );
 }
 
+/** Worst-first list of case-level retrieval-comparison
+ *  outliers in a run. Drives the dashboard's per-cell drill
+ *  down — the operator clicks a (surface, axis) cell whose
+ *  `mean_lift` is low and the response surfaces the bad-actor
+ *  cases dragging the average down. */
+export interface ComparisonOutliersParams {
+  surface?: "verified_query" | "community_summary" | "knowledge_entry";
+  axis?: string;
+  limit?: number;
+}
+
+export async function listRunComparisonOutliers(
+  runId: string,
+  params: ComparisonOutliersParams = {},
+): Promise<components["schemas"]["ComparisonOutliersResponse"]> {
+  const qs = new URLSearchParams();
+  if (params.surface) qs.set("surface", params.surface);
+  if (params.axis) qs.set("axis", params.axis);
+  if (params.limit) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  return request(
+    `${RUNS}/${encodeURIComponent(runId)}/comparison-outliers${
+      query ? `?${query}` : ""
+    }`,
+  );
+}
+
 /** Diff two runs over the same dataset. Backend is the
  *  `compare_evaluation_runs` Phoenix/Braintrust-style report —
  *  per-case delta rows + per-axis aggregate (mean delta,

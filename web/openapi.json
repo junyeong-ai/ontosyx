@@ -3841,6 +3841,86 @@
         ]
       }
     },
+    "/api/evaluation/runs/{run_id}/comparison-outliers": {
+      "get": {
+        "tags": [
+          "Evaluation"
+        ],
+        "summary": "`GET /api/evaluation/runs/{run_id}/comparison-outliers` —\nworst-first list of case-level retrieval-comparison outliers.\nDrives the dashboard's per-cell drill-down: the operator\nclicks a (surface, axis) cell whose mean lift is low, and\nthis endpoint surfaces the bad-actor cases dragging the\naverage down.",
+        "operationId": "list_run_comparison_outliers",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "description": "Run id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "surface",
+            "in": "query",
+            "description": "Optional surface filter — `verified_query` /\n`community_summary` / `knowledge_entry`. Absent →\nevery surface.",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/RetrievalSurface"
+                }
+              ]
+            }
+          },
+          {
+            "name": "axis",
+            "in": "query",
+            "description": "Optional axis filter — `precision_at_k` / `recall_at_k`\n/ `mrr` / `ndcg_at_k`. Absent → every axis.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum rows returned. Server caps at 100; default 10.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worst-first comparison outliers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonOutliersResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/evaluation/runs/{run_id}/summary": {
       "get": {
         "tags": [
@@ -17489,6 +17569,20 @@
           "gt",
           "gte"
         ]
+      },
+      "ComparisonOutliersResponse": {
+        "type": "object",
+        "required": [
+          "outliers"
+        ],
+        "properties": {
+          "outliers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetrievalComparisonOutlier"
+            }
+          }
+        }
       },
       "CompileOntologyDraftLoadPlanRequest": {
         "type": "object",
@@ -36319,6 +36413,47 @@
           }
         }
       },
+      "RetrievalComparisonOutlier": {
+        "type": "object",
+        "description": "One case-level retrieval-comparison outlier — the case\nwhose `(hybrid − trigram)` lift dragged a (surface, axis)\ncell's mean. Returned by\n[`crate::EvaluationStore::list_run_comparison_outliers`]\nfor cell-level drill-down: the operator clicks \"why did\nhybrid retreat on community_summary.recall_at_k?\" and the\ndashboard surfaces this list of bad-actor cases.\n\n`case_lift` is the per-case delta. Cases that lack one of\nthe legs (the metric pair didn't land) are filtered out at\nthe SQL gate — same paired contract the run-level\naggregate uses.",
+        "required": [
+          "case_id",
+          "case_key",
+          "surface",
+          "axis",
+          "hybrid_score",
+          "trigram_score",
+          "case_lift"
+        ],
+        "properties": {
+          "axis": {
+            "type": "string"
+          },
+          "case_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "case_key": {
+            "type": "string"
+          },
+          "case_lift": {
+            "type": "number",
+            "format": "double",
+            "description": "`hybrid_score − trigram_score`. Negative = hybrid lost\non this case. The drill-down endpoint orders worst-first."
+          },
+          "hybrid_score": {
+            "type": "number",
+            "format": "double"
+          },
+          "surface": {
+            "$ref": "#/components/schemas/RetrievalSurface"
+          },
+          "trigram_score": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "RetrievalLeg": {
         "type": "object",
         "description": "One leg of an [`EvaluationActual::RetrievalComparison`] —\neither the hybrid path or the trigram-only baseline.",
@@ -36342,6 +36477,51 @@
           },
           "metrics": {
             "$ref": "#/components/schemas/RetrievalMetrics"
+          }
+        }
+      },
+      "RetrievalLiftRegressionAlert": {
+        "type": "object",
+        "description": "A single (surface, axis) regression alert. Detected when a\nrun-vs-run hybrid lift change crosses the configured\nthreshold with enough paired cases to clear the noise floor.\nThe diff page renders these as a danger-toned banner above\nthe lift table so an operator viewing the comparison sees\nthe alarm immediately.\n\n`threshold` is echoed onto the wire so the FE renders \"lift\ndropped 0.08 (threshold −0.05)\" without re-deriving the cut.\nFuture workspace-level threshold customisation lands as a\nsettings field; the wire shape is already prepared.",
+        "required": [
+          "surface",
+          "axis",
+          "lift_delta",
+          "baseline_lift",
+          "candidate_lift",
+          "threshold",
+          "candidate_paired_case_count"
+        ],
+        "properties": {
+          "axis": {
+            "type": "string"
+          },
+          "baseline_lift": {
+            "type": "number",
+            "format": "double"
+          },
+          "candidate_lift": {
+            "type": "number",
+            "format": "double"
+          },
+          "candidate_paired_case_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Paired-case denominator on the candidate run — the\nstatistic the alert was computed on. Surfaced so a\nreader can gauge significance.",
+            "minimum": 0
+          },
+          "lift_delta": {
+            "type": "number",
+            "format": "double",
+            "description": "`candidate_lift − baseline_lift`. Negative since the\nalert only fires when this crossed the negative\nthreshold."
+          },
+          "surface": {
+            "$ref": "#/components/schemas/RetrievalSurface"
+          },
+          "threshold": {
+            "type": "number",
+            "format": "double",
+            "description": "Threshold the alert cleared (e.g. `-0.05`). Echoed so\nthe FE renders both the observed delta and the cut\nwithout re-deriving the constant."
           }
         }
       },
@@ -37138,6 +37318,13 @@
               "$ref": "#/components/schemas/RetrievalComparisonDelta"
             },
             "description": "Per-(surface, axis) hybrid lift change between runs.\n`candidate_lift − baseline_lift` — positive means hybrid\nis helping more in the candidate run than the baseline.\nEmpty when neither run has any `retrieval_comparison`\ncases, so the FE switches the lift-diff card on\n`len() > 0`."
+          },
+          "retrieval_lift_regressions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetrievalLiftRegressionAlert"
+            },
+            "description": "Regression alerts — cells whose `lift_delta` crossed the\nconfigured threshold AND have enough paired cases to\ntrust the signal. Drives the diff-page alarm banner.\nEmpty when no regression OR no `retrieval_comparison`\ncases at all."
           }
         }
       },

@@ -3324,7 +3324,20 @@
             "verifiedQuery": "Verified queries",
             "communitySummary": "Community summaries",
             "knowledgeEntry": "Knowledge entries"
-          }
+          },
+          "downloadCsv": "Download CSV",
+          "showOutliers": "Show worst cases",
+          "hideOutliers": "Hide worst cases",
+          "outliersTitle": "Worst cases (lowest lift first)",
+          "outliersDescription": "Candidate-run cases where hybrid retreated furthest vs trigram. H = hybrid score, T = trigram score.",
+          "outliersLoading": "Loading…",
+          "outliersEmpty": "This run has no paired retrieval_comparison cases."
+        },
+        "retrievalLiftRegression": {
+          "title": "Hybrid lift regression alarm ({count})",
+          "description": "Cells in the candidate run where hybrid lift retreated past the threshold ({threshold}). Only cells with enough paired cases trigger.",
+          "observedDelta": "Δ {delta}",
+          "pairedNCases": "{n} pairs"
         }
       }
     },

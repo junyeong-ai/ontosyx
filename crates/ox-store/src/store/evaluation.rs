@@ -32,7 +32,8 @@ use ox_ontology::EvaluationFingerprint;
 
 use crate::evaluation::{
     EvaluationCase, EvaluationDataset, EvaluationDatasetItem, EvaluationDatasetSummary,
-    EvaluationMetric, EvaluationRun, EvaluationRunStatus, RunComparisonReport, RunSummary,
+    EvaluationMetric, EvaluationRun, EvaluationRunStatus, RetrievalSurface, RunComparisonReport,
+    RunSummary,
 };
 
 use super::{CursorPage, CursorParams};
@@ -210,6 +211,24 @@ pub trait EvaluationStore: Send + Sync {
         baseline_run_id: Uuid,
         candidate_run_id: Uuid,
     ) -> OxResult<RunComparisonReport>;
+
+    /// Worst-first list of case-level retrieval-comparison
+    /// outliers in a run, optionally narrowed to a single
+    /// (surface, axis) cell. Drives the dashboard's drill-down:
+    /// the operator clicks a cell whose `mean_lift` is low and
+    /// the modal surfaces these rows in ascending `case_lift`
+    /// order so the bad-actor cases read first.
+    ///
+    /// `surface` and `axis` are optional filters — `None` for
+    /// either widens to "every cell". `limit` caps the result
+    /// (clamped server-side at 100).
+    async fn list_run_comparison_outliers(
+        &self,
+        run_id: Uuid,
+        surface: Option<RetrievalSurface>,
+        axis: Option<&str>,
+        limit: u32,
+    ) -> OxResult<Vec<crate::evaluation::RetrievalComparisonOutlier>>;
 
     // --- Cases ---------------------------------------------------------
 

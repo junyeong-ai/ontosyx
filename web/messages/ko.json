@@ -3324,7 +3324,20 @@
             "verifiedQuery": "Verified queries",
             "communitySummary": "Community summaries",
             "knowledgeEntry": "Knowledge entries"
-          }
+          },
+          "downloadCsv": "CSV 다운로드",
+          "showOutliers": "회귀 케이스 보기",
+          "hideOutliers": "회귀 케이스 숨기기",
+          "outliersTitle": "최악 케이스 (worst-first)",
+          "outliersDescription": "후보 실행에서 hybrid lift 가 가장 retreat 한 케이스. H = hybrid 점수, T = trigram 점수.",
+          "outliersLoading": "불러오는 중…",
+          "outliersEmpty": "이 실행에 페어된 retrieval_comparison 케이스가 없습니다."
+        },
+        "retrievalLiftRegression": {
+          "title": "하이브리드 lift 회귀 경보 ({count})",
+          "description": "후보 실행에서 hybrid lift 가 임계값({threshold}) 이상으로 retreat 한 셀입니다. 페어 수가 충분한 경우만 경보합니다.",
+          "observedDelta": "Δ {delta}",
+          "pairedNCases": "{n} 페어"
         }
       }
     },

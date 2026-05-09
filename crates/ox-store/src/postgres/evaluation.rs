@@ -1086,6 +1086,34 @@ impl EvaluationStore for PostgresStore {
                 )
                 .collect();
 
+        // Regression alerts — fold the deltas through a
+        // threshold gate. Pure transform; threshold + min-N
+        // are platform constants today, workspace-customisable
+        // tomorrow without changing the contract.
+        let retrieval_lift_regressions: Vec<crate::evaluation::RetrievalLiftRegressionAlert> =
+            retrieval_comparison_deltas
+                .iter()
+                .filter_map(|d| {
+                    if d.lift_delta
+                        < crate::evaluation::RETRIEVAL_LIFT_REGRESSION_THRESHOLD
+                        && d.candidate_paired_case_count
+                            >= crate::evaluation::RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N
+                    {
+                        Some(crate::evaluation::RetrievalLiftRegressionAlert {
+                            surface: d.surface,
+                            axis: d.axis.clone(),
+                            lift_delta: d.lift_delta,
+                            baseline_lift: d.baseline_lift,
+                            candidate_lift: d.candidate_lift,
+                            threshold: crate::evaluation::RETRIEVAL_LIFT_REGRESSION_THRESHOLD,
+                            candidate_paired_case_count: d.candidate_paired_case_count,
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
         Ok(RunComparisonReport {
             baseline_run_id,
             candidate_run_id,
@@ -1093,7 +1121,107 @@ impl EvaluationStore for PostgresStore {
             per_case,
             per_axis,
             retrieval_comparison_deltas,
+            retrieval_lift_regressions,
         })
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, fields(
+        run = %run_id, surface = ?surface, axis = ?axis, limit,
+    ))]
+    async fn list_run_comparison_outliers(
+        &self,
+        run_id: Uuid,
+        surface: Option<crate::evaluation::RetrievalSurface>,
+        axis: Option<&str>,
+        limit: u32,
+    ) -> OxResult<Vec<crate::evaluation::RetrievalComparisonOutlier>> {
+        super::require_workspace_context()?;
+        let limit_capped = limit.clamp(1, 100) as i64;
+        let surface_filter = surface.map(|s| s.as_str());
+
+        // Same paired pivot as the run-level aggregator, with
+        // optional filters on surface / axis pushed into the
+        // SQL so the planner can use the existing
+        // `evaluation_metrics(case_id, name)` index. ORDER BY
+        // case_lift ASC surfaces the worst-actor cases first;
+        // tie-break on `case_key` keeps the order deterministic
+        // across re-fetches.
+        let rows: Vec<(Uuid, String, String, String, f64, f64, f64)> = sqlx::query_as(
+            "WITH parsed AS (
+                SELECT
+                  c.id AS case_id,
+                  c.case_key,
+                  SPLIT_PART(m.name, '.', 1) AS surface,
+                  SPLIT_PART(m.name, '.', 2) AS leg,
+                  SPLIT_PART(m.name, '.', 3) AS axis,
+                  m.score
+                FROM evaluation_metrics m
+                JOIN evaluation_cases c ON c.id = m.case_id
+                WHERE c.run_id = $1
+                  AND m.name LIKE '%.%.%'
+            ),
+            paired AS (
+                SELECT
+                  case_id,
+                  case_key,
+                  surface,
+                  axis,
+                  MAX(CASE WHEN leg = 'hybrid'  THEN score END) AS hybrid_score,
+                  MAX(CASE WHEN leg = 'trigram' THEN score END) AS trigram_score
+                FROM parsed
+                WHERE surface IN ('verified_query', 'community_summary', 'knowledge_entry')
+                  AND leg IN ('hybrid', 'trigram')
+                  AND axis IN ('precision_at_k', 'recall_at_k', 'mrr', 'ndcg_at_k')
+                  AND ($2::text IS NULL OR surface = $2)
+                  AND ($3::text IS NULL OR axis = $3)
+                GROUP BY case_id, case_key, surface, axis
+                HAVING MAX(CASE WHEN leg = 'hybrid'  THEN score END) IS NOT NULL
+                   AND MAX(CASE WHEN leg = 'trigram' THEN score END) IS NOT NULL
+            )
+            SELECT
+              case_id,
+              case_key,
+              surface,
+              axis,
+              hybrid_score::float8,
+              trigram_score::float8,
+              (hybrid_score - trigram_score)::float8 AS case_lift
+            FROM paired
+            ORDER BY (hybrid_score - trigram_score) ASC, case_key ASC
+            LIMIT $4",
+        )
+        .bind(run_id)
+        .bind(surface_filter)
+        .bind(axis)
+        .bind(limit_capped)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(
+                |(case_id, case_key, surface_str, axis, hybrid_score, trigram_score, case_lift)| {
+                    let surface = match surface_str.as_str() {
+                        "verified_query" => crate::evaluation::RetrievalSurface::VerifiedQuery,
+                        "community_summary" => {
+                            crate::evaluation::RetrievalSurface::CommunitySummary
+                        }
+                        "knowledge_entry" => crate::evaluation::RetrievalSurface::KnowledgeEntry,
+                        _ => return None,
+                    };
+                    Some(crate::evaluation::RetrievalComparisonOutlier {
+                        case_id,
+                        case_key,
+                        surface,
+                        axis,
+                        hybrid_score,
+                        trigram_score,
+                        case_lift,
+                    })
+                },
+            )
+            .collect())
     }
 
     // --- Cases ---------------------------------------------------------

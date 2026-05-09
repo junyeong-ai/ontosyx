@@ -915,6 +915,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/evaluation/runs/{run_id}/comparison-outliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/evaluation/runs/{run_id}/comparison-outliers` —
+         *     worst-first list of case-level retrieval-comparison outliers.
+         *     Drives the dashboard's per-cell drill-down: the operator
+         *     clicks a (surface, axis) cell whose mean lift is low, and
+         *     this endpoint surfaces the bad-actor cases dragging the
+         *     average down.
+         */
+        get: operations["list_run_comparison_outliers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/evaluation/runs/{run_id}/summary": {
         parameters: {
             query?: never;
@@ -5080,6 +5104,9 @@ export interface components {
         };
         /** @enum {string} */
         ComparisonOp: "eq" | "neq" | "lt" | "lte" | "gt" | "gte";
+        ComparisonOutliersResponse: {
+            outliers: components["schemas"]["RetrievalComparisonOutlier"][];
+        };
         CompileOntologyDraftLoadPlanRequest: {
             /** @description The load plan to compile */
             plan: components["schemas"]["LoadPlan"];
@@ -12356,6 +12383,37 @@ export interface components {
             surface: components["schemas"]["RetrievalSurface"];
         };
         /**
+         * @description One case-level retrieval-comparison outlier — the case
+         *     whose `(hybrid − trigram)` lift dragged a (surface, axis)
+         *     cell's mean. Returned by
+         *     [`crate::EvaluationStore::list_run_comparison_outliers`]
+         *     for cell-level drill-down: the operator clicks "why did
+         *     hybrid retreat on community_summary.recall_at_k?" and the
+         *     dashboard surfaces this list of bad-actor cases.
+         *
+         *     `case_lift` is the per-case delta. Cases that lack one of
+         *     the legs (the metric pair didn't land) are filtered out at
+         *     the SQL gate — same paired contract the run-level
+         *     aggregate uses.
+         */
+        RetrievalComparisonOutlier: {
+            axis: string;
+            /** Format: uuid */
+            case_id: string;
+            case_key: string;
+            /**
+             * Format: double
+             * @description `hybrid_score − trigram_score`. Negative = hybrid lost
+             *     on this case. The drill-down endpoint orders worst-first.
+             */
+            case_lift: number;
+            /** Format: double */
+            hybrid_score: number;
+            surface: components["schemas"]["RetrievalSurface"];
+            /** Format: double */
+            trigram_score: number;
+        };
+        /**
          * @description One leg of an [`EvaluationActual::RetrievalComparison`] —
          *     either the hybrid path or the trigram-only baseline.
          */
@@ -12363,6 +12421,48 @@ export interface components {
             anchor_ids: string[];
             hits: components["schemas"]["EvaluationRetrievedAnchor"][];
             metrics: components["schemas"]["RetrievalMetrics"];
+        };
+        /**
+         * @description A single (surface, axis) regression alert. Detected when a
+         *     run-vs-run hybrid lift change crosses the configured
+         *     threshold with enough paired cases to clear the noise floor.
+         *     The diff page renders these as a danger-toned banner above
+         *     the lift table so an operator viewing the comparison sees
+         *     the alarm immediately.
+         *
+         *     `threshold` is echoed onto the wire so the FE renders "lift
+         *     dropped 0.08 (threshold −0.05)" without re-deriving the cut.
+         *     Future workspace-level threshold customisation lands as a
+         *     settings field; the wire shape is already prepared.
+         */
+        RetrievalLiftRegressionAlert: {
+            axis: string;
+            /** Format: double */
+            baseline_lift: number;
+            /** Format: double */
+            candidate_lift: number;
+            /**
+             * Format: int64
+             * @description Paired-case denominator on the candidate run — the
+             *     statistic the alert was computed on. Surfaced so a
+             *     reader can gauge significance.
+             */
+            candidate_paired_case_count: number;
+            /**
+             * Format: double
+             * @description `candidate_lift − baseline_lift`. Negative since the
+             *     alert only fires when this crossed the negative
+             *     threshold.
+             */
+            lift_delta: number;
+            surface: components["schemas"]["RetrievalSurface"];
+            /**
+             * Format: double
+             * @description Threshold the alert cleared (e.g. `-0.05`). Echoed so
+             *     the FE renders both the observed delta and the cut
+             *     without re-deriving the constant.
+             */
+            threshold: number;
         };
         /**
          * @description Closed budget for one retrieval invocation. Splitting
@@ -12763,6 +12863,14 @@ export interface components {
              *     `len() > 0`.
              */
             retrieval_comparison_deltas?: components["schemas"]["RetrievalComparisonDelta"][];
+            /**
+             * @description Regression alerts — cells whose `lift_delta` crossed the
+             *     configured threshold AND have enough paired cases to
+             *     trust the signal. Drives the diff-page alarm banner.
+             *     Empty when no regression OR no `retrieval_comparison`
+             *     cases at all.
+             */
+            retrieval_lift_regressions?: components["schemas"]["RetrievalLiftRegressionAlert"][];
         };
         /**
          * @description One per-case axis-level diff between two runs over the same
@@ -17490,6 +17598,43 @@ export interface operations {
                     "application/json": {
                         error: components["schemas"]["ErrorBody"];
                     };
+                };
+            };
+        };
+    };
+    list_run_comparison_outliers: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Optional surface filter — `verified_query` /
+                 *     `community_summary` / `knowledge_entry`. Absent →
+                 *     every surface.
+                 */
+                surface?: null | components["schemas"]["RetrievalSurface"];
+                /**
+                 * @description Optional axis filter — `precision_at_k` / `recall_at_k`
+                 *     / `mrr` / `ndcg_at_k`. Absent → every axis.
+                 */
+                axis?: string | null;
+                /** @description Maximum rows returned. Server caps at 100; default 10. */
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Run id */
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Worst-first comparison outliers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComparisonOutliersResponse"];
                 };
             };
         };
