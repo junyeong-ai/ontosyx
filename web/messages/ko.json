@@ -1635,7 +1635,9 @@
         "provenance": {
           "pageTitle": "PROV-O 감사",
           "pageSubtitle": "플랫폼이 소스 스캔, 규칙 평가, 액션 실행, LLM 초안 등을 수행하면서 발행한 fact 단위 origin 레코드. 읽기 전용 — 그래프의 fact 가 왜, 누구에 의해, 언제 생겼는지 확인할 수 있습니다.",
-          "noOntology": "대표 온톨로지가 없습니다 — Design 모드에서 PROV-O 레코드를 시작하려면 먼저 ontology 를 만드세요.",
+          "noOntology": "대표 온톨로지가 없습니다",
+          "noOntologyDescription": "Design 모드에서 온톨로지를 먼저 생성하면 PROV-O 감사 기록을 확인할 수 있습니다.",
+          "openDesign": "Design 모드 열기",
           "filter": {
             "activity": "활동 종류",
             "agent": "에이전트 종류",

@@ -307,8 +307,7 @@
 
   /* `heading-6` — section subheader tier. Smaller than `heading-5`
      so tightly-packed settings sections + dashboard tiles can carry
-     a real heading without dominating the surface. Used by every
-     `<h2>` that previously inlined `text-sm font-semibold`. */
+     a real heading without dominating the surface. */
   --heading-6-size:    var(--text-sm);
   --heading-6-weight:  600;
   --heading-6-leading: 1.5;
@@ -425,32 +424,21 @@
   --width-panel-full:     960px;
 
   /* --- Motion -----------------------------------------------------------
-   * Two-channel split — every transition picks the channel that
-   * matches its purpose, not a raw curve.
+   * Three curves, each carrying a purpose:
    *
-   *   --ease-productive  Functional state changes — open/close,
-   *                      focus/blur, loading. Asymptotic ease-out
-   *                      reads as "task completed cleanly".
-   *   --ease-expressive  Delight / arrival moments — toasts landing,
-   *                      cards appearing, success confirmations.
-   *                      Slight overshoot reads as "intentional
-   *                      gesture", not "default UA fade".
-   *   --ease-in-out      Reversible motion (drag-and-drop returns,
-   *                      tab content swaps). Symmetric so the
-   *                      reverse direction matches.
-   *
-   * Material 3 / Carbon Motion tokens map; the names follow the
-   * pattern those design systems standardized so a future shop-from-
-   * spec engineer reads them without translation. */
-  --ease-productive: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-expressive: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-in-out:     cubic-bezier(0.65, 0, 0.35, 1);
-
-  /* Legacy alias kept against the previous channel naming so
-   * historical call sites that say `ease-[var(--ease-out)]` keep
-   * resolving to the productive curve they always rendered. */
-  --ease-out:    var(--ease-productive);
-  --ease-spring: var(--ease-expressive);
+   *   --ease-out      Functional state changes — open/close, focus,
+   *                   loading. Asymptotic reads as "task completed
+   *                   cleanly". Use this for the great majority of
+   *                   product transitions.
+   *   --ease-spring   Arrival moments — toasts landing, cards
+   *                   appearing, success confirmations. Slight
+   *                   overshoot reads as "intentional gesture".
+   *   --ease-in-out   Reversible motion — drag-and-drop returns,
+   *                   tab content swaps. Symmetric so the reverse
+   *                   direction matches the forward one. */
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
   /* `instant` is reserved for state changes that must read as
    * non-animated (radio toggle, checkbox, focus snap) — paired with

@@ -8,13 +8,16 @@ import { formatNumber } from "@/lib/locale/format";
 // ---------------------------------------------------------------------------
 
 /**
- * 30-color palette for charts and graph widgets.
- * Designed for perceptual distinctness at both small and large category counts.
- * Shared across bar, pie, line, combo, and graph widgets.
+ * 30-color palette for charts and graph widgets. Designed for
+ * perceptual distinctness across the 1–30 category range. Position
+ * 0 is the brand anchor (`--brand-solid` cobalt-cyan); subsequent
+ * positions cycle through perceptually-distinct hues. Green hues
+ * carry the success semantic and only enter from the deep tier so
+ * a single-series chart never reads as a "completed" indicator.
  */
 export const PALETTE_PRIMARY = [
   // Core (high contrast, distinct hues)
-  "#059669", "#2563eb", "#8b5cf6", "#db2777", "#ea580c",
+  "#0369a1", "#2563eb", "#8b5cf6", "#db2777", "#ea580c",
   "#0891b2", "#d97706", "#7c3aed", "#0d9488", "#e11d48",
   // Extended (secondary hues for 10+ categories)
   "#16a34a", "#0ea5e9", "#a855f7", "#f43f5e", "#65a30d",
@@ -28,6 +31,16 @@ export const PALETTE_PRIMARY = [
 export const PALETTE_SECONDARY = [
   "#f59e0b", "#ef4444", "#ec4899", "#8b5cf6",
 ];
+
+/**
+ * Brand-anchor fill for single-series charts. Resolves to the
+ * cobalt-cyan that pairs with `--brand-solid` at chart-readable
+ * saturation, with a lighter dark-mode variant so selection rings
+ * stay legible on near-black canvases.
+ */
+export function brandFill(isDark: boolean): string {
+  return isDark ? "#38bdf8" : "#0369a1";
+}
 
 // ---------------------------------------------------------------------------
 // Dark-mode-aware style helpers for Recharts

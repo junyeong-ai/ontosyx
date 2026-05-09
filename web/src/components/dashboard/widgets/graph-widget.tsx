@@ -22,7 +22,7 @@ import { useIsDarkMode } from "@/hooks/use-dark-mode";
 import { useContainerWidth } from "@/hooks/use-container-width";
 import { useDashboardTypeFilter } from "@/hooks/use-dashboard-type-filter";
 import { Heading } from "@/components/ui/heading";
-import { formatValue } from "./chart-utils";
+import { brandFill, formatValue } from "./chart-utils";
 import type { GraphNodeData, FGNode, FGLink } from "./graph/graph-types";
 import { DEFAULT_MAX_NODES, DARK_BG, LIGHT_BG } from "./graph/graph-constants";
 import { extractGraphData } from "./graph/graph-data";
@@ -183,7 +183,7 @@ export const GraphWidget = memo(function GraphWidget({
       // Selection/hover ring
       if (isSelected || isHovered) {
         ctx.strokeStyle = isSelected
-          ? (isDark ? "#10b981" : "#059669")
+          ? brandFill(isDark)
           : (isDark ? "#a1a1aa" : "#71717a");
         ctx.lineWidth = isSelected ? 2 : 1.5;
         ctx.stroke();

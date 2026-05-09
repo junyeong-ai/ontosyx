@@ -15,6 +15,7 @@
 
 import { useState, useMemo } from "react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -40,6 +41,7 @@ export function ProvenanceAuditFacet() {
   const tCommon = useTranslations("common");
   const ontology = useWorkspaceOntology();
   const hasOntology = ontology.data != null;
+  const router = useRouter();
 
   const [activityFilter, setActivityFilter] = useState<string>("all");
   const [agentFilter, setAgentFilter] = useState<string>("all");
@@ -74,9 +76,12 @@ export function ProvenanceAuditFacet() {
       <div className="flex flex-col gap-4">
 
       {!hasOntology && (
-        <p className="rounded border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground">
-          {t("noOntology")}
-        </p>
+        <EmptyState
+          kind="prerequisite"
+          title={t("noOntology")}
+          description={t("noOntologyDescription")}
+          action={{ label: t("openDesign"), onClick: () => router.push("/design") }}
+        />
       )}
 
       {hasOntology && (

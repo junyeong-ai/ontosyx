@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { useIsDarkMode } from "@/hooks/use-dark-mode";
 import { Heading } from "@/components/ui/heading";
-import { axisTickStyle, axisLineStroke, gridStroke, tooltipStyle } from "./chart-utils";
+import { axisTickStyle, axisLineStroke, brandFill, gridStroke, tooltipStyle } from "./chart-utils";
 
 interface ScatterChartWidgetProps {
   spec: WidgetSpec;
@@ -75,7 +75,7 @@ export function ScatterChartWidget({ spec, data }: ScatterChartWidgetProps) {
               <ZAxis dataKey={zKey} type="number" name={zKey} range={[20, 400]} />
             )}
             <Tooltip contentStyle={tooltipStyle(isDark)} />
-            <Scatter data={rows} fill="#10b981" />
+            <Scatter data={rows} fill={brandFill(isDark)} />
           </ScatterChart>
         </ResponsiveContainer>
       </div>

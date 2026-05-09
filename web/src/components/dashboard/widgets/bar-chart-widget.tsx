@@ -18,6 +18,7 @@ import { Heading } from "@/components/ui/heading";
 import {
   CATEGORY_THRESHOLD,
   MAX_BAR_SIZE,
+  brandFill,
   resolveLabelField,
   resolveValueField,
   toNameValuePairs,
@@ -87,7 +88,7 @@ export function BarChartWidget({ spec, data }: BarChartWidgetProps) {
             <Tooltip contentStyle={tooltipStyle(isDark)} />
             <Bar
               dataKey="value"
-              fill="#10b981"
+              fill={brandFill(isDark)}
               radius={[4, 4, 0, 0]}
               maxBarSize={MAX_BAR_SIZE}
               cursor="pointer"
