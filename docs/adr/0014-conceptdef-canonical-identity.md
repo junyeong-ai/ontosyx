@@ -4,9 +4,8 @@
 
 **Date:** 2026-05-01
 
-**Supersedes:** none — `ConceptDef` is a new layer; the prior model
-identified concepts implicitly through `GlossaryTermDef.term` strings
-and the `NodeTypeDef.glossary_anchors` back-reference.
+**Supersedes:** implicit glossary-backed identity — the platform now
+identifies concepts through `ConceptDef` and typed concept ids.
 
 ## Context
 
@@ -93,17 +92,11 @@ returns the saved-view rows.
   the realisation drops to `skos:scopeNote`, the canonical term
   drops to `skos:prefLabel`, alt terms to `skos:altLabel`. No
   semantic loss across the export boundary.
-- **`NodeTypeDef.glossary_anchors` deprecated** — the field
-  predates `ConceptDef`. Stage 2 of this ADR (deferred at
-  authorship time, see "Open follow-ups" below) collapses
-  `glossary_anchors` into `concept_id`; a node's lexicalisation
-  reaches via `concept → canonical_term_id` instead of a direct
-  pointer. Until that lands the validator accepts both pointers
-  but warns on divergence.
-- **`PropertyBinding::Glossary { id: GlossaryTermId }` deprecated**
-  — same axis. The binding should reach via the concept layer;
-  `PropertyBinding::Concept { id: ConceptId }` is the new
-  canonical variant.
+- **No direct glossary anchors on schema elements** — node, edge,
+  and property bindings reach lexical terms only through the
+  concept layer. A node's rendering path is
+  `schema element → concept_id → canonical_term_id`, and property
+  semantics use `PropertyBinding::Concept { id: ConceptId }`.
 - **HeuristicProposal-style queue** — concept proposals from the
   LLM never write directly to `OntologyIR.concepts`. They land in
   the proposal queue (per ADR-0023) and require operator approval
@@ -124,15 +117,6 @@ returns the saved-view rows.
   Loses the SKOS-canonical mapping ("everyone reads `prefLabel`
   for the rendering, walks `altLabel`s for synonym matching")
   that downstream tools (export, NL alias resolution) depend on.
-
-## Open follow-ups
-
-Stage 2 of this ADR — collapse `NodeTypeDef.glossary_anchors`
-into `concept_id` and replace `PropertyBinding::Glossary` with
-`PropertyBinding::Concept` — was deferred at authorship to keep
-this slice landing-sized. The double-bookkeeping is documented as
-debt; the matching cleanup commit retires the deprecated fields
-once every consumer reaches via `concept → canonical_term_id`.
 
 ## References
 

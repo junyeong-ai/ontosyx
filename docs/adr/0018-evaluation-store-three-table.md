@@ -152,6 +152,6 @@ These each have a memory note tracking the deferred state.
 - Phoenix Arize — <https://arize.com/phoenix>
 - Braintrust — <https://braintrust.dev>
 - Memory entry: `feedback_evaluation_store_pattern.md`
-- Migration `crates/ox-store/migrations/0007_evaluation.sql`
+- Schema `crates/ox-store/migrations/0001_schema.sql`
 - Trait: `crates/ox-store/src/store.rs` `EvaluationStore`
 - Hook: `crates/ox-brain/src/lib.rs` `EvaluationCapture`

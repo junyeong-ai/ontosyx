@@ -36,7 +36,7 @@ guarantee that connection reach depends on.
 
 ## Decision
 
-`ontologies(workspace_id)` carries `UNIQUE` (migration `0006`).
+`ontologies(workspace_id)` carries `UNIQUE`.
 The schema rejects a second ontology being created in the same
 workspace; the workspace IS the ontology context.
 
@@ -44,29 +44,26 @@ Two structural consequences:
 
 1. **`ontology_drafts.ontology_id` was a redundant FK** back into
    the workspace's only ontology. With singleton enforced, the
-   `workspace_id` IS the ontology pointer. Migration 0006 drops
-   the column along with the compound FK that paired it with
-   `workspace_id`.
+   `workspace_id` IS the ontology pointer, so drafts carry the
+   workspace and version parent, not a second ontology reference.
 
 2. **The compound uniqueness constraints**
    (`ontologies_ws_id_uq`, `ontologies_ws_name_uq`) become
    redundant — workspace-uniqueness already implies workspace-
-   scoped name + id uniqueness. Migration 0006 drops both and
-   adds `ontologies_workspace_singleton_uq UNIQUE (workspace_id)`.
+   scoped name + id uniqueness. The baseline schema keeps only
+   `ontologies_workspace_singleton_uq UNIQUE (workspace_id)`.
 
 The Rust + FE access pattern follows:
 
 - **BE store** — `OntologyVersionStore::get_workspace_ontology()`
-  is the canonical accessor. Legacy lookups
-  (`get_ontology(id)`, `list_ontologies`,
-  `find_ontology_by_lineage`, `find_ontology_by_name`) survive
-  transitionally and will retire once every consumer has
-  migrated.
+  is the canonical accessor for product code. Routes and workers
+  should not require an ontology id when the workspace context
+  already determines it.
 - **API** — every `/api/ontology/*` route is **singular** and
   carries no `{id}` segment. The resolver picks the workspace
   ontology automatically from the request's `WORKSPACE_ID`
-  task-local. The previous plural shape (`/api/ontologies/{id}/*`)
-  was retired across 18 endpoints in a single sweep.
+  task-local. Id-scoped ontology routes are outside the product
+  contract because the workspace already determines the ontology.
 - **FE** — `useWorkspaceOntology()` is the singular hook every
   workbench surface reads. There is no ontology selector in
   the UI; the workspace pill in the header doubles as the
@@ -116,6 +113,6 @@ The Rust + FE access pattern follows:
 
 - Memory entry: `feedback_workspace_singleton_ontology.md`
 - Memory entry: `feedback_canonical_korean_term.md`
-- Migration `crates/ox-store/migrations/0006_workspace_ontology_singleton.sql`
+- Schema `crates/ox-store/migrations/0001_schema.sql`
 - Foundry Ontology docs (Palantir public)
 - Stardog Knowledge Toolkit (`stardog.com/docs/`)

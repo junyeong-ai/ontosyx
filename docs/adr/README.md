@@ -37,8 +37,15 @@ why the earlier shape existed.
 | 0022 | `PluginRegistry<T>` for FE extensibility surfaces   | Accepted |
 | 0023 | `HeuristicProposal` queue + no-auto-decisions       | Accepted |
 | 0024 | `advisory_lock` boot + cron singleton coordination  | Accepted |
-| 0025 | Migration immutability + SHA-pinned baseline        | Accepted |
 | 0026 | Design system Φ1–Φ7 landed (token + primitive + …) | Accepted |
+| 0030 | `ProvenanceCapture` as required mutation argument    | Accepted |
+| 0031 | `IrCollection` trait + `EntityKind` extraction       | Accepted |
+| 0032 | `EvaluationFingerprint` typed reproducibility bundle | Accepted |
+| 0033 | `PipelineStage` typed state machine + InferenceSession | Accepted |
+| 0034 | `RetrievalProfile` + `CommunityDetectionPolicy` data | Accepted |
+| 0035 | `VerifiedQueryDef` typed verified Q→IR bank          | Accepted |
+| 0036 | `SourceContractDef` pre-commit gate + validator      | Accepted |
+| 0037 | Pure-Rust community detection (LabelProp Phase 1)    | Accepted |
 
 Companion architecture documents live in `../architecture/`:
 
