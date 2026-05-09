@@ -141,6 +141,7 @@ wrappers = [
     "ox-agent",
     "ox-store",
     "ox-source",
+    "ox-text",
     "ox-federation",
     "ox-api",
 ]

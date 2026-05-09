@@ -311,27 +311,6 @@ jobs:
       - name: Regenerate and diff
         run: bash scripts/check-openapi-drift.sh
 
-  security:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    permissions:
-      # rustsec/audit-check posts findings as repo issues + check
-      # annotations. Both writes need explicit grants now that the
-      # workflow default is read-only.
-      contents: read
-      issues: write
-      checks: write
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
-      - name: Run cargo-audit
-        uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
   # ---------------------------------------------------------------------------
   # 6.2 Korean golden E2E — label-gated (label: `e2e-korean`).
   # ---------------------------------------------------------------------------
