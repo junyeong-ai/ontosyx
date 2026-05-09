@@ -9284,7 +9284,14 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             enabled: boolean;
-            events: string[];
+            /**
+             * @description Subscription set — the platform-emitted events this
+             *     channel listens for. Persisted as `text[]` in PostgreSQL;
+             *     the postgres impl converts each element through
+             *     [`NotificationEventType::from_wire_str`] so the typed
+             *     vector can never carry a tag outside the closed set.
+             */
+            events: components["schemas"]["NotificationEventType"][];
             /** Format: uuid */
             id: string;
             name: string;
@@ -9320,14 +9327,38 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             error?: string | null;
-            event_type: string;
+            event_type: components["schemas"]["NotificationLogEventType"];
             /** Format: uuid */
             id: string;
-            status: string;
+            status: components["schemas"]["NotificationLogStatus"];
             subject: string;
             /** Format: uuid */
             workspace_id: string;
         };
+        /**
+         * @description Closed set of event tags that may appear on a
+         *     [`NotificationLog`] row. Superset of
+         *     [`NotificationEventType`] (the subscribable platform events)
+         *     plus the diagnostic-only [`Self::Test`] variant — recorded
+         *     by the channel-test endpoint and never matched by a
+         *     subscription.
+         *
+         *     Same shape as the other 4-enum family — `ALL` +
+         *     `as_str(self) const fn` + `from_wire_str` +
+         *     `all_wire_strings`. The `from_subscription` constructor is
+         *     total — every [`NotificationEventType`] has a one-to-one
+         *     log mirror, pinned by the parity test
+         *     `notification_log_event_type_round_trips_from_every_subscription_event`.
+         * @enum {string}
+         */
+        NotificationLogEventType: "quality_rule_passed" | "quality_rule_failed" | "retrieval_lift_regression" | "test";
+        /**
+         * @description Closed set of [`NotificationLog`] delivery outcomes. Same
+         *     4-enum shape — `ALL` + `as_str(self) const fn` +
+         *     `from_wire_str` + `all_wire_strings`.
+         * @enum {string}
+         */
+        NotificationLogStatus: "sent" | "failed";
         /** @description Binding from a `NodeTypeDef` to a physical relation. */
         ObjectMappingDef: {
             /** @description Graph-cache participation for this mapping. */

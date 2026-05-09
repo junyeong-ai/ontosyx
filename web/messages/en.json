@@ -5703,7 +5703,8 @@
       "event": {
         "quality_rule_failed": "Quality Rule Failed",
         "quality_rule_passed": "Quality Rule Passed",
-        "retrieval_lift_regression": "Hybrid Lift Regression Detected"
+        "retrieval_lift_regression": "Hybrid Lift Regression Detected",
+        "test": "Test Notification"
       },
       "status": {
         "sent": "Sent",

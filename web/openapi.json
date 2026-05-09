@@ -28050,8 +28050,9 @@
           "events": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "$ref": "#/components/schemas/NotificationEventType"
+            },
+            "description": "Subscription set — the platform-emitted events this\nchannel listens for. Persisted as `text[]` in PostgreSQL;\nthe postgres impl converts each element through\n[`NotificationEventType::from_wire_str`] so the typed\nvector can never carry a tag outside the closed set."
           },
           "id": {
             "type": "string",
@@ -28117,14 +28118,14 @@
             ]
           },
           "event_type": {
-            "type": "string"
+            "$ref": "#/components/schemas/NotificationLogEventType"
           },
           "id": {
             "type": "string",
             "format": "uuid"
           },
           "status": {
-            "type": "string"
+            "$ref": "#/components/schemas/NotificationLogStatus"
           },
           "subject": {
             "type": "string"
@@ -28134,6 +28135,24 @@
             "format": "uuid"
           }
         }
+      },
+      "NotificationLogEventType": {
+        "type": "string",
+        "description": "Closed set of event tags that may appear on a\n[`NotificationLog`] row. Superset of\n[`NotificationEventType`] (the subscribable platform events)\nplus the diagnostic-only [`Self::Test`] variant — recorded\nby the channel-test endpoint and never matched by a\nsubscription.\n\nSame shape as the other 4-enum family — `ALL` +\n`as_str(self) const fn` + `from_wire_str` +\n`all_wire_strings`. The `from_subscription` constructor is\ntotal — every [`NotificationEventType`] has a one-to-one\nlog mirror, pinned by the parity test\n`notification_log_event_type_round_trips_from_every_subscription_event`.",
+        "enum": [
+          "quality_rule_passed",
+          "quality_rule_failed",
+          "retrieval_lift_regression",
+          "test"
+        ]
+      },
+      "NotificationLogStatus": {
+        "type": "string",
+        "description": "Closed set of [`NotificationLog`] delivery outcomes. Same\n4-enum shape — `ALL` + `as_str(self) const fn` +\n`from_wire_str` + `all_wire_strings`.",
+        "enum": [
+          "sent",
+          "failed"
+        ]
       },
       "ObjectMappingDef": {
         "type": "object",

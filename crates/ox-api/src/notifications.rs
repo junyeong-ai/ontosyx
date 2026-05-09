@@ -33,6 +33,7 @@ use uuid::Uuid;
 use ox_store::evaluation::RetrievalLiftRegressionAlert;
 use ox_store::{
     NotificationChannel, NotificationChannelType, NotificationEventType, NotificationLog,
+    NotificationLogEventType, NotificationLogStatus,
 };
 
 use crate::error::AppError;
@@ -71,6 +72,19 @@ const TRUNCATION_MARKER_BYTES: usize = TRUNCATION_MARKER.len_utf8();
 // Validation
 // ---------------------------------------------------------------------------
 
+/// SSRF guard. Rejects loopback / link-local / RFC1918
+/// private-range hosts so an admin who pastes an internal
+/// URL into the channel form can't pivot the platform into
+/// the private network. Matching uses [`IpAddr`] parsing —
+/// prefix-string heuristics are unsafe (`172.2.x.x` is public
+/// but matches the prefix `172.2.`; `172.16.0.0/12` covers
+/// `172.16.0.0..=172.31.255.255` exactly).
+///
+/// Hostname literals (e.g. `localhost`, `host.docker.internal`,
+/// container names) are rejected via a small explicit
+/// denylist — the platform is webhook-out only, so it never
+/// has a legitimate reason to dial a non-DNS-resolvable host
+/// inside the operator's runtime.
 pub(crate) fn validate_webhook_url(url: &str) -> Result<(), AppError> {
     let parsed =
         reqwest::Url::parse(url).map_err(|_| AppError::webhook_url_invalid("parse_failed"))?;
@@ -79,26 +93,45 @@ pub(crate) fn validate_webhook_url(url: &str) -> Result<(), AppError> {
         return Err(AppError::webhook_url_invalid("bad_scheme"));
     }
 
-    if let Some(host) = parsed.host_str() {
-        let blocked = host == "localhost"
-            || host == "[::1]"
-            || host.starts_with("127.")
-            || host.starts_with("10.")
-            || host.starts_with("192.168.")
-            || host.starts_with("172.16.")
-            || host.starts_with("172.17.")
-            || host.starts_with("172.18.")
-            || host.starts_with("172.19.")
-            || host.starts_with("172.2")
-            || host.starts_with("172.30.")
-            || host.starts_with("172.31.")
-            || host.starts_with("169.254.");
-        if blocked {
-            return Err(AppError::webhook_url_invalid("internal_network"));
-        }
+    if let Some(host) = parsed.host()
+        && is_internal_host(&host)
+    {
+        return Err(AppError::webhook_url_invalid("internal_network"));
     }
 
     Ok(())
+}
+
+/// Hostname denylist for the SSRF guard. Every entry is a
+/// non-DNS-resolvable name that resolves to an internal
+/// address inside an operator's runtime. ASCII lowercase
+/// comparison so capitalisation can't bypass the gate.
+const INTERNAL_HOSTNAMES: &[&str] = &[
+    "localhost",
+    "ip6-localhost",
+    "ip6-loopback",
+    "host.docker.internal",
+    "gateway.docker.internal",
+    "kubernetes.default",
+    "kubernetes.default.svc",
+];
+
+fn is_internal_host(host: &url::Host<&str>) -> bool {
+    match host {
+        url::Host::Domain(name) => {
+            let lower = name.to_ascii_lowercase();
+            INTERNAL_HOSTNAMES.iter().any(|&n| n == lower)
+        }
+        url::Host::Ipv4(addr) => {
+            addr.is_loopback() || addr.is_private() || addr.is_link_local() || addr.is_unspecified()
+        }
+        url::Host::Ipv6(addr) => {
+            // `is_unique_local` is unstable on Ipv6Addr in stable
+            // rust; the fc00::/7 prefix check is the canonical
+            // RFC 4193 partition.
+            addr.is_loopback() || addr.is_unspecified() || (addr.segments()[0] & 0xfe00) == 0xfc00
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +145,10 @@ pub(crate) fn validate_webhook_url(url: &str) -> Result<(), AppError> {
 /// configured. Lives here (not in routes/) so the
 /// channel-typed payload shape stays next to its peer
 /// renderers and the shared transport.
+///
+/// The corresponding [`NotificationLog`] row is recorded with
+/// [`NotificationLogEventType::Test`] so dashboards can filter
+/// diagnostic deliveries out of the operational view.
 pub(crate) async fn send_test_message(
     channel: &NotificationChannel,
     subject: &str,
@@ -219,7 +256,8 @@ pub(crate) async fn dispatch_event<P: EventPayload>(
     payload: &P,
 ) {
     let event_type = payload.event_type();
-    let channels = match store.list_channels_for_event(event_type.as_str()).await {
+    let log_event_type = NotificationLogEventType::from_subscription(event_type);
+    let channels = match store.list_channels_for_event(event_type).await {
         Ok(ch) => ch,
         Err(e) => {
             warn!(
@@ -241,19 +279,20 @@ pub(crate) async fn dispatch_event<P: EventPayload>(
         let body = payload.render(channel.channel_type);
         let send_result = send_payload(channel, &body).await;
 
+        let (status, error) = match send_result {
+            Ok(()) => (NotificationLogStatus::Sent, None),
+            Err(msg) => (NotificationLogStatus::Failed, Some(msg)),
+        };
+
         let log = NotificationLog {
             id: Uuid::new_v4(),
             workspace_id,
             channel_id: channel.id,
-            event_type: event_type.as_str().to_string(),
+            event_type: log_event_type,
             subject: subject.clone(),
             body: body.to_string(),
-            status: if send_result.is_ok() {
-                "sent".into()
-            } else {
-                "failed".into()
-            },
-            error: send_result.err(),
+            status,
+            error,
             created_at: Utc::now(),
         };
 
@@ -604,6 +643,93 @@ mod tests {
         assert_eq!(v["alerts"][0]["surface"], "verified_query");
         assert_eq!(v["alerts"][0]["axis"], "recall_at_k");
         assert_eq!(v["alerts"][0]["lift_delta"], -0.08);
+    }
+
+    // -- SSRF guard --
+
+    #[test]
+    fn ssrf_guard_accepts_typical_public_webhooks() {
+        for url in [
+            "https://hooks.slack.com/services/T0/B0/abcdef",
+            "https://example.com/webhook",
+            "http://203.0.113.5/webhook",
+        ] {
+            assert!(
+                validate_webhook_url(url).is_ok(),
+                "public URL {url} must pass the SSRF guard",
+            );
+        }
+    }
+
+    #[test]
+    fn ssrf_guard_rejects_loopback_and_link_local() {
+        for url in [
+            "http://localhost/webhook",
+            "http://LOCALHOST/webhook",
+            "http://127.0.0.1/webhook",
+            "http://127.255.0.1/webhook",
+            "http://[::1]/webhook",
+            "http://169.254.169.254/latest/meta-data",
+            "http://host.docker.internal/webhook",
+        ] {
+            assert!(
+                validate_webhook_url(url).is_err(),
+                "internal URL {url} must be blocked by the SSRF guard",
+            );
+        }
+    }
+
+    #[test]
+    fn ssrf_guard_rejects_rfc1918_ranges_exactly() {
+        // Every RFC1918 boundary — and one *just outside* —
+        // exercised so a future regression of the gate
+        // (back to prefix-string heuristics) fails fast.
+        for url in [
+            "http://10.0.0.1/",
+            "http://10.255.255.254/",
+            "http://192.168.0.1/",
+            "http://192.168.255.254/",
+            "http://172.16.0.1/",
+            "http://172.20.0.1/",
+            "http://172.31.255.254/",
+        ] {
+            assert!(
+                validate_webhook_url(url).is_err(),
+                "RFC1918 URL {url} must be blocked",
+            );
+        }
+        // Just outside RFC1918 — must NOT be blocked.
+        for url in ["http://172.32.0.1/", "http://172.15.0.1/", "http://172.2.0.1/"] {
+            assert!(
+                validate_webhook_url(url).is_ok(),
+                "public IP {url} must pass — false-positive of the prefix-string gate",
+            );
+        }
+    }
+
+    #[test]
+    fn ssrf_guard_rejects_ipv6_unique_local() {
+        for url in [
+            "http://[fc00::1]/", // ULA
+            "http://[fd12:3456:7890::1]/",
+            "http://[::]/", // unspecified
+        ] {
+            assert!(
+                validate_webhook_url(url).is_err(),
+                "IPv6 internal URL {url} must be blocked",
+            );
+        }
+    }
+
+    #[test]
+    fn ssrf_guard_rejects_non_http_schemes() {
+        for url in ["ftp://example.com/", "file:///etc/passwd", "gopher://example.com/"] {
+            let err = validate_webhook_url(url).expect_err("scheme must be rejected");
+            assert!(
+                format!("{err:?}").contains("bad_scheme"),
+                "expected bad_scheme reason for {url}, got {err:?}",
+            );
+        }
     }
 
     #[test]

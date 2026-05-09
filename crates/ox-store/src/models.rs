@@ -1370,7 +1370,12 @@ pub struct NotificationChannel {
     pub name: String,
     pub channel_type: NotificationChannelType,
     pub config: WebhookNotificationConfig,
-    pub events: Vec<String>,
+    /// Subscription set — the platform-emitted events this
+    /// channel listens for. Persisted as `text[]` in PostgreSQL;
+    /// the postgres impl converts each element through
+    /// [`NotificationEventType::from_wire_str`] so the typed
+    /// vector can never carry a tag outside the closed set.
+    pub events: Vec<NotificationEventType>,
     pub enabled: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -1473,6 +1478,114 @@ impl std::fmt::Display for NotificationEventType {
     }
 }
 
+/// Closed set of event tags that may appear on a
+/// [`NotificationLog`] row. Superset of
+/// [`NotificationEventType`] (the subscribable platform events)
+/// plus the diagnostic-only [`Self::Test`] variant — recorded
+/// by the channel-test endpoint and never matched by a
+/// subscription.
+///
+/// Same shape as the other 4-enum family — `ALL` +
+/// `as_str(self) const fn` + `from_wire_str` +
+/// `all_wire_strings`. The `from_subscription` constructor is
+/// total — every [`NotificationEventType`] has a one-to-one
+/// log mirror, pinned by the parity test
+/// `notification_log_event_type_round_trips_from_every_subscription_event`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum NotificationLogEventType {
+    QualityRulePassed,
+    QualityRuleFailed,
+    RetrievalLiftRegression,
+    /// Diagnostic delivery emitted by the channel-test
+    /// endpoint. Does not match any subscription — exists so
+    /// the log row carries a typed event marker for the row
+    /// the operator triggered.
+    Test,
+}
+
+impl NotificationLogEventType {
+    pub const ALL: &'static [Self] = &[
+        Self::QualityRulePassed,
+        Self::QualityRuleFailed,
+        Self::RetrievalLiftRegression,
+        Self::Test,
+    ];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::QualityRulePassed => "quality_rule_passed",
+            Self::QualityRuleFailed => "quality_rule_failed",
+            Self::RetrievalLiftRegression => "retrieval_lift_regression",
+            Self::Test => "test",
+        }
+    }
+
+    pub fn from_wire_str(s: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.as_str() == s)
+    }
+
+    pub fn all_wire_strings() -> Vec<&'static str> {
+        Self::ALL.iter().copied().map(Self::as_str).collect()
+    }
+
+    /// Promote a subscribable [`NotificationEventType`] to its
+    /// log mirror. The conversion is total — every
+    /// platform-emitted log row originates either from a
+    /// subscription or the `Test` diagnostic.
+    pub const fn from_subscription(e: NotificationEventType) -> Self {
+        match e {
+            NotificationEventType::QualityRulePassed => Self::QualityRulePassed,
+            NotificationEventType::QualityRuleFailed => Self::QualityRuleFailed,
+            NotificationEventType::RetrievalLiftRegression => Self::RetrievalLiftRegression,
+        }
+    }
+}
+
+impl std::fmt::Display for NotificationLogEventType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Closed set of [`NotificationLog`] delivery outcomes. Same
+/// 4-enum shape — `ALL` + `as_str(self) const fn` +
+/// `from_wire_str` + `all_wire_strings`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum NotificationLogStatus {
+    /// Webhook returned a 2xx response.
+    Sent,
+    /// Transport error or non-2xx response — error message
+    /// lives on [`NotificationLog::error`].
+    Failed,
+}
+
+impl NotificationLogStatus {
+    pub const ALL: &'static [Self] = &[Self::Sent, Self::Failed];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Sent => "sent",
+            Self::Failed => "failed",
+        }
+    }
+
+    pub fn from_wire_str(s: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.as_str() == s)
+    }
+
+    pub fn all_wire_strings() -> Vec<&'static str> {
+        Self::ALL.iter().copied().map(Self::as_str).collect()
+    }
+}
+
+impl std::fmt::Display for NotificationLogStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct WebhookNotificationConfig {
     pub url: String,
@@ -1484,15 +1597,15 @@ pub struct WebhookNotificationConfig {
 // NotificationLog — delivery log entry
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct NotificationLog {
     pub id: Uuid,
     pub workspace_id: Uuid,
     pub channel_id: Uuid,
-    pub event_type: String,
+    pub event_type: NotificationLogEventType,
     pub subject: String,
     pub body: String,
-    pub status: String,
+    pub status: NotificationLogStatus,
     pub error: Option<String>,
     pub created_at: DateTime<Utc>,
 }
@@ -1709,5 +1822,55 @@ mod tests {
         assert_eq!(s, "\"retrieval_lift_regression\"");
         let back: NotificationEventType = serde_json::from_str(&s).expect("serde");
         assert_eq!(back, v);
+    }
+
+    #[test]
+    fn notification_log_event_type_all_covers_every_variant() {
+        for v in NotificationLogEventType::ALL.iter().copied() {
+            match v {
+                NotificationLogEventType::QualityRulePassed
+                | NotificationLogEventType::QualityRuleFailed
+                | NotificationLogEventType::RetrievalLiftRegression
+                | NotificationLogEventType::Test => {}
+            }
+        }
+        assert_eq!(NotificationLogEventType::ALL.len(), 4);
+    }
+
+    #[test]
+    fn notification_log_event_type_round_trips_through_wire_str() {
+        for v in NotificationLogEventType::ALL.iter().copied() {
+            assert_eq!(NotificationLogEventType::from_wire_str(v.as_str()), Some(v));
+        }
+    }
+
+    #[test]
+    fn notification_log_event_type_round_trips_from_every_subscription_event() {
+        // Pin the total mapping — adding a NotificationEventType
+        // variant forces a matching NotificationLogEventType
+        // variant + an arm in `from_subscription`. Without this
+        // gate, a subscription event would produce a log row
+        // with a wire string that fails to parse back into the
+        // typed `event_type` column on read.
+        for v in NotificationEventType::ALL.iter().copied() {
+            let log = NotificationLogEventType::from_subscription(v);
+            assert_eq!(
+                log.as_str(),
+                v.as_str(),
+                "subscription→log mirror must preserve the wire string for {v:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn notification_log_status_round_trips_through_wire_str() {
+        for v in NotificationLogStatus::ALL.iter().copied() {
+            match v {
+                NotificationLogStatus::Sent | NotificationLogStatus::Failed => {}
+            }
+            assert_eq!(NotificationLogStatus::from_wire_str(v.as_str()), Some(v));
+        }
+        assert_eq!(NotificationLogStatus::ALL.len(), 2);
+        assert_eq!(NotificationLogStatus::from_wire_str("nope"), None);
     }
 }

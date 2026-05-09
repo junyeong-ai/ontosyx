@@ -5703,7 +5703,8 @@
       "event": {
         "quality_rule_failed": "품질 규칙 실패",
         "quality_rule_passed": "품질 규칙 통과",
-        "retrieval_lift_regression": "하이브리드 lift 회귀 감지"
+        "retrieval_lift_regression": "하이브리드 lift 회귀 감지",
+        "test": "테스트 알림"
       },
       "status": {
         "sent": "전송됨",

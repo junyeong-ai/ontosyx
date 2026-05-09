@@ -928,6 +928,8 @@ impl Modify for SecurityAddon {
             notifications::TestChannelResponse,
             ox_store::NotificationChannelType,
             ox_store::NotificationEventType,
+            ox_store::NotificationLogEventType,
+            ox_store::NotificationLogStatus,
             ox_store::WebhookNotificationConfig,
             ox_store::NotificationChannel,
             ox_store::NotificationLog,

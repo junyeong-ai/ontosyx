@@ -5,7 +5,9 @@ use uuid::Uuid;
 
 use ox_core::error::OxResult;
 
-use crate::models::{NotificationChannel, NotificationLog, WebhookNotificationConfig};
+use crate::models::{
+    NotificationChannel, NotificationEventType, NotificationLog, WebhookNotificationConfig,
+};
 
 #[async_trait]
 pub trait NotificationStore: Send + Sync {
@@ -17,14 +19,16 @@ pub trait NotificationStore: Send + Sync {
         id: Uuid,
         name: Option<&str>,
         config: Option<&WebhookNotificationConfig>,
-        events: Option<&[String]>,
+        events: Option<&[NotificationEventType]>,
         enabled: Option<bool>,
     ) -> OxResult<()>;
     async fn delete_notification_channel(&self, id: Uuid) -> OxResult<bool>;
 
     /// Find channels that subscribe to a given event type and are enabled.
-    async fn list_channels_for_event(&self, event_type: &str)
-    -> OxResult<Vec<NotificationChannel>>;
+    async fn list_channels_for_event(
+        &self,
+        event_type: NotificationEventType,
+    ) -> OxResult<Vec<NotificationChannel>>;
 
     async fn create_notification_log(&self, log: &NotificationLog) -> OxResult<()>;
     async fn list_notification_logs(&self, limit: i64) -> OxResult<Vec<NotificationLog>>;

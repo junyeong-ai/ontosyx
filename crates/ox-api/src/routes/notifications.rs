@@ -7,24 +7,27 @@ use uuid::Uuid;
 
 use ox_store::{
     NotificationChannel, NotificationChannelType, NotificationEventType, NotificationLog,
-    WebhookNotificationConfig,
+    NotificationLogEventType, NotificationLogStatus, WebhookNotificationConfig,
 };
 
 use crate::error::AppError;
 use crate::notifications::{send_test_message, validate_webhook_url};
 
-/// Reject any `events` element that is not in
-/// [`NotificationEventType::ALL`]. Returns the offending tag in
-/// the `notification_event_unknown` typed error so the FE can
-/// surface it back; persisted `events` arrays therefore can
-/// never drift away from the closed set.
-fn validate_events(events: &[String]) -> Result<(), AppError> {
-    for e in events {
-        if NotificationEventType::from_wire_str(e).is_none() {
-            return Err(AppError::notification_event_unknown(e.clone()));
-        }
-    }
-    Ok(())
+/// Parse a wire-string event list into the typed
+/// [`NotificationEventType`] vector the store layer expects,
+/// returning a typed `notification_event_unknown` 400 with
+/// the offending tag if any element is outside the closed
+/// set. Doubles as a drift gate — persisted `events` arrays
+/// therefore can never carry a tag that won't match a
+/// dispatcher.
+fn parse_events(events: &[String]) -> Result<Vec<NotificationEventType>, AppError> {
+    events
+        .iter()
+        .map(|e| {
+            NotificationEventType::from_wire_str(e)
+                .ok_or_else(|| AppError::notification_event_unknown(e.clone()))
+        })
+        .collect()
 }
 use crate::principal::Principal;
 use crate::response::ApiResponse;
@@ -61,7 +64,7 @@ pub(crate) async fn create_channel(
     principal.require_admin()?;
 
     validate_webhook_url(&req.config.url)?;
-    validate_events(&req.events)?;
+    let events = parse_events(&req.events)?;
 
     let channel = NotificationChannel {
         id: Uuid::new_v4(),
@@ -69,7 +72,7 @@ pub(crate) async fn create_channel(
         name: req.name,
         channel_type: req.channel_type,
         config: req.config,
-        events: req.events,
+        events,
         enabled: true,
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -141,9 +144,7 @@ pub(crate) async fn update_channel(
     if let Some(config) = &req.config {
         validate_webhook_url(&config.url)?;
     }
-    if let Some(events) = &req.events {
-        validate_events(events)?;
-    }
+    let events = req.events.as_deref().map(parse_events).transpose()?;
 
     state
         .store
@@ -151,7 +152,7 @@ pub(crate) async fn update_channel(
             id,
             req.name.as_deref(),
             req.config.as_ref(),
-            req.events.as_deref(),
+            events.as_deref(),
             req.enabled,
         )
         .await
@@ -236,19 +237,19 @@ pub(crate) async fn test_channel(
     let body = "This is a test notification from Ontosyx.";
     let result = send_test_message(&channel, subject, body).await;
 
+    let (status, error) = match &result {
+        Ok(()) => (NotificationLogStatus::Sent, None),
+        Err(msg) => (NotificationLogStatus::Failed, Some(msg.clone())),
+    };
     let log = NotificationLog {
         id: Uuid::new_v4(),
         workspace_id: ws.workspace_id,
         channel_id: channel.id,
-        event_type: "test".to_string(),
+        event_type: NotificationLogEventType::Test,
         subject: subject.to_string(),
         body: body.to_string(),
-        status: if result.is_ok() {
-            "sent".into()
-        } else {
-            "failed".into()
-        },
-        error: result.as_ref().err().cloned(),
+        status,
+        error,
         created_at: Utc::now(),
     };
 

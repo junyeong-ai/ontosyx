@@ -39,41 +39,35 @@ import type { components } from "@/types/api.generated";
 const CHANNEL_TYPE_VALUES = ["slack_webhook", "generic_webhook"] as const;
 
 type NotificationEventType = components["schemas"]["NotificationEventType"];
+type NotificationLogEventType =
+  components["schemas"]["NotificationLogEventType"];
+type NotificationLogStatus = components["schemas"]["NotificationLogStatus"];
 
-// Closed set of event tags that channels can subscribe to. The
+// Closed set of event tags channels can subscribe to. The
 // `satisfies` clause ensures every entry is a member of the BE
-// enum; the `_AssertExhaustive` ratchet below catches the
-// reverse direction — a new BE variant that this catalogue
-// has not yet absorbed fails the typecheck.
+// enum; the `_AssertExhaustive` ratchet catches the reverse
+// direction — a new BE variant that this catalogue has not
+// yet absorbed fails the typecheck.
 const EVENT_TYPE_VALUES = [
   "quality_rule_failed",
   "quality_rule_passed",
   "retrieval_lift_regression",
 ] as const satisfies readonly NotificationEventType[];
 
-type KnownEventType = (typeof EVENT_TYPE_VALUES)[number];
-
-type _AssertExhaustive = Exclude<NotificationEventType, KnownEventType> extends never
+type _AssertExhaustive = Exclude<
+  NotificationEventType,
+  (typeof EVENT_TYPE_VALUES)[number]
+> extends never
   ? true
   : never;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _assertExhaustive: _AssertExhaustive = true;
 
-function isKnownEventType(s: string): s is KnownEventType {
-  return (EVENT_TYPE_VALUES as readonly string[]).includes(s);
-}
-
-type KnownStatus = "sent" | "failed";
-
-function isKnownStatus(s: string): s is KnownStatus {
-  return s === "sent" || s === "failed";
-}
-
 type ChannelFormValues = {
   name: string;
   channel_type: NotificationChannelType;
   url: string;
-  events: string[];
+  events: NotificationEventType[];
 };
 
 const EMPTY_FORM: ChannelFormValues = {
@@ -272,7 +266,7 @@ export default function NotificationsSettingsPage() {
   const deletingId = deleteMutation.isPending ? deleteMutation.variables : null;
 
   // ---- Event checkbox toggle ----
-  const toggleEvent = (eventValue: string) => {
+  const toggleEvent = (eventValue: NotificationEventType) => {
     setForm((prev) => ({
       ...prev,
       events: prev.events.includes(eventValue)
@@ -282,8 +276,7 @@ export default function NotificationsSettingsPage() {
     clearError("events");
   };
 
-  const eventLabel = (ev: string) =>
-    isKnownEventType(ev) ? t(`event.${ev}`) : ev;
+  const eventLabel = (ev: NotificationLogEventType) => t(`event.${ev}`);
 
   if (channelsQuery.isLoading || channelsQuery.isError) {
     const pageState: PageState = channelsQuery.isLoading
@@ -497,17 +490,15 @@ function ChannelTypeBadge({ type }: { type: NotificationChannelType }) {
   );
 }
 
-function DeliveryStatusBadge({ status }: { status: string }) {
+function DeliveryStatusBadge({ status }: { status: NotificationLogStatus }) {
   const t = useTranslations("account.notifications");
-  const label = isKnownStatus(status) ? t(`status.${status}`) : status;
-  const tone =
-    status === "sent" ? "success" : status === "failed" ? "danger" : "neutral";
+  const tone = status === "sent" ? "success" : "danger";
   return (
     <StatusBadge
       tone={tone}
       className="font-semibold uppercase tracking-wider"
     >
-      {label}
+      {t(`status.${status}`)}
     </StatusBadge>
   );
 }
@@ -531,7 +522,7 @@ function ChannelForm({
   setForm: React.Dispatch<React.SetStateAction<ChannelFormValues>>;
   errors: Record<string, string>;
   clearError: (field: string) => void;
-  toggleEvent: (eventValue: string) => void;
+  toggleEvent: (eventValue: NotificationEventType) => void;
   isEditing: boolean;
   saving: boolean;
   onSubmit: (e: React.FormEvent) => void;
