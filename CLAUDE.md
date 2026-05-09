@@ -123,7 +123,7 @@ crate:
 - **0022** `PluginRegistry<T>` for FE extensibility surfaces.
 - **0023** `HeuristicProposal` queue + no-auto-decisions.
 - **0024** `advisory_lock` boot + cron singleton coordination.
-- **0025** Migration immutability + SHA-pinned baseline.
+- **0026** Design system Φ1–Φ7 landed.
 
 Adding a new architectural decision = new MADR-lite file in
 `docs/adr/NNNN-kebab-title.md` + one line in

@@ -28,7 +28,7 @@ max_connections = 32
 min_connections = 5
 
 [llm]
-provider = "claude-code"       # anthropic | bedrock | claude-code
+provider = "anthropic"         # anthropic | bedrock | claude-code
 model = "claude-sonnet-4-6"
 # api_key = ""                # prefer OX_LLM__API_KEY env var
 # base_url = ""               # override for compatible endpoints
@@ -36,13 +36,13 @@ model = "claude-sonnet-4-6"
 # Bedrock cross-region: global.anthropic.claude-sonnet-4-5-20250929-v1:0, us.anthropic.claude-sonnet-4-6
 
 [fast_llm]
-provider = "claude-code"
+provider = "anthropic"
 model = "claude-haiku-4-5"
 
 [embedding]
-provider = "onnx"                               # noop | onnx
+provider = "noop"                               # noop | onnx
 model = "~/.cache/ontosyx/models/jina-embeddings-v5-text-small-retrieval"
-dimensions = 1024                               # auto-detected from model, used as fallback for noop
+dimensions = 1024                               # used by noop; auto-detected when onnx feature is enabled
 
 [auth]
 jwt_secret = "6V0qPK4eNUqKmOOYITF/pgtf0eAr2wLGjAM9NMmB+bY="

@@ -1,30 +1,42 @@
-# ---- Builder ----
-FROM rust:1.94-bookworm AS builder
+# syntax=docker/dockerfile:1.7
+
+# ---- Cargo Chef Base ----
+FROM rust:1.95-bookworm AS chef
 
 WORKDIR /app
 
-# Cache dependencies: copy only manifests first
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libprotobuf-dev \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo install cargo-chef --locked
+
+# ---- Dependency Planner ----
+FROM chef AS planner
+
 COPY Cargo.toml Cargo.lock ./
-COPY crates/ox-core/Cargo.toml crates/ox-core/
-COPY crates/ox-compiler/Cargo.toml crates/ox-compiler/
-COPY crates/ox-runtime/Cargo.toml crates/ox-runtime/
-COPY crates/ox-brain/Cargo.toml crates/ox-brain/
-COPY crates/ox-source/Cargo.toml crates/ox-source/
-COPY crates/ox-store/Cargo.toml crates/ox-store/
-COPY crates/ox-api/Cargo.toml crates/ox-api/
-
-# Create dummy source files so cargo can resolve the workspace
-RUN for dir in crates/*/; do \
-        mkdir -p "$dir/src" && echo "" > "$dir/src/lib.rs"; \
-    done && \
-    echo "fn main() {}" > crates/ox-api/src/main.rs
-
-# Build dependencies only (this layer is cached unless Cargo.toml/lock change)
-RUN cargo build --release --bin ontosyx 2>/dev/null || true
-
-# Copy actual source and rebuild
 COPY crates/ crates/
-RUN touch crates/*/src/*.rs && cargo build --release --bin ontosyx
+RUN cargo chef prepare --recipe-path recipe.json
+
+# ---- Builder ----
+FROM chef AS builder
+
+COPY --from=planner /app/recipe.json recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo chef cook --profile container --bin ontosyx --features source-all --recipe-path recipe.json
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ crates/
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build --profile container --bin ontosyx --features source-all && \
+    cp /app/target/container/ontosyx /usr/local/bin/ontosyx
 
 # ---- Runtime ----
 FROM debian:bookworm-slim
@@ -40,7 +52,7 @@ RUN groupadd --gid 1000 app && \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/ontosyx /usr/local/bin/ontosyx
+COPY --from=builder /usr/local/bin/ontosyx /usr/local/bin/ontosyx
 COPY prompts/ /app/prompts/
 
 # Config file is optional (env vars override everything), but copy if present
@@ -50,6 +62,6 @@ RUN chown -R app:app /app
 
 USER app
 
-EXPOSE 3001
+EXPOSE 3101
 
 CMD ["ontosyx"]

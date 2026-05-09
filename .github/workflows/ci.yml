@@ -9,6 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  RUST_TOOLCHAIN: 1.95.0
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -19,8 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
 
@@ -38,7 +40,9 @@ jobs:
     needs: lint
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
 
       - uses: ./.github/actions/install-onnxruntime
@@ -54,16 +58,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: dtolnay/rust-toolchain@master
         with:
-          command: check
-          arguments: --all-features
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+      - name: cargo-deny (all features)
+        run: cargo deny --all-features check --hide-inclusion-graph
 
   # ---------------------------------------------------------------------------
   # RLS enforcement — runs the `#[ignore]`-gated tests in
   # `crates/ox-store/tests/rls_enforcement.rs` against a live Postgres.
   #
-  # These tests validate that `0004_rls.sql` actually isolates workspaces
+  # These tests validate that the canonical schema isolates workspaces
   # at the row level. They can only run with a real DB connection, so we
   # keep them out of the default `cargo test` and gate them behind this
   # dedicated job. A missing or mis-applied RLS policy fails this job and
@@ -91,7 +99,9 @@ jobs:
       OX_TEST_DATABASE_URL: postgres://ontosyx_app:ontosyx-dev@localhost:5432/ontosyx
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
 
       - uses: ./.github/actions/install-onnxruntime
@@ -116,15 +126,14 @@ jobs:
         # name modules instead of binaries.
         #
         # `rls_invariants` is the catalog-scan gate that fails when a
-        # new migration adds a `workspace_id` column without the four
-        # required RLS clauses. `eval_retrieval_golden` is the
+        # workspace-scoped table is added without the required RLS clauses.
+        # `eval_retrieval_golden` is the
         # deterministic IR-axis retrieval gate; it fails the PR when
         # the navigation blend regresses on the frozen golden fixture.
         run: |
           cargo test -p ox-store --test integration -- --ignored --nocapture --test-threads=1 \
             integration::rls_enforcement \
             integration::rls_invariants \
-            integration::migration_0007 \
             integration::temporal \
             integration::eval_retrieval_golden
 
@@ -154,10 +163,10 @@ jobs:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 11.0.3
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -194,6 +203,23 @@ jobs:
         # asserts every wire string has a matching `errors.<code>` in
         # both ko + en bundles, with no stale templates in either.
         run: pnpm error-code-parity-audit
+      - name: API error envelope audit
+        # Rejects legacy local Next HTTP errors shaped as
+        # `{ error: { type, message } }`. Local route handlers must
+        # share the backend's canonical
+        # `{ error: { code, class, params } }` envelope.
+        run: pnpm api-error-envelope-audit
+      - name: Platform port parity audit
+        # Keeps Docker, Rust defaults, dev scripts, BFF proxy defaults,
+        # and docs on the same backend API port contract. A drift here
+        # becomes browser-side 503 noise even when the server is healthy.
+        run: pnpm platform-port-parity-audit
+      - name: Source feature parity audit
+        # Every optional adapter registered by ox-source must be
+        # exposed as an ox-api `source-*` feature, so deployment
+        # builds enable connectors through the server crate instead
+        # of reaching into lower-layer feature names.
+        run: pnpm source-feature-parity-audit
       - name: Heading primitive audit
         # One-way ratchet on raw `<hN className=…>` JSX elements.
         # The baseline (`scripts/heading-primitive.baseline.json`) is
@@ -251,14 +277,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 11.0.3
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
@@ -277,7 +305,9 @@ jobs:
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - name: Run cargo-audit
         uses: rustsec/audit-check@v2
         with:
@@ -292,7 +322,9 @@ jobs:
     if: contains(github.event.pull_request.labels.*.name, 'e2e-korean')
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-onnxruntime
       - name: Run Korean E2E
@@ -307,7 +339,9 @@ jobs:
     if: contains(github.event.pull_request.labels.*.name, 'token-bench')
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-onnxruntime
       - name: Run token regression check
@@ -327,10 +361,10 @@ jobs:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 11.0.3
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -363,10 +397,10 @@ jobs:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 11.0.3
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -391,7 +425,9 @@ jobs:
     if: contains(github.event.pull_request.labels.*.name, 'bench')
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-onnxruntime
       - name: Run benches

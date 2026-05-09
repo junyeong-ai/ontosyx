@@ -38,8 +38,8 @@ Next.js 16, React 19, Tailwind CSS 4, Zustand 5, streamdown (AI-optimized stream
 
 ### Prerequisites
 
-- Rust 1.94+
-- Node.js 22+ / pnpm 10+
+- Rust 1.95+
+- Node.js 24+ / pnpm 11+
 - Docker (Neo4j + PostgreSQL with pgvector)
 
 ### Setup
@@ -65,6 +65,13 @@ Next.js 16, React 19, Tailwind CSS 4, Zustand 5, streamdown (AI-optimized stream
 ./scripts/dev.sh fe log       # Tail frontend logs
 ./scripts/dev.sh stop         # Stop BE + FE
 ./scripts/dev.sh clean        # Full reset (volumes + rebuild)
+```
+
+Backend dev builds use the product connector bundle by default:
+
+```bash
+OX_CARGO_FEATURES=source-all ./scripts/dev.sh be restart  # default
+OX_CARGO_FEATURES="" ./scripts/dev.sh be restart          # lean build
 ```
 
 ### URLs
