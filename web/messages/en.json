@@ -3121,7 +3121,8 @@
           },
           "winRateNCases": "win rate {winRate}% · {n} pairs",
           "liftAriaLabel": "lift {lift}, win rate {winRate}%, {n} paired cases",
-          "emptyCell": "No paired cases on this cell"
+          "emptyCell": "No paired cases on this cell",
+          "downloadCsv": "Download CSV"
         },
         "caseKey": "Case",
         "latency": "Latency",
@@ -3306,6 +3307,24 @@
           "small": "small",
           "medium": "medium",
           "large": "large"
+        },
+        "retrievalLiftDelta": {
+          "title": "Hybrid lift regression",
+          "description": "Per-(surface, axis) change in hybrid mean lift between the two runs. Positive = hybrid is helping more in the candidate run than the baseline.",
+          "col": {
+            "surface": "Surface",
+            "axis": "Axis",
+            "baselineLift": "Baseline lift",
+            "candidateLift": "Candidate lift",
+            "liftDelta": "Δ lift",
+            "pairedCounts": "Pairs (B / C)"
+          },
+          "pairedCountsCell": "{baseline} / {candidate}",
+          "surface": {
+            "verifiedQuery": "Verified queries",
+            "communitySummary": "Community summaries",
+            "knowledgeEntry": "Knowledge entries"
+          }
         }
       }
     },

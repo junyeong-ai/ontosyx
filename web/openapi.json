@@ -36275,6 +36275,50 @@
           }
         }
       },
+      "RetrievalComparisonDelta": {
+        "type": "object",
+        "description": "One run-vs-run lift delta for a `(surface, axis)` cell. The\ndashboard renders this above the per-axis report so a\nregression review sees \"did the candidate run lose any of\nthe hybrid lift the baseline run captured?\" without manual\narithmetic.\n\n`paired_case_count_*` denominators are surfaced separately\nbecause the two runs may differ — a candidate run that ran\nfewer comparison cases shouldn't be read the same as one\nwith the same denominator. The FE displays both and lets the\noperator gauge whether the delta is statistically meaningful.",
+        "required": [
+          "surface",
+          "axis",
+          "baseline_lift",
+          "candidate_lift",
+          "lift_delta",
+          "baseline_paired_case_count",
+          "candidate_paired_case_count"
+        ],
+        "properties": {
+          "axis": {
+            "type": "string"
+          },
+          "baseline_lift": {
+            "type": "number",
+            "format": "double"
+          },
+          "baseline_paired_case_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "candidate_lift": {
+            "type": "number",
+            "format": "double"
+          },
+          "candidate_paired_case_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "lift_delta": {
+            "type": "number",
+            "format": "double",
+            "description": "`candidate_lift − baseline_lift`. Positive = hybrid\nimproved between runs; negative = regression."
+          },
+          "surface": {
+            "$ref": "#/components/schemas/RetrievalSurface"
+          }
+        }
+      },
       "RetrievalLeg": {
         "type": "object",
         "description": "One leg of an [`EvaluationActual::RetrievalComparison`] —\neither the hybrid path or the trigram-only baseline.",
@@ -37087,6 +37131,13 @@
             "items": {
               "$ref": "#/components/schemas/RunMetricDelta"
             }
+          },
+          "retrieval_comparison_deltas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetrievalComparisonDelta"
+            },
+            "description": "Per-(surface, axis) hybrid lift change between runs.\n`candidate_lift − baseline_lift` — positive means hybrid\nis helping more in the candidate run than the baseline.\nEmpty when neither run has any `retrieval_comparison`\ncases, so the FE switches the lift-diff card on\n`len() > 0`."
           }
         }
       },

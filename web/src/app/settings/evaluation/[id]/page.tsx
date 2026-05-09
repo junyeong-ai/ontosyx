@@ -537,6 +537,7 @@ export default function EvaluationDetailPage({
         {summaryQuery.data ? (
           <RunComparisonAggregate
             rows={summaryQuery.data.retrieval_comparisons ?? []}
+            runId={id}
           />
         ) : null}
 

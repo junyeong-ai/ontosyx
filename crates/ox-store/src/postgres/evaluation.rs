@@ -983,12 +983,116 @@ impl EvaluationStore for PostgresStore {
             });
         }
 
+        // Per-(surface, axis) hybrid-lift delta between the two
+        // runs. Single round-trip: fold each run's
+        // `<surface>.<leg>.<axis>` rows into `(run_role,
+        // surface, axis) → mean_lift` and pair them in the
+        // outer SELECT. A run that has no `retrieval_comparison`
+        // cases simply contributes no rows; the LEFT JOIN drops
+        // cells with no overlap so the FE never renders a
+        // half-populated row.
+        let comparison_rows: Vec<(String, String, f64, f64, f64, i64, i64)> = sqlx::query_as(
+            "WITH parsed AS (
+                SELECT
+                  c.run_id,
+                  c.id AS case_id,
+                  SPLIT_PART(m.name, '.', 1) AS surface,
+                  SPLIT_PART(m.name, '.', 2) AS leg,
+                  SPLIT_PART(m.name, '.', 3) AS axis,
+                  m.score
+                FROM evaluation_metrics m
+                JOIN evaluation_cases c ON c.id = m.case_id
+                WHERE c.run_id IN ($1, $2)
+                  AND m.name LIKE '%.%.%'
+            ),
+            paired AS (
+                SELECT
+                  run_id,
+                  surface,
+                  axis,
+                  case_id,
+                  MAX(CASE WHEN leg = 'hybrid'  THEN score END) AS hybrid_score,
+                  MAX(CASE WHEN leg = 'trigram' THEN score END) AS trigram_score
+                FROM parsed
+                WHERE surface IN ('verified_query', 'community_summary', 'knowledge_entry')
+                  AND leg IN ('hybrid', 'trigram')
+                  AND axis IN ('precision_at_k', 'recall_at_k', 'mrr', 'ndcg_at_k')
+                GROUP BY run_id, surface, axis, case_id
+                HAVING MAX(CASE WHEN leg = 'hybrid'  THEN score END) IS NOT NULL
+                   AND MAX(CASE WHEN leg = 'trigram' THEN score END) IS NOT NULL
+            ),
+            agg AS (
+                SELECT
+                  run_id,
+                  surface,
+                  axis,
+                  AVG(hybrid_score - trigram_score)::float8 AS mean_lift,
+                  COUNT(*)::int8 AS paired_n
+                FROM paired
+                GROUP BY run_id, surface, axis
+            )
+            SELECT
+              COALESCE(b.surface, c.surface)::text AS surface,
+              COALESCE(b.axis,    c.axis)::text    AS axis,
+              COALESCE(b.mean_lift, 0.0)::float8   AS baseline_lift,
+              COALESCE(c.mean_lift, 0.0)::float8   AS candidate_lift,
+              (COALESCE(c.mean_lift, 0.0) - COALESCE(b.mean_lift, 0.0))::float8 AS lift_delta,
+              COALESCE(b.paired_n, 0)::int8        AS baseline_paired_n,
+              COALESCE(c.paired_n, 0)::int8        AS candidate_paired_n
+            FROM (SELECT * FROM agg WHERE run_id = $1) b
+            FULL OUTER JOIN (SELECT * FROM agg WHERE run_id = $2) c
+              USING (surface, axis)
+            ORDER BY surface ASC, axis ASC",
+        )
+        .bind(baseline_run_id)
+        .bind(candidate_run_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        let retrieval_comparison_deltas: Vec<crate::evaluation::RetrievalComparisonDelta> =
+            comparison_rows
+                .into_iter()
+                .filter_map(
+                    |(
+                        surface,
+                        axis,
+                        baseline_lift,
+                        candidate_lift,
+                        lift_delta,
+                        baseline_n,
+                        candidate_n,
+                    )| {
+                        let surface = match surface.as_str() {
+                            "verified_query" => crate::evaluation::RetrievalSurface::VerifiedQuery,
+                            "community_summary" => {
+                                crate::evaluation::RetrievalSurface::CommunitySummary
+                            }
+                            "knowledge_entry" => {
+                                crate::evaluation::RetrievalSurface::KnowledgeEntry
+                            }
+                            _ => return None,
+                        };
+                        Some(crate::evaluation::RetrievalComparisonDelta {
+                            surface,
+                            axis,
+                            baseline_lift,
+                            candidate_lift,
+                            lift_delta,
+                            baseline_paired_case_count: baseline_n.max(0) as u64,
+                            candidate_paired_case_count: candidate_n.max(0) as u64,
+                        })
+                    },
+                )
+                .collect();
+
         Ok(RunComparisonReport {
             baseline_run_id,
             candidate_run_id,
             dataset_id,
             per_case,
             per_axis,
+            retrieval_comparison_deltas,
         })
     }
 

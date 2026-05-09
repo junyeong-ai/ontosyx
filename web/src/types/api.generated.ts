@@ -12325,6 +12325,37 @@ export interface components {
             win_rate_pct: number;
         };
         /**
+         * @description One run-vs-run lift delta for a `(surface, axis)` cell. The
+         *     dashboard renders this above the per-axis report so a
+         *     regression review sees "did the candidate run lose any of
+         *     the hybrid lift the baseline run captured?" without manual
+         *     arithmetic.
+         *
+         *     `paired_case_count_*` denominators are surfaced separately
+         *     because the two runs may differ — a candidate run that ran
+         *     fewer comparison cases shouldn't be read the same as one
+         *     with the same denominator. The FE displays both and lets the
+         *     operator gauge whether the delta is statistically meaningful.
+         */
+        RetrievalComparisonDelta: {
+            axis: string;
+            /** Format: double */
+            baseline_lift: number;
+            /** Format: int64 */
+            baseline_paired_case_count: number;
+            /** Format: double */
+            candidate_lift: number;
+            /** Format: int64 */
+            candidate_paired_case_count: number;
+            /**
+             * Format: double
+             * @description `candidate_lift − baseline_lift`. Positive = hybrid
+             *     improved between runs; negative = regression.
+             */
+            lift_delta: number;
+            surface: components["schemas"]["RetrievalSurface"];
+        };
+        /**
          * @description One leg of an [`EvaluationActual::RetrievalComparison`] —
          *     either the hybrid path or the trigram-only baseline.
          */
@@ -12723,6 +12754,15 @@ export interface components {
             dataset_id: string;
             per_axis: components["schemas"]["RunAxisSummary"][];
             per_case: components["schemas"]["RunMetricDelta"][];
+            /**
+             * @description Per-(surface, axis) hybrid lift change between runs.
+             *     `candidate_lift − baseline_lift` — positive means hybrid
+             *     is helping more in the candidate run than the baseline.
+             *     Empty when neither run has any `retrieval_comparison`
+             *     cases, so the FE switches the lift-diff card on
+             *     `len() > 0`.
+             */
+            retrieval_comparison_deltas?: components["schemas"]["RetrievalComparisonDelta"][];
         };
         /**
          * @description One per-case axis-level diff between two runs over the same

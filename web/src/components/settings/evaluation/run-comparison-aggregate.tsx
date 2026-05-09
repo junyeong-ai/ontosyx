@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
 
+import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { cn } from "@/lib/cn";
+import { toCsv, triggerCsvDownload } from "@/lib/csv";
 import type { components } from "@/types/api.generated";
 
 type RetrievalComparisonAggregate =
@@ -32,6 +34,13 @@ type RetrievalSurface = components["schemas"]["RetrievalSurface"];
  */
 export interface RunComparisonAggregateProps {
   rows: readonly RetrievalComparisonAggregate[];
+  /**
+   * Run identifier — used in the CSV download filename so
+   * exported sheets resolve to a specific run when the operator
+   * shares them in Slack or Excel. Optional so the component
+   * still renders correctly inside fixture-based unit tests.
+   */
+  runId?: string;
 }
 
 const SURFACE_ORDER: readonly RetrievalSurface[] = [
@@ -47,7 +56,10 @@ const AXIS_ORDER = [
   "ndcg_at_k",
 ] as const;
 
-export function RunComparisonAggregate({ rows }: RunComparisonAggregateProps) {
+export function RunComparisonAggregate({
+  rows,
+  runId,
+}: RunComparisonAggregateProps) {
   const t = useTranslations("settings.evaluation.detail.runComparisonAggregate");
 
   const grid = useMemo(() => {
@@ -58,13 +70,57 @@ export function RunComparisonAggregate({ rows }: RunComparisonAggregateProps) {
     return map;
   }, [rows]);
 
+  const onDownloadCsv = useCallback(() => {
+    const header = [
+      "surface",
+      "axis",
+      "paired_case_count",
+      "hybrid_mean",
+      "trigram_mean",
+      "mean_lift",
+      "win_rate_pct",
+    ];
+    // Sort by (surface, axis) for stable downloaded output —
+    // the BE already emits in that order, but we re-sort
+    // defensively so an out-of-order props array doesn't shift
+    // the CSV between runs.
+    const sorted = [...rows].sort((a, b) => {
+      if (a.surface !== b.surface) return a.surface < b.surface ? -1 : 1;
+      return a.axis < b.axis ? -1 : a.axis > b.axis ? 1 : 0;
+    });
+    const body = sorted.map((r) => [
+      r.surface,
+      r.axis,
+      r.paired_case_count,
+      r.hybrid_mean.toFixed(6),
+      r.trigram_mean.toFixed(6),
+      r.mean_lift.toFixed(6),
+      r.win_rate_pct.toFixed(2),
+    ]);
+    const csv = toCsv(header, body);
+    const filename = runId
+      ? `retrieval-comparison-${runId}.csv`
+      : "retrieval-comparison.csv";
+    triggerCsvDownload(filename, csv);
+  }, [rows, runId]);
+
   if (rows.length === 0) return null;
 
   return (
     <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">
-      <Heading level={2} size={5}>
-        {t("title")}
-      </Heading>
+      <header className="flex items-baseline justify-between gap-3">
+        <Heading level={2} size={5}>
+          {t("title")}
+        </Heading>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onDownloadCsv}
+        >
+          {t("downloadCsv")}
+        </Button>
+      </header>
       <p className="mt-1 text-xs text-foreground-muted">{t("description")}</p>
 
       <div className="mt-3 overflow-x-auto">

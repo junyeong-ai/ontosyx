@@ -16,11 +16,15 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
 import { SettingsSelect } from "@/components/ui/form-input";
 import { cn } from "@/lib/cn";
+import type { components } from "@/types/api.generated";
 import type {
   EvaluationRun,
   RunAxisSummary,
   RunMetricDelta,
 } from "@/types/evaluation";
+
+type RetrievalComparisonDelta =
+  components["schemas"]["RetrievalComparisonDelta"];
 
 /** Map a `mean_delta` to a style hint — green improvement,
  *  red regression, neutral when the delta is below the
@@ -67,6 +71,127 @@ function formatCohenD(t: ReturnType<typeof useTranslations>, d?: number): string
   else if (abs < 0.8) band = "medium";
   else band = "large";
   return `${d.toFixed(2)} (${t(`bandLabel.${band}`)})`;
+}
+
+/// Render the run-vs-run hybrid retrieval lift delta. Each row
+/// is one (surface, axis) cell carrying both runs' average lift
+/// + the inter-run delta. Tone keys off `lift_delta` so a
+/// regression (candidate's lift dropped vs baseline) reads in
+/// danger tone, an improvement in success tone, parity in
+/// muted. Section disappears when neither run had any
+/// retrieval_comparison cases (BE skips the field).
+function RetrievalLiftDeltaSection({
+  rows,
+}: {
+  rows: readonly RetrievalComparisonDelta[];
+}) {
+  const t = useTranslations("settings.evaluation.diff");
+  if (rows.length === 0) return null;
+  return (
+    <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">
+      <Heading level={2} size={5}>
+        {t("retrievalLiftDelta.title")}
+      </Heading>
+      <p className="mt-1 text-xs text-foreground-muted">
+        {t("retrievalLiftDelta.description")}
+      </p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-start text-2xs font-medium uppercase tracking-wide text-foreground-muted">
+              <th className="px-4 py-2 text-start">
+                {t("retrievalLiftDelta.col.surface")}
+              </th>
+              <th className="px-4 py-2 text-start">
+                {t("retrievalLiftDelta.col.axis")}
+              </th>
+              <th className="px-4 py-2 text-end">
+                {t("retrievalLiftDelta.col.baselineLift")}
+              </th>
+              <th className="px-4 py-2 text-end">
+                {t("retrievalLiftDelta.col.candidateLift")}
+              </th>
+              <th className="px-4 py-2 text-end">
+                {t("retrievalLiftDelta.col.liftDelta")}
+              </th>
+              <th className="px-4 py-2 text-end">
+                {t("retrievalLiftDelta.col.pairedCounts")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <RetrievalLiftDeltaRow
+                key={`${row.surface}\x1f${row.axis}`}
+                row={row}
+                t={t}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function RetrievalLiftDeltaRow({
+  row,
+  t,
+}: {
+  row: RetrievalComparisonDelta;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  const tone = deltaTone(row.lift_delta);
+  return (
+    <tr className="border-t border-divider">
+      <td className="px-4 py-2 font-medium">
+        {t(`retrievalLiftDelta.surface.${surfaceI18nKey(row.surface)}`)}
+      </td>
+      <td className="px-4 py-2 text-foreground-muted">{row.axis}</td>
+      <td className="px-4 py-2 text-end tabular-nums">
+        {formatLiftCell(row.baseline_lift)}
+      </td>
+      <td className="px-4 py-2 text-end tabular-nums">
+        {formatLiftCell(row.candidate_lift)}
+      </td>
+      <td
+        className={cn(
+          "px-4 py-2 text-end tabular-nums font-medium",
+          TONE_FG[tone],
+        )}
+      >
+        {formatLiftCell(row.lift_delta)}
+      </td>
+      <td className="px-4 py-2 text-end tabular-nums text-foreground-muted">
+        {t("retrievalLiftDelta.pairedCountsCell", {
+          baseline: row.baseline_paired_case_count,
+          candidate: row.candidate_paired_case_count,
+        })}
+      </td>
+    </tr>
+  );
+}
+
+function formatLiftCell(value: number): string {
+  // Same parity tolerance as the per-case + per-run aggregate
+  // surfaces — `|x| < 1e-6` reads as `±0.000`. f64 round-trip
+  // noise from `AVG(...)` over many cases can produce a near-
+  // zero non-zero that would otherwise flicker tone.
+  if (Math.abs(value) < 1e-6) return "±0.000";
+  return (value > 0 ? "+" : "") + value.toFixed(3);
+}
+
+function surfaceI18nKey(surface: string): string {
+  switch (surface) {
+    case "verified_query":
+      return "verifiedQuery";
+    case "community_summary":
+      return "communitySummary";
+    case "knowledge_entry":
+      return "knowledgeEntry";
+    default:
+      return surface;
+  }
 }
 
 interface PerAxisRowProps {
@@ -284,6 +409,10 @@ export default function EvaluationDiffPage() {
                 </div>
               )}
             </section>
+
+            <RetrievalLiftDeltaSection
+              rows={diffQuery.data.retrieval_comparison_deltas ?? []}
+            />
 
             <section className="rounded-xl border border-divider bg-surface-base p-4">
               <Heading level={2} size={5}>

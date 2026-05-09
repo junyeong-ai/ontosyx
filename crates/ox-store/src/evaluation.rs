@@ -709,6 +709,38 @@ pub struct RunComparisonReport {
     pub dataset_id: Uuid,
     pub per_case: Vec<RunMetricDelta>,
     pub per_axis: Vec<RunAxisSummary>,
+    /// Per-(surface, axis) hybrid lift change between runs.
+    /// `candidate_lift − baseline_lift` — positive means hybrid
+    /// is helping more in the candidate run than the baseline.
+    /// Empty when neither run has any `retrieval_comparison`
+    /// cases, so the FE switches the lift-diff card on
+    /// `len() > 0`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retrieval_comparison_deltas: Vec<RetrievalComparisonDelta>,
+}
+
+/// One run-vs-run lift delta for a `(surface, axis)` cell. The
+/// dashboard renders this above the per-axis report so a
+/// regression review sees "did the candidate run lose any of
+/// the hybrid lift the baseline run captured?" without manual
+/// arithmetic.
+///
+/// `paired_case_count_*` denominators are surfaced separately
+/// because the two runs may differ — a candidate run that ran
+/// fewer comparison cases shouldn't be read the same as one
+/// with the same denominator. The FE displays both and lets the
+/// operator gauge whether the delta is statistically meaningful.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct RetrievalComparisonDelta {
+    pub surface: RetrievalSurface,
+    pub axis: String,
+    pub baseline_lift: f64,
+    pub candidate_lift: f64,
+    /// `candidate_lift − baseline_lift`. Positive = hybrid
+    /// improved between runs; negative = regression.
+    pub lift_delta: f64,
+    pub baseline_paired_case_count: u64,
+    pub candidate_paired_case_count: u64,
 }
 
 /// One score on one rubric axis for one case. Mirrors the
@@ -1281,8 +1313,40 @@ mod tests {
                 delta: 0.1,
             }],
             per_axis: vec![],
+            retrieval_comparison_deltas: vec![],
         };
         let v = serde_json::to_value(&r).unwrap();
+        // Empty deltas skip on the wire so reports without
+        // retrieval_comparison cases stay tight.
+        assert!(v.get("retrieval_comparison_deltas").is_none());
+        let back: RunComparisonReport = serde_json::from_value(v).unwrap();
+        assert_eq!(back, r);
+    }
+
+    #[test]
+    fn run_comparison_report_emits_retrieval_deltas() {
+        let r = RunComparisonReport {
+            baseline_run_id: Uuid::new_v4(),
+            candidate_run_id: Uuid::new_v4(),
+            dataset_id: Uuid::new_v4(),
+            per_case: vec![],
+            per_axis: vec![],
+            retrieval_comparison_deltas: vec![RetrievalComparisonDelta {
+                surface: RetrievalSurface::VerifiedQuery,
+                axis: "recall_at_k".into(),
+                baseline_lift: 0.10,
+                candidate_lift: 0.18,
+                lift_delta: 0.08,
+                baseline_paired_case_count: 12,
+                candidate_paired_case_count: 12,
+            }],
+        };
+        let v = serde_json::to_value(&r).unwrap();
+        assert_eq!(
+            v["retrieval_comparison_deltas"][0]["surface"],
+            "verified_query"
+        );
+        assert_eq!(v["retrieval_comparison_deltas"][0]["lift_delta"], 0.08);
         let back: RunComparisonReport = serde_json::from_value(v).unwrap();
         assert_eq!(back, r);
     }

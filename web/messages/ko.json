@@ -3121,7 +3121,8 @@
           },
           "winRateNCases": "승률 {winRate}% · {n} 페어",
           "liftAriaLabel": "lift {lift}, 승률 {winRate}%, 페어 {n} 건",
-          "emptyCell": "이 셀에 페어된 케이스가 없습니다"
+          "emptyCell": "이 셀에 페어된 케이스가 없습니다",
+          "downloadCsv": "CSV 다운로드"
         },
         "caseKey": "케이스",
         "latency": "지연",
@@ -3306,6 +3307,24 @@
           "small": "작음",
           "medium": "중간",
           "large": "큼"
+        },
+        "retrievalLiftDelta": {
+          "title": "하이브리드 lift 회귀",
+          "description": "두 실행 간 (검색 표면 × 축) 별 hybrid 평균 lift 변화. 양수면 후보 실행에서 hybrid 가 더 도움이 됨.",
+          "col": {
+            "surface": "검색 표면",
+            "axis": "축",
+            "baselineLift": "기준 lift",
+            "candidateLift": "후보 lift",
+            "liftDelta": "Δ lift",
+            "pairedCounts": "페어 (B / C)"
+          },
+          "pairedCountsCell": "{baseline} / {candidate}",
+          "surface": {
+            "verifiedQuery": "Verified queries",
+            "communitySummary": "Community summaries",
+            "knowledgeEntry": "Knowledge entries"
+          }
         }
       }
     },

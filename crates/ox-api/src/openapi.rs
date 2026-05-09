@@ -534,6 +534,7 @@ impl Modify for SecurityAddon {
             ox_store::evaluation::RetrievalSurface,
             ox_store::evaluation::RetrievalLeg,
             ox_store::evaluation::RetrievalComparisonAggregate,
+            ox_store::evaluation::RetrievalComparisonDelta,
             ox_store::evaluation::EvaluationRetrievedAnchor,
             ox_store::evaluation::EvaluationCaseMetadata,
             ox_store::evaluation::EvaluationMetricMetadata,
