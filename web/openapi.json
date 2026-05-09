@@ -21412,7 +21412,7 @@
             ],
             "properties": {
               "hybrid": {
-                "$ref": "#/components/schemas/RetrievalLeg"
+                "$ref": "#/components/schemas/RetrievalLegResult"
               },
               "kind": {
                 "type": "string",
@@ -21424,7 +21424,7 @@
                 "$ref": "#/components/schemas/RetrievalSurface"
               },
               "trigram": {
-                "$ref": "#/components/schemas/RetrievalLeg"
+                "$ref": "#/components/schemas/RetrievalLegResult"
               }
             }
           }
@@ -36095,27 +36095,6 @@
           }
         }
       },
-      "RegressionPolicy": {
-        "type": "object",
-        "description": "Regression alarm policy threaded through\n[`crate::EvaluationStore::compare_evaluation_runs`]. Carries\nthe threshold + min-N gate the alarm uses; the route layer\nloads it from the workspace's\n[`WorkspaceEvaluationSettings`] (or platform defaults) and\npasses it through. Keeping this explicit on the trait\nsignature means the store layer never reads workspace\nsettings implicitly — the seam is clean.",
-        "required": [
-          "threshold",
-          "min_paired_case_count"
-        ],
-        "properties": {
-          "min_paired_case_count": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Minimum paired-case denominator on the candidate run\nbefore the alarm fires.",
-            "minimum": 0
-          },
-          "threshold": {
-            "type": "number",
-            "format": "double",
-            "description": "Negative cut. Alarm fires when\n`lift_delta < threshold`. Must be negative — the\nsignature mirrors the platform default semantics."
-          }
-        }
-      },
       "RelationshipPattern": {
         "type": "object",
         "description": "A relationship pattern in the graph schema.",
@@ -36440,6 +36419,16 @@
           }
         }
       },
+      "RetrievalAxis": {
+        "type": "string",
+        "description": "Retrieval IR axis — the four canonical metrics\n[`score_retrieval_metrics`] computes. Stable closed set;\nadding a new axis lands here AND on\n[`RetrievalMetrics`] AND on the case-execute persistence\nloop (one fresh `evaluation_metrics` row per axis).",
+        "enum": [
+          "precision_at_k",
+          "recall_at_k",
+          "mrr",
+          "ndcg_at_k"
+        ]
+      },
       "RetrievalComparisonAggregate": {
         "type": "object",
         "description": "Run-level aggregate for one `(surface, axis)` pair across\nevery `retrieval_comparison` case in the run. Drives the\n\"did hybrid actually help on this dataset?\" question without\nthe dashboard having to parse the dotted metric-name\nconvention itself.\n\nPairing is per-case: a single case contributes at most one\n(hybrid, trigram) pair per axis. Cases that produced only\none leg (BE half-failed) drop out of the denominator — the\npair has to be complete to count.",
@@ -36572,8 +36561,16 @@
         }
       },
       "RetrievalLeg": {
+        "type": "string",
+        "description": "Retrieval-comparison leg — which retrieval path a metric\nrow belongs to. Pairs with [`RetrievalSurface`] +\n[`RetrievalAxis`] under the dotted metric naming\nconvention (`<surface>.<leg>.<axis>`).",
+        "enum": [
+          "hybrid",
+          "trigram"
+        ]
+      },
+      "RetrievalLegResult": {
         "type": "object",
-        "description": "One leg of an [`EvaluationActual::RetrievalComparison`] —\neither the hybrid path or the trigram-only baseline.",
+        "description": "Outcome envelope for a single\n[`EvaluationActual::RetrievalComparison`] leg — the ranked\nlist + the IR metrics scored against the gold-standard set.\nDistinct from [`RetrievalLeg`], which is the leg\nidentifier (Hybrid / Trigram); this struct is what one leg\nproduced.",
         "required": [
           "anchor_ids",
           "hits",
@@ -36639,6 +36636,27 @@
             "type": "number",
             "format": "double",
             "description": "Threshold the alert cleared (e.g. `-0.05`). Echoed so\nthe FE renders both the observed delta and the cut\nwithout re-deriving the constant."
+          }
+        }
+      },
+      "RetrievalLiftRegressionPolicy": {
+        "type": "object",
+        "description": "Regression alarm policy threaded through\n[`crate::EvaluationStore::compare_evaluation_runs`]. Carries\nthe threshold + min-N gate the alarm uses; the route layer\nloads it from the workspace's\n[`WorkspaceEvaluationSettings`] (or platform defaults) and\npasses it through. Keeping this explicit on the trait\nsignature means the store layer never reads workspace\nsettings implicitly — the seam is clean.",
+        "required": [
+          "threshold",
+          "min_paired_case_count"
+        ],
+        "properties": {
+          "min_paired_case_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Minimum paired-case denominator on the candidate run\nbefore the alarm fires.",
+            "minimum": 0
+          },
+          "threshold": {
+            "type": "number",
+            "format": "double",
+            "description": "Negative cut. Alarm fires when\n`lift_delta < threshold`. Must be negative — the\nsignature mirrors the platform default semantics."
           }
         }
       },

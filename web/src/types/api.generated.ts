@@ -6679,11 +6679,11 @@ export interface components {
             kind: "retrieved_anchors";
             metrics: components["schemas"]["RetrievalMetrics"];
         } | {
-            hybrid: components["schemas"]["RetrievalLeg"];
+            hybrid: components["schemas"]["RetrievalLegResult"];
             /** @enum {string} */
             kind: "retrieval_comparison";
             surface: components["schemas"]["RetrievalSurface"];
-            trigram: components["schemas"]["RetrievalLeg"];
+            trigram: components["schemas"]["RetrievalLegResult"];
         };
         /**
          * @description Axis tag for [`EvaluationMetricMetadata::Capture`] rows. One
@@ -12218,31 +12218,6 @@ export interface components {
              */
             replaced: boolean;
         };
-        /**
-         * @description Regression alarm policy threaded through
-         *     [`crate::EvaluationStore::compare_evaluation_runs`]. Carries
-         *     the threshold + min-N gate the alarm uses; the route layer
-         *     loads it from the workspace's
-         *     [`WorkspaceEvaluationSettings`] (or platform defaults) and
-         *     passes it through. Keeping this explicit on the trait
-         *     signature means the store layer never reads workspace
-         *     settings implicitly — the seam is clean.
-         */
-        RegressionPolicy: {
-            /**
-             * Format: int64
-             * @description Minimum paired-case denominator on the candidate run
-             *     before the alarm fires.
-             */
-            min_paired_case_count: number;
-            /**
-             * Format: double
-             * @description Negative cut. Alarm fires when
-             *     `lift_delta < threshold`. Must be negative — the
-             *     signature mirrors the platform default semantics.
-             */
-            threshold: number;
-        };
         /** @description A relationship pattern in the graph schema. */
         RelationshipPattern: {
             /** Format: int64 */
@@ -12356,6 +12331,15 @@ export interface components {
             project: components["schemas"]["OntologyDraftView"];
         };
         /**
+         * @description Retrieval IR axis — the four canonical metrics
+         *     [`score_retrieval_metrics`] computes. Stable closed set;
+         *     adding a new axis lands here AND on
+         *     [`RetrievalMetrics`] AND on the case-execute persistence
+         *     loop (one fresh `evaluation_metrics` row per axis).
+         * @enum {string}
+         */
+        RetrievalAxis: "precision_at_k" | "recall_at_k" | "mrr" | "ndcg_at_k";
+        /**
          * @description Run-level aggregate for one `(surface, axis)` pair across
          *     every `retrieval_comparison` case in the run. Drives the
          *     "did hybrid actually help on this dataset?" question without
@@ -12468,10 +12452,22 @@ export interface components {
             trigram_score: number;
         };
         /**
-         * @description One leg of an [`EvaluationActual::RetrievalComparison`] —
-         *     either the hybrid path or the trigram-only baseline.
+         * @description Retrieval-comparison leg — which retrieval path a metric
+         *     row belongs to. Pairs with [`RetrievalSurface`] +
+         *     [`RetrievalAxis`] under the dotted metric naming
+         *     convention (`<surface>.<leg>.<axis>`).
+         * @enum {string}
          */
-        RetrievalLeg: {
+        RetrievalLeg: "hybrid" | "trigram";
+        /**
+         * @description Outcome envelope for a single
+         *     [`EvaluationActual::RetrievalComparison`] leg — the ranked
+         *     list + the IR metrics scored against the gold-standard set.
+         *     Distinct from [`RetrievalLeg`], which is the leg
+         *     identifier (Hybrid / Trigram); this struct is what one leg
+         *     produced.
+         */
+        RetrievalLegResult: {
             anchor_ids: string[];
             hits: components["schemas"]["EvaluationRetrievedAnchor"][];
             metrics: components["schemas"]["RetrievalMetrics"];
@@ -12515,6 +12511,31 @@ export interface components {
              * @description Threshold the alert cleared (e.g. `-0.05`). Echoed so
              *     the FE renders both the observed delta and the cut
              *     without re-deriving the constant.
+             */
+            threshold: number;
+        };
+        /**
+         * @description Regression alarm policy threaded through
+         *     [`crate::EvaluationStore::compare_evaluation_runs`]. Carries
+         *     the threshold + min-N gate the alarm uses; the route layer
+         *     loads it from the workspace's
+         *     [`WorkspaceEvaluationSettings`] (or platform defaults) and
+         *     passes it through. Keeping this explicit on the trait
+         *     signature means the store layer never reads workspace
+         *     settings implicitly — the seam is clean.
+         */
+        RetrievalLiftRegressionPolicy: {
+            /**
+             * Format: int64
+             * @description Minimum paired-case denominator on the candidate run
+             *     before the alarm fires.
+             */
+            min_paired_case_count: number;
+            /**
+             * Format: double
+             * @description Negative cut. Alarm fires when
+             *     `lift_delta < threshold`. Must be negative — the
+             *     signature mirrors the platform default semantics.
              */
             threshold: number;
         };

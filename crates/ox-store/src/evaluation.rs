@@ -328,6 +328,95 @@ impl RetrievalSurface {
             Self::KnowledgeEntry => "knowledge_entry",
         }
     }
+
+    /// Every variant in declaration order. Single source of
+    /// truth shared with the SQL aggregators and the FE
+    /// surface filter — adding a new surface lands here once
+    /// and the IN-list expansions follow automatically.
+    pub const ALL: &'static [Self] = &[
+        Self::VerifiedQuery,
+        Self::CommunitySummary,
+        Self::KnowledgeEntry,
+    ];
+
+    /// Wire-string bag for SQL `= ANY($N::text[])` binds.
+    /// Materialises [`Self::ALL`] into the comma-free shape
+    /// sqlx encodes as a Postgres `text[]`.
+    pub fn all_wire_strings() -> Vec<&'static str> {
+        Self::ALL.iter().copied().map(Self::as_str).collect()
+    }
+
+    /// Inverse of [`Self::as_str`]. Forward-compat: a wire
+    /// string the running build doesn't recognise resolves to
+    /// `None` instead of crashing — operators on a newer
+    /// Postgres baseline see the typed shape; older builds
+    /// drop the row from the typed aggregate while leaving
+    /// the raw `axis_means` row visible.
+    pub fn from_wire_str(s: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.as_str() == s)
+    }
+}
+
+/// Retrieval-comparison leg — which retrieval path a metric
+/// row belongs to. Pairs with [`RetrievalSurface`] +
+/// [`RetrievalAxis`] under the dotted metric naming
+/// convention (`<surface>.<leg>.<axis>`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RetrievalLeg {
+    /// RRF fusion path — what the platform actually serves at
+    /// runtime.
+    Hybrid,
+    /// Trigram-only baseline — what the platform served before
+    /// hybrid retrieval. Drives the lift contrast.
+    Trigram,
+}
+
+impl RetrievalLeg {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Hybrid => "hybrid",
+            Self::Trigram => "trigram",
+        }
+    }
+    pub const ALL: &'static [Self] = &[Self::Hybrid, Self::Trigram];
+    pub fn all_wire_strings() -> Vec<&'static str> {
+        Self::ALL.iter().copied().map(Self::as_str).collect()
+    }
+}
+
+/// Retrieval IR axis — the four canonical metrics
+/// [`score_retrieval_metrics`] computes. Stable closed set;
+/// adding a new axis lands here AND on
+/// [`RetrievalMetrics`] AND on the case-execute persistence
+/// loop (one fresh `evaluation_metrics` row per axis).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RetrievalAxis {
+    PrecisionAtK,
+    RecallAtK,
+    Mrr,
+    NdcgAtK,
+}
+
+impl RetrievalAxis {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PrecisionAtK => "precision_at_k",
+            Self::RecallAtK => "recall_at_k",
+            Self::Mrr => "mrr",
+            Self::NdcgAtK => "ndcg_at_k",
+        }
+    }
+    pub const ALL: &'static [Self] = &[
+        Self::PrecisionAtK,
+        Self::RecallAtK,
+        Self::Mrr,
+        Self::NdcgAtK,
+    ];
+    pub fn all_wire_strings() -> Vec<&'static str> {
+        Self::ALL.iter().copied().map(Self::as_str).collect()
+    }
 }
 
 impl EvaluationCaseInput {
@@ -425,15 +514,19 @@ pub enum EvaluationActual {
     /// actually moves the needle.
     RetrievalComparison {
         surface: RetrievalSurface,
-        hybrid: RetrievalLeg,
-        trigram: RetrievalLeg,
+        hybrid: RetrievalLegResult,
+        trigram: RetrievalLegResult,
     },
 }
 
-/// One leg of an [`EvaluationActual::RetrievalComparison`] —
-/// either the hybrid path or the trigram-only baseline.
+/// Outcome envelope for a single
+/// [`EvaluationActual::RetrievalComparison`] leg — the ranked
+/// list + the IR metrics scored against the gold-standard set.
+/// Distinct from [`RetrievalLeg`], which is the leg
+/// identifier (Hybrid / Trigram); this struct is what one leg
+/// produced.
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct RetrievalLeg {
+pub struct RetrievalLegResult {
     pub anchor_ids: Vec<String>,
     pub hits: Vec<EvaluationRetrievedAnchor>,
     pub metrics: RetrievalMetrics,
@@ -781,7 +874,7 @@ pub const RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N: u64 = 3;
 /// signature means the store layer never reads workspace
 /// settings implicitly — the seam is clean.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct RegressionPolicy {
+pub struct RetrievalLiftRegressionPolicy {
     /// Negative cut. Alarm fires when
     /// `lift_delta < threshold`. Must be negative — the
     /// signature mirrors the platform default semantics.
@@ -791,7 +884,7 @@ pub struct RegressionPolicy {
     pub min_paired_case_count: u64,
 }
 
-impl RegressionPolicy {
+impl RetrievalLiftRegressionPolicy {
     /// Platform-default policy — used when a workspace hasn't
     /// customised its settings. Pinned to the
     /// `RETRIEVAL_LIFT_REGRESSION_*` constants.
@@ -803,7 +896,7 @@ impl RegressionPolicy {
     }
 }
 
-impl Default for RegressionPolicy {
+impl Default for RetrievalLiftRegressionPolicy {
     fn default() -> Self {
         Self::platform_default()
     }
@@ -855,28 +948,32 @@ impl Default for WorkspaceEvaluationSettings {
 
 impl WorkspaceEvaluationSettings {
     /// Compile a policy from these settings. The platform
-    /// constants live on [`RegressionPolicy::platform_default`];
+    /// constants live on [`RetrievalLiftRegressionPolicy::platform_default`];
     /// this is the workspace-overridden variant.
-    pub fn regression_policy(&self) -> RegressionPolicy {
-        RegressionPolicy {
+    pub fn regression_policy(&self) -> RetrievalLiftRegressionPolicy {
+        RetrievalLiftRegressionPolicy {
             threshold: self.retrieval_lift_regression_threshold,
             min_paired_case_count: self.retrieval_lift_regression_min_paired_case_count,
         }
     }
 
     /// Validation gate — same invariants the platform constants
-    /// satisfy at compile time. Caller surfaces the typed error
-    /// to operators editing the settings via the admin route.
+    /// satisfy at compile time. Routes through
+    /// [`is_valid_regression_threshold`] +
+    /// [`is_valid_regression_min_paired_case_count`] so the
+    /// runtime check and the compile-time `const _ assert` share
+    /// a single predicate. Caller surfaces the typed error to
+    /// operators editing the settings via the admin route.
     pub fn validate(&self) -> Result<(), &'static str> {
-        if !(self.retrieval_lift_regression_threshold > -1.0
-            && self.retrieval_lift_regression_threshold < 0.0)
-        {
+        if !is_valid_regression_threshold(self.retrieval_lift_regression_threshold) {
             return Err(
                 "retrieval_lift_regression_threshold must lie in (-1.0, 0.0) — \
                  negative, but bounded so a saturated value can't fire on every cell",
             );
         }
-        if self.retrieval_lift_regression_min_paired_case_count < 2 {
+        if !is_valid_regression_min_paired_case_count(
+            self.retrieval_lift_regression_min_paired_case_count,
+        ) {
             return Err(
                 "retrieval_lift_regression_min_paired_case_count must be >= 2 — \
                  single-case runs shouldn't trigger the alarm",
@@ -886,22 +983,42 @@ impl WorkspaceEvaluationSettings {
     }
 }
 
-// Compile-time invariants on the regression alarm constants.
-// `const _: ()` is the canonical Rust pattern for constant-
-// value contracts — the build refuses to ship if a future
-// edit pushes either constant outside its honest range, which
-// is strictly better than a runtime test catching it.
+/// Pure validation predicate for the regression-alarm
+/// threshold. `const fn` so the same predicate gates the
+/// platform default at compile time AND the runtime
+/// workspace-override at HTTP boundary — single source of
+/// truth across both layers.
+///
+/// Returns `true` when the threshold lies in the open
+/// interval `(-1.0, 0.0)`. Negative because the alarm fires
+/// on `lift_delta < threshold`; bounded away from -1.0 so a
+/// saturated value can't fire on every cell.
+pub const fn is_valid_regression_threshold(threshold: f64) -> bool {
+    threshold > -1.0 && threshold < 0.0
+}
+
+/// Pure validation predicate for the minimum paired-case
+/// denominator. Mirrors [`is_valid_regression_threshold`] —
+/// single source of truth across compile-time + runtime.
+///
+/// Returns `true` when `min_n >= 2`. A single-case denominator
+/// would let any one bad-actor case fire the alarm on its own,
+/// which is always noise.
+pub const fn is_valid_regression_min_paired_case_count(min_n: u64) -> bool {
+    min_n >= 2
+}
+
+// Compile-time invariants on the platform-default constants.
+// Same predicates the runtime validator runs on user input —
+// build refuses to ship if either constant drifts out of its
+// honest range. Strictly stronger than a runtime test.
 const _: () = assert!(
-    RETRIEVAL_LIFT_REGRESSION_THRESHOLD < 0.0,
-    "regression threshold must be negative — alarm fires when lift_delta drops below it",
+    is_valid_regression_threshold(RETRIEVAL_LIFT_REGRESSION_THRESHOLD),
+    "RETRIEVAL_LIFT_REGRESSION_THRESHOLD must lie in (-1.0, 0.0)",
 );
 const _: () = assert!(
-    RETRIEVAL_LIFT_REGRESSION_THRESHOLD > -1.0,
-    "regression threshold must be within (-1.0, 0.0)",
-);
-const _: () = assert!(
-    RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N >= 2,
-    "min-N must be >= 2 so single-case runs never trigger",
+    is_valid_regression_min_paired_case_count(RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N),
+    "RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N must be >= 2",
 );
 
 /// One case-level retrieval-comparison outlier — the case
@@ -1564,6 +1681,25 @@ mod tests {
     }
 
     #[test]
+    fn regression_threshold_predicate_pins_open_interval() {
+        // Open interval (-1.0, 0.0) — endpoints rejected.
+        assert!(is_valid_regression_threshold(-0.5));
+        assert!(is_valid_regression_threshold(-0.001));
+        assert!(!is_valid_regression_threshold(0.0));
+        assert!(!is_valid_regression_threshold(-1.0));
+        assert!(!is_valid_regression_threshold(0.5));
+        assert!(!is_valid_regression_threshold(-1.5));
+    }
+
+    #[test]
+    fn regression_min_paired_n_predicate_pins_at_least_two() {
+        assert!(!is_valid_regression_min_paired_case_count(0));
+        assert!(!is_valid_regression_min_paired_case_count(1));
+        assert!(is_valid_regression_min_paired_case_count(2));
+        assert!(is_valid_regression_min_paired_case_count(100));
+    }
+
+    #[test]
     fn workspace_evaluation_settings_default_matches_platform_constants() {
         let s = WorkspaceEvaluationSettings::default();
         assert_eq!(
@@ -1652,6 +1788,57 @@ mod tests {
         assert_eq!(back, alert);
     }
 
+
+    #[test]
+    fn retrieval_surface_all_covers_every_variant() {
+        // Exhaustive match → if a new variant lands, this test
+        // fails compilation until Self::ALL is updated. Acts as
+        // a compile-time guard that the constant array stays
+        // in lockstep with the enum.
+        for s in RetrievalSurface::ALL.iter().copied() {
+            match s {
+                RetrievalSurface::VerifiedQuery
+                | RetrievalSurface::CommunitySummary
+                | RetrievalSurface::KnowledgeEntry => {}
+            }
+        }
+        assert_eq!(RetrievalSurface::ALL.len(), 3);
+    }
+
+    #[test]
+    fn retrieval_leg_all_covers_every_variant() {
+        for l in RetrievalLeg::ALL.iter().copied() {
+            match l {
+                RetrievalLeg::Hybrid | RetrievalLeg::Trigram => {}
+            }
+        }
+        assert_eq!(RetrievalLeg::ALL.len(), 2);
+    }
+
+    #[test]
+    fn retrieval_axis_all_covers_every_variant() {
+        for a in RetrievalAxis::ALL.iter().copied() {
+            match a {
+                RetrievalAxis::PrecisionAtK
+                | RetrievalAxis::RecallAtK
+                | RetrievalAxis::Mrr
+                | RetrievalAxis::NdcgAtK => {}
+            }
+        }
+        assert_eq!(RetrievalAxis::ALL.len(), 4);
+    }
+
+    #[test]
+    fn retrieval_axis_wire_strings_match_metric_struct_field_names() {
+        // The four axis wire strings must align with the field
+        // names in `RetrievalMetrics` so the SQL pivot key (`axis`)
+        // round-trips through both surfaces.
+        let mut wires = RetrievalAxis::all_wire_strings();
+        wires.sort();
+        let mut fields = vec!["precision_at_k", "recall_at_k", "mrr", "ndcg_at_k"];
+        fields.sort();
+        assert_eq!(wires, fields);
+    }
 
     #[test]
     fn retrieval_surface_wire_string_pinned() {

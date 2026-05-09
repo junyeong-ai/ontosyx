@@ -660,7 +660,8 @@ impl EvaluationStore for PostgresStore {
         run_id: Uuid,
     ) -> OxResult<crate::evaluation::RunSummary> {
         use crate::evaluation::{
-            AxisAggregate, RetrievalComparisonAggregate, RetrievalSurface, RunSummary,
+            AxisAggregate, RetrievalAxis, RetrievalComparisonAggregate, RetrievalLeg,
+            RetrievalSurface, RunSummary,
         };
         super::require_workspace_context()?;
 
@@ -740,9 +741,9 @@ impl EvaluationStore for PostgresStore {
                   MAX(CASE WHEN leg = 'hybrid'  THEN score END) AS hybrid_score,
                   MAX(CASE WHEN leg = 'trigram' THEN score END) AS trigram_score
                 FROM parsed
-                WHERE surface IN ('verified_query', 'community_summary', 'knowledge_entry')
-                  AND leg IN ('hybrid', 'trigram')
-                  AND axis IN ('precision_at_k', 'recall_at_k', 'mrr', 'ndcg_at_k')
+                WHERE surface = ANY($2::text[])
+                  AND leg = ANY($3::text[])
+                  AND axis = ANY($4::text[])
                 GROUP BY case_id, surface, axis
                 HAVING MAX(CASE WHEN leg = 'hybrid'  THEN score END) IS NOT NULL
                    AND MAX(CASE WHEN leg = 'trigram' THEN score END) IS NOT NULL
@@ -766,6 +767,9 @@ impl EvaluationStore for PostgresStore {
             ORDER BY surface ASC, axis ASC",
         )
         .bind(run_id)
+        .bind(RetrievalSurface::all_wire_strings())
+        .bind(RetrievalLeg::all_wire_strings())
+        .bind(RetrievalAxis::all_wire_strings())
         .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)?;
@@ -774,18 +778,13 @@ impl EvaluationStore for PostgresStore {
             .into_iter()
             .filter_map(
                 |(surface, axis, paired, hybrid_mean, trigram_mean, mean_lift, win_rate)| {
-                    let surface = match surface.as_str() {
-                        "verified_query" => RetrievalSurface::VerifiedQuery,
-                        "community_summary" => RetrievalSurface::CommunitySummary,
-                        "knowledge_entry" => RetrievalSurface::KnowledgeEntry,
-                        // Forward-compat: a metric with a known leg+axis
-                        // but unknown surface (e.g. a future surface
-                        // landed before the build was bumped) drops
-                        // out of the typed aggregate rather than
-                        // crashing the run-summary call. Operators
-                        // still see the raw rows in `axis_means`.
-                        _ => return None,
-                    };
+                    // Forward-compat: a metric with a known leg+axis
+                    // but unknown surface (e.g. a future surface
+                    // landed before the build was bumped) drops
+                    // out of the typed aggregate rather than
+                    // crashing the run-summary call. Operators
+                    // still see the raw rows in `axis_means`.
+                    let surface = RetrievalSurface::from_wire_str(&surface)?;
                     Some(RetrievalComparisonAggregate {
                         surface,
                         axis,
@@ -824,7 +823,7 @@ impl EvaluationStore for PostgresStore {
         &self,
         baseline_run_id: Uuid,
         candidate_run_id: Uuid,
-        regression_policy: crate::evaluation::RegressionPolicy,
+        regression_policy: crate::evaluation::RetrievalLiftRegressionPolicy,
     ) -> OxResult<crate::evaluation::RunComparisonReport> {
         use crate::evaluation::{RunAxisSummary, RunComparisonReport, RunMetricDelta};
         super::require_workspace_context()?;
@@ -1015,9 +1014,9 @@ impl EvaluationStore for PostgresStore {
                   MAX(CASE WHEN leg = 'hybrid'  THEN score END) AS hybrid_score,
                   MAX(CASE WHEN leg = 'trigram' THEN score END) AS trigram_score
                 FROM parsed
-                WHERE surface IN ('verified_query', 'community_summary', 'knowledge_entry')
-                  AND leg IN ('hybrid', 'trigram')
-                  AND axis IN ('precision_at_k', 'recall_at_k', 'mrr', 'ndcg_at_k')
+                WHERE surface = ANY($3::text[])
+                  AND leg = ANY($4::text[])
+                  AND axis = ANY($5::text[])
                 GROUP BY run_id, surface, axis, case_id
                 HAVING MAX(CASE WHEN leg = 'hybrid'  THEN score END) IS NOT NULL
                    AND MAX(CASE WHEN leg = 'trigram' THEN score END) IS NOT NULL
@@ -1047,6 +1046,9 @@ impl EvaluationStore for PostgresStore {
         )
         .bind(baseline_run_id)
         .bind(candidate_run_id)
+        .bind(crate::evaluation::RetrievalSurface::all_wire_strings())
+        .bind(crate::evaluation::RetrievalLeg::all_wire_strings())
+        .bind(crate::evaluation::RetrievalAxis::all_wire_strings())
         .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)?;
@@ -1064,16 +1066,8 @@ impl EvaluationStore for PostgresStore {
                         baseline_n,
                         candidate_n,
                     )| {
-                        let surface = match surface.as_str() {
-                            "verified_query" => crate::evaluation::RetrievalSurface::VerifiedQuery,
-                            "community_summary" => {
-                                crate::evaluation::RetrievalSurface::CommunitySummary
-                            }
-                            "knowledge_entry" => {
-                                crate::evaluation::RetrievalSurface::KnowledgeEntry
-                            }
-                            _ => return None,
-                        };
+                        let surface =
+                            crate::evaluation::RetrievalSurface::from_wire_str(&surface)?;
                         Some(crate::evaluation::RetrievalComparisonDelta {
                             surface,
                             axis,
@@ -1169,9 +1163,9 @@ impl EvaluationStore for PostgresStore {
                   MAX(CASE WHEN leg = 'hybrid'  THEN score END) AS hybrid_score,
                   MAX(CASE WHEN leg = 'trigram' THEN score END) AS trigram_score
                 FROM parsed
-                WHERE surface IN ('verified_query', 'community_summary', 'knowledge_entry')
-                  AND leg IN ('hybrid', 'trigram')
-                  AND axis IN ('precision_at_k', 'recall_at_k', 'mrr', 'ndcg_at_k')
+                WHERE surface = ANY($5::text[])
+                  AND leg = ANY($6::text[])
+                  AND axis = ANY($7::text[])
                   AND ($2::text IS NULL OR surface = $2)
                   AND ($3::text IS NULL OR axis = $3)
                 GROUP BY case_id, case_key, surface, axis
@@ -1194,6 +1188,9 @@ impl EvaluationStore for PostgresStore {
         .bind(surface_filter)
         .bind(axis)
         .bind(limit_capped)
+        .bind(crate::evaluation::RetrievalSurface::all_wire_strings())
+        .bind(crate::evaluation::RetrievalLeg::all_wire_strings())
+        .bind(crate::evaluation::RetrievalAxis::all_wire_strings())
         .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)?;
@@ -1202,14 +1199,8 @@ impl EvaluationStore for PostgresStore {
             .into_iter()
             .filter_map(
                 |(case_id, case_key, surface_str, axis, hybrid_score, trigram_score, case_lift)| {
-                    let surface = match surface_str.as_str() {
-                        "verified_query" => crate::evaluation::RetrievalSurface::VerifiedQuery,
-                        "community_summary" => {
-                            crate::evaluation::RetrievalSurface::CommunitySummary
-                        }
-                        "knowledge_entry" => crate::evaluation::RetrievalSurface::KnowledgeEntry,
-                        _ => return None,
-                    };
+                    let surface =
+                        crate::evaluation::RetrievalSurface::from_wire_str(&surface_str)?;
                     Some(crate::evaluation::RetrievalComparisonOutlier {
                         case_id,
                         case_key,

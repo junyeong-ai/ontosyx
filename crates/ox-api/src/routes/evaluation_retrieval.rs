@@ -30,7 +30,7 @@ use ox_memory::EmbeddingProvider;
 use ox_ontology::OntologyIR;
 use ox_store::Store;
 use ox_store::evaluation::{
-    EvaluationActual, EvaluationRetrievedAnchor, RetrievalLeg, RetrievalSurface,
+    EvaluationActual, EvaluationRetrievedAnchor, RetrievalLegResult, RetrievalSurface,
 };
 use ox_store::evaluation::score_retrieval_metrics;
 use ox_text::WorkspaceTokenizerRegistry;
@@ -83,12 +83,12 @@ pub async fn execute_retrieval_comparison(
 
     let payload = EvaluationActual::RetrievalComparison {
         surface: ctx.surface,
-        hybrid: RetrievalLeg {
+        hybrid: RetrievalLegResult {
             anchor_ids: hybrid.iter().map(|h| h.logical_id.clone()).collect(),
             hits: hybrid,
             metrics: hybrid_metrics,
         },
-        trigram: RetrievalLeg {
+        trigram: RetrievalLegResult {
             anchor_ids: trigram.iter().map(|h| h.logical_id.clone()).collect(),
             hits: trigram,
             metrics: trigram_metrics,
