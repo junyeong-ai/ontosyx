@@ -3,7 +3,9 @@ use uuid::Uuid;
 
 use ox_core::error::OxResult;
 
-use crate::models::{OntologyDraft, OntologyDraftSummary, OntologySnapshot, OntologySnapshotSummary};
+use crate::models::{
+    OntologyDraft, OntologyDraftSummary, OntologySnapshot, OntologySnapshotSummary,
+};
 
 use super::{AnalysisSnapshot, CursorPage, CursorParams, ExtendResult};
 
@@ -103,7 +105,10 @@ pub trait OntologyDraftStore: Send + Sync {
     /// Permanently delete drafts that have been archived for longer than `max_archive_days`.
     /// Returns per-workspace counts so the maintenance loop can record one
     /// audit row per affected workspace.
-    async fn delete_archived_ontology_drafts(&self, max_archive_days: i64) -> OxResult<Vec<(Uuid, u64)>>;
+    async fn delete_archived_ontology_drafts(
+        &self,
+        max_archive_days: i64,
+    ) -> OxResult<Vec<(Uuid, u64)>>;
 
     // --- Ontology Snapshots ---
 

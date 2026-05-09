@@ -11,6 +11,7 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use ox_core::error::OxResult;
+use ox_ontology::ProvenanceCapture;
 
 use crate::models::{EntityChange, OntologyRow, OntologyVersionSnapshot};
 
@@ -39,18 +40,35 @@ pub trait OntologyVersionStore: Send + Sync {
     /// Commit a new immutable version of `ontology_id`.
     ///
     /// Pipeline:
-    /// 1. Extract entities from `ir` via
+    /// 1. Stamp the supplied [`ProvenanceCapture`] against a
+    ///    synthetic subject naming the new version. The
+    ///    resulting `provenance_id` lands on the snapshot row
+    ///    via `ON DELETE RESTRICT` FK — every snapshot has a
+    ///    queryable audit row, by schema invariant.
+    /// 2. Extract entities from `ir` via
     ///    `ox_ontology::storage::extract_entities`.
-    /// 2. `INSERT ... ON CONFLICT (entity_hash) DO NOTHING`
+    /// 3. `INSERT ... ON CONFLICT (entity_hash) DO NOTHING`
     ///    into `ontology_entity_versions` — automatic dedup of
     ///    unchanged entities across versions.
-    /// 3. Insert a fresh `ontology_version_snapshots` row with
-    ///    the new version tag + bitemporal columns.
-    /// 4. Bulk-insert the pointer set into
+    /// 4. Insert a fresh `ontology_version_snapshots` row with
+    ///    the new version tag + bitemporal columns + the
+    ///    provenance pin from step 1.
+    /// 5. Bulk-insert the pointer set into
     ///    `ontology_version_entities`.
     ///
     /// Executes in a single transaction — either the whole
-    /// commit lands or none of it does.
+    /// commit lands or none of it does. The capture argument
+    /// is required: a malformed caller cannot persist a snapshot
+    /// without it because the function refuses to compile
+    /// without the bundle.
+    ///
+    /// `glossary_tokenizer_fingerprint` is the sha256 the
+    /// caller computes over tokenizer-relevant glossary state
+    /// (typically via `ox_text::glossary_tokenizer_fingerprint`).
+    /// Stamped on the snapshot; the caller diffs this against
+    /// the previous snapshot's fingerprint to decide whether
+    /// to rebuild the workspace's lindera user dictionary and
+    /// schedule retokenized backfill on retrieval surfaces.
     async fn commit_version(
         &self,
         ontology_id: Uuid,
@@ -59,6 +77,8 @@ pub trait OntologyVersionStore: Send + Sync {
         parent_version_id: Option<Uuid>,
         committed_by: &str,
         commit_message: &str,
+        capture: ProvenanceCapture,
+        glossary_tokenizer_fingerprint: &str,
     ) -> OxResult<OntologyVersionSnapshot>;
 
     /// Hydrate the ontology at a given version. Joins pointer set
@@ -71,10 +91,7 @@ pub trait OntologyVersionStore: Send + Sync {
     /// this hydrate, or the caller was handed a stale handle).
     /// Returns `Err` only when stored entities are malformed
     /// (parse / deserialization failure or missing header).
-    async fn get_ontology_ir(
-        &self,
-        version_id: Uuid,
-    ) -> OxResult<Option<ox_ontology::OntologyIR>>;
+    async fn get_ontology_ir(&self, version_id: Uuid) -> OxResult<Option<ox_ontology::OntologyIR>>;
 
     /// Fetch a version snapshot record by id (without hydrating
     /// the full IR). Used by routes that need version metadata

@@ -9,6 +9,7 @@
 //! `(workspace_id, source_id)` natural key.
 
 use async_trait::async_trait;
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 use ox_core::error::OxResult;
@@ -21,10 +22,7 @@ pub trait DataSourceStore: Send + Sync {
 
     async fn get_data_source(&self, id: Uuid) -> OxResult<Option<DataSource>>;
 
-    async fn find_data_source_by_source_id(
-        &self,
-        source_id: &str,
-    ) -> OxResult<Option<DataSource>>;
+    async fn find_data_source_by_source_id(&self, source_id: &str) -> OxResult<Option<DataSource>>;
 
     async fn list_data_sources(&self) -> OxResult<Vec<DataSource>>;
 
@@ -49,6 +47,6 @@ pub trait DataSourceStore: Send + Sync {
         &self,
         source_id: &str,
         snapshot: &serde_json::Value,
-        fingerprints: &serde_json::Value,
+        fingerprints: &BTreeMap<String, ox_core::SchemaFingerprint>,
     ) -> OxResult<DataSource>;
 }

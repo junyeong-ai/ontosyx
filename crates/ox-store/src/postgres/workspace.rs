@@ -2,6 +2,35 @@
 
 use super::*;
 
+#[derive(sqlx::FromRow)]
+struct WorkspaceRow {
+    id: Uuid,
+    name: String,
+    slug: String,
+    owner_id: Uuid,
+    settings: serde_json::Value,
+    created_at: DateTime<Utc>,
+    primary_locale: String,
+    admin_locale_fallback: sqlx::types::Json<Vec<String>>,
+    llm_locale_fallback: sqlx::types::Json<Vec<String>>,
+}
+
+impl From<WorkspaceRow> for Workspace {
+    fn from(row: WorkspaceRow) -> Self {
+        Self {
+            id: row.id,
+            name: row.name,
+            slug: row.slug,
+            owner_id: row.owner_id,
+            settings: row.settings,
+            created_at: row.created_at,
+            primary_locale: row.primary_locale,
+            admin_locale_fallback: row.admin_locale_fallback.0,
+            llm_locale_fallback: row.llm_locale_fallback.0,
+        }
+    }
+}
+
 #[async_trait]
 impl WorkspaceStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
@@ -17,30 +46,62 @@ impl WorkspaceStore for PostgresStore {
         .bind(w.owner_id)
         .bind(&w.settings)
         .bind(&w.primary_locale)
-        .bind(&w.admin_locale_fallback)
-        .bind(&w.llm_locale_fallback)
+        .bind(sqlx::types::Json(&w.admin_locale_fallback))
+        .bind(sqlx::types::Json(&w.llm_locale_fallback))
         .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;
+
+        // Φ10.5: auto-seed the workspace's `default` retrieval
+        // profile + community detection policy. The constants
+        // mirror `RetrievalProfile::workspace_default` /
+        // `CommunityDetectionPolicy::workspace_default` so the
+        // seeded row is interchangeable with the in-memory
+        // fallback `query_graph` uses on miss — operators
+        // override either via `upsert_*` later. RLS requires the
+        // workspace_id task-local to match the row's
+        // workspace_id, so the seed runs inside an explicit
+        // `WORKSPACE_ID.scope(w.id, ...)` so the new workspace's
+        // own id authorises the write.
+        crate::WORKSPACE_ID
+            .scope(w.id, async {
+                let default_profile =
+                    ox_ontology::RetrievalProfile::workspace_default(w.id);
+                <Self as crate::store::RetrievalProfileStore>::upsert_retrieval_profile(
+                    self,
+                    &default_profile,
+                )
+                .await?;
+
+                let default_cdp =
+                    ox_ontology::CommunityDetectionPolicy::workspace_default(w.id);
+                <Self as crate::store::CommunityDetectionPolicyStore>
+                    ::upsert_community_detection_policy(self, &default_cdp)
+                    .await?;
+                Ok::<(), OxError>(())
+            })
+            .await?;
         Ok(())
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn get_workspace(&self, id: Uuid) -> OxResult<Option<Workspace>> {
-        sqlx::query_as("SELECT * FROM workspaces WHERE id = $1")
+        let row = sqlx::query_as::<_, WorkspaceRow>("SELECT * FROM workspaces WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await
-            .map_err(to_ox_error)
+            .map_err(to_ox_error)?;
+        Ok(row.map(Into::into))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn find_workspace_by_slug(&self, slug: &str) -> OxResult<Option<Workspace>> {
-        sqlx::query_as("SELECT * FROM workspaces WHERE slug = $1")
+        let row = sqlx::query_as::<_, WorkspaceRow>("SELECT * FROM workspaces WHERE slug = $1")
             .bind(slug)
             .fetch_optional(&self.pool)
             .await
-            .map_err(to_ox_error)
+            .map_err(to_ox_error)?;
+        Ok(row.map(Into::into))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -98,8 +159,8 @@ impl WorkspaceStore for PostgresStore {
         &self,
         id: Uuid,
         primary_locale: &str,
-        admin_locale_fallback: &serde_json::Value,
-        llm_locale_fallback: &serde_json::Value,
+        admin_locale_fallback: &[String],
+        llm_locale_fallback: &[String],
     ) -> OxResult<()> {
         super::require_workspace_context()?;
         sqlx::query(
@@ -111,8 +172,8 @@ impl WorkspaceStore for PostgresStore {
         )
         .bind(id)
         .bind(primary_locale)
-        .bind(admin_locale_fallback)
-        .bind(llm_locale_fallback)
+        .bind(sqlx::types::Json(admin_locale_fallback))
+        .bind(sqlx::types::Json(llm_locale_fallback))
         .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;
@@ -235,7 +296,7 @@ impl WorkspaceStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn find_default_workspace(&self, user_id: Uuid) -> OxResult<Option<Workspace>> {
         // Prefer the "default" slug workspace, then fall back to the first joined workspace
-        sqlx::query_as(
+        let row = sqlx::query_as::<_, WorkspaceRow>(
             "SELECT w.*
              FROM workspaces w
              JOIN workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = $1
@@ -245,6 +306,7 @@ impl WorkspaceStore for PostgresStore {
         .bind(user_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        Ok(row.map(Into::into))
     }
 }

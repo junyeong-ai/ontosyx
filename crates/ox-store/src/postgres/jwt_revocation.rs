@@ -53,11 +53,10 @@ impl JwtRevocationStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_expired_revocations(&self) -> OxResult<u64> {
-        let result =
-            sqlx::query("DELETE FROM revoked_jwts WHERE expires_at < now()")
-                .execute(&self.pool)
-                .await
-                .map_err(to_ox_error)?;
+        let result = sqlx::query("DELETE FROM revoked_jwts WHERE expires_at < now()")
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
         Ok(result.rows_affected())
     }
 }

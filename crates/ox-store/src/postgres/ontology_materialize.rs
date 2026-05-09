@@ -6,7 +6,6 @@
 
 use super::*;
 
-
 /// Λ-10 — Level 3 populator. Called at the end of
 /// `commit_version` inside the same transaction. Fans the IR's
 /// already-assembled entities into the per-kind flat indexes,
@@ -34,13 +33,11 @@ pub(super) async fn materialize_level3(
     // Build a quick `(kind, logical_id) → hash` lookup so
     // neighbour edges reference the right hash without a second
     // extract pass.
-    let hash_by_id: std::collections::HashMap<
-        (ox_ontology::storage::EntityKind, String),
-        String,
-    > = entities
-        .iter()
-        .map(|e| ((e.kind, e.logical_id.clone()), e.hash.clone()))
-        .collect();
+    let hash_by_id: std::collections::HashMap<(ox_ontology::storage::EntityKind, String), String> =
+        entities
+            .iter()
+            .map(|e| ((e.kind, e.logical_id.clone()), e.hash.clone()))
+            .collect();
 
     // ------------------------------------------------------------
     // (A) Flat per-kind indexes
@@ -71,15 +68,7 @@ pub(super) async fn materialize_level3(
 
         // property (nested inside node_type)
         for prop in &nt.properties {
-            insert_property_row(
-                tx,
-                version_id,
-                "node_type",
-                nt.id.as_str(),
-                &hash,
-                prop,
-            )
-            .await?;
+            insert_property_row(tx, version_id, "node_type", nt.id.as_str(), &hash, prop).await?;
         }
     }
 
@@ -110,21 +99,17 @@ pub(super) async fn materialize_level3(
         .map_err(to_ox_error)?;
 
         for prop in &et.properties {
-            insert_property_row(
-                tx,
-                version_id,
-                "edge_type",
-                et.id.as_str(),
-                &hash,
-                prop,
-            )
-            .await?;
+            insert_property_row(tx, version_id, "edge_type", et.id.as_str(), &hash, prop).await?;
         }
     }
 
     // interface
     for iface in ir.interfaces() {
-        let hash = hash_for(&hash_by_id, ox_ontology::storage::EntityKind::Interface, &iface.id);
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::Interface,
+            &iface.id,
+        );
         sqlx::query(
             "INSERT INTO ontology_interface_index \
                 (version_id, logical_id, entity_hash, label) \
@@ -308,6 +293,41 @@ pub(super) async fn materialize_level3(
         .bind(&cm.name)
         .bind(cm.source_system_id.as_str())
         .bind(cm.target_system_id.as_str())
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // concept
+    for concept in ir.concepts() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::Concept,
+            &concept.id,
+        );
+        let alias_term_ids: Vec<&str> = concept
+            .alias_term_ids
+            .iter()
+            .map(|id| id.as_str())
+            .collect();
+        sqlx::query(
+            "INSERT INTO ontology_concept_index \
+                (version_id, logical_id, entity_hash, canonical_term_id, \
+                 alias_term_ids, broader_id, replaced_by_id, lifecycle, \
+                 category, valid_from, valid_to) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+        )
+        .bind(version_id)
+        .bind(concept.id.as_str())
+        .bind(&hash)
+        .bind(concept.canonical_term_id.as_str())
+        .bind(&alias_term_ids)
+        .bind(concept.broader.as_ref().map(|id| id.as_str()))
+        .bind(concept.replaced_by.as_ref().map(|id| id.as_str()))
+        .bind(lifecycle_tag(&concept.lifecycle))
+        .bind(concept.category.as_deref())
+        .bind(concept.valid_from)
+        .bind(concept.valid_to)
         .execute(&mut **tx)
         .await
         .map_err(to_ox_error)?;
@@ -607,18 +627,14 @@ async fn insert_property_row(
 /// SQL pair the binding table stores. `target_kind` is snake_case so
 /// a `WHERE target_kind = 'value_set'` lookup in the admin UI is
 /// index-friendly.
-fn binding_target_columns(
-    binding: &ox_ontology::PropertyBinding,
-) -> (&'static str, &str) {
+fn binding_target_columns(binding: &ox_ontology::PropertyBinding) -> (&'static str, &str) {
     use ox_ontology::PropertyBinding;
     match binding {
         PropertyBinding::ValueSet { id, .. } => ("value_set", id.as_str()),
         PropertyBinding::CodeSystem { id, .. } => ("code_system", id.as_str()),
-        PropertyBinding::NotationPattern { id, .. } => {
-            ("notation_pattern", id.as_str())
-        }
+        PropertyBinding::NotationPattern { id, .. } => ("notation_pattern", id.as_str()),
         PropertyBinding::ValueRange { id, .. } => ("value_range", id.as_str()),
-        PropertyBinding::Glossary { id, .. } => ("glossary", id.as_str()),
+        PropertyBinding::Concept { id, .. } => ("concept", id.as_str()),
     }
 }
 
@@ -632,6 +648,14 @@ fn binding_strength_str(s: ox_ontology::BindingStrength) -> &'static str {
         BindingStrength::Preferred => "preferred",
         BindingStrength::Extensible => "extensible",
         BindingStrength::Example => "example",
+    }
+}
+
+fn lifecycle_tag(lifecycle: &ox_ontology::glossary::TermLifecycle) -> &'static str {
+    match lifecycle {
+        ox_ontology::glossary::TermLifecycle::Active => "active",
+        ox_ontology::glossary::TermLifecycle::Deprecated { .. } => "deprecated",
+        ox_ontology::glossary::TermLifecycle::Retired { .. } => "retired",
     }
 }
 
@@ -659,12 +683,14 @@ async fn insert_neighbors_from_ir(
     };
 
     // Property → value_set / notation_pattern / value_range_set /
-    // glossary_term / unit (coded_value).
-    let walk_properties = |props: &[ox_ontology::ir::PropertyDef], cb: &mut dyn FnMut(&ox_ontology::ir::PropertyDef)| {
-        for p in props {
-            cb(p);
-        }
-    };
+    // concept / unit (coded_value).
+    let walk_properties =
+        |props: &[ox_ontology::ir::PropertyDef],
+         cb: &mut dyn FnMut(&ox_ontology::ir::PropertyDef)| {
+            for p in props {
+                cb(p);
+            }
+        };
 
     // `push` is an FnMut closure that borrows the vecs; we call
     // it from the property walk below. One neighbour edge per
@@ -705,13 +731,19 @@ async fn insert_neighbors_from_ir(
                     id.as_str(),
                     "references_value_range_set",
                 ),
-                PropertyBinding::Glossary { id, .. } => (
-                    EntityKind::GlossaryTerm.as_str(),
+                PropertyBinding::Concept { id, .. } => (
+                    EntityKind::Concept.as_str(),
                     id.as_str(),
-                    "references_glossary_term",
+                    "references_concept",
                 ),
             };
-            push(property_kind, prop.id.as_str(), target_kind, target_id, relation);
+            push(
+                property_kind,
+                prop.id.as_str(),
+                target_kind,
+                target_id,
+                relation,
+            );
         }
         // Units are individual `CodedValue` rows nested under a
         // `code_system`. The enum carries `coded_value` as a
@@ -750,21 +782,109 @@ async fn insert_neighbors_from_ir(
     let edge_type_kind = EntityKind::EdgeType.as_str();
     let concept_map_kind = EntityKind::ConceptMap.as_str();
     let code_system_kind = EntityKind::CodeSystem.as_str();
+    let concept_kind = EntityKind::Concept.as_str();
+    let glossary_term_kind = EntityKind::GlossaryTerm.as_str();
+
+    // NodeType / EdgeType → Concept
+    for nt in ir.node_types() {
+        if let Some(concept_id) = &nt.concept_id {
+            push(
+                node_type_kind,
+                nt.id.as_str(),
+                concept_kind,
+                concept_id.as_str(),
+                "realises_concept",
+            );
+        }
+        for realization in &nt.concept_realizations {
+            push(
+                node_type_kind,
+                nt.id.as_str(),
+                concept_kind,
+                realization.concept_id.as_str(),
+                "realises_concept",
+            );
+        }
+    }
+    for et in ir.edge_types() {
+        if let Some(concept_id) = &et.concept_id {
+            push(
+                edge_type_kind,
+                et.id.as_str(),
+                concept_kind,
+                concept_id.as_str(),
+                "realises_concept",
+            );
+        }
+        for realization in &et.concept_realizations {
+            push(
+                edge_type_kind,
+                et.id.as_str(),
+                concept_kind,
+                realization.concept_id.as_str(),
+                "realises_concept",
+            );
+        }
+    }
+
+    // Concept → GlossaryTerm lexicalizations
+    for concept in ir.concepts() {
+        push(
+            concept_kind,
+            concept.id.as_str(),
+            glossary_term_kind,
+            concept.canonical_term_id.as_str(),
+            "canonical_term",
+        );
+        for alias_id in &concept.alias_term_ids {
+            push(
+                concept_kind,
+                concept.id.as_str(),
+                glossary_term_kind,
+                alias_id.as_str(),
+                "alias_term",
+            );
+        }
+    }
 
     // ObjectMapping → NodeType
     for om in ir.object_mappings() {
-        push(object_mapping_kind, om.id.as_str(), node_type_kind, om.node_type_id.as_str(), "maps_node_type");
+        push(
+            object_mapping_kind,
+            om.id.as_str(),
+            node_type_kind,
+            om.node_type_id.as_str(),
+            "maps_node_type",
+        );
     }
 
     // LinkMapping → EdgeType
     for lm in ir.link_mappings() {
-        push(link_mapping_kind, lm.id.as_str(), edge_type_kind, lm.edge_type_id.as_str(), "maps_edge_type");
+        push(
+            link_mapping_kind,
+            lm.id.as_str(),
+            edge_type_kind,
+            lm.edge_type_id.as_str(),
+            "maps_edge_type",
+        );
     }
 
     // ConceptMap → source_system / target_system
     for cm in ir.concept_maps() {
-        push(concept_map_kind, cm.id.as_str(), code_system_kind, cm.source_system_id.as_str(), "concept_map_source");
-        push(concept_map_kind, cm.id.as_str(), code_system_kind, cm.target_system_id.as_str(), "concept_map_target");
+        push(
+            concept_map_kind,
+            cm.id.as_str(),
+            code_system_kind,
+            cm.source_system_id.as_str(),
+            "concept_map_source",
+        );
+        push(
+            concept_map_kind,
+            cm.id.as_str(),
+            code_system_kind,
+            cm.target_system_id.as_str(),
+            "concept_map_target",
+        );
     }
 
     // ValueSet → CodeSystem (composition rules)
@@ -814,10 +934,11 @@ async fn insert_neighbors_from_ir(
     Ok(())
 }
 
-/// Materialise the hierarchical closure. Three relations today:
+/// Materialise the hierarchical closure. Four relations today:
 ///
 ///   code_system_broader      CodedValue.broader_id inside a
 ///                            hierarchical CodeSystem.
+///   concept_broader          ConceptDef.broader.
 ///   glossary_term_broader    GlossaryTermDef.related_terms[Broader].
 ///   interface_implements     NodeType.implements → Interface.
 ///
@@ -879,7 +1000,49 @@ async fn insert_hierarchy_closure(
         }
     }
 
-    // 2) glossary_term_broader — walk GlossaryTermDef.related_terms
+    // 2) concept_broader — walk ConceptDef.broader.
+    let concept_parent_map: std::collections::HashMap<&str, &str> = ir
+        .concepts()
+        .iter()
+        .filter_map(|concept| {
+            concept
+                .broader
+                .as_ref()
+                .map(|parent| (concept.id.as_str(), parent.as_str()))
+        })
+        .collect();
+    for concept in ir.concepts() {
+        rows.push((
+            "concept_broader".into(),
+            ox_ontology::storage::EntityKind::Concept.as_str().into(),
+            concept.id.to_string(),
+            ox_ontology::storage::EntityKind::Concept.as_str().into(),
+            concept.id.to_string(),
+            0,
+        ));
+        let mut current = concept.id.as_str();
+        let mut depth = 1;
+        let limit = ir.concepts().len() + 1;
+        let mut guard = 0;
+        while let Some(parent) = concept_parent_map.get(current) {
+            rows.push((
+                "concept_broader".into(),
+                ox_ontology::storage::EntityKind::Concept.as_str().into(),
+                parent.to_string(),
+                ox_ontology::storage::EntityKind::Concept.as_str().into(),
+                concept.id.to_string(),
+                depth,
+            ));
+            current = parent;
+            depth += 1;
+            guard += 1;
+            if guard >= limit {
+                break;
+            }
+        }
+    }
+
+    // 3) glossary_term_broader — walk GlossaryTermDef.related_terms
     //    for `Broader` edges (the SKOS hierarchy axis).
     let terms: Vec<_> = ir.glossary().iter().collect();
     let parent_map: std::collections::HashMap<&str, &str> = terms
@@ -894,9 +1057,13 @@ async fn insert_hierarchy_closure(
     for term in &terms {
         rows.push((
             "glossary_term_broader".into(),
-            ox_ontology::storage::EntityKind::GlossaryTerm.as_str().into(),
+            ox_ontology::storage::EntityKind::GlossaryTerm
+                .as_str()
+                .into(),
             term.id.to_string(),
-            ox_ontology::storage::EntityKind::GlossaryTerm.as_str().into(),
+            ox_ontology::storage::EntityKind::GlossaryTerm
+                .as_str()
+                .into(),
             term.id.to_string(),
             0,
         ));
@@ -907,9 +1074,13 @@ async fn insert_hierarchy_closure(
         while let Some(parent) = parent_map.get(current) {
             rows.push((
                 "glossary_term_broader".into(),
-                ox_ontology::storage::EntityKind::GlossaryTerm.as_str().into(),
+                ox_ontology::storage::EntityKind::GlossaryTerm
+                    .as_str()
+                    .into(),
                 parent.to_string(),
-                ox_ontology::storage::EntityKind::GlossaryTerm.as_str().into(),
+                ox_ontology::storage::EntityKind::GlossaryTerm
+                    .as_str()
+                    .into(),
                 term.id.to_string(),
                 depth,
             ));
@@ -922,7 +1093,7 @@ async fn insert_hierarchy_closure(
         }
     }
 
-    // 3) interface_implements — NodeType → Interface for each of
+    // 4) interface_implements — NodeType → Interface for each of
     //    the node's `implements` entries. NodeTypeDef's
     //    `implements` field holds `Vec<InterfaceId>`.
     for nt in ir.node_types() {
@@ -1051,11 +1222,7 @@ async fn insert_search_vectors(
             EntityKind::NodeType,
             nt.id.as_str(),
             nt.label.as_str().to_string(),
-            format!(
-                "{} {}",
-                nt.label.as_str(),
-                localized_flat(&nt.description)
-            ),
+            format!("{} {}", nt.label.as_str(), localized_flat(&nt.description)),
         );
         for prop in &nt.properties {
             let aliases = prop
@@ -1083,10 +1250,36 @@ async fn insert_search_vectors(
             EntityKind::EdgeType,
             et.id.as_str(),
             et.label.as_str().to_string(),
+            format!("{} {}", et.label.as_str(), localized_flat(&et.description)),
+        );
+    }
+    for concept in ir.concepts() {
+        let label = ir
+            .glossary()
+            .iter()
+            .find(|term| term.id == concept.canonical_term_id)
+            .map(|term| localized_flat(&term.term))
+            .unwrap_or_else(|| concept.id.as_str().to_string());
+        let aliases = concept
+            .alias_term_ids
+            .iter()
+            .filter_map(|alias_id| {
+                ir.glossary()
+                    .iter()
+                    .find(|term| term.id == *alias_id)
+                    .map(|term| localized_flat(&term.term))
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        emit(
+            EntityKind::Concept,
+            concept.id.as_str(),
+            label.clone(),
             format!(
-                "{} {}",
-                et.label.as_str(),
-                localized_flat(&et.description)
+                "{} {} {}",
+                label,
+                aliases,
+                localized_flat(&concept.description)
             ),
         );
     }
@@ -1223,14 +1416,16 @@ pub(super) fn assemble_ir(
     let mut functions: Vec<ox_ontology::function::FunctionDef> = Vec::new();
     let mut metrics: Vec<ox_ontology::metric::MetricDef> = Vec::new();
     let mut enrichments: Vec<ox_ontology::enrichment::EnrichmentDef> = Vec::new();
+    let mut concepts: Vec<ox_ontology::concept::ConceptDef> = Vec::new();
     let mut glossary: Vec<ox_ontology::glossary::GlossaryTermDef> = Vec::new();
     let mut code_systems: Vec<ox_ontology::code_system::CodeSystemDef> = Vec::new();
     let mut value_sets: Vec<ox_ontology::value_set::ValueSetDef> = Vec::new();
-    let mut notation_patterns: Vec<ox_ontology::notation_pattern::NotationPatternDef> =
-        Vec::new();
+    let mut notation_patterns: Vec<ox_ontology::notation_pattern::NotationPatternDef> = Vec::new();
     let mut concept_maps: Vec<ox_ontology::concept_map::ConceptMapDef> = Vec::new();
     let mut value_range_sets: Vec<ox_ontology::value_range::ValueRangeSetDef> = Vec::new();
     let mut column_profiles: Vec<ox_ontology::column_profile::ColumnProfileDef> = Vec::new();
+    let mut segments: Vec<ox_ontology::segment::SegmentDef> = Vec::new();
+    let mut table_inventory: Vec<ox_ontology::table_inventory::TableInventoryEntry> = Vec::new();
 
     for row in rows {
         let kind = EntityKind::parse(&row.entity_kind)?;
@@ -1259,17 +1454,14 @@ pub(super) fn assemble_ir(
                 data_quality.push(serde_json::from_value(row.content.clone())?)
             }
             EntityKind::Action => actions.push(serde_json::from_value(row.content.clone())?),
-            EntityKind::Provenance => {
-                provenance.push(serde_json::from_value(row.content.clone())?)
-            }
+            EntityKind::Provenance => provenance.push(serde_json::from_value(row.content.clone())?),
             EntityKind::Function => functions.push(serde_json::from_value(row.content.clone())?),
             EntityKind::Metric => metrics.push(serde_json::from_value(row.content.clone())?),
             EntityKind::Enrichment => {
                 enrichments.push(serde_json::from_value(row.content.clone())?)
             }
-            EntityKind::GlossaryTerm => {
-                glossary.push(serde_json::from_value(row.content.clone())?)
-            }
+            EntityKind::Concept => concepts.push(serde_json::from_value(row.content.clone())?),
+            EntityKind::GlossaryTerm => glossary.push(serde_json::from_value(row.content.clone())?),
             EntityKind::Taxonomy => {
                 // Same deferral as PropertyMapping — not yet an
                 // independent IR collection. Lands when the IR model
@@ -1290,6 +1482,10 @@ pub(super) fn assemble_ir(
             }
             EntityKind::ColumnProfile => {
                 column_profiles.push(serde_json::from_value(row.content.clone())?)
+            }
+            EntityKind::Segment => segments.push(serde_json::from_value(row.content.clone())?),
+            EntityKind::TableInventory => {
+                table_inventory.push(serde_json::from_value(row.content.clone())?)
             }
             // Property + CodedValue are nested-only entity kinds —
             // they appear in the materialised navigation / search
@@ -1399,6 +1595,11 @@ pub(super) fn assemble_ir(
             message: format!("add_glossary_term during hydration: {e:?}"),
         })?;
     }
+    for concept in concepts {
+        ir.add_concept(concept).map_err(|e| OxError::Runtime {
+            message: format!("add_concept during hydration: {e:?}"),
+        })?;
+    }
     for cs in code_systems {
         ir.add_code_system(cs).map_err(|e| OxError::Runtime {
             message: format!("add_code_system during hydration: {e:?}"),
@@ -1428,6 +1629,17 @@ pub(super) fn assemble_ir(
         // `add_column_profile` is upsert-by-id and infallible — no
         // OntologyInvariantError shape exists for this collection.
         ir.add_column_profile(cp);
+    }
+    for seg in segments {
+        ir.add_segment(seg).map_err(|e| OxError::Runtime {
+            message: format!("add_segment during hydration: {e:?}"),
+        })?;
+    }
+    for entry in table_inventory {
+        ir.upsert_table_inventory_entry(entry)
+            .map_err(|e| OxError::Runtime {
+                message: format!("upsert_table_inventory_entry during hydration: {e:?}"),
+            })?;
     }
 
     Ok(ir)

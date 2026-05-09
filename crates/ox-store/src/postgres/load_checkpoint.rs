@@ -95,7 +95,10 @@ impl LoadCheckpointStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn list_load_checkpoints(&self, ontology_draft_id: Uuid) -> OxResult<Vec<LoadCheckpoint>> {
+    async fn list_load_checkpoints(
+        &self,
+        ontology_draft_id: Uuid,
+    ) -> OxResult<Vec<LoadCheckpoint>> {
         let rows: Vec<LoadCheckpointRow> = sqlx::query_as(
             "SELECT id, workspace_id, ontology_draft_id, source_table, graph_label,
                     watermark_column, watermark_value, record_count, loaded_at
@@ -107,7 +110,10 @@ impl LoadCheckpointStore for PostgresStore {
         .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)?;
-        Ok(rows.into_iter().map(LoadCheckpointRow::into_domain).collect())
+        Ok(rows
+            .into_iter()
+            .map(LoadCheckpointRow::into_domain)
+            .collect())
     }
 
     #[tracing::instrument(level = "debug", skip_all)]

@@ -51,7 +51,7 @@ impl Default for CursorParams {
 }
 
 /// Cursor-paginated result.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CursorPage<T: Serialize> {
     pub items: Vec<T>,
     /// Pass this value as `cursor` in the next request. `None` means no more pages.

@@ -37,11 +37,11 @@ impl crate::store::ModelConfigStore for PostgresStore {
             "INSERT INTO model_configs
                 (workspace_id, name, provider, model_id, max_tokens, temperature,
                  timeout_secs, cost_per_1m_input, cost_per_1m_output,
-                 daily_budget_usd, priority, api_key_env, region, base_url)
+                 daily_budget_usd, priority, enabled, api_key_env, region, base_url, provider_meta)
              VALUES ($1, $2, $3, $4,
                      COALESCE($5, 8192), $6, COALESCE($7, 300),
                      $8, $9, $10, COALESCE($11, 0),
-                     $12, $13, $14)
+                     COALESCE($12, true), $13, $14, $15, $16)
              RETURNING *",
         )
         .bind(config.workspace_id)
@@ -55,9 +55,11 @@ impl crate::store::ModelConfigStore for PostgresStore {
         .bind(config.cost_per_1m_output)
         .bind(config.daily_budget_usd)
         .bind(config.priority)
+        .bind(config.enabled)
         .bind(&config.api_key_env)
         .bind(&config.region)
         .bind(&config.base_url)
+        .bind(&config.provider_meta)
         .fetch_one(&self.pool)
         .await
         .map_err(to_ox_error)
@@ -85,6 +87,7 @@ impl crate::store::ModelConfigStore for PostgresStore {
                 api_key_env = COALESCE($13, api_key_env),
                 region = COALESCE($14, region),
                 base_url = COALESCE($15, base_url),
+                provider_meta = COALESCE($16, provider_meta),
                 updated_at = NOW()
              WHERE id = $1
              RETURNING *",
@@ -104,6 +107,7 @@ impl crate::store::ModelConfigStore for PostgresStore {
         .bind(&update.api_key_env)
         .bind(&update.region)
         .bind(&update.base_url)
+        .bind(&update.provider_meta)
         .fetch_one(&self.pool)
         .await
         .map_err(to_ox_error)

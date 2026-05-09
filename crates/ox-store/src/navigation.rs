@@ -272,7 +272,7 @@ pub fn estimate_tokens_chars(text: &str) -> u32 {
     // inflate the estimate (e.g. Korean characters are 3 bytes
     // each in UTF-8 but should count as ~0.7 tokens, not ~2).
     let chars = text.chars().count();
-    ((chars + 2) / 3) as u32
+    chars.div_ceil(3) as u32
 }
 
 // ---------------------------------------------------------------------------
@@ -340,10 +340,7 @@ pub struct SubgraphEdge {
 // `let_underscore_must_use` gate is satisfied by the function-level
 // allow rather than wrapping each call.
 #[allow(clippy::let_underscore_must_use)]
-pub fn render_subgraph_as_llm_markdown(
-    subgraph: &Subgraph,
-    options: &LlmRenderOptions,
-) -> String {
+pub fn render_subgraph_as_llm_markdown(subgraph: &Subgraph, options: &LlmRenderOptions) -> String {
     use std::collections::BTreeMap;
     use std::fmt::Write as _;
 
@@ -357,13 +354,11 @@ pub fn render_subgraph_as_llm_markdown(
     // mixed in with their kind-section siblings (e.g. a `Customer`
     // anchor lands among 5 sibling NodeTypes from the
     // expansion) and the model loses the retrieval discriminator.
-    let mut anchors: Vec<&SubgraphNode> = subgraph
-        .nodes
-        .iter()
-        .filter(|n| n.depth == 0)
-        .collect();
+    let mut anchors: Vec<&SubgraphNode> = subgraph.nodes.iter().filter(|n| n.depth == 0).collect();
     anchors.sort_by(|a, b| {
-        a.kind.cmp(&b.kind).then_with(|| a.logical_id.cmp(&b.logical_id))
+        a.kind
+            .cmp(&b.kind)
+            .then_with(|| a.logical_id.cmp(&b.logical_id))
     });
 
     // Group non-anchor nodes by kind — the LLM reads kind-

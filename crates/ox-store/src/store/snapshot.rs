@@ -16,7 +16,7 @@ pub struct AnalysisSnapshot {
     pub source_profile: serde_json::Value,
     pub analysis_report: serde_json::Value,
     pub design_options: serde_json::Value,
-    /// `ox_source::AnalysisScope` accumulated across the draft's
+    /// `ox_core::source_scope::AnalysisScope` accumulated across the draft's
     /// lifetime — every analyze / extend / reanalyze updates it
     /// with the new selection's tables and the post-introspection
     /// fingerprints so the FE renders progress + drift.
@@ -33,7 +33,7 @@ pub struct ExtendResult {
     pub source_schema: serde_json::Value,
     pub source_profile: serde_json::Value,
     pub source_history: serde_json::Value,
-    /// Updated [`ox_source::AnalysisScope`] — the prior scope plus
+    /// Updated [`ox_core::source_scope::AnalysisScope`] — the prior scope plus
     /// every table the extend selection brought in, with refreshed
     /// fingerprints and `last_introspected_at`.
     pub analysis_scope: serde_json::Value,

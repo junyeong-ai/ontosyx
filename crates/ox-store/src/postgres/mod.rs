@@ -35,7 +35,7 @@
 //! `before_acquire` hook reads them and configures PostgreSQL
 //! session variables (`app.workspace_id`, `app.system_bypass`) on
 //! every connection acquire — these drive the RLS policies declared
-//! in the migration files. The impl blocks themselves never touch
+//! in the schema baseline. The impl blocks themselves never touch
 //! the task-local directly.
 
 use async_trait::async_trait;
@@ -49,16 +49,15 @@ use ox_core::error::{OxError, OxResult};
 
 use crate::models::*;
 use crate::store::{
-    AclStore, AgentSessionStore, AmbiguityStore, RecipeExecutionStore, AnalysisSnapshot,
-    ApprovalCommentStore, ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter,
-    AuditTrailStore, ChangeRoutingStore, ConfigStore, CursorPage, CursorParams, DashboardStore,
-    DraftClusterCheckpointStore, EmbeddingRetryStore, ExtendResult, HealthStore, IdempotencyStore,
-    InsightStore,
-    JwtRevocationStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore, PatternStore, PerspectiveStore, PinStore,
-    OntologyDraftStore,
-    PromptTemplateStore, QualitySignalStore, QualityStore, QueryStore, RecipeStore, ReportStore,
-    ScheduledTaskStore, SourceMappingArtifactStore, StaleConceptProposalStore, ToolApprovalStore, UserStore,
-    VerificationStore, WorkspaceStore,
+    AclStore, AgentSessionStore, AmbiguityStore, AnalysisSnapshot, ApprovalCommentStore,
+    ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter, AuditTrailStore, ChangeRoutingStore,
+    ConfigStore, CursorPage, CursorParams, DashboardStore, DraftClusterCheckpointStore,
+    EmbeddingRetryStore, ExtendResult, HealthStore, IdempotencyStore, InsightStore,
+    JwtRevocationStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore,
+    OntologyDraftStore, PatternStore, PerspectiveStore, PinStore, PromptTemplateStore,
+    QualitySignalStore, QualityStore, QueryStore, RecipeExecutionStore, RecipeStore, ReportStore,
+    ScheduledTaskStore, SourceMappingArtifactStore, StaleConceptProposalStore, ToolApprovalStore,
+    UserStore, VerificationStore, WorkspaceStore,
 };
 
 tokio::task_local! {
@@ -185,9 +184,7 @@ impl PostgresStore {
             // `after_connect` closes that gap so every connection,
             // fresh or recycled, lands with the same session state.
             .after_connect(|conn, _meta| {
-                Box::pin(async move {
-                    configure_rls_session_vars(conn).await
-                })
+                Box::pin(async move { configure_rls_session_vars(conn).await })
             })
             .before_acquire(|conn, _meta| {
                 Box::pin(async move {
@@ -294,7 +291,6 @@ impl PostgresStore {
     {
         SYSTEM_BYPASS.scope(true, f()).await
     }
-
 }
 
 // ---------------------------------------------------------------------------
@@ -344,6 +340,24 @@ pub(crate) fn check_cas_result(rows_affected: u64) -> OxResult<()> {
     }
 }
 
+/// Reciprocal Rank Fusion constant — Cormack/Clarke/Buettcher
+/// 2009. The score for a row is `Σ 1/(RRF_K + rank_i)` over each
+/// retrieval ranker. `60` balances early-rank dominance against
+/// fusion robustness; widely cited as the practical default and
+/// the value LangChain / Vespa / Haystack ship out of the box.
+/// Every hybrid retrieval surface in the workspace pins to this
+/// constant so the rank arithmetic stays uniform across surfaces.
+pub(crate) const RRF_K: i64 = 60;
+
+/// Per-ranker candidate breadth multiplier. Each ranker pulls
+/// `limit * RRF_CANDIDATE_BREADTH` rows so the fusion can
+/// surface a row that ranked low on one axis but high enough on
+/// the others to clear the final cut. `3` is the canonical
+/// value Microsoft GraphRAG and the original RRF paper both
+/// recommend; tighter values lose recall, wider values bloat
+/// the candidate scan without proportional precision gain.
+pub(crate) const RRF_CANDIDATE_BREADTH: i64 = 3;
+
 /// Map a `sqlx::Error` (particularly `Database(db_err)` carrying a
 /// PostgreSQL SQLSTATE) into the typed [`OxError`] the API surface
 /// expects. Every impl runs DB errors through this so SQLSTATE
@@ -392,7 +406,6 @@ pub(crate) fn to_ox_error(e: sqlx::Error) -> OxError {
 mod acl;
 mod agent_session;
 mod ambiguity;
-mod recipe_execution;
 mod api_key;
 mod approval;
 mod approval_comment;
@@ -400,6 +413,7 @@ mod audit;
 mod audit_trail;
 mod change_routing;
 mod community;
+mod community_policy;
 mod config;
 mod dashboard;
 mod data_source;
@@ -408,6 +422,7 @@ mod embedding_retry;
 mod evaluation;
 mod health;
 mod idempotency;
+mod inference;
 mod insight;
 mod jwt_revocation;
 mod knowledge;
@@ -416,31 +431,36 @@ mod load_checkpoint;
 mod metering;
 mod model_config;
 mod notification;
+mod ontology_draft;
 mod ontology_materialize;
 mod ontology_navigation;
 mod ontology_version;
 mod pattern;
 mod perspective;
 mod pin;
-mod ontology_draft;
 mod prompt_template;
+mod provenance;
 mod quality;
 mod quality_baseline;
 mod quality_signal;
 mod query;
 mod recipe;
+mod recipe_execution;
 mod report;
+pub mod retokenize;
+mod retrieval;
 mod rls_session;
 mod scheduled_task;
+mod source_contract;
 mod source_mapping;
 mod stale_concept_proposal;
 mod tool_approval;
 mod user;
+mod verified_query;
 mod verification;
 mod workspace;
 
 use rls_session::configure_rls_session_vars;
-
 
 #[cfg(test)]
 mod context_guard_tests {
@@ -456,8 +476,9 @@ mod context_guard_tests {
 
     #[tokio::test]
     async fn require_workspace_context_passes_inside_system_bypass() {
-        let result =
-            SYSTEM_BYPASS.scope(true, async { require_workspace_context() }).await;
+        let result = SYSTEM_BYPASS
+            .scope(true, async { require_workspace_context() })
+            .await;
         assert!(result.is_ok());
     }
 

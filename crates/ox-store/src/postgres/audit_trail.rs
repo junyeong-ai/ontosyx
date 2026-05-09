@@ -47,7 +47,14 @@ impl AuditTrailStore for PostgresStore {
         // `entity_hash` is lexicographically smaller. Tiebreaking
         // on the immutable hash keeps the order deterministic
         // across calls even when many records share a timestamp.
-        let rows: Vec<(Uuid, String, String, serde_json::Value, DateTime<Utc>, String)> = sqlx::query_as(
+        let rows: Vec<(
+            Uuid,
+            String,
+            String,
+            serde_json::Value,
+            DateTime<Utc>,
+            String,
+        )> = sqlx::query_as(
             "SELECT
                  o.id                               AS ontology_id,
                  o.lineage_id                       AS ontology_lineage_id,

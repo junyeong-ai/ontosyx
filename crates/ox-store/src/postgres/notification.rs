@@ -2,6 +2,40 @@
 
 use super::*;
 
+#[derive(sqlx::FromRow)]
+struct NotificationChannelRow {
+    id: Uuid,
+    workspace_id: Uuid,
+    name: String,
+    channel_type: String,
+    config: sqlx::types::Json<WebhookNotificationConfig>,
+    events: Vec<String>,
+    enabled: bool,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+impl TryFrom<NotificationChannelRow> for NotificationChannel {
+    type Error = OxError;
+
+    fn try_from(row: NotificationChannelRow) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: row.id,
+            workspace_id: row.workspace_id,
+            name: row.name,
+            channel_type: row
+                .channel_type
+                .parse()
+                .map_err(|message| OxError::Runtime { message })?,
+            config: row.config.0,
+            events: row.events,
+            enabled: row.enabled,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        })
+    }
+}
+
 #[async_trait]
 impl crate::store::NotificationStore for PostgresStore {
     async fn create_notification_channel(&self, ch: &NotificationChannel) -> OxResult<()> {
@@ -13,8 +47,8 @@ impl crate::store::NotificationStore for PostgresStore {
         .bind(ch.id)
         .bind(ch.workspace_id)
         .bind(&ch.name)
-        .bind(&ch.channel_type)
-        .bind(&ch.config)
+        .bind(ch.channel_type.as_str())
+        .bind(sqlx::types::Json(&ch.config))
         .bind(&ch.events)
         .bind(ch.enabled)
         .bind(ch.created_at)
@@ -26,29 +60,33 @@ impl crate::store::NotificationStore for PostgresStore {
     }
 
     async fn get_notification_channel(&self, id: Uuid) -> OxResult<Option<NotificationChannel>> {
-        sqlx::query_as::<_, NotificationChannel>(
+        let row = sqlx::query_as::<_, NotificationChannelRow>(
             "SELECT * FROM notification_channels WHERE id = $1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        row.map(NotificationChannel::try_from).transpose()
     }
 
     async fn list_notification_channels(&self) -> OxResult<Vec<NotificationChannel>> {
-        sqlx::query_as::<_, NotificationChannel>(
+        let rows = sqlx::query_as::<_, NotificationChannelRow>(
             "SELECT * FROM notification_channels ORDER BY name",
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        rows.into_iter()
+            .map(NotificationChannel::try_from)
+            .collect()
     }
 
     async fn update_notification_channel(
         &self,
         id: Uuid,
         name: Option<&str>,
-        config: Option<&serde_json::Value>,
+        config: Option<&WebhookNotificationConfig>,
         events: Option<&[String]>,
         enabled: Option<bool>,
     ) -> OxResult<()> {
@@ -63,7 +101,7 @@ impl crate::store::NotificationStore for PostgresStore {
              WHERE id = $5",
         )
         .bind(name)
-        .bind(config)
+        .bind(config.map(sqlx::types::Json))
         .bind(events)
         .bind(enabled)
         .bind(id)
@@ -87,13 +125,16 @@ impl crate::store::NotificationStore for PostgresStore {
         &self,
         event_type: &str,
     ) -> OxResult<Vec<NotificationChannel>> {
-        sqlx::query_as::<_, NotificationChannel>(
+        let rows = sqlx::query_as::<_, NotificationChannelRow>(
             "SELECT * FROM notification_channels WHERE enabled = true AND $1 = ANY(events)",
         )
         .bind(event_type)
         .fetch_all(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        rows.into_iter()
+            .map(NotificationChannel::try_from)
+            .collect()
     }
 
     async fn create_notification_log(&self, log: &NotificationLog) -> OxResult<()> {

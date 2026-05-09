@@ -20,10 +20,8 @@ fn row_to_insight(row: sqlx::postgres::PgRow) -> InsightDef {
         id: InsightId::new(row.get::<String, _>("id")),
         question: serde_json::from_value(row.get::<serde_json::Value, _>("question"))
             .unwrap_or_default(),
-        description: serde_json::from_value(
-            row.get::<serde_json::Value, _>("description"),
-        )
-        .unwrap_or_default(),
+        description: serde_json::from_value(row.get::<serde_json::Value, _>("description"))
+            .unwrap_or_default(),
         tags: row.get::<Vec<String>, _>("tags"),
         concept_anchors: row.get::<Vec<String>, _>("concept_anchors"),
         query_ir: row.get::<serde_json::Value, _>("query_ir"),
@@ -38,10 +36,7 @@ fn row_to_insight(row: sqlx::postgres::PgRow) -> InsightDef {
 #[async_trait]
 impl InsightStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn create_insight(
-        &self,
-        input: CreateInsightInput,
-    ) -> OxResult<InsightDef> {
+    async fn create_insight(&self, input: CreateInsightInput) -> OxResult<InsightDef> {
         super::require_workspace_context()?;
         // UUID v7 is timestamp-ordered (RFC 9562) — every insert
         // produces an id that sorts by creation time, so cursor
@@ -57,9 +52,11 @@ impl InsightStore for PostgresStore {
              RETURNING *",
         )
         .bind(&id)
-        .bind(serde_json::to_value(&input.question).map_err(|e| OxError::Runtime {
-            message: format!("serialise question: {e}"),
-        })?)
+        .bind(
+            serde_json::to_value(&input.question).map_err(|e| OxError::Runtime {
+                message: format!("serialise question: {e}"),
+            })?,
+        )
         .bind(
             serde_json::to_value(&input.description).map_err(|e| OxError::Runtime {
                 message: format!("serialise description: {e}"),
@@ -98,9 +95,11 @@ impl InsightStore for PostgresStore {
              RETURNING *",
         )
         .bind(id.as_str())
-        .bind(serde_json::to_value(&input.question).map_err(|e| OxError::Runtime {
-            message: format!("serialise question: {e}"),
-        })?)
+        .bind(
+            serde_json::to_value(&input.question).map_err(|e| OxError::Runtime {
+                message: format!("serialise question: {e}"),
+            })?,
+        )
         .bind(
             serde_json::to_value(&input.description).map_err(|e| OxError::Runtime {
                 message: format!("serialise description: {e}"),

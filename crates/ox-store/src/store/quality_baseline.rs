@@ -16,10 +16,7 @@ pub trait QualityBaselineStore: Send + Sync {
     /// once per workspace per day; upsert-in-place means consumers
     /// always read the latest snapshot without a window-picking
     /// predicate.
-    async fn upsert_quality_baseline(
-        &self,
-        baseline: &WorkspaceQualityBaseline,
-    ) -> OxResult<()>;
+    async fn upsert_quality_baseline(&self, baseline: &WorkspaceQualityBaseline) -> OxResult<()>;
 
     /// Fetch the current-workspace baseline, if any. `None` means
     /// the cron hasn't run yet (fresh workspace / first boot);

@@ -73,6 +73,26 @@ pub static ADVISORY_LOCK_CRON_DRAFT_CHECKPOINT: LazyLock<i64> =
 pub static ADVISORY_LOCK_CRON_EVAL_JUDGE: LazyLock<i64> =
     LazyLock::new(|| advisory_lock_key("ontosyx.cron.eval_judge"));
 
+/// Verified-query freshness cron singleton (Φ11.3). Walks
+/// committed ontology versions per workspace and flips
+/// `verified_queries.status = 'stale'` when the persisted
+/// `QueryIR` references labels the active ontology no longer
+/// declares. Without the lock two replicas would race on the
+/// same `transition_verified_query_status` UPDATE — idempotent
+/// at row level but wasted work.
+pub static ADVISORY_LOCK_CRON_VERIFIED_QUERY_FRESHNESS: LazyLock<i64> =
+    LazyLock::new(|| advisory_lock_key("ontosyx.cron.verified_query_freshness"));
+
+/// Community detection cron singleton (Φ10.4). Runs the
+/// workspace's [`ox_ontology::CommunityDetectionPolicy`] over
+/// the canonical ontology graph and upserts
+/// `community_summaries` rows the GraphRAG retrieval path
+/// consumes. Without the lock two replicas would re-detect the
+/// same partition concurrently — UPSERT is idempotent at row
+/// level but wastes the (potentially LLM-summarised) compute.
+pub static ADVISORY_LOCK_CRON_COMMUNITY_DETECTION: LazyLock<i64> =
+    LazyLock::new(|| advisory_lock_key("ontosyx.cron.community_detection"));
+
 /// Run a future under a PostgreSQL session-level advisory lock.
 /// Holds a single pool connection for the duration of the inner
 /// future so the lock survives `RESET ALL`. The inner future may
@@ -125,11 +145,7 @@ where
 /// Distinct from [`with_advisory_lock`], which blocks until the
 /// lock becomes available — the right primitive for boot-time
 /// seeders that MUST run exactly once per fresh database.
-pub async fn try_advisory_lock<F, Fut, T>(
-    pool: &PgPool,
-    key: i64,
-    f: F,
-) -> OxResult<Option<T>>
+pub async fn try_advisory_lock<F, Fut, T>(pool: &PgPool, key: i64, f: F) -> OxResult<Option<T>>
 where
     F: FnOnce() -> Fut,
     Fut: std::future::Future<Output = OxResult<T>>,
@@ -137,14 +153,13 @@ where
     let mut conn = pool.acquire().await.map_err(|e| OxError::Runtime {
         message: format!("Failed to acquire pool connection for advisory lock: {e}"),
     })?;
-    let acquired: bool =
-        sqlx::query_scalar::<_, bool>("SELECT pg_try_advisory_lock($1)")
-            .bind(key)
-            .fetch_one(&mut *conn)
-            .await
-            .map_err(|e| OxError::Runtime {
-                message: format!("pg_try_advisory_lock({key}) failed: {e}"),
-            })?;
+    let acquired: bool = sqlx::query_scalar::<_, bool>("SELECT pg_try_advisory_lock($1)")
+        .bind(key)
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(|e| OxError::Runtime {
+            message: format!("pg_try_advisory_lock({key}) failed: {e}"),
+        })?;
     if !acquired {
         drop(conn);
         return Ok(None);
@@ -185,6 +200,8 @@ mod tests {
             *ADVISORY_LOCK_CRON_SOFT_DELETE,
             *ADVISORY_LOCK_CRON_DRAFT_CHECKPOINT,
             *ADVISORY_LOCK_CRON_EVAL_JUDGE,
+            *ADVISORY_LOCK_CRON_VERIFIED_QUERY_FRESHNESS,
+            *ADVISORY_LOCK_CRON_COMMUNITY_DETECTION,
         ];
         let mut sorted = keys.to_vec();
         sorted.sort_unstable();

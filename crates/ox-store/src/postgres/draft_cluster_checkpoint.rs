@@ -33,8 +33,8 @@ struct DraftClusterCheckpointRow {
 
 impl DraftClusterCheckpointRow {
     fn into_domain(self) -> OxResult<DraftClusterCheckpoint> {
-        let output: InputOntologyDef = serde_json::from_value(self.output)
-            .map_err(|e| OxError::Runtime {
+        let output: InputOntologyDef =
+            serde_json::from_value(self.output).map_err(|e| OxError::Runtime {
                 message: format!("draft cluster checkpoint output parse failed: {e}"),
             })?;
         let signature =
@@ -58,10 +58,7 @@ impl DraftClusterCheckpointRow {
 #[async_trait]
 impl DraftClusterCheckpointStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn upsert_draft_cluster_checkpoint(
-        &self,
-        c: &DraftClusterCheckpoint,
-    ) -> OxResult<()> {
+    async fn upsert_draft_cluster_checkpoint(&self, c: &DraftClusterCheckpoint) -> OxResult<()> {
         // Bind workspace_id from the active task-local rather than
         // the caller-supplied field — RLS enforces row.workspace_id =
         // current_setting('app.workspace_id'), so a mismatch would
@@ -151,12 +148,10 @@ impl DraftClusterCheckpointStore for PostgresStore {
         // Cron-driven cleanup runs under SYSTEM_BYPASS::scope; the
         // RLS policy whitelists `app.system_bypass = 'true'` so the
         // sweep sees every workspace.
-        let result = sqlx::query(
-            "DELETE FROM draft_cluster_checkpoints WHERE expires_at < now()",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(to_ox_error)?;
+        let result = sqlx::query("DELETE FROM draft_cluster_checkpoints WHERE expires_at < now()")
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
         Ok(result.rows_affected())
     }
 
@@ -166,13 +161,12 @@ impl DraftClusterCheckpointStore for PostgresStore {
         ontology_draft_id: Uuid,
     ) -> OxResult<u64> {
         super::require_workspace_context()?;
-        let result = sqlx::query(
-            "DELETE FROM draft_cluster_checkpoints WHERE ontology_draft_id = $1",
-        )
-        .bind(ontology_draft_id)
-        .execute(&self.pool)
-        .await
-        .map_err(to_ox_error)?;
+        let result =
+            sqlx::query("DELETE FROM draft_cluster_checkpoints WHERE ontology_draft_id = $1")
+                .bind(ontology_draft_id)
+                .execute(&self.pool)
+                .await
+                .map_err(to_ox_error)?;
         Ok(result.rows_affected())
     }
 }

@@ -1,7 +1,7 @@
 //! Progressive-Disclosure navigation over the Level-3 flat indexes.
 //!
-//! Backed by the Level 3 materialised indexes (migrations 0018-
-//! 0021). Every method is version-scoped — the caller picks which
+//! Backed by the Level 3 materialised indexes in the schema
+//! baseline. Every method is version-scoped — the caller picks which
 //! ontology version to navigate, matching the temporal-rewriter
 //! contract.
 //!
@@ -28,7 +28,7 @@ use uuid::Uuid;
 use ox_core::error::OxResult;
 
 use crate::navigation::{
-    EntryPointSearchOptions, EntitySearchHit, HierarchyFacetOptions, LlmRenderOptions,
+    EntitySearchHit, EntryPointSearchOptions, HierarchyFacetOptions, LlmRenderOptions,
     NeighborExpandOptions, Subgraph,
 };
 
@@ -56,10 +56,7 @@ pub trait OntologyNavigationStore: Send + Sync {
     /// single [`Subgraph`] aggregating every reachable node / edge.
     /// Sets `Subgraph.truncated` when `max_nodes` trimmed the
     /// frontier.
-    async fn expand_neighbors(
-        &self,
-        options: NeighborExpandOptions,
-    ) -> OxResult<Subgraph>;
+    async fn expand_neighbors(&self, options: NeighborExpandOptions) -> OxResult<Subgraph>;
 
     /// Step 3 — merge hierarchy closure into an existing subgraph and
     /// optionally filter by facet. Called on the result of step 2;
@@ -74,11 +71,7 @@ pub trait OntologyNavigationStore: Send + Sync {
     /// Step 4 — render the subgraph as markdown suited to the LLM
     /// prompt tail. Pure function; does not touch the store beyond
     /// needing `&self` for trait-object erasure.
-    fn render_subgraph_for_llm(
-        &self,
-        subgraph: &Subgraph,
-        options: &LlmRenderOptions,
-    ) -> String;
+    fn render_subgraph_for_llm(&self, subgraph: &Subgraph, options: &LlmRenderOptions) -> String;
 
     /// Semantic kNN over the Level-3 embedding index. Returns empty
     /// when the target entity has no embedding yet (cold row —

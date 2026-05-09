@@ -12,8 +12,8 @@
 //!   [`crate::OntologyNavigationStore::search_entry_points`] for the
 //!   user's question. Low score ⇒ ontology under-indexed for this
 //!   phrasing.
-//! - **glossary_term_hits** — which glossary terms the agent
-//!   actually consulted while translating NL→Cypher.
+//! - **concept_hits** — which canonical concepts the agent actually
+//!   used while translating NL→Cypher.
 //! - **ambiguity_resolution_ids** — which ambiguity resolutions the
 //!   query path applied.
 //! - **shacl_passed / shacl_failure_kind** — `ShaclValidator` verdict.
@@ -44,9 +44,9 @@ pub struct QueryExecutionSignal {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub anchor_hit_kinds: Vec<String>,
 
-    // Glossary layer — which business terms the agent used to resolve the question.
+    // Concept layer — which stable business concepts the agent used.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub glossary_term_hits: Vec<Uuid>,
+    pub concept_hits: Vec<Uuid>,
 
     // Ambiguity layer — closed-loop resolver use.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -78,7 +78,7 @@ pub struct QueryExecutionSignal {
 /// Typed SHACL failure kind. The taxonomy is deliberately small —
 /// every UI filter / telemetry gauge keys off a finite set, not a
 /// freeform reason string. Unknown causes ⇒ Other.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ShaclFailureKind {
     /// Edge traversed with an incompatible cardinality (ManyToMany
@@ -99,7 +99,7 @@ pub enum ShaclFailureKind {
 /// Rolling time window for aggregation. Expressed as whole days so
 /// the SQL side is straightforward `captured_at > now() - interval
 /// '{n} days'`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MetricWindow {
     Last7d,
@@ -139,7 +139,7 @@ impl MetricWindow {
 /// Single metric cell in the dashboard report. Bound fields carry a
 /// 95% Wilson score interval so tiny samples read as "noisy" in the
 /// UI instead of false-positives.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct MetricValue {
     pub value: f64,
     pub trend_delta: f64,
@@ -186,10 +186,10 @@ impl MetricValue {
 }
 
 /// Aggregated dashboard report — one row, six tiles.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct QualityMetricsReport {
     pub anchor_match_rate: MetricValue,
-    pub glossary_hit_rate: MetricValue,
+    pub concept_hit_rate: MetricValue,
     pub clarification_success_rate: MetricValue,
     pub query_reproducibility: MetricValue,
     pub shacl_pass_rate: MetricValue,
@@ -199,7 +199,7 @@ pub struct QualityMetricsReport {
 }
 
 /// SHACL failure distribution row for the "실패 유형 분포" chart.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ShaclFailureCount {
     pub kind: ShaclFailureKind,
     pub count: u64,
@@ -208,7 +208,7 @@ pub struct ShaclFailureCount {
 /// Stale-type scan result. `last_used_at == None` means the type
 /// has never been referenced since the tracker started recording —
 /// candidate for deprecation after admin review.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct StaleTypeEntry {
     pub workspace_id: Uuid,
     pub type_id: Uuid,
@@ -229,7 +229,7 @@ pub struct StaleTypeEntry {
 /// Admin decision on a stale-concept proposal. `Pending` is the
 /// default; the two terminal states carry `decided_at` + optional
 /// `reason` text.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum StaleProposalDecision {
     Pending,
@@ -259,7 +259,7 @@ impl StaleProposalDecision {
 /// One durable deprecation proposal. `decided_at` + `decided_by_user_id`
 /// are `None` on fresh rows; decisions land via
 /// [`crate::StaleConceptProposalStore::record_decision`].
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct StaleConceptProposal {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -288,7 +288,7 @@ pub struct StaleConceptProposal {
 /// carries `{ median, mad, warn, critical }`. Keeping the shape
 /// JSON means adding a new metric (e.g. Phase C `anchor_top_score`)
 /// requires only a cron-computation extension, not a migration.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct WorkspaceQualityBaseline {
     pub workspace_id: Uuid,
     /// `"7d"` / `"30d"` / `"90d"` — the window the cron summarised.
@@ -301,6 +301,7 @@ pub struct WorkspaceQualityBaseline {
     /// evidence and falls back to the hardcoded prior.
     pub sample_size: i64,
     /// `{ metric_key: { median, mad, warn, critical } }` bundle.
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub thresholds: serde_json::Value,
     pub computed_at: DateTime<Utc>,
 }

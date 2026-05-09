@@ -9,7 +9,9 @@
 
 use super::*;
 
-fn ambiguity_context_from_row(row: &sqlx::postgres::PgRow) -> OxResult<ox_ontology::ambiguity::AmbiguityContext> {
+fn ambiguity_context_from_row(
+    row: &sqlx::postgres::PgRow,
+) -> OxResult<ox_ontology::ambiguity::AmbiguityContext> {
     use sqlx::Row;
     let id_text: &str = row.try_get("id").map_err(to_ox_error)?;
     let id_uuid: uuid::Uuid = id_text.parse().map_err(|e: uuid::Error| OxError::Runtime {
@@ -37,10 +39,8 @@ fn ambiguity_context_from_row(row: &sqlx::postgres::PgRow) -> OxResult<ox_ontolo
         })?;
     let distinct_estimate: Option<i64> = row.try_get("distinct_estimate").map_err(to_ox_error)?;
     let nullable: bool = row.try_get("nullable").map_err(to_ox_error)?;
-    let clarification_prompt: &str =
-        row.try_get("clarification_prompt").map_err(to_ox_error)?;
-    let detection_source_hash: &str =
-        row.try_get("detection_source_hash").map_err(to_ox_error)?;
+    let clarification_prompt: &str = row.try_get("clarification_prompt").map_err(to_ox_error)?;
+    let detection_source_hash: &str = row.try_get("detection_source_hash").map_err(to_ox_error)?;
     let repo_hint_json: Option<serde_json::Value> =
         row.try_get("repo_hint").map_err(to_ox_error)?;
     let repo_hint = match repo_hint_json {
@@ -82,13 +82,13 @@ fn ambiguity_resolution_from_row(
         message: format!("ambiguity resolution id parse: {e}"),
     })?;
     let context_id_text: &str = row.try_get("context_id").map_err(to_ox_error)?;
-    let context_uuid: uuid::Uuid = context_id_text.parse().map_err(|e: uuid::Error| {
-        OxError::Runtime {
-            message: format!("context_id parse: {e}"),
-        }
-    })?;
-    let context_source_hash: &str =
-        row.try_get("context_source_hash").map_err(to_ox_error)?;
+    let context_uuid: uuid::Uuid =
+        context_id_text
+            .parse()
+            .map_err(|e: uuid::Error| OxError::Runtime {
+                message: format!("context_id parse: {e}"),
+            })?;
+    let context_source_hash: &str = row.try_get("context_source_hash").map_err(to_ox_error)?;
     let mapping_json: serde_json::Value = row.try_get("mapping").map_err(to_ox_error)?;
     let mapping = serde_json::from_value::<ox_ontology::ambiguity::AmbiguityMapping>(mapping_json)
         .map_err(|e| OxError::Runtime {
@@ -157,9 +157,12 @@ impl AmbiguityStore for PostgresStore {
         &self,
         id: &ox_ontology::ambiguity::AmbiguityId,
     ) -> OxResult<Option<ox_ontology::ambiguity::AmbiguityContext>> {
-        let uuid: Uuid = id.as_str().parse().map_err(|e: uuid::Error| OxError::Runtime {
-            message: format!("ambiguity id must be a uuid: {e}"),
-        })?;
+        let uuid: Uuid = id
+            .as_str()
+            .parse()
+            .map_err(|e: uuid::Error| OxError::Runtime {
+                message: format!("ambiguity id must be a uuid: {e}"),
+            })?;
         let row = sqlx::query(
             "SELECT id::text AS id, source_id, relation, column_name, kind, sample_values, \
              distinct_estimate, nullable, clarification_prompt, detection_source_hash, \
@@ -199,21 +202,23 @@ impl AmbiguityStore for PostgresStore {
         context: ox_ontology::ambiguity::AmbiguityContext,
     ) -> OxResult<ox_ontology::ambiguity::AmbiguityContext> {
         let workspace_id = super::bound_workspace_id_for_dml()?;
-        let ctx_uuid: Uuid = context.id.as_str().parse().map_err(|e: uuid::Error| {
-            OxError::Runtime {
-                message: format!("ambiguity id must be uuid: {e}"),
-            }
-        })?;
+        let ctx_uuid: Uuid =
+            context
+                .id
+                .as_str()
+                .parse()
+                .map_err(|e: uuid::Error| OxError::Runtime {
+                    message: format!("ambiguity id must be uuid: {e}"),
+                })?;
         let kind_text = match context.kind {
             ox_ontology::ambiguity::AmbiguityKind::NumericCode => "numeric_code",
             ox_ontology::ambiguity::AmbiguityKind::OpaqueShortCode => "opaque_short_code",
             ox_ontology::ambiguity::AmbiguityKind::OverloadedName => "overloaded_name",
         };
-        let sample_json = serde_json::to_value(&context.sample_values).map_err(|e| {
-            OxError::Runtime {
+        let sample_json =
+            serde_json::to_value(&context.sample_values).map_err(|e| OxError::Runtime {
                 message: format!("sample_values encode: {e}"),
-            }
-        })?;
+            })?;
         let repo_hint_json = match &context.repo_hint {
             Some(h) => Some(serde_json::to_value(h).map_err(|e| OxError::Runtime {
                 message: format!("repo_hint encode: {e}"),
@@ -264,9 +269,12 @@ impl AmbiguityStore for PostgresStore {
         id: &ox_ontology::ambiguity::AmbiguityId,
     ) -> OxResult<bool> {
         super::require_workspace_context()?;
-        let uuid: Uuid = id.as_str().parse().map_err(|e: uuid::Error| OxError::Runtime {
-            message: format!("ambiguity id must be uuid: {e}"),
-        })?;
+        let uuid: Uuid = id
+            .as_str()
+            .parse()
+            .map_err(|e: uuid::Error| OxError::Runtime {
+                message: format!("ambiguity id must be uuid: {e}"),
+            })?;
         let result = sqlx::query("DELETE FROM ambiguity_contexts WHERE id = $1")
             .bind(uuid)
             .execute(&self.pool)
@@ -279,11 +287,13 @@ impl AmbiguityStore for PostgresStore {
         &self,
         context_id: &ox_ontology::ambiguity::AmbiguityId,
     ) -> OxResult<Vec<ox_ontology::ambiguity::AmbiguityResolution>> {
-        let uuid: Uuid = context_id.as_str().parse().map_err(|e: uuid::Error| {
-            OxError::Runtime {
-                message: format!("context id must be uuid: {e}"),
-            }
-        })?;
+        let uuid: Uuid =
+            context_id
+                .as_str()
+                .parse()
+                .map_err(|e: uuid::Error| OxError::Runtime {
+                    message: format!("context id must be uuid: {e}"),
+                })?;
         let rows = sqlx::query(
             "SELECT id::text AS id, context_id::text AS context_id, context_source_hash, \
              mapping, resolved_at, resolved_by_user_id, \
@@ -330,29 +340,35 @@ impl AmbiguityStore for PostgresStore {
         // new one in a single transaction so the partial unique index
         // (one active per context) is never violated at read time.
         let workspace_id = super::bound_workspace_id_for_dml()?;
-        let res_uuid: Uuid = resolution.id.as_str().parse().map_err(|e: uuid::Error| {
-            OxError::Runtime {
-                message: format!("resolution id must be uuid: {e}"),
-            }
-        })?;
-        let ctx_uuid: Uuid = resolution.context_id.as_str().parse().map_err(
-            |e: uuid::Error| OxError::Runtime {
+        let res_uuid: Uuid =
+            resolution
+                .id
+                .as_str()
+                .parse()
+                .map_err(|e: uuid::Error| OxError::Runtime {
+                    message: format!("resolution id must be uuid: {e}"),
+                })?;
+        let ctx_uuid: Uuid = resolution
+            .context_id
+            .as_str()
+            .parse()
+            .map_err(|e: uuid::Error| OxError::Runtime {
                 message: format!("context id must be uuid: {e}"),
-            },
-        )?;
+            })?;
         let supersedes_uuid: Option<Uuid> = match &resolution.supersedes {
-            Some(s) => Some(s.as_str().parse().map_err(|e: uuid::Error| {
-                OxError::Runtime {
-                    message: format!("supersedes id must be uuid: {e}"),
-                }
-            })?),
+            Some(s) => Some(
+                s.as_str()
+                    .parse()
+                    .map_err(|e: uuid::Error| OxError::Runtime {
+                        message: format!("supersedes id must be uuid: {e}"),
+                    })?,
+            ),
             None => None,
         };
-        let mapping_json = serde_json::to_value(&resolution.mapping).map_err(|e| {
-            OxError::Runtime {
+        let mapping_json =
+            serde_json::to_value(&resolution.mapping).map_err(|e| OxError::Runtime {
                 message: format!("mapping encode: {e}"),
-            }
-        })?;
+            })?;
 
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 
@@ -407,11 +423,13 @@ impl AmbiguityStore for PostgresStore {
         context_id: &ox_ontology::ambiguity::AmbiguityId,
     ) -> OxResult<bool> {
         super::require_workspace_context()?;
-        let ctx_uuid: Uuid = context_id.as_str().parse().map_err(|e: uuid::Error| {
-            OxError::Runtime {
-                message: format!("context id must be uuid: {e}"),
-            }
-        })?;
+        let ctx_uuid: Uuid =
+            context_id
+                .as_str()
+                .parse()
+                .map_err(|e: uuid::Error| OxError::Runtime {
+                    message: format!("context id must be uuid: {e}"),
+                })?;
         let result = sqlx::query(
             "UPDATE ambiguity_resolutions \
              SET revoked_at = now() \

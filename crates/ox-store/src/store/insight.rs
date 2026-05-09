@@ -17,7 +17,7 @@ pub struct CreateInsightInput {
     pub question: LocalizedText,
     pub description: LocalizedText,
     pub tags: Vec<String>,
-    /// `GlossaryTermId` strings — see `InsightDef::concept_anchors`.
+    /// `ConceptId` strings — see `InsightDef::concept_anchors`.
     pub concept_anchors: Vec<String>,
     pub query_ir: serde_json::Value,
     pub original_provenance: Option<serde_json::Value>,
@@ -49,7 +49,7 @@ pub struct InsightFilter {
     /// Restrict to insights authored by this user. `None` widens to
     /// every visible insight in the workspace (RLS still applies).
     pub author_id: Option<Uuid>,
-    /// `GlossaryTermId` strings (typed concept anchors). When
+    /// `ConceptId` strings. When
     /// non-empty, the insight must carry at least one of these
     /// anchors.
     pub concept_anchors: Vec<String>,
@@ -92,8 +92,8 @@ pub trait InsightStore: Send + Sync {
 
     /// Cursor-paginated list, ordered by `updated_at DESC`. The
     /// [`InsightFilter`] composes every dimension the admin UI / API
-    /// surface filters by — author scope plus any subset of typed
-    /// `concept_anchors` ("용어 사전이 다리") and freeform `tags`.
+    /// surface filters by — author scope plus any subset of stable
+    /// `concept_anchors` and freeform `tags`.
     /// Each filter slot is array-overlap (`&&`) — non-empty argument
     /// means "any of these"; empty means "don't filter on this
     /// axis". Multiple slots AND together.

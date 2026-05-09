@@ -12,9 +12,9 @@ impl QueryStore for PostgresStore {
              (id, user_id, question, ontology_lineage_id, ontology_version,
               ontology_id, ontology_snapshot,
               query_ir, compiled_target, compiled_query,
-              results, widget, explanation, model, execution_time_ms,
+              results, widget, explanation, model_provider, model, execution_time_ms,
               query_bindings, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)",
         )
         .bind(exec.id)
         .bind(&exec.user_id)
@@ -29,6 +29,7 @@ impl QueryStore for PostgresStore {
         .bind(&exec.results)
         .bind(&exec.widget)
         .bind(&exec.explanation)
+        .bind(&exec.model_provider)
         .bind(&exec.model)
         .bind(exec.execution_time_ms)
         .bind(&exec.query_bindings)
@@ -55,7 +56,7 @@ impl QueryStore for PostgresStore {
             "SELECT id, user_id, question, ontology_lineage_id, ontology_version,
                     ontology_id, ontology_snapshot,
                     query_ir, compiled_target, compiled_query,
-                    results, widget, explanation, model,
+                    results, widget, explanation, model_provider, model,
                     execution_time_ms, query_bindings, created_at
              FROM query_executions
              WHERE id = $1 AND user_id = $2",
@@ -77,7 +78,7 @@ impl QueryStore for PostgresStore {
         let fetch_limit = limit + 1;
 
         let query = "SELECT id, question, ontology_lineage_id, ontology_version,
-                            compiled_target, model, execution_time_ms,
+                            compiled_target, model_provider, model, execution_time_ms,
                             jsonb_array_length(COALESCE(results->'rows', '[]'::jsonb))::bigint AS row_count,
                             widget IS NOT NULL AS has_widget,
                             created_at

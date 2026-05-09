@@ -19,22 +19,26 @@
 //! CASCADE`). The two surfaces share this contract; the store
 //! trait pins it in doc.
 
+use ox_ontology::{EvaluationFingerprint, ModelCall, ModelId, ModelPrices};
+
 use crate::evaluation::{
-    parse_run_status, EvaluationCapture, EvaluationCase, EvaluationContext, EvaluationDataset,
-    EvaluationDatasetItem, EvaluationMetric, EvaluationRun, EvaluationRunStatus,
+    EvaluationActual, EvaluationCapture, EvaluationCaptureAxis, EvaluationCase,
+    EvaluationCaseInput, EvaluationCaseMetadata, EvaluationContext, EvaluationDataset,
+    EvaluationDatasetItem, EvaluationExpected, EvaluationMetric, EvaluationMetricMetadata,
+    EvaluationRun, EvaluationRunStatus, parse_run_status,
 };
 use crate::store::{CursorPage, CursorParams, EvaluationStore};
 
 use super::*;
 
 /// Crate-private row mirror for `evaluation_runs`. Keeps the
-/// `status` decode in one place.
+/// `status` decode + the fingerprint hydration in one place.
 #[derive(sqlx::FromRow)]
 struct EvaluationRunRow {
     id: Uuid,
     workspace_id: Uuid,
-    ontology_version_id: Option<Uuid>,
-    dataset_id: Option<Uuid>,
+    fingerprint_components: sqlx::types::Json<EvaluationFingerprint>,
+    fingerprint_digest: String,
     name: String,
     description: String,
     status: String,
@@ -48,8 +52,8 @@ impl EvaluationRunRow {
         Ok(EvaluationRun {
             id: self.id,
             workspace_id: self.workspace_id,
-            ontology_version_id: self.ontology_version_id,
-            dataset_id: self.dataset_id,
+            fingerprint: self.fingerprint_components.0,
+            fingerprint_digest: self.fingerprint_digest,
             name: self.name,
             description: self.description,
             status: parse_run_status(&self.status)?,
@@ -104,8 +108,8 @@ struct EvaluationDatasetItemRow {
     dataset_id: Uuid,
     workspace_id: Uuid,
     item_key: String,
-    input: serde_json::Value,
-    expected: Option<serde_json::Value>,
+    input: sqlx::types::Json<EvaluationCaseInput>,
+    expected: Option<sqlx::types::Json<EvaluationExpected>>,
     metadata: serde_json::Value,
     created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -117,8 +121,8 @@ impl From<EvaluationDatasetItemRow> for EvaluationDatasetItem {
             dataset_id: r.dataset_id,
             workspace_id: r.workspace_id,
             item_key: r.item_key,
-            input: r.input,
-            expected: r.expected,
+            input: r.input.0,
+            expected: r.expected.map(|expected| expected.0),
             metadata: r.metadata,
             created_at: r.created_at,
         }
@@ -131,12 +135,12 @@ struct EvaluationCaseRow {
     run_id: Uuid,
     workspace_id: Uuid,
     case_key: String,
-    input: serde_json::Value,
-    expected: Option<serde_json::Value>,
-    actual: Option<serde_json::Value>,
+    input: sqlx::types::Json<EvaluationCaseInput>,
+    expected: Option<sqlx::types::Json<EvaluationExpected>>,
+    actual: Option<sqlx::types::Json<EvaluationActual>>,
     error: Option<String>,
     latency_ms: Option<i64>,
-    metadata: serde_json::Value,
+    metadata: sqlx::types::Json<EvaluationCaseMetadata>,
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -147,12 +151,12 @@ impl From<EvaluationCaseRow> for EvaluationCase {
             run_id: r.run_id,
             workspace_id: r.workspace_id,
             case_key: r.case_key,
-            input: r.input,
-            expected: r.expected,
-            actual: r.actual,
+            input: r.input.0,
+            expected: r.expected.map(|expected| expected.0),
+            actual: r.actual.map(|actual| actual.0),
             error: r.error,
             latency_ms: r.latency_ms,
-            metadata: r.metadata,
+            metadata: r.metadata.0,
             created_at: r.created_at,
         }
     }
@@ -166,7 +170,8 @@ struct EvaluationMetricRow {
     name: String,
     score: f64,
     reasoning: Option<String>,
-    metadata: serde_json::Value,
+    metadata: sqlx::types::Json<EvaluationMetricMetadata>,
+    provenance_id: Option<Uuid>,
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -179,7 +184,8 @@ impl From<EvaluationMetricRow> for EvaluationMetric {
             name: r.name,
             score: r.score,
             reasoning: r.reasoning,
-            metadata: r.metadata,
+            metadata: r.metadata.0,
+            provenance_id: r.provenance_id,
             created_at: r.created_at,
         }
     }
@@ -215,10 +221,7 @@ impl EvaluationStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all, fields(dataset_id = %id))]
-    async fn get_evaluation_dataset(
-        &self,
-        id: Uuid,
-    ) -> OxResult<Option<EvaluationDataset>> {
+    async fn get_evaluation_dataset(&self, id: Uuid) -> OxResult<Option<EvaluationDataset>> {
         super::require_workspace_context()?;
         let row: Option<EvaluationDatasetRow> = sqlx::query_as(
             "SELECT id, workspace_id, name, description, created_at
@@ -325,8 +328,8 @@ impl EvaluationStore for PostgresStore {
         .bind(item.dataset_id)
         .bind(workspace_id)
         .bind(&item.item_key)
-        .bind(&item.input)
-        .bind(&item.expected)
+        .bind(sqlx::types::Json(&item.input))
+        .bind(item.expected.as_ref().map(sqlx::types::Json))
         .bind(&item.metadata)
         .bind(item.created_at)
         .fetch_one(&self.pool)
@@ -378,8 +381,8 @@ impl EvaluationStore for PostgresStore {
             .bind(dataset_id)
             .bind(workspace_id)
             .bind(&item.item_key)
-            .bind(&item.input)
-            .bind(&item.expected)
+            .bind(sqlx::types::Json(&item.input))
+            .bind(item.expected.as_ref().map(sqlx::types::Json))
             .bind(&item.metadata)
             .bind(item.created_at)
             .execute(&mut *tx)
@@ -411,29 +414,38 @@ impl EvaluationStore for PostgresStore {
         Ok(rows.into_iter().map(EvaluationDatasetItem::from).collect())
     }
 
-    #[tracing::instrument(level = "debug", skip_all, fields(dataset_id = %dataset_id, run.name = %run_name))]
+    #[tracing::instrument(level = "debug", skip_all, fields(
+        dataset_id = %fingerprint.dataset_id,
+        ontology_version_id = %fingerprint.ontology_version_id,
+        run.name = %run_name,
+    ))]
     async fn create_run_from_dataset(
         &self,
-        dataset_id: Uuid,
         run_name: &str,
         run_description: &str,
-        ontology_version_id: Option<Uuid>,
+        fingerprint: EvaluationFingerprint,
         run_metadata: serde_json::Value,
     ) -> OxResult<(EvaluationRun, u64)> {
         let workspace_id = super::bound_workspace_id_for_dml()?;
+        let dataset_id = fingerprint.dataset_id;
+        let ontology_version_id = fingerprint.ontology_version_id;
+        let model_id_str = fingerprint.model_id.as_str().to_string();
+        let fingerprint_digest = fingerprint.digest()?;
+        let fingerprint_json = serde_json::to_value(&fingerprint).map_err(|e| OxError::Runtime {
+            message: format!("EvaluationFingerprint serialise failed: {e}"),
+        })?;
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 
         // Verify the dataset exists in the active workspace
         // before consuming it. RLS already filters cross-tenant
         // ids, but a typed `NotFound` reads cleaner than a
         // confusing "0 items" run.
-        let exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM evaluation_datasets WHERE id = $1",
-        )
-        .bind(dataset_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(to_ox_error)?;
+        let exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM evaluation_datasets WHERE id = $1")
+                .bind(dataset_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(to_ox_error)?;
         if exists.is_none() {
             return Err(OxError::NotFound {
                 entity: format!("evaluation_datasets id={dataset_id}"),
@@ -444,16 +456,20 @@ impl EvaluationStore for PostgresStore {
         let started_at = chrono::Utc::now();
         let run_row: EvaluationRunRow = sqlx::query_as(
             "INSERT INTO evaluation_runs
-                (id, workspace_id, ontology_version_id, dataset_id, name, description,
-                 status, started_at, completed_at, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6, 'running', $7, NULL, $8)
-             RETURNING id, workspace_id, ontology_version_id, dataset_id, name, description,
-                       status, started_at, completed_at, metadata",
+                (id, workspace_id, ontology_version_id, dataset_id, model_id,
+                 fingerprint_digest, fingerprint_components,
+                 name, description, status, started_at, completed_at, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'running', $10, NULL, $11)
+             RETURNING id, workspace_id, fingerprint_components, fingerprint_digest,
+                       name, description, status, started_at, completed_at, metadata",
         )
         .bind(run_id)
         .bind(workspace_id)
         .bind(ontology_version_id)
         .bind(dataset_id)
+        .bind(&model_id_str)
+        .bind(&fingerprint_digest)
+        .bind(&fingerprint_json)
         .bind(run_name)
         .bind(run_description)
         .bind(started_at)
@@ -496,18 +512,29 @@ impl EvaluationStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all, fields(run.name = %run.name))]
     async fn create_evaluation_run(&self, run: &EvaluationRun) -> OxResult<EvaluationRun> {
         let workspace_id = super::bound_workspace_id_for_dml()?;
+        // Recompute the digest at write time so a malformed caller
+        // cannot persist a digest that does not match the
+        // components — the stored pair is always coherent.
+        let digest = run.fingerprint.digest()?;
+        let components = serde_json::to_value(&run.fingerprint).map_err(|e| OxError::Runtime {
+            message: format!("EvaluationFingerprint serialise failed: {e}"),
+        })?;
         let row: EvaluationRunRow = sqlx::query_as(
             "INSERT INTO evaluation_runs
-                (id, workspace_id, ontology_version_id, dataset_id, name, description,
-                 status, started_at, completed_at, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-             RETURNING id, workspace_id, ontology_version_id, dataset_id, name, description,
-                       status, started_at, completed_at, metadata",
+                (id, workspace_id, ontology_version_id, dataset_id, model_id,
+                 fingerprint_digest, fingerprint_components,
+                 name, description, status, started_at, completed_at, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             RETURNING id, workspace_id, fingerprint_components, fingerprint_digest,
+                       name, description, status, started_at, completed_at, metadata",
         )
         .bind(run.id)
         .bind(workspace_id)
-        .bind(run.ontology_version_id)
-        .bind(run.dataset_id)
+        .bind(run.fingerprint.ontology_version_id)
+        .bind(run.fingerprint.dataset_id)
+        .bind(run.fingerprint.model_id.as_str())
+        .bind(&digest)
+        .bind(&components)
         .bind(&run.name)
         .bind(&run.description)
         .bind(run.status.as_str())
@@ -524,8 +551,8 @@ impl EvaluationStore for PostgresStore {
     async fn get_evaluation_run(&self, id: Uuid) -> OxResult<Option<EvaluationRun>> {
         super::require_workspace_context()?;
         let row: Option<EvaluationRunRow> = sqlx::query_as(
-            "SELECT id, workspace_id, ontology_version_id, dataset_id, name, description,
-                    status, started_at, completed_at, metadata
+            "SELECT id, workspace_id, fingerprint_components, fingerprint_digest,
+                    name, description, status, started_at, completed_at, metadata
              FROM evaluation_runs WHERE id = $1",
         )
         .bind(id)
@@ -536,14 +563,11 @@ impl EvaluationStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all, fields(name = %name))]
-    async fn find_evaluation_run_by_name(
-        &self,
-        name: &str,
-    ) -> OxResult<Option<EvaluationRun>> {
+    async fn find_evaluation_run_by_name(&self, name: &str) -> OxResult<Option<EvaluationRun>> {
         super::require_workspace_context()?;
         let row: Option<EvaluationRunRow> = sqlx::query_as(
-            "SELECT id, workspace_id, ontology_version_id, dataset_id, name, description,
-                    status, started_at, completed_at, metadata
+            "SELECT id, workspace_id, fingerprint_components, fingerprint_digest,
+                    name, description, status, started_at, completed_at, metadata
              FROM evaluation_runs
              WHERE name = $1
              ORDER BY started_at DESC
@@ -566,8 +590,8 @@ impl EvaluationStore for PostgresStore {
         let fetch_limit = limit + 1;
 
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
-            "SELECT id, workspace_id, ontology_version_id, dataset_id, name, description,
-                    status, started_at, completed_at, metadata
+            "SELECT id, workspace_id, fingerprint_components, fingerprint_digest,
+                    name, description, status, started_at, completed_at, metadata
              FROM evaluation_runs WHERE TRUE",
         );
         if let Some((cursor_ts, cursor_id)) = pagination.cursor_parts() {
@@ -605,8 +629,8 @@ impl EvaluationStore for PostgresStore {
             "UPDATE evaluation_runs
              SET status = $2, completed_at = now()
              WHERE id = $1
-             RETURNING id, workspace_id, ontology_version_id, dataset_id, name, description,
-                       status, started_at, completed_at, metadata",
+             RETURNING id, workspace_id, fingerprint_components, fingerprint_digest,
+                       name, description, status, started_at, completed_at, metadata",
         )
         .bind(id)
         .bind(status.as_str())
@@ -647,9 +671,8 @@ impl EvaluationStore for PostgresStore {
         // any RAGAS-tagged metric — the COUNT DISTINCT prevents
         // a case with 4 axes from inflating the count by 4.
         // `failed_cases` is a separate count over the cases row.
-        let (total_cases, judged_cases, failed_cases): (i64, i64, i64) =
-            sqlx::query_as(
-                "SELECT
+        let (total_cases, judged_cases, failed_cases): (i64, i64, i64) = sqlx::query_as(
+            "SELECT
                     (SELECT COUNT(*)
                        FROM evaluation_cases
                       WHERE run_id = $1) AS total,
@@ -662,11 +685,11 @@ impl EvaluationStore for PostgresStore {
                        FROM evaluation_cases
                       WHERE run_id = $1
                         AND error IS NOT NULL) AS failed",
-            )
-            .bind(run_id)
-            .fetch_one(&self.pool)
-            .await
-            .map_err(to_ox_error)?;
+        )
+        .bind(run_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
 
         // Per-axis aggregate across every metric attached to
         // every case in the run. `axis ASC` sort keeps the FE
@@ -716,7 +739,11 @@ impl EvaluationStore for PostgresStore {
 
         // 1. Verify both runs exist + share dataset_id. RLS
         //    already filters cross-tenant ids; the dataset
-        //    correspondence check is the pair gate.
+        //    correspondence check is the pair gate. `dataset_id`
+        //    is `NOT NULL` on `evaluation_runs` (enforced through
+        //    `EvaluationFingerprint`) so the only failure mode is
+        //    "row missing" — a present row always carries a
+        //    dataset.
         let pair: Option<(Option<Uuid>, Option<Uuid>)> = sqlx::query_as(
             "SELECT
                 (SELECT dataset_id FROM evaluation_runs WHERE id = $1) AS baseline_dataset,
@@ -730,13 +757,9 @@ impl EvaluationStore for PostgresStore {
         let (baseline_dataset, candidate_dataset) = match pair {
             Some((Some(b), Some(c))) => (b, c),
             _ => {
-                return Err(OxError::Validation {
-                    field: "run_pair".to_string(),
-                    message: format!(
-                        "Cannot diff runs: at least one of {baseline_run_id} / {candidate_run_id} \
-                         is not associated with a dataset (ad-hoc runs cannot be compared — \
-                         only dataset-materialised runs share the case_key correspondence the \
-                         diff requires)."
+                return Err(OxError::NotFound {
+                    entity: format!(
+                        "evaluation_runs pair baseline={baseline_run_id} candidate={candidate_run_id}"
                     ),
                 });
             }
@@ -902,12 +925,12 @@ impl EvaluationStore for PostgresStore {
         .bind(case.run_id)
         .bind(workspace_id)
         .bind(&case.case_key)
-        .bind(&case.input)
-        .bind(&case.expected)
-        .bind(&case.actual)
+        .bind(sqlx::types::Json(&case.input))
+        .bind(case.expected.as_ref().map(sqlx::types::Json))
+        .bind(case.actual.as_ref().map(sqlx::types::Json))
         .bind(&case.error)
         .bind(case.latency_ms)
-        .bind(&case.metadata)
+        .bind(sqlx::types::Json(&case.metadata))
         .bind(case.created_at)
         .fetch_one(&self.pool)
         .await
@@ -961,7 +984,7 @@ impl EvaluationStore for PostgresStore {
         // they're scored deterministically at execute time and
         // don't benefit from an LLM judge round-trip. Hard cap of
         // 500 prevents a backlog spike from OOM-ing the worker.
-        let capped = (limit.max(1)).min(500) as i64;
+        let capped = limit.clamp(1, 500) as i64;
         let rows: Vec<EvaluationCaseRow> = sqlx::query_as(
             "SELECT c.id, c.run_id, c.workspace_id, c.case_key, c.input,
                     c.expected, c.actual, c.error, c.latency_ms, c.metadata,
@@ -997,15 +1020,16 @@ impl EvaluationStore for PostgresStore {
         let row: EvaluationMetricRow = sqlx::query_as(
             "INSERT INTO evaluation_metrics
                 (id, case_id, workspace_id, name, score, reasoning, metadata,
-                 created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                 provenance_id, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              ON CONFLICT (case_id, name) DO UPDATE SET
                 score = EXCLUDED.score,
                 reasoning = EXCLUDED.reasoning,
                 metadata = EXCLUDED.metadata,
+                provenance_id = EXCLUDED.provenance_id,
                 created_at = EXCLUDED.created_at
              RETURNING id, case_id, workspace_id, name, score, reasoning,
-                       metadata, created_at",
+                       metadata, provenance_id, created_at",
         )
         .bind(metric.id)
         .bind(metric.case_id)
@@ -1013,7 +1037,8 @@ impl EvaluationStore for PostgresStore {
         .bind(&metric.name)
         .bind(metric.score)
         .bind(&metric.reasoning)
-        .bind(&metric.metadata)
+        .bind(sqlx::types::Json(&metric.metadata))
+        .bind(metric.provenance_id)
         .bind(metric.created_at)
         .fetch_one(&self.pool)
         .await
@@ -1022,14 +1047,11 @@ impl EvaluationStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all, fields(case_id = %case_id))]
-    async fn list_evaluation_metrics(
-        &self,
-        case_id: Uuid,
-    ) -> OxResult<Vec<EvaluationMetric>> {
+    async fn list_evaluation_metrics(&self, case_id: Uuid) -> OxResult<Vec<EvaluationMetric>> {
         super::require_workspace_context()?;
         let rows: Vec<EvaluationMetricRow> = sqlx::query_as(
             "SELECT id, case_id, workspace_id, name, score, reasoning, metadata,
-                    created_at
+                    provenance_id, created_at
              FROM evaluation_metrics
              WHERE case_id = $1
              ORDER BY name ASC",
@@ -1042,93 +1064,88 @@ impl EvaluationStore for PostgresStore {
     }
 }
 
-/// Storage-backed [`EvaluationCapture`]. Routes every latency
-/// observation to a fresh row on `evaluation_metrics` with the
-/// operation name as the rubric axis.
+/// Storage-backed [`EvaluationCapture`]. One LLM call lands four
+/// to five `evaluation_metrics` rows — latency, input / output /
+/// cached_input tokens, derived cost — sharing the operation tag
+/// so the FE pivots them as a single observation.
 ///
 /// The capture is workspace-scoped via the same task-local
-/// guard the rest of the store uses; an evaluation scope
-/// without a workspace context fails the underlying
-/// `upsert_evaluation_metric` call rather than silently
-/// landing rows under a different tenant.
+/// guard the rest of the store uses; an evaluation scope without
+/// a workspace context fails the underlying
+/// `upsert_evaluation_metric` call rather than silently landing
+/// rows under a different tenant.
 #[async_trait]
 impl EvaluationCapture for PostgresStore {
-    #[tracing::instrument(level = "debug", skip_all, fields(case_id = %ctx.case_id, operation = %operation, latency_ms = latency_ms))]
-    async fn record_latency(
-        &self,
-        ctx: &EvaluationContext,
-        operation: &str,
-        latency_ms: i64,
-    ) -> OxResult<()> {
-        self.record_metric(ctx, format!("latency_ms.{operation}"), latency_ms as f64, "latency_ms", operation)
-            .await
-    }
-
     #[tracing::instrument(level = "debug", skip_all, fields(
         case_id = %ctx.case_id,
         operation = %operation,
-        prompt = prompt_tokens,
-        completion = completion_tokens,
+        model_id = %call.model_id,
+        latency_ms = call.latency_ms,
+        input_tokens = call.input_tokens,
+        output_tokens = call.output_tokens,
+        cached_input_tokens = call.cached_input_tokens,
     ))]
-    async fn record_tokens(
+    async fn record_call(
         &self,
         ctx: &EvaluationContext,
         operation: &str,
-        prompt_tokens: u32,
-        completion_tokens: u32,
+        call: ModelCall,
     ) -> OxResult<()> {
-        // Two rows — prompt + completion. Splitting on the
-        // metric name lets the FE roll up per-axis (ratio of
-        // prompt:completion is a meaningful fingerprint of how
-        // chatty the system prompt is) without a second pass.
         self.record_metric(
             ctx,
-            format!("tokens.prompt.{operation}"),
-            prompt_tokens as f64,
-            "tokens",
+            format!("latency_ms.{operation}"),
+            call.latency_ms as f64,
+            EvaluationCaptureAxis::LatencyMs,
             operation,
         )
         .await?;
         self.record_metric(
             ctx,
-            format!("tokens.completion.{operation}"),
-            completion_tokens as f64,
-            "tokens",
+            format!("tokens.input.{operation}"),
+            call.input_tokens as f64,
+            EvaluationCaptureAxis::InputTokens,
             operation,
         )
-        .await
-    }
-
-    #[tracing::instrument(level = "debug", skip_all, fields(
-        case_id = %ctx.case_id,
-        operation = %operation,
-        cost_micro_usd = cost_micro_usd,
-    ))]
-    async fn record_cost_usd(
-        &self,
-        ctx: &EvaluationContext,
-        operation: &str,
-        cost_micro_usd: u64,
-    ) -> OxResult<()> {
-        // Stored in micro-USD on the metric `score: f64` — keeps
-        // the wire shape uniform with latency / tokens (numeric
-        // axis). Sub-cent precision is meaningful for high-volume
-        // operations (an embedding call at 0.0001 USD per 1K
-        // tokens flattens to "0.00" if stored in cents).
+        .await?;
         self.record_metric(
             ctx,
-            format!("cost_usd.{operation}"),
-            cost_micro_usd as f64,
-            "cost_usd",
+            format!("tokens.output.{operation}"),
+            call.output_tokens as f64,
+            EvaluationCaptureAxis::OutputTokens,
             operation,
         )
-        .await
+        .await?;
+        self.record_metric(
+            ctx,
+            format!("tokens.cached_input.{operation}"),
+            call.cached_input_tokens as f64,
+            EvaluationCaptureAxis::CachedInputTokens,
+            operation,
+        )
+        .await?;
+
+        // Cost is derived from the active price row, not stored
+        // ahead of time. A miss on the price catalogue skips the
+        // cost axis (rather than fabricating a zero) so dashboards
+        // distinguish "no price for this model" from "free call".
+        if let Some(prices) = self.fetch_active_model_prices(&call.model_id).await? {
+            let cost_micro = call.cost_micro_usd(&prices);
+            self.record_metric(
+                ctx,
+                format!("cost_micro_usd.{operation}"),
+                cost_micro as f64,
+                EvaluationCaptureAxis::CostMicroUsd,
+                operation,
+            )
+            .await?;
+        }
+        Ok(())
     }
 }
 
 impl PostgresStore {
     /// Shared write path for every numeric `EvaluationCapture`
-    /// metric. Stamps the workspace from the bound task-local,
+    /// metric row. Stamps the workspace from the bound task-local,
     /// builds a uniform `metadata` envelope (`kind`, `operation`,
     /// run + case correlation), and lands the row through
     /// `super::EvaluationStore::upsert_evaluation_metric` so re-runs
@@ -1138,7 +1155,7 @@ impl PostgresStore {
         ctx: &EvaluationContext,
         name: String,
         score: f64,
-        kind: &'static str,
+        axis: EvaluationCaptureAxis,
         operation: &str,
     ) -> OxResult<()> {
         let workspace_id = super::bound_workspace_id_for_dml()?;
@@ -1149,14 +1166,63 @@ impl PostgresStore {
             name,
             score,
             reasoning: None,
-            metadata: serde_json::json!({
-                "kind": kind,
-                "operation": operation,
-                "run_id": ctx.run_id,
-                "case_key": ctx.case_key,
-            }),
+            metadata: EvaluationMetricMetadata::Capture {
+                axis,
+                operation: operation.to_string(),
+                run_id: ctx.run_id,
+                case_key: ctx.case_key.clone(),
+            },
+            // Capture-axis observations attach to the case via
+            // its `EvaluationCaseMetadata::Call.prompt_render_hash`,
+            // not to a metric-level provenance row.
+            provenance_id: None,
             created_at: chrono::Utc::now(),
         };
         self.upsert_evaluation_metric(&metric).await.map(|_| ())
+    }
+
+    /// Resolve the [`ModelPrices`] row that's authoritative right
+    /// now for the supplied `model_id`. Returns `None` when no
+    /// row applies — the caller treats the cost axis as absent
+    /// rather than synthesising a zero. `model_prices` is platform-
+    /// wide reference data (no RLS) so the lookup runs without a
+    /// workspace context.
+    async fn fetch_active_model_prices(
+        &self,
+        model_id: &ModelId,
+    ) -> OxResult<Option<ModelPrices>> {
+        #[derive(sqlx::FromRow)]
+        struct ModelPricesRow {
+            model_id: String,
+            input_price_usd_per_million: f64,
+            cached_input_price_usd_per_million: f64,
+            output_price_usd_per_million: f64,
+            valid_from: chrono::DateTime<chrono::Utc>,
+            valid_to: Option<chrono::DateTime<chrono::Utc>>,
+        }
+        let row: Option<ModelPricesRow> = sqlx::query_as(
+            "SELECT model_id, input_price_usd_per_million,
+                    cached_input_price_usd_per_million,
+                    output_price_usd_per_million,
+                    valid_from, valid_to
+               FROM model_prices
+              WHERE model_id = $1
+                AND valid_from <= now()
+                AND (valid_to IS NULL OR valid_to > now())
+              ORDER BY valid_from DESC
+              LIMIT 1",
+        )
+        .bind(model_id.as_str())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(row.map(|r| ModelPrices {
+            model_id: ModelId::new(r.model_id),
+            input_price_usd_per_million: r.input_price_usd_per_million,
+            cached_input_price_usd_per_million: r.cached_input_price_usd_per_million,
+            output_price_usd_per_million: r.output_price_usd_per_million,
+            valid_from: r.valid_from,
+            valid_to: r.valid_to,
+        }))
     }
 }

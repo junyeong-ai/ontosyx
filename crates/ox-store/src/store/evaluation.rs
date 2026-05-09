@@ -28,6 +28,8 @@ use uuid::Uuid;
 
 use ox_core::error::OxResult;
 
+use ox_ontology::EvaluationFingerprint;
+
 use crate::evaluation::{
     EvaluationCase, EvaluationDataset, EvaluationDatasetItem, EvaluationDatasetSummary,
     EvaluationMetric, EvaluationRun, EvaluationRunStatus, RunComparisonReport, RunSummary,
@@ -65,9 +67,11 @@ pub trait EvaluationStore: Send + Sync {
         pagination: &CursorParams,
     ) -> OxResult<CursorPage<EvaluationDatasetSummary>>;
 
-    /// Cascade-delete a dataset + every item. Runs that referenced
-    /// the dataset stay alive (`evaluation_runs.dataset_id` goes
-    /// `SET NULL` so historical comparison rows survive).
+    /// Cascade-delete a dataset + every item. Refuses with
+    /// `OxError::Conflict` when an `evaluation_runs` row references
+    /// the dataset — historical runs pin their dataset via
+    /// `EvaluationFingerprint` and the FK is `ON DELETE RESTRICT`.
+    /// Operators delete dependent runs first, then the dataset.
     async fn delete_evaluation_dataset(&self, id: Uuid) -> OxResult<bool>;
 
     /// Insert-or-update one dataset item on the `(dataset_id,
@@ -101,20 +105,27 @@ pub trait EvaluationStore: Send + Sync {
 
     /// Materialise a fresh run from a dataset — copies every item
     /// into `evaluation_cases` keyed on the dataset's `item_key`,
-    /// pins the run's `dataset_id` for lineage. Returns the
-    /// created run + the case count for the caller's response
-    /// envelope. The run starts in `Running` state; the caller
-    /// then drives execute / judge as usual.
+    /// pins the run's [`EvaluationFingerprint`] for full
+    /// reproducibility. Returns the created run + the case count
+    /// for the caller's response envelope. The run starts in
+    /// `Running` state; the caller then drives execute / judge as
+    /// usual.
+    ///
+    /// `fingerprint.dataset_id` MUST refer to an existing dataset
+    /// in the active workspace; the impl rejects with
+    /// `OxError::NotFound` otherwise. Every reproducibility pin
+    /// (ontology version, model id, prompt template, decoding
+    /// config) flows through the fingerprint, never as a separate
+    /// argument.
     ///
     /// Atomic: dataset read + run insert + case bulk-insert all
     /// land in one transaction so partial materialisation is
     /// impossible.
     async fn create_run_from_dataset(
         &self,
-        dataset_id: Uuid,
         run_name: &str,
         run_description: &str,
-        ontology_version_id: Option<Uuid>,
+        fingerprint: EvaluationFingerprint,
         run_metadata: serde_json::Value,
     ) -> OxResult<(EvaluationRun, u64)>;
 
@@ -137,10 +148,7 @@ pub trait EvaluationStore: Send + Sync {
     /// uniqueness constraint on `name` because operator-driven
     /// runs share the namespace and the same display name is
     /// allowed across cohorts.
-    async fn find_evaluation_run_by_name(
-        &self,
-        name: &str,
-    ) -> OxResult<Option<EvaluationRun>>;
+    async fn find_evaluation_run_by_name(&self, name: &str) -> OxResult<Option<EvaluationRun>>;
 
     /// List runs in the active workspace, newest-started first.
     async fn list_evaluation_runs(

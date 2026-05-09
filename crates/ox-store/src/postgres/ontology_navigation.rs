@@ -310,8 +310,7 @@ impl crate::store::OntologyNavigationStore for PostgresStore {
 
             for r in rows {
                 let ancestor = EntityRef::new(&r.ancestor_kind, &r.ancestor_logical_id);
-                let descendant =
-                    EntityRef::new(&r.descendant_kind, &r.descendant_logical_id);
+                let descendant = EntityRef::new(&r.descendant_kind, &r.descendant_logical_id);
 
                 if r.depth == 0 {
                     // Self-row — already present as the anchor.
@@ -352,8 +351,7 @@ impl crate::store::OntologyNavigationStore for PostgresStore {
         if let Some(FacetFilter { kinds: Some(ks) }) = options.facet_filter {
             nodes.retain(|(k, _), _| ks.iter().any(|pat| pat == k));
             edges.retain(|e| {
-                ks.iter().any(|k| k == &e.from.kind)
-                    && ks.iter().any(|k| k == &e.to.kind)
+                ks.iter().any(|k| k == &e.from.kind) && ks.iter().any(|k| k == &e.to.kind)
             });
         }
 

@@ -2,6 +2,38 @@
 
 use super::*;
 
+#[derive(sqlx::FromRow)]
+struct DataSourceRow {
+    id: Uuid,
+    workspace_id: Uuid,
+    source_id: String,
+    kind: String,
+    config: serde_json::Value,
+    last_analysis_snapshot: Option<serde_json::Value>,
+    schema_fingerprints:
+        sqlx::types::Json<std::collections::BTreeMap<String, ox_core::SchemaFingerprint>>,
+    last_analyzed_at: Option<DateTime<Utc>>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+impl From<DataSourceRow> for crate::models::DataSource {
+    fn from(row: DataSourceRow) -> Self {
+        Self {
+            id: row.id,
+            workspace_id: row.workspace_id,
+            source_id: row.source_id,
+            kind: row.kind,
+            config: row.config,
+            last_analysis_snapshot: row.last_analysis_snapshot,
+            schema_fingerprints: row.schema_fingerprints.0,
+            last_analyzed_at: row.last_analyzed_at,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }
+    }
+}
+
 #[async_trait]
 impl crate::store::DataSourceStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
@@ -25,7 +57,7 @@ impl crate::store::DataSourceStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn get_data_source(&self, id: Uuid) -> OxResult<Option<crate::models::DataSource>> {
-        sqlx::query_as::<_, crate::models::DataSource>(
+        let row = sqlx::query_as::<_, DataSourceRow>(
             "SELECT id, workspace_id, source_id, kind, config,
                     last_analysis_snapshot, schema_fingerprints, last_analyzed_at,
                     created_at, updated_at
@@ -35,7 +67,8 @@ impl crate::store::DataSourceStore for PostgresStore {
         .bind(id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        Ok(row.map(Into::into))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -43,7 +76,7 @@ impl crate::store::DataSourceStore for PostgresStore {
         &self,
         source_id: &str,
     ) -> OxResult<Option<crate::models::DataSource>> {
-        sqlx::query_as::<_, crate::models::DataSource>(
+        let row = sqlx::query_as::<_, DataSourceRow>(
             "SELECT id, workspace_id, source_id, kind, config,
                     last_analysis_snapshot, schema_fingerprints, last_analyzed_at,
                     created_at, updated_at
@@ -53,12 +86,13 @@ impl crate::store::DataSourceStore for PostgresStore {
         .bind(source_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        Ok(row.map(Into::into))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn list_data_sources(&self) -> OxResult<Vec<crate::models::DataSource>> {
-        sqlx::query_as::<_, crate::models::DataSource>(
+        let rows = sqlx::query_as::<_, DataSourceRow>(
             "SELECT id, workspace_id, source_id, kind, config,
                     last_analysis_snapshot, schema_fingerprints, last_analyzed_at,
                     created_at, updated_at
@@ -67,7 +101,8 @@ impl crate::store::DataSourceStore for PostgresStore {
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -78,12 +113,12 @@ impl crate::store::DataSourceStore for PostgresStore {
         config: &serde_json::Value,
     ) -> OxResult<crate::models::DataSource> {
         super::require_workspace_context()?;
-        // ON CONFLICT on (workspace_id, source_id) — the unique
-        // constraint declared in migration 0011. The conflicting row's
+        // ON CONFLICT on (workspace_id, source_id) — the schema-level
+        // identity constraint for registered sources. The conflicting row's
         // workspace_id must match the current session's workspace_id
         // because RLS is enforced against the row already; DO UPDATE
         // therefore only replaces rows the caller is allowed to see.
-        sqlx::query_as::<_, crate::models::DataSource>(
+        let row = sqlx::query_as::<_, DataSourceRow>(
             "INSERT INTO data_sources (source_id, kind, config)
              VALUES ($1, $2, $3)
              ON CONFLICT (workspace_id, source_id) DO UPDATE
@@ -99,7 +134,8 @@ impl crate::store::DataSourceStore for PostgresStore {
         .bind(config)
         .fetch_one(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        Ok(row.into())
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -118,13 +154,13 @@ impl crate::store::DataSourceStore for PostgresStore {
         &self,
         source_id: &str,
         snapshot: &serde_json::Value,
-        fingerprints: &serde_json::Value,
+        fingerprints: &std::collections::BTreeMap<String, ox_core::SchemaFingerprint>,
     ) -> OxResult<crate::models::DataSource> {
         super::require_workspace_context()?;
         // RLS scopes the update — we never need to bind workspace_id
         // explicitly. Returns the row so callers can surface the
         // freshly-stamped `last_analyzed_at`.
-        sqlx::query_as::<_, crate::models::DataSource>(
+        let row = sqlx::query_as::<_, DataSourceRow>(
             "UPDATE data_sources
                 SET last_analysis_snapshot = $2,
                     schema_fingerprints = $3,
@@ -137,9 +173,10 @@ impl crate::store::DataSourceStore for PostgresStore {
         )
         .bind(source_id)
         .bind(snapshot)
-        .bind(fingerprints)
+        .bind(sqlx::types::Json(fingerprints))
         .fetch_one(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        Ok(row.into())
     }
 }

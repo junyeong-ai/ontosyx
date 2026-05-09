@@ -1,7 +1,7 @@
 //! [`OntologyVersionStore`] — ontology identity + committed version snapshots, with Level-3 materialisation on commit.
 
-use super::*;
 use super::ontology_materialize::{assemble_ir, materialize_level3};
+use super::*;
 
 #[async_trait]
 impl crate::store::OntologyVersionStore for PostgresStore {
@@ -35,9 +35,7 @@ impl crate::store::OntologyVersionStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_workspace_ontology(
-        &self,
-    ) -> OxResult<Option<crate::models::OntologyRow>> {
+    async fn get_workspace_ontology(&self) -> OxResult<Option<crate::models::OntologyRow>> {
         // RLS scopes the query to the caller's workspace, and the
         // `ontologies_workspace_singleton_uq` UNIQUE constraint
         // guarantees at most one row matches.
@@ -56,12 +54,38 @@ impl crate::store::OntologyVersionStore for PostgresStore {
         parent_version_id: Option<Uuid>,
         committed_by: &str,
         commit_message: &str,
+        capture: ox_ontology::ProvenanceCapture,
+        glossary_tokenizer_fingerprint: &str,
     ) -> OxResult<crate::models::OntologyVersionSnapshot> {
         super::require_workspace_context()?;
         // Extract content-addressed entities BEFORE opening the
         // transaction — serialisation failures should not leave a
         // half-open tx behind.
         let entities = ox_ontology::storage::extract_entities(ir)?;
+
+        // Stamp the provenance row first. The snapshot row's
+        // `provenance_id NOT NULL` FK requires the audit row to
+        // exist by the time we INSERT the snapshot. Subject is
+        // the synthetic label `ontology_version:<placeholder>`
+        // — the snapshot id is not known until the INSERT
+        // returns, so we use the version tag + ontology id pair
+        // as the human-readable subject. Audit-trail consumers
+        // join `ontology_version_snapshots ON provenance_id`
+        // when they need the actual id back-reference.
+        let subject = ox_ontology::EntityRef::Arbitrary {
+            label: format!("ontology_version:{ontology_id}:{version}"),
+        };
+        let provenance_id_str =
+            <Self as crate::store::ProvenanceStore>::record_activity(self, capture, subject)
+                .await?
+                .as_str()
+                .to_string();
+        let provenance_id =
+            Uuid::parse_str(&provenance_id_str).map_err(|e| OxError::Runtime {
+                message: format!(
+                    "ProvenanceStore::record_activity returned non-UUID id `{provenance_id_str}`: {e}"
+                ),
+            })?;
 
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 
@@ -98,14 +122,17 @@ impl crate::store::OntologyVersionStore for PostgresStore {
         //    "commit the current state" path.
         let snapshot = sqlx::query_as::<_, crate::models::OntologyVersionSnapshot>(
             "INSERT INTO ontology_version_snapshots \
-                (ontology_id, version, parent_version_id, committed_by, commit_message) \
-             VALUES ($1, $2, $3, $4, $5) RETURNING *",
+                (ontology_id, version, parent_version_id, committed_by, commit_message, \
+                 provenance_id, glossary_tokenizer_fingerprint) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
         )
         .bind(ontology_id)
         .bind(version)
         .bind(parent_version_id)
         .bind(committed_by)
         .bind(commit_message)
+        .bind(provenance_id)
+        .bind(glossary_tokenizer_fingerprint)
         .fetch_one(&mut *tx)
         .await
         .map_err(to_ox_error)?;
@@ -146,10 +173,7 @@ impl crate::store::OntologyVersionStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_ontology_ir(
-        &self,
-        version_id: Uuid,
-    ) -> OxResult<Option<ox_ontology::OntologyIR>> {
+    async fn get_ontology_ir(&self, version_id: Uuid) -> OxResult<Option<ox_ontology::OntologyIR>> {
         // Hydrate every entity that belongs to this version.
         // Order is not important — the extractor / assembler
         // tolerates arbitrary arrival order and re-keys by
@@ -176,11 +200,9 @@ impl crate::store::OntologyVersionStore for PostgresStore {
             return Ok(None);
         }
 
-        assemble_ir(&rows)
-            .map(Some)
-            .map_err(|e| OxError::Runtime {
-                message: format!("OntologyIR hydration from version {version_id}: {e:?}"),
-            })
+        assemble_ir(&rows).map(Some).map_err(|e| OxError::Runtime {
+            message: format!("OntologyIR hydration from version {version_id}: {e:?}"),
+        })
     }
 
     #[tracing::instrument(level = "debug", skip_all)]

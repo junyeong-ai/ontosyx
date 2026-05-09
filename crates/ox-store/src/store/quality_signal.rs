@@ -15,10 +15,7 @@ pub trait QualitySignalStore: Send + Sync {
     /// Append a single query's signal row. Fire-and-forget —
     /// callers spawn this off the hot path and log write errors
     /// instead of propagating them.
-    async fn create_query_execution_signal(
-        &self,
-        signal: &QueryExecutionSignal,
-    ) -> OxResult<()>;
+    async fn create_query_execution_signal(&self, signal: &QueryExecutionSignal) -> OxResult<()>;
 
     /// Aggregate the six dashboard metrics for the current
     /// workspace over `window`. Returns Wilson-score bands plus
@@ -40,16 +37,10 @@ pub trait QualitySignalStore: Send + Sync {
     /// Upsert "last used" timestamps + rolling 7/30-day counts for
     /// every type in `type_ids`. Called from the signal write path
     /// so the stale scan doesn't have to rescan signal history.
-    async fn upsert_type_last_used(
-        &self,
-        type_ids: &[(uuid::Uuid, &str)],
-    ) -> OxResult<()>;
+    async fn upsert_type_last_used(&self, type_ids: &[(uuid::Uuid, &str)]) -> OxResult<()>;
 
     /// List types whose `last_used_at` is older than
     /// `stale_after_days` for the current workspace, sorted by
     /// `last_used_at` ascending (staleest first).
-    async fn list_stale_types(
-        &self,
-        stale_after_days: i64,
-    ) -> OxResult<Vec<StaleTypeEntry>>;
+    async fn list_stale_types(&self, stale_after_days: i64) -> OxResult<Vec<StaleTypeEntry>>;
 }

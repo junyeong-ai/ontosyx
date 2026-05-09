@@ -28,8 +28,8 @@ pub trait AuditStore: Send + Sync {
     /// caller's. Used by SYSTEM_BYPASS maintenance tasks so workspace
     /// admins can later see which system actions touched their data.
     ///
-    /// `affected_workspace_id` is stored in `audit_log.affected_workspace_id`
-    /// (added in migration 0005). When `None` it falls back to the same
+    /// `affected_workspace_id` is stored in `audit_log.affected_workspace_id`.
+    /// When `None` it falls back to the same
     /// behaviour as [`record_audit`].
     async fn record_audit_for_workspace(
         &self,

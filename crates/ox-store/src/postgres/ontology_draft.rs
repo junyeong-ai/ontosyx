@@ -309,7 +309,10 @@ impl OntologyDraftStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn delete_archived_ontology_drafts(&self, max_archive_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
+    async fn delete_archived_ontology_drafts(
+        &self,
+        max_archive_days: i64,
+    ) -> OxResult<Vec<(Uuid, u64)>> {
         super::require_workspace_context()?;
         let rows: Vec<(Uuid, i64)> = sqlx::query_as(
             "WITH affected AS (

@@ -17,10 +17,8 @@ fn proposal_from_row(
     let workspace_id: Uuid = row.try_get("workspace_id").map_err(to_ox_error)?;
     let type_id: Uuid = row.try_get("type_id").map_err(to_ox_error)?;
     let type_kind: String = row.try_get("type_kind").map_err(to_ox_error)?;
-    let last_used_at: Option<DateTime<Utc>> =
-        row.try_get("last_used_at").map_err(to_ox_error)?;
-    let days_since_last_use: i32 =
-        row.try_get("days_since_last_use").map_err(to_ox_error)?;
+    let last_used_at: Option<DateTime<Utc>> = row.try_get("last_used_at").map_err(to_ox_error)?;
+    let days_since_last_use: i32 = row.try_get("days_since_last_use").map_err(to_ox_error)?;
     let proposed_at: DateTime<Utc> = row.try_get("proposed_at").map_err(to_ox_error)?;
     let decision_text: String = row.try_get("decision").map_err(to_ox_error)?;
     let decision = crate::quality_signal::StaleProposalDecision::try_from_db(&decision_text)
@@ -28,7 +26,8 @@ fn proposal_from_row(
             message: format!("unknown stale_concept decision: {decision_text}"),
         })?;
     let decided_at: Option<DateTime<Utc>> = row.try_get("decided_at").map_err(to_ox_error)?;
-    let decided_by_user_id: Option<Uuid> = row.try_get("decided_by_user_id").map_err(to_ox_error)?;
+    let decided_by_user_id: Option<Uuid> =
+        row.try_get("decided_by_user_id").map_err(to_ox_error)?;
     let reason: Option<String> = row.try_get("reason").map_err(to_ox_error)?;
 
     Ok(crate::quality_signal::StaleConceptProposal {
@@ -45,7 +44,6 @@ fn proposal_from_row(
         reason,
     })
 }
-
 
 #[async_trait]
 impl StaleConceptProposalStore for PostgresStore {

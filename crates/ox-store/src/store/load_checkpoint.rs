@@ -21,7 +21,8 @@ pub trait LoadCheckpointStore: Send + Sync {
     async fn upsert_load_checkpoint(&self, checkpoint: &LoadCheckpoint) -> OxResult<()>;
 
     /// List all checkpoints for an ontology draft.
-    async fn list_load_checkpoints(&self, ontology_draft_id: Uuid) -> OxResult<Vec<LoadCheckpoint>>;
+    async fn list_load_checkpoints(&self, ontology_draft_id: Uuid)
+    -> OxResult<Vec<LoadCheckpoint>>;
 
     /// Delete a specific checkpoint (forces a full reload on next run).
     async fn delete_load_checkpoint(&self, id: Uuid) -> OxResult<bool>;

@@ -35,7 +35,7 @@ pub trait PromptTemplateStore: Send + Sync {
         &self,
         id: Uuid,
         content: &str,
-        variables: &serde_json::Value,
+        variables: &[String],
         is_active: bool,
     ) -> OxResult<()>;
     async fn delete_prompt_template(&self, id: Uuid) -> OxResult<bool>;

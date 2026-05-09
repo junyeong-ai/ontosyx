@@ -95,9 +95,7 @@ impl ApprovalStore for PostgresStore {
         // both land or both roll back. The reviewer's rationale lives
         // in the thread alone — the row carries the decision metadata
         // (status, reviewer, timestamp) and nothing else.
-        let trimmed = note
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
+        let trimmed = note.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
 
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 
@@ -161,9 +159,7 @@ impl ApprovalStore for PostgresStore {
         if ids.is_empty() {
             return Ok(0);
         }
-        let trimmed = note
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
+        let trimmed = note.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
 
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 

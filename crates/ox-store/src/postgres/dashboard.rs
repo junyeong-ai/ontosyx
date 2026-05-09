@@ -2,6 +2,78 @@
 
 use super::*;
 
+#[derive(sqlx::FromRow)]
+struct DashboardRow {
+    id: Uuid,
+    workspace_id: Uuid,
+    user_id: String,
+    name: String,
+    description: Option<String>,
+    layout: sqlx::types::Json<Vec<DashboardLayoutItem>>,
+    is_public: bool,
+    share_token: Option<String>,
+    shared_at: Option<DateTime<Utc>>,
+    share_expires_at: Option<DateTime<Utc>>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+impl From<DashboardRow> for Dashboard {
+    fn from(row: DashboardRow) -> Self {
+        Self {
+            id: row.id,
+            workspace_id: row.workspace_id,
+            user_id: row.user_id,
+            name: row.name,
+            description: row.description,
+            layout: row.layout.0,
+            is_public: row.is_public,
+            share_token: row.share_token,
+            shared_at: row.shared_at,
+            share_expires_at: row.share_expires_at,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct DashboardWidgetRow {
+    id: Uuid,
+    dashboard_id: Uuid,
+    workspace_id: Uuid,
+    title: String,
+    widget_type: String,
+    query: Option<String>,
+    widget_spec: serde_json::Value,
+    position: sqlx::types::Json<DashboardWidgetPosition>,
+    refresh_interval_secs: Option<i32>,
+    last_result: Option<serde_json::Value>,
+    last_refreshed: Option<DateTime<Utc>>,
+    thresholds: Option<sqlx::types::Json<DashboardWidgetThresholds>>,
+    created_at: DateTime<Utc>,
+}
+
+impl From<DashboardWidgetRow> for DashboardWidget {
+    fn from(row: DashboardWidgetRow) -> Self {
+        Self {
+            id: row.id,
+            dashboard_id: row.dashboard_id,
+            workspace_id: row.workspace_id,
+            title: row.title,
+            widget_type: row.widget_type,
+            query: row.query,
+            widget_spec: row.widget_spec,
+            position: row.position.0,
+            refresh_interval_secs: row.refresh_interval_secs,
+            last_result: row.last_result,
+            last_refreshed: row.last_refreshed,
+            thresholds: row.thresholds.map(|thresholds| thresholds.0),
+            created_at: row.created_at,
+        }
+    }
+}
+
 #[async_trait]
 impl DashboardStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
@@ -16,7 +88,7 @@ impl DashboardStore for PostgresStore {
         .bind(&d.user_id)
         .bind(&d.name)
         .bind(&d.description)
-        .bind(&d.layout)
+        .bind(sqlx::types::Json(&d.layout))
         .bind(d.is_public)
         .bind(&d.share_token)
         .bind(d.shared_at)
@@ -31,11 +103,12 @@ impl DashboardStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn get_dashboard(&self, id: Uuid) -> OxResult<Option<Dashboard>> {
-        sqlx::query_as::<_, Dashboard>("SELECT * FROM dashboards WHERE id = $1")
+        let row = sqlx::query_as::<_, DashboardRow>("SELECT * FROM dashboards WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await
-            .map_err(to_ox_error)
+            .map_err(to_ox_error)?;
+        Ok(row.map(Dashboard::from))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -51,7 +124,7 @@ impl DashboardStore for PostgresStore {
         let rows = if is_admin {
             // Admin sees all dashboards
             match pagination.cursor_parts() {
-                Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, Dashboard>(
+                Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, DashboardRow>(
                     "SELECT * FROM dashboards
                          WHERE (updated_at, id) < ($1, $2)
                          ORDER BY updated_at DESC, id DESC
@@ -63,7 +136,7 @@ impl DashboardStore for PostgresStore {
                 .fetch_all(&self.pool)
                 .await
                 .map_err(to_ox_error)?,
-                None => sqlx::query_as::<_, Dashboard>(
+                None => sqlx::query_as::<_, DashboardRow>(
                     "SELECT * FROM dashboards
                          ORDER BY updated_at DESC, id DESC
                          LIMIT $1",
@@ -76,7 +149,7 @@ impl DashboardStore for PostgresStore {
         } else {
             // Non-admin: own dashboards + public dashboards
             match pagination.cursor_parts() {
-                Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, Dashboard>(
+                Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, DashboardRow>(
                     "SELECT * FROM dashboards
                          WHERE (user_id = $1 OR is_public = true) AND (updated_at, id) < ($2, $3)
                          ORDER BY updated_at DESC, id DESC
@@ -89,7 +162,7 @@ impl DashboardStore for PostgresStore {
                 .fetch_all(&self.pool)
                 .await
                 .map_err(to_ox_error)?,
-                None => sqlx::query_as::<_, Dashboard>(
+                None => sqlx::query_as::<_, DashboardRow>(
                     "SELECT * FROM dashboards
                          WHERE user_id = $1 OR is_public = true
                          ORDER BY updated_at DESC, id DESC
@@ -103,7 +176,10 @@ impl DashboardStore for PostgresStore {
             }
         };
 
-        Ok(build_cursor_page(rows, limit, |d| (d.updated_at, d.id)))
+        let dashboards: Vec<Dashboard> = rows.into_iter().map(Dashboard::from).collect();
+        Ok(build_cursor_page(dashboards, limit, |d| {
+            (d.updated_at, d.id)
+        }))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -112,7 +188,7 @@ impl DashboardStore for PostgresStore {
         id: Uuid,
         name: &str,
         description: Option<&str>,
-        layout: &serde_json::Value,
+        layout: &[DashboardLayoutItem],
         is_public: bool,
     ) -> OxResult<()> {
         super::require_workspace_context()?;
@@ -121,7 +197,7 @@ impl DashboardStore for PostgresStore {
         )
         .bind(name)
         .bind(description)
-        .bind(layout)
+        .bind(sqlx::types::Json(layout))
         .bind(is_public)
         .bind(id)
         .execute(&self.pool)
@@ -182,11 +258,13 @@ impl DashboardStore for PostgresStore {
         // Returns the row even if `share_expires_at` is in the past so the
         // caller can render a 410 Gone instead of a generic 404. The route
         // is responsible for the expiry check.
-        sqlx::query_as::<_, Dashboard>("SELECT * FROM dashboards WHERE share_token = $1")
-            .bind(token)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(to_ox_error)
+        let row =
+            sqlx::query_as::<_, DashboardRow>("SELECT * FROM dashboards WHERE share_token = $1")
+                .bind(token)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(to_ox_error)?;
+        Ok(row.map(Dashboard::from))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -204,9 +282,9 @@ impl DashboardStore for PostgresStore {
         .bind(&w.widget_type)
         .bind(&w.query)
         .bind(&w.widget_spec)
-        .bind(&w.position)
+        .bind(sqlx::types::Json(&w.position))
         .bind(w.refresh_interval_secs)
-        .bind(&w.thresholds)
+        .bind(w.thresholds.as_ref().map(sqlx::types::Json))
         .bind(w.created_at)
         .execute(&self.pool)
         .await
@@ -216,13 +294,14 @@ impl DashboardStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn list_widgets(&self, dashboard_id: Uuid) -> OxResult<Vec<DashboardWidget>> {
-        sqlx::query_as::<_, DashboardWidget>(
+        let rows: Vec<DashboardWidgetRow> = sqlx::query_as(
             "SELECT * FROM dashboard_widgets WHERE dashboard_id = $1 ORDER BY created_at",
         )
         .bind(dashboard_id)
         .fetch_all(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        Ok(rows.into_iter().map(DashboardWidget::from).collect())
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -233,7 +312,7 @@ impl DashboardStore for PostgresStore {
         widget_type: Option<&str>,
         query: Option<&str>,
         refresh_interval_secs: Option<i32>,
-        thresholds: Option<&serde_json::Value>,
+        thresholds: Option<&DashboardWidgetThresholds>,
     ) -> OxResult<()> {
         super::require_workspace_context()?;
         sqlx::query(
@@ -249,7 +328,7 @@ impl DashboardStore for PostgresStore {
         .bind(widget_type)
         .bind(query)
         .bind(refresh_interval_secs)
-        .bind(thresholds)
+        .bind(thresholds.map(sqlx::types::Json))
         .bind(id)
         .execute(&self.pool)
         .await
@@ -302,9 +381,9 @@ impl DashboardStore for PostgresStore {
             .bind(&w.widget_type)
             .bind(&w.query)
             .bind(&w.widget_spec)
-            .bind(&w.position)
+            .bind(sqlx::types::Json(&w.position))
             .bind(w.refresh_interval_secs)
-            .bind(&w.thresholds)
+            .bind(w.thresholds.as_ref().map(sqlx::types::Json))
             .bind(w.created_at)
             .execute(&mut *tx)
             .await

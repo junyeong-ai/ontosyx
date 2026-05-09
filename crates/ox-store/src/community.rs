@@ -41,13 +41,69 @@ pub struct CommunitySummary {
     /// array containment.
     pub member_entity_kinds: Vec<String>,
     pub member_logical_ids: Vec<String>,
-    /// Short headline — a few words operator surfaces in lists
-    /// before the full summary expands.
+    /// sha256 over the canonicalised member set
+    /// (`(kind, logical_id)` pairs sorted lexicographically).
+    /// The detection cron compares the new fingerprint against
+    /// the stored row's value — equal fingerprints mean the
+    /// community's membership hasn't shifted, and the LLM
+    /// summarisation call is skipped (the `title` + `summary`
+    /// from the previous run carry forward; only `generated_at`
+    /// updates).
+    pub member_fingerprint: String,
+    /// Short headline. LLM-authored when an embedder + Brain
+    /// are wired into the cron; structural placeholder until
+    /// then.
     pub title: String,
     /// LLM-authored prose. Indexed for the retrieval path's
     /// trigram search.
     pub summary: String,
+    /// Application-side morphological tokenisation of
+    /// `title + " " + summary`. The DB derives `searchable_tsv`
+    /// from this column; index-time and query-time retrieval
+    /// thread the same workspace tokenizer so recall stays
+    /// consistent.
+    pub tokenized_text: String,
+    /// Workspace user-dict fingerprint that produced
+    /// `tokenized_text`. Diff against the workspace's current
+    /// fingerprint identifies stale rows for the backfill task.
+    pub tokenizer_dict_fingerprint: String,
+    /// Optional embedding of `title + summary` against the
+    /// workspace's default multilingual model. The detection
+    /// cron embeds whenever a Brain + embedder are wired in;
+    /// cold-start deployments leave this `None` and the
+    /// retrieval path silently degrades to the 2-ranker
+    /// trigram + FTS fusion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embedding: Option<Vec<f32>>,
     pub generated_at: DateTime<Utc>,
+}
+
+impl CommunitySummary {
+    /// Compute the canonical member fingerprint. Sorts the
+    /// `(kind, logical_id)` pairs lexicographically before
+    /// hashing so two communities with the same membership in
+    /// different driver-reported orders produce the same
+    /// fingerprint.
+    pub fn compute_member_fingerprint(
+        member_entity_kinds: &[String],
+        member_logical_ids: &[String],
+    ) -> String {
+        use sha2::{Digest, Sha256};
+        let mut pairs: Vec<(&str, &str)> = member_entity_kinds
+            .iter()
+            .zip(member_logical_ids.iter())
+            .map(|(k, l)| (k.as_str(), l.as_str()))
+            .collect();
+        pairs.sort();
+        let mut hasher = Sha256::new();
+        for (kind, logical) in pairs {
+            hasher.update(kind.as_bytes());
+            hasher.update(b"\x1f");
+            hasher.update(logical.as_bytes());
+            hasher.update(b"\x1e");
+        }
+        hex::encode(hasher.finalize())
+    }
 }
 
 #[cfg(test)]
@@ -64,9 +120,15 @@ mod tests {
             level: 1,
             member_entity_kinds: vec!["NodeType".into(), "GlossaryTerm".into()],
             member_logical_ids: vec!["nt_customer".into(), "gt_vip".into()],
+            member_fingerprint: CommunitySummary::compute_member_fingerprint(
+                &["NodeType".into(), "GlossaryTerm".into()],
+                &["nt_customer".into(), "gt_vip".into()],
+            ),
             title: "Premium customer cluster".into(),
-            summary: "Customers with VIP tier ordering high-value premium products."
-                .into(),
+            summary: "Customers with VIP tier ordering high-value premium products.".into(),
+            tokenized_text: String::new(),
+            tokenizer_dict_fingerprint: String::new(),
+            embedding: None,
             generated_at: Utc::now(),
         };
         let v = serde_json::to_value(&s).unwrap();
@@ -95,8 +157,15 @@ mod tests {
             level: 0,
             member_entity_kinds: vec!["A".into(), "B".into(), "C".into()],
             member_logical_ids: vec!["x".into(), "y".into(), "z".into()],
+            member_fingerprint: CommunitySummary::compute_member_fingerprint(
+                &["A".into(), "B".into(), "C".into()],
+                &["x".into(), "y".into(), "z".into()],
+            ),
             title: "test".into(),
             summary: "test".into(),
+            tokenized_text: String::new(),
+            tokenizer_dict_fingerprint: String::new(),
+            embedding: None,
             generated_at: Utc::now(),
         };
         assert_eq!(s.member_entity_kinds.len(), s.member_logical_ids.len());

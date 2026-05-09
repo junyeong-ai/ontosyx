@@ -45,12 +45,14 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use ox_core::error::{OxError, OxResult};
+use ox_ontology::{EvaluationFingerprint, ModelCall};
+use ox_query_ir::query::QueryIR;
 
 /// Status of an [`EvaluationRun`]. Wire shape is the snake_case
 /// string ("running" / "succeeded" / …) so adding a future variant
 /// is a Rust-side change with no migration; the catalog parity
 /// test pins the string set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EvaluationRunStatus {
     /// The run is in progress — cases are being recorded.
@@ -115,23 +117,27 @@ pub fn parse_run_status(raw: &str) -> Result<EvaluationRunStatus, OxError> {
 }
 
 /// One evaluation batch. Mirrors the `evaluation_runs` row.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+///
+/// Reproducibility components (ontology version, dataset, model,
+/// prompt template, decoding config, retrieval profile) live in
+/// [`EvaluationFingerprint`] — the typed bundle every run pins at
+/// construction. The legacy nullable `ontology_version_id` /
+/// `dataset_id` columns are gone: a run that cannot answer the
+/// question "which ontology version did I score against?" is
+/// uninterpretable, and the platform refuses to author one.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct EvaluationRun {
     pub id: Uuid,
     pub workspace_id: Uuid,
-    /// Optional pin to a committed ontology version. `None`
-    /// during draft-stage evaluation.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ontology_version_id: Option<Uuid>,
-    /// Lineage to the [`EvaluationDataset`] the run materialised
-    /// from. `None` for ad-hoc runs whose cases were inserted
-    /// directly via the bulk-upsert path. Run comparison + CI
-    /// regression require this — a diff between two runs only
-    /// makes sense when both reference the same dataset id.
-    /// `ON DELETE SET NULL` so historical runs survive a dataset
-    /// purge.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub dataset_id: Option<Uuid>,
+    /// Typed reproducibility bundle. Persisted as
+    /// `evaluation_runs.fingerprint_components JSONB NOT NULL`;
+    /// the digest below carries the equality token for fast
+    /// "same configuration" lookups.
+    pub fingerprint: EvaluationFingerprint,
+    /// SHA-256 of [`EvaluationFingerprint::digest`], persisted as
+    /// `evaluation_runs.fingerprint_digest VARCHAR(64) NOT NULL`.
+    /// Two runs are configured identically iff their digests match.
+    pub fingerprint_digest: String,
     pub name: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub description: String,
@@ -139,9 +145,11 @@ pub struct EvaluationRun {
     pub started_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<DateTime<Utc>>,
-    /// Run-level configuration envelope (model id, judge id, …).
-    /// Schema-less so a new run-level dimension never needs DDL.
+    /// Free-form audit envelope. Reproducibility components live
+    /// on [`Self::fingerprint`] — operator notes, run labels, and
+    /// other non-configuration tags ride here.
     #[serde(default = "default_metadata")]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub metadata: serde_json::Value,
 }
 
@@ -152,7 +160,7 @@ pub struct EvaluationRun {
 /// golden gate, baseline pinning). The header carries no items
 /// directly; items live in [`EvaluationDatasetItem`] keyed on
 /// `dataset_id`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct EvaluationDataset {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -166,7 +174,7 @@ pub struct EvaluationDataset {
 
 /// One frozen `(input, expected)` pair inside a dataset.
 /// Mirrors the `evaluation_dataset_items` row.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct EvaluationDatasetItem {
     pub id: Uuid,
     pub dataset_id: Uuid,
@@ -177,20 +185,21 @@ pub struct EvaluationDatasetItem {
     pub item_key: String,
     /// Prompt / context envelope. Mirrors `EvaluationCase.input`
     /// shape so `create_run_from_dataset` is a straight copy.
-    pub input: serde_json::Value,
+    pub input: EvaluationCaseInput,
     /// Reference outcome. `None` for unsupervised datasets.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub expected: Option<serde_json::Value>,
+    pub expected: Option<EvaluationExpected>,
     /// Free-form authoring metadata (tags, difficulty, locale, …).
     /// Renders verbatim on the dataset detail panel.
     #[serde(default = "default_metadata")]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
 }
 
 /// One (input, expected, actual) tuple inside a run. Mirrors the
 /// `evaluation_cases` row.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct EvaluationCase {
     pub id: Uuid,
     pub run_id: Uuid,
@@ -198,16 +207,16 @@ pub struct EvaluationCase {
     /// Stable per-run identifier. UPSERT key alongside `run_id`.
     pub case_key: String,
     /// Prompt / context envelope.
-    pub input: serde_json::Value,
+    pub input: EvaluationCaseInput,
     /// Golden / reference outcome. Absent for unsupervised
     /// evaluations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub expected: Option<serde_json::Value>,
+    pub expected: Option<EvaluationExpected>,
     /// Observed outcome. Absent until the evaluator records;
     /// presence of `error` with a `None` `actual` indicates the
     /// case threw before producing output.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub actual: Option<serde_json::Value>,
+    pub actual: Option<EvaluationActual>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
     /// Wall-clock latency from invocation to completion. None
@@ -215,18 +224,154 @@ pub struct EvaluationCase {
     /// could be measured.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub latency_ms: Option<i64>,
-    /// Free-form audit envelope stamped by the executor. The
-    /// canonical key is `call_provenance` carrying the
-    /// `CallProvenance` shape (prompt_id + prompt_version +
-    /// prompt_render_hash + model_id + max_tokens +
-    /// temperature) so eval-failure drill-down resolves to the
-    /// exact LLM call without re-running. Unused keys here are
-    /// rendered verbatim by the FE detail panel; future
-    /// case-execute kinds (retrieval, action invocation) land
-    /// their own envelope keys without a schema migration.
+    /// Audit envelope stamped by the executor or sampler.
     #[serde(default)]
-    pub metadata: serde_json::Value,
+    pub metadata: EvaluationCaseMetadata,
     pub created_at: DateTime<Utc>,
+}
+
+/// Case-level metadata. Kept closed because these envelopes drive
+/// replay/audit UI, not arbitrary user annotations.
+///
+/// Per-case audit data is the *render hash* — the SHA-256 of the
+/// fully-interpolated prompt body that fed the model for THIS case.
+/// Run-level pins (prompt template id, template version, model id,
+/// decoding config) live on [`EvaluationRun::fingerprint`] because
+/// they're invariant across every case in the run; per-case Call
+/// metadata only carries the dimension that actually varies per
+/// case.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum EvaluationCaseMetadata {
+    #[default]
+    None,
+    Call {
+        /// SHA-256 of the system + user prompt after template
+        /// interpolation. Replays the exact bytes that fed the
+        /// model for this case; the run-level fingerprint pins
+        /// the template id + version, this pins the rendered
+        /// output.
+        prompt_render_hash: String,
+    },
+    OnlineSampler,
+}
+
+/// Closed set of executable evaluation inputs. This is the
+/// persisted case input and the dataset authoring surface, not just
+/// an HTTP request DTO, so stored cases remain self-describing.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum EvaluationCaseInput {
+    /// Translate a natural-language question into `QueryIR`.
+    TranslateQuery {
+        question: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expected_query_ir: Option<Box<QueryIR>>,
+    },
+    /// Free-form natural-language explanation / answer quality case.
+    Explain {
+        question: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expected_answer: Option<String>,
+    },
+    /// Graph RAG anchor retrieval case over ontology navigation
+    /// entry points.
+    RetrieveAnchors {
+        question: String,
+        top_k: u32,
+        #[serde(default)]
+        expected_anchor_ids: Vec<String>,
+    },
+}
+
+impl EvaluationCaseInput {
+    pub fn question(&self) -> &str {
+        match self {
+            Self::TranslateQuery { question, .. }
+            | Self::Explain { question, .. }
+            | Self::RetrieveAnchors { question, .. } => question,
+        }
+    }
+
+    pub fn expected(&self) -> Option<EvaluationExpected> {
+        match self {
+            Self::TranslateQuery {
+                expected_query_ir, ..
+            } => expected_query_ir
+                .clone()
+                .map(|query_ir| EvaluationExpected::QueryIr { query_ir }),
+            Self::Explain {
+                expected_answer, ..
+            } => expected_answer
+                .clone()
+                .map(|answer| EvaluationExpected::Answer { answer }),
+            Self::RetrieveAnchors {
+                expected_anchor_ids,
+                ..
+            } => Some(EvaluationExpected::AnchorSet {
+                anchor_ids: expected_anchor_ids.clone(),
+            }),
+        }
+    }
+
+    pub fn requires_canonical_ontology(&self) -> bool {
+        matches!(
+            self,
+            Self::TranslateQuery { .. } | Self::RetrieveAnchors { .. }
+        )
+    }
+}
+
+/// Golden/reference outcome attached to an evaluation case.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum EvaluationExpected {
+    QueryIr { query_ir: Box<QueryIR> },
+    Answer { answer: String },
+    AnchorSet { anchor_ids: Vec<String> },
+}
+
+impl EvaluationExpected {
+    pub fn from_actual(actual: &EvaluationActual) -> Self {
+        match actual {
+            EvaluationActual::QueryIr { query_ir } => Self::QueryIr {
+                query_ir: query_ir.clone(),
+            },
+            EvaluationActual::Explanation { content, .. } => Self::Answer {
+                answer: content.clone(),
+            },
+            EvaluationActual::RetrievedAnchors { anchor_ids, .. } => Self::AnchorSet {
+                anchor_ids: anchor_ids.clone(),
+            },
+        }
+    }
+}
+
+/// Observed outcome attached to an evaluation case after execution.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum EvaluationActual {
+    QueryIr {
+        query_ir: Box<QueryIR>,
+    },
+    Explanation {
+        content: String,
+        model: String,
+    },
+    RetrievedAnchors {
+        anchor_ids: Vec<String>,
+        hits: Vec<EvaluationRetrievedAnchor>,
+        metrics: RetrievalMetrics,
+    },
+}
+
+/// One ranked retrieval hit captured on a graph-RAG evaluation case.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct EvaluationRetrievedAnchor {
+    pub entity_kind: String,
+    pub logical_id: String,
+    pub doc: String,
+    pub score: f64,
 }
 
 /// Deterministic IR scoring for retrieval evaluation cases.
@@ -313,7 +458,7 @@ pub fn score_retrieval_metrics(
 /// as a separate `evaluation_metrics` row keyed
 /// `retrieval.<axis>` so the existing dashboard / diff surfaces
 /// pick them up uniformly with the LLM-judged axes.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RetrievalMetrics {
     pub k: u32,
     pub topk_hit_count: u32,
@@ -330,7 +475,7 @@ pub struct RetrievalMetrics {
 /// without an N+1 fetch. Headers stay separate from the
 /// aggregate; the canonical [`EvaluationDataset`] shape is
 /// unchanged for every other caller (get / upsert / delete).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct EvaluationDatasetSummary {
     pub dataset: EvaluationDataset,
     /// Total `evaluation_dataset_items` rows under this
@@ -342,7 +487,7 @@ pub struct EvaluationDatasetSummary {
 /// One per-case axis-level diff between two runs over the same
 /// dataset. Carries both raw scores so the FE diff panel renders
 /// the comparison without re-fetching either side.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RunMetricDelta {
     /// Stable per-dataset identifier — the same `case_key` is
     /// present in both runs because both materialised from the
@@ -366,7 +511,7 @@ pub struct RunMetricDelta {
 /// the diff page header — "candidate beats baseline by 0.04 mean
 /// faithfulness with Cohen's d 0.62 and 73% win rate over 30
 /// cases".
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RunAxisSummary {
     pub axis: String,
     /// Number of cases where both runs produced a score on this
@@ -396,7 +541,7 @@ pub struct RunAxisSummary {
 /// FE renders alongside the mean ("0.78 over 12 cases") so the
 /// number isn't read in isolation — a 1.0 mean from one case is
 /// not the same signal as a 0.78 mean from twelve.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct AxisAggregate {
     pub axis: String,
     pub mean: f64,
@@ -407,7 +552,7 @@ pub struct AxisAggregate {
 /// [`crate::EvaluationStore::evaluation_run_summary`]. Drives
 /// the run-list badge and the run-detail header card without
 /// fanning out into per-case + per-metric round trips.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RunSummary {
     pub run_id: Uuid,
     /// Every case attached to the run.
@@ -434,7 +579,7 @@ pub struct RunSummary {
 /// row diffs ride on `per_case`; aggregate summaries on `per_axis`.
 /// Both ordered for deterministic FE rendering — case_key ASC,
 /// axis ASC.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RunComparisonReport {
     pub baseline_run_id: Uuid,
     pub candidate_run_id: Uuid,
@@ -449,7 +594,7 @@ pub struct RunComparisonReport {
 
 /// One score on one rubric axis for one case. Mirrors the
 /// `evaluation_metrics` row.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct EvaluationMetric {
     pub id: Uuid,
     pub case_id: Uuid,
@@ -468,11 +613,79 @@ pub struct EvaluationMetric {
     /// judge. Absent for code-side rubrics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<String>,
-    /// Per-metric configuration (judge model, prompt version,
-    /// rubric template, …). Schema-less.
-    #[serde(default = "default_metadata")]
-    pub metadata: serde_json::Value,
+    /// Per-metric provenance and capture context.
+    #[serde(default)]
+    pub metadata: EvaluationMetricMetadata,
+    /// PROV-O activity that produced this score. `Some` for
+    /// LLM-judged rows (RAGAS / safety judge); `None` for
+    /// capture-axis observations (latency / tokens / cost) whose
+    /// provenance is attached to the underlying case via
+    /// [`EvaluationCaseMetadata::Call`]. `ON DELETE RESTRICT` —
+    /// the audit trail outlives the metric.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
+}
+
+/// Metric-level provenance. The enum is intentionally finite so
+/// dashboards can group and filter metric rows without probing
+/// arbitrary JSON keys.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum EvaluationMetricMetadata {
+    #[default]
+    None,
+    Judge {
+        run_id: Uuid,
+        case_key: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<EvaluationJudgeSource>,
+    },
+    SafetyJudge {
+        run_id: Uuid,
+        case_key: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<EvaluationJudgeSource>,
+    },
+    Retrieval {
+        k: u32,
+        topk_hit_count: u32,
+        expected_count: u32,
+    },
+    Capture {
+        axis: EvaluationCaptureAxis,
+        operation: String,
+        run_id: Uuid,
+        case_key: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum EvaluationJudgeSource {
+    AsyncWorker,
+}
+
+/// Axis tag for [`EvaluationMetricMetadata::Capture`] rows. One
+/// `record_call` invocation lands one row per axis; splitting the
+/// token axis into input / output / cached_input lets the operator
+/// pivot per-axis without re-parsing a composite name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum EvaluationCaptureAxis {
+    /// Wall-clock latency from invocation to completion (ms).
+    LatencyMs,
+    /// Tokens billed at the full input rate (cache miss).
+    InputTokens,
+    /// Tokens generated by the model.
+    OutputTokens,
+    /// Subset of input tokens that hit the prompt cache. Always
+    /// recorded even when zero so the operator distinguishes "no
+    /// cache" from "cache axis missing on this provider."
+    CachedInputTokens,
+    /// Cost in micro-USD (1e-6 USD), derived from
+    /// [`ox_ontology::ModelPrices`] active at write time.
+    CostMicroUsd,
 }
 
 fn default_metadata() -> serde_json::Value {
@@ -546,63 +759,32 @@ where
 /// evaluation scope. Implementations land where the storage
 /// dependency makes sense (the canonical `EvaluationStore`-backed
 /// impl lives on `PostgresStore`); consumers further up the stack
-/// (e.g. `ox-brain`) hold an `Arc<dyn EvaluationCapture>` and
-/// call through it without knowing whether the bytes flow to a
-/// real DB or a test stub.
+/// (e.g. `ox-brain`) hold an `Arc<dyn EvaluationCapture>` and call
+/// through it without knowing whether the bytes flow to a real DB
+/// or a test stub.
 ///
-/// The trait deliberately mirrors a *single* metric kind today
-/// (`record_latency`). Future axes (`record_tokens`,
-/// `record_judge_output`) ride on additional methods with
-/// default `noop` impls so a consumer never has to care about
-/// the full surface — only the calls it cares about.
+/// One LLM call → one [`record_call`] invocation → one row per
+/// axis ([`EvaluationCaptureAxis`]). Cost is derived from the
+/// active [`ox_ontology::ModelPrices`] row + persisted as the
+/// historical truth, so a tariff revision does not silently
+/// rewrite history.
 #[async_trait]
 pub trait EvaluationCapture: Send + Sync {
-    /// Record an LLM-call latency observation against the active
-    /// case under the given `operation` axis. The default impl
-    /// is a noop so a `NullCapture`-style harness can be built
-    /// without writing the full table.
-    async fn record_latency(
+    /// Record one LLM call observation against the active case.
+    ///
+    /// Splits into four to five `evaluation_metrics` rows
+    /// (`latency_ms`, `tokens.input`, `tokens.output`,
+    /// `tokens.cached_input` when non-zero, `cost_micro_usd` when a
+    /// price row applies); the operator pivots per-axis without
+    /// re-parsing a composite name. The default impl is a noop so a
+    /// `NullEvaluationCapture`-style harness stays drop-in.
+    async fn record_call(
         &self,
         ctx: &EvaluationContext,
         operation: &str,
-        latency_ms: i64,
+        call: ModelCall,
     ) -> OxResult<()> {
-        let _ = (ctx, operation, latency_ms);
-        Ok(())
-    }
-
-    /// Record token-count observations against the active case
-    /// for one LLM call. Two metrics land per call:
-    /// `tokens.prompt.<operation>` (input) and
-    /// `tokens.completion.<operation>` (output). Production cost
-    /// + utilisation dashboards roll these up as the canonical
-    /// throughput axis. The default impl is a noop so the trait
-    /// stays drop-in for harnesses that don't care about token
-    /// observability.
-    async fn record_tokens(
-        &self,
-        ctx: &EvaluationContext,
-        operation: &str,
-        prompt_tokens: u32,
-        completion_tokens: u32,
-    ) -> OxResult<()> {
-        let _ = (ctx, operation, prompt_tokens, completion_tokens);
-        Ok(())
-    }
-
-    /// Record an LLM-call cost observation in micro-USD against
-    /// the active case under `cost_usd.<operation>`. Cost is
-    /// stored as a numeric metric so the FE can sum across cases
-    /// without re-deriving from per-call token counts × tariff
-    /// (per-model cost tables drift; the captured value is the
-    /// historical truth). The default impl is a noop.
-    async fn record_cost_usd(
-        &self,
-        ctx: &EvaluationContext,
-        operation: &str,
-        cost_micro_usd: u64,
-    ) -> OxResult<()> {
-        let _ = (ctx, operation, cost_micro_usd);
+        let _ = (ctx, operation, call);
         Ok(())
     }
 }
@@ -663,22 +845,37 @@ mod tests {
 
     #[test]
     fn run_serialises_with_status_as_snake_case() {
+        let fingerprint = EvaluationFingerprint {
+            ontology_version_id: Uuid::nil(),
+            dataset_id: Uuid::nil(),
+            model_id: ox_ontology::ModelId::new("anthropic/claude-opus-4-7"),
+            prompt_template_id: None,
+            prompt_template_version: None,
+            decoding_config_hash: None,
+            retrieval_profile_id: None,
+        };
+        let digest = fingerprint.digest().unwrap();
         let run = EvaluationRun {
             id: Uuid::new_v4(),
             workspace_id: Uuid::new_v4(),
-            ontology_version_id: None,
-            dataset_id: None,
+            fingerprint,
+            fingerprint_digest: digest,
             name: "rag-baseline".into(),
             description: String::new(),
             status: EvaluationRunStatus::Running,
             started_at: Utc::now(),
             completed_at: None,
-            metadata: serde_json::json!({"model": "gpt"}),
+            metadata: serde_json::json!({"label": "baseline"}),
         };
         let v = serde_json::to_value(&run).unwrap();
         assert_eq!(v.get("status").and_then(|s| s.as_str()), Some("running"));
+        assert!(
+            v.get("fingerprint_digest").is_some(),
+            "fingerprint digest must round-trip on the wire"
+        );
         let back: EvaluationRun = serde_json::from_value(v).unwrap();
         assert_eq!(back.status, EvaluationRunStatus::Running);
+        assert_eq!(back.fingerprint_digest, run.fingerprint_digest);
     }
 
     #[test]
@@ -688,16 +885,22 @@ mod tests {
             run_id: Uuid::new_v4(),
             workspace_id: Uuid::new_v4(),
             case_key: "q01".into(),
-            input: serde_json::json!({"q": "?"}),
+            input: EvaluationCaseInput::Explain {
+                question: "?".into(),
+                expected_answer: None,
+            },
             expected: None,
             actual: None,
             error: None,
             latency_ms: None,
-            metadata: serde_json::Value::Object(Default::default()),
+            metadata: EvaluationCaseMetadata::default(),
             created_at: Utc::now(),
         };
         let v = serde_json::to_value(&case).unwrap();
-        assert!(v.get("expected").is_none(), "absent expected must be skipped on wire");
+        assert!(
+            v.get("expected").is_none(),
+            "absent expected must be skipped on wire"
+        );
         assert!(v.get("actual").is_none());
         assert!(v.get("error").is_none());
         assert!(v.get("latency_ms").is_none());
@@ -711,10 +914,8 @@ mod tests {
             case_key: "q01".into(),
             case_id: Uuid::new_v4(),
         };
-        let observed = scope_evaluation_context(ctx.clone(), async {
-            current_evaluation_context()
-        })
-        .await;
+        let observed =
+            scope_evaluation_context(ctx.clone(), async { current_evaluation_context() }).await;
         let observed = observed.expect("inside scope");
         assert_eq!(observed.run_id, ctx.run_id);
         assert_eq!(observed.case_key, ctx.case_key);
@@ -731,10 +932,17 @@ mod tests {
             case_key: "q01".into(),
             case_id: Uuid::new_v4(),
         };
-        // Default `record_latency` is a noop — test pins the
-        // contract so a future `EvaluationCapture` extension that
-        // forgets to default to noop trips this test.
-        cap.record_latency(&ctx, "translate_query", 42).await.unwrap();
+        let call = ModelCall {
+            model_id: ox_ontology::ModelId::new("anthropic/claude-haiku-4-5"),
+            input_tokens: 100,
+            output_tokens: 50,
+            cached_input_tokens: 0,
+            latency_ms: 42,
+        };
+        // Default `record_call` is a noop — test pins the contract
+        // so a future `EvaluationCapture` extension that forgets to
+        // default to noop trips this test.
+        cap.record_call(&ctx, "translate_query", call).await.unwrap();
     }
 
     #[test]
@@ -746,7 +954,8 @@ mod tests {
             name: "faithfulness".into(),
             score: 0.92,
             reasoning: Some("supports every claim".into()),
-            metadata: serde_json::json!({}),
+            metadata: EvaluationMetricMetadata::default(),
+            provenance_id: None,
             created_at: Utc::now(),
         };
         let v = serde_json::to_value(&m).unwrap();

@@ -2,11 +2,43 @@
 
 use super::*;
 
+#[derive(sqlx::FromRow)]
+struct PromptTemplateDbRow {
+    id: Uuid,
+    name: String,
+    #[sqlx(try_from = "String")]
+    version: ox_core::PromptVersion,
+    content: String,
+    variables: sqlx::types::Json<Vec<String>>,
+    metadata: serde_json::Value,
+    created_by: String,
+    created_at: DateTime<Utc>,
+    is_active: bool,
+    workspace_id: Option<Uuid>,
+}
+
+impl From<PromptTemplateDbRow> for PromptTemplateRow {
+    fn from(row: PromptTemplateDbRow) -> Self {
+        Self {
+            id: row.id,
+            name: row.name,
+            version: row.version,
+            content: row.content,
+            variables: row.variables.0,
+            metadata: row.metadata,
+            created_by: row.created_by,
+            created_at: row.created_at,
+            is_active: row.is_active,
+            workspace_id: row.workspace_id,
+        }
+    }
+}
+
 #[async_trait]
 impl PromptTemplateStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn list_prompt_templates(&self, active_only: bool) -> OxResult<Vec<PromptTemplateRow>> {
-        let rows: Vec<PromptTemplateRow> = if active_only {
+        let rows: Vec<PromptTemplateDbRow> = if active_only {
             sqlx::query_as(
                 "SELECT * FROM prompt_templates WHERE is_active = true ORDER BY name, version DESC",
             )
@@ -20,18 +52,21 @@ impl PromptTemplateStore for PostgresStore {
         .map_err(|e| OxError::Runtime {
             message: format!("Database error: {e}"),
         })?;
-        Ok(rows)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn get_prompt_template(&self, id: Uuid) -> OxResult<Option<PromptTemplateRow>> {
-        sqlx::query_as("SELECT * FROM prompt_templates WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| OxError::Runtime {
-                message: format!("Database error: {e}"),
-            })
+        let row = sqlx::query_as::<_, PromptTemplateDbRow>(
+            "SELECT * FROM prompt_templates WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| OxError::Runtime {
+            message: format!("Database error: {e}"),
+        })?;
+        Ok(row.map(Into::into))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -40,7 +75,7 @@ impl PromptTemplateStore for PostgresStore {
         name: &str,
         version: &ox_core::PromptVersion,
     ) -> OxResult<Option<PromptTemplateRow>> {
-        sqlx::query_as(
+        let row = sqlx::query_as::<_, PromptTemplateDbRow>(
             "SELECT * FROM prompt_templates WHERE name = $1 AND version = $2 LIMIT 1",
         )
         .bind(name)
@@ -49,7 +84,8 @@ impl PromptTemplateStore for PostgresStore {
         .await
         .map_err(|e| OxError::Runtime {
             message: format!("Database error: {e}"),
-        })
+        })?;
+        Ok(row.map(Into::into))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -58,7 +94,7 @@ impl PromptTemplateStore for PostgresStore {
         // semver components (CHECK constraint guarantees `<int>.<int>.<int>`)
         // then `created_at` as the tie-breaker for the rare case of two
         // active rows at the same version.
-        sqlx::query_as(
+        let row = sqlx::query_as::<_, PromptTemplateDbRow>(
             "SELECT * FROM prompt_templates
              WHERE name = $1 AND is_active = true AND workspace_id IS NULL
              ORDER BY string_to_array(version, '.')::int[] DESC,
@@ -70,7 +106,8 @@ impl PromptTemplateStore for PostgresStore {
         .await
         .map_err(|e| OxError::Runtime {
             message: format!("Database error: {e}"),
-        })
+        })?;
+        Ok(row.map(Into::into))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -89,10 +126,10 @@ impl PromptTemplateStore for PostgresStore {
         //
         // Tie-breaker (when both ws-specific and global match):
         //   1. ws-specific first (`workspace_id IS NULL` = FALSE sorts first)
-        //   2. highest semver (CHECK constraint in migration 0006
+        //   2. highest semver (schema CHECK constraint
         //      guarantees `<int>.<int>.<int>` so the array cast is safe)
         //   3. most recently created (deterministic for cosmetic ties)
-        sqlx::query_as(
+        let row = sqlx::query_as::<_, PromptTemplateDbRow>(
             "SELECT * FROM prompt_templates
              WHERE name = $1
                AND is_active = true
@@ -109,7 +146,8 @@ impl PromptTemplateStore for PostgresStore {
         .await
         .map_err(|e| OxError::Runtime {
             message: format!("Database error: {e}"),
-        })
+        })?;
+        Ok(row.map(Into::into))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -132,7 +170,7 @@ impl PromptTemplateStore for PostgresStore {
         // on the DB side.
         .bind(r.version.to_string())
         .bind(&r.content)
-        .bind(&r.variables)
+        .bind(sqlx::types::Json(&r.variables))
         .bind(&r.metadata)
         .bind(&r.created_by)
         .bind(r.created_at)
@@ -164,7 +202,7 @@ impl PromptTemplateStore for PostgresStore {
         &self,
         id: Uuid,
         content: &str,
-        variables: &serde_json::Value,
+        variables: &[String],
         is_active: bool,
     ) -> OxResult<()> {
         super::require_workspace_context()?;
@@ -173,7 +211,7 @@ impl PromptTemplateStore for PostgresStore {
         )
         .bind(id)
         .bind(content)
-        .bind(variables)
+        .bind(sqlx::types::Json(variables))
         .bind(is_active)
         .execute(&self.pool)
         .await

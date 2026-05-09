@@ -2,6 +2,50 @@
 
 use super::*;
 
+#[derive(sqlx::FromRow)]
+struct AnalysisRecipeRow {
+    id: Uuid,
+    workspace_id: Uuid,
+    name: String,
+    description: String,
+    algorithm_type: String,
+    code_template: String,
+    parameters: serde_json::Value,
+    required_columns: serde_json::Value,
+    output_description: String,
+    created_by: String,
+    created_at: DateTime<Utc>,
+    version: i32,
+    status: String,
+    parent_id: Option<Uuid>,
+}
+
+impl TryFrom<AnalysisRecipeRow> for AnalysisRecipe {
+    type Error = OxError;
+
+    fn try_from(row: AnalysisRecipeRow) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: row.id,
+            workspace_id: row.workspace_id,
+            name: row.name,
+            description: row.description,
+            algorithm_type: row.algorithm_type,
+            code_template: row.code_template,
+            parameters: row.parameters,
+            required_columns: row.required_columns,
+            output_description: row.output_description,
+            created_by: row.created_by,
+            created_at: row.created_at,
+            version: row.version,
+            status: row
+                .status
+                .parse()
+                .map_err(|message| OxError::Runtime { message })?,
+            parent_id: row.parent_id,
+        })
+    }
+}
+
 #[async_trait]
 impl RecipeStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
@@ -35,7 +79,7 @@ impl RecipeStore for PostgresStore {
         .bind(&r.created_by)
         .bind(r.created_at)
         .bind(r.version)
-        .bind(&r.status)
+        .bind(r.status.as_str())
         .bind(r.parent_id)
         .execute(&self.pool)
         .await
@@ -45,11 +89,13 @@ impl RecipeStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn get_recipe(&self, id: Uuid) -> OxResult<Option<AnalysisRecipe>> {
-        sqlx::query_as::<_, AnalysisRecipe>("SELECT * FROM analysis_recipes WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(to_ox_error)
+        let row =
+            sqlx::query_as::<_, AnalysisRecipeRow>("SELECT * FROM analysis_recipes WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(to_ox_error)?;
+        row.map(AnalysisRecipe::try_from).transpose()
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -61,7 +107,7 @@ impl RecipeStore for PostgresStore {
         let fetch_limit = limit + 1;
 
         let rows = match pagination.cursor_parts() {
-            Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, AnalysisRecipe>(
+            Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, AnalysisRecipeRow>(
                 "SELECT * FROM analysis_recipes
                      WHERE (created_at, id) < ($1, $2)
                      ORDER BY created_at DESC, id DESC
@@ -73,7 +119,7 @@ impl RecipeStore for PostgresStore {
             .fetch_all(&self.pool)
             .await
             .map_err(to_ox_error)?,
-            None => sqlx::query_as::<_, AnalysisRecipe>(
+            None => sqlx::query_as::<_, AnalysisRecipeRow>(
                 "SELECT * FROM analysis_recipes
                      ORDER BY created_at DESC, id DESC
                      LIMIT $1",
@@ -84,7 +130,11 @@ impl RecipeStore for PostgresStore {
             .map_err(to_ox_error)?,
         };
 
-        Ok(build_cursor_page(rows, limit, |r| (r.created_at, r.id)))
+        let recipes: Vec<AnalysisRecipe> = rows
+            .into_iter()
+            .map(AnalysisRecipe::try_from)
+            .collect::<Result<_, _>>()?;
+        Ok(build_cursor_page(recipes, limit, |r| (r.created_at, r.id)))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -99,11 +149,11 @@ impl RecipeStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn update_recipe_status(&self, id: Uuid, status: &str) -> OxResult<()> {
+    async fn update_recipe_status(&self, id: Uuid, status: RecipeStatus) -> OxResult<()> {
         super::require_workspace_context()?;
         sqlx::query("UPDATE analysis_recipes SET status = $2 WHERE id = $1")
             .bind(id)
-            .bind(status)
+            .bind(status.as_str())
             .execute(&self.pool)
             .await
             .map_err(to_ox_error)?;
@@ -118,7 +168,7 @@ impl RecipeStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn list_recipe_versions(&self, parent_id: Uuid) -> OxResult<Vec<AnalysisRecipe>> {
-        sqlx::query_as::<_, AnalysisRecipe>(
+        let rows: Vec<AnalysisRecipeRow> = sqlx::query_as(
             "SELECT * FROM analysis_recipes
              WHERE parent_id = $1 OR id = $1
              ORDER BY version DESC",
@@ -126,7 +176,8 @@ impl RecipeStore for PostgresStore {
         .bind(parent_id)
         .fetch_all(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        rows.into_iter().map(AnalysisRecipe::try_from).collect()
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -165,7 +216,7 @@ impl RecipeStore for PostgresStore {
             .bind(&r.created_by)
             .bind(r.created_at)
             .bind(r.version)
-            .bind(&r.status)
+            .bind(r.status.as_str())
             .bind(r.parent_id)
             .execute(&mut *tx)
             .await

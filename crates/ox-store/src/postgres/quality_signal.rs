@@ -1,6 +1,6 @@
 //! [`QualitySignalStore`] — per-query signal log + dashboard
 //! aggregation for the six adaptive quality windows (SHACL
-//! pass/failure, anchor hit rate, glossary term hits, ambiguity
+//! pass/failure, anchor hit rate, concept hits, ambiguity
 //! resolution uptake, query reproducibility, stale-type pressure).
 //!
 //! Reads go through windowed CTEs that compare the current window's
@@ -10,9 +10,7 @@
 
 use super::*;
 
-fn shacl_failure_from_str(
-    s: &str,
-) -> OxResult<crate::quality_signal::ShaclFailureKind> {
+fn shacl_failure_from_str(s: &str) -> OxResult<crate::quality_signal::ShaclFailureKind> {
     use crate::quality_signal::ShaclFailureKind;
     Ok(match s {
         "cardinality_violation" => ShaclFailureKind::CardinalityViolation,
@@ -29,9 +27,7 @@ fn shacl_failure_from_str(
     })
 }
 
-fn shacl_failure_to_str(
-    k: crate::quality_signal::ShaclFailureKind,
-) -> &'static str {
+fn shacl_failure_to_str(k: crate::quality_signal::ShaclFailureKind) -> &'static str {
     use crate::quality_signal::ShaclFailureKind;
     match k {
         ShaclFailureKind::CardinalityViolation => "cardinality_violation",
@@ -50,7 +46,7 @@ fn shacl_failure_to_str(
 struct WindowCounters {
     samples: i64,
     anchor_matched: i64,
-    glossary_hit: i64,
+    concept_hit: i64,
     clarified: i64,
     clarified_success: i64,
     reproducible: i64,
@@ -87,7 +83,7 @@ async fn list_window_counters(
                  (SELECT COUNT(*) FROM window_rows \
                     WHERE anchor_top_score IS NOT NULL AND anchor_top_score >= 0.5)::bigint AS anchor_matched, \
                  (SELECT COUNT(*) FROM window_rows \
-                    WHERE array_length(glossary_term_hits, 1) > 0)::bigint AS glossary_hit, \
+                    WHERE array_length(concept_hits, 1) > 0)::bigint AS concept_hit, \
                  (SELECT COUNT(*) FROM window_rows \
                     WHERE ambiguity_was_clarified)::bigint AS clarified, \
                  (SELECT COUNT(*) FROM window_rows \
@@ -116,7 +112,7 @@ impl QualitySignalStore for PostgresStore {
         sqlx::query(
             "INSERT INTO query_execution_signals \
              (execution_id, workspace_id, captured_at, anchor_top_score, anchor_hit_kinds, \
-              glossary_term_hits, ambiguity_resolution_ids, ambiguity_was_clarified, \
+              concept_hits, ambiguity_resolution_ids, ambiguity_was_clarified, \
               shacl_passed, shacl_failure_kind, query_ir_normalized_hash, referenced_type_ids) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
              ON CONFLICT (execution_id) DO NOTHING",
@@ -126,7 +122,7 @@ impl QualitySignalStore for PostgresStore {
         .bind(signal.captured_at)
         .bind(signal.anchor_top_score.map(|v| v as f64))
         .bind(&signal.anchor_hit_kinds)
-        .bind(&signal.glossary_term_hits)
+        .bind(&signal.concept_hits)
         .bind(&signal.ambiguity_resolution_ids)
         .bind(signal.ambiguity_was_clarified)
         .bind(signal.shacl_passed)
@@ -180,7 +176,7 @@ impl QualitySignalStore for PostgresStore {
         }
 
         let prev_anchor = prop(&previous, previous.anchor_matched);
-        let prev_gloss = prop(&previous, previous.glossary_hit);
+        let prev_concept = prop(&previous, previous.concept_hit);
         let prev_clar = prop_clarified(&previous);
         let prev_repro = prop(&previous, previous.reproducible);
         let prev_shacl = prop(&previous, previous.shacl_passed);
@@ -191,10 +187,10 @@ impl QualitySignalStore for PostgresStore {
                 current.samples as u64,
                 prev_anchor,
             ),
-            glossary_hit_rate: MetricValue::wilson_proportion(
-                current.glossary_hit as u64,
+            concept_hit_rate: MetricValue::wilson_proportion(
+                current.concept_hit as u64,
                 current.samples as u64,
-                prev_gloss,
+                prev_concept,
             ),
             clarification_success_rate: MetricValue::wilson_proportion(
                 current.clarified_success as u64,
@@ -256,10 +252,7 @@ impl QualitySignalStore for PostgresStore {
             .collect()
     }
 
-    async fn upsert_type_last_used(
-        &self,
-        type_ids: &[(uuid::Uuid, &str)],
-    ) -> OxResult<()> {
+    async fn upsert_type_last_used(&self, type_ids: &[(uuid::Uuid, &str)]) -> OxResult<()> {
         if type_ids.is_empty() {
             return Ok(());
         }

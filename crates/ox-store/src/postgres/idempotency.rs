@@ -44,10 +44,7 @@ impl IdempotencyStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn create_idempotency_record(
-        &self,
-        record: &IdempotencyRecord,
-    ) -> OxResult<()> {
+    async fn create_idempotency_record(&self, record: &IdempotencyRecord) -> OxResult<()> {
         // First writer wins. A concurrent racer with the same key
         // either had its body match (and would have seen the cache
         // hit on its second look) or carried a different payload —
@@ -81,11 +78,10 @@ impl IdempotencyStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_expired_idempotency_records(&self) -> OxResult<u64> {
-        let result =
-            sqlx::query("DELETE FROM idempotency_records WHERE expires_at < now()")
-                .execute(&self.pool)
-                .await
-                .map_err(to_ox_error)?;
+        let result = sqlx::query("DELETE FROM idempotency_records WHERE expires_at < now()")
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
         Ok(result.rows_affected())
     }
 }

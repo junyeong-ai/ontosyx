@@ -25,6 +25,7 @@ mod audit;
 mod audit_trail;
 mod change_routing;
 mod community;
+mod community_policy;
 mod config;
 mod dashboard;
 mod data_source;
@@ -33,6 +34,7 @@ mod embedding_retry;
 mod evaluation;
 mod health;
 mod idempotency;
+mod inference;
 mod insight;
 mod jwt_revocation;
 mod knowledge;
@@ -48,6 +50,7 @@ mod pattern;
 mod perspective;
 mod pin;
 mod prompt_template;
+mod provenance;
 mod quality;
 mod quality_baseline;
 mod quality_signal;
@@ -55,12 +58,16 @@ mod query;
 mod recipe;
 mod recipe_execution;
 mod report;
+mod retokenize;
+mod retrieval;
 mod scheduled_task;
+mod source_contract;
 mod source_mapping_artifact;
 mod stale_concept_proposal;
 mod tool_approval;
 mod user;
 mod verification;
+mod verified_query;
 mod workspace;
 
 pub use cursor::{CursorPage, CursorParams};
@@ -76,6 +83,7 @@ pub use audit::AuditStore;
 pub use audit_trail::{AuditRecord, AuditTrailFilter, AuditTrailStore};
 pub use change_routing::ChangeRoutingStore;
 pub use community::CommunitySummaryStore;
+pub use community_policy::CommunityDetectionPolicyStore;
 pub use config::ConfigStore;
 pub use dashboard::DashboardStore;
 pub use data_source::DataSourceStore;
@@ -84,6 +92,7 @@ pub use embedding_retry::EmbeddingRetryStore;
 pub use evaluation::EvaluationStore;
 pub use health::HealthStore;
 pub use idempotency::IdempotencyStore;
+pub use inference::InferenceSessionStore;
 pub use insight::{CreateInsightInput, InsightFilter, InsightStore, UpdateInsightInput};
 pub use jwt_revocation::JwtRevocationStore;
 pub use knowledge::KnowledgeStore;
@@ -99,6 +108,7 @@ pub use pattern::PatternStore;
 pub use perspective::PerspectiveStore;
 pub use pin::PinStore;
 pub use prompt_template::PromptTemplateStore;
+pub use provenance::ProvenanceStore;
 pub use quality::QualityStore;
 pub use quality_baseline::QualityBaselineStore;
 pub use quality_signal::QualitySignalStore;
@@ -106,12 +116,16 @@ pub use query::QueryStore;
 pub use recipe::RecipeStore;
 pub use recipe_execution::RecipeExecutionStore;
 pub use report::ReportStore;
+pub use retokenize::{Retokenizable, RetokenizableStore};
+pub use retrieval::RetrievalProfileStore;
 pub use scheduled_task::ScheduledTaskStore;
+pub use source_contract::SourceContractStore;
 pub use source_mapping_artifact::SourceMappingArtifactStore;
 pub use stale_concept_proposal::StaleConceptProposalStore;
 pub use tool_approval::ToolApprovalStore;
 pub use user::UserStore;
 pub use verification::VerificationStore;
+pub use verified_query::VerifiedQueryStore;
 pub use workspace::WorkspaceStore;
 
 /// Aggregating supertrait. Any concrete persistence backend that
@@ -128,6 +142,7 @@ pub trait Store:
     + AuditStore
     + AuditTrailStore
     + ChangeRoutingStore
+    + CommunityDetectionPolicyStore
     + CommunitySummaryStore
     + ConfigStore
     + DashboardStore
@@ -137,6 +152,7 @@ pub trait Store:
     + EvaluationStore
     + HealthStore
     + IdempotencyStore
+    + InferenceSessionStore
     + InsightStore
     + JwtRevocationStore
     + KnowledgeStore
@@ -152,6 +168,7 @@ pub trait Store:
     + PerspectiveStore
     + PinStore
     + PromptTemplateStore
+    + ProvenanceStore
     + QualityStore
     + QualityBaselineStore
     + QualitySignalStore
@@ -159,12 +176,16 @@ pub trait Store:
     + RecipeStore
     + RecipeExecutionStore
     + ReportStore
+    + RetokenizableStore
+    + RetrievalProfileStore
     + ScheduledTaskStore
+    + SourceContractStore
     + SourceMappingArtifactStore
     + StaleConceptProposalStore
     + ToolApprovalStore
     + UserStore
     + VerificationStore
+    + VerifiedQueryStore
     + WorkspaceStore
 {
 }
@@ -179,6 +200,7 @@ impl<T> Store for T where
         + AuditStore
         + AuditTrailStore
         + ChangeRoutingStore
+        + CommunityDetectionPolicyStore
         + CommunitySummaryStore
         + ConfigStore
         + DashboardStore
@@ -188,6 +210,7 @@ impl<T> Store for T where
         + EvaluationStore
         + HealthStore
         + IdempotencyStore
+        + InferenceSessionStore
         + InsightStore
         + JwtRevocationStore
         + KnowledgeStore
@@ -203,6 +226,7 @@ impl<T> Store for T where
         + PerspectiveStore
         + PinStore
         + PromptTemplateStore
+        + ProvenanceStore
         + QualityStore
         + QualityBaselineStore
         + QualitySignalStore
@@ -210,12 +234,16 @@ impl<T> Store for T where
         + RecipeStore
         + RecipeExecutionStore
         + ReportStore
+        + RetokenizableStore
+        + RetrievalProfileStore
         + ScheduledTaskStore
+        + SourceContractStore
         + SourceMappingArtifactStore
         + StaleConceptProposalStore
         + ToolApprovalStore
         + UserStore
         + VerificationStore
+        + VerifiedQueryStore
         + WorkspaceStore
 {
 }

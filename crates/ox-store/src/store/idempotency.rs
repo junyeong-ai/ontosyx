@@ -27,10 +27,7 @@ pub trait IdempotencyStore: Send + Sync {
     /// method, path, key)`; concurrent writers race and only one
     /// wins (`ON CONFLICT DO NOTHING`), which is the documented
     /// Stripe behaviour — second writer's response is dropped.
-    async fn create_idempotency_record(
-        &self,
-        record: &IdempotencyRecord,
-    ) -> OxResult<()>;
+    async fn create_idempotency_record(&self, record: &IdempotencyRecord) -> OxResult<()>;
 
     /// Drop expired rows. The middleware never reads them, so
     /// keeping a backlog only costs disk; the cleanup cron uses

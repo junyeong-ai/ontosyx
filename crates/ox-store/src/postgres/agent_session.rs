@@ -2,6 +2,64 @@
 
 use super::*;
 
+#[derive(sqlx::FromRow)]
+struct AgentSessionRow {
+    id: Uuid,
+    user_id: String,
+    ontology_lineage_id: Option<String>,
+    prompt_hash: String,
+    tool_schema_hash: String,
+    model_id: String,
+    model_config: sqlx::types::Json<AgentSessionModelConfig>,
+    user_message: String,
+    final_text: Option<String>,
+    created_at: DateTime<Utc>,
+    completed_at: Option<DateTime<Utc>>,
+}
+
+impl From<AgentSessionRow> for AgentSession {
+    fn from(row: AgentSessionRow) -> Self {
+        Self {
+            id: row.id,
+            user_id: row.user_id,
+            ontology_lineage_id: row.ontology_lineage_id,
+            prompt_hash: row.prompt_hash,
+            tool_schema_hash: row.tool_schema_hash,
+            model_id: row.model_id,
+            model_config: row.model_config.0,
+            user_message: row.user_message,
+            final_text: row.final_text,
+            created_at: row.created_at,
+            completed_at: row.completed_at,
+        }
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct AgentEventRow {
+    id: Uuid,
+    session_id: Uuid,
+    workspace_id: Uuid,
+    sequence: i32,
+    event_type: String,
+    payload: sqlx::types::Json<AgentEventPayload>,
+    created_at: DateTime<Utc>,
+}
+
+impl From<AgentEventRow> for AgentEvent {
+    fn from(row: AgentEventRow) -> Self {
+        Self {
+            id: row.id,
+            session_id: row.session_id,
+            workspace_id: row.workspace_id,
+            sequence: row.sequence,
+            event_type: row.event_type,
+            payload: row.payload.0,
+            created_at: row.created_at,
+        }
+    }
+}
+
 #[async_trait]
 impl AgentSessionStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
@@ -18,7 +76,7 @@ impl AgentSessionStore for PostgresStore {
         .bind(&s.prompt_hash)
         .bind(&s.tool_schema_hash)
         .bind(&s.model_id)
-        .bind(&s.model_config)
+        .bind(sqlx::types::Json(&s.model_config))
         .bind(&s.user_message)
         .bind(s.created_at)
         .execute(&self.pool)
@@ -47,7 +105,7 @@ impl AgentSessionStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn get_agent_session(&self, id: Uuid) -> OxResult<Option<AgentSession>> {
-        sqlx::query_as(
+        let row: Option<AgentSessionRow> = sqlx::query_as(
             "SELECT id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
                     model_id, model_config, user_message, final_text,
                     created_at, completed_at
@@ -58,7 +116,8 @@ impl AgentSessionStore for PostgresStore {
         .await
         .map_err(|e| OxError::Runtime {
             message: format!("Database error: {e}"),
-        })
+        })?;
+        Ok(row.map(AgentSession::from))
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -70,15 +129,15 @@ impl AgentSessionStore for PostgresStore {
         let limit = pagination.effective_limit();
         let fetch_limit = limit + 1;
 
-        let items: Vec<AgentSession> = match &pagination.cursor {
+        let rows: Vec<AgentSessionRow> = match &pagination.cursor {
             Some(cursor) => {
                 let cursor_time: DateTime<Utc> =
-                    cursor.parse().map_err(|e: chrono::format::ParseError| {
-                        OxError::Parse {
+                    cursor
+                        .parse()
+                        .map_err(|e: chrono::format::ParseError| OxError::Parse {
                             field: "cursor".into(),
                             source: Box::new(e),
-                        }
-                    })?;
+                        })?;
                 sqlx::query_as(
                     "SELECT id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
                             model_id, model_config, user_message, final_text,
@@ -111,6 +170,7 @@ impl AgentSessionStore for PostgresStore {
             })?,
         };
 
+        let items: Vec<AgentSession> = rows.into_iter().map(AgentSession::from).collect();
         Ok(build_cursor_page(items, limit, |s| (s.created_at, s.id)))
     }
 
@@ -126,7 +186,7 @@ impl AgentSessionStore for PostgresStore {
         .bind(e.workspace_id)
         .bind(e.sequence)
         .bind(&e.event_type)
-        .bind(&e.payload)
+        .bind(sqlx::types::Json(&e.payload))
         .bind(e.created_at)
         .execute(&self.pool)
         .await
@@ -138,13 +198,17 @@ impl AgentSessionStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn list_agent_events(&self, session_id: Uuid) -> OxResult<Vec<AgentEvent>> {
-        sqlx::query_as("SELECT * FROM agent_events WHERE session_id = $1 ORDER BY sequence")
-            .bind(session_id)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| OxError::Runtime {
-                message: format!("Database error: {e}"),
-            })
+        let rows: Vec<AgentEventRow> = sqlx::query_as(
+            "SELECT id, session_id, workspace_id, sequence, event_type, payload, created_at
+             FROM agent_events WHERE session_id = $1 ORDER BY sequence",
+        )
+        .bind(session_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| OxError::Runtime {
+            message: format!("Database error: {e}"),
+        })?;
+        Ok(rows.into_iter().map(AgentEvent::from).collect())
     }
 
     #[tracing::instrument(level = "debug", skip_all)]

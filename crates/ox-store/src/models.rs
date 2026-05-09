@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
@@ -26,18 +27,25 @@ pub struct QueryExecution {
     /// ran against. When set, `ontology_snapshot` is NULL.
     pub ontology_id: Option<Uuid>,
     /// Full OntologyIR snapshot (NULL when ontology_id is set)
+    #[schema(value_type = Option<ox_ontology::ir::OntologyIR>)]
     pub ontology_snapshot: Option<serde_json::Value>,
+    #[schema(value_type = ox_query_ir::query::QueryIR)]
     pub query_ir: serde_json::Value,
     /// Compiler target language (e.g., "cypher")
     pub compiled_target: String,
     pub compiled_query: String,
+    #[schema(value_type = ox_query_ir::query::QueryResult)]
     pub results: serde_json::Value,
+    #[schema(value_type = Option<ox_query_ir::widget::WidgetHint>)]
     pub widget: Option<serde_json::Value>,
     pub explanation: String,
-    /// LLM model used
+    /// LLM provider used.
+    pub model_provider: String,
+    /// LLM model used.
     pub model: String,
     pub execution_time_ms: i64,
     /// Resolved query bindings for graph highlighting (binding-aware provenance)
+    #[schema(value_type = ox_query_ir::bindings::ResolvedQueryBindings)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query_bindings: Option<serde_json::Value>,
     /// User feedback on query accuracy: "positive" or "negative"
@@ -54,6 +62,7 @@ pub struct QueryExecutionSummary {
     pub ontology_lineage_id: String,
     pub ontology_version: i32,
     pub compiled_target: String,
+    pub model_provider: String,
     pub model: String,
     pub execution_time_ms: i64,
     pub row_count: i64,
@@ -64,7 +73,7 @@ pub struct QueryExecutionSummary {
 // ---------------------------------------------------------------------------
 // Λ Phase — Level 1 identity + version snapshot models.
 //
-// These mirror the migration-0016 tables `ontologies` and
+// These mirror the baseline tables `ontologies` and
 // `ontology_version_snapshots`. They pair with
 // `ox_ontology::storage::{ExtractedEntity, EntityKind}` to form
 // the full commit / load pipeline the new
@@ -109,6 +118,17 @@ pub struct OntologyVersionSnapshot {
     pub commit_message: String,
     pub created_at: DateTime<Utc>,
     pub workspace_id: Uuid,
+    /// PROV-O activity record produced by `commit_version` —
+    /// resolves to a `provenance_records` row carrying agent,
+    /// derivation chain, and (for LLM-driven commits) the
+    /// `prompt_render_hash` plan reference. Always present —
+    /// the schema FK is `NOT NULL`.
+    pub provenance_id: Uuid,
+    /// sha256 over the tokenizer-relevant glossary state at
+    /// commit time. Diffed against the previous snapshot's
+    /// fingerprint to gate the lindera user-dictionary rebuild
+    /// + retokenized backfill on retrieval surfaces.
+    pub glossary_tokenizer_fingerprint: String,
 }
 
 /// A single entity in the Level 2 content-addressed store. The
@@ -201,6 +221,7 @@ pub struct PinboardItem {
     pub id: Uuid,
     pub query_execution_id: Uuid,
     pub user_id: String,
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub widget_spec: serde_json::Value,
     pub title: Option<String>,
     pub pinned_at: DateTime<Utc>,
@@ -210,7 +231,7 @@ pub struct PinboardItem {
 // Workspaces — multi-tenant isolation
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Workspace {
     pub id: Uuid,
     pub name: String,
@@ -221,16 +242,16 @@ pub struct Workspace {
     /// Workspace's canonical authoring locale (BCP 47). Always lowercase;
     /// enforced by `workspaces_primary_locale_check` at the DB layer.
     pub primary_locale: String,
-    /// Ordered fallback chain (JSON array of BCP 47 tags, non-empty) the
-    /// admin / operator UI walks when resolving translations. Validated by
+    /// Ordered fallback chain (BCP 47 tags, non-empty) the admin /
+    /// operator UI walks when resolving translations. Validated by
     /// `workspaces_admin_locale_fallback_check`.
-    pub admin_locale_fallback: serde_json::Value,
+    pub admin_locale_fallback: Vec<String>,
     /// Ordered fallback chain (JSON array of BCP 47 tags, non-empty) the
     /// agent / Brain prompts and tool-result contexts walk. Distinct from
     /// `admin_locale_fallback` so a Korean-first admin surface can pair
     /// with an English-first LLM context. Validated by
     /// `workspaces_llm_locale_fallback_check`.
-    pub llm_locale_fallback: serde_json::Value,
+    pub llm_locale_fallback: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -334,6 +355,7 @@ pub struct OntologyDraft {
     pub user_id: String,
     pub title: Option<String>,
     /// SourceConfig JSON (source_type, schema_name — no secrets)
+    #[schema(value_type = ox_ontology::ontology_draft::SourceConfig)]
     pub source_config: serde_json::Value,
     /// Canonical source identity derived via
     /// `SourceId::from_source_config` at project creation. Stable
@@ -345,26 +367,33 @@ pub struct OntologyDraft {
     /// Raw source data (text/csv/json input; null for postgresql)
     pub source_data: Option<String>,
     /// SourceSchema snapshot from analysis
+    #[schema(value_type = Option<ox_core::source_schema::SourceSchema>)]
     pub source_schema: Option<serde_json::Value>,
     /// SourceProfile snapshot from analysis
+    #[schema(value_type = Option<ox_core::source_schema::SourceProfile>)]
     pub source_profile: Option<serde_json::Value>,
     /// SourceAnalysisReport snapshot from analysis
+    #[schema(value_type = Option<ox_ontology::source_analysis::SourceAnalysisReport>)]
     pub analysis_report: Option<serde_json::Value>,
     /// User decisions (DesignOptions)
+    #[schema(value_type = ox_ontology::source_analysis::DesignOptions)]
     pub design_options: serde_json::Value,
-    /// Draft-lifecycle [`ox_source::AnalysisScope`] — included
+    /// Draft-lifecycle [`ox_core::source_scope::AnalysisScope`] — included
     /// tables, deferred tables (with reason + revisit), policy-
     /// excluded tables, per-table fingerprints, and the timestamp of
     /// the last introspection. Accumulates across every analyze /
     /// extend / reanalyze pass so the operator's "which tables are
     /// modeled / deferred / drifted" view survives the full project
     /// lifecycle.
+    #[schema(value_type = ox_core::source_scope::AnalysisScope)]
     pub analysis_scope: serde_json::Value,
     /// Generated OntologyIR. Canonical `object_mappings` (node→table,
     /// property→column bindings) live inside this value; there is
     /// no separate persisted blob.
+    #[schema(value_type = Option<ox_ontology::ir::OntologyIR>)]
     pub ontology: Option<serde_json::Value>,
     /// OntologyQualityReport
+    #[schema(value_type = Option<ox_ontology::quality::OntologyQualityReport>)]
     pub quality_report: Option<serde_json::Value>,
     /// FK to `ontology_version_snapshots.id` — the canonical version
     /// the project's in-flight `ontology` JSONB was branched from.
@@ -384,6 +413,7 @@ pub struct OntologyDraft {
     /// produced" without resolving via lineage.
     pub committed_version_id: Option<Uuid>,
     /// History of data sources added to this draft
+    #[schema(value_type = Vec<ox_ontology::ontology_draft::SourceHistoryEntry>)]
     pub source_history: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -402,6 +432,7 @@ pub struct OntologyDraftSummary {
     pub revision: i32,
     pub user_id: String,
     pub title: Option<String>,
+    #[schema(value_type = ox_ontology::ontology_draft::SourceConfig)]
     pub source_config: serde_json::Value,
     /// Canonical version this draft was branched from. `None` for
     /// greenfield drafts whose first commit creates the workspace's
@@ -426,7 +457,9 @@ pub struct OntologySnapshot {
     pub workspace_id: Uuid,
     pub revision: i32,
     /// OntologyIR JSON — includes canonical `object_mappings`.
+    #[schema(value_type = ox_ontology::ir::OntologyIR)]
     pub ontology: serde_json::Value,
+    #[schema(value_type = Option<ox_ontology::quality::OntologyQualityReport>)]
     pub quality_report: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
@@ -461,7 +494,7 @@ pub struct SystemConfigRow {
 // ---------------------------------------------------------------------------
 
 /// A saved workbench perspective: node positions, viewport, filters, etc.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct WorkbenchPerspective {
     pub id: Uuid,
     pub user_id: String,
@@ -470,27 +503,50 @@ pub struct WorkbenchPerspective {
     pub topology_signature: String,
     pub ontology_draft_id: Option<Uuid>,
     pub name: String,
-    pub positions: serde_json::Value,
-    pub viewport: serde_json::Value,
+    pub positions: std::collections::BTreeMap<String, CanvasPosition>,
+    pub viewport: CanvasViewport,
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub filters: serde_json::Value,
-    pub collapsed_groups: serde_json::Value,
+    pub collapsed_groups: Vec<String>,
     pub is_default: bool,
+    /// Retrieval profile (Φ10) the perspective pins for GraphRAG.
+    /// Different perspectives can pin different shapes — a
+    /// Customer-centric perspective wants different edge weights
+    /// than a Product-centric one. `None` falls back to the
+    /// workspace's `default` profile (Φ10.5 auto-seed). FK is
+    /// `ON DELETE SET NULL` so a profile delete cleans dangling
+    /// references without dropping the perspective.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retrieval_profile_id: Option<ox_ontology::RetrievalProfileId>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct CanvasPosition {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct CanvasViewport {
+    pub x: f64,
+    pub y: f64,
+    pub zoom: f64,
 }
 
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Dashboard {
     pub id: Uuid,
     pub workspace_id: Uuid,
     pub user_id: String,
     pub name: String,
     pub description: Option<String>,
-    pub layout: serde_json::Value,
+    pub layout: Vec<DashboardLayoutItem>,
     pub is_public: bool,
     pub share_token: Option<String>,
     pub shared_at: Option<DateTime<Utc>>,
@@ -501,11 +557,20 @@ pub struct Dashboard {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct DashboardLayoutItem {
+    pub widget_id: Uuid,
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
 // ---------------------------------------------------------------------------
 // AnalysisRecipe — reusable data analysis algorithm
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct AnalysisRecipe {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -513,28 +578,67 @@ pub struct AnalysisRecipe {
     pub description: String,
     pub algorithm_type: String,
     pub code_template: String,
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub parameters: serde_json::Value,
+    #[schema(value_type = Vec<String>)]
     pub required_columns: serde_json::Value,
     pub output_description: String,
     pub created_by: String,
     pub created_at: DateTime<Utc>,
     pub version: i32,
-    /// "draft", "approved", "deprecated"
-    pub status: String,
+    pub status: RecipeStatus,
     /// Previous version's ID (for version chain)
     pub parent_id: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RecipeStatus {
+    Draft,
+    Approved,
+    Deprecated,
+}
+
+impl RecipeStatus {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Approved => "approved",
+            Self::Deprecated => "deprecated",
+        }
+    }
+}
+
+impl std::str::FromStr for RecipeStatus {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "draft" => Ok(Self::Draft),
+            "approved" => Ok(Self::Approved),
+            "deprecated" => Ok(Self::Deprecated),
+            other => Err(format!("unknown recipe status: {other}")),
+        }
+    }
+}
+
+impl std::fmt::Display for RecipeStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 // ---------------------------------------------------------------------------
 // RecipeExecutionResult — cached/versioned recipe execution output
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct RecipeExecutionResult {
     pub id: Uuid,
     pub recipe_id: Option<Uuid>,
     pub ontology_lineage_id: Option<String>,
     pub input_hash: String,
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub output: serde_json::Value,
     pub duration_ms: i64,
     pub created_at: DateTime<Utc>,
@@ -544,7 +648,7 @@ pub struct RecipeExecutionResult {
 // ScheduledTask — cron-based recipe execution schedule
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct ScheduledTask {
     pub id: Uuid,
     pub recipe_id: Uuid,
@@ -564,7 +668,7 @@ pub struct ScheduledTask {
 // DashboardWidget — a saved query/analysis bound to a dashboard
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct DashboardWidget {
     pub id: Uuid,
     pub dashboard_id: Uuid,
@@ -572,20 +676,62 @@ pub struct DashboardWidget {
     pub title: String,
     pub widget_type: String,
     pub query: Option<String>,
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub widget_spec: serde_json::Value,
-    pub position: serde_json::Value,
+    pub position: DashboardWidgetPosition,
     pub refresh_interval_secs: Option<i32>,
+    #[schema(value_type = Option<std::collections::HashMap<String, Object>>, additional_properties)]
     pub last_result: Option<serde_json::Value>,
     pub last_refreshed: Option<DateTime<Utc>>,
-    pub thresholds: Option<serde_json::Value>,
+    pub thresholds: Option<DashboardWidgetThresholds>,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct DashboardWidgetPosition {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct DashboardWidgetThresholds {
+    pub warning: Option<f64>,
+    pub critical: Option<f64>,
+    pub direction: Option<ThresholdDirection>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ThresholdDirection {
+    Above,
+    Below,
 }
 
 // ---------------------------------------------------------------------------
 // SavedReport — parameterized query template for reusable analytics
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct SavedReportParameter {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub r#type: SavedReportParameterType,
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SavedReportParameterType {
+    String,
+    Number,
+    Boolean,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct SavedReport {
     pub id: Uuid,
     pub user_id: String,
@@ -593,6 +739,7 @@ pub struct SavedReport {
     pub title: String,
     pub description: Option<String>,
     pub query_template: String,
+    #[schema(value_type = Vec<SavedReportParameter>)]
     pub parameters: serde_json::Value,
     pub widget_type: Option<String>,
     pub is_public: bool,
@@ -639,7 +786,7 @@ pub struct PendingEmbedding {
 // Agent sessions — execution context for replay and audit
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct AgentSession {
     pub id: Uuid,
     pub user_id: String,
@@ -647,22 +794,109 @@ pub struct AgentSession {
     pub prompt_hash: String,
     pub tool_schema_hash: String,
     pub model_id: String,
-    pub model_config: serde_json::Value,
+    pub model_config: AgentSessionModelConfig,
     pub user_message: String,
     pub final_text: Option<String>,
     pub created_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct AgentSessionModelConfig {
+    pub execution_mode: AgentExecutionMode,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentExecutionMode {
+    Auto,
+    Plan,
+    Supervised,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct AgentEvent {
     pub id: Uuid,
     pub session_id: Uuid,
     pub workspace_id: Uuid,
     pub sequence: i32,
     pub event_type: String,
-    pub payload: serde_json::Value,
+    pub payload: AgentEventPayload,
     pub created_at: DateTime<Utc>,
+}
+
+/// Canonical persisted agent timeline payload. The stream adapter,
+/// audit trail, and session reconstruction all use this shape so
+/// replay does not depend on branchforge's private serde layout.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum AgentEventPayload {
+    Text {
+        delta: String,
+    },
+    Thinking {
+        content: String,
+    },
+    ToolStart {
+        id: String,
+        name: String,
+        #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
+        input: serde_json::Value,
+    },
+    ToolComplete {
+        id: String,
+        name: String,
+        #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
+        output: serde_json::Value,
+        is_error: bool,
+        duration_ms: Option<i64>,
+    },
+    ToolProgress {
+        tool_call_id: String,
+        step: String,
+        status: String,
+        duration_ms: Option<i64>,
+        #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
+        metadata: serde_json::Value,
+    },
+    ToolBlocked {
+        id: String,
+        name: String,
+        reason: String,
+    },
+    ToolReview {
+        id: String,
+        name: String,
+        #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
+        input: serde_json::Value,
+    },
+    TurnUsage {
+        input_tokens: i64,
+        output_tokens: i64,
+    },
+    Complete {
+        session_id: String,
+        text: String,
+        #[schema(value_type = Vec<std::collections::HashMap<String, Object>>, additional_properties)]
+        tool_calls: serde_json::Value,
+        iterations: u32,
+    },
+}
+
+impl AgentEventPayload {
+    pub fn event_type(&self) -> &'static str {
+        match self {
+            Self::Text { .. } => "text",
+            Self::Thinking { .. } => "thinking",
+            Self::ToolStart { .. } => "tool_start",
+            Self::ToolComplete { .. } => "tool_complete",
+            Self::ToolProgress { .. } => "tool_progress",
+            Self::ToolBlocked { .. } => "tool_blocked",
+            Self::ToolReview { .. } => "tool_review",
+            Self::TurnUsage { .. } => "turn_usage",
+            Self::Complete { .. } => "complete",
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -674,13 +908,13 @@ pub struct PromptTemplateRow {
     pub id: Uuid,
     pub name: String,
     /// Semantic version. Stored as TEXT in Postgres (with a CHECK constraint
-    /// in migration 0006) and decoded via `TryFrom<String>` so the row
+    /// in the schema baseline) and decoded via `TryFrom<String>` so the row
     /// always carries a parsed `PromptVersion` rather than a free-form
     /// string. Prevents the `"v10" < "v9"` lexicographic-sort surprise.
     #[sqlx(try_from = "String")]
     pub version: ox_core::PromptVersion,
     pub content: String,
-    pub variables: serde_json::Value,
+    pub variables: Vec<String>,
     pub metadata: serde_json::Value,
     pub created_by: String,
     pub created_at: DateTime<Utc>,
@@ -699,7 +933,7 @@ pub struct PromptTemplateRow {
 // Element verifications — per-element verification tracking
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct ElementVerification {
     pub id: Uuid,
     pub ontology_lineage_id: String,
@@ -768,7 +1002,7 @@ pub struct ApiKey {
     pub revoked_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct AuditEntry {
     pub id: Uuid,
     pub user_id: Option<Uuid>,
@@ -782,6 +1016,7 @@ pub struct AuditEntry {
     pub action: String,
     pub resource_type: String,
     pub resource_id: Option<String>,
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub details: serde_json::Value,
     pub created_at: DateTime<Utc>,
 }
@@ -790,7 +1025,7 @@ pub struct AuditEntry {
 // Usage Records — cost metering for LLM, compute, storage
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct UsageRecord {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -803,12 +1038,13 @@ pub struct UsageRecord {
     pub output_tokens: i64,
     pub duration_ms: i64,
     pub cost_usd: f64,
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
 }
 
 /// Aggregated usage summary for a time period.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct UsageSummary {
     pub resource_type: String,
     pub total_input_tokens: i64,
@@ -857,7 +1093,7 @@ pub struct ApprovalComment {
 // Data Quality — declarative quality rules with evaluation results
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct QualityRule {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -880,19 +1116,20 @@ pub struct QualityRule {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct QualityResult {
     pub id: Uuid,
     pub workspace_id: Uuid,
     pub rule_id: Uuid,
     pub passed: bool,
     pub actual_value: Option<f64>,
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub details: serde_json::Value,
     pub evaluated_at: DateTime<Utc>,
 }
 
 /// Dashboard-oriented view: each rule + its latest evaluation result.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct QualityDashboardEntry {
     pub rule_id: Uuid,
     pub name: String,
@@ -909,7 +1146,7 @@ pub struct QualityDashboardEntry {
 // Data Lineage — provenance tracking for graph data
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct LineageEntry {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -923,6 +1160,7 @@ pub struct LineageEntry {
     pub load_plan_hash: Option<String>,
     /// Column-level property mappings: source_column -> graph_property + transform.
     /// Stored as JSON array of `{source_column, graph_property, transform?}`.
+    #[schema(value_type = Option<Vec<std::collections::HashMap<String, Object>>>, additional_properties)]
     pub property_mappings: Option<serde_json::Value>,
     pub record_count: i64,
     pub loaded_by: Option<Uuid>,
@@ -933,7 +1171,7 @@ pub struct LineageEntry {
 }
 
 /// Summary of lineage per graph label.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct LineageSummary {
     pub graph_label: String,
     pub graph_element_type: String,
@@ -946,7 +1184,7 @@ pub struct LineageSummary {
 // ACL Policies — fine-grained attribute-based access control
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct AclPolicy {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -970,7 +1208,7 @@ pub struct AclPolicy {
 // Model Configs — runtime LLM model configuration
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct ModelConfig {
     pub id: Uuid,
     pub workspace_id: Option<Uuid>,
@@ -988,12 +1226,13 @@ pub struct ModelConfig {
     pub api_key_env: Option<String>,
     pub region: Option<String>,
     pub base_url: Option<String>,
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub provider_meta: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct NewModelConfig {
     pub workspace_id: Option<Uuid>,
     pub name: String,
@@ -1006,12 +1245,16 @@ pub struct NewModelConfig {
     pub cost_per_1m_output: Option<f64>,
     pub daily_budget_usd: Option<f64>,
     pub priority: Option<i32>,
+    pub enabled: Option<bool>,
     pub api_key_env: Option<String>,
     pub region: Option<String>,
     pub base_url: Option<String>,
+    #[serde(default = "default_empty_object")]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
+    pub provider_meta: serde_json::Value,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ModelConfigUpdate {
     pub name: Option<String>,
     pub provider: Option<String>,
@@ -1027,13 +1270,16 @@ pub struct ModelConfigUpdate {
     pub api_key_env: Option<String>,
     pub region: Option<String>,
     pub base_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
+    pub provider_meta: Option<serde_json::Value>,
 }
 
 // ---------------------------------------------------------------------------
 // Model Routing Rules — operation-based model selection
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct ModelRoutingRule {
     pub id: Uuid,
     pub workspace_id: Option<Uuid>,
@@ -1044,7 +1290,7 @@ pub struct ModelRoutingRule {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct NewRoutingRule {
     pub workspace_id: Option<Uuid>,
     pub operation: String,
@@ -1052,7 +1298,7 @@ pub struct NewRoutingRule {
     pub priority: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RoutingRuleUpdate {
     pub operation: Option<String>,
     pub model_config_id: Option<Uuid>,
@@ -1073,7 +1319,7 @@ pub struct RoutingRuleUpdate {
 /// column DEFAULT and stamps `workspace_id` from the active
 /// task-local on insert), `Some(_)` on a checkpoint read back from
 /// the store. Use [`Self::draft`] to author fresh entries.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct LoadCheckpoint {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<Uuid>,
@@ -1117,24 +1363,65 @@ impl LoadCheckpoint {
 // NotificationChannel — configured notification destination
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct NotificationChannel {
     pub id: Uuid,
     pub workspace_id: Uuid,
     pub name: String,
-    pub channel_type: String,
-    pub config: serde_json::Value,
+    pub channel_type: NotificationChannelType,
+    pub config: WebhookNotificationConfig,
     pub events: Vec<String>,
     pub enabled: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum NotificationChannelType {
+    SlackWebhook,
+    GenericWebhook,
+}
+
+impl NotificationChannelType {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SlackWebhook => "slack_webhook",
+            Self::GenericWebhook => "generic_webhook",
+        }
+    }
+}
+
+impl std::str::FromStr for NotificationChannelType {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "slack_webhook" => Ok(Self::SlackWebhook),
+            "generic_webhook" => Ok(Self::GenericWebhook),
+            other => Err(format!("unknown notification channel type: {other}")),
+        }
+    }
+}
+
+impl std::fmt::Display for NotificationChannelType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct WebhookNotificationConfig {
+    pub url: String,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub headers: std::collections::BTreeMap<String, String>,
+}
+
 // ---------------------------------------------------------------------------
 // NotificationLog — delivery log entry
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct NotificationLog {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -1158,20 +1445,20 @@ pub struct NotificationLog {
 ///   ontology commits that keep the name + workspace stable)
 /// - `affected_labels` enables label-based GIN lookup and staleness detection
 /// - `version_checked` tracks the last ontology version where validity was confirmed
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct KnowledgeEntry {
     pub id: Uuid,
     pub workspace_id: Uuid,
     pub ontology_name: String,
     pub ontology_version_min: i32,
     pub ontology_version_max: Option<i32>,
-    pub kind: String,
-    pub status: String,
+    pub kind: KnowledgeKind,
+    pub status: KnowledgeStatus,
     pub confidence: f64,
     pub title: String,
     pub content: String,
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub structured_data: serde_json::Value,
-    #[sqlx(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding: Option<Vec<f32>>,
     pub version_checked: i32,
@@ -1188,6 +1475,91 @@ pub struct KnowledgeEntry {
     pub last_used_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Morphologically-tokenized projection of `title + content`,
+    /// stamped at write time using the workspace's lindera+user-dict
+    /// tokenizer. Drives the `searchable_tsv` GENERATED column +
+    /// hybrid retrieval RRF lexical rank.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub tokenized_text: String,
+    /// sha256 of the workspace tokenizer dict at write time.
+    /// Backfill cron retokenizes any row whose fingerprint is
+    /// stale relative to the current canonical commit.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub tokenizer_dict_fingerprint: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum KnowledgeKind {
+    Correction,
+    Hint,
+}
+
+impl KnowledgeKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Correction => "correction",
+            Self::Hint => "hint",
+        }
+    }
+}
+
+impl std::str::FromStr for KnowledgeKind {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "correction" => Ok(Self::Correction),
+            "hint" => Ok(Self::Hint),
+            other => Err(format!("unknown knowledge kind: {other}")),
+        }
+    }
+}
+
+impl std::fmt::Display for KnowledgeKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum KnowledgeStatus {
+    Draft,
+    Approved,
+    Stale,
+    Deprecated,
+}
+
+impl KnowledgeStatus {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Approved => "approved",
+            Self::Stale => "stale",
+            Self::Deprecated => "deprecated",
+        }
+    }
+}
+
+impl std::str::FromStr for KnowledgeStatus {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "draft" => Ok(Self::Draft),
+            "approved" => Ok(Self::Approved),
+            "stale" => Ok(Self::Stale),
+            "deprecated" => Ok(Self::Deprecated),
+            other => Err(format!("unknown knowledge status: {other}")),
+        }
+    }
+}
+
+impl std::fmt::Display for KnowledgeStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 /// One registered federation (VOL) data-source adapter.
@@ -1203,7 +1575,7 @@ pub struct KnowledgeEntry {
 /// Snowflake adapters it will carry a `connection_string` or a
 /// secret-manager reference. Keeping it typeless here means new
 /// adapter kinds land without another migration.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataSource {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -1216,13 +1588,12 @@ pub struct DataSource {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_analysis_snapshot: Option<serde_json::Value>,
     /// Per-table fingerprint map produced by
-    /// [`ox_core::source_schema::SchemaFingerprint`]. JSON shape:
-    /// `{ "<table>": { "hash": "<hex>", "computed_at": "<iso>" } }`.
+    /// [`ox_core::source_schema::SchemaFingerprint`].
     /// Driven by the kernel's drift detection — UI re-scan compares
     /// the live fingerprint against this map and only re-introspects
     /// tables whose hash differs.
-    #[serde(default = "default_empty_object")]
-    pub schema_fingerprints: serde_json::Value,
+    #[serde(default)]
+    pub schema_fingerprints: BTreeMap<String, ox_core::SchemaFingerprint>,
     /// Wall-clock timestamp of the most-recent successful analyze_*
     /// call. `None` when nothing has been analysed yet.
     #[serde(default, skip_serializing_if = "Option::is_none")]

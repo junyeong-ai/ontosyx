@@ -7,9 +7,7 @@
 
 use super::*;
 
-use ox_ontology::source_mapping::{
-    SourceMappingArtifact, SourceMappingArtifactId,
-};
+use ox_ontology::source_mapping::{SourceMappingArtifact, SourceMappingArtifactId};
 
 #[async_trait]
 impl SourceMappingArtifactStore for PostgresStore {
@@ -78,13 +76,12 @@ impl SourceMappingArtifactStore for PostgresStore {
         &self,
         id: &SourceMappingArtifactId,
     ) -> OxResult<Option<SourceMappingArtifact>> {
-        let row: Option<(serde_json::Value,)> = sqlx::query_as(
-            "SELECT body FROM source_mapping_artifacts WHERE id = $1",
-        )
-        .bind(id.as_str())
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(to_ox_error)?;
+        let row: Option<(serde_json::Value,)> =
+            sqlx::query_as("SELECT body FROM source_mapping_artifacts WHERE id = $1")
+                .bind(id.as_str())
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(to_ox_error)?;
 
         match row {
             None => Ok(None),
@@ -116,17 +113,13 @@ impl SourceMappingArtifactStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn delete_artifact(
-        &self,
-        id: &SourceMappingArtifactId,
-    ) -> OxResult<bool> {
+    async fn delete_artifact(&self, id: &SourceMappingArtifactId) -> OxResult<bool> {
         super::require_workspace_context()?;
-        let result =
-            sqlx::query("DELETE FROM source_mapping_artifacts WHERE id = $1")
-                .bind(id.as_str())
-                .execute(&self.pool)
-                .await
-                .map_err(to_ox_error)?;
+        let result = sqlx::query("DELETE FROM source_mapping_artifacts WHERE id = $1")
+            .bind(id.as_str())
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
         Ok(result.rows_affected() > 0)
     }
 }

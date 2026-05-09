@@ -30,6 +30,7 @@ pub struct AuditRecord {
     pub ontology_id: Uuid,
     pub ontology_lineage_id: String,
     pub ontology_name: String,
+    #[schema(value_type = ox_ontology::provenance::ProvenanceDef)]
     pub provenance: serde_json::Value,
     pub at_time: DateTime<Utc>,
 }

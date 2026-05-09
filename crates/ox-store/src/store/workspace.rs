@@ -25,16 +25,15 @@ pub trait WorkspaceStore: Send + Sync {
 
     /// Update the workspace's primary locale + both fallback chains.
     /// `primary_locale` must be a BCP 47 tag (ox-core's
-    /// `LanguageTag::parse` syntax); both `admin_locale_fallback`
-    /// and `llm_locale_fallback` must be non-empty JSONB arrays of
-    /// the same shape. All three are enforced by DB CHECK
-    /// constraints.
+    /// `LanguageTag::parse` syntax); both fallback chains must be
+    /// non-empty canonical BCP 47 tags. All three are enforced by DB
+    /// CHECK constraints.
     async fn update_workspace_locale(
         &self,
         id: Uuid,
         primary_locale: &str,
-        admin_locale_fallback: &serde_json::Value,
-        llm_locale_fallback: &serde_json::Value,
+        admin_locale_fallback: &[String],
+        llm_locale_fallback: &[String],
     ) -> OxResult<()>;
 
     // Membership

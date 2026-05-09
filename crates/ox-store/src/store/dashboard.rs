@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use ox_core::error::OxResult;
 
-use crate::models::{Dashboard, DashboardWidget};
+use crate::models::{Dashboard, DashboardLayoutItem, DashboardWidget, DashboardWidgetThresholds};
 
 use super::{CursorPage, CursorParams};
 
@@ -23,7 +23,7 @@ pub trait DashboardStore: Send + Sync {
         id: Uuid,
         name: &str,
         description: Option<&str>,
-        layout: &serde_json::Value,
+        layout: &[DashboardLayoutItem],
         is_public: bool,
     ) -> OxResult<()>;
     async fn delete_dashboard(&self, id: Uuid) -> OxResult<bool>;
@@ -48,7 +48,7 @@ pub trait DashboardStore: Send + Sync {
         widget_type: Option<&str>,
         query: Option<&str>,
         refresh_interval_secs: Option<i32>,
-        thresholds: Option<&serde_json::Value>,
+        thresholds: Option<&DashboardWidgetThresholds>,
     ) -> OxResult<()>;
     async fn update_widget_result(&self, id: Uuid, result: &serde_json::Value) -> OxResult<()>;
     async fn delete_widget(&self, id: Uuid) -> OxResult<bool>;

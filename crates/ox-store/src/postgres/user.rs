@@ -117,12 +117,11 @@ impl UserStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn get_user_token_version(&self, id: Uuid) -> OxResult<Option<i64>> {
-        let row: Option<(i64,)> =
-            sqlx::query_as("SELECT token_version FROM users WHERE id = $1")
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(to_ox_error)?;
+        let row: Option<(i64,)> = sqlx::query_as("SELECT token_version FROM users WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
         Ok(row.map(|(v,)| v))
     }
 
