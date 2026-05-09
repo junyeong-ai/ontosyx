@@ -19,7 +19,7 @@
 //!
 //! ```sh
 //! OX_TEST_DATABASE_URL=postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx \
-//!     cargo test -p ox-store --test idempotency_integration -- --ignored
+//!     cargo test -p ox-store --test integration -- --ignored integration::idempotency
 //! ```
 
 #![allow(
@@ -34,12 +34,10 @@ use ox_store::{IdempotencyRecord, IdempotencyStore, PostgresStore, User, UserSto
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }
@@ -122,7 +120,13 @@ async fn round_trip_recovers_response_for_same_scope_key() {
     store.create_idempotency_record(&rec).await.unwrap();
 
     let recovered = store
-        .find_idempotency_record(workspace_id, user.id, "POST", "/ontology-drafts/abc/design", "key-1")
+        .find_idempotency_record(
+            workspace_id,
+            user.id,
+            "POST",
+            "/ontology-drafts/abc/design",
+            "key-1",
+        )
         .await
         .unwrap()
         .expect("row exists");
@@ -166,7 +170,13 @@ async fn second_insert_on_same_scope_key_is_no_op() {
     store.create_idempotency_record(&second).await.unwrap();
 
     let recovered = store
-        .find_idempotency_record(workspace_id, user.id, "POST", "/ontology-drafts/abc/design", "key-2")
+        .find_idempotency_record(
+            workspace_id,
+            user.id,
+            "POST",
+            "/ontology-drafts/abc/design",
+            "key-2",
+        )
         .await
         .unwrap()
         .unwrap();
@@ -207,12 +217,24 @@ async fn different_scope_keys_do_not_collide() {
     store.create_idempotency_record(&r2).await.unwrap();
 
     let a = store
-        .find_idempotency_record(workspace_id, user.id, "POST", "/ontology-drafts/abc/design", "key-3")
+        .find_idempotency_record(
+            workspace_id,
+            user.id,
+            "POST",
+            "/ontology-drafts/abc/design",
+            "key-3",
+        )
         .await
         .unwrap()
         .unwrap();
     let b = store
-        .find_idempotency_record(workspace_id, user.id, "POST", "/ontology-drafts/abc/refine", "key-3")
+        .find_idempotency_record(
+            workspace_id,
+            user.id,
+            "POST",
+            "/ontology-drafts/abc/refine",
+            "key-3",
+        )
         .await
         .unwrap()
         .unwrap();
@@ -242,7 +264,13 @@ async fn expired_record_surfaces_as_miss_before_cleanup_runs() {
     store.create_idempotency_record(&stale).await.unwrap();
 
     let recovered = store
-        .find_idempotency_record(workspace_id, user.id, "POST", "/ontology-drafts/abc/design", "key-4")
+        .find_idempotency_record(
+            workspace_id,
+            user.id,
+            "POST",
+            "/ontology-drafts/abc/design",
+            "key-4",
+        )
         .await
         .unwrap();
     assert!(

@@ -16,7 +16,7 @@
 //!
 //! ```sh
 //! OX_TEST_DATABASE_URL=postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx \
-//!     cargo test -p ox-store --test draft_cluster_checkpoint -- --ignored
+//!     cargo test -p ox-store --test integration -- --ignored integration::draft_cluster_checkpoint
 //! ```
 
 #![allow(
@@ -35,12 +35,10 @@ use ox_store::{DraftClusterCheckpointStore, PostgresStore, SYSTEM_BYPASS};
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }
@@ -64,12 +62,10 @@ async fn connect_store() -> Option<PostgresStore> {
 async fn cleanup_workspace(store: &PostgresStore, workspace_id: Uuid) {
     SYSTEM_BYPASS
         .scope(true, async {
-            let _ = sqlx::query(
-                "DELETE FROM draft_cluster_checkpoints WHERE workspace_id = $1",
-            )
-            .bind(workspace_id)
-            .execute(store.pool())
-            .await;
+            let _ = sqlx::query("DELETE FROM draft_cluster_checkpoints WHERE workspace_id = $1")
+                .bind(workspace_id)
+                .execute(store.pool())
+                .await;
         })
         .await;
 }
@@ -96,7 +92,7 @@ fn fresh_checkpoint(
 fn signature_from_seed(seed: &str) -> ClusterSignature {
     use sha2::{Digest, Sha256};
     let digest = Sha256::digest(seed.as_bytes());
-    ClusterSignature::from_hex(format!("{digest:x}")).expect("valid hex digest")
+    ClusterSignature::from_hex(hex::encode(digest)).expect("valid hex digest")
 }
 
 fn empty_input_ontology() -> InputOntologyDef {
@@ -118,12 +114,7 @@ async fn upsert_rejects_unscoped_call() {
     let Some(store) = connect_store().await else {
         return;
     };
-    let checkpoint = fresh_checkpoint(
-        Uuid::new_v4(),
-        "src",
-        signature_from_seed("guard-test"),
-        0,
-    );
+    let checkpoint = fresh_checkpoint(Uuid::new_v4(), "src", signature_from_seed("guard-test"), 0);
     match store.upsert_draft_cluster_checkpoint(&checkpoint).await {
         Err(OxError::MissingContext { kind, .. }) => {
             assert_eq!(kind, "workspace");
@@ -183,7 +174,11 @@ async fn round_trip_upsert_and_find() {
             .await
             .expect("upsert");
         let found = store
-            .find_draft_cluster_checkpoint_by_signature(ontology_draft_id, source_id, signature.as_str())
+            .find_draft_cluster_checkpoint_by_signature(
+                ontology_draft_id,
+                source_id,
+                signature.as_str(),
+            )
             .await
             .expect("find")
             .expect("checkpoint must round-trip");
@@ -323,13 +318,21 @@ async fn sweep_expired_under_system_bypass() {
     // Fresh row survives — verify under workspace scope.
     PostgresStore::with_workspace(workspace_id, || async {
         let still_fresh = store
-            .find_draft_cluster_checkpoint_by_signature(ontology_draft_id, "src", sig_fresh.as_str())
+            .find_draft_cluster_checkpoint_by_signature(
+                ontology_draft_id,
+                "src",
+                sig_fresh.as_str(),
+            )
             .await
             .expect("find fresh");
         assert!(still_fresh.is_some(), "fresh row must survive sweep");
 
         let gone = store
-            .find_draft_cluster_checkpoint_by_signature(ontology_draft_id, "src", sig_expired.as_str())
+            .find_draft_cluster_checkpoint_by_signature(
+                ontology_draft_id,
+                "src",
+                sig_expired.as_str(),
+            )
             .await
             .expect("find expired");
         assert!(gone.is_none(), "expired row must be gone after sweep");

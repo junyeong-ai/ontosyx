@@ -1,7 +1,7 @@
 //! RLS (Row Level Security) behavior tests.
 //!
-//! These tests validate that `0004_rls.sql` policies actually isolate
-//! workspaces at the row level, that `SYSTEM_BYPASS` reveals all rows,
+//! These tests validate that RLS policies isolate workspaces at the
+//! row level, that `SYSTEM_BYPASS` reveals all rows,
 //! that unset task-locals deny all access, and — critically — that
 //! `FORCE ROW LEVEL SECURITY` makes the policies apply even to the
 //! table owner role (the role that created the table via migrations).
@@ -10,7 +10,7 @@
 //!
 //! ```sh
 //! OX_TEST_DATABASE_URL=postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx \
-//!     cargo test -p ox-store --test rls_enforcement -- --ignored
+//!     cargo test -p ox-store --test integration -- --ignored integration::rls_enforcement
 //! ```
 
 #![allow(
@@ -28,12 +28,10 @@ use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }

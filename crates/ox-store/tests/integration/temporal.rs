@@ -22,7 +22,7 @@
 //!
 //! ```sh
 //! OX_TEST_DATABASE_URL=postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx \
-//!     cargo test -p ox-store --test temporal_integration -- --ignored
+//!     cargo test -p ox-store --test integration -- --ignored integration::temporal
 //! ```
 
 #![allow(
@@ -41,6 +41,20 @@ use ox_core::property_key::PropertyKey;
 use ox_core::types::{PropertyType, PropertyValue};
 use ox_core::variable_name::VariableName;
 use ox_ontology::ir::{NodeTypeDef, OntologyIR, OntologyVersion, PropertyDef};
+use ox_ontology::{AgentRef, ProvenanceCapture};
+
+/// Build a minimal `ProvenanceCapture` for integration-test
+/// commits. Production code constructs richer captures (with
+/// derived_from chains and per-call agent identity); tests only
+/// need a valid bundle to satisfy the `commit_version` signature.
+fn test_capture(message: &str) -> ProvenanceCapture {
+    ProvenanceCapture::ontology_edit(
+        AgentRef::Service {
+            service_id: "integration_test".into(),
+        },
+        message,
+    )
+}
 use ox_query_ir::query::{
     Expr, GraphPattern, PropertyFilter, QUERY_IR_SCHEMA_VERSION, QueryIR, QueryOp,
 };
@@ -48,12 +62,10 @@ use ox_store::{OntologyVersionStore, PostgresStore};
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }
@@ -132,13 +144,7 @@ async fn seed_fixture(store: &PostgresStore) -> TemporalFixture {
     let v1_created_at = ts(2026, 1, 1);
     let v2_created_at = ts(2026, 6, 1);
 
-    let v1 = build_ontology(
-        &lineage_id,
-        1,
-        v1_created_at,
-        Some(v2_created_at),
-        "Client",
-    );
+    let v1 = build_ontology(&lineage_id, 1, v1_created_at, Some(v2_created_at), "Client");
     let v2 = build_ontology(&lineage_id, 2, v2_created_at, None, "Customer");
 
     let (user_id, workspace_id) = PostgresStore::with_system_bypass(|| async {
@@ -188,7 +194,16 @@ async fn seed_fixture(store: &PostgresStore) -> TemporalFixture {
                 .await
                 .expect("create identity");
             let v1_snap = store
-                .commit_version(identity.id, &v1, "1", None, "temporal-test", "seed v1")
+                .commit_version(
+                    identity.id,
+                    &v1,
+                    "1",
+                    None,
+                    "temporal-test",
+                    "seed v1",
+                    test_capture("seed v1"),
+                    "",
+                )
                 .await
                 .expect("commit v1");
             let v2_snap = store
@@ -199,6 +214,8 @@ async fn seed_fixture(store: &PostgresStore) -> TemporalFixture {
                     Some(v1_snap.id),
                     "temporal-test",
                     "seed v2",
+                    test_capture("seed v2"),
+                    "",
                 )
                 .await
                 .expect("commit v2");
@@ -429,8 +446,8 @@ async fn temporal_rewrite_pivots_customer_to_client() {
     })
     .await;
 
-    let rewritten = rewrite_temporal_with_renames(query, &snapshot_ir, &current_ir)
-        .expect("rewrite succeeds");
+    let rewritten =
+        rewrite_temporal_with_renames(query, &snapshot_ir, &current_ir).expect("rewrite succeeds");
 
     // as_of should be consumed by the rewriter so the compiler sees a
     // history-resolved query.
@@ -493,8 +510,8 @@ async fn temporal_rewrite_is_noop_inside_v2_window() {
     })
     .await;
 
-    let rewritten = rewrite_temporal_with_renames(query, &snapshot_ir, &current_ir)
-        .expect("rewrite succeeds");
+    let rewritten =
+        rewrite_temporal_with_renames(query, &snapshot_ir, &current_ir).expect("rewrite succeeds");
 
     match &rewritten.operation {
         QueryOp::Match { patterns, .. } => match &patterns[0] {
@@ -594,28 +611,45 @@ async fn temporal_rewrite_preserves_property_filters() {
     })
     .await;
 
-    let (ontology_id, v1_id, v2_id) =
-        PostgresStore::with_workspace(workspace_id, || async {
-            let identity = store
-                .create_ontology(
-                    &format!("prop-ontology-{short}"),
-                    &serde_json::json!({"default": "", "translations": {}}),
-                    &serde_json::json!({"default": "Prop test", "translations": {}}),
-                    Some(&lineage_id),
-                )
-                .await
-                .expect("create identity");
-            let v1 = store
-                .commit_version(identity.id, &v1, "1", None, "test", "v1")
-                .await
-                .expect("commit v1");
-            let v2 = store
-                .commit_version(identity.id, &v2, "2", Some(v1.id), "test", "v2")
-                .await
-                .expect("commit v2");
-            (identity.id, v1.id, v2.id)
-        })
-        .await;
+    let (ontology_id, v1_id, v2_id) = PostgresStore::with_workspace(workspace_id, || async {
+        let identity = store
+            .create_ontology(
+                &format!("prop-ontology-{short}"),
+                &serde_json::json!({"default": "", "translations": {}}),
+                &serde_json::json!({"default": "Prop test", "translations": {}}),
+                Some(&lineage_id),
+            )
+            .await
+            .expect("create identity");
+        let v1 = store
+            .commit_version(
+                identity.id,
+                &v1,
+                "1",
+                None,
+                "test",
+                "v1",
+                test_capture("v1"),
+                "",
+            )
+            .await
+            .expect("commit v1");
+        let v2 = store
+            .commit_version(
+                identity.id,
+                &v2,
+                "2",
+                Some(v1.id),
+                "test",
+                "v2",
+                test_capture("v2"),
+                "",
+            )
+            .await
+            .expect("commit v2");
+        (identity.id, v1.id, v2.id)
+    })
+    .await;
 
     PostgresStore::with_system_bypass(|| async {
         let pool = store.pool();
@@ -689,8 +723,8 @@ async fn temporal_rewrite_preserves_property_filters() {
     })
     .await;
 
-    let rewritten = rewrite_temporal_with_renames(query, &snapshot_ir, &current_ir)
-        .expect("rewrite");
+    let rewritten =
+        rewrite_temporal_with_renames(query, &snapshot_ir, &current_ir).expect("rewrite");
 
     match &rewritten.operation {
         QueryOp::Match { patterns, .. } => match &patterns[0] {

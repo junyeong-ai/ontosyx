@@ -19,25 +19,22 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
-    clippy::let_underscore_must_use
+    clippy::let_underscore_must_use,
+    clippy::disallowed_methods
 )]
 
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
-use ox_store::advisory_lock::{
-    advisory_lock_key, try_advisory_lock, with_advisory_lock,
-};
 use ox_store::PostgresStore;
+use ox_store::advisory_lock::{advisory_lock_key, try_advisory_lock, with_advisory_lock};
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }

@@ -7,7 +7,7 @@
 //! handler runs. Each golden case asserts a per-axis floor
 //! (`precision@k`, `recall@k`, `MRR`, `NDCG@k`) so the gate fails
 //! when a refactor regresses the blended trigram + full-text +
-//! embedding scoring (or a migration breaks the materialise path).
+//! embedding scoring or materialisation path.
 //!
 //! The fixture is intentionally tiny — four NodeTypes, three
 //! EdgeTypes, four GlossaryTerms. Big enough to score a meaningful
@@ -42,12 +42,10 @@ use ox_store::{OntologyNavigationStore, OntologyVersionStore, PostgresStore};
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }
@@ -80,6 +78,7 @@ fn glossary_term(id: &str, term: &str, description: &str) -> GlossaryTermDef {
         valid_to: None,
         lifecycle: ox_ontology::glossary::TermLifecycle::default(),
         concept_id: None,
+        term_pos: Default::default(),
     }
 }
 
@@ -89,12 +88,7 @@ fn glossary_term(id: &str, term: &str, description: &str) -> GlossaryTermDef {
 /// CJK-tokenised retrieval. Korean is the platform's primary
 /// user-facing language; the gate must catch a regression that
 /// only surfaces on multi-byte UTF-8 token boundaries.
-fn bilingual_glossary_term(
-    id: &str,
-    ko: &str,
-    en: &str,
-    description: &str,
-) -> GlossaryTermDef {
+fn bilingual_glossary_term(id: &str, ko: &str, en: &str, description: &str) -> GlossaryTermDef {
     GlossaryTermDef {
         id: GlossaryTermId::new(id),
         term: LocalizedText::bilingual(ko, en),
@@ -109,6 +103,7 @@ fn bilingual_glossary_term(
         valid_to: None,
         lifecycle: ox_ontology::glossary::TermLifecycle::default(),
         concept_id: None,
+        term_pos: Default::default(),
     }
 }
 
@@ -247,9 +242,8 @@ fn golden_cases() -> &'static [GoldenCase] {
     // canonical id (NodeTypeDef.id / EdgeTypeDef.id /
     // GlossaryTermId), not the human-facing label.
     //
-    // Floors calibrated against the label-boosted blend (migration
-    // 0012 adds a `label` column; the SQL adds
-    // `similarity(label, query)` to the score). Single-word
+    // Floors calibrated against the label-boosted blend
+    // (`similarity(label, query)` contributes to the score). Single-word
     // queries that match a label exactly should now rank the
     // structural row first — `mrr = 1.0` is the gate's expected
     // floor for the unambiguous cases.
@@ -398,6 +392,13 @@ async fn commit_golden(store: &PostgresStore, workspace_id: Uuid) -> Uuid {
                 None,
                 "eval-golden-test",
                 "seed golden",
+                ox_ontology::ProvenanceCapture::ontology_edit(
+                    ox_ontology::AgentRef::Service {
+                        service_id: "integration_test".into(),
+                    },
+                    "seed golden",
+                ),
+                "",
             )
             .await
             .expect("commit golden v1");
@@ -412,8 +413,7 @@ async fn commit_golden(store: &PostgresStore, workspace_id: Uuid) -> Uuid {
 async fn run_golden_cases(store: &PostgresStore, version_id: Uuid, workspace_id: Uuid) {
     let mut failures: Vec<String> = Vec::new();
     for case in golden_cases() {
-        let opts =
-            EntryPointSearchOptions::new(version_id, case.question, case.top_k);
+        let opts = EntryPointSearchOptions::new(version_id, case.question, case.top_k);
         let hits = PostgresStore::with_workspace(workspace_id, || async {
             store
                 .search_entry_points(opts.clone())
@@ -425,8 +425,7 @@ async fn run_golden_cases(store: &PostgresStore, version_id: Uuid, workspace_id:
             .iter()
             .map(|h| format!("{}:{}", h.entity_kind, h.logical_id))
             .collect();
-        let expected: Vec<String> =
-            case.expected_ids.iter().map(|s| (*s).to_string()).collect();
+        let expected: Vec<String> = case.expected_ids.iter().map(|s| (*s).to_string()).collect();
         let m = score_retrieval_metrics(&actual_ids, &expected, case.top_k as usize);
         let mut case_fail: Vec<String> = Vec::new();
         if m.precision_at_k < case.min_precision {

@@ -14,7 +14,7 @@
 //!
 //! ```sh
 //! OX_TEST_DATABASE_URL=postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx \
-//!     cargo test -p ox-store --test workspace_context_guard -- --ignored
+//!     cargo test -p ox-store --test integration -- --ignored integration::workspace_context_guard
 //! ```
 
 #![allow(
@@ -32,12 +32,10 @@ use ox_store::{
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }
@@ -51,10 +49,7 @@ async fn connect_store() -> Option<PostgresStore> {
     Some(store)
 }
 
-fn assert_missing_context<T: std::fmt::Debug>(
-    result: Result<T, OxError>,
-    method: &str,
-) {
+fn assert_missing_context<T: std::fmt::Debug>(result: Result<T, OxError>, method: &str) {
     match result {
         Err(OxError::MissingContext { kind, .. }) => {
             assert_eq!(
@@ -157,10 +152,9 @@ async fn system_bypass_lets_mutation_through() {
     let Some(store) = connect_store().await else {
         return;
     };
-    let result = PostgresStore::with_system_bypass(|| async {
-        store.delete_pattern(Uuid::nil()).await
-    })
-    .await;
+    let result =
+        PostgresStore::with_system_bypass(|| async { store.delete_pattern(Uuid::nil()).await })
+            .await;
     if let Err(OxError::MissingContext { .. }) = result {
         panic!(
             "delete_pattern inside SYSTEM_BYPASS.scope still surfaced \
@@ -215,9 +209,7 @@ async fn delete_change_routing_rule_under_bare_system_bypass_fails_fast() {
     };
     let result = PostgresStore::with_system_bypass(|| async {
         store
-            .delete_change_routing_rule(
-                ox_ontology::change_routing::ChangeType::CodedValueCreate,
-            )
+            .delete_change_routing_rule(ox_ontology::change_routing::ChangeType::CodedValueCreate)
             .await
     })
     .await;

@@ -7,12 +7,12 @@
 //! the *post-scope* path; this test pins the assumption the
 //! *pre-scope* path leans on:
 //!
-//!   `workspaces`, `workspace_members`, and `users` carry **no**
-//!   PostgreSQL RLS policies. They are visible to any connection
-//!   regardless of `app.workspace_id` / `app.system_bypass` session
-//!   state.
+//!   `workspaces`, `workspace_members`, `users`, and middleware-owned
+//!   scope-key tables carry **no** PostgreSQL RLS policies. They are
+//!   visible to any connection regardless of `app.workspace_id` /
+//!   `app.system_bypass` session state.
 //!
-//! If a future migration adds RLS to one of these tables, this test
+//! If the schema baseline adds RLS to one of these tables, this test
 //! fails — and the failure message names the cross-cutting
 //! middleware site that will silently break (the same `[22P02]
 //! invalid input syntax for type uuid: ""` regression the original
@@ -22,7 +22,7 @@
 //!
 //! ```sh
 //! OX_TEST_DATABASE_URL=postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx \
-//!     cargo test -p ox-store --test rls_invariants -- --ignored
+//!     cargo test -p ox-store --test integration -- --ignored integration::rls_invariants
 //! ```
 
 #![allow(
@@ -35,17 +35,20 @@
 use sqlx::Row;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }
 
-const PRE_SCOPE_TABLES: &[&str] = &["workspaces", "workspace_members", "users"];
+const PRE_SCOPE_TABLES: &[&str] = &[
+    "workspaces",
+    "workspace_members",
+    "users",
+    "idempotency_records",
+];
 
 #[tokio::test]
 #[ignore = "requires OX_TEST_DATABASE_URL"]
@@ -105,16 +108,16 @@ async fn pre_scope_tables_carry_no_rls_policies() {
 /// Catalog scan: every public table that carries a `workspace_id`
 /// column MUST be full-RLS protected (rowsecurity + forcerowsecurity
 /// + `ws_isolation` policy + `system_bypass` policy). Tripping this
-/// assertion means a recent migration added `workspace_id` without
+/// assertion means the schema baseline added `workspace_id` without
 /// the matching `ALTER TABLE … ENABLE / FORCE ROW LEVEL SECURITY`
 /// + `CREATE POLICY` block — silently exposing rows across
 /// workspaces. The CLAUDE.md "RLS Policy Pattern (required for all
 /// workspace-scoped tables)" section codifies the contract; this
 /// test enforces it.
 ///
-/// Pre-scope tables (`workspaces`, `workspace_members`, `users`)
-/// are excluded by name — their non-RLS status is the OPPOSITE
-/// invariant pinned by `pre_scope_tables_carry_no_rls_policies`.
+/// Pre-scope tables are excluded by name — their non-RLS status is
+/// the OPPOSITE invariant pinned by
+/// `pre_scope_tables_carry_no_rls_policies`.
 #[tokio::test]
 #[ignore = "requires OX_TEST_DATABASE_URL"]
 async fn workspace_scoped_tables_have_full_rls_protection() {
@@ -207,8 +210,7 @@ async fn workspace_scoped_tables_have_full_rls_protection() {
     let mut missing_bypass: Vec<String> = Vec::new();
     for table in &tables {
         let entries = policies_by_table.get(table).cloned().unwrap_or_default();
-        let policy_names: HashSet<&str> =
-            entries.iter().map(|(name, _)| name.as_str()).collect();
+        let policy_names: HashSet<&str> = entries.iter().map(|(name, _)| name.as_str()).collect();
         // `system_bypass` is named consistently — admin paths look
         // for that exact name when configuring sessions.
         if !policy_names.contains("system_bypass") {
@@ -217,9 +219,9 @@ async fn workspace_scoped_tables_have_full_rls_protection() {
         // Tenant gate: any policy whose qual references the session
         // var. The qual text in pg_policies expands `current_setting`
         // canonically to `current_setting(...)` — match liberally.
-        let has_tenant_gate = entries.iter().any(|(_, qual)| {
-            qual.contains("app.workspace_id") || qual.contains("workspace_id")
-        });
+        let has_tenant_gate = entries
+            .iter()
+            .any(|(_, qual)| qual.contains("app.workspace_id") || qual.contains("workspace_id"));
         if !has_tenant_gate {
             missing_tenant_gate.push(table.clone());
         }
@@ -228,7 +230,10 @@ async fn workspace_scoped_tables_have_full_rls_protection() {
     let problems = [
         ("ENABLE ROW LEVEL SECURITY", &missing_enable),
         ("FORCE ROW LEVEL SECURITY", &missing_force),
-        ("tenant-gate policy referencing app.workspace_id", &missing_tenant_gate),
+        (
+            "tenant-gate policy referencing app.workspace_id",
+            &missing_tenant_gate,
+        ),
         ("CREATE POLICY system_bypass", &missing_bypass),
     ];
     let any_failure = problems.iter().any(|(_, list)| !list.is_empty());
@@ -238,8 +243,8 @@ async fn workspace_scoped_tables_have_full_rls_protection() {
         "Workspace-scoped tables are missing required RLS protection. \
          The CLAUDE.md `RLS Policy Pattern` section requires all four of \
          ENABLE / FORCE / ws_isolation / system_bypass on every table that \
-         carries `workspace_id`. Add the missing clauses to the migration \
-         that introduced the column. Offenders by clause:\n\
+         carries `workspace_id`. Add the missing clauses to \
+         crates/ox-store/migrations/0001_schema.sql. Offenders by clause:\n\
          {}",
         problems
             .iter()

@@ -15,7 +15,7 @@
 //!
 //! ```sh
 //! OX_TEST_DATABASE_URL=postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx \
-//!     cargo test -p ox-store --test pool_rls_session -- --ignored
+//!     cargo test -p ox-store --test integration -- --ignored integration::pool_rls_session
 //! ```
 
 #![allow(
@@ -29,12 +29,10 @@ use ox_store::{PostgresStore, SYSTEM_BYPASS};
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }
@@ -115,7 +113,9 @@ async fn pool_sets_app_system_bypass_under_bypass_scope() {
     };
 
     let observed = SYSTEM_BYPASS
-        .scope(true, async { read_session_var(&store, "app.system_bypass").await })
+        .scope(true, async {
+            read_session_var(&store, "app.system_bypass").await
+        })
         .await;
 
     assert_eq!(

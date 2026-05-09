@@ -1,14 +1,13 @@
 //! Slice W3a — persistence for federation adapter configurations.
 //!
 //! Exercises the new `DataSourceStore` trait end-to-end against a
-//! real Postgres instance, including the RLS isolation declared in
-//! migration `0011_data_sources.sql`.
+//! real Postgres instance, including RLS isolation.
 //!
 //! Ignored by default; run with a live database:
 //!
 //! ```sh
 //! OX_TEST_DATABASE_URL=postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx \
-//!     cargo test -p ox-store --test data_sources_integration -- --ignored
+//!     cargo test -p ox-store --test integration -- --ignored integration::data_sources
 //! ```
 
 #![allow(
@@ -18,17 +17,18 @@
     clippy::unreachable
 )]
 
+use chrono::{TimeZone, Utc};
+use ox_core::SchemaFingerprint;
 use ox_store::{DataSourceStore, PostgresStore};
 use serde_json::json;
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }
@@ -106,11 +106,7 @@ async fn upsert_roundtrips_insert_and_replace() {
 
     let first = PostgresStore::with_workspace(ws_a, || async {
         store
-            .upsert_data_source_by_source_id(
-                "csv-orders",
-                "csv",
-                &json!({"data": "id\n1\n"}),
-            )
+            .upsert_data_source_by_source_id("csv-orders", "csv", &json!({"data": "id\n1\n"}))
             .await
             .expect("initial upsert")
     })
@@ -225,11 +221,7 @@ async fn workspace_rls_isolates_data_sources_between_tenants() {
 
     PostgresStore::with_workspace(ws_a, || async {
         store
-            .upsert_data_source_by_source_id(
-                "csv-shared-label",
-                "csv",
-                &json!({"data": "x\n1\n"}),
-            )
+            .upsert_data_source_by_source_id("csv-shared-label", "csv", &json!({"data": "x\n1\n"}))
             .await
             .expect("insert for ws_a");
     })
@@ -237,11 +229,7 @@ async fn workspace_rls_isolates_data_sources_between_tenants() {
 
     PostgresStore::with_workspace(ws_b, || async {
         store
-            .upsert_data_source_by_source_id(
-                "csv-shared-label",
-                "csv",
-                &json!({"data": "x\n2\n"}),
-            )
+            .upsert_data_source_by_source_id("csv-shared-label", "csv", &json!({"data": "x\n2\n"}))
             .await
             .expect("insert for ws_b — same source_id allowed because scoped by ws");
     })
@@ -260,12 +248,8 @@ async fn workspace_rls_isolates_data_sources_between_tenants() {
     })
     .await;
 
-    let a_has_shared = listed_a
-        .iter()
-        .any(|r| r.source_id == "csv-shared-label");
-    let b_has_shared = listed_b
-        .iter()
-        .any(|r| r.source_id == "csv-shared-label");
+    let a_has_shared = listed_a.iter().any(|r| r.source_id == "csv-shared-label");
+    let b_has_shared = listed_b.iter().any(|r| r.source_id == "csv-shared-label");
     assert!(a_has_shared, "ws_a must see its own csv-shared-label row");
     assert!(b_has_shared, "ws_b must see its own csv-shared-label row");
 
@@ -320,7 +304,7 @@ async fn update_data_source_analysis_round_trip() {
 
     // Pre-update: every analysis field is the empty default.
     assert!(initial.last_analysis_snapshot.is_none());
-    assert_eq!(initial.schema_fingerprints, json!({}));
+    assert!(initial.schema_fingerprints.is_empty());
     assert!(initial.last_analyzed_at.is_none());
 
     let snapshot = json!({
@@ -328,9 +312,16 @@ async fn update_data_source_analysis_round_trip() {
         "profile": {"table_profiles": []},
         "warnings": []
     });
-    let fingerprints = json!({
-        "records": {"hash": "deadbeef", "computed_at": "2026-04-26T00:00:00Z"}
-    });
+    let fingerprints = BTreeMap::from([(
+        "records".to_string(),
+        SchemaFingerprint {
+            hash: "deadbeef".to_string(),
+            computed_at: Utc
+                .with_ymd_and_hms(2026, 4, 26, 0, 0, 0)
+                .single()
+                .expect("valid fixture timestamp"),
+        },
+    )]);
 
     let updated = PostgresStore::with_workspace(ws_a, || async {
         store
@@ -340,10 +331,15 @@ async fn update_data_source_analysis_round_trip() {
     })
     .await;
 
-    assert_eq!(updated.id, initial.id, "PK is stable across analysis updates");
+    assert_eq!(
+        updated.id, initial.id,
+        "PK is stable across analysis updates"
+    );
     assert_eq!(updated.last_analysis_snapshot.as_ref(), Some(&snapshot));
     assert_eq!(updated.schema_fingerprints, fingerprints);
-    let stamped = updated.last_analyzed_at.expect("server stamps last_analyzed_at");
+    let stamped = updated
+        .last_analyzed_at
+        .expect("server stamps last_analyzed_at");
     assert!(
         stamped >= initial.created_at,
         "last_analyzed_at must be at or after the source's creation time"

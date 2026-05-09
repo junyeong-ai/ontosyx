@@ -1,8 +1,7 @@
 //! Integration test entry — single test binary statically linking the
 //! ox-store dependency graph once across every focus module.
 //!
-//! Each `mod` below names a focus area (RLS, advisory locks,
-//! migration immutability, …); inside the file lives that area's
+//! Each `mod` below names a focus area; inside the file lives that area's
 //! tests. Most tests are `#[ignore]`d and gated on a live
 //! PostgreSQL behind `OX_TEST_DATABASE_URL`:
 //!
@@ -11,19 +10,18 @@
 //!     cargo test -p ox-store --test integration -- --ignored
 //! ```
 //!
-//! The fast-path tests (migration immutability hash check, lock-
-//! constant uniqueness) run unconditionally on every PR.
+//! The fast-path tests such as advisory-lock constant uniqueness run
+//! unconditionally on every PR.
 
 mod integration {
     mod advisory_lock;
+    mod community_summaries;
     mod data_sources;
     mod draft_cluster_checkpoint;
     mod eval_retrieval_golden;
     mod idempotency;
     mod jwt_revocation;
     mod load_checkpoint;
-    mod migration_0007;
-    mod migration_immutability;
     mod pool_rls_session;
     mod rls_enforcement;
     mod rls_invariants;

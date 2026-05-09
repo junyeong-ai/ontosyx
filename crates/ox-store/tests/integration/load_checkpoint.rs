@@ -18,7 +18,7 @@
 //!
 //! ```sh
 //! OX_TEST_DATABASE_URL=postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx \
-//!     cargo test -p ox-store --test load_checkpoint -- --ignored
+//!     cargo test -p ox-store --test integration -- --ignored integration::load_checkpoint
 //! ```
 
 #![allow(
@@ -33,12 +33,10 @@ use ox_store::{LoadCheckpoint, LoadCheckpointStore, PostgresStore, SYSTEM_BYPASS
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }
@@ -137,8 +135,14 @@ async fn upsert_accumulates_record_count_on_natural_key_collision() {
     let second = fresh_checkpoint(ontology_draft_id, &table, "Order", "200", 30);
 
     PostgresStore::with_workspace(workspace_id, || async {
-        store.upsert_load_checkpoint(&first).await.expect("first upsert");
-        store.upsert_load_checkpoint(&second).await.expect("second upsert");
+        store
+            .upsert_load_checkpoint(&first)
+            .await
+            .expect("first upsert");
+        store
+            .upsert_load_checkpoint(&second)
+            .await
+            .expect("second upsert");
         let found = store
             .get_load_checkpoint(ontology_draft_id, &table, "Order")
             .await
@@ -168,7 +172,10 @@ async fn rls_isolates_workspaces() {
     let cp = fresh_checkpoint(ontology_draft_id, &table, "Order", "100", 50);
 
     PostgresStore::with_workspace(workspace_a, || async {
-        store.upsert_load_checkpoint(&cp).await.expect("upsert under A");
+        store
+            .upsert_load_checkpoint(&cp)
+            .await
+            .expect("upsert under A");
         let visible = store
             .get_load_checkpoint(ontology_draft_id, &table, "Order")
             .await

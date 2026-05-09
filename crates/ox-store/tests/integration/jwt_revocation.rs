@@ -13,7 +13,7 @@
 //!
 //! ```sh
 //! OX_TEST_DATABASE_URL=postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx \
-//!     cargo test -p ox-store --test jwt_revocation_integration -- --ignored
+//!     cargo test -p ox-store --test integration -- --ignored integration::jwt_revocation
 //! ```
 
 #![allow(
@@ -28,12 +28,10 @@ use ox_store::{JwtRevocationStore, PostgresStore, User, UserStore};
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }
@@ -123,12 +121,7 @@ async fn delete_expired_revocations_drops_past_expires_at() {
     let live_jti = Uuid::new_v4();
 
     store
-        .revoke_jwt(
-            expired_jti,
-            Utc::now() - Duration::seconds(5),
-            None,
-            None,
-        )
+        .revoke_jwt(expired_jti, Utc::now() - Duration::seconds(5), None, None)
         .await
         .unwrap();
     store
@@ -137,7 +130,10 @@ async fn delete_expired_revocations_drops_past_expires_at() {
         .unwrap();
 
     let removed = store.delete_expired_revocations().await.unwrap();
-    assert!(removed >= 1, "expected at least the seeded row to be reaped");
+    assert!(
+        removed >= 1,
+        "expected at least the seeded row to be reaped"
+    );
 
     assert!(
         store.find_revoked_jwt(expired_jti).await.unwrap().is_none(),
@@ -216,9 +212,6 @@ async fn get_user_token_version_returns_none_for_unknown_user() {
     let Some(store) = connect_store().await else {
         return;
     };
-    let version = store
-        .get_user_token_version(Uuid::new_v4())
-        .await
-        .unwrap();
+    let version = store.get_user_token_version(Uuid::new_v4()).await.unwrap();
     assert!(version.is_none());
 }
