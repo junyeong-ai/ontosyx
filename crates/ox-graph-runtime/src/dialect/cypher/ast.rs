@@ -325,9 +325,7 @@ impl CypherStatement {
     /// patterns without explicit types contribute nothing — without
     /// a type we cannot resolve ontologically and silently skip is
     /// the safer call than a false flag.
-    pub fn variable_relationship_types(
-        &self,
-    ) -> std::collections::HashMap<String, Vec<String>> {
+    pub fn variable_relationship_types(&self) -> std::collections::HashMap<String, Vec<String>> {
         let mut out: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
         for clause in &self.clauses {

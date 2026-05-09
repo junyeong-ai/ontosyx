@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use ox_core::error::OxResult;
+use ox_core::types::PropertyValue;
 use ox_ontology::graph_exploration::{
     ExpandNeighbor, GraphSchemaOverview, LabelStat, NodeExpansion, PropertySchema,
     RelationshipPattern, SearchResultNode,
 };
-use ox_core::types::PropertyValue;
 
 use crate::GraphRuntime;
 

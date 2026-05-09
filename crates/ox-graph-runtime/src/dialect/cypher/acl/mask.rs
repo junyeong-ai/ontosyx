@@ -6,9 +6,7 @@
 
 use std::collections::HashMap;
 
-use crate::cypher::ast::{
-    ClauseKind, CypherClause, CypherPatternElement, CypherStatement,
-};
+use crate::cypher::ast::{ClauseKind, CypherClause, CypherPatternElement, CypherStatement};
 use crate::cypher::token::{CypherToken, TokenKind};
 
 use super::snapshot::{AclAction, AclSnapshot};
@@ -72,10 +70,7 @@ fn quote_pattern_literal(raw: &str) -> String {
     format!("'{escaped}'")
 }
 
-pub(super) fn apply_mask_in_statement(
-    statement: &mut CypherStatement,
-    specs: &[MaskSpec],
-) -> bool {
+pub(super) fn apply_mask_in_statement(statement: &mut CypherStatement, specs: &[MaskSpec]) -> bool {
     if specs.is_empty() {
         return false;
     }
@@ -104,10 +99,7 @@ fn build_var_label_map(statement: &CypherStatement) -> HashMap<String, Vec<Strin
     for clause in &statement.clauses {
         if !matches!(
             clause.kind,
-            ClauseKind::Match
-                | ClauseKind::OptionalMatch
-                | ClauseKind::Create
-                | ClauseKind::Merge
+            ClauseKind::Match | ClauseKind::OptionalMatch | ClauseKind::Create | ClauseKind::Merge
         ) {
             continue;
         }
@@ -175,7 +167,7 @@ fn rewrite_property_accesses(
     if replacements.is_empty() {
         return false;
     }
-    replacements.sort_by(|a, b| b.0.cmp(&a.0));
+    replacements.sort_by_key(|replacement| std::cmp::Reverse(replacement.0));
     let mut text = std::mem::take(&mut clause.text);
     for (start, end, value) in replacements {
         text.replace_range(start..end, &value);
@@ -203,10 +195,7 @@ fn resolve_mask_pattern(labels: &[String], prop: &str, specs: &[MaskSpec]) -> Op
 /// Collect every `(property, mask_pattern)` pair that applies to a
 /// variable bound to `labels`. Used by the bare-variable rewrite to
 /// build the map projection override.
-fn collect_masked_properties_for(
-    labels: &[String],
-    specs: &[MaskSpec],
-) -> Vec<(String, String)> {
+fn collect_masked_properties_for(labels: &[String], specs: &[MaskSpec]) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     for spec in specs {
         let label_match = match &spec.label {
@@ -289,8 +278,10 @@ fn find_property_access_chains(tokens: &[CypherToken]) -> Vec<PropertyAccessChai
             let dot = &tokens[non_trivia[chain_end_idx + 1]];
             let ident = &tokens[non_trivia[chain_end_idx + 2]];
             let next_is_dot = dot.kind == TokenKind::Operator && dot.text == ".";
-            let next_is_ident =
-                matches!(ident.kind, TokenKind::Identifier | TokenKind::QuotedIdentifier);
+            let next_is_ident = matches!(
+                ident.kind,
+                TokenKind::Identifier | TokenKind::QuotedIdentifier
+            );
             if !(next_is_dot && next_is_ident) {
                 break;
             }
@@ -338,7 +329,10 @@ fn find_bare_variable_references(tokens: &[CypherToken]) -> Vec<BareVariableRefe
     let mut out = Vec::new();
     for (pos, &tok_idx) in non_trivia.iter().enumerate() {
         let token = &tokens[tok_idx];
-        if !matches!(token.kind, TokenKind::Identifier | TokenKind::QuotedIdentifier) {
+        if !matches!(
+            token.kind,
+            TokenKind::Identifier | TokenKind::QuotedIdentifier
+        ) {
             continue;
         }
         if pos > 0 {

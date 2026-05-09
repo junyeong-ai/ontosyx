@@ -10,8 +10,8 @@ use tokio::time::{Instant, timeout};
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
-use ox_ontology::ir::OntologyIR;
 use ox_core::types::{PropertyValue, escape_cypher_identifier};
+use ox_ontology::ir::OntologyIR;
 
 use crate::GraphRuntime;
 

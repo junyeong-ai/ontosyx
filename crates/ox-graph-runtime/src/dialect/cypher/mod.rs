@@ -34,13 +34,13 @@ pub mod token;
 pub mod validate;
 
 pub use acl::{AclAction, AclPolicySpec, AclRewriter, AclSnapshot};
-pub use principal::RequestPrincipal;
 pub use ast::{
     ClauseKind, CypherAst, CypherClause, CypherPattern, CypherPatternElement, CypherStatement,
     NodePattern, RelDirection, RelationshipPattern, UnionKind,
 };
 pub use diagnostics::{strict_advisory_diagnostics, strict_blocking_gate};
 pub use parse::parse;
+pub use principal::RequestPrincipal;
 pub use rewrite::{
     CypherRewriter, CypherRewriterPipeline, RewriteContext, RewriteError, RewritePhase,
     RewrittenAst, WorkspaceScopeRewriter,

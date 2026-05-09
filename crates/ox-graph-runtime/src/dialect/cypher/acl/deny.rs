@@ -3,9 +3,7 @@
 //! collapses the clause to zero rows regardless of any other
 //! conditions the author wrote.
 
-use crate::cypher::ast::{
-    ClauseKind, CypherClause, CypherPatternElement, CypherStatement,
-};
+use crate::cypher::ast::{ClauseKind, CypherClause, CypherPatternElement, CypherStatement};
 use crate::cypher::rewrite_helpers::{
     find_following_where_clause, split_leading_whitespace, strip_leading_keyword,
 };
@@ -111,10 +109,7 @@ pub(super) fn inject_deny_in_statement(
     true
 }
 
-fn clause_touches_denied_resource(
-    clause: &CypherClause,
-    denied: &DeniedResources,
-) -> bool {
+fn clause_touches_denied_resource(clause: &CypherClause, denied: &DeniedResources) -> bool {
     for pattern in &clause.patterns {
         for element in &pattern.elements {
             match element {

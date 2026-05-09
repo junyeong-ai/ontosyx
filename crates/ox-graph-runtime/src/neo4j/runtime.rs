@@ -7,9 +7,9 @@ use neo4rs::{ConfigBuilder, Graph, query};
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
+use ox_core::types::PropertyValue;
 use ox_ontology::graph_exploration::{GraphSchemaOverview, NodeExpansion, SearchResultNode};
 use ox_query_ir::query::{QueryMetadata, QueryResult};
-use ox_core::types::PropertyValue;
 
 use crate::bolt::{
     LoadContext, RetryConfig, bind_params, json_to_property_value, run_batched_load,
@@ -156,18 +156,17 @@ impl GraphRuntime for Neo4jRuntime {
         // — surfaces as a clean `OxError::Runtime` instead of holding
         // the connection until the OS gives up.
         let outcome = tokio::time::timeout(timeout, async {
-            let mut result =
-                with_retry(&self.retry, self.detector.as_ref(), BACKEND_LABEL, || {
-                    let q = bind_params(query(cypher), params);
-                    self.graph.execute(q)
-                })
-                .await
-                .map_err(|e| OxError::Runtime {
-                    message: format!(
-                        "Query execution failed: {e}\nQuery: {}",
-                        truncate_query(cypher, 200)
-                    ),
-                })?;
+            let mut result = with_retry(&self.retry, self.detector.as_ref(), BACKEND_LABEL, || {
+                let q = bind_params(query(cypher), params);
+                self.graph.execute(q)
+            })
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!(
+                    "Query execution failed: {e}\nQuery: {}",
+                    truncate_query(cypher, 200)
+                ),
+            })?;
 
             let mut columns: Vec<String> = Vec::new();
             let mut rows: Vec<Vec<PropertyValue>> = Vec::new();

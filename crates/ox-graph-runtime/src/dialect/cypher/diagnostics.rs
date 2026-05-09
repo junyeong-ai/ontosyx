@@ -122,16 +122,19 @@ mod tests {
             "MATCH (n:Person) WHERE n.id = 1 RETURN n LIMIT 10",
             "ws-1",
         );
-        assert!(diags.is_empty(), "clean query should produce no diagnostics: {diags:?}");
+        assert!(
+            diags.is_empty(),
+            "clean query should produce no diagnostics: {diags:?}"
+        );
     }
 
     #[test]
     fn unbounded_var_length_produces_complexity_diagnostic() {
-        let diags = strict_advisory_diagnostics(
-            "MATCH (a)-[*]->(b) RETURN a, b LIMIT 10",
-            "ws-1",
+        let diags = strict_advisory_diagnostics("MATCH (a)-[*]->(b) RETURN a, b LIMIT 10", "ws-1");
+        assert!(
+            !diags.is_empty(),
+            "unbounded var-length must emit a diagnostic"
         );
-        assert!(!diags.is_empty(), "unbounded var-length must emit a diagnostic");
         assert!(
             diags.iter().any(|d| d.validator == "complexity"),
             "diagnostic should be tagged with the complexity validator: {diags:?}"
@@ -140,10 +143,7 @@ mod tests {
 
     #[test]
     fn tautological_delete_produces_semantic_guard_diagnostic() {
-        let diags = strict_advisory_diagnostics(
-            "MATCH (n) WHERE n.id = n.id DELETE n",
-            "ws-1",
-        );
+        let diags = strict_advisory_diagnostics("MATCH (n) WHERE n.id = n.id DELETE n", "ws-1");
         assert!(
             diags.iter().any(|d| d.validator == "semantic-guard"),
             "self-ref tautology + delete must produce a semantic-guard diagnostic: {diags:?}"
@@ -156,10 +156,7 @@ mod tests {
         // pins the *filter semantics* rather than an exhaustive
         // sample. A future Info-level advisory must not reach the
         // caller without an explicit opt-in.
-        let diags = strict_advisory_diagnostics(
-            "MATCH (a)-[*]->(b) RETURN a, b",
-            "ws-1",
-        );
+        let diags = strict_advisory_diagnostics("MATCH (a)-[*]->(b) RETURN a, b", "ws-1");
         for d in &diags {
             assert_ne!(d.level, DiagnosticLevel::Info, "info should be filtered");
         }
@@ -180,10 +177,8 @@ mod tests {
 
     #[test]
     fn blocking_gate_passes_benign_query() {
-        let result = strict_blocking_gate(
-            "MATCH (n:Person) WHERE n.id = 1 RETURN n LIMIT 10",
-            "ws-1",
-        );
+        let result =
+            strict_blocking_gate("MATCH (n:Person) WHERE n.id = 1 RETURN n LIMIT 10", "ws-1");
         assert!(result.is_ok());
     }
 
@@ -196,10 +191,7 @@ mod tests {
     fn blocking_gate_rejects_when_validator_emits_error_level() {
         // The semantic-guard validator emits Error level on a
         // tautological-WHERE + DELETE combo (would delete every node).
-        let result = strict_blocking_gate(
-            "MATCH (n) WHERE n.id = n.id DELETE n",
-            "ws-1",
-        );
+        let result = strict_blocking_gate("MATCH (n) WHERE n.id = n.id DELETE n", "ws-1");
         assert!(
             result.is_err(),
             "tautological delete should be blocked: {result:?}"

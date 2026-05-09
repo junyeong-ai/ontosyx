@@ -47,8 +47,8 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
-use ox_ontology::ir::OntologyIR;
 use ox_core::types::PropertyValue;
+use ox_ontology::ir::OntologyIR;
 
 use crate::cypher::{
     AclRewriter, ComplexityValidator, CypherAst, CypherRewriterPipeline, CypherValidatorPipeline,
@@ -57,8 +57,8 @@ use crate::cypher::{
 };
 use crate::isolation::{GraphIsolationStrategy, ScopedAst};
 use crate::{
-    GRAPH_ACL_SNAPSHOT, GRAPH_ONTOLOGY, GRAPH_ONTOLOGY_AS_OF, GRAPH_PRINCIPAL,
-    GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID,
+    GRAPH_ACL_SNAPSHOT, GRAPH_ONTOLOGY, GRAPH_ONTOLOGY_AS_OF, GRAPH_PRINCIPAL, GRAPH_SYSTEM_BYPASS,
+    GRAPH_WORKSPACE_ID,
 };
 
 /// Project the active ontology through `OntologyIR::as_of(at)` when
@@ -207,8 +207,7 @@ pub(crate) fn run_pre_execute(
     let principal = GRAPH_PRINCIPAL.try_with(Clone::clone).ok();
     let acl_snapshot = GRAPH_ACL_SNAPSHOT.try_with(Arc::clone).ok();
 
-    let mut ctx = RewriteContext::new(ws_id_str)
-        .with_skip_soft_delete(system_bypass);
+    let mut ctx = RewriteContext::new(ws_id_str).with_skip_soft_delete(system_bypass);
     if let Some(p) = principal {
         ctx = ctx.with_principal(p);
     }
@@ -362,8 +361,8 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::PropertyKey;
     use ox_core::i18n::LocalizedText;
-    use ox_ontology::ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
     use ox_core::types::PropertyType;
+    use ox_ontology::ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
     use uuid::Uuid;
 
     use crate::isolation::{DatabaseStrategy, PropertyStrategy};
@@ -742,8 +741,14 @@ mod tests {
             })
         });
         let (rewritten, _) = result.expect("query passes safety + ontology");
-        assert!(rewritten.contains("'***'"), "Mask did not apply: {rewritten}");
-        assert!(!rewritten.contains("p.name"), "raw access leaked: {rewritten}");
+        assert!(
+            rewritten.contains("'***'"),
+            "Mask did not apply: {rewritten}"
+        );
+        assert!(
+            !rewritten.contains("p.name"),
+            "raw access leaked: {rewritten}"
+        );
     }
 
     #[test]
@@ -794,12 +799,12 @@ mod as_of_tests {
     use ox_core::PropertyKey;
     use ox_core::i18n::LocalizedText;
     use ox_core::types::PropertyType;
-    use ox_ontology::ir::{NodeTypeDef, PropertyDef};
-    use ox_ontology::rule::{RuleOrigin, 
-        EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity, ShaclConstraint,
-        ConstraintTarget,
-    };
     use ox_ontology::action::RuleId;
+    use ox_ontology::ir::{NodeTypeDef, PropertyDef};
+    use ox_ontology::rule::{
+        ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef, RuleKind, RuleOrigin,
+        Severity, ShaclConstraint,
+    };
     use uuid::Uuid;
 
     fn pk(s: &'static str) -> PropertyKey {
@@ -852,7 +857,7 @@ mod as_of_tests {
             }],
             valid_from: None,
             valid_to: Some(stale_until),
-                    sh_message: None,
+            sh_message: None,
         })
         .expect("add rule");
         ir

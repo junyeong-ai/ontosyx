@@ -377,16 +377,16 @@ mod tests {
     #[test]
     fn match_gains_is_null_when_no_existing_where() {
         let out = rewrite("MATCH (p:Person) RETURN p");
-        assert!(
-            out.contains("WHERE p._deleted_at IS NULL"),
-            "got: {out}"
-        );
+        assert!(out.contains("WHERE p._deleted_at IS NULL"), "got: {out}");
     }
 
     #[test]
     fn existing_where_keeps_body_and_gets_is_null_prepended() {
         let out = rewrite("MATCH (p:Person) WHERE p.name = 'A' RETURN p");
-        assert!(out.contains("WHERE p._deleted_at IS NULL AND"), "got: {out}");
+        assert!(
+            out.contains("WHERE p._deleted_at IS NULL AND"),
+            "got: {out}"
+        );
         assert!(out.contains("p.name = 'A'"));
     }
 
@@ -437,8 +437,14 @@ mod tests {
     fn delete_rewrites_to_set_tombstone() {
         let out = rewrite("MATCH (p:Person {id: 1}) DELETE p");
         // Delete clause itself becomes SET …
-        assert!(out.contains("SET p._deleted_at = timestamp()"), "got: {out}");
-        assert!(!out.contains("DELETE p"), "destructive DELETE leaked: {out}");
+        assert!(
+            out.contains("SET p._deleted_at = timestamp()"),
+            "got: {out}"
+        );
+        assert!(
+            !out.contains("DELETE p"),
+            "destructive DELETE leaked: {out}"
+        );
     }
 
     #[test]
@@ -451,7 +457,10 @@ mod tests {
             out.contains("OPTIONAL MATCH (p)-[__sd_r_0]-()"),
             "edge detach not injected: {out}"
         );
-        assert!(out.contains("DELETE __sd_r_0"), "edge delete missing: {out}");
+        assert!(
+            out.contains("DELETE __sd_r_0"),
+            "edge delete missing: {out}"
+        );
         assert!(
             out.contains("SET p._deleted_at = timestamp()"),
             "node tombstone missing: {out}"

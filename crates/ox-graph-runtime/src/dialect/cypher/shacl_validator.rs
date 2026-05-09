@@ -61,7 +61,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use ox_core::diagnostic::{diag, DiagnosticMessage};
+use ox_core::diagnostic::{DiagnosticMessage, diag};
 use ox_core::graph_label::GraphLabel;
 use ox_core::i18n::display_name_with_fallback;
 use ox_core::types::PropertyType;
@@ -75,9 +75,7 @@ use ox_ontology::value_set::ValueSetId;
 use crate::cypher::ast::{
     ClauseKind, CypherAst, CypherPatternElement, NodePattern, RemoveItem, SetItem,
 };
-use crate::cypher::validate::{
-    CypherValidator, ValidateContext, ValidatePhase, ValidationIssue,
-};
+use crate::cypher::validate::{CypherValidator, ValidateContext, ValidatePhase, ValidationIssue};
 
 /// SHACL-rule enforcement against Cypher writes. See module docs for
 /// the MVP constraint coverage.
@@ -116,15 +114,9 @@ impl ShaclValidator {
             .value_sets()
             .iter()
             .map(|vs| {
-                let expansion = ox_ontology::value_set::expand_value_set(
-                    vs,
-                    ontology.code_systems(),
-                );
-                let codes = expansion
-                    .codes
-                    .iter()
-                    .map(|cv| cv.code.clone())
-                    .collect();
+                let expansion =
+                    ox_ontology::value_set::expand_value_set(vs, ontology.code_systems());
+                let codes = expansion.codes.iter().map(|cv| cv.code.clone()).collect();
                 (vs.id.clone(), codes)
             })
             .collect();
@@ -212,12 +204,7 @@ impl CypherValidator for ShaclValidator {
                     }
                     ClauseKind::Remove => {
                         for item in &clause.remove_items {
-                            self.validate_remove_item(
-                                &active,
-                                &variable_labels,
-                                item,
-                                &mut issues,
-                            );
+                            self.validate_remove_item(&active, &variable_labels, item, &mut issues);
                         }
                     }
                     // MATCH / OPTIONAL MATCH / WHERE / RETURN /
@@ -250,15 +237,16 @@ impl ShaclValidator {
             };
             for rule in rules {
                 match &rule.kind {
-                    RuleKind::NodeShape { target_node_type_id } => {
-                        if *target_node_type_id == node_type.id {
-                            for constraint in &rule.constraints {
-                                self.check_node_level_constraint(
-                                    rule, node_type, node, constraint, issues,
-                                );
-                            }
+                    RuleKind::NodeShape {
+                        target_node_type_id,
+                    } if *target_node_type_id == node_type.id => {
+                        for constraint in &rule.constraints {
+                            self.check_node_level_constraint(
+                                rule, node_type, node, constraint, issues,
+                            );
                         }
                     }
+                    RuleKind::NodeShape { .. } => {}
                     RuleKind::PropertyShape {
                         target_node_type_id,
                         target_property_id,
@@ -266,15 +254,11 @@ impl ShaclValidator {
                         if *target_node_type_id != node_type.id {
                             continue;
                         }
-                        let Some(prop) =
-                            property_by_id(node_type, target_property_id)
-                        else {
+                        let Some(prop) = property_by_id(node_type, target_property_id) else {
                             continue;
                         };
                         for constraint in &rule.constraints {
-                            self.check_property_constraint(
-                                rule, prop, node, constraint, issues,
-                            );
+                            self.check_property_constraint(rule, prop, node, constraint, issues);
                             // Node-level constraints declared inside a
                             // PropertyShape (e.g. UniqueKey targeting this
                             // node) still need to fire — route them
@@ -397,7 +381,11 @@ impl ShaclValidator {
                     let mut sample: Vec<&str> =
                         allowed.iter().take(8).map(String::as_str).collect();
                     sample.sort_unstable();
-                    let ellipsis = if allowed.len() > sample.len() { ", …" } else { "" };
+                    let ellipsis = if allowed.len() > sample.len() {
+                        ", …"
+                    } else {
+                        ""
+                    };
                     let rn = rule_label(rule);
                     issues.push(build_issue(
                         rule,
@@ -454,10 +442,8 @@ impl ShaclValidator {
                     let Some(vs) = ontology_ref.value_set_by_id(vs_id) else {
                         return false;
                     };
-                    let expansion = ox_ontology::value_set::expand_value_set(
-                        vs,
-                        ontology_ref.code_systems(),
-                    );
+                    let expansion =
+                        ox_ontology::value_set::expand_value_set(vs, ontology_ref.code_systems());
                     expansion.codes.iter().any(|cv| cv.code == code)
                 };
                 if let Err(err) = np.validate(&literal, code_resolver) {
@@ -482,7 +468,10 @@ impl ShaclValidator {
                     ));
                 }
             }
-            ShaclConstraint::LessThan { target, other_property } => {
+            ShaclConstraint::LessThan {
+                target,
+                other_property,
+            } => {
                 check_property_pair_predicate(
                     rule,
                     prop,
@@ -494,7 +483,10 @@ impl ShaclValidator {
                     issues,
                 );
             }
-            ShaclConstraint::Equals { target, other_property } => {
+            ShaclConstraint::Equals {
+                target,
+                other_property,
+            } => {
                 check_property_pair_predicate(
                     rule,
                     prop,
@@ -705,7 +697,10 @@ impl ShaclValidator {
                     Some(node.span),
                 ));
             }
-            ShaclConstraint::HasValue { target, value: expected } => {
+            ShaclConstraint::HasValue {
+                target,
+                value: expected,
+            } => {
                 if !target_matches_property(target, prop) {
                     return;
                 }
@@ -722,13 +717,14 @@ impl ShaclValidator {
                 //    body — same wire shape as `InValueSet.codes`).
                 // 3. param / function / identifier — opaque, silent
                 //    skip; driver runtime takes the call.
-                let observed: Option<String> = if let Some(literal) =
-                    parse_string_literal(raw)
-                {
+                let observed: Option<String> = if let Some(literal) = parse_string_literal(raw) {
                     Some(literal)
-                } else if classify_literal_type(raw)
-                    .is_some_and(|t| matches!(t, PropertyType::Int | PropertyType::Float | PropertyType::Bool))
-                {
+                } else if classify_literal_type(raw).is_some_and(|t| {
+                    matches!(
+                        t,
+                        PropertyType::Int | PropertyType::Float | PropertyType::Bool
+                    )
+                }) {
                     Some(raw.to_string())
                 } else {
                     None
@@ -1717,11 +1713,7 @@ fn build_issue(
 /// the user-localised form independently.
 fn rule_label(rule: &RuleDef) -> &str {
     let s = rule.name.english_or_default();
-    if s.is_empty() {
-        rule.id.as_str()
-    } else {
-        s
-    }
+    if s.is_empty() { rule.id.as_str() } else { s }
 }
 
 #[cfg(test)]
@@ -1772,7 +1764,9 @@ mod tests {
     /// Build a code system + value set with the given codes, add
     /// both to the ontology, and return the `ValueSetId`.
     fn seed_value_set(onto: &mut OntologyIR, id: &str, codes: &[&str]) -> ox_ontology::ValueSetId {
-        use ox_ontology::code_system::{CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId};
+        use ox_ontology::code_system::{
+            CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+        };
         use ox_ontology::value_set::{
             IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
         };
@@ -1876,9 +1870,9 @@ mod tests {
                 target: ConstraintTarget::Inherit,
                 min: 1,
             }],
-                    valid_from: None,
+            valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         };
         (rule, prop)
     }
@@ -1897,8 +1891,7 @@ mod tests {
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.min_count_missing"
-                && i.message.params.get("property")
-                    == Some(&serde_json::Value::from("email"))),
+                && i.message.params.get("property") == Some(&serde_json::Value::from("email"))),
             "{issues:?}"
         );
     }
@@ -1955,7 +1948,7 @@ mod tests {
             }],
             valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         }
     }
 
@@ -2156,9 +2149,9 @@ mod tests {
                 target: ConstraintTarget::Inherit,
                 notation_pattern_id: np_id,
             }],
-                    valid_from: None,
+            valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         };
         onto.add_rule(rule).expect("rule add");
         let issues = run(onto, "CREATE (u:User {email: 'not-an-email'})");
@@ -2178,8 +2171,7 @@ mod tests {
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Warning
                 && i.message.code == "runtime.cypher.shacl.min_count_missing"
-                && i.message.params.get("property")
-                    == Some(&serde_json::Value::from("email"))),
+                && i.message.params.get("property") == Some(&serde_json::Value::from("email"))),
             "{issues:?}"
         );
         assert!(
@@ -2240,7 +2232,7 @@ mod tests {
             }],
             valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         }
     }
 
@@ -2262,8 +2254,7 @@ mod tests {
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.closed_shape_extra_property"
-                && i.message.params.get("property")
-                    == Some(&serde_json::Value::from("password"))),
+                && i.message.params.get("property") == Some(&serde_json::Value::from("password"))),
             "closed shape must block undeclared `password`: {issues:?}"
         );
     }
@@ -2333,15 +2324,12 @@ mod tests {
                     property_id: PropertyId::new("prop-email-backup"),
                 },
             }],
-                    valid_from: None,
+            valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         })
         .expect("rule add");
-        let issues = run(
-            onto,
-            "CREATE (u:User {email: 'a@b', email_backup: 'a@b'})",
-        );
+        let issues = run(onto, "CREATE (u:User {email: 'a@b', email_backup: 'a@b'})");
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.disjoint_pair_present"),
@@ -2393,15 +2381,12 @@ mod tests {
                     property_id: PropertyId::new("prop-email-backup"),
                 },
             }],
-                    valid_from: None,
+            valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         })
         .expect("rule add");
-        let issues = run(
-            onto,
-            "CREATE (u:User {email: 'a@b', email_backup: 'c@d'})",
-        );
+        let issues = run(onto, "CREATE (u:User {email: 'a@b', email_backup: 'c@d'})");
         assert!(
             issues.iter().all(|i| i.level != IssueLevel::Error),
             "disjoint must pass when values differ: {issues:?}"
@@ -2435,19 +2420,21 @@ mod tests {
             origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::UniqueKey {
                 target_node_type_id: NodeTypeId::new("nt-user"),
-                property_keys: vec![PropertyKey::new("email").unwrap(), PropertyKey::new("tenant").unwrap()],
+                property_keys: vec![
+                    PropertyKey::new("email").unwrap(),
+                    PropertyKey::new("tenant").unwrap(),
+                ],
             }],
-                    valid_from: None,
+            valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         })
         .expect("rule add");
         let issues = run(onto, "CREATE (u:User {email: 'a@b'})");
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.unique_key_unknown_property"
-                && i.message.params.get("property")
-                    == Some(&serde_json::Value::from("tenant"))),
+                && i.message.params.get("property") == Some(&serde_json::Value::from("tenant"))),
             "unique-key rule referencing unknown `tenant` property must surface: {issues:?}"
         );
     }
@@ -2486,9 +2473,9 @@ mod tests {
                     property_id: PropertyId::new("prop-email"),
                 },
             }],
-                    valid_from: None,
+            valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         })
         .expect("rule add");
         let issues = run(onto, "CREATE (u:User {email: 'a@b'})");
@@ -2523,16 +2510,9 @@ mod tests {
 
         // Required binding — no authored rule. The derived rule must
         // pick this up and reject the out-of-set literal.
-        onto.node_types_mut()
-            .iter_mut()
-            .next()
-            .unwrap()
-            .properties[0]
+        onto.node_types_mut().iter_mut().next().unwrap().properties[0]
             .bindings
-            .push(
-                PropertyBinding::value_set(vs_id)
-                    .with_strength(BindingStrength::Required),
-            );
+            .push(PropertyBinding::value_set(vs_id).with_strength(BindingStrength::Required));
         onto.rebuild_indices().expect("rebuild");
 
         let issues = run(onto, "CREATE (u:User {status: 'bogus'})");
@@ -2566,16 +2546,9 @@ mod tests {
         let vs_id = seed_value_set(&mut onto, "status", &["active"]);
 
         // Preferred — guidance only, no enforcement.
-        onto.node_types_mut()
-            .iter_mut()
-            .next()
-            .unwrap()
-            .properties[0]
+        onto.node_types_mut().iter_mut().next().unwrap().properties[0]
             .bindings
-            .push(
-                PropertyBinding::value_set(vs_id)
-                    .with_strength(BindingStrength::Preferred),
-            );
+            .push(PropertyBinding::value_set(vs_id).with_strength(BindingStrength::Preferred));
         onto.rebuild_indices().expect("rebuild");
 
         let issues = run(onto, "CREATE (u:User {status: 'bogus'})");
@@ -2607,8 +2580,7 @@ mod tests {
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.value_not_in_set"
-                && i.message.params.get("property")
-                    == Some(&serde_json::Value::from("status"))),
+                && i.message.params.get("property") == Some(&serde_json::Value::from("status"))),
             "SET of out-of-set literal must fire value_not_in_set: {issues:?}"
         );
     }
@@ -2695,8 +2667,7 @@ mod tests {
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.min_count_removed"
-                && i.message.params.get("property")
-                    == Some(&serde_json::Value::from("email"))),
+                && i.message.params.get("property") == Some(&serde_json::Value::from("email"))),
             "REMOVE of required property must fire min_count_removed: {issues:?}"
         );
     }
@@ -2783,8 +2754,7 @@ mod tests {
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.datatype_mismatch"
-                && i.message.params.get("expected_type")
-                    == Some(&serde_json::Value::from("int"))
+                && i.message.params.get("expected_type") == Some(&serde_json::Value::from("int"))
                 && i.message.params.get("observed_type")
                     == Some(&serde_json::Value::from("string"))),
             "expected datatype_mismatch on Int ← String: {issues:?}"
@@ -2900,8 +2870,7 @@ mod tests {
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.datatype_mismatch"
-                && i.message.params.get("expected_type")
-                    == Some(&serde_json::Value::from("bool"))),
+                && i.message.params.get("expected_type") == Some(&serde_json::Value::from("bool"))),
             "expected datatype_mismatch on Bool ← String: {issues:?}"
         );
     }
@@ -2909,7 +2878,10 @@ mod tests {
     #[test]
     fn classify_literal_type_recognises_each_kind() {
         assert_eq!(classify_literal_type("'hello'"), Some(PropertyType::String));
-        assert_eq!(classify_literal_type("\"hello\""), Some(PropertyType::String));
+        assert_eq!(
+            classify_literal_type("\"hello\""),
+            Some(PropertyType::String)
+        );
         assert_eq!(classify_literal_type("42"), Some(PropertyType::Int));
         assert_eq!(classify_literal_type("3.14"), Some(PropertyType::Float));
         assert_eq!(classify_literal_type("true"), Some(PropertyType::Bool));
@@ -3128,8 +3100,7 @@ mod tests {
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.min_length_violation"
-                && i.message.params.get("observed")
-                    == Some(&serde_json::Value::from(3u64))),
+                && i.message.params.get("observed") == Some(&serde_json::Value::from(3u64))),
             "expected min_length violation with observed=3: {issues:?}"
         );
     }
@@ -3155,8 +3126,7 @@ mod tests {
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.max_length_violation"
-                && i.message.params.get("observed")
-                    == Some(&serde_json::Value::from(7u64))),
+                && i.message.params.get("observed") == Some(&serde_json::Value::from(7u64))),
             "expected max_length violation with observed=7: {issues:?}"
         );
     }
@@ -3290,8 +3260,7 @@ mod tests {
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.has_value_violation"
-                && i.message.params.get("expected")
-                    == Some(&serde_json::Value::from("active"))),
+                && i.message.params.get("expected") == Some(&serde_json::Value::from("active"))),
             "expected has_value violation: {issues:?}"
         );
     }
@@ -3434,8 +3403,7 @@ mod tests {
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.max_count_violation"
-                && i.message.params.get("observed")
-                    == Some(&serde_json::Value::from(4u64))),
+                && i.message.params.get("observed") == Some(&serde_json::Value::from(4u64))),
             "expected max_count_violation with observed=4: {issues:?}"
         );
     }
@@ -3512,19 +3480,14 @@ mod tests {
         let prop = tags_prop();
         let rule = datatype_list_string_rule();
         let onto = fixture_ontology_with_rule(rule, prop);
-        let issues = run(
-            onto,
-            "MATCH (u:User) SET u.tags = ['a', 1, 'c'] RETURN u",
-        );
+        let issues = run(onto, "MATCH (u:User) SET u.tags = ['a', 1, 'c'] RETURN u");
         assert!(
             issues.iter().any(|i| i.level == IssueLevel::Error
                 && i.message.code == "runtime.cypher.shacl.list_element_datatype_mismatch"
-                && i.message.params.get("element_index")
-                    == Some(&serde_json::Value::from(1u64))
+                && i.message.params.get("element_index") == Some(&serde_json::Value::from(1u64))
                 && i.message.params.get("expected_type")
                     == Some(&serde_json::Value::from("string"))
-                && i.message.params.get("observed_type")
-                    == Some(&serde_json::Value::from("int"))),
+                && i.message.params.get("observed_type") == Some(&serde_json::Value::from("int"))),
             "expected list_element_datatype_mismatch on Int element: {issues:?}"
         );
     }
@@ -3557,7 +3520,10 @@ mod tests {
                     && i.message.code == "runtime.cypher.shacl.list_element_datatype_mismatch"
             })
             .count();
-        assert_eq!(count, 2, "expected one issue per non-string element: {issues:?}");
+        assert_eq!(
+            count, 2,
+            "expected one issue per non-string element: {issues:?}"
+        );
     }
 
     #[test]

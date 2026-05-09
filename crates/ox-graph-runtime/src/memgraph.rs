@@ -26,8 +26,8 @@ use neo4rs::{ConfigBuilder, Graph, query};
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
-use ox_query_ir::query::{QueryMetadata, QueryResult};
 use ox_core::types::PropertyValue;
+use ox_query_ir::query::{QueryMetadata, QueryResult};
 
 use crate::bolt::{
     LoadContext, RetryConfig, bind_params, json_to_property_value, run_batched_load,
@@ -173,18 +173,17 @@ impl GraphRuntime for MemGraphRuntime {
         let timeout = query_timeout_or_default();
 
         let outcome = tokio::time::timeout(timeout, async {
-            let mut result =
-                with_retry(&self.retry, self.detector.as_ref(), BACKEND_LABEL, || {
-                    let q = bind_params(query(cypher), params);
-                    self.graph.execute(q)
-                })
-                .await
-                .map_err(|e| OxError::Runtime {
-                    message: format!(
-                        "Query execution failed: {e}\nQuery: {}",
-                        truncate_query(cypher, 200)
-                    ),
-                })?;
+            let mut result = with_retry(&self.retry, self.detector.as_ref(), BACKEND_LABEL, || {
+                let q = bind_params(query(cypher), params);
+                self.graph.execute(q)
+            })
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!(
+                    "Query execution failed: {e}\nQuery: {}",
+                    truncate_query(cypher, 200)
+                ),
+            })?;
 
             let mut columns: Vec<String> = Vec::new();
             let mut rows: Vec<Vec<PropertyValue>> = Vec::new();
@@ -486,7 +485,9 @@ impl GraphRuntime for MemGraphRuntime {
         })
     }
 
-    async fn graph_overview(&self) -> OxResult<ox_ontology::graph_exploration::GraphSchemaOverview> {
+    async fn graph_overview(
+        &self,
+    ) -> OxResult<ox_ontology::graph_exploration::GraphSchemaOverview> {
         use ox_ontology::graph_exploration::{GraphSchemaOverview, LabelStat, RelationshipPattern};
 
         let empty_params = HashMap::new();

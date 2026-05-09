@@ -199,7 +199,11 @@ mod tests {
         let query = "MATCH (n:Person) WHERE n._workspace_id = $_ws_id RETURN n";
         let result = scope_text(&strategy, query, "ws-123");
         assert_eq!(
-            result.ast.render().matches("_workspace_id = $_ws_id").count(),
+            result
+                .ast
+                .render()
+                .matches("_workspace_id = $_ws_id")
+                .count(),
             1,
             "Should not double-inject the system predicate"
         );
@@ -216,9 +220,10 @@ mod tests {
         let query = "MATCH (n:Person) WHERE n._workspace_id = 'other_ws' RETURN n";
         let result = scope_text(&strategy, query, "ws-123");
         assert!(
-            result.ast.render().contains(
-                "n._workspace_id = $_ws_id AND n._workspace_id = 'other_ws'"
-            ),
+            result
+                .ast
+                .render()
+                .contains("n._workspace_id = $_ws_id AND n._workspace_id = 'other_ws'"),
             "author literal must be AND-neutralised: {}",
             result.ast.render(),
         );
@@ -329,9 +334,10 @@ mod tests {
             "ws-123",
         );
         assert!(
-            result.ast.render().contains(
-                "c._workspace_id = $_ws_id AND o._workspace_id = $_ws_id AND o.status"
-            ),
+            result
+                .ast
+                .render()
+                .contains("c._workspace_id = $_ws_id AND o._workspace_id = $_ws_id AND o.status"),
             "every bound variable scoped before the author WHERE body: {}",
             result.ast.render(),
         );

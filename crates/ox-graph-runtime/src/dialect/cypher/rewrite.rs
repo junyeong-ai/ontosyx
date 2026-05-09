@@ -120,8 +120,7 @@ pub struct RewriteContext {
     /// the current workspace, sorted priority-desc. Loaded by the
     /// runtime entry point ahead of pipeline execution; `None`
     /// disables ACL rewriting for this request.
-    pub acl_snapshot:
-        Option<std::sync::Arc<crate::cypher::acl::AclSnapshot>>,
+    pub acl_snapshot: Option<std::sync::Arc<crate::cypher::acl::AclSnapshot>>,
     /// Bypass the [`crate::cypher::soft_delete_rewriter::SoftDeleteRewriter`]
     /// pass for this request. `true` only on admin paths that
     /// intentionally need to read or hard-delete already-tombstoned
@@ -141,10 +140,7 @@ impl RewriteContext {
         }
     }
 
-    pub fn with_principal(
-        mut self,
-        principal: crate::cypher::principal::RequestPrincipal,
-    ) -> Self {
+    pub fn with_principal(mut self, principal: crate::cypher::principal::RequestPrincipal) -> Self {
         self.principal = Some(principal);
         self
     }
@@ -405,12 +401,8 @@ impl WorkspaceScopeRewriter {
                 if queued.contains(&var) {
                     continue;
                 }
-                if statement_binds_system_param_for(
-                    statement,
-                    &var,
-                    self.property,
-                    self.param_name,
-                ) {
+                if statement_binds_system_param_for(statement, &var, self.property, self.param_name)
+                {
                     queued.insert(var);
                     continue;
                 }
@@ -740,9 +732,7 @@ mod tests {
             "MATCH (c:Customer)-[:PLACED]->(o:Order) WHERE o.status = 'delivered' RETURN c, o",
         );
         assert!(
-            out.contains(
-                "c._workspace_id = $_ws_id AND o._workspace_id = $_ws_id AND o.status"
-            ),
+            out.contains("c._workspace_id = $_ws_id AND o._workspace_id = $_ws_id AND o.status"),
             "injected predicates must precede the author WHERE body: {out}"
         );
     }

@@ -88,10 +88,9 @@ impl CypherRewriter for AclRewriter {
 
         let mut modified = 0u32;
         for statement in &mut ast.statements {
-            let deny_changed =
-                !no_deny && deny::inject_deny_in_statement(statement, &denied);
-            let mask_changed = !mask_specs.is_empty()
-                && mask::apply_mask_in_statement(statement, &mask_specs);
+            let deny_changed = !no_deny && deny::inject_deny_in_statement(statement, &denied);
+            let mask_changed =
+                !mask_specs.is_empty() && mask::apply_mask_in_statement(statement, &mask_specs);
             if deny_changed || mask_changed {
                 modified = modified.saturating_add(1);
             }
@@ -181,16 +180,14 @@ mod tests {
 
     #[test]
     fn deny_label_injects_false_when_no_existing_where() {
-        let ctx = RewriteContext::new("ws")
-            .with_acl_snapshot(snapshot(vec![deny_label("Person")]));
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![deny_label("Person")]));
         let out = rewrite_str("MATCH (p:Person) RETURN p", &ctx);
         assert!(out.contains("WHERE false"), "no WHERE injected: {out}");
     }
 
     #[test]
     fn deny_label_prepends_false_to_existing_where() {
-        let ctx = RewriteContext::new("ws")
-            .with_acl_snapshot(snapshot(vec![deny_label("Person")]));
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![deny_label("Person")]));
         let out = rewrite_str("MATCH (p:Person) WHERE p.name = 'A' RETURN p", &ctx);
         assert!(out.contains("WHERE false AND"), "{out}");
         assert!(out.contains("p.name = 'A'"));
@@ -198,16 +195,16 @@ mod tests {
 
     #[test]
     fn deny_label_skips_unrelated_match() {
-        let ctx = RewriteContext::new("ws")
-            .with_acl_snapshot(snapshot(vec![deny_label("Receipt")]));
+        let ctx =
+            RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![deny_label("Receipt")]));
         let out = rewrite_str("MATCH (p:Person) RETURN p", &ctx);
         assert_eq!(out, "MATCH (p:Person) RETURN p");
     }
 
     #[test]
     fn deny_only_target_match_is_modified_in_chained_query() {
-        let ctx = RewriteContext::new("ws")
-            .with_acl_snapshot(snapshot(vec![deny_label("Receipt")]));
+        let ctx =
+            RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![deny_label("Receipt")]));
         let out = rewrite_str(
             "MATCH (p:Person) WITH p MATCH (o:Receipt) RETURN p, o",
             &ctx,
@@ -218,43 +215,36 @@ mod tests {
 
     #[test]
     fn deny_edge_label_injects_false() {
-        let ctx = RewriteContext::new("ws")
-            .with_acl_snapshot(snapshot(vec![deny_edge("PURCHASED")]));
-        let out = rewrite_str(
-            "MATCH (p:Person)-[:PURCHASED]->(o:Receipt) RETURN p",
-            &ctx,
-        );
+        let ctx =
+            RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![deny_edge("PURCHASED")]));
+        let out = rewrite_str("MATCH (p:Person)-[:PURCHASED]->(o:Receipt) RETURN p", &ctx);
         assert!(out.contains("WHERE false"));
     }
 
     #[test]
     fn wildcard_label_denies_every_labeled_match() {
-        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![
-            AclPolicySpec {
-                action: AclAction::Deny,
-                resource_type: "label".to_string(),
-                resource_value: None,
-                properties: None,
-                mask_pattern: None,
-                priority: 100,
-            },
-        ]));
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![AclPolicySpec {
+            action: AclAction::Deny,
+            resource_type: "label".to_string(),
+            resource_value: None,
+            properties: None,
+            mask_pattern: None,
+            priority: 100,
+        }]));
         let out = rewrite_str("MATCH (p:Person) RETURN p", &ctx);
         assert!(out.contains("WHERE false"));
     }
 
     #[test]
     fn wildcard_label_does_not_deny_unlabeled_match() {
-        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![
-            AclPolicySpec {
-                action: AclAction::Deny,
-                resource_type: "label".to_string(),
-                resource_value: None,
-                properties: None,
-                mask_pattern: None,
-                priority: 100,
-            },
-        ]));
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![AclPolicySpec {
+            action: AclAction::Deny,
+            resource_type: "label".to_string(),
+            resource_value: None,
+            properties: None,
+            mask_pattern: None,
+            priority: 100,
+        }]));
         let out = rewrite_str("MATCH (n) RETURN n", &ctx);
         assert_eq!(out, "MATCH (n) RETURN n");
     }
@@ -328,10 +318,7 @@ mod tests {
             &["email"],
             None,
         )]));
-        let out = rewrite_str(
-            "MATCH (p:Person) WHERE p.email = $e RETURN p.name",
-            &ctx,
-        );
+        let out = rewrite_str("MATCH (p:Person) WHERE p.email = $e RETURN p.name", &ctx);
         assert!(out.contains("WHERE p.email = $e"));
     }
 
@@ -527,8 +514,8 @@ mod tests {
 
     #[test]
     fn modified_statements_count_matches_touched_statements() {
-        let ctx = RewriteContext::new("ws")
-            .with_acl_snapshot(snapshot(vec![deny_label("Receipt")]));
+        let ctx =
+            RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![deny_label("Receipt")]));
         let ast = parse("MATCH (p:Person) RETURN p");
         let out = AclRewriter::new().rewrite(ast, &ctx).unwrap();
         assert_eq!(out.modified_statements, 0);

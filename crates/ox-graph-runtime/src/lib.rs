@@ -8,8 +8,8 @@
     )
 )]
 
-mod bolt;
 pub mod action_executor;
+mod bolt;
 pub mod dialect;
 pub mod enrichment;
 pub mod isolation;
@@ -101,9 +101,9 @@ pub fn query_timeout_or_default() -> std::time::Duration {
         .unwrap_or(DEFAULT_QUERY_TIMEOUT)
 }
 
+use ox_core::types::PropertyValue;
 use ox_ontology::graph_exploration::{GraphSchemaOverview, NodeExpansion, SearchResultNode};
 use ox_query_ir::query::QueryResult;
-use ox_core::types::PropertyValue;
 
 // ---------------------------------------------------------------------------
 // TransienceDetector — backend-specific transient error classification

@@ -898,8 +898,7 @@ fn parse_set_items(clause_tokens: &[CypherToken], source: &str) -> Vec<SetItem> 
 }
 
 fn parse_set_segment(tokens: &[CypherToken], source: &str) -> Option<SetItem> {
-    let non_trivia: Vec<&CypherToken> =
-        tokens.iter().filter(|t| !t.is_trivia()).collect();
+    let non_trivia: Vec<&CypherToken> = tokens.iter().filter(|t| !t.is_trivia()).collect();
     // Need at least: ident . ident = value
     if non_trivia.len() < 5 {
         return None;
@@ -1003,8 +1002,7 @@ fn parse_remove_items(clause_tokens: &[CypherToken], _source: &str) -> Vec<Remov
 }
 
 fn parse_remove_segment(tokens: &[CypherToken]) -> Option<RemoveItem> {
-    let non_trivia: Vec<&CypherToken> =
-        tokens.iter().filter(|t| !t.is_trivia()).collect();
+    let non_trivia: Vec<&CypherToken> = tokens.iter().filter(|t| !t.is_trivia()).collect();
     // Need exactly: ident . ident
     if non_trivia.len() != 3 {
         return None;

@@ -97,5 +97,4 @@ mod tests {
         assert_eq!(strip_leading_keyword("WHERE", "WHERE"), Some(""));
         assert_eq!(strip_leading_keyword("WHERE\n", "WHERE"), Some("\n"));
     }
-
 }

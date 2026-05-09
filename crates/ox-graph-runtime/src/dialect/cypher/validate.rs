@@ -42,7 +42,7 @@
 use std::collections::HashSet;
 use std::fmt;
 
-use ox_core::diagnostic::{diag, DiagnosticMessage};
+use ox_core::diagnostic::{DiagnosticMessage, diag};
 use ox_ontology::ir::OntologyIR;
 
 use crate::cypher::ast::{ClauseKind, CypherAst, CypherClause, CypherPatternElement};
@@ -410,11 +410,8 @@ impl CypherValidator for SafetyValidator {
                     clause.kind,
                     ClauseKind::Set | ClauseKind::Create | ClauseKind::Merge
                 ) {
-                    let non_trivia: Vec<&_> = clause
-                        .tokens
-                        .iter()
-                        .filter(|t| !t.is_trivia())
-                        .collect();
+                    let non_trivia: Vec<&_> =
+                        clause.tokens.iter().filter(|t| !t.is_trivia()).collect();
                     for window in non_trivia.windows(3) {
                         let dot = window[1];
                         if !(dot.kind == TokenKind::Operator && dot.text == ".") {
@@ -847,14 +844,9 @@ fn extract_property_accesses(
         let lhs = significant[i];
         let dot = significant[i + 1];
         let rhs = significant[i + 2];
-        let is_ident = |t: &CypherToken| {
-            matches!(t.kind, TokenKind::Identifier | TokenKind::QuotedIdentifier)
-        };
-        if is_ident(lhs)
-            && dot.kind == TokenKind::Operator
-            && dot.text == "."
-            && is_ident(rhs)
-        {
+        let is_ident =
+            |t: &CypherToken| matches!(t.kind, TokenKind::Identifier | TokenKind::QuotedIdentifier);
+        if is_ident(lhs) && dot.kind == TokenKind::Operator && dot.text == "." && is_ident(rhs) {
             out.push((
                 lhs.text.clone(),
                 rhs.text.clone(),
@@ -985,8 +977,14 @@ impl OntologyValidator {
             }
             let label_list = labels.join("/");
             let (code, verb) = match kind {
-                WriteKind::Set => ("runtime.cypher.ontology.unknown_set_property", "SET assigns to"),
-                WriteKind::Remove => ("runtime.cypher.ontology.unknown_remove_property", "REMOVE targets"),
+                WriteKind::Set => (
+                    "runtime.cypher.ontology.unknown_set_property",
+                    "SET assigns to",
+                ),
+                WriteKind::Remove => (
+                    "runtime.cypher.ontology.unknown_remove_property",
+                    "REMOVE targets",
+                ),
             };
             return Some(
                 ValidationIssue::error(
@@ -1026,8 +1024,14 @@ impl OntologyValidator {
             }
             let type_list = types.join("|");
             let (code, verb) = match kind {
-                WriteKind::Set => ("runtime.cypher.ontology.unknown_set_property", "SET assigns to"),
-                WriteKind::Remove => ("runtime.cypher.ontology.unknown_remove_property", "REMOVE targets"),
+                WriteKind::Set => (
+                    "runtime.cypher.ontology.unknown_set_property",
+                    "SET assigns to",
+                ),
+                WriteKind::Remove => (
+                    "runtime.cypher.ontology.unknown_remove_property",
+                    "REMOVE targets",
+                ),
             };
             return Some(
                 ValidationIssue::error(
@@ -1214,8 +1218,7 @@ fn is_tautological_where(tokens: &[crate::cypher::token::CypherToken]) -> bool {
         1 => return significant[0].is_keyword("TRUE"),
         // `WHERE NOT false`
         2 => {
-            return significant[0].is_keyword("NOT")
-                && significant[1].is_keyword("FALSE");
+            return significant[0].is_keyword("NOT") && significant[1].is_keyword("FALSE");
         }
         // `WHERE <lit> = <lit>` | `WHERE <var> = <var>` — single
         // equality, both sides single-token.
@@ -1267,10 +1270,16 @@ fn is_self_equality_operand(tok: &crate::cypher::token::CypherToken) -> bool {
 fn is_property_access(run: &[&crate::cypher::token::CypherToken]) -> bool {
     use crate::cypher::token::TokenKind;
     run.len() == 3
-        && matches!(run[0].kind, TokenKind::Identifier | TokenKind::QuotedIdentifier)
+        && matches!(
+            run[0].kind,
+            TokenKind::Identifier | TokenKind::QuotedIdentifier
+        )
         && run[1].kind == TokenKind::Operator
         && run[1].text == "."
-        && matches!(run[2].kind, TokenKind::Identifier | TokenKind::QuotedIdentifier)
+        && matches!(
+            run[2].kind,
+            TokenKind::Identifier | TokenKind::QuotedIdentifier
+        )
 }
 
 fn token_equal(
@@ -1386,11 +1395,8 @@ impl CypherValidator for ComplexityValidator {
                     // carry patterns; skip defensively.
                     continue;
                 }
-                let components: Vec<std::collections::HashSet<String>> = clause
-                    .patterns
-                    .iter()
-                    .map(pattern_variables)
-                    .collect();
+                let components: Vec<std::collections::HashSet<String>> =
+                    clause.patterns.iter().map(pattern_variables).collect();
                 if !components_all_connected(&components) {
                     issues.push(
                         ValidationIssue::error(
@@ -1417,11 +1423,11 @@ impl CypherValidator for ComplexityValidator {
             issues.extend(flag_cross_clause_disconnection(statement));
 
             // --- Unbounded variable-length path --------------------
-            for element in statement.clauses.iter().flat_map(|c| {
-                c.patterns
-                    .iter()
-                    .flat_map(|p| p.elements.iter())
-            }) {
+            for element in statement
+                .clauses
+                .iter()
+                .flat_map(|c| c.patterns.iter().flat_map(|p| p.elements.iter()))
+            {
                 if let CypherPatternElement::Relationship(rel) = element
                     && is_unbounded_var_length(&rel.var_length)
                 {
@@ -1449,7 +1455,9 @@ impl CypherValidator for ComplexityValidator {
 /// `(:A)-[:X]->(:B)` with no bindings can never share a variable with
 /// any other pattern, so the caller will flag it as disconnected even
 /// if both elements are, physically, on the same path.
-fn pattern_variables(pattern: &crate::cypher::ast::CypherPattern) -> std::collections::HashSet<String> {
+fn pattern_variables(
+    pattern: &crate::cypher::ast::CypherPattern,
+) -> std::collections::HashSet<String> {
     let mut vars = std::collections::HashSet::new();
     for el in &pattern.elements {
         match el {
@@ -1585,8 +1593,8 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::PropertyKey;
     use ox_core::i18n::LocalizedText;
-    use ox_ontology::ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
     use ox_core::types::PropertyType;
+    use ox_ontology::ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
 
     use crate::cypher::rewrite::{CypherRewriterPipeline, RewriteContext, WorkspaceScopeRewriter};
 
@@ -1698,7 +1706,10 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
         let r = run(&p, "MATCH (n) DETACH DELETE n");
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.message.contains("DETACH DELETE")));
+        assert!(
+            r.errors()
+                .any(|e| e.message.message.contains("DETACH DELETE"))
+        );
     }
 
     #[test]
@@ -1742,7 +1753,10 @@ mod tests {
             "MATCH (n:Person) WHERE n.id = $id SET n._workspace_id = 'other'",
         );
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.message.contains("_workspace_id")));
+        assert!(
+            r.errors()
+                .any(|e| e.message.message.contains("_workspace_id"))
+        );
     }
 
     #[test]
@@ -1753,7 +1767,10 @@ mod tests {
             "MATCH (n:Person) WHERE n.id = $id SET n._deleted_at = NULL",
         );
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.message.contains("_deleted_at")));
+        assert!(
+            r.errors()
+                .any(|e| e.message.message.contains("_deleted_at"))
+        );
     }
 
     #[test]
@@ -1761,16 +1778,16 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
         let r = run(&p, "CREATE (n:Person {_workspace_id: 'spoof'})");
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.message.contains("_workspace_id")));
+        assert!(
+            r.errors()
+                .any(|e| e.message.message.contains("_workspace_id"))
+        );
     }
 
     #[test]
     fn safety_allows_user_write_to_non_reserved_property() {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
-        let r = run(
-            &p,
-            "MATCH (n:Person) WHERE n.id = $id SET n.name = 'Alice'",
-        );
+        let r = run(&p, "MATCH (n:Person) WHERE n.id = $id SET n.name = 'Alice'");
         assert!(!r.has_errors(), "{:?}", r.issues);
     }
 
@@ -1824,7 +1841,12 @@ mod tests {
                 .count()
                 >= 1
         );
-        assert!(r.errors().filter(|e| e.message.message.contains("REMOVE")).count() >= 1);
+        assert!(
+            r.errors()
+                .filter(|e| e.message.message.contains("REMOVE"))
+                .count()
+                >= 1
+        );
     }
 
     // =====================================================================
@@ -1941,8 +1963,8 @@ mod tests {
         );
         assert!(r.has_errors(), "expected typo to be flagged");
         assert!(
-            r.errors().any(|e| e.message.message.contains("emial")
-                && e.message.message.contains("SET")),
+            r.errors()
+                .any(|e| e.message.message.contains("emial") && e.message.message.contains("SET")),
             "diagnostic must name the SET clause and the typo: {:?}",
             r.issues
         );
@@ -1963,8 +1985,9 @@ mod tests {
         let r = run(&p, "MATCH (p:Person) REMOVE p.emial RETURN p");
         assert!(r.has_errors());
         assert!(
-            r.errors().any(|e| e.message.message.contains("emial")
-                && e.message.message.contains("REMOVE")),
+            r.errors().any(
+                |e| e.message.message.contains("emial") && e.message.message.contains("REMOVE")
+            ),
             "diagnostic must name the REMOVE clause: {:?}",
             r.issues
         );
@@ -1993,10 +2016,7 @@ mod tests {
         // round-trip tests) must not be flagged as unknown.
         let p =
             CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
-        let r = run(
-            &p,
-            "MATCH (p:Person) SET p._workspace_id = $ws RETURN p",
-        );
+        let r = run(&p, "MATCH (p:Person) SET p._workspace_id = $ws RETURN p");
         assert!(!r.has_errors(), "system property must pass: {:?}", r.issues);
     }
 
@@ -2075,10 +2095,11 @@ mod tests {
             "MATCH (a:Person)-[r:WORKS_AT]->(b:Company) REMOVE r.sicne RETURN r",
         );
         assert!(r.has_errors());
-        assert!(r
-            .errors()
-            .any(|e| e.message.message.contains("sicne")
-                && e.message.message.contains("REMOVE")));
+        assert!(
+            r.errors().any(
+                |e| e.message.message.contains("sicne") && e.message.message.contains("REMOVE")
+            )
+        );
     }
 
     #[test]
@@ -2185,8 +2206,9 @@ mod tests {
         let r = run(&p, "MATCH (p:Person) RETURN p.emial");
         assert!(r.has_errors(), "RETURN typo must be flagged");
         assert!(
-            r.errors().any(|e| e.message.message.contains("emial")
-                && e.message.message.contains("RETURN")),
+            r.errors().any(
+                |e| e.message.message.contains("emial") && e.message.message.contains("RETURN")
+            ),
             "diagnostic must name RETURN + typo: {:?}",
             r.issues
         );
@@ -2222,10 +2244,7 @@ mod tests {
         // upstream WITH/RETURN reference) still hits the validator.
         let p =
             CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
-        let r = run(
-            &p,
-            "MATCH (p:Person) RETURN p ORDER BY p.emial",
-        );
+        let r = run(&p, "MATCH (p:Person) RETURN p ORDER BY p.emial");
         assert!(r.has_errors());
         assert!(r.errors().any(|e| e.message.message.contains("emial")));
     }
@@ -2238,12 +2257,16 @@ mod tests {
         // which clause first surfaced it.
         let p =
             CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
-        let r = run(
-            &p,
-            "MATCH (p:Person) WHERE p.emial = 'x' RETURN p.emial",
+        let r = run(&p, "MATCH (p:Person) WHERE p.emial = 'x' RETURN p.emial");
+        let count = r
+            .errors()
+            .filter(|e| e.message.message.contains("emial"))
+            .count();
+        assert_eq!(
+            count, 1,
+            "expected single dedup'd diagnostic across read clauses: {:?}",
+            r.issues
         );
-        let count = r.errors().filter(|e| e.message.message.contains("emial")).count();
-        assert_eq!(count, 1, "expected single dedup'd diagnostic across read clauses: {:?}", r.issues);
     }
 
     #[test]
@@ -2256,8 +2279,15 @@ mod tests {
             &p,
             "MATCH (p:Person) WHERE p.emial = 'x' OR p.emial = 'y' RETURN p",
         );
-        let count = r.errors().filter(|e| e.message.message.contains("emial")).count();
-        assert_eq!(count, 1, "expected single dedup'd diagnostic: {:?}", r.issues);
+        let count = r
+            .errors()
+            .filter(|e| e.message.message.contains("emial"))
+            .count();
+        assert_eq!(
+            count, 1,
+            "expected single dedup'd diagnostic: {:?}",
+            r.issues
+        );
     }
 
     #[test]
@@ -2292,7 +2322,10 @@ mod tests {
             &p,
             "MATCH (a:Person)-[r:UNKNOWN_REL {since: 2020}]->(b:Company) RETURN r",
         );
-        assert!(r.errors().any(|e| e.message.message.contains("UNKNOWN_REL")));
+        assert!(
+            r.errors()
+                .any(|e| e.message.message.contains("UNKNOWN_REL"))
+        );
         assert!(
             !r.errors().any(|e| e.message.message.contains("since")),
             "edge property error must be suppressed when every type is unknown",
@@ -2354,7 +2387,11 @@ mod tests {
             .errors()
             .filter(|e| e.message.message.contains("emial"))
             .count();
-        assert_eq!(count, 1, "expected single dedup'd diagnostic: {:?}", r.issues);
+        assert_eq!(
+            count, 1,
+            "expected single dedup'd diagnostic: {:?}",
+            r.issues
+        );
     }
 
     #[test]
@@ -2415,7 +2452,10 @@ mod tests {
             &p,
             "MATCH (a:Userr) MATCH (b:Userr) MATCH (c:Userr) RETURN a, b, c",
         );
-        let count = r.errors().filter(|e| e.message.message.contains("Userr")).count();
+        let count = r
+            .errors()
+            .filter(|e| e.message.message.contains("Userr"))
+            .count();
         assert_eq!(count, 1, "unknown label should report once: {:?}", r.issues);
     }
 
@@ -2511,8 +2551,7 @@ mod tests {
     #[test]
     fn issue_with_span_carries_span() {
         let span = Span::new(3, 7);
-        let issue = ValidationIssue::error("x", diag("test.x").message("msg"))
-            .with_span(span);
+        let issue = ValidationIssue::error("x", diag("test.x").message("msg")).with_span(span);
         assert_eq!(issue.span, Some(span));
     }
 
@@ -2594,7 +2633,11 @@ mod tests {
     fn semantic_guard_silent_when_no_where() {
         let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
         let r = run(&p, "MATCH (n) DELETE n");
-        assert!(!r.has_errors(), "no WHERE is SafetyValidator's concern: {:?}", r.issues);
+        assert!(
+            !r.has_errors(),
+            "no WHERE is SafetyValidator's concern: {:?}",
+            r.issues
+        );
     }
 
     /// Destructive write with a legitimate predicate — silent.
@@ -2611,11 +2654,14 @@ mod tests {
     fn semantic_guard_rejects_where_true_delete() {
         let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
         let r = run(&p, "MATCH (n) WHERE true DELETE n");
-        assert!(r.has_errors(), "WHERE true + DELETE must error: {:?}", r.issues);
         assert!(
-            r.errors()
-                .any(|e| e.validator_name == "semantic-guard"
-                    && e.message.message.contains("tautological"))
+            r.has_errors(),
+            "WHERE true + DELETE must error: {:?}",
+            r.issues
+        );
+        assert!(
+            r.errors().any(|e| e.validator_name == "semantic-guard"
+                && e.message.message.contains("tautological"))
         );
     }
 
@@ -2658,7 +2704,11 @@ mod tests {
     fn semantic_guard_accepts_literal_inequality() {
         let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
         let r = run(&p, "MATCH (n) WHERE 1 = 2 DELETE n");
-        assert!(!r.has_errors(), "inequality constrains (to nothing) but is not a tautology: {:?}", r.issues);
+        assert!(
+            !r.has_errors(),
+            "inequality constrains (to nothing) but is not a tautology: {:?}",
+            r.issues
+        );
     }
 
     /// `WHERE n.id = $id` — normal property equality must pass. The
@@ -2668,7 +2718,11 @@ mod tests {
     fn semantic_guard_accepts_property_equality() {
         let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
         let r = run(&p, "MATCH (n:Person) WHERE n.id = 42 DELETE n");
-        assert!(!r.has_errors(), "property equality must pass: {:?}", r.issues);
+        assert!(
+            !r.has_errors(),
+            "property equality must pass: {:?}",
+            r.issues
+        );
     }
 
     /// Destructive op with two WHEREs — one tautological, one real.
@@ -2690,7 +2744,11 @@ mod tests {
     fn semantic_guard_silent_on_read_only_tautology() {
         let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
         let r = run(&p, "MATCH (n) WHERE true RETURN n");
-        assert!(!r.has_errors(), "read-only tautology is allowed: {:?}", r.issues);
+        assert!(
+            !r.has_errors(),
+            "read-only tautology is allowed: {:?}",
+            r.issues
+        );
     }
 
     /// `WHERE n = n` — bare variable self-reference. Structurally
@@ -2717,11 +2775,12 @@ mod tests {
     #[test]
     fn semantic_guard_accepts_cross_variable_equality() {
         let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
-        let r = run(
-            &p,
-            "MATCH (a)-[:KNOWS]->(b) WHERE a.id = b.id DELETE a",
+        let r = run(&p, "MATCH (a)-[:KNOWS]->(b) WHERE a.id = b.id DELETE a");
+        assert!(
+            !r.has_errors(),
+            "cross-variable equality must pass: {:?}",
+            r.issues
         );
-        assert!(!r.has_errors(), "cross-variable equality must pass: {:?}", r.issues);
     }
 
     /// Same variable, different property keys — still constrains. Must pass.
@@ -2739,7 +2798,11 @@ mod tests {
     fn semantic_guard_accepts_self_inequality() {
         let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
         let r = run(&p, "MATCH (n) WHERE n != n DELETE n");
-        assert!(!r.has_errors(), "n != n is a contradiction, not a tautology: {:?}", r.issues);
+        assert!(
+            !r.has_errors(),
+            "n != n is a contradiction, not a tautology: {:?}",
+            r.issues
+        );
     }
 
     // =====================================================================
@@ -2762,7 +2825,10 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
         let r = run(&p, "MATCH (a)-[*]->(b) RETURN a, b");
         assert!(r.has_errors(), "unbounded * must error: {:?}", r.issues);
-        assert!(r.errors().any(|e| e.message.message.contains("variable-length")));
+        assert!(
+            r.errors()
+                .any(|e| e.message.message.contains("variable-length"))
+        );
     }
 
     /// `*1..` (no upper) also triggers — lack of upper bound is the
@@ -2771,7 +2837,11 @@ mod tests {
     fn complexity_rejects_missing_upper_bound() {
         let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
         let r = run(&p, "MATCH (a)-[*1..]->(b) RETURN a, b");
-        assert!(r.has_errors(), "missing upper bound must error: {:?}", r.issues);
+        assert!(
+            r.has_errors(),
+            "missing upper bound must error: {:?}",
+            r.issues
+        );
     }
 
     /// `*1..5` is a pinned range — allowed.
@@ -2789,7 +2859,10 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(ComplexityValidator::permissive());
         let r = run(&p, "MATCH (a)-[*]->(b) RETURN a, b");
         assert!(!r.has_errors(), "permissive must not error: {:?}", r.issues);
-        assert!(r.warnings().any(|w| w.message.message.contains("variable-length")));
+        assert!(
+            r.warnings()
+                .any(|w| w.message.message.contains("variable-length"))
+        );
     }
 
     /// Two patterns in the same MATCH with no shared variable — that's
@@ -2798,7 +2871,11 @@ mod tests {
     fn complexity_rejects_within_clause_cartesian() {
         let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
         let r = run(&p, "MATCH (a:Person), (b:Company) RETURN a, b");
-        assert!(r.has_errors(), "disconnected comma-patterns must error: {:?}", r.issues);
+        assert!(
+            r.has_errors(),
+            "disconnected comma-patterns must error: {:?}",
+            r.issues
+        );
         assert!(r.errors().any(|e| e.message.message.contains("cartesian")));
     }
 
@@ -2819,13 +2896,15 @@ mod tests {
     #[test]
     fn complexity_warns_on_cross_clause_disconnection() {
         let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
-        let r = run(
-            &p,
-            "MATCH (a:Person) MATCH (b:Company) RETURN a, b",
-        );
-        assert!(!r.has_errors(), "cross-clause disconnect is a warning: {:?}", r.issues);
+        let r = run(&p, "MATCH (a:Person) MATCH (b:Company) RETURN a, b");
         assert!(
-            r.warnings().any(|w| w.message.message.contains("cartesian")),
+            !r.has_errors(),
+            "cross-clause disconnect is a warning: {:?}",
+            r.issues
+        );
+        assert!(
+            r.warnings()
+                .any(|w| w.message.message.contains("cartesian")),
             "expected cross-clause warning: {:?}",
             r.issues
         );
@@ -2835,10 +2914,7 @@ mod tests {
     #[test]
     fn complexity_accepts_cross_clause_with_boundary() {
         let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
-        let r = run(
-            &p,
-            "MATCH (a:Person) WITH a MATCH (b:Company) RETURN a, b",
-        );
+        let r = run(&p, "MATCH (a:Person) WITH a MATCH (b:Company) RETURN a, b");
         assert!(!r.has_errors(), "{:?}", r.issues);
         assert!(
             r.warnings().count() == 0,
