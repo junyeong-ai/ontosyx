@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/hooks/use-auth";
-import { Spinner } from "@/components/ui/spinner";
+import { SkeletonCard, SkeletonText } from "@/components/ui/skeleton";
 import { Avatar } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,9 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Spinner size="lg" className="text-brand-foreground" />
+      <div className="space-y-6 p-6">
+        <SkeletonText lines={3} />
+        <SkeletonCard />
       </div>
     );
   }

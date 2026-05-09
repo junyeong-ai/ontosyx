@@ -80,9 +80,15 @@ export function SkeletonWidgetGrid({ count = 4 }: { count?: number }) {
   );
 }
 
-export function SkeletonList({ count = 5 }: { count?: number }) {
+export function SkeletonList({
+  count = 5,
+  className,
+}: {
+  count?: number;
+  className?: string;
+}) {
   return (
-    <div className="space-y-2">
+    <div className={cn("space-y-2", className)}>
       {Array.from({ length: count }, (_, i) => (
         <SkeletonCard key={i} />
       ))}

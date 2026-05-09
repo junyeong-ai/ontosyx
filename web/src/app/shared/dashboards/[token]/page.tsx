@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 import { use } from "react";
 import { useTranslations } from "next-intl";
-import { Spinner } from "@/components/ui/spinner";
+import { SkeletonWidgetGrid } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
 import Expired from "./expired";
 
@@ -84,13 +84,14 @@ export default function SharedDashboardPage({
 
   if (state.kind === "loading") {
     return (
-      <main id="main" className="flex min-h-dvh items-center justify-center bg-surface-raised">
-        <div className="flex flex-col items-center gap-2">
-          <Spinner size="md" className="text-brand-foreground" />
-          <p className="text-xs text-foreground-muted">
-            {t("loadingMessage")}
-          </p>
-        </div>
+      <main
+        id="main"
+        className="min-h-dvh bg-surface-raised p-6"
+        role="status"
+        aria-live="polite"
+        aria-label={t("loadingMessage")}
+      >
+        <SkeletonWidgetGrid count={4} />
       </main>
     );
   }

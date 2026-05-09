@@ -12,7 +12,6 @@ import { useTranslations } from "next-intl";
 import { toast } from "@/components/ui/toast";
 import { Heading } from "@/components/ui/heading";
 import { Clock } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
 import { FormInput, SettingsSelect } from "@/components/ui/form-input";
 import { useQueryState } from "@/hooks/use-query-state";
 import { useImeAwareInput } from "@/hooks/use-ime-aware-input";
@@ -337,11 +336,7 @@ function ConversationView({
 }) {
   const t = useTranslations("account.sessions");
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-4">
-        <Spinner size="sm" />
-      </div>
-    );
+    return <SkeletonList count={3} className="mt-2" />;
   }
 
   if (messages.length === 0) {
@@ -419,11 +414,7 @@ function EventsView({
   loading: boolean;
 }) {
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-4">
-        <Spinner size="sm" />
-      </div>
-    );
+    return <SkeletonList count={3} className="mt-2" />;
   }
 
   return (

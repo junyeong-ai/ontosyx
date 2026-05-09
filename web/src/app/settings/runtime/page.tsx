@@ -10,7 +10,7 @@ import type { ConfigResponse, ConfigEntry, ConfigUpdateItem } from "@/types/api"
 import { FormInput } from "@/components/ui/form-input";
 import { Button } from "@/components/ui/button";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
-import { Spinner } from "@/components/ui/spinner";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { TabBar } from "@/components/ui/tab-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -134,9 +134,7 @@ export default function SystemSettingsPage() {
   if (loading) {
     return (
       <SettingsPageShell title={t("title")} subtitle={t("description")}>
-        <div className="flex items-center justify-center py-20">
-          <Spinner size="lg" className="text-brand-foreground" />
-        </div>
+        <SkeletonList count={5} />
       </SettingsPageShell>
     );
   }

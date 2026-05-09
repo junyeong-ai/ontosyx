@@ -7,7 +7,7 @@ import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { Heading } from "@/components/ui/heading";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { Spinner } from "@/components/ui/spinner";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { FormInput } from "@/components/ui/form-input";
 import {
   useCommunitySummaries,
@@ -44,9 +44,7 @@ export default function GraphRagSettingsPage() {
           onChange={(e) => setQuery(e.target.value)}
         />
         {isLoading ? (
-          <div className="flex h-48 items-center justify-center">
-            <Spinner />
-          </div>
+          <SkeletonList count={5} />
         ) : isError ? (
           <ErrorState title={t("list.loadFailed")} />
         ) : items.length === 0 ? (

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 
 import { request } from "@/lib/api/client";
-import { Spinner } from "@/components/ui/spinner";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
 import { CrossRefFlow } from "@/components/ontology/cross-ref-flow";
 
@@ -70,8 +70,8 @@ export default function OntologyMapPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Spinner />
+      <div className="p-6">
+        <SkeletonList count={6} />
       </div>
     );
   }
