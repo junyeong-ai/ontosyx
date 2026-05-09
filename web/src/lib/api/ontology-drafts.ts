@@ -47,7 +47,7 @@ import {
 export async function createOntologyDraft(
   req: CreateOntologyDraftRequest,
 ): Promise<OntologyDraft> {
-  return request("/projects", {
+  return request("/ontology-drafts", {
     method: "POST",
     body: JSON.stringify(req),
   });
@@ -62,7 +62,7 @@ export async function listOntologyDrafts(params?: {
   if (params?.limit) qs.set("limit", String(params.limit));
   const query = qs.toString();
   const data = await request<OntologyDraftSummaryPage>(
-    `/projects${query ? `?${query}` : ""}`,
+    `/ontology-drafts${query ? `?${query}` : ""}`,
   );
   const result = ClientPageSchema(OntologyDraftSummarySchema).safeParse(data);
   if (!result.success) {

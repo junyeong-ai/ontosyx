@@ -2,13 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import {
   useCanonicalVersions,
   useDraftDiffAgainstCanonical,
 } from "@/hooks/api/use-ontology-branches";
 import { useOntologyDrafts } from "@/hooks/api/use-ontology-drafts";
+import { getOntologyDraft } from "@/lib/api";
+import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -135,6 +137,7 @@ function VersionNode({
   drafts,
   draftLabel,
   currentHeadId,
+  onOpen,
   onShowDiff,
   onShowRebase,
 }: {
@@ -142,6 +145,7 @@ function VersionNode({
   drafts: OntologyDraftSummary[];
   draftLabel: string;
   currentHeadId: string | null;
+  onOpen: (id: string) => void;
   onShowDiff: (d: OntologyDraftSummary) => void;
   onShowRebase: (d: OntologyDraftSummary) => void;
 }) {
@@ -209,9 +213,10 @@ function VersionNode({
                 className="rounded-lg px-3 py-1.5 hover:bg-surface-inset"
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <Link
-                    href={`/projects/${d.id}`}
-                    className="flex min-w-0 flex-1 items-baseline gap-2"
+                  <button
+                    type="button"
+                    onClick={() => onOpen(d.id)}
+                    className="flex min-w-0 flex-1 items-baseline gap-2 text-start"
                   >
                     <span className="font-medium">
                       {d.title?.trim() ? d.title : t("untitledDraft")}
@@ -219,7 +224,7 @@ function VersionNode({
                     <span className="text-2xs text-foreground-muted">
                       {d.status}
                     </span>
-                  </Link>
+                  </button>
                   <div className="flex shrink-0 items-baseline gap-2">
                     <DraftDiffSummary draftId={d.id} />
                     <DraftActions
@@ -245,6 +250,10 @@ function VersionNode({
 export function BranchingTree() {
   const t = useTranslations("workbench.branches");
   const tCommon = useTranslations("common");
+  const router = useRouter();
+  const applyOntologyDraftSnapshot = useAppStore(
+    (s) => s.applyOntologyDraftSnapshot,
+  );
   const versionsQuery = useCanonicalVersions();
   const draftsQuery = useOntologyDrafts({ limit: 100 });
 
@@ -259,6 +268,16 @@ export function BranchingTree() {
   );
   const onShowDiff = (d: OntologyDraftSummary) => setDiffDraft(d);
   const onShowRebase = (d: OntologyDraftSummary) => setRebaseDraft(d);
+  // Canonical draft-open path: hydrate the full draft, push it
+  // through the atomic applyOntologyDraftSnapshot entry point,
+  // then route to the design canvas. Same shape OntologyDraftHub
+  // uses — keeps the active-draft / ontology-cache invariant
+  // intact and the workbench single-page-app behaviour preserved.
+  const onOpen = async (id: string) => {
+    const draft = await getOntologyDraft(id);
+    applyOntologyDraftSnapshot(draft);
+    router.push("/design");
+  };
 
   const pageState: PageState =
     versionsQuery.isLoading || draftsQuery.isLoading
@@ -297,6 +316,7 @@ export function BranchingTree() {
               drafts={greenfieldDrafts}
               draftLabel={t("draftsLabel")}
               currentHeadId={currentHeadId}
+              onOpen={onOpen}
               onShowDiff={onShowDiff}
               onShowRebase={onShowRebase}
             />
@@ -308,6 +328,7 @@ export function BranchingTree() {
               drafts={draftBuckets.get(v.id) ?? []}
               draftLabel={t("draftsLabel")}
               currentHeadId={currentHeadId}
+              onOpen={onOpen}
               onShowDiff={onShowDiff}
               onShowRebase={onShowRebase}
             />
@@ -318,6 +339,7 @@ export function BranchingTree() {
               drafts={greenfieldDrafts}
               draftLabel={t("draftsLabel")}
               currentHeadId={currentHeadId}
+              onOpen={onOpen}
               onShowDiff={onShowDiff}
               onShowRebase={onShowRebase}
             />

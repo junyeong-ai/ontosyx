@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// Zod schemas for project API response validation
-// Matches types in @/types/projects.ts exactly
+// Zod schemas for ontology-draft API response validation.
+// Matches types in @/types/ontology-drafts.ts exactly.
 // ---------------------------------------------------------------------------
 
 import { z } from "zod";
