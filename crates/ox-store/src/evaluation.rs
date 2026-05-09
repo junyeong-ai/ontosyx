@@ -48,66 +48,31 @@ use ox_core::error::{OxError, OxResult};
 use ox_ontology::{EvaluationFingerprint, ModelCall};
 use ox_query_ir::query::QueryIR;
 
-/// Status of an [`EvaluationRun`]. Wire shape is the snake_case
-/// string ("running" / "succeeded" / …) so adding a future variant
-/// is a Rust-side change with no migration; the catalog parity
-/// test pins the string set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum EvaluationRunStatus {
-    /// The run is in progress — cases are being recorded.
-    Running,
-    /// Every case completed and at least one metric landed; the
-    /// run is sealed and downstream dashboards consume the rows.
-    Succeeded,
-    /// The run aborted before completion (judge timeout, infra
-    /// outage, dataset error). The error envelope lives in
-    /// `metadata.failure` rather than a dedicated column so
-    /// future failure-shape changes ride on JSONB.
-    Failed,
-    /// The run was deliberately stopped by an operator before it
-    /// finished. Distinct from `Failed` because the cases that
-    /// did record stay valid for analysis.
-    Cancelled,
+crate::wire_enum! {
+    /// Status of an [`EvaluationRun`]. Wire shape is the
+    /// snake_case string ("running" / "succeeded" / …) so adding
+    /// a future variant is a Rust-side change with no migration;
+    /// the catalog parity test pins the string set.
+    pub enum EvaluationRunStatus {
+        /// The run is in progress — cases are being recorded.
+        Running => "running",
+        /// Every case completed and at least one metric landed;
+        /// the run is sealed and downstream dashboards consume
+        /// the rows.
+        Succeeded => "succeeded",
+        /// The run aborted before completion (judge timeout,
+        /// infra outage, dataset error). The error envelope lives
+        /// in `metadata.failure` rather than a dedicated column
+        /// so future failure-shape changes ride on JSONB.
+        Failed => "failed",
+        /// The run was deliberately stopped by an operator
+        /// before it finished. Distinct from `Failed` because
+        /// the cases that did record stay valid for analysis.
+        Cancelled => "cancelled",
+    }
 }
 
 impl EvaluationRunStatus {
-    /// Stable wire string — used by the SQL persistence layer and
-    /// the parity test in `crates/ox-store/tests` to assert that
-    /// every variant round-trips.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Running => "running",
-            Self::Succeeded => "succeeded",
-            Self::Failed => "failed",
-            Self::Cancelled => "cancelled",
-        }
-    }
-
-    /// Every variant in declaration order. Same `ALL` pattern
-    /// the retrieval-comparison enums use — single source of
-    /// truth for `from_wire_str` + `all_wire_strings`.
-    pub const ALL: &'static [Self] = &[
-        Self::Running,
-        Self::Succeeded,
-        Self::Failed,
-        Self::Cancelled,
-    ];
-
-    /// Inverse of [`Self::as_str`]. Returns `None` on an
-    /// unrecognised tag — the caller decides whether that is a
-    /// store-corruption error or a forward-compat skip.
-    pub fn from_wire_str(s: &str) -> Option<Self> {
-        Self::ALL.iter().copied().find(|v| v.as_str() == s)
-    }
-
-    /// Wire-string bag for SQL `= ANY($N::text[])` binds + the
-    /// parity audit. Mirrors the retrieval-comparison enums'
-    /// shape so adding a new variant lands in one place.
-    pub fn all_wire_strings() -> Vec<&'static str> {
-        Self::ALL.iter().copied().map(Self::as_str).collect()
-    }
-
     /// True for the three terminal states (`Succeeded`,
     /// `Failed`, `Cancelled`). The dashboard uses this to dim
     /// still-running rows.
@@ -310,129 +275,51 @@ pub enum EvaluationCaseInput {
     },
 }
 
-/// The retrieval bank a [`EvaluationCaseInput::RetrievalComparison`]
-/// targets. Each surface ships a hybrid path (RRF over trigram +
-/// FTS + optional pgvector) and a trigram-only baseline; the
-/// comparison runs both legs and captures the lift.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum RetrievalSurface {
-    /// Verified-query bank — `(question, query_ir)` pairs the
-    /// Brain consults as ICL exemplars (Φ11). Hybrid +
-    /// `search_verified_queries_for_icl` (trigram baseline).
-    VerifiedQuery,
-    /// Microsoft GraphRAG community summaries (Φ10). Hybrid +
-    /// `search_community_summaries_trigram_only` (baseline).
-    CommunitySummary,
-    /// Knowledge corrections / hints. Hybrid +
-    /// `search_knowledge_entries_trigram_only` (baseline).
-    KnowledgeEntry,
-}
-
-impl RetrievalSurface {
-    /// Stable wire string; powers metric naming convention
-    /// (`<surface>.<leg>.<axis>`) so dashboard pivots stay sortable.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::VerifiedQuery => "verified_query",
-            Self::CommunitySummary => "community_summary",
-            Self::KnowledgeEntry => "knowledge_entry",
-        }
-    }
-
-    /// Every variant in declaration order. Single source of
-    /// truth shared with the SQL aggregators and the FE
-    /// surface filter — adding a new surface lands here once
-    /// and the IN-list expansions follow automatically.
-    pub const ALL: &'static [Self] = &[
-        Self::VerifiedQuery,
-        Self::CommunitySummary,
-        Self::KnowledgeEntry,
-    ];
-
-    /// Wire-string bag for SQL `= ANY($N::text[])` binds.
-    /// Materialises [`Self::ALL`] into the comma-free shape
-    /// sqlx encodes as a Postgres `text[]`.
-    pub fn all_wire_strings() -> Vec<&'static str> {
-        Self::ALL.iter().copied().map(Self::as_str).collect()
-    }
-
-    /// Inverse of [`Self::as_str`]. Forward-compat: a wire
-    /// string the running build doesn't recognise resolves to
-    /// `None` instead of crashing — operators on a newer
-    /// Postgres baseline see the typed shape; older builds
-    /// drop the row from the typed aggregate while leaving
-    /// the raw `axis_means` row visible.
-    pub fn from_wire_str(s: &str) -> Option<Self> {
-        Self::ALL.iter().copied().find(|v| v.as_str() == s)
+crate::wire_enum! {
+    /// Retrieval surface — the storage / IR target a comparison
+    /// run scores. Three first-class surfaces today: verified
+    /// queries (Φ11 ICL bank), community summaries (Φ10
+    /// GraphRAG), and knowledge entries. Each pairs hybrid (RRF
+    /// fusion) with a trigram-only baseline. Stable closed set;
+    /// adding a surface lands here once and the SQL aggregators
+    /// pick it up automatically through `all_wire_strings`.
+    pub enum RetrievalSurface {
+        /// Verified-query bank — `(question, query_ir)` pairs
+        /// the Brain consults as ICL exemplars (Φ11).
+        VerifiedQuery => "verified_query",
+        /// Microsoft GraphRAG community summaries (Φ10).
+        CommunitySummary => "community_summary",
+        /// Knowledge corrections / hints.
+        KnowledgeEntry => "knowledge_entry",
     }
 }
 
-/// Retrieval-comparison leg — which retrieval path a metric
-/// row belongs to. Pairs with [`RetrievalSurface`] +
-/// [`RetrievalAxis`] under the dotted metric naming
-/// convention (`<surface>.<leg>.<axis>`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum RetrievalLeg {
-    /// RRF fusion path — what the platform actually serves at
-    /// runtime.
-    Hybrid,
-    /// Trigram-only baseline — what the platform served before
-    /// hybrid retrieval. Drives the lift contrast.
-    Trigram,
-}
-
-impl RetrievalLeg {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Hybrid => "hybrid",
-            Self::Trigram => "trigram",
-        }
-    }
-    pub const ALL: &'static [Self] = &[Self::Hybrid, Self::Trigram];
-    pub fn all_wire_strings() -> Vec<&'static str> {
-        Self::ALL.iter().copied().map(Self::as_str).collect()
-    }
-    pub fn from_wire_str(s: &str) -> Option<Self> {
-        Self::ALL.iter().copied().find(|v| v.as_str() == s)
+crate::wire_enum! {
+    /// Retrieval-comparison leg — which retrieval path a metric
+    /// row belongs to. Pairs with [`RetrievalSurface`] +
+    /// [`RetrievalAxis`] under the dotted metric naming
+    /// convention (`<surface>.<leg>.<axis>`).
+    pub enum RetrievalLeg {
+        /// RRF fusion path — what the platform actually serves
+        /// at runtime.
+        Hybrid => "hybrid",
+        /// Trigram-only baseline — what the platform served
+        /// before hybrid retrieval. Drives the lift contrast.
+        Trigram => "trigram",
     }
 }
 
-/// Retrieval IR axis — the four canonical metrics
-/// [`score_retrieval_metrics`] computes. Stable closed set;
-/// adding a new axis lands here AND on
-/// [`RetrievalMetrics`] AND on the case-execute persistence
-/// loop (one fresh `evaluation_metrics` row per axis).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum RetrievalAxis {
-    PrecisionAtK,
-    RecallAtK,
-    Mrr,
-    NdcgAtK,
-}
-
-impl RetrievalAxis {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::PrecisionAtK => "precision_at_k",
-            Self::RecallAtK => "recall_at_k",
-            Self::Mrr => "mrr",
-            Self::NdcgAtK => "ndcg_at_k",
-        }
-    }
-    pub const ALL: &'static [Self] = &[
-        Self::PrecisionAtK,
-        Self::RecallAtK,
-        Self::Mrr,
-        Self::NdcgAtK,
-    ];
-    pub fn all_wire_strings() -> Vec<&'static str> {
-        Self::ALL.iter().copied().map(Self::as_str).collect()
-    }
-    pub fn from_wire_str(s: &str) -> Option<Self> {
-        Self::ALL.iter().copied().find(|v| v.as_str() == s)
+crate::wire_enum! {
+    /// Retrieval IR axis — the four canonical metrics
+    /// [`score_retrieval_metrics`] computes. Stable closed set;
+    /// adding a new axis lands here AND on
+    /// [`RetrievalMetrics`] AND on the case-execute persistence
+    /// loop (one fresh `evaluation_metrics` row per axis).
+    pub enum RetrievalAxis {
+        PrecisionAtK => "precision_at_k",
+        RecallAtK => "recall_at_k",
+        Mrr => "mrr",
+        NdcgAtK => "ndcg_at_k",
     }
 }
 

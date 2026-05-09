@@ -43,14 +43,17 @@ impl TryFrom<KnowledgeEntryRow> for KnowledgeEntry {
             ontology_name: row.ontology_name,
             ontology_version_min: row.ontology_version_min,
             ontology_version_max: row.ontology_version_max,
-            kind: row
-                .kind
-                .parse()
-                .map_err(|message| OxError::Runtime { message })?,
-            status: row
-                .status
-                .parse()
-                .map_err(|message| OxError::Runtime { message })?,
+            kind: KnowledgeKind::from_wire_str(&row.kind).ok_or_else(|| OxError::Runtime {
+                message: format!("unknown knowledge kind in row: {kind}", kind = row.kind),
+            })?,
+            status: KnowledgeStatus::from_wire_str(&row.status).ok_or_else(|| {
+                OxError::Runtime {
+                    message: format!(
+                        "unknown knowledge status in row: {status}",
+                        status = row.status,
+                    ),
+                }
+            })?,
             confidence: row.confidence,
             title: row.title,
             content: row.content,

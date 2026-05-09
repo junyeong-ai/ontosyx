@@ -202,3 +202,39 @@ Cron tasks override `CronTask::singleton_key()` to return
 shared state; in-process-only tasks (clarification evict,
 collaboration idle reap) leave it `None` because every replica
 must run on its own memory.
+
+## Closed-set wire enums — `wire_enum!` macro
+
+Every closed-set enum that travels over the wire (HTTP / SQL /
+log) goes through `crate::wire_enum!`. The macro emits the
+canonical 5-method shape — `ALL` + `as_str(self) const fn` +
+`from_wire_str` + `all_wire_strings` + `impl Display` — plus
+serde + utoipa derives + per-variant `#[serde(rename = "...")]`
++ `#[schema(rename = "...")]`. New closed-set enums declare:
+
+```rust
+crate::wire_enum! {
+    /// docs ride through to the generated enum
+    pub enum MyKind {
+        First => "first",
+        Second => "second_variant",
+    }
+}
+```
+
+The wire literals at the declaration site are the single
+source of truth — they end up on serde, utoipa OpenAPI, and
+`as_str` in lock-step. Per-enum extras (`is_terminal` on
+`EvaluationRunStatus`, `from_subscription` on
+`NotificationLogEventType`) live in separate `impl` blocks
+alongside the macro invocation; the macro only owns the shared
+shape.
+
+Adopting enums today: `EvaluationRunStatus`,
+`NotificationChannelType`, `NotificationEventType`,
+`NotificationLogEventType`, `NotificationLogStatus`,
+`KnowledgeKind`, `KnowledgeStatus`, `RetrievalSurface`,
+`RetrievalLeg`, `RetrievalAxis`. The macro tests in
+`wire_enum.rs` pin the generated shape on a probe enum so a
+future macro change that drops a method or breaks the
+round-trip fails before any downstream enum even compiles.

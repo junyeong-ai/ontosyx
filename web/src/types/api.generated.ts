@@ -7115,10 +7115,10 @@ export interface components {
             run: components["schemas"]["EvaluationRun"];
         };
         /**
-         * @description Status of an [`EvaluationRun`]. Wire shape is the snake_case
-         *     string ("running" / "succeeded" / …) so adding a future variant
-         *     is a Rust-side change with no migration; the catalog parity
-         *     test pins the string set.
+         * @description Status of an [`EvaluationRun`]. Wire shape is the
+         *     snake_case string ("running" / "succeeded" / …) so adding
+         *     a future variant is a Rust-side change with no migration;
+         *     the catalog parity test pins the string set.
          * @enum {string}
          */
         EvaluationRunStatus: "running" | "succeeded" | "failed" | "cancelled";
@@ -8250,7 +8250,13 @@ export interface components {
             items: components["schemas"]["KnowledgeEntry"][];
             next_cursor?: string | null;
         };
-        /** @enum {string} */
+        /**
+         * @description What this knowledge entry represents — a `Correction`
+         *     captures a query-failure resolution, a `Hint` is an
+         *     admin-authored prompt addition that doesn't trace back
+         *     to a specific failure incident.
+         * @enum {string}
+         */
         KnowledgeKind: "correction" | "hint";
         KnowledgeStats: {
             by_kind: {
@@ -8262,7 +8268,15 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
-        /** @enum {string} */
+        /**
+         * @description Lifecycle state of a knowledge entry. `Draft` is the
+         *     landing state, `Approved` is the active retrieval set,
+         *     `Stale` is the candidate-for-revisit bucket the
+         *     staleness sweep promotes into, and `Deprecated` is the
+         *     tombstone state — kept for audit but excluded from
+         *     retrieval.
+         * @enum {string}
+         */
         KnowledgeStatus: "draft" | "approved" | "stale" | "deprecated";
         /** @description Statistics for a single node label. */
         LabelStat: {
@@ -9300,23 +9314,21 @@ export interface components {
             /** Format: uuid */
             workspace_id: string;
         };
-        /** @enum {string} */
+        /**
+         * @description Webhook destination kind. The discriminant drives the
+         *     per-channel render branch on every [`super::EventPayload`]
+         *     implementation.
+         * @enum {string}
+         */
         NotificationChannelType: "slack_webhook" | "generic_webhook";
         /**
          * @description Closed set of platform-emitted notification event types.
-         *
-         *     `NotificationChannel.events` subscribes against the
-         *     snake_case wire string of one or more of these variants;
-         *     every dispatcher in `ox-api` selects channels through
-         *     `Self::as_str` so the wire tag lives in one place.
-         *
-         *     Same shape as `RetrievalSurface` / `RetrievalLeg` /
-         *     `RetrievalAxis` / `EvaluationRunStatus` — `ALL` +
-         *     `as_str(self) const fn` + `from_wire_str` +
-         *     `all_wire_strings`. Adding a new event = one variant + one
-         *     `ALL` entry + one `as_str` arm + the matching FE i18n key.
-         *     The `every_variant_in_all` test pins exhaustiveness so a
-         *     new variant that misses `ALL` fails to compile.
+         *     `NotificationChannel.events` subscribes against the wire
+         *     string of one or more of these variants; every dispatcher
+         *     in `ox-api` selects channels through `as_str` so the wire
+         *     tag lives in one place. Adding a new event = one variant
+         *     here + one matching i18n key under
+         *     `account.notifications.event.<wire>`.
          * @enum {string}
          */
         NotificationEventType: "quality_rule_passed" | "quality_rule_failed" | "retrieval_lift_regression";
@@ -9338,24 +9350,17 @@ export interface components {
         /**
          * @description Closed set of event tags that may appear on a
          *     [`NotificationLog`] row. Superset of
-         *     [`NotificationEventType`] (the subscribable platform events)
-         *     plus the diagnostic-only [`Self::Test`] variant — recorded
-         *     by the channel-test endpoint and never matched by a
-         *     subscription.
-         *
-         *     Same shape as the other 4-enum family — `ALL` +
-         *     `as_str(self) const fn` + `from_wire_str` +
-         *     `all_wire_strings`. The `from_subscription` constructor is
-         *     total — every [`NotificationEventType`] has a one-to-one
-         *     log mirror, pinned by the parity test
-         *     `notification_log_event_type_round_trips_from_every_subscription_event`.
+         *     [`NotificationEventType`] (the subscribable platform
+         *     events) plus the diagnostic-only [`Self::Test`] variant —
+         *     recorded by the channel-test endpoint and never matched
+         *     by a subscription. The
+         *     `from_every_subscription_event` parity test pins the
+         *     total mapping a [`Self::from_subscription`] must honour.
          * @enum {string}
          */
         NotificationLogEventType: "quality_rule_passed" | "quality_rule_failed" | "retrieval_lift_regression" | "test";
         /**
-         * @description Closed set of [`NotificationLog`] delivery outcomes. Same
-         *     4-enum shape — `ALL` + `as_str(self) const fn` +
-         *     `from_wire_str` + `all_wire_strings`.
+         * @description Closed set of [`NotificationLog`] delivery outcomes.
          * @enum {string}
          */
         NotificationLogStatus: "sent" | "failed";
@@ -12701,10 +12706,13 @@ export interface components {
          */
         RetrievalProfileId: string;
         /**
-         * @description The retrieval bank a [`EvaluationCaseInput::RetrievalComparison`]
-         *     targets. Each surface ships a hybrid path (RRF over trigram +
-         *     FTS + optional pgvector) and a trigram-only baseline; the
-         *     comparison runs both legs and captures the lift.
+         * @description Retrieval surface — the storage / IR target a comparison
+         *     run scores. Three first-class surfaces today: verified
+         *     queries (Φ11 ICL bank), community summaries (Φ10
+         *     GraphRAG), and knowledge entries. Each pairs hybrid (RRF
+         *     fusion) with a trigram-only baseline. Stable closed set;
+         *     adding a surface lands here once and the SQL aggregators
+         *     pick it up automatically through `all_wire_strings`.
          * @enum {string}
          */
         RetrievalSurface: "verified_query" | "community_summary" | "knowledge_entry";

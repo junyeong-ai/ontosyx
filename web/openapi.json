@@ -22354,7 +22354,7 @@
       },
       "EvaluationRunStatus": {
         "type": "string",
-        "description": "Status of an [`EvaluationRun`]. Wire shape is the snake_case\nstring (\"running\" / \"succeeded\" / …) so adding a future variant\nis a Rust-side change with no migration; the catalog parity\ntest pins the string set.",
+        "description": "Status of an [`EvaluationRun`]. Wire shape is the\nsnake_case string (\"running\" / \"succeeded\" / …) so adding\na future variant is a Rust-side change with no migration;\nthe catalog parity test pins the string set.",
         "enum": [
           "running",
           "succeeded",
@@ -25270,6 +25270,7 @@
       },
       "KnowledgeKind": {
         "type": "string",
+        "description": "What this knowledge entry represents — a `Correction`\ncaptures a query-failure resolution, a `Hint` is an\nadmin-authored prompt addition that doesn't trace back\nto a specific failure incident.",
         "enum": [
           "correction",
           "hint"
@@ -25311,6 +25312,7 @@
       },
       "KnowledgeStatus": {
         "type": "string",
+        "description": "Lifecycle state of a knowledge entry. `Draft` is the\nlanding state, `Approved` is the active retrieval set,\n`Stale` is the candidate-for-revisit bucket the\nstaleness sweep promotes into, and `Deprecated` is the\ntombstone state — kept for audit but excluded from\nretrieval.",
         "enum": [
           "draft",
           "approved",
@@ -28073,6 +28075,7 @@
       },
       "NotificationChannelType": {
         "type": "string",
+        "description": "Webhook destination kind. The discriminant drives the\nper-channel render branch on every [`super::EventPayload`]\nimplementation.",
         "enum": [
           "slack_webhook",
           "generic_webhook"
@@ -28080,7 +28083,7 @@
       },
       "NotificationEventType": {
         "type": "string",
-        "description": "Closed set of platform-emitted notification event types.\n\n`NotificationChannel.events` subscribes against the\nsnake_case wire string of one or more of these variants;\nevery dispatcher in `ox-api` selects channels through\n`Self::as_str` so the wire tag lives in one place.\n\nSame shape as `RetrievalSurface` / `RetrievalLeg` /\n`RetrievalAxis` / `EvaluationRunStatus` — `ALL` +\n`as_str(self) const fn` + `from_wire_str` +\n`all_wire_strings`. Adding a new event = one variant + one\n`ALL` entry + one `as_str` arm + the matching FE i18n key.\nThe `every_variant_in_all` test pins exhaustiveness so a\nnew variant that misses `ALL` fails to compile.",
+        "description": "Closed set of platform-emitted notification event types.\n`NotificationChannel.events` subscribes against the wire\nstring of one or more of these variants; every dispatcher\nin `ox-api` selects channels through `as_str` so the wire\ntag lives in one place. Adding a new event = one variant\nhere + one matching i18n key under\n`account.notifications.event.<wire>`.",
         "enum": [
           "quality_rule_passed",
           "quality_rule_failed",
@@ -28138,7 +28141,7 @@
       },
       "NotificationLogEventType": {
         "type": "string",
-        "description": "Closed set of event tags that may appear on a\n[`NotificationLog`] row. Superset of\n[`NotificationEventType`] (the subscribable platform events)\nplus the diagnostic-only [`Self::Test`] variant — recorded\nby the channel-test endpoint and never matched by a\nsubscription.\n\nSame shape as the other 4-enum family — `ALL` +\n`as_str(self) const fn` + `from_wire_str` +\n`all_wire_strings`. The `from_subscription` constructor is\ntotal — every [`NotificationEventType`] has a one-to-one\nlog mirror, pinned by the parity test\n`notification_log_event_type_round_trips_from_every_subscription_event`.",
+        "description": "Closed set of event tags that may appear on a\n[`NotificationLog`] row. Superset of\n[`NotificationEventType`] (the subscribable platform\nevents) plus the diagnostic-only [`Self::Test`] variant —\nrecorded by the channel-test endpoint and never matched\nby a subscription. The\n`from_every_subscription_event` parity test pins the\ntotal mapping a [`Self::from_subscription`] must honour.",
         "enum": [
           "quality_rule_passed",
           "quality_rule_failed",
@@ -28148,7 +28151,7 @@
       },
       "NotificationLogStatus": {
         "type": "string",
-        "description": "Closed set of [`NotificationLog`] delivery outcomes. Same\n4-enum shape — `ALL` + `as_str(self) const fn` +\n`from_wire_str` + `all_wire_strings`.",
+        "description": "Closed set of [`NotificationLog`] delivery outcomes.",
         "enum": [
           "sent",
           "failed"
@@ -36837,7 +36840,7 @@
       },
       "RetrievalSurface": {
         "type": "string",
-        "description": "The retrieval bank a [`EvaluationCaseInput::RetrievalComparison`]\ntargets. Each surface ships a hybrid path (RRF over trigram +\nFTS + optional pgvector) and a trigram-only baseline; the\ncomparison runs both legs and captures the lift.",
+        "description": "Retrieval surface — the storage / IR target a comparison\nrun scores. Three first-class surfaces today: verified\nqueries (Φ11 ICL bank), community summaries (Φ10\nGraphRAG), and knowledge entries. Each pairs hybrid (RRF\nfusion) with a trigram-only baseline. Stable closed set;\nadding a surface lands here once and the SQL aggregators\npick it up automatically through `all_wire_strings`.",
         "enum": [
           "verified_query",
           "community_summary",

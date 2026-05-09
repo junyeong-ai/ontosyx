@@ -132,3 +132,55 @@ runs on its own memory.
 
 `spawn_cron(task, Some(pool), cancel)` is the production call;
 `spawn_cron(task, None, cancel)` is test-only.
+
+## Notification dispatch — `EventPayload` trait + `dispatch_event<P>`
+
+Every webhook-emitted event is a value type implementing
+[`EventPayload`] (`crate::notifications`):
+
+```rust
+pub(crate) trait EventPayload {
+    fn event_type(&self) -> NotificationEventType;
+    fn subject(&self) -> String;
+    fn render(&self, channel: &NotificationChannel) -> serde_json::Value;
+}
+```
+
+The single generic `dispatch_event<P>(store: &dyn NotificationStore, ws_id, payload)`
+fans out — list channels subscribed to `payload.event_type()`,
+render once per channel, POST through the shared
+`WEBHOOK_CLIENT`, persist a `NotificationLog` row whether the
+delivery succeeded or failed. Adding a new event = a new
+payload struct + a 3-method `EventPayload` impl + a thin
+public dispatcher wrapper. The fan-out machinery does not
+change.
+
+`render(channel: &NotificationChannel)` (not `channel_type`)
+so payloads can weave channel metadata (`channel.name`) into
+the generic envelope — every Generic-webhook payload carries
+`channel_name` so a downstream listener that fans in multiple
+channels can attribute each delivery.
+
+The dispatcher takes `&dyn NotificationStore` (narrow), not
+`&dyn Store` — a focused contract that keeps the dependency
+explicit and lets `StubNotificationStore` in `test_support`
+drive integration tests without standing up Postgres.
+
+Slack section bodies are clamped through `clamp_slack_text`
+(2900-byte budget reserved against `'…'.len_utf8()`) so
+large-cardinality alarms (100+ alert cells) never overflow
+Slack's 3000-char limit.
+
+The SSRF guard on `validate_webhook_url` parses through
+`url::Host` + `IpAddr` — never prefix-string heuristics —
+matching RFC1918 / loopback / link-local / IPv6 ULA
+(`fc00::/7`) exactly, and a small explicit denylist for
+non-DNS-resolvable hostnames (`localhost`,
+`host.docker.internal`, `kubernetes.default[.svc]`).
+
+`NotificationEventType` (subscribable) is a strict subset of
+`NotificationLogEventType` (log row tag). The total
+`from_subscription` const fn promotes a subscription event to
+its log mirror; the parity test
+`notification_log_event_type_mirrors_every_subscription_event`
+fails if a future subscription variant lacks a log mirror.

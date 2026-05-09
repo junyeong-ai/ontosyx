@@ -11,6 +11,8 @@
 pub mod advisory_lock;
 pub mod community;
 pub mod evaluation;
+#[macro_use]
+mod wire_enum;
 pub mod inference;
 pub mod models;
 pub mod navigation;

@@ -1381,19 +1381,13 @@ pub struct NotificationChannel {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum NotificationChannelType {
-    SlackWebhook,
-    GenericWebhook,
-}
-
-impl NotificationChannelType {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::SlackWebhook => "slack_webhook",
-            Self::GenericWebhook => "generic_webhook",
-        }
+crate::wire_enum! {
+    /// Webhook destination kind. The discriminant drives the
+    /// per-channel render branch on every [`super::EventPayload`]
+    /// implementation.
+    pub enum NotificationChannelType {
+        SlackWebhook => "slack_webhook",
+        GenericWebhook => "generic_webhook",
     }
 }
 
@@ -1401,138 +1395,54 @@ impl std::str::FromStr for NotificationChannelType {
     type Err = String;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "slack_webhook" => Ok(Self::SlackWebhook),
-            "generic_webhook" => Ok(Self::GenericWebhook),
-            other => Err(format!("unknown notification channel type: {other}")),
-        }
+        Self::from_wire_str(value)
+            .ok_or_else(|| format!("unknown notification channel type: {value}"))
     }
 }
 
-impl std::fmt::Display for NotificationChannelType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-/// Closed set of platform-emitted notification event types.
-///
-/// `NotificationChannel.events` subscribes against the
-/// snake_case wire string of one or more of these variants;
-/// every dispatcher in `ox-api` selects channels through
-/// `Self::as_str` so the wire tag lives in one place.
-///
-/// Same shape as `RetrievalSurface` / `RetrievalLeg` /
-/// `RetrievalAxis` / `EvaluationRunStatus` — `ALL` +
-/// `as_str(self) const fn` + `from_wire_str` +
-/// `all_wire_strings`. Adding a new event = one variant + one
-/// `ALL` entry + one `as_str` arm + the matching FE i18n key.
-/// The `every_variant_in_all` test pins exhaustiveness so a
-/// new variant that misses `ALL` fails to compile.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum NotificationEventType {
-    QualityRulePassed,
-    QualityRuleFailed,
-    RetrievalLiftRegression,
-}
-
-impl NotificationEventType {
-    /// Every variant in declaration order. Single source of
-    /// truth for `from_wire_str` + `all_wire_strings` + the
-    /// FE event-toggle catalogue (re-exported through OpenAPI).
-    pub const ALL: &'static [Self] = &[
-        Self::QualityRulePassed,
-        Self::QualityRuleFailed,
-        Self::RetrievalLiftRegression,
-    ];
-
-    /// Stable wire string. Must match the FE i18n key under
+crate::wire_enum! {
+    /// Closed set of platform-emitted notification event types.
+    /// `NotificationChannel.events` subscribes against the wire
+    /// string of one or more of these variants; every dispatcher
+    /// in `ox-api` selects channels through `as_str` so the wire
+    /// tag lives in one place. Adding a new event = one variant
+    /// here + one matching i18n key under
     /// `account.notifications.event.<wire>`.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::QualityRulePassed => "quality_rule_passed",
-            Self::QualityRuleFailed => "quality_rule_failed",
-            Self::RetrievalLiftRegression => "retrieval_lift_regression",
-        }
-    }
-
-    /// Inverse of [`Self::as_str`]. Returns `None` on an
-    /// unrecognised tag — admin routes treat that as a 422
-    /// validation error so persisted `events` arrays can never
-    /// drift away from the closed set.
-    pub fn from_wire_str(s: &str) -> Option<Self> {
-        Self::ALL.iter().copied().find(|v| v.as_str() == s)
-    }
-
-    /// Wire-string bag for FE catalogue rendering and the
-    /// `events`-validation gate on admin write paths.
-    pub fn all_wire_strings() -> Vec<&'static str> {
-        Self::ALL.iter().copied().map(Self::as_str).collect()
+    pub enum NotificationEventType {
+        QualityRulePassed => "quality_rule_passed",
+        QualityRuleFailed => "quality_rule_failed",
+        RetrievalLiftRegression => "retrieval_lift_regression",
     }
 }
 
-impl std::fmt::Display for NotificationEventType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
+crate::wire_enum! {
+    /// Closed set of event tags that may appear on a
+    /// [`NotificationLog`] row. Superset of
+    /// [`NotificationEventType`] (the subscribable platform
+    /// events) plus the diagnostic-only [`Self::Test`] variant —
+    /// recorded by the channel-test endpoint and never matched
+    /// by a subscription. The
+    /// `from_every_subscription_event` parity test pins the
+    /// total mapping a [`Self::from_subscription`] must honour.
+    pub enum NotificationLogEventType {
+        QualityRulePassed => "quality_rule_passed",
+        QualityRuleFailed => "quality_rule_failed",
+        RetrievalLiftRegression => "retrieval_lift_regression",
+        /// Diagnostic delivery emitted by the channel-test
+        /// endpoint. Does not match any subscription — exists
+        /// so the log row carries a typed event marker for the
+        /// row the operator triggered.
+        Test => "test",
     }
-}
-
-/// Closed set of event tags that may appear on a
-/// [`NotificationLog`] row. Superset of
-/// [`NotificationEventType`] (the subscribable platform events)
-/// plus the diagnostic-only [`Self::Test`] variant — recorded
-/// by the channel-test endpoint and never matched by a
-/// subscription.
-///
-/// Same shape as the other 4-enum family — `ALL` +
-/// `as_str(self) const fn` + `from_wire_str` +
-/// `all_wire_strings`. The `from_subscription` constructor is
-/// total — every [`NotificationEventType`] has a one-to-one
-/// log mirror, pinned by the parity test
-/// `notification_log_event_type_round_trips_from_every_subscription_event`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum NotificationLogEventType {
-    QualityRulePassed,
-    QualityRuleFailed,
-    RetrievalLiftRegression,
-    /// Diagnostic delivery emitted by the channel-test
-    /// endpoint. Does not match any subscription — exists so
-    /// the log row carries a typed event marker for the row
-    /// the operator triggered.
-    Test,
 }
 
 impl NotificationLogEventType {
-    pub const ALL: &'static [Self] = &[
-        Self::QualityRulePassed,
-        Self::QualityRuleFailed,
-        Self::RetrievalLiftRegression,
-        Self::Test,
-    ];
-
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::QualityRulePassed => "quality_rule_passed",
-            Self::QualityRuleFailed => "quality_rule_failed",
-            Self::RetrievalLiftRegression => "retrieval_lift_regression",
-            Self::Test => "test",
-        }
-    }
-
-    pub fn from_wire_str(s: &str) -> Option<Self> {
-        Self::ALL.iter().copied().find(|v| v.as_str() == s)
-    }
-
-    pub fn all_wire_strings() -> Vec<&'static str> {
-        Self::ALL.iter().copied().map(Self::as_str).collect()
-    }
-
     /// Promote a subscribable [`NotificationEventType`] to its
     /// log mirror. The conversion is total — every
     /// platform-emitted log row originates either from a
-    /// subscription or the `Test` diagnostic.
+    /// subscription or the `Test` diagnostic. Adding a
+    /// `NotificationEventType` variant without extending this
+    /// match arm fails to compile.
     pub const fn from_subscription(e: NotificationEventType) -> Self {
         match e {
             NotificationEventType::QualityRulePassed => Self::QualityRulePassed,
@@ -1542,47 +1452,14 @@ impl NotificationLogEventType {
     }
 }
 
-impl std::fmt::Display for NotificationLogEventType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-/// Closed set of [`NotificationLog`] delivery outcomes. Same
-/// 4-enum shape — `ALL` + `as_str(self) const fn` +
-/// `from_wire_str` + `all_wire_strings`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum NotificationLogStatus {
-    /// Webhook returned a 2xx response.
-    Sent,
-    /// Transport error or non-2xx response — error message
-    /// lives on [`NotificationLog::error`].
-    Failed,
-}
-
-impl NotificationLogStatus {
-    pub const ALL: &'static [Self] = &[Self::Sent, Self::Failed];
-
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Sent => "sent",
-            Self::Failed => "failed",
-        }
-    }
-
-    pub fn from_wire_str(s: &str) -> Option<Self> {
-        Self::ALL.iter().copied().find(|v| v.as_str() == s)
-    }
-
-    pub fn all_wire_strings() -> Vec<&'static str> {
-        Self::ALL.iter().copied().map(Self::as_str).collect()
-    }
-}
-
-impl std::fmt::Display for NotificationLogStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
+crate::wire_enum! {
+    /// Closed set of [`NotificationLog`] delivery outcomes.
+    pub enum NotificationLogStatus {
+        /// Webhook returned a 2xx response.
+        Sent => "sent",
+        /// Transport error or non-2xx response — error message
+        /// lives on [`NotificationLog::error`].
+        Failed => "failed",
     }
 }
 
@@ -1664,77 +1541,29 @@ pub struct KnowledgeEntry {
     pub tokenizer_dict_fingerprint: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum KnowledgeKind {
-    Correction,
-    Hint,
-}
-
-impl KnowledgeKind {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Correction => "correction",
-            Self::Hint => "hint",
-        }
+crate::wire_enum! {
+    /// What this knowledge entry represents — a `Correction`
+    /// captures a query-failure resolution, a `Hint` is an
+    /// admin-authored prompt addition that doesn't trace back
+    /// to a specific failure incident.
+    pub enum KnowledgeKind {
+        Correction => "correction",
+        Hint => "hint",
     }
 }
 
-impl std::str::FromStr for KnowledgeKind {
-    type Err = String;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "correction" => Ok(Self::Correction),
-            "hint" => Ok(Self::Hint),
-            other => Err(format!("unknown knowledge kind: {other}")),
-        }
-    }
-}
-
-impl std::fmt::Display for KnowledgeKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum KnowledgeStatus {
-    Draft,
-    Approved,
-    Stale,
-    Deprecated,
-}
-
-impl KnowledgeStatus {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Draft => "draft",
-            Self::Approved => "approved",
-            Self::Stale => "stale",
-            Self::Deprecated => "deprecated",
-        }
-    }
-}
-
-impl std::str::FromStr for KnowledgeStatus {
-    type Err = String;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "draft" => Ok(Self::Draft),
-            "approved" => Ok(Self::Approved),
-            "stale" => Ok(Self::Stale),
-            "deprecated" => Ok(Self::Deprecated),
-            other => Err(format!("unknown knowledge status: {other}")),
-        }
-    }
-}
-
-impl std::fmt::Display for KnowledgeStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
+crate::wire_enum! {
+    /// Lifecycle state of a knowledge entry. `Draft` is the
+    /// landing state, `Approved` is the active retrieval set,
+    /// `Stale` is the candidate-for-revisit bucket the
+    /// staleness sweep promotes into, and `Deprecated` is the
+    /// tombstone state — kept for audit but excluded from
+    /// retrieval.
+    pub enum KnowledgeStatus {
+        Draft => "draft",
+        Approved => "approved",
+        Stale => "stale",
+        Deprecated => "deprecated",
     }
 }
 
@@ -1786,72 +1615,36 @@ fn default_empty_object() -> serde_json::Value {
 mod tests {
     use super::*;
 
+    // The generic shape (ALL exhaustiveness, from_wire_str
+    // round-trip, serde wire format, Display) is exercised by
+    // `wire_enum::tests` against the macro's probe enum. What we
+    // pin here is enum-specific: the variant *count* (so a
+    // dropped variant is caught), the bidirectional parity
+    // between subscription events and their log mirror, and any
+    // domain-specific invariants the macro can't know about.
+
     #[test]
-    fn notification_event_type_all_covers_every_variant() {
-        // Compile-time exhaustiveness — adding a variant to
-        // NotificationEventType without extending `ALL` makes
-        // this match fail to compile, surfacing the omission
-        // before runtime.
-        for v in NotificationEventType::ALL.iter().copied() {
-            match v {
-                NotificationEventType::QualityRulePassed
-                | NotificationEventType::QualityRuleFailed
-                | NotificationEventType::RetrievalLiftRegression => {}
-            }
-        }
+    fn notification_event_type_carries_three_variants() {
         assert_eq!(NotificationEventType::ALL.len(), 3);
     }
 
     #[test]
-    fn notification_event_type_round_trips_through_wire_str() {
-        for v in NotificationEventType::ALL.iter().copied() {
-            assert_eq!(NotificationEventType::from_wire_str(v.as_str()), Some(v));
-        }
-    }
-
-    #[test]
-    fn notification_event_type_unknown_wire_returns_none() {
-        assert_eq!(NotificationEventType::from_wire_str("not_an_event"), None);
-        assert_eq!(NotificationEventType::from_wire_str(""), None);
-    }
-
-    #[test]
-    fn notification_event_type_serde_uses_snake_case_wire_form() {
-        let v = NotificationEventType::RetrievalLiftRegression;
-        let s = serde_json::to_string(&v).expect("serde");
-        assert_eq!(s, "\"retrieval_lift_regression\"");
-        let back: NotificationEventType = serde_json::from_str(&s).expect("serde");
-        assert_eq!(back, v);
-    }
-
-    #[test]
-    fn notification_log_event_type_all_covers_every_variant() {
-        for v in NotificationLogEventType::ALL.iter().copied() {
-            match v {
-                NotificationLogEventType::QualityRulePassed
-                | NotificationLogEventType::QualityRuleFailed
-                | NotificationLogEventType::RetrievalLiftRegression
-                | NotificationLogEventType::Test => {}
-            }
-        }
+    fn notification_log_event_type_carries_four_variants_including_test() {
         assert_eq!(NotificationLogEventType::ALL.len(), 4);
+        assert!(
+            NotificationLogEventType::ALL.contains(&NotificationLogEventType::Test),
+            "Test diagnostic variant must remain in the log enum",
+        );
     }
 
     #[test]
-    fn notification_log_event_type_round_trips_through_wire_str() {
-        for v in NotificationLogEventType::ALL.iter().copied() {
-            assert_eq!(NotificationLogEventType::from_wire_str(v.as_str()), Some(v));
-        }
-    }
-
-    #[test]
-    fn notification_log_event_type_round_trips_from_every_subscription_event() {
-        // Pin the total mapping — adding a NotificationEventType
-        // variant forces a matching NotificationLogEventType
-        // variant + an arm in `from_subscription`. Without this
-        // gate, a subscription event would produce a log row
-        // with a wire string that fails to parse back into the
-        // typed `event_type` column on read.
+    fn notification_log_event_type_mirrors_every_subscription_event() {
+        // Adding a NotificationEventType variant forces a
+        // matching NotificationLogEventType variant + an arm
+        // in `from_subscription`. Without this gate, a
+        // subscription event would produce a log row with a
+        // wire string that fails to parse back into the typed
+        // `event_type` column on read.
         for v in NotificationEventType::ALL.iter().copied() {
             let log = NotificationLogEventType::from_subscription(v);
             assert_eq!(
@@ -1860,17 +1653,5 @@ mod tests {
                 "subscription→log mirror must preserve the wire string for {v:?}",
             );
         }
-    }
-
-    #[test]
-    fn notification_log_status_round_trips_through_wire_str() {
-        for v in NotificationLogStatus::ALL.iter().copied() {
-            match v {
-                NotificationLogStatus::Sent | NotificationLogStatus::Failed => {}
-            }
-            assert_eq!(NotificationLogStatus::from_wire_str(v.as_str()), Some(v));
-        }
-        assert_eq!(NotificationLogStatus::ALL.len(), 2);
-        assert_eq!(NotificationLogStatus::from_wire_str("nope"), None);
     }
 }
