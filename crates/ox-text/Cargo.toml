@@ -1,0 +1,36 @@
+[package]
+name = "ox-text"
+description = "Ontosyx text-processing primitives — workspace-aware tokenizer (lindera + ko-dic) + glossary-driven user-dictionary compiler + workspace registry with LRU"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+ox-core = { workspace = true }
+ox-ontology = { workspace = true }
+
+# Korean / Japanese / Chinese morphological analysis. The
+# `embed-ko-dic` feature bundles the mecab-ko-dic dictionary
+# into the binary so production deploys carry no external
+# dictionary file dependency.
+lindera = { version = "3.0", default-features = false, features = ["embed-ko-dic", "mmap"] }
+
+# Hot-swap shared state (workspace tokenizer publish on glossary commit).
+arc-swap = { workspace = true }
+# Concurrent map for the per-workspace tokenizer registry.
+dashmap = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+chrono = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

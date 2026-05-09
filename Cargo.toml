@@ -12,13 +12,14 @@ members = [
     "crates/ox-store",
     "crates/ox-source",
     "crates/ox-federation",
+    "crates/ox-text",
 ]
 resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.94"
+rust-version = "1.95.0"
 license = "MIT"
 # Every in-repo crate is private. Marking them unpublished lets
 # `cargo-deny`'s `allow-wildcard-paths` accept the `{ workspace = true }`
@@ -59,9 +60,10 @@ ox-compiler = { path = "crates/ox-compiler" }
 ox-graph-runtime = { path = "crates/ox-graph-runtime" }
 ox-brain = { path = "crates/ox-brain" }
 ox-store = { path = "crates/ox-store" }
-ox-source = { path = "crates/ox-source" }
+ox-source = { path = "crates/ox-source", default-features = false }
 ox-agent = { path = "crates/ox-agent" }
 ox-memory = { path = "crates/ox-memory" }
+ox-text = { path = "crates/ox-text" }
 ox-federation = { path = "crates/ox-federation" }
 ox-ontology = { path = "crates/ox-ontology" }
 ox-query-ir = { path = "crates/ox-query-ir" }
@@ -105,30 +107,27 @@ utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 neo4rs = "0.8"
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "mysql", "chrono", "uuid"] }
 mongodb = "3"
-duckdb = { version = "1", default-features = false, features = ["bundled"] }
-snowflake-api = "0.12"
-# Arrow — snowflake-api returns query results as Arrow RecordBatches; we
-# parse them directly rather than round-tripping through JSON. DataFusion
-# 50.x is also pinned to Arrow 55 so the federation engine and the
-# snowflake adapter share the same RecordBatch shape.
-arrow = "55"
-arrow-schema = "55"
-arrow-array = "55"
+duckdb = { version = "1.10502", default-features = false, features = ["bundled"] }
+snowflake-api = "0.14"
+# Arrow — adapters and federation exchange query results as Arrow
+# RecordBatches. Keep the direct dependency explicit so conversion code,
+# DataFusion, and DuckDB stay on one Arrow line.
+arrow = "58"
+arrow-schema = "58"
+arrow-array = "58"
 
 # Federation execution engine — see docs/adr/0002-datafusion-federation.md.
-# Pinned to the last release in the arrow-55 line so the workspace's
-# existing arrow-55 consumers (snowflake-api, ox-source profilers)
-# share one RecordBatch type with DataFusion. Bumping the major implies
-# a coordinated arrow upgrade for snowflake-api and the adapter layer.
-datafusion = "49"
+# Keep this aligned with the arrow-* versions above so all adapter
+# RecordBatch values cross the federation boundary without conversion.
+datafusion = { version = "53", default-features = false, features = ["sql"] }
 # BigQuery client — Application Default Credentials first, service-account
 # JSON file fallback. Default features use rustls.
-gcp-bigquery-client = "0.22"
+gcp-bigquery-client = "0.28"
 # OAuth2 / ADC token source — used by ox-source's `gcp_auth` module for the
 # BigQuery adapter and (under the `gcp-sm` feature) ox-api's Secret Manager
 # resolver. Same library `gcp-bigquery-client` uses internally, so the
 # workspace pulls one version regardless of feature flags.
-yup-oauth2 = "11"
+yup-oauth2 = "12"
 # hyper connector type — `Authenticator<HttpsConnector<HttpConnector>>`
 # needs `HttpConnector` from `hyper-util` (yup-oauth2 11 re-exports
 # `hyper-rustls` but not `hyper-util`).
@@ -138,9 +137,11 @@ hyper-util = "0.1"
 # transitively (snowflake-jwt, neo4rs). Pinning at the workspace keeps
 # the version aligned across direct + transitive use.
 base64 = "0.22"
+hex = "0.4"
 
-# LLM
-reqwest = { version = "0.13", features = ["json", "stream"] }
+# LLM / outbound HTTP. Keep TLS explicit so downstream crates cannot
+# re-enable reqwest's broad default surface implicitly.
+reqwest = { version = "0.13", default-features = false, features = ["charset", "http2", "json", "rustls", "stream"] }
 
 # AWS
 aws-config = { version = "1", features = ["behavior-version-latest"] }
@@ -148,18 +149,19 @@ aws-sdk-bedrockruntime = "1"
 
 # Configuration
 config = { version = "0.15", features = ["toml"] }
+dotenvy = "0.15"
 
 # File system / gitignore-aware walking (same as ripgrep)
 ignore = "0.4"
 tempfile = "3"
 
 # Test mocking — used by the ox-api handler test harness.
-mockall = "0.13"
+mockall = "0.14"
 
 # Crypto
 subtle = "2"
-jsonwebtoken = "9"
-sha2 = "0.10"
+jsonwebtoken = "10"
+sha2 = "0.11"
 # CSPRNG seed source — `rand::rngs::OsRng` for share-token / api-key
 # plaintexts. Hoisted to the workspace so every crate inherits the
 # same major and `OsRng`'s `getrandom` backend stays aligned.
@@ -181,11 +183,11 @@ rio_api = "0.8"
 rio_turtle = "0.8"
 
 # Scheduling
-cron = "0.15"
+cron = "0.16"
 
 # Metrics
 metrics = "0.24"
-metrics-exporter-prometheus = "0.18"
+metrics-exporter-prometheus = { version = "0.18", default-features = false }
 
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
@@ -198,7 +200,7 @@ tokio-util = { version = "0.7", features = ["rt"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 opentelemetry = { version = "0.31", features = ["trace"] }
 opentelemetry_sdk = { version = "0.31", features = ["rt-tokio", "trace"] }
-opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "trace"] }
+opentelemetry-otlp = { version = "0.31", default-features = false, features = ["grpc-tonic", "trace"] }
 tracing-opentelemetry = "0.32"
 
 
@@ -209,8 +211,8 @@ tracing-opentelemetry = "0.32"
 # Three-axis design — iteration speed, disk footprint, runtime
 # performance — tuned independently per profile.
 #
-# **Workspace constraint:** the dependency graph is wide (DataFusion 49
-# + Arrow 55 + tokio "full" + sqlx + duckdb + onnx + reqwest) and
+# **Workspace constraint:** the dependency graph is wide (DataFusion 53
+# + Arrow 58 + tokio "full" + sqlx + duckdb + onnx + reqwest) and
 # integration-test crates each statically link the entire graph. Default
 # Cargo dev settings (full DWARF + 256 codegen units + dev-debuginfo on
 # every transitive dep) push `target/` to ~150 GB on a clean build.
@@ -219,10 +221,12 @@ tracing-opentelemetry = "0.32"
 #
 # Profile axes:
 #
-#   `dev`     — `cargo build` / `cargo test` default. Fast incremental
-#               rebuilds, backtrace-friendly, minimal disk.
-#   `test`    — inherits `dev` so the on-disk artefact cache is shared
-#               across `cargo build` and `cargo test` invocations.
+#   `dev`     — `cargo build` / `cargo test` default. Backtrace-friendly,
+#               deterministic, and bounded in disk growth.
+#   `dev-fast`— opt-in profile for short-lived inner-loop work where
+#               incremental rebuild latency matters more than cache size.
+#   `test`    — inherits `dev` so local checks and integration tests use
+#               the bounded default cache shape.
 #   `release` — production binary. LTO, single codegen unit, stripped.
 #
 # Workspace-code debug info stays as `line-tables-only` so panics still
@@ -236,8 +240,8 @@ tracing-opentelemetry = "0.32"
 opt-level = 0
 debug = "line-tables-only"
 split-debuginfo = "unpacked"
-incremental = true
-codegen-units = 256
+incremental = false
+codegen-units = 64
 
 # Third-party deps don't get edited mid-iteration, so their debug info
 # is dead weight. Drop it entirely — cuts the largest single
@@ -293,6 +297,11 @@ debug = false
 [profile.test]
 inherits = "dev"
 
+[profile.dev-fast]
+inherits = "dev"
+incremental = true
+codegen-units = 256
+
 [profile.release]
 opt-level = 3
 debug = "line-tables-only"
@@ -301,3 +310,10 @@ codegen-units = 1
 strip = "debuginfo"
 incremental = false
 overflow-checks = false
+
+[profile.container]
+inherits = "release"
+debug = false
+lto = false
+codegen-units = 16
+strip = "symbols"
