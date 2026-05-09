@@ -9295,6 +9295,24 @@ export interface components {
         };
         /** @enum {string} */
         NotificationChannelType: "slack_webhook" | "generic_webhook";
+        /**
+         * @description Closed set of platform-emitted notification event types.
+         *
+         *     `NotificationChannel.events` subscribes against the
+         *     snake_case wire string of one or more of these variants;
+         *     every dispatcher in `ox-api` selects channels through
+         *     `Self::as_str` so the wire tag lives in one place.
+         *
+         *     Same shape as `RetrievalSurface` / `RetrievalLeg` /
+         *     `RetrievalAxis` / `EvaluationRunStatus` — `ALL` +
+         *     `as_str(self) const fn` + `from_wire_str` +
+         *     `all_wire_strings`. Adding a new event = one variant + one
+         *     `ALL` entry + one `as_str` arm + the matching FE i18n key.
+         *     The `every_variant_in_all` test pins exhaustiveness so a
+         *     new variant that misses `ALL` fails to compile.
+         * @enum {string}
+         */
+        NotificationEventType: "quality_rule_passed" | "quality_rule_failed" | "retrieval_lift_regression";
         NotificationLog: {
             body: string;
             /** Format: uuid */
@@ -12353,12 +12371,13 @@ export interface components {
          */
         RetrievalComparisonAggregate: {
             /**
-             * @description Axis tail of the metric name — `precision_at_k` /
-             *     `recall_at_k` / `mrr` / `ndcg_at_k`. The retrieval IR
-             *     scorer pins the closed set; new axes land here without
-             *     schema migration.
+             * @description Closed set — extending requires a [`RetrievalAxis`]
+             *     variant + the matching `RetrievalMetrics` field. The
+             *     SQL aggregator lifts the dotted-name axis tail and
+             *     converts via [`RetrievalAxis::from_wire_str`]; an
+             *     unknown axis drops the row from the typed aggregate.
              */
-            axis: string;
+            axis: components["schemas"]["RetrievalAxis"];
             /** Format: double */
             hybrid_mean: number;
             /**
@@ -12403,7 +12422,7 @@ export interface components {
          *     operator gauge whether the delta is statistically meaningful.
          */
         RetrievalComparisonDelta: {
-            axis: string;
+            axis: components["schemas"]["RetrievalAxis"];
             /** Format: double */
             baseline_lift: number;
             /** Format: int64 */
@@ -12435,7 +12454,7 @@ export interface components {
          *     aggregate uses.
          */
         RetrievalComparisonOutlier: {
-            axis: string;
+            axis: components["schemas"]["RetrievalAxis"];
             /** Format: uuid */
             case_id: string;
             case_key: string;
@@ -12486,7 +12505,7 @@ export interface components {
          *     settings field; the wire shape is already prepared.
          */
         RetrievalLiftRegressionAlert: {
-            axis: string;
+            axis: components["schemas"]["RetrievalAxis"];
             /** Format: double */
             baseline_lift: number;
             /** Format: double */

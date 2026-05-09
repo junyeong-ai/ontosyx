@@ -28077,6 +28077,15 @@
           "generic_webhook"
         ]
       },
+      "NotificationEventType": {
+        "type": "string",
+        "description": "Closed set of platform-emitted notification event types.\n\n`NotificationChannel.events` subscribes against the\nsnake_case wire string of one or more of these variants;\nevery dispatcher in `ox-api` selects channels through\n`Self::as_str` so the wire tag lives in one place.\n\nSame shape as `RetrievalSurface` / `RetrievalLeg` /\n`RetrievalAxis` / `EvaluationRunStatus` — `ALL` +\n`as_str(self) const fn` + `from_wire_str` +\n`all_wire_strings`. Adding a new event = one variant + one\n`ALL` entry + one `as_str` arm + the matching FE i18n key.\nThe `every_variant_in_all` test pins exhaustiveness so a\nnew variant that misses `ALL` fails to compile.",
+        "enum": [
+          "quality_rule_passed",
+          "quality_rule_failed",
+          "retrieval_lift_regression"
+        ]
+      },
       "NotificationLog": {
         "type": "object",
         "required": [
@@ -36443,8 +36452,8 @@
         ],
         "properties": {
           "axis": {
-            "type": "string",
-            "description": "Axis tail of the metric name — `precision_at_k` /\n`recall_at_k` / `mrr` / `ndcg_at_k`. The retrieval IR\nscorer pins the closed set; new axes land here without\nschema migration."
+            "$ref": "#/components/schemas/RetrievalAxis",
+            "description": "Closed set — extending requires a [`RetrievalAxis`]\nvariant + the matching `RetrievalMetrics` field. The\nSQL aggregator lifts the dotted-name axis tail and\nconverts via [`RetrievalAxis::from_wire_str`]; an\nunknown axis drops the row from the typed aggregate."
           },
           "hybrid_mean": {
             "type": "number",
@@ -36489,7 +36498,7 @@
         ],
         "properties": {
           "axis": {
-            "type": "string"
+            "$ref": "#/components/schemas/RetrievalAxis"
           },
           "baseline_lift": {
             "type": "number",
@@ -36533,7 +36542,7 @@
         ],
         "properties": {
           "axis": {
-            "type": "string"
+            "$ref": "#/components/schemas/RetrievalAxis"
           },
           "case_id": {
             "type": "string",
@@ -36608,7 +36617,7 @@
         ],
         "properties": {
           "axis": {
-            "type": "string"
+            "$ref": "#/components/schemas/RetrievalAxis"
           },
           "baseline_lift": {
             "type": "number",

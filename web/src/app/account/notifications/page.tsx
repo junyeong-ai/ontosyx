@@ -30,6 +30,7 @@ import {
   type NotificationChannel,
   type NotificationChannelType,
 } from "@/lib/api/notifications";
+import type { components } from "@/types/api.generated";
 
 // ---------------------------------------------------------------------------
 // Constants & type guards
@@ -37,12 +38,26 @@ import {
 
 const CHANNEL_TYPE_VALUES = ["slack_webhook", "generic_webhook"] as const;
 
+type NotificationEventType = components["schemas"]["NotificationEventType"];
+
+// Closed set of event tags that channels can subscribe to. The
+// `satisfies` clause ensures every entry is a member of the BE
+// enum; the `_AssertExhaustive` ratchet below catches the
+// reverse direction — a new BE variant that this catalogue
+// has not yet absorbed fails the typecheck.
 const EVENT_TYPE_VALUES = [
   "quality_rule_failed",
   "quality_rule_passed",
   "retrieval_lift_regression",
-] as const;
+] as const satisfies readonly NotificationEventType[];
+
 type KnownEventType = (typeof EVENT_TYPE_VALUES)[number];
+
+type _AssertExhaustive = Exclude<NotificationEventType, KnownEventType> extends never
+  ? true
+  : never;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _assertExhaustive: _AssertExhaustive = true;
 
 function isKnownEventType(s: string): s is KnownEventType {
   return (EVENT_TYPE_VALUES as readonly string[]).includes(s);

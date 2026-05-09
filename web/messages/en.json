@@ -78,6 +78,7 @@
     "api_response_invalid": "The server returned an invalid API response. Refresh and try again.",
     "role_required": "This action requires {role, select, admin {admin privileges} designer {designer or admin privileges} other {{role} privileges}}.",
     "webhook_url_invalid": "{reason, select, parse_failed {The webhook URL is malformed.} bad_scheme {Webhook URL must use http or https.} internal_network {Webhook URL cannot target an internal network address.} other {The webhook URL is invalid.}}",
+    "notification_event_unknown": "Unknown notification event \"{event}\". Pick one of the supported events.",
     "credential_resolve_failed": "Couldn't resolve {scheme, select, env {environment-variable} file {file} gcp_secret {GCP Secret Manager} other {secret}} reference ({kind}). {detail}",
     "agent_error": "Agent execution failed. {detail}",
     "design_error": "Design phase failed. {detail}",

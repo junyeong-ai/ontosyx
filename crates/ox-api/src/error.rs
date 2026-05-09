@@ -372,6 +372,11 @@ pub enum ApiErrorCode {
     /// store. The catalog template renders distinct copy per
     /// `(scheme, kind)` pair.
     CredentialResolveFailed,
+    /// `NotificationChannel.events` carried a wire string that
+    /// is not in `NotificationEventType::ALL`. `params.event` =
+    /// the offending tag so the FE can surface it back to the
+    /// admin.
+    NotificationEventUnknown,
     // ----- 5xx server errors -----
     InternalError,
     NotImplemented,
@@ -488,6 +493,7 @@ impl ApiErrorCode {
             RoleRequired => "role_required",
             WebhookUrlInvalid => "webhook_url_invalid",
             CredentialResolveFailed => "credential_resolve_failed",
+            NotificationEventUnknown => "notification_event_unknown",
             InternalError => "internal_error",
             NotImplemented => "not_implemented",
             Unsupported => "unsupported",
@@ -1249,6 +1255,14 @@ impl AppError {
             .with_param("reason", reason.into())
     }
 
+    /// `NotificationChannel.events` carried a wire string outside
+    /// `NotificationEventType::ALL`. The catalog renders the
+    /// offending event tag so the admin can correct the request.
+    pub fn notification_event_unknown(event: impl Into<String>) -> Self {
+        Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::NotificationEventUnknown)
+            .with_param("event", event.into())
+    }
+
     /// Credential reference failed to resolve.
     /// `scheme` ∈ `env` / `file` / `gcp_secret`,
     /// `kind` ∈ `invalid_reference` / `resolve_failed` /
@@ -1588,6 +1602,7 @@ mod redaction_tests {
             RoleRequired,
             WebhookUrlInvalid,
             CredentialResolveFailed,
+            NotificationEventUnknown,
         ];
         for code in all {
             assert!(!code.as_str().is_empty(), "{code:?} has empty wire string");

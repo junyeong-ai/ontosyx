@@ -1,24 +1,41 @@
-//! Webhook notification dispatch — shared client, validation, and
-//! the quality-rule fire-and-forget dispatcher.
+//! Webhook notification dispatch — shared client, validation,
+//! and the per-event payload renderers.
 //!
-//! `routes::notifications` owns the HTTP surface; this module owns
-//! the in-process plumbing so the routes/ directory stays
+//! `routes::notifications` owns the HTTP surface; this module
+//! owns the in-process plumbing so the routes/ directory stays
 //! handlers-only.
+//!
+//! ## Architecture
+//!
+//! Every notification event is a value type that implements
+//! [`EventPayload`]. A single generic [`dispatch_event`] drives
+//! the fan-out — list subscribed channels, render the payload
+//! per channel type, POST through the shared
+//! [`WEBHOOK_CLIENT`], and persist a [`NotificationLog`] row
+//! with the verbatim payload + delivery status. Adding a new
+//! event = a new payload struct + an [`EventPayload`] impl;
+//! the fan-out machinery does not change.
+//!
+//! Channel-typed rendering decisions (Slack Block Kit vs
+//! generic JSON envelope) live on each payload's [`render`]
+//! method, not in the dispatcher — Slack-incoming-webhook
+//! limits (3000-char-per-section) are clamped through the
+//! shared [`clamp_slack_text`] helper so every event respects
+//! the same upstream constraint.
 
-use chrono::Utc;
+use std::time::Duration;
+
+use chrono::{DateTime, Utc};
+use serde_json::json;
 use tracing::warn;
 use uuid::Uuid;
 
 use ox_store::evaluation::RetrievalLiftRegressionAlert;
-use ox_store::{NotificationChannel, NotificationChannelType, NotificationLog};
+use ox_store::{
+    NotificationChannel, NotificationChannelType, NotificationEventType, NotificationLog,
+};
 
 use crate::error::AppError;
-
-/// Stable event-type tag the [`NotificationChannel.events`] list
-/// subscribes against for hybrid-retrieval lift regression
-/// fan-out. Pinned by [`tests::event_type_string_is_stable`] so a
-/// rename never silently disconnects existing channels.
-pub const EVENT_TYPE_RETRIEVAL_LIFT_REGRESSION: &str = "retrieval_lift_regression";
 
 // ---------------------------------------------------------------------------
 // Shared reqwest client (created once, reused across all webhook calls)
@@ -26,14 +43,29 @@ pub const EVENT_TYPE_RETRIEVAL_LIFT_REGRESSION: &str = "retrieval_lift_regressio
 
 #[allow(clippy::expect_used)]
 static WEBHOOK_CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
-    // Startup-only: the default reqwest client builder has no fallible
-    // configuration we care about (no TLS cert paths etc.), so a failure
-    // here is a runtime/platform bug that warrants aborting.
+    // Startup-only: the default reqwest client builder has no
+    // fallible configuration we care about (no TLS cert paths
+    // etc.), so a failure here is a runtime/platform bug that
+    // warrants aborting.
     reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
+        .timeout(Duration::from_secs(10))
         .build()
         .expect("failed to create webhook HTTP client")
 });
+
+/// Slack incoming-webhook section blocks cap each block's
+/// `text.text` at 3000 chars. We clamp at 2900 to keep
+/// headroom for downstream tweaks; the truncation routine
+/// reserves three more bytes for the `…` marker so the
+/// returned length is `≤ SLACK_SECTION_TEXT_LIMIT` even after
+/// the marker is appended.
+const SLACK_SECTION_TEXT_LIMIT: usize = 2900;
+
+/// Byte length of the ellipsis sentinel — computed at
+/// compile time so the truncation budget below can never
+/// drift from the actual marker.
+const TRUNCATION_MARKER: char = '…';
+const TRUNCATION_MARKER_BYTES: usize = TRUNCATION_MARKER.len_utf8();
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -70,214 +102,89 @@ pub(crate) fn validate_webhook_url(url: &str) -> Result<(), AppError> {
 }
 
 // ---------------------------------------------------------------------------
-// Webhook dispatch
+// Diagnostic delivery (admin "test channel" endpoint)
 // ---------------------------------------------------------------------------
 
-/// Send a webhook notification to a channel. Uses the shared
-/// `WEBHOOK_CLIENT` for connection pooling.
-pub(crate) async fn send_webhook(
+/// One-shot delivery used by `POST
+/// /api/notifications/channels/{id}/test`. The test endpoint
+/// is *not* an event — it bypasses the subscription fan-out
+/// and posts a single message to the channel that was just
+/// configured. Lives here (not in routes/) so the
+/// channel-typed payload shape stays next to its peer
+/// renderers and the shared transport.
+pub(crate) async fn send_test_message(
     channel: &NotificationChannel,
     subject: &str,
     body: &str,
 ) -> Result<(), String> {
-    let url = &channel.config.url;
-
     let payload = match channel.channel_type {
-        NotificationChannelType::SlackWebhook => {
-            let text = format!("*{subject}*\n{body}");
-            // Slack limits messages to ~4000 chars; truncate safely at char boundary
-            let truncated = if text.len() > 3500 {
-                let end = text.floor_char_boundary(3497);
-                format!("{}...", &text[..end])
-            } else {
-                text
-            };
-            serde_json::json!({ "text": truncated })
-        }
-        NotificationChannelType::GenericWebhook => serde_json::json!({
+        NotificationChannelType::SlackWebhook => json!({
+            "text": clamp_slack_text(format!("*{subject}*\n{body}")),
+        }),
+        NotificationChannelType::GenericWebhook => json!({
             "subject": subject,
             "body": body,
             "channel": channel.name,
+            "at": Utc::now().to_rfc3339(),
         }),
     };
-
-    let mut request = WEBHOOK_CLIENT.post(url).json(&payload);
-
-    // Apply custom headers from config (e.g. Authorization)
-    for (key, value) in &channel.config.headers {
-        request = request.header(key, value);
-    }
-
-    let response = request
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {e}"))?;
-
-    if response.status().is_success() {
-        Ok(())
-    } else {
-        Err(format!(
-            "HTTP {}: {}",
-            response.status(),
-            response.status().canonical_reason().unwrap_or("Unknown")
-        ))
-    }
-}
-
-/// Fire-and-forget notification dispatch. Called from quality.rs
-/// after rule execution. Queries enabled channels for the given
-/// event type, formats a message, and sends to each configured
-/// webhook. Failures are logged but not propagated. Caller must
-/// ensure workspace context is set via `spawn_scoped` so RLS
-/// queries succeed.
-pub(crate) async fn dispatch_quality_notification(
-    store: &dyn ox_store::store::Store,
-    workspace_id: Uuid,
-    rule_name: &str,
-    passed: bool,
-    actual_value: Option<f64>,
-) {
-    let event_type = if passed {
-        "quality_rule_passed"
-    } else {
-        "quality_rule_failed"
-    };
-
-    let channels = match store.list_channels_for_event(event_type).await {
-        Ok(ch) => ch,
-        Err(e) => {
-            warn!(error = %e, "Failed to list notification channels");
-            return;
-        }
-    };
-
-    if channels.is_empty() {
-        return;
-    }
-
-    let status_text = if passed { "PASSED" } else { "FAILED" };
-    let subject = format!("Quality Rule {status_text}: {rule_name}");
-    let body = if let Some(val) = actual_value {
-        format!("Quality rule \"{rule_name}\" {status_text} (score: {val:.1}%)")
-    } else {
-        format!("Quality rule \"{rule_name}\" {status_text}")
-    };
-
-    for channel in &channels {
-        let send_result = send_webhook(channel, &subject, &body).await;
-
-        let log = NotificationLog {
-            id: Uuid::new_v4(),
-            workspace_id,
-            channel_id: channel.id,
-            event_type: event_type.to_string(),
-            subject: subject.clone(),
-            body: body.clone(),
-            status: if send_result.is_ok() {
-                "sent".into()
-            } else {
-                "failed".into()
-            },
-            error: send_result.err(),
-            created_at: Utc::now(),
-        };
-
-        if let Err(e) = store.create_notification_log(&log).await {
-            warn!(channel_id = %channel.id, error = %e, "Failed to record notification log");
-        }
-    }
+    send_payload(channel, &payload).await
 }
 
 // ---------------------------------------------------------------------------
-// Retrieval-lift regression dispatcher
+// EventPayload trait + generic fan-out
 // ---------------------------------------------------------------------------
 
-/// Fire-and-forget hybrid-retrieval lift-regression fan-out.
+/// Polymorphic event payload. Each variant of the platform's
+/// notification surface (quality-rule transition, retrieval-lift
+/// regression, …) is a value type that decides three things:
 ///
-/// Called from `compare_evaluation_runs` after the report's
-/// `lift_regression_alerts` is non-empty. Each enabled channel
-/// subscribed to `retrieval_lift_regression` receives a
-/// structured payload:
+/// 1. Which subscription tag to fan out under
+///    ([`event_type`](Self::event_type)).
+/// 2. The human-readable subject persisted on the
+///    [`NotificationLog`] row ([`subject`](Self::subject)).
+/// 3. The wire payload per channel type
+///    ([`render`](Self::render)) — Slack Block Kit vs generic
+///    JSON envelope.
 ///
-/// - **Slack** — Block Kit (`text` + `blocks`) so the alert
-///   renders as a header + bulleted breakdown + run-id context
-///   line. Slack's text-only fallback covers clients that
-///   ignore blocks.
-/// - **Generic** — `{ event, baseline_run_id, candidate_run_id,
-///   alerts: [...] }` envelope so operators wire any HTTP
-///   listener (Teams, Discord, internal alert manager).
-///
-/// Caller MUST run inside `WORKSPACE_ID.scope` (typically by
-/// wrapping in `spawn_scoped`) so the RLS-backed channel +
-/// log queries succeed.
-pub(crate) async fn dispatch_retrieval_lift_regression(
-    store: &dyn ox_store::store::Store,
-    workspace_id: Uuid,
-    baseline_run_id: Uuid,
-    candidate_run_id: Uuid,
-    alerts: &[RetrievalLiftRegressionAlert],
-) {
-    if alerts.is_empty() {
-        return;
-    }
-
-    let channels = match store
-        .list_channels_for_event(EVENT_TYPE_RETRIEVAL_LIFT_REGRESSION)
-        .await
-    {
-        Ok(ch) => ch,
-        Err(e) => {
-            warn!(error = %e, "Failed to list notification channels for retrieval-lift regression");
-            return;
-        }
-    };
-
-    if channels.is_empty() {
-        return;
-    }
-
-    let subject = format!(
-        "Hybrid retrieval lift regression — {} cell(s)",
-        alerts.len()
-    );
-
-    for channel in &channels {
-        let payload =
-            render_retrieval_lift_payload(channel, baseline_run_id, candidate_run_id, alerts);
-        let send_result = post_payload(channel, &payload).await;
-
-        let log = NotificationLog {
-            id: Uuid::new_v4(),
-            workspace_id,
-            channel_id: channel.id,
-            event_type: EVENT_TYPE_RETRIEVAL_LIFT_REGRESSION.to_string(),
-            subject: subject.clone(),
-            body: payload.to_string(),
-            status: if send_result.is_ok() {
-                "sent".into()
-            } else {
-                "failed".into()
-            },
-            error: send_result.err(),
-            created_at: Utc::now(),
-        };
-
-        if let Err(e) = store.create_notification_log(&log).await {
-            warn!(
-                channel_id = %channel.id,
-                error = %e,
-                "Failed to record retrieval-lift notification log",
-            );
-        }
-    }
+/// The trait is `pub(crate)` because the only legitimate
+/// callers are the route handlers in this crate that produce
+/// the typed payload. External crates have no reason to
+/// fabricate a notification event.
+pub(crate) trait EventPayload {
+    fn event_type(&self) -> NotificationEventType;
+    fn subject(&self) -> String;
+    fn render(&self, channel_type: NotificationChannelType) -> serde_json::Value;
 }
 
-/// POST a pre-rendered JSON payload to the channel webhook,
-/// applying the channel's custom headers (e.g. `Authorization:
-/// Bearer …`). Returns `Err` on transport failure or non-2xx
-/// status — the caller persists the message verbatim into
-/// `NotificationLog.error`.
-async fn post_payload(
+/// Truncate a Slack section body at the closest char boundary
+/// below [`SLACK_SECTION_TEXT_LIMIT`] and append the
+/// [`TRUNCATION_MARKER`] so the truncation is visible to the
+/// operator. Slack rejects section blocks whose `text.text`
+/// exceeds 3000 chars — every event renderer feeds bullet
+/// bodies through this helper so large-cardinality alarms stay
+/// deliverable. The byte budget reserves
+/// [`TRUNCATION_MARKER_BYTES`] up front so the returned string
+/// is always `≤ SLACK_SECTION_TEXT_LIMIT` after the marker is
+/// appended.
+fn clamp_slack_text(s: String) -> String {
+    if s.len() <= SLACK_SECTION_TEXT_LIMIT {
+        return s;
+    }
+    let budget = SLACK_SECTION_TEXT_LIMIT - TRUNCATION_MARKER_BYTES;
+    let end = s.floor_char_boundary(budget);
+    let mut out = s;
+    out.truncate(end);
+    out.push(TRUNCATION_MARKER);
+    out
+}
+
+/// Single transport. POST a pre-rendered JSON payload to the
+/// channel webhook, applying the channel's custom headers
+/// (e.g. `Authorization: Bearer …`). Returns `Err` on
+/// transport failure or non-2xx — the caller persists the
+/// message verbatim into [`NotificationLog::error`].
+async fn send_payload(
     channel: &NotificationChannel,
     payload: &serde_json::Value,
 ) -> Result<(), String> {
@@ -300,82 +207,268 @@ async fn post_payload(
     }
 }
 
-fn render_retrieval_lift_payload(
-    channel: &NotificationChannel,
-    baseline_run_id: Uuid,
-    candidate_run_id: Uuid,
-    alerts: &[RetrievalLiftRegressionAlert],
-) -> serde_json::Value {
-    match channel.channel_type {
-        NotificationChannelType::SlackWebhook => {
-            render_retrieval_lift_slack(baseline_run_id, candidate_run_id, alerts)
+/// Generic fan-out — list channels subscribed to
+/// `payload.event_type()`, render once per channel, POST, and
+/// persist a [`NotificationLog`] row whether the delivery
+/// succeeded or failed. The caller MUST run inside
+/// `WORKSPACE_ID.scope` (typically through `spawn_scoped`) so
+/// the RLS-backed channel + log queries succeed.
+pub(crate) async fn dispatch_event<P: EventPayload>(
+    store: &dyn ox_store::store::Store,
+    workspace_id: Uuid,
+    payload: &P,
+) {
+    let event_type = payload.event_type();
+    let channels = match store.list_channels_for_event(event_type.as_str()).await {
+        Ok(ch) => ch,
+        Err(e) => {
+            warn!(
+                event_type = event_type.as_str(),
+                error = %e,
+                "Failed to list notification channels",
+            );
+            return;
         }
-        NotificationChannelType::GenericWebhook => {
-            render_retrieval_lift_generic(baseline_run_id, candidate_run_id, alerts)
+    };
+
+    if channels.is_empty() {
+        return;
+    }
+
+    let subject = payload.subject();
+
+    for channel in &channels {
+        let body = payload.render(channel.channel_type);
+        let send_result = send_payload(channel, &body).await;
+
+        let log = NotificationLog {
+            id: Uuid::new_v4(),
+            workspace_id,
+            channel_id: channel.id,
+            event_type: event_type.as_str().to_string(),
+            subject: subject.clone(),
+            body: body.to_string(),
+            status: if send_result.is_ok() {
+                "sent".into()
+            } else {
+                "failed".into()
+            },
+            error: send_result.err(),
+            created_at: Utc::now(),
+        };
+
+        if let Err(e) = store.create_notification_log(&log).await {
+            warn!(
+                channel_id = %channel.id,
+                event_type = event_type.as_str(),
+                error = %e,
+                "Failed to record notification log",
+            );
         }
     }
 }
 
-fn render_retrieval_lift_slack(
-    baseline_run_id: Uuid,
-    candidate_run_id: Uuid,
-    alerts: &[RetrievalLiftRegressionAlert],
-) -> serde_json::Value {
-    let summary = format!(
-        ":rotating_light: Hybrid retrieval lift regression — {} cell(s)",
-        alerts.len(),
-    );
-    let mut bullets = String::with_capacity(alerts.len() * 96);
-    for a in alerts {
-        bullets.push_str(&format!(
-            "• `{}` · `{}` — Δ {:+.3} (threshold {:.3}, n={})\n",
-            a.surface.as_str(),
-            a.axis.as_str(),
-            a.lift_delta,
-            a.threshold,
-            a.candidate_paired_case_count,
-        ));
-    }
-    let runs_line = format!(
-        "_baseline `{baseline_run_id}` → candidate `{candidate_run_id}`_"
-    );
-    serde_json::json!({
-        "text": summary,
-        "blocks": [
-            { "type": "section", "text": { "type": "mrkdwn", "text": summary } },
-            { "type": "section", "text": { "type": "mrkdwn", "text": bullets } },
-            { "type": "context", "elements": [
-                { "type": "mrkdwn", "text": runs_line }
-            ]}
-        ],
-    })
+// ---------------------------------------------------------------------------
+// Quality-rule payload
+// ---------------------------------------------------------------------------
+
+pub(crate) struct QualityRulePayload {
+    rule_name: String,
+    passed: bool,
+    actual_value: Option<f64>,
+    at: DateTime<Utc>,
 }
 
-fn render_retrieval_lift_generic(
+impl QualityRulePayload {
+    pub(crate) fn new(rule_name: String, passed: bool, actual_value: Option<f64>) -> Self {
+        Self {
+            rule_name,
+            passed,
+            actual_value,
+            at: Utc::now(),
+        }
+    }
+
+    fn status_text(&self) -> &'static str {
+        if self.passed { "PASSED" } else { "FAILED" }
+    }
+}
+
+impl EventPayload for QualityRulePayload {
+    fn event_type(&self) -> NotificationEventType {
+        if self.passed {
+            NotificationEventType::QualityRulePassed
+        } else {
+            NotificationEventType::QualityRuleFailed
+        }
+    }
+
+    fn subject(&self) -> String {
+        format!(
+            "Quality Rule {status}: {rule}",
+            status = self.status_text(),
+            rule = self.rule_name,
+        )
+    }
+
+    fn render(&self, channel_type: NotificationChannelType) -> serde_json::Value {
+        let body = match self.actual_value {
+            Some(val) => format!(
+                "Quality rule \"{name}\" {status} (score: {val:.1}%)",
+                name = self.rule_name,
+                status = self.status_text(),
+            ),
+            None => format!(
+                "Quality rule \"{name}\" {status}",
+                name = self.rule_name,
+                status = self.status_text(),
+            ),
+        };
+        match channel_type {
+            NotificationChannelType::SlackWebhook => json!({
+                "text": clamp_slack_text(format!("*{}*\n{}", self.subject(), body)),
+            }),
+            NotificationChannelType::GenericWebhook => json!({
+                "event": self.event_type().as_str(),
+                "rule_name": self.rule_name,
+                "passed": self.passed,
+                "actual_value": self.actual_value,
+                "at": self.at.to_rfc3339(),
+            }),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Retrieval-lift regression payload
+// ---------------------------------------------------------------------------
+
+pub(crate) struct RetrievalLiftRegressionPayload {
+    baseline_run_id: Uuid,
+    candidate_run_id: Uuid,
+    alerts: Vec<RetrievalLiftRegressionAlert>,
+    at: DateTime<Utc>,
+}
+
+impl RetrievalLiftRegressionPayload {
+    pub(crate) fn new(
+        baseline_run_id: Uuid,
+        candidate_run_id: Uuid,
+        alerts: Vec<RetrievalLiftRegressionAlert>,
+    ) -> Self {
+        Self {
+            baseline_run_id,
+            candidate_run_id,
+            alerts,
+            at: Utc::now(),
+        }
+    }
+}
+
+impl EventPayload for RetrievalLiftRegressionPayload {
+    fn event_type(&self) -> NotificationEventType {
+        NotificationEventType::RetrievalLiftRegression
+    }
+
+    fn subject(&self) -> String {
+        format!(
+            "Hybrid retrieval lift regression — {} cell(s)",
+            self.alerts.len(),
+        )
+    }
+
+    fn render(&self, channel_type: NotificationChannelType) -> serde_json::Value {
+        match channel_type {
+            NotificationChannelType::SlackWebhook => {
+                let summary = format!(
+                    ":rotating_light: Hybrid retrieval lift regression — {} cell(s)",
+                    self.alerts.len(),
+                );
+                let mut bullets = String::with_capacity(self.alerts.len() * 96);
+                for a in &self.alerts {
+                    bullets.push_str(&format!(
+                        "• `{}` · `{}` — Δ {:+.3} (threshold {:.3}, n={})\n",
+                        a.surface.as_str(),
+                        a.axis.as_str(),
+                        a.lift_delta,
+                        a.threshold,
+                        a.candidate_paired_case_count,
+                    ));
+                }
+                let bullets = clamp_slack_text(bullets);
+                let runs_line = format!(
+                    "_baseline `{}` → candidate `{}` · {}_",
+                    self.baseline_run_id,
+                    self.candidate_run_id,
+                    self.at.to_rfc3339(),
+                );
+                json!({
+                    "text": summary,
+                    "blocks": [
+                        { "type": "section", "text": { "type": "mrkdwn", "text": summary } },
+                        { "type": "section", "text": { "type": "mrkdwn", "text": bullets } },
+                        { "type": "context", "elements": [
+                            { "type": "mrkdwn", "text": runs_line }
+                        ]}
+                    ],
+                })
+            }
+            NotificationChannelType::GenericWebhook => {
+                let alert_objs: Vec<serde_json::Value> = self
+                    .alerts
+                    .iter()
+                    .map(|a| {
+                        json!({
+                            "surface": a.surface.as_str(),
+                            "axis": a.axis.as_str(),
+                            "lift_delta": a.lift_delta,
+                            "baseline_lift": a.baseline_lift,
+                            "candidate_lift": a.candidate_lift,
+                            "threshold": a.threshold,
+                            "candidate_paired_case_count": a.candidate_paired_case_count,
+                        })
+                    })
+                    .collect();
+                json!({
+                    "event": self.event_type().as_str(),
+                    "baseline_run_id": self.baseline_run_id,
+                    "candidate_run_id": self.candidate_run_id,
+                    "at": self.at.to_rfc3339(),
+                    "alerts": alert_objs,
+                })
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Public dispatch entry-points (thin wrappers over `dispatch_event`)
+// ---------------------------------------------------------------------------
+
+pub(crate) async fn dispatch_quality_notification(
+    store: &dyn ox_store::store::Store,
+    workspace_id: Uuid,
+    rule_name: &str,
+    passed: bool,
+    actual_value: Option<f64>,
+) {
+    let payload = QualityRulePayload::new(rule_name.to_string(), passed, actual_value);
+    dispatch_event(store, workspace_id, &payload).await;
+}
+
+pub(crate) async fn dispatch_retrieval_lift_regression(
+    store: &dyn ox_store::store::Store,
+    workspace_id: Uuid,
     baseline_run_id: Uuid,
     candidate_run_id: Uuid,
     alerts: &[RetrievalLiftRegressionAlert],
-) -> serde_json::Value {
-    let alert_objs: Vec<serde_json::Value> = alerts
-        .iter()
-        .map(|a| {
-            serde_json::json!({
-                "surface": a.surface.as_str(),
-                "axis": a.axis.as_str(),
-                "lift_delta": a.lift_delta,
-                "baseline_lift": a.baseline_lift,
-                "candidate_lift": a.candidate_lift,
-                "threshold": a.threshold,
-                "candidate_paired_case_count": a.candidate_paired_case_count,
-            })
-        })
-        .collect();
-    serde_json::json!({
-        "event": EVENT_TYPE_RETRIEVAL_LIFT_REGRESSION,
-        "baseline_run_id": baseline_run_id,
-        "candidate_run_id": candidate_run_id,
-        "alerts": alert_objs,
-    })
+) {
+    if alerts.is_empty() {
+        return;
+    }
+    let payload =
+        RetrievalLiftRegressionPayload::new(baseline_run_id, candidate_run_id, alerts.to_vec());
+    dispatch_event(store, workspace_id, &payload).await;
 }
 
 #[cfg(test)]
@@ -395,31 +488,93 @@ mod tests {
         }
     }
 
+    fn lift_payload(n: usize) -> RetrievalLiftRegressionPayload {
+        RetrievalLiftRegressionPayload::new(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            std::iter::repeat_with(sample_alert).take(n).collect(),
+        )
+    }
+
+    // -- shared helpers --
+
     #[test]
-    fn event_type_string_is_stable() {
-        // Renaming this constant silently disconnects every existing
-        // channel subscription. Pinned here so a future PR has to
-        // update the test alongside the rename — the diff makes the
-        // breaking change visible.
-        assert_eq!(
-            EVENT_TYPE_RETRIEVAL_LIFT_REGRESSION,
-            "retrieval_lift_regression"
-        );
+    fn clamp_slack_text_passes_short_input_through() {
+        let s = "short text".to_string();
+        assert_eq!(clamp_slack_text(s.clone()), s);
     }
 
     #[test]
-    fn slack_payload_carries_text_and_blocks() {
-        let v = render_retrieval_lift_slack(Uuid::new_v4(), Uuid::new_v4(), &[sample_alert()]);
-        let text = v["text"].as_str().expect("Slack payload must carry `text` for fallback");
-        assert!(v.get("blocks").is_some(), "Slack payload must carry `blocks`");
+    fn clamp_slack_text_truncates_with_marker_and_respects_char_boundary() {
+        // 4000 ASCII chars → exceeds 2900 → must truncate +
+        // append the … marker. Final length is bounded by
+        // SLACK_SECTION_TEXT_LIMIT.
+        let big = "x".repeat(4000);
+        let out = clamp_slack_text(big);
+        assert!(out.ends_with('…'));
+        assert!(out.chars().count() <= SLACK_SECTION_TEXT_LIMIT);
+        // No mid-codepoint slicing — Korean codepoints (3-byte
+        // UTF-8) repeated past the limit must still produce
+        // valid UTF-8.
+        let mixed = "한".repeat(2000); // 6000 bytes
+        let out = clamp_slack_text(mixed);
+        // Just-must-be-valid-UTF-8 — `String::truncate` panics
+        // mid-codepoint, so this asserts `floor_char_boundary`
+        // saved us. The clamp also leaves headroom for `…`.
+        assert!(out.ends_with('…'));
+        assert!(out.len() <= SLACK_SECTION_TEXT_LIMIT);
+    }
+
+    // -- QualityRulePayload --
+
+    #[test]
+    fn quality_payload_event_type_branches_on_passed_flag() {
+        let pass = QualityRulePayload::new("r".into(), true, None);
+        let fail = QualityRulePayload::new("r".into(), false, None);
+        assert_eq!(pass.event_type(), NotificationEventType::QualityRulePassed);
+        assert_eq!(fail.event_type(), NotificationEventType::QualityRuleFailed);
+    }
+
+    #[test]
+    fn quality_payload_slack_renders_bold_subject_above_body() {
+        let p = QualityRulePayload::new("nullability".into(), false, Some(72.5));
+        let v = p.render(NotificationChannelType::SlackWebhook);
+        let text = v["text"].as_str().expect("Slack payload requires text");
+        assert!(text.contains("*Quality Rule FAILED: nullability*"));
+        assert!(text.contains("score: 72.5%"));
+    }
+
+    #[test]
+    fn quality_payload_generic_carries_typed_envelope_with_timestamp() {
+        let p = QualityRulePayload::new("nullability".into(), true, Some(99.0));
+        let v = p.render(NotificationChannelType::GenericWebhook);
+        assert_eq!(v["event"], "quality_rule_passed");
+        assert_eq!(v["rule_name"], "nullability");
+        assert_eq!(v["passed"], true);
+        assert!(v.get("at").and_then(|x| x.as_str()).is_some());
+    }
+
+    // -- RetrievalLiftRegressionPayload --
+
+    #[test]
+    fn retrieval_lift_payload_event_type_is_pinned() {
+        // Renaming the wire string silently disconnects every
+        // existing channel subscription. The fix is the
+        // ox-store enum (`NotificationEventType`) +
+        // `every_variant_has_unique_wire_str` test there;
+        // here we pin the event-type the payload reports.
+        let p = lift_payload(1);
+        assert_eq!(p.event_type(), NotificationEventType::RetrievalLiftRegression);
+        assert_eq!(p.event_type().as_str(), "retrieval_lift_regression");
+    }
+
+    #[test]
+    fn retrieval_lift_slack_carries_text_blocks_and_one_bullet_per_alert() {
+        let p = lift_payload(3);
+        let v = p.render(NotificationChannelType::SlackWebhook);
+        let text = v["text"].as_str().expect("Slack payload requires text");
         assert!(text.contains("Hybrid retrieval lift regression"));
-        assert!(text.contains("1 cell"));
-    }
-
-    #[test]
-    fn slack_payload_emits_one_bullet_per_alert() {
-        let alerts = vec![sample_alert(), sample_alert(), sample_alert()];
-        let v = render_retrieval_lift_slack(Uuid::new_v4(), Uuid::new_v4(), &alerts);
+        assert!(text.contains("3 cell"));
         let body = v["blocks"][1]["text"]["text"]
             .as_str()
             .expect("Slack section text must be a string");
@@ -427,13 +582,25 @@ mod tests {
     }
 
     #[test]
-    fn generic_payload_emits_typed_envelope() {
-        let baseline = Uuid::new_v4();
-        let candidate = Uuid::new_v4();
-        let v = render_retrieval_lift_generic(baseline, candidate, &[sample_alert()]);
+    fn retrieval_lift_slack_clamps_large_alarm_bodies() {
+        // 200 alerts × ~96 chars ≈ 19 200 chars — well above
+        // Slack's 3000-char section limit. The bullet body
+        // must be clamped + marker-suffixed; otherwise Slack
+        // rejects the payload and the operator never sees the
+        // alarm.
+        let p = lift_payload(200);
+        let v = p.render(NotificationChannelType::SlackWebhook);
+        let body = v["blocks"][1]["text"]["text"].as_str().unwrap();
+        assert!(body.len() <= SLACK_SECTION_TEXT_LIMIT);
+        assert!(body.ends_with('…'));
+    }
+
+    #[test]
+    fn retrieval_lift_generic_emits_typed_envelope_with_timestamp() {
+        let p = lift_payload(1);
+        let v = p.render(NotificationChannelType::GenericWebhook);
         assert_eq!(v["event"], "retrieval_lift_regression");
-        assert_eq!(v["baseline_run_id"], baseline.to_string());
-        assert_eq!(v["candidate_run_id"], candidate.to_string());
+        assert!(v.get("at").and_then(|x| x.as_str()).is_some());
         assert_eq!(v["alerts"][0]["surface"], "verified_query");
         assert_eq!(v["alerts"][0]["axis"], "recall_at_k");
         assert_eq!(v["alerts"][0]["lift_delta"], -0.08);
@@ -441,44 +608,14 @@ mod tests {
 
     #[test]
     fn render_dispatches_on_channel_type() {
-        let alerts = vec![sample_alert()];
-        let baseline = Uuid::new_v4();
-        let candidate = Uuid::new_v4();
-
-        let now = Utc::now();
-        let mk_channel = |kind: NotificationChannelType| NotificationChannel {
-            id: Uuid::new_v4(),
-            workspace_id: Uuid::new_v4(),
-            name: "test".to_string(),
-            channel_type: kind,
-            config: ox_store::WebhookNotificationConfig {
-                url: "https://example.invalid/hook".to_string(),
-                headers: Default::default(),
-            },
-            events: vec![EVENT_TYPE_RETRIEVAL_LIFT_REGRESSION.to_string()],
-            enabled: true,
-            created_at: now,
-            updated_at: now,
-        };
-
-        let slack_payload = render_retrieval_lift_payload(
-            &mk_channel(NotificationChannelType::SlackWebhook),
-            baseline,
-            candidate,
-            &alerts,
-        );
-        let generic_payload = render_retrieval_lift_payload(
-            &mk_channel(NotificationChannelType::GenericWebhook),
-            baseline,
-            candidate,
-            &alerts,
-        );
-
+        let p = lift_payload(1);
+        let slack = p.render(NotificationChannelType::SlackWebhook);
+        let generic = p.render(NotificationChannelType::GenericWebhook);
         // Slack carries `blocks`; generic does not.
-        assert!(slack_payload.get("blocks").is_some());
-        assert!(generic_payload.get("blocks").is_none());
+        assert!(slack.get("blocks").is_some());
+        assert!(generic.get("blocks").is_none());
         // Generic carries `event`; Slack does not.
-        assert!(generic_payload.get("event").is_some());
-        assert!(slack_payload.get("event").is_none());
+        assert!(generic.get("event").is_some());
+        assert!(slack.get("event").is_none());
     }
 }

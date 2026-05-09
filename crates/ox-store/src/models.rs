@@ -1410,6 +1410,69 @@ impl std::fmt::Display for NotificationChannelType {
     }
 }
 
+/// Closed set of platform-emitted notification event types.
+///
+/// `NotificationChannel.events` subscribes against the
+/// snake_case wire string of one or more of these variants;
+/// every dispatcher in `ox-api` selects channels through
+/// `Self::as_str` so the wire tag lives in one place.
+///
+/// Same shape as `RetrievalSurface` / `RetrievalLeg` /
+/// `RetrievalAxis` / `EvaluationRunStatus` — `ALL` +
+/// `as_str(self) const fn` + `from_wire_str` +
+/// `all_wire_strings`. Adding a new event = one variant + one
+/// `ALL` entry + one `as_str` arm + the matching FE i18n key.
+/// The `every_variant_in_all` test pins exhaustiveness so a
+/// new variant that misses `ALL` fails to compile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum NotificationEventType {
+    QualityRulePassed,
+    QualityRuleFailed,
+    RetrievalLiftRegression,
+}
+
+impl NotificationEventType {
+    /// Every variant in declaration order. Single source of
+    /// truth for `from_wire_str` + `all_wire_strings` + the
+    /// FE event-toggle catalogue (re-exported through OpenAPI).
+    pub const ALL: &'static [Self] = &[
+        Self::QualityRulePassed,
+        Self::QualityRuleFailed,
+        Self::RetrievalLiftRegression,
+    ];
+
+    /// Stable wire string. Must match the FE i18n key under
+    /// `account.notifications.event.<wire>`.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::QualityRulePassed => "quality_rule_passed",
+            Self::QualityRuleFailed => "quality_rule_failed",
+            Self::RetrievalLiftRegression => "retrieval_lift_regression",
+        }
+    }
+
+    /// Inverse of [`Self::as_str`]. Returns `None` on an
+    /// unrecognised tag — admin routes treat that as a 422
+    /// validation error so persisted `events` arrays can never
+    /// drift away from the closed set.
+    pub fn from_wire_str(s: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.as_str() == s)
+    }
+
+    /// Wire-string bag for FE catalogue rendering and the
+    /// `events`-validation gate on admin write paths.
+    pub fn all_wire_strings() -> Vec<&'static str> {
+        Self::ALL.iter().copied().map(Self::as_str).collect()
+    }
+}
+
+impl std::fmt::Display for NotificationEventType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct WebhookNotificationConfig {
     pub url: String,
@@ -1604,4 +1667,47 @@ pub struct DataSource {
 
 fn default_empty_object() -> serde_json::Value {
     serde_json::Value::Object(serde_json::Map::new())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn notification_event_type_all_covers_every_variant() {
+        // Compile-time exhaustiveness — adding a variant to
+        // NotificationEventType without extending `ALL` makes
+        // this match fail to compile, surfacing the omission
+        // before runtime.
+        for v in NotificationEventType::ALL.iter().copied() {
+            match v {
+                NotificationEventType::QualityRulePassed
+                | NotificationEventType::QualityRuleFailed
+                | NotificationEventType::RetrievalLiftRegression => {}
+            }
+        }
+        assert_eq!(NotificationEventType::ALL.len(), 3);
+    }
+
+    #[test]
+    fn notification_event_type_round_trips_through_wire_str() {
+        for v in NotificationEventType::ALL.iter().copied() {
+            assert_eq!(NotificationEventType::from_wire_str(v.as_str()), Some(v));
+        }
+    }
+
+    #[test]
+    fn notification_event_type_unknown_wire_returns_none() {
+        assert_eq!(NotificationEventType::from_wire_str("not_an_event"), None);
+        assert_eq!(NotificationEventType::from_wire_str(""), None);
+    }
+
+    #[test]
+    fn notification_event_type_serde_uses_snake_case_wire_form() {
+        let v = NotificationEventType::RetrievalLiftRegression;
+        let s = serde_json::to_string(&v).expect("serde");
+        assert_eq!(s, "\"retrieval_lift_regression\"");
+        let back: NotificationEventType = serde_json::from_str(&s).expect("serde");
+        assert_eq!(back, v);
+    }
 }

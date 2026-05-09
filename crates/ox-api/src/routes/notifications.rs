@@ -6,11 +6,26 @@ use tracing::warn;
 use uuid::Uuid;
 
 use ox_store::{
-    NotificationChannel, NotificationChannelType, NotificationLog, WebhookNotificationConfig,
+    NotificationChannel, NotificationChannelType, NotificationEventType, NotificationLog,
+    WebhookNotificationConfig,
 };
 
 use crate::error::AppError;
-use crate::notifications::{send_webhook, validate_webhook_url};
+use crate::notifications::{send_test_message, validate_webhook_url};
+
+/// Reject any `events` element that is not in
+/// [`NotificationEventType::ALL`]. Returns the offending tag in
+/// the `notification_event_unknown` typed error so the FE can
+/// surface it back; persisted `events` arrays therefore can
+/// never drift away from the closed set.
+fn validate_events(events: &[String]) -> Result<(), AppError> {
+    for e in events {
+        if NotificationEventType::from_wire_str(e).is_none() {
+            return Err(AppError::notification_event_unknown(e.clone()));
+        }
+    }
+    Ok(())
+}
 use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
@@ -46,6 +61,7 @@ pub(crate) async fn create_channel(
     principal.require_admin()?;
 
     validate_webhook_url(&req.config.url)?;
+    validate_events(&req.events)?;
 
     let channel = NotificationChannel {
         id: Uuid::new_v4(),
@@ -124,6 +140,9 @@ pub(crate) async fn update_channel(
 
     if let Some(config) = &req.config {
         validate_webhook_url(&config.url)?;
+    }
+    if let Some(events) = &req.events {
+        validate_events(events)?;
     }
 
     state
@@ -215,7 +234,7 @@ pub(crate) async fn test_channel(
 
     let subject = "Test Notification";
     let body = "This is a test notification from Ontosyx.";
-    let result = send_webhook(&channel, subject, body).await;
+    let result = send_test_message(&channel, subject, body).await;
 
     let log = NotificationLog {
         id: Uuid::new_v4(),
