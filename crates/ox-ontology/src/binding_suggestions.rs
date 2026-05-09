@@ -1,17 +1,17 @@
-//! Glossary ↔ property binding suggestions — fallback layer after
+//! Concept ↔ property binding suggestions — fallback layer after
 //! the LLM-side context injection (see
 //! [`ox_brain::DesignOntologyInput`]).
 //!
-//! The design-time prompt threads the workspace's glossary into
-//! `DesignOntologyInput.glossary_terms`, so the LLM is expected to
+//! The design-time prompt threads the workspace's concept vocabulary
+//! through its glossary lexicalizations, so the LLM is expected to
 //! bind matching properties at generation time. This module's role:
 //!
-//! 1. **Catch what the LLM missed.** Some property ↔ term pairs are
+//! 1. **Catch what the LLM missed.** Some property ↔ concept pairs are
 //!    only resolvable by structural / lexical similarity that LLMs
 //!    don't always weigh consistently. The scorer flags those
 //!    candidates so the admin UI can offer a one-click rebind.
 //! 2. **Serve admin-side ad-hoc queries.** "Which properties match
-//!    this term?" / "Which terms match this property?" as a
+//!    this concept label?" / "Which concepts match this property?" as a
 //!    deterministic, explainable surface — no LLM round-trip
 //!    required.
 //!
@@ -52,25 +52,30 @@ use serde::{Deserialize, Serialize};
 use ox_core::i18n::LocalizedText;
 
 use crate::glossary::GlossaryTermDef;
-use crate::ir::{EdgeTypeDef, EdgeTypeId, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef,
-    PropertyId};
+use crate::ir::{
+    EdgeTypeDef, EdgeTypeId, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId,
+};
 
 /// Context telling a candidate which entity it belongs to. Surfaced
 /// verbatim to the UI so operators can see "this property belongs to
 /// `Customer`" without a second lookup.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PropertyOwnerRef {
-    Node { node_type: NodeTypeId, label: String },
-    Edge { edge_type: EdgeTypeId, label: String },
+    Node {
+        node_type: NodeTypeId,
+        label: String,
+    },
+    Edge {
+        edge_type: EdgeTypeId,
+        label: String,
+    },
 }
 
 /// One signal that contributed to a candidate's score. Kept as a
 /// tagged discriminated union so the UI can group / filter on
 /// provenance — e.g. suppress alias-only matches behind a toggle.
 /// Wire shape: `{ "kind": "<variant>", ...payload }`.
-#[derive(
-    Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BindingSignal {
     /// Canonical names are identical (case-insensitive).
@@ -79,7 +84,10 @@ pub enum BindingSignal {
     /// or vice versa.
     Alias { detail: String },
     /// Number of term tokens present in the property's description.
-    DescriptionOverlap { shared_tokens: u32, total_tokens: u32 },
+    DescriptionOverlap {
+        shared_tokens: u32,
+        total_tokens: u32,
+    },
     /// Levenshtein-ratio-like token-prefix match between canonical
     /// names, used when neither exact nor alias match fires. `ratio`
     /// is in `[0.0, 1.0]`.
@@ -98,9 +106,9 @@ pub struct PropertyBindingCandidate {
 }
 
 /// Knobs for the scorer. The defaults are picked so a sample
-/// ontology (Customer / Order / Product / Brand) produces no
-/// false positives against an unrelated glossary term ("weather")
-/// while picking up the obvious candidates for a matching term
+/// ontology (Customer / Order / Product / Brand) produces no false
+/// positives against an unrelated concept lexicalization ("weather")
+/// while picking up the obvious candidates for a matching label
 /// ("VIP grade").
 #[derive(Debug, Clone, Copy)]
 pub struct BindingSuggestionPolicy {
@@ -111,7 +119,7 @@ pub struct BindingSuggestionPolicy {
     pub weight_description_overlap: f32,
     pub weight_fuzzy_name: f32,
     pub fuzzy_min_ratio: f32,
-    /// When `true`, properties that already carry a `glossary_term_id`
+    /// When `true`, properties that already carry a concept binding
     /// are skipped entirely. Most callers want this — the point of
     /// the suggestion flow is to bind *unbound* properties.
     pub skip_already_bound: bool,
@@ -148,56 +156,81 @@ pub fn suggest_property_bindings_by_term(
             node_type: node.id.clone(),
             label: node.label.to_string(),
         };
-        collect_candidates(&term_signals, node.properties.iter(), owner, policy, &mut out);
+        collect_candidates(
+            &term_signals,
+            node.properties.iter(),
+            owner,
+            policy,
+            &mut out,
+        );
     }
     for edge in ontology.edge_types() {
         let owner = || PropertyOwnerRef::Edge {
             edge_type: edge.id.clone(),
             label: edge.label.to_string(),
         };
-        collect_candidates(&term_signals, edge.properties.iter(), owner, policy, &mut out);
+        collect_candidates(
+            &term_signals,
+            edge.properties.iter(),
+            owner,
+            policy,
+            &mut out,
+        );
     }
 
-    out.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    out.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     out.truncate(policy.max_results);
     out
 }
 
 /// Inverse direction: given a property reference, return the
-/// glossary terms most likely to describe it. Useful when the
-/// operator is editing a property and wants a single-click "link to
-/// existing term" suggestion.
-pub fn suggest_terms_by_property(
+/// concepts most likely to describe it. Useful when the operator is
+/// editing a property and wants a single-click "link to concept"
+/// suggestion.
+pub fn suggest_concepts_by_property(
     ontology: &OntologyIR,
     prop_ref: &PropertyOwnerRef,
     property_id: &PropertyId,
     policy: BindingSuggestionPolicy,
-) -> Vec<TermBindingCandidate> {
+) -> Vec<ConceptBindingCandidate> {
     let Some(prop) = locate_property(ontology, prop_ref, property_id) else {
         return Vec::new();
     };
     let property_signals = PropertySignals::from_property(prop);
-    let mut out: Vec<TermBindingCandidate> = Vec::new();
+    let mut out: Vec<ConceptBindingCandidate> = Vec::new();
     for term in ontology.glossary() {
+        let Some(concept_id) = term.concept_id.clone() else {
+            continue;
+        };
         let (score, signals) = score_term_against_property(term, &property_signals, policy);
         if score >= policy.min_score {
-            out.push(TermBindingCandidate {
+            out.push(ConceptBindingCandidate {
                 term_id: term.id.clone(),
+                concept_id,
                 term: term.term.clone(),
                 score,
                 signals,
             });
         }
     }
-    out.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    out.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     out.truncate(policy.max_results);
     out
 }
 
 /// Mirror of `PropertyBindingCandidate` for the inverse direction.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TermBindingCandidate {
+pub struct ConceptBindingCandidate {
     pub term_id: crate::glossary::GlossaryTermId,
+    pub concept_id: crate::concept::ConceptId,
     pub term: ox_core::i18n::LocalizedText,
     pub score: f32,
     pub signals: Vec<BindingSignal>,
@@ -288,7 +321,7 @@ fn collect_candidates<'a, F, I>(
     I: IntoIterator<Item = &'a PropertyDef>,
 {
     for prop in properties {
-        if policy.skip_already_bound && prop.glossary_term_id().is_some() {
+        if policy.skip_already_bound && prop.concept_id().is_some() {
             continue;
         }
         let property = PropertySignals::from_property(prop);
@@ -488,6 +521,7 @@ fn bigrams(value: &str) -> Vec<[char; 2]> {
 mod tests {
     use super::*;
     use crate::code_system::CodeSystemDef;
+    use crate::concept::ConceptId;
     use crate::glossary::{GlossaryTermDef, GlossaryTermId};
     use crate::ir::{Cardinality, NodeTypeDef, OntologyIR, PropertyDef, PropertyId};
     use ox_core::graph_label::GraphLabel;
@@ -511,7 +545,10 @@ mod tests {
 
     fn bound_property(name: &str, description: &str, bound_to: &str) -> PropertyDef {
         let mut p = property(name, description);
-        p.bindings.push(crate::binding::PropertyBinding::glossary(GlossaryTermId::new(bound_to),));
+        p.bindings
+            .push(crate::binding::PropertyBinding::concept(ConceptId::new(
+                bound_to,
+            )));
         p
     }
 
@@ -556,7 +593,8 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: crate::glossary::TermLifecycle::default(),
-        concept_id: None,
+            concept_id: None,
+            term_pos: Default::default(),
         }
     }
 
@@ -582,10 +620,12 @@ mod tests {
         let t = term("t1", "VIP Grade", &["vip_tier"], "");
         let out = suggest_property_bindings_by_term(&ir, &t, Default::default());
         assert_eq!(out.len(), 1);
-        assert!(out[0]
-            .signals
-            .iter()
-            .any(|s| matches!(s, BindingSignal::Alias { .. })));
+        assert!(
+            out[0]
+                .signals
+                .iter()
+                .any(|s| matches!(s, BindingSignal::Alias { .. }))
+        );
     }
 
     #[test]
@@ -608,10 +648,12 @@ mod tests {
         );
         let out = suggest_property_bindings_by_term(&ir, &t, Default::default());
         assert!(!out.is_empty(), "expected description overlap to fire");
-        assert!(out[0]
-            .signals
-            .iter()
-            .any(|s| matches!(s, BindingSignal::DescriptionOverlap { .. })));
+        assert!(
+            out[0]
+                .signals
+                .iter()
+                .any(|s| matches!(s, BindingSignal::DescriptionOverlap { .. }))
+        );
     }
 
     #[test]
@@ -647,15 +689,18 @@ mod tests {
         };
         let out = suggest_property_bindings_by_term(&ir, &t, policy);
         assert!(!out.is_empty());
-        assert!(out[0]
-            .signals
-            .iter()
-            .any(|s| matches!(s, BindingSignal::FuzzyName { .. })));
+        assert!(
+            out[0]
+                .signals
+                .iter()
+                .any(|s| matches!(s, BindingSignal::FuzzyName { .. }))
+        );
     }
 
     #[test]
-    fn bidirectional_suggest_terms_returns_same_term_for_matching_property() {
-        let t = term("t1", "customer_grade", &[], "");
+    fn bidirectional_suggest_concepts_returns_same_label_for_matching_property() {
+        let mut t = term("t1", "customer_grade", &[], "");
+        t.concept_id = Some(crate::concept::ConceptId::new("c-customer-grade"));
         let ir = ontology(
             vec![node("Customer", vec![property("customer_grade", "")])],
             vec![t.clone()],
@@ -666,9 +711,10 @@ mod tests {
             label: ir.node_types()[0].label.to_string(),
         };
         let pid = ir.node_types()[0].properties[0].id.clone();
-        let out = suggest_terms_by_property(&ir, &node_ref, &pid, Default::default());
+        let out = suggest_concepts_by_property(&ir, &node_ref, &pid, Default::default());
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].term.default, "customer_grade");
+        assert_eq!(out[0].concept_id.as_str(), "c-customer-grade");
     }
 
     #[test]

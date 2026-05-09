@@ -21,9 +21,7 @@ pub mod object;
 pub mod property;
 pub mod refs;
 
-pub use link::{
-    EndpointRef, JoinCostHint, LinkCardinality, LinkMappingDef, LinkMappingKind,
-};
+pub use link::{EndpointRef, JoinCostHint, LinkCardinality, LinkMappingDef, LinkMappingKind};
 pub use object::ObjectMappingDef;
 pub use property::{PropertyLocation, PropertyMappingDef, PropertyTransform};
 pub use refs::{

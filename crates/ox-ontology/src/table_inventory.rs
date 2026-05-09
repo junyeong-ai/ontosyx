@@ -45,8 +45,7 @@ use crate::mapping::SourceId;
 /// trail keeps the `contributed_*` ids of the now-deleted entities
 /// so historical queries can resolve them.
 #[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
-    utoipa::ToSchema,
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum TableInventoryStatus {
@@ -65,9 +64,7 @@ pub enum TableInventoryStatus {
 /// introspection; a fingerprint mismatch on a later run signals
 /// schema drift that the FE surfaces as a "this source moved on"
 /// banner.
-#[derive(
-    Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct TableInventoryEntry {
     pub source_id: SourceId,
     pub table_name: String,

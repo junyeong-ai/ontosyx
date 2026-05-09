@@ -9,7 +9,7 @@ use ox_core::error::{OxError, OxResult};
 
 /// Abstraction for repo access. Local path for development,
 /// git URL for multi-pod production.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RepoSource {
     /// Local filesystem path (development / single-node deployment)

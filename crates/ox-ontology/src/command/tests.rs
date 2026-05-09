@@ -1,29 +1,10 @@
 use super::*;
+use crate::test_fixtures::{ontologies_equal, test_ontology};
 use ox_core::graph_label::GraphLabel;
 use ox_core::property_key::PropertyKey;
-use crate::glossary::{GlossaryTermDef, TermGovernance, TermLifecycle};
-use crate::test_fixtures::{ontologies_equal, test_ontology};
 use ox_core::types::PropertyType;
 
 use ox_core::i18n::LocalizedText;
-
-fn glossary_term(id: &str, label: &str) -> GlossaryTermDef {
-    GlossaryTermDef {
-        id: id.into(),
-        term: LocalizedText::new(label),
-        display_name: LocalizedText::default(),
-        description: LocalizedText::default(),
-        examples: Vec::new(),
-        category: None,
-        aliases: Vec::new(),
-        related_terms: Vec::new(),
-        governance: TermGovernance::default(),
-        valid_from: None,
-        valid_to: None,
-        lifecycle: TermLifecycle::default(),
-    concept_id: None,
-    }
-}
 
 fn gl(s: &'static str) -> GraphLabel {
     GraphLabel::new(s).expect("test label literal must be valid")
@@ -32,6 +13,32 @@ fn gl(s: &'static str) -> GraphLabel {
 fn pk(s: &str) -> PropertyKey {
     PropertyKey::new(s).expect("test property name literal must be valid")
 }
+
+fn link_mapping(id: &str, edge_id: &str, predicate: &str) -> crate::mapping::LinkMappingDef {
+    use crate::mapping::{
+        EndpointRef, JoinCostHint, LinkCardinality, LinkMappingId, LinkMappingKind, SourceId,
+    };
+
+    let endpoint = EndpointRef {
+        source_id: SourceId::new("pg-main"),
+        relation: "people".into(),
+        key_columns: vec!["id".into()],
+    };
+
+    crate::mapping::LinkMappingDef {
+        id: LinkMappingId::new(id),
+        edge_type_id: edge_id.into(),
+        kind: LinkMappingKind::Computed {
+            predicate: predicate.into(),
+        },
+        source_endpoint: endpoint.clone(),
+        target_endpoint: endpoint,
+        join_cost_hint: JoinCostHint::Unknown,
+        precedence: 0,
+        cardinality: LinkCardinality::ManyToMany,
+    }
+}
+
 #[test]
 fn add_and_delete_node_roundtrip() {
     let ontology = test_ontology();
@@ -118,6 +125,162 @@ fn delete_node_cascades_edges() {
 }
 
 #[test]
+fn delete_node_inverse_restores_full_node_and_edge_definitions() {
+    let mut ontology = test_ontology();
+    ontology.node_types[0].display_name = LocalizedText::new("Person display");
+    ontology.edge_types[0].source_role = Some("employee".into());
+    ontology.edge_types[0].target_role = Some("employer".into());
+    ontology.edge_types[0].tags = vec!["employment".into()];
+    ontology.edge_types[0].kind = EdgeKind::Aggregation;
+
+    let result = OntologyCommand::DeleteNode {
+        node_id: "n1".into(),
+    }
+    .execute(&ontology)
+    .unwrap();
+    let restored = result.inverse.execute(&result.new_ontology).unwrap();
+
+    let restored_node = restored.new_ontology.node_by_id("n1").unwrap();
+    assert_eq!(
+        restored_node.display_name,
+        LocalizedText::new("Person display")
+    );
+    assert_eq!(restored_node.properties.len(), 2);
+    assert_eq!(restored_node.constraints.len(), 1);
+
+    let restored_edge = restored.new_ontology.edge_by_id("e1").unwrap();
+    assert_eq!(restored_edge.source_role.as_deref(), Some("employee"));
+    assert_eq!(restored_edge.target_role.as_deref(), Some("employer"));
+    assert_eq!(restored_edge.tags, vec!["employment"]);
+    assert_eq!(restored_edge.kind, EdgeKind::Aggregation);
+}
+
+#[test]
+fn delete_node_cascades_object_mappings_and_inverse_restores_them() {
+    use crate::ColumnRef;
+    use crate::mapping::{ObjectMappingDef, PropertyLocation, PropertyMappingDef};
+
+    let ontology = test_ontology();
+    let mut mapping = ObjectMappingDef::new("om-person", "n1", "pg-main", "public.people");
+    mapping.property_mappings.push(PropertyMappingDef {
+        property_id: "p1".into(),
+        property_key: pk("name"),
+        location: PropertyLocation::Column(ColumnRef::new("people", "name")),
+        transform: Default::default(),
+        concept_map_id: None,
+    });
+    let ontology = OntologyCommand::CreateObjectMapping {
+        mapping: Box::new(mapping),
+    }
+    .execute(&ontology)
+    .unwrap()
+    .new_ontology;
+
+    let result = OntologyCommand::DeleteNode {
+        node_id: "n1".into(),
+    }
+    .execute(&ontology)
+    .unwrap();
+
+    assert!(result.new_ontology.object_mappings.is_empty());
+
+    let restored = result.inverse.execute(&result.new_ontology).unwrap();
+    assert_eq!(restored.new_ontology.object_mappings.len(), 1);
+    assert_eq!(
+        restored.new_ontology.object_mappings[0].id.as_str(),
+        "om-person"
+    );
+    assert_eq!(
+        restored.new_ontology.object_mappings[0].property_mappings[0]
+            .property_id
+            .as_str(),
+        "p1"
+    );
+}
+
+#[test]
+fn delete_edge_cascades_link_mappings_and_inverse_restores_them() {
+    let ontology = test_ontology();
+    let mapping = link_mapping("lm-works-at", "e1", "people.company_id = companies.id");
+    let ontology = OntologyCommand::CreateLinkMapping {
+        mapping: Box::new(mapping),
+    }
+    .execute(&ontology)
+    .unwrap()
+    .new_ontology;
+
+    let result = OntologyCommand::DeleteEdge {
+        edge_id: "e1".into(),
+    }
+    .execute(&ontology)
+    .unwrap();
+
+    assert!(result.new_ontology.edge_types.is_empty());
+    assert!(result.new_ontology.link_mappings.is_empty());
+
+    let restored = result.inverse.execute(&result.new_ontology).unwrap();
+    assert_eq!(restored.new_ontology.edge_types.len(), 1);
+    assert_eq!(restored.new_ontology.link_mappings.len(), 1);
+    assert_eq!(
+        restored.new_ontology.link_mappings[0].id.as_str(),
+        "lm-works-at"
+    );
+}
+
+#[test]
+fn delete_edge_inverse_restores_full_edge_definition() {
+    let mut ontology = test_ontology();
+    ontology.edge_types[0].display_name = LocalizedText::new("Works at display");
+    ontology.edge_types[0].source_role = Some("employee".into());
+    ontology.edge_types[0].target_role = Some("employer".into());
+    ontology.edge_types[0].tags = vec!["employment".into(), "hr".into()];
+    ontology.edge_types[0].kind = EdgeKind::Aggregation;
+
+    let result = OntologyCommand::DeleteEdge {
+        edge_id: "e1".into(),
+    }
+    .execute(&ontology)
+    .unwrap();
+    let restored = result.inverse.execute(&result.new_ontology).unwrap();
+
+    let restored_edge = restored.new_ontology.edge_by_id("e1").unwrap();
+    assert_eq!(
+        restored_edge.display_name,
+        LocalizedText::new("Works at display")
+    );
+    assert_eq!(restored_edge.source_role.as_deref(), Some("employee"));
+    assert_eq!(restored_edge.target_role.as_deref(), Some("employer"));
+    assert_eq!(restored_edge.tags, vec!["employment", "hr"]);
+    assert_eq!(restored_edge.kind, EdgeKind::Aggregation);
+    assert_eq!(restored_edge.properties.len(), 1);
+}
+
+#[test]
+fn delete_node_cascades_link_mappings_from_removed_edges() {
+    let ontology = test_ontology();
+    let mapping = link_mapping("lm-works-at", "e1", "people.company_id = companies.id");
+    let ontology = OntologyCommand::CreateLinkMapping {
+        mapping: Box::new(mapping),
+    }
+    .execute(&ontology)
+    .unwrap()
+    .new_ontology;
+
+    let result = OntologyCommand::DeleteNode {
+        node_id: "n1".into(),
+    }
+    .execute(&ontology)
+    .unwrap();
+
+    assert!(result.new_ontology.edge_types.is_empty());
+    assert!(result.new_ontology.link_mappings.is_empty());
+
+    let restored = result.inverse.execute(&result.new_ontology).unwrap();
+    assert_eq!(restored.new_ontology.edge_types.len(), 1);
+    assert_eq!(restored.new_ontology.link_mappings.len(), 1);
+}
+
+#[test]
 fn add_delete_property() {
     let ontology = test_ontology();
 
@@ -133,7 +296,9 @@ fn add_delete_property() {
         ..Default::default()
     };
     let add_cmd = OntologyCommand::AddProperty {
-        owner: PropertyOwner::Node("n2".into()),
+        owner: PropertyOwner::Node {
+            type_id: "n2".into(),
+        },
         property: Box::new(new_prop),
     };
     let add_result = add_cmd.execute(&ontology).unwrap();
@@ -166,7 +331,9 @@ fn add_delete_property() {
         ..Default::default()
     };
     let add_edge_cmd = OntologyCommand::AddProperty {
-        owner: PropertyOwner::Edge("e1".into()),
+        owner: PropertyOwner::Edge {
+            type_id: "e1".into(),
+        },
         property: Box::new(edge_prop),
     };
     let edge_result = add_edge_cmd.execute(&ontology).unwrap();
@@ -232,7 +399,9 @@ fn update_property_roundtrip() {
         description: Some(LocalizedText::new("Full name of person")),
     };
     let cmd = OntologyCommand::UpdateProperty {
-        owner: PropertyOwner::Node("n1".into()),
+        owner: PropertyOwner::Node {
+            type_id: "n1".into(),
+        },
         property_id: "p1".into(),
         patch,
     };
@@ -325,7 +494,9 @@ fn error_on_invalid_references() {
 
     // Delete property from nonexistent owner
     let cmd = OntologyCommand::DeleteProperty {
-        owner: PropertyOwner::Node("nonexistent".into()),
+        owner: PropertyOwner::Node {
+            type_id: "nonexistent".into(),
+        },
         property_id: "p1".into(),
     };
     assert!(cmd.execute(&ontology).is_err());
@@ -337,76 +508,6 @@ fn error_on_invalid_references() {
         description: LocalizedText::default(),
     };
     assert!(cmd.execute(&ontology).is_err());
-}
-
-#[test]
-fn set_node_glossary_anchors_replaces_list_atomically() {
-    let mut ontology = test_ontology();
-    // Validation requires every anchor id to resolve in the glossary.
-    ontology
-        .add_glossary_term(glossary_term("gt-customer", "Customer"))
-        .expect("seed glossary term");
-    ontology
-        .add_glossary_term(glossary_term("gt-loyalty", "Loyalty"))
-        .expect("seed glossary term");
-
-    let cmd = OntologyCommand::SetNodeGlossaryAnchors {
-        node_id: "n1".into(),
-        anchors: vec!["gt-customer".into(), "gt-loyalty".into()],
-    };
-    let result = cmd.execute(&ontology).unwrap();
-
-    let node = result.new_ontology.node_by_id("n1").unwrap();
-    assert_eq!(node.glossary_anchors.len(), 2);
-    assert_eq!(node.glossary_anchors[0].as_str(), "gt-customer");
-    assert_eq!(node.glossary_anchors[1].as_str(), "gt-loyalty");
-
-    // Inverse restores the empty list
-    let restored = result.inverse.execute(&result.new_ontology).unwrap();
-    assert!(
-        restored
-            .new_ontology
-            .node_by_id("n1")
-            .unwrap()
-            .glossary_anchors
-            .is_empty(),
-    );
-}
-
-#[test]
-fn set_node_glossary_anchors_rejects_unknown_id() {
-    let ontology = test_ontology();
-    let cmd = OntologyCommand::SetNodeGlossaryAnchors {
-        node_id: "n1".into(),
-        anchors: vec!["gt-orphan".into()],
-    };
-    assert!(cmd.execute(&ontology).is_err());
-}
-
-#[test]
-fn set_edge_glossary_anchors_replaces_list_atomically() {
-    let mut ontology = test_ontology();
-    ontology
-        .add_glossary_term(glossary_term("gt-employment", "Employment"))
-        .expect("seed glossary term");
-
-    let cmd = OntologyCommand::SetEdgeGlossaryAnchors {
-        edge_id: "e1".into(),
-        anchors: vec!["gt-employment".into()],
-    };
-    let result = cmd.execute(&ontology).unwrap();
-    let edge = result.new_ontology.edge_by_id("e1").unwrap();
-    assert_eq!(edge.glossary_anchors.len(), 1);
-
-    let restored = result.inverse.execute(&result.new_ontology).unwrap();
-    assert!(
-        restored
-            .new_ontology
-            .edge_by_id("e1")
-            .unwrap()
-            .glossary_anchors
-            .is_empty(),
-    );
 }
 
 #[test]
@@ -451,9 +552,7 @@ fn object_mapping_create_update_delete_roundtrip() {
     );
 
     // Delete
-    let delete = OntologyCommand::DeleteObjectMapping {
-        id: "om-1".into(),
-    };
+    let delete = OntologyCommand::DeleteObjectMapping { id: "om-1".into() };
     let delete_result = delete.execute(&create_result.new_ontology).unwrap();
     assert!(delete_result.new_ontology.object_mappings.is_empty());
 
@@ -463,6 +562,83 @@ fn object_mapping_create_update_delete_roundtrip() {
         .execute(&delete_result.new_ontology)
         .unwrap();
     assert_eq!(resurrected.new_ontology.object_mappings.len(), 1);
+}
+
+#[test]
+fn link_mapping_create_update_delete_roundtrip() {
+    let ontology = test_ontology();
+    let mapping = link_mapping("lm-works-at", "e1", "people.company_id = companies.id");
+
+    let create = OntologyCommand::CreateLinkMapping {
+        mapping: Box::new(mapping.clone()),
+    };
+    let create_result = create.execute(&ontology).unwrap();
+    assert_eq!(create_result.new_ontology.link_mappings.len(), 1);
+
+    let updated = link_mapping("lm-works-at", "e1", "people.employer_id = companies.id");
+    let update = OntologyCommand::UpdateLinkMapping {
+        id: "lm-works-at".into(),
+        mapping: Box::new(updated),
+    };
+    let update_result = update.execute(&create_result.new_ontology).unwrap();
+    assert!(matches!(
+        &update_result.new_ontology.link_mappings[0].kind,
+        crate::mapping::LinkMappingKind::Computed { predicate }
+            if predicate == "people.employer_id = companies.id"
+    ));
+
+    let restored = update_result
+        .inverse
+        .execute(&update_result.new_ontology)
+        .unwrap();
+    assert!(matches!(
+        &restored.new_ontology.link_mappings[0].kind,
+        crate::mapping::LinkMappingKind::Computed { predicate }
+            if predicate == "people.company_id = companies.id"
+    ));
+
+    let delete = OntologyCommand::DeleteLinkMapping {
+        id: "lm-works-at".into(),
+    };
+    let delete_result = delete.execute(&create_result.new_ontology).unwrap();
+    assert!(delete_result.new_ontology.link_mappings.is_empty());
+
+    let resurrected = delete_result
+        .inverse
+        .execute(&delete_result.new_ontology)
+        .unwrap();
+    assert_eq!(resurrected.new_ontology.link_mappings.len(), 1);
+}
+
+#[test]
+fn update_link_mapping_rejects_payload_id_mismatch() {
+    let ontology = test_ontology();
+    let after_create = OntologyCommand::CreateLinkMapping {
+        mapping: Box::new(link_mapping(
+            "lm-works-at",
+            "e1",
+            "people.company_id = companies.id",
+        )),
+    }
+    .execute(&ontology)
+    .unwrap()
+    .new_ontology;
+
+    let result = OntologyCommand::UpdateLinkMapping {
+        id: "lm-works-at".into(),
+        mapping: Box::new(link_mapping(
+            "lm-other",
+            "e1",
+            "people.employer_id = companies.id",
+        )),
+    }
+    .execute(&after_create);
+
+    let Err(err) = result else {
+        panic!("mismatched update id must be rejected");
+    };
+    assert!(err.contains("id mismatch"));
+    assert_eq!(after_create.link_mappings[0].id.as_str(), "lm-works-at");
 }
 
 #[test]
@@ -483,12 +659,45 @@ fn create_object_mapping_rejects_duplicate_id() {
 }
 
 #[test]
+fn update_object_mapping_rejects_payload_id_mismatch() {
+    use crate::mapping::ObjectMappingDef;
+
+    let ontology = test_ontology();
+    let mapping = ObjectMappingDef::new("om-1", "n2", "pg-main", "public.companies");
+    let after_create = OntologyCommand::CreateObjectMapping {
+        mapping: Box::new(mapping),
+    }
+    .execute(&ontology)
+    .unwrap()
+    .new_ontology;
+
+    let result = OntologyCommand::UpdateObjectMapping {
+        id: "om-1".into(),
+        mapping: Box::new(ObjectMappingDef::new(
+            "om-2",
+            "n2",
+            "pg-main",
+            "warehouse.companies",
+        )),
+    }
+    .execute(&after_create);
+
+    let Err(err) = result else {
+        panic!("mismatched update id must be rejected");
+    };
+    assert!(err.contains("id mismatch"));
+    assert_eq!(after_create.object_mappings[0].id.as_str(), "om-1");
+}
+
+#[test]
 fn delete_property_cascades_constraints_and_indexes() {
     let ontology = test_ontology();
 
     // Delete p1 (which is referenced by constraint c1 and index idx1)
     let cmd = OntologyCommand::DeleteProperty {
-        owner: PropertyOwner::Node("n1".into()),
+        owner: PropertyOwner::Node {
+            type_id: "n1".into(),
+        },
         property_id: "p1".into(),
     };
     let result = cmd.execute(&ontology).unwrap();
@@ -497,4 +706,55 @@ fn delete_property_cascades_constraints_and_indexes() {
     assert_eq!(node.properties.len(), 1);
     assert!(node.constraints.is_empty()); // c1 removed
     assert!(result.new_ontology.indexes.is_empty()); // idx1 removed
+
+    let restored = result.inverse.execute(&result.new_ontology).unwrap();
+    let restored_node = restored.new_ontology.node_by_id("n1").unwrap();
+    assert_eq!(restored_node.properties.len(), 2);
+    assert_eq!(restored_node.constraints.len(), 1);
+    assert_eq!(restored.new_ontology.indexes.len(), 1);
+}
+
+#[test]
+fn delete_property_cascades_object_mapping_property_bindings_and_inverse_restores_them() {
+    use crate::ColumnRef;
+    use crate::mapping::{ObjectMappingDef, PropertyLocation, PropertyMappingDef};
+
+    let ontology = test_ontology();
+    let mut mapping = ObjectMappingDef::new("om-person", "n1", "pg-main", "public.people");
+    mapping.property_mappings.push(PropertyMappingDef {
+        property_id: "p1".into(),
+        property_key: pk("name"),
+        location: PropertyLocation::Column(ColumnRef::new("people", "name")),
+        transform: Default::default(),
+        concept_map_id: None,
+    });
+    let ontology = OntologyCommand::CreateObjectMapping {
+        mapping: Box::new(mapping),
+    }
+    .execute(&ontology)
+    .unwrap()
+    .new_ontology;
+
+    let result = OntologyCommand::DeleteProperty {
+        owner: PropertyOwner::Node {
+            type_id: "n1".into(),
+        },
+        property_id: "p1".into(),
+    }
+    .execute(&ontology)
+    .unwrap();
+
+    assert!(
+        result.new_ontology.object_mappings[0]
+            .property_mappings
+            .is_empty()
+    );
+
+    let restored = result.inverse.execute(&result.new_ontology).unwrap();
+    assert_eq!(
+        restored.new_ontology.object_mappings[0].property_mappings[0]
+            .property_id
+            .as_str(),
+        "p1"
+    );
 }

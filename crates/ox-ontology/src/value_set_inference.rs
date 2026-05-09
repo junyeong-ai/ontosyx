@@ -203,9 +203,7 @@ fn evaluate_column<'a>(
     if stats.sample_values.is_empty() {
         return Err(ValueSetRejection::SampleValuesMissing);
     }
-    if policy.require_full_sample_coverage
-        && (stats.sample_values.len() as u64) < distinct
-    {
+    if policy.require_full_sample_coverage && (stats.sample_values.len() as u64) < distinct {
         return Err(ValueSetRejection::SampleCoverageIncomplete {
             distinct,
             sampled: stats.sample_values.len() as u64,
@@ -245,10 +243,7 @@ fn build_proposal(
     let codes: Vec<CodedValue> = sorted_codes
         .iter()
         .map(|code| CodedValue {
-            id: CodedValueId::new(format!(
-                "cv_{fingerprint}_{}",
-                slugify_short(code)
-            )),
+            id: CodedValueId::new(format!("cv_{fingerprint}_{}", slugify_short(code))),
             code: code.clone(),
             display: LocalizedText::default(),
             definition: LocalizedText::default(),
@@ -347,7 +342,11 @@ fn slugify(value: &str) -> String {
 
 fn slugify_short(value: &str) -> String {
     let slug = slugify(value);
-    if slug.len() > 24 { slug[..24].to_string() } else { slug }
+    if slug.len() > 24 {
+        slug[..24].to_string()
+    } else {
+        slug
+    }
 }
 
 #[cfg(test)]
@@ -357,7 +356,13 @@ mod tests {
         ColumnStats, ForeignKeyDef, SourceColumnDef, SourceSchema, SourceTableDef, TableProfile,
     };
 
-    fn schema_profile(rows: u64, col: &str, distinct: u64, nulls: u64, samples: &[&str]) -> (SourceSchema, SourceProfile) {
+    fn schema_profile(
+        rows: u64,
+        col: &str,
+        distinct: u64,
+        nulls: u64,
+        samples: &[&str],
+    ) -> (SourceSchema, SourceProfile) {
         let schema = SourceSchema {
             source_type: "postgresql".into(),
             tables: vec![SourceTableDef {
@@ -401,14 +406,20 @@ mod tests {
         assert_eq!(p.value_set.composition.len(), 1);
         assert_eq!(p.evidence.distinct_count, 3);
         // Sorted codes — ACTIVE / CLOSED / PENDING lexicographically.
-        assert_eq!(p.evidence.observed_codes, vec!["ACTIVE", "CLOSED", "PENDING"]);
-        assert!(p.confidence > 0.9, "confidence {} unexpectedly low", p.confidence);
+        assert_eq!(
+            p.evidence.observed_codes,
+            vec!["ACTIVE", "CLOSED", "PENDING"]
+        );
+        assert!(
+            p.confidence > 0.9,
+            "confidence {} unexpectedly low",
+            p.confidence
+        );
     }
 
     #[test]
     fn high_cardinality_column_is_skipped() {
-        let (schema, profile) =
-            schema_profile(1000, "email", 950, 5, &["a@x.com", "b@x.com"]);
+        let (schema, profile) = schema_profile(1000, "email", 950, 5, &["a@x.com", "b@x.com"]);
         let report = propose_value_sets(&schema, &profile, ValueSetInferencePolicy::default());
         assert!(report.proposals.is_empty());
         assert_eq!(report.skipped.len(), 1);

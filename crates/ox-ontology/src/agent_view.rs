@@ -20,8 +20,8 @@
 //!   sources.
 //! - Provenance, data quality, code systems / value sets / notation
 //!   patterns / concept maps are stripped from the top level;
-//!   their *effects* (allowed values, format hints, glossary
-//!   anchors) are flattened into the relevant
+//!   their *effects* (allowed values, format hints, concept labels)
+//!   are flattened into the relevant
 //!   [`AgentPropertyView`] so the model sees what matters without
 //!   the registry plumbing.
 //!
@@ -37,10 +37,11 @@ use serde::{Deserialize, Serialize};
 use ox_core::i18n::LanguageTag;
 
 use crate::binding::{BindingStrength, PropertyBinding};
+use crate::concept::ConceptId;
 use crate::glossary::GlossaryTermDef;
 use crate::ir::{EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
 use crate::notation_pattern::NotationPatternDef;
-use crate::value_set::{expand_value_set, ValueSetDef};
+use crate::value_set::{ValueSetDef, expand_value_set};
 
 // ---------------------------------------------------------------------------
 // Tunables
@@ -79,6 +80,8 @@ pub struct AgentNodeView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub concepts: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub implements: Vec<String>,
     pub properties: Vec<AgentPropertyView>,
 }
@@ -93,6 +96,8 @@ pub struct AgentEdgeView {
     pub cardinality: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub concepts: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub properties: Vec<AgentPropertyView>,
 }
@@ -119,10 +124,10 @@ pub struct AgentPropertyView {
     /// binding exists) — hint for "looks like XYZ" generation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub format_pattern: Option<String>,
-    /// Canonical glossary term name (when a `Glossary` binding
-    /// exists) — strongest signal for NL → property mapping.
+    /// Canonical concept label — strongest signal for NL → property
+    /// mapping.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub glossary_term: Option<String>,
+    pub concept_term: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -178,6 +183,12 @@ fn node_to_view(
     AgentNodeView {
         label: node.label.as_str().to_string(),
         description: present(node.description.resolve(locale_chain)),
+        concepts: collect_type_concept_terms(
+            node.concept_id.as_ref(),
+            node.concept_realizations.iter().map(|r| &r.concept_id),
+            ontology,
+            locale_chain,
+        ),
         implements: node
             .implements
             .iter()
@@ -215,6 +226,12 @@ fn edge_to_view(
             .unwrap_or_else(|| edge.target_node_id.as_str().to_string()),
         cardinality: edge.cardinality.to_string(),
         description: present(edge.description.resolve(locale_chain)),
+        concepts: collect_type_concept_terms(
+            edge.concept_id.as_ref(),
+            edge.concept_realizations.iter().map(|r| &r.concept_id),
+            ontology,
+            locale_chain,
+        ),
         properties: edge
             .properties
             .iter()
@@ -242,14 +259,11 @@ fn property_to_view(
             .collect(),
         allowed_values: collect_allowed_values(prop, ontology),
         format_pattern: collect_format_pattern(prop, ontology),
-        glossary_term: collect_glossary_term(prop, ontology, locale_chain),
+        concept_term: collect_concept_term(prop, ontology, locale_chain),
     }
 }
 
-fn glossary_to_view(
-    term: &GlossaryTermDef,
-    locale_chain: &[LanguageTag],
-) -> AgentGlossaryView {
+fn glossary_to_view(term: &GlossaryTermDef, locale_chain: &[LanguageTag]) -> AgentGlossaryView {
     AgentGlossaryView {
         term: term.term.resolve(locale_chain).to_string(),
         display_name: present(term.display_name.resolve(locale_chain)),
@@ -308,17 +322,41 @@ fn notation_pattern_summary(np: &NotationPatternDef) -> String {
     }
 }
 
-fn collect_glossary_term(
+fn collect_concept_term(
     prop: &PropertyDef,
     ontology: &OntologyIR,
     locale_chain: &[LanguageTag],
 ) -> Option<String> {
     prop.bindings.iter().find_map(|b| match b {
-        PropertyBinding::Glossary { id, .. } => ontology
-            .glossary_term_by_id(id)
+        PropertyBinding::Concept { id, .. } => ontology
+            .concept_by_id(id)
+            .and_then(|concept| ontology.glossary_term_by_id(&concept.canonical_term_id))
             .map(|term| term.term.resolve(locale_chain).to_string()),
         _ => None,
     })
+}
+
+fn collect_type_concept_terms<'a>(
+    primary: Option<&'a ConceptId>,
+    additional: impl Iterator<Item = &'a ConceptId>,
+    ontology: &OntologyIR,
+    locale_chain: &[LanguageTag],
+) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    primary
+        .into_iter()
+        .chain(additional)
+        .filter_map(|id| {
+            if !seen.insert(id.as_str()) {
+                return None;
+            }
+            ontology
+                .concept_by_id(id)
+                .and_then(|concept| ontology.glossary_term_by_id(&concept.canonical_term_id))
+                .map(|term| term.term.resolve(locale_chain).to_string())
+        })
+        .filter(|term| !term.is_empty())
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -340,10 +378,56 @@ fn present(s: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
+    use crate::ir::ConceptRealization;
     use crate::test_fixtures::sample_user_ontology;
 
     fn en_chain() -> Vec<LanguageTag> {
         vec![LanguageTag::en()]
+    }
+
+    fn glossary_term(id: &str, term: &str, concept_id: &str) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: ox_core::i18n::LocalizedText::new(term),
+            display_name: Default::default(),
+            description: Default::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::default(),
+            concept_id: Some(ConceptId::new(concept_id)),
+            term_pos: Default::default(),
+        }
+    }
+
+    fn concept(id: &str, canonical_term_id: &str) -> ConceptDef {
+        ConceptDef {
+            id: ConceptId::new(id),
+            canonical_term_id: GlossaryTermId::new(canonical_term_id),
+            alias_term_ids: Vec::new(),
+            broader: None,
+            description: Default::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: ConceptGovernance::default(),
+        }
+    }
+
+    fn seed_concept(onto: &mut OntologyIR, term_id: &str, concept_id: &str, label: &str) {
+        onto.add_glossary_term(glossary_term(term_id, label, concept_id))
+            .unwrap();
+        onto.add_concept(concept(concept_id, term_id)).unwrap();
     }
 
     #[test]
@@ -419,5 +503,33 @@ mod tests {
                 edge.target
             );
         }
+    }
+
+    #[test]
+    fn agent_view_surfaces_type_and_property_concept_terms() {
+        let mut onto = sample_user_ontology();
+        seed_concept(&mut onto, "gt-user", "c-user", "User");
+        seed_concept(&mut onto, "gt-party", "c-party", "Party");
+        seed_concept(&mut onto, "gt-email", "c-email", "Email address");
+        onto.node_types[0].concept_id = Some(ConceptId::new("c-user"));
+        onto.node_types[0].concept_realizations = vec![ConceptRealization {
+            concept_id: ConceptId::new("c-party"),
+            role: Default::default(),
+        }];
+        onto.node_types[0].properties[0].bindings =
+            vec![PropertyBinding::concept(ConceptId::new("c-email"))];
+
+        let view = onto.to_agent_view(&en_chain());
+        let node = view
+            .node_types
+            .iter()
+            .find(|node| node.label == onto.node_types[0].label.as_str())
+            .unwrap();
+        assert_eq!(node.concepts, vec!["User", "Party"]);
+        assert!(
+            node.properties
+                .iter()
+                .any(|prop| prop.concept_term.as_deref() == Some("Email address"))
+        );
     }
 }

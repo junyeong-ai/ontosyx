@@ -95,7 +95,9 @@ pub struct ConceptMapping {
 /// Semantic relationship between a source and target code.
 /// Mirrors HL7 FHIR `ConceptMapEquivalence`; same semantics as W3C
 /// SKOS `*Match` predicates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Equivalence {
     /// Source and target have the same meaning. Safe to substitute
@@ -152,13 +154,18 @@ impl ConceptMapDef {
             .collect()
     }
 
-    /// Reverse translation — `target_code → source_code`. Safe only
-    /// for `Equivalence::Equivalent` entries; the caller receives
-    /// every reverse hit and decides which are acceptable.
+    /// Reverse translation — `target_code → source_code`.
+    ///
+    /// Only [`Equivalence::Equivalent`] entries are eligible. Directional
+    /// or lossy relationships must be authored as their own reverse
+    /// [`ConceptMapDef`] and translated through [`Self::translate`] so the
+    /// ontology records the explicit operator decision.
     pub fn translate_reverse(&self, target_code: &str) -> Vec<Translation> {
         self.mappings
             .iter()
-            .filter(|m| m.target_code == target_code)
+            .filter(|m| {
+                m.target_code == target_code && matches!(m.equivalence, Equivalence::Equivalent)
+            })
             .map(|m| Translation {
                 // The returned struct's "source_code" field is the
                 // side we're coming FROM — which in reverse mode is
@@ -281,6 +288,23 @@ mod tests {
         assert_eq!(reverse.len(), 1);
         assert_eq!(reverse[0].source_code, "ACTIVE"); // coming-from side
         assert_eq!(reverse[0].target_code, "A"); // going-to side
+    }
+
+    #[test]
+    fn translate_reverse_ignores_directional_and_lossy_mappings() {
+        let cm = map_def(vec![
+            mapping("A", "ACTIVE", Equivalence::Equivalent),
+            mapping("S", "PENDING", Equivalence::NarrowerThanTarget),
+            mapping("B", "BROAD", Equivalence::BroaderThanTarget),
+            mapping("R", "RELATED", Equivalence::Related),
+            mapping("X", "LEGACY_X", Equivalence::Disjoint),
+        ]);
+
+        assert_eq!(cm.translate_reverse("ACTIVE").len(), 1);
+        assert!(cm.translate_reverse("PENDING").is_empty());
+        assert!(cm.translate_reverse("BROAD").is_empty());
+        assert!(cm.translate_reverse("RELATED").is_empty());
+        assert!(cm.translate_reverse("LEGACY_X").is_empty());
     }
 
     #[test]

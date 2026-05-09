@@ -108,10 +108,7 @@ pub enum RuleOrigin {
     /// commitment, SLA). `policy_id` is the workspace-level identity
     /// of the policy (commonly a wiki / notion page id); `owner` is
     /// the principal accountable for the policy's lifecycle.
-    BusinessPolicy {
-        policy_id: String,
-        owner: String,
-    },
+    BusinessPolicy { policy_id: String, owner: String },
 
     /// Inferred from the data itself — "this property is non-null in
     /// 99.6% of rows; propose adding a NOT-NULL invariant". Always
@@ -200,8 +197,8 @@ pub struct RuleDef {
     /// Provenance of the rule. Authored rules accept edits; derived
     /// rules are regenerated from the source binding and must not be
     /// hand-edited (the editor disables controls; exporters skip
-    /// them to avoid double-emit). Defaults to `Authored` when
-    /// missing on the wire.
+    /// them to avoid double-emit). Omitted origin is treated as
+    /// `Authored`, matching the canonical authored-rule constructor.
     #[serde(default)]
     pub origin: RuleOrigin,
 
@@ -335,10 +332,11 @@ pub enum ConstraintSignature {
     MinCount,
 }
 
-/// SHACL Core constraint component. The subset covers ~95% of
-/// real-world rule usage; advanced components (`sh:and`, `sh:or`,
-/// `sh:xone`, recursion rules) are not yet implemented and land
-/// alongside the reasoning engine.
+/// SHACL Core constraint component. The model keeps common primitive
+/// property constraints and composition operators (`sh:and`, `sh:or`,
+/// `sh:not`, `sh:xone`, `sh:qualifiedValueShape`) in one typed tree so
+/// rule authors can express portable validation intent without falling
+/// back to dialect-specific predicates.
 ///
 /// `ShaclConstraint` lives at the **logical** layer — the SHACL
 /// validator pipeline checks each constraint at write/read time and
@@ -359,7 +357,10 @@ pub enum ShaclConstraint {
     /// `sh:datatype` — the value must be compatible with the given
     /// `PropertyType`. "Compatible" uses
     /// `PropertyType::check_compatibility_with`.
-    Datatype { target: ConstraintTarget, expected: PropertyType },
+    Datatype {
+        target: ConstraintTarget,
+        expected: PropertyType,
+    },
     /// `sh:pattern` — structured format match via a referenced
     /// [`crate::notation_pattern::NotationPatternDef`]. Replaces the
     /// former free-form `regex: String` so that edits to a named
@@ -379,7 +380,10 @@ pub enum ShaclConstraint {
         value_set_id: ValueSetId,
     },
     /// `sh:hasValue` — the property must contain this value.
-    HasValue { target: ConstraintTarget, value: String },
+    HasValue {
+        target: ConstraintTarget,
+        value: String,
+    },
     /// `sh:minInclusive`.
     MinInclusive { target: ConstraintTarget, min: f64 },
     /// `sh:maxInclusive`.
@@ -441,16 +445,8 @@ pub enum ShaclConstraint {
     /// failing constraint at validation time so an authoring
     /// mistake surfaces instead of silently accepting every
     /// value.
-    Or {
-        /// `Vec<ShaclConstraint>` — `value_type = Object` keeps
-        /// utoipa's schema generator from infinitely inlining the
-        /// recursive variant into its own definition. Wire shape
-        /// stays the same; only the OpenAPI document references
-        /// `ShaclConstraint` by name on the recursive edge.
-        #[schema(value_type = Vec<Object>)]
-        #[schemars(with = "Vec<serde_json::Value>")]
-        branches: Vec<ShaclConstraint>,
-    },
+    #[schema(no_recursion)]
+    Or { branches: Vec<ShaclConstraint> },
     /// `sh:and` — every branch must hold. Cheap to author by hand
     /// (the underlying primitives already AND together when listed
     /// in `RuleDef.constraints`), but a first-class `And` keeps
@@ -458,11 +454,8 @@ pub enum ShaclConstraint {
     /// composite rule serialise as a single tree rather than a flat
     /// list whose conjunction is implicit. Empty `branches` is
     /// vacuously *true* (mirrors SHACL spec § 4.6.1).
-    And {
-        #[schema(value_type = Vec<Object>)]
-        #[schemars(with = "Vec<serde_json::Value>")]
-        branches: Vec<ShaclConstraint>,
-    },
+    #[schema(no_recursion)]
+    And { branches: Vec<ShaclConstraint> },
     /// `sh:not` — the inner constraint must NOT hold. The natural
     /// surface for negative-shape authoring ("the value must NOT
     /// match this pattern", "the property MUST NOT be in this
@@ -470,24 +463,15 @@ pub enum ShaclConstraint {
     /// via `CrossEntityShape { predicate: "NOT (...)" }` — dialect-
     /// coupled SQL strings the planner cannot rewrite. `Not` keeps
     /// negation portable.
-    Not {
-        /// Boxed because Rust enums forbid direct recursion at the
-        /// variant level. utoipa schema treats this as `Object` —
-        /// same recursive-edge handling as `Or`/`And`/`Xone`.
-        #[schema(value_type = Object)]
-        #[schemars(with = "serde_json::Value")]
-        inner: Box<ShaclConstraint>,
-    },
+    #[schema(no_recursion)]
+    Not { inner: Box<ShaclConstraint> },
     /// `sh:xone` — exactly one branch must hold. Models mutually-
     /// exclusive alternation (a price field is either an integer
     /// `cents` value OR a decimal `dollars` value, never both). An
     /// empty `branches` list is vacuously *false* (mirrors `Or`
     /// failure semantics for the empty case).
-    Xone {
-        #[schema(value_type = Vec<Object>)]
-        #[schemars(with = "Vec<serde_json::Value>")]
-        branches: Vec<ShaclConstraint>,
-    },
+    #[schema(no_recursion)]
+    Xone { branches: Vec<ShaclConstraint> },
     /// `sh:qualifiedValueShape` — at least `qualified_min_count`
     /// and at most `qualified_max_count` *values of this property*
     /// satisfy the inner shape. The classic regulatory-rule shape:
@@ -500,9 +484,8 @@ pub enum ShaclConstraint {
     /// `qualified_max_count = None` is "no upper bound". Both
     /// being `None`/`0` is degenerate and rejected by the
     /// validator's authoring-time check.
+    #[schema(no_recursion)]
     QualifiedValueShape {
-        #[schema(value_type = Object)]
-        #[schemars(with = "serde_json::Value")]
         shape: Box<ShaclConstraint>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         qualified_min_count: Option<u32>,
@@ -563,7 +546,9 @@ impl ShaclConstraint {
             Self::MatchesPattern {
                 notation_pattern_id,
                 ..
-            } => Some(ConstraintSignature::MatchesPattern(notation_pattern_id.clone())),
+            } => Some(ConstraintSignature::MatchesPattern(
+                notation_pattern_id.clone(),
+            )),
             Self::MinCount { .. } => Some(ConstraintSignature::MinCount),
             Self::MaxCount { .. }
             | Self::Datatype { .. }
@@ -638,14 +623,12 @@ impl ShaclConstraint {
                 notation_pattern_id,
                 ..
             } => vec![ConstraintRef::NotationPattern(notation_pattern_id)],
-            Self::LessThan { other_property, .. }
-            | Self::Equals { other_property, .. } => {
+            Self::LessThan { other_property, .. } | Self::Equals { other_property, .. } => {
                 vec![ConstraintRef::PropertyId(other_property)]
             }
-            Self::Or { branches } | Self::And { branches } | Self::Xone { branches } => branches
-                .iter()
-                .flat_map(|c| c.referenced_ids())
-                .collect(),
+            Self::Or { branches } | Self::And { branches } | Self::Xone { branches } => {
+                branches.iter().flat_map(|c| c.referenced_ids()).collect()
+            }
             Self::Not { inner } => inner.referenced_ids(),
             Self::QualifiedValueShape { shape, .. } => shape.referenced_ids(),
             Self::MinCount { .. }
@@ -696,7 +679,9 @@ pub enum ConstraintTarget {
 }
 
 /// Violation severity.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     /// Rule failure blocks the operation (write rejected, query
@@ -712,7 +697,9 @@ pub enum Severity {
 }
 
 /// When the rule runs.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum EnforcementKind {
     /// Pre-execute check on a mutation. Failure aborts the write.
@@ -729,7 +716,9 @@ pub enum EnforcementKind {
 }
 
 /// When the rule is live at all.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RuleActivationKind {
     /// Always active.
@@ -915,7 +904,7 @@ mod tests {
             ],
             valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         };
         let j = serde_json::to_value(&r).unwrap();
         let back: RuleDef = serde_json::from_value(j).unwrap();
@@ -954,7 +943,7 @@ mod tests {
             constraints: vec![],
             valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         };
         let j = serde_json::to_value(&r).unwrap();
         let back: RuleDef = serde_json::from_value(j).unwrap();
@@ -1298,14 +1287,14 @@ mod tests {
     }
 
     #[test]
-    fn rule_origin_missing_field_deserialises_to_authored() {
-        // Absent `origin` lands as `Authored` for wire compatibility.
+    fn rule_origin_defaults_to_authored_when_omitted() {
+        // Absent `origin` lands as `Authored`, the canonical operator-authored rule.
         let json = r#"{
             "id":"r1",
             "name":{"default":"x"},
             "kind":{"kind":"node_shape","target_node_type_id":"nt-1"}
         }"#;
-        let rule: RuleDef = serde_json::from_str(json).expect("legacy parse");
+        let rule: RuleDef = serde_json::from_str(json).expect("parse");
         assert_eq!(rule.origin, RuleOrigin::Authored);
     }
 
@@ -1417,6 +1406,10 @@ mod tests {
             ],
         };
         let refs = c.referenced_ids();
-        assert_eq!(refs.len(), 3, "And→Or→{{InValueSet, Not→MatchesPattern}}, And→Xone→QualifiedValueShape→InValueSet");
+        assert_eq!(
+            refs.len(),
+            3,
+            "And→Or→{{InValueSet, Not→MatchesPattern}}, And→Xone→QualifiedValueShape→InValueSet"
+        );
     }
 }

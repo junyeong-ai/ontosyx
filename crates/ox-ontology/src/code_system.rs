@@ -405,7 +405,10 @@ mod tests {
         cv.aliases = vec!["ACT".into(), "Active".into()];
         s.codes.push(cv);
         assert_eq!(s.alias_matches("a").unwrap().id, CodedValueId::new("cv-a"));
-        assert_eq!(s.alias_matches(" ACT ").unwrap().id, CodedValueId::new("cv-a"));
+        assert_eq!(
+            s.alias_matches(" ACT ").unwrap().id,
+            CodedValueId::new("cv-a")
+        );
         assert_eq!(
             s.alias_matches("active").unwrap().id,
             CodedValueId::new("cv-a")

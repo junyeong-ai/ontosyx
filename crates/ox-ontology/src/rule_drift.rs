@@ -93,11 +93,8 @@ pub fn detect_value_set_drift(
             }
 
             let expansion = expand_value_set(value_set, ontology.code_systems());
-            let allowed: BTreeSet<&str> = expansion
-                .codes
-                .iter()
-                .map(|cv| cv.code.as_str())
-                .collect();
+            let allowed: BTreeSet<&str> =
+                expansion.codes.iter().map(|cv| cv.code.as_str()).collect();
 
             // Preserve order + dedup the unmapped slice so the
             // warning's `params` list stays deterministic across
@@ -152,13 +149,17 @@ mod tests {
     use ox_core::types::PropertyType;
 
     use crate::binding::BindingStrength;
-    use crate::code_system::{CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId};
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
     use crate::ir::{NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef};
     use crate::mapping::{
         ColumnRef, ObjectMappingDef, ObjectMappingId, PropertyMappingDef, PropertyTransform,
         SourceId,
     };
-    use crate::value_set::{IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector};
+    use crate::value_set::{
+        IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
+    };
 
     fn coded(id: &str, code: &str) -> CodedValue {
         CodedValue {
@@ -319,7 +320,10 @@ mod tests {
             &w.scope,
             WarningScope::Column { table, column } if table == "orders" && column == "status"
         ));
-        assert_eq!(w.params.get("unmapped_count").map(String::as_str), Some("1"));
+        assert_eq!(
+            w.params.get("unmapped_count").map(String::as_str),
+            Some("1")
+        );
         assert_eq!(
             w.params.get("unmapped_codes").map(String::as_str),
             Some("ARCHIVED")

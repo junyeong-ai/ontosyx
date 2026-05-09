@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 // the historical values so existing callers keep their behavior.
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct QualityConfig {
     /// Below this many rows a table is flagged as `SmallSample`
     /// (statistics may not represent production data). Default: 5.
@@ -30,7 +30,7 @@ impl Default for QualityConfig {
 // Quality report types
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OntologyQualityReport {
     pub confidence: QualityConfidence,
     /// Identified gaps that may reduce query accuracy or semantic correctness.
@@ -39,7 +39,7 @@ pub struct OntologyQualityReport {
 }
 
 /// Overall confidence in the generated ontology's ability to support correct query generation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QualityConfidence {
     /// No significant gaps — ontology is ready for production use.
@@ -57,7 +57,7 @@ pub enum QualityConfidence {
 /// `qualityGap.<category>.<ref_type>.suggestion`); `params` carries the
 /// interpolation values. The backend never produces user-facing prose
 /// itself — every locale lives in the FE catalogue.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct QualityGap {
     pub severity: QualityGapSeverity,
     pub category: QualityGapCategory,
@@ -70,7 +70,7 @@ pub struct QualityGap {
 
 /// Structured reference to the entity affected by a quality gap.
 /// Carries entity IDs for direct graph canvas matching.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(tag = "ref_type", rename_all = "snake_case")]
 pub enum QualityGapRef {
     Node {
@@ -108,7 +108,7 @@ pub enum QualityGapRef {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QualityGapSeverity {
     /// Will likely cause wrong query generation
@@ -119,7 +119,7 @@ pub enum QualityGapSeverity {
     Low,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QualityGapCategory {
     /// A short/cryptic enum value whose meaning cannot be inferred from schema alone

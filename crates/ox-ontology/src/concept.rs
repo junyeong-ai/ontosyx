@@ -25,13 +25,11 @@
 //!   cross-entity predicate) live with the concept, not with each
 //!   of its lexicalizations.
 //!
-//! This module ships the identity primitive without rewiring every
-//! consumer at once. `OntologyIR.concepts` is a sibling collection;
-//! `NodeTypeDef.concept_id` keeps pointing at the canonical
-//! `GlossaryTermDef` for now and will lift to `concept_id` in a
-//! follow-up that includes the data migration. The two surfaces
-//! coexist behind the IR validator's referential check so a
-//! transitional ontology can carry both shapes without drift.
+//! `OntologyIR.concepts` is the canonical concept collection.
+//! `NodeTypeDef.concept_id` / `EdgeTypeDef.concept_id` declare the
+//! primary concept a graph type realises, while `concept_realizations`
+//! records secondary interface, classification, and analytical
+//! concepts without duplicating lexical term anchors on the type.
 
 use chrono::{DateTime, Utc};
 use ox_core::i18n::LocalizedText;
@@ -51,12 +49,13 @@ ox_core::define_id_newtype!(
 /// Workspace-canonical business concept — the identity layer above
 /// any lexicalization the glossary records.
 ///
-/// Implementer pin: `NodeTypeDef.concept_id` /
-/// `EdgeTypeDef.concept_id` reference exactly one `ConceptDef`. The
-/// canonical pre-label lives on the referenced `GlossaryTermDef` (via
-/// `canonical_term_id`); aliases fan out across `alias_term_ids` so a
-/// multilingual deployment can ship the Korean and English term
-/// records side-by-side without inventing a second concept.
+/// Implementer pin: graph types reference the primary `ConceptDef`
+/// through `concept_id` and optional additional realizations through
+/// `concept_realizations`. The canonical prefLabel lives on the
+/// referenced `GlossaryTermDef` (via `canonical_term_id`); aliases fan
+/// out across `alias_term_ids` so a multilingual deployment can ship
+/// the Korean and English term records side-by-side without inventing
+/// a second concept.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ConceptDef {
     /// Stable identity. Survives prefLabel rewrites, locale flips,
@@ -179,9 +178,7 @@ impl ConceptDef {
     /// in registration order. Schema RAG indexers and binding
     /// suggesters walk this iter to enumerate every term that
     /// resolves to the concept.
-    pub fn lexicalization_term_ids(
-        &self,
-    ) -> impl Iterator<Item = &GlossaryTermId> {
+    pub fn lexicalization_term_ids(&self) -> impl Iterator<Item = &GlossaryTermId> {
         std::iter::once(&self.canonical_term_id).chain(self.alias_term_ids.iter())
     }
 }

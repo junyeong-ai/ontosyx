@@ -4,11 +4,11 @@
 //!
 //! Each binding pairs a property with one entry in a top-level
 //! registry (value set, code system, notation pattern, value range,
-//! glossary term). The shape is a tagged enum **per registry kind**
+//! concept). The shape is a tagged enum **per registry kind**
 //! so each variant carries only the fields that are meaningful for
 //! that target — strength applies where enforcement is meaningful,
 //! `concept_map_id` only where vocabulary translation makes sense,
-//! and the dedup-independent kinds (`ValueRange`, `Glossary`) drop
+//! and the dedup-independent kinds (`ValueRange`, `Concept`) drop
 //! the strength axis entirely.
 //!
 //! Strength + temporal scope are first-class so consumers don't have
@@ -44,8 +44,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::code_system::CodeSystemId;
+use crate::concept::ConceptId;
 use crate::concept_map::ConceptMapId;
-use crate::glossary::GlossaryTermId;
 use crate::notation_pattern::NotationPatternId;
 use crate::value_range::ValueRangeSetId;
 use crate::value_set::ValueSetId;
@@ -107,7 +107,7 @@ impl BindingStrength {
 ///   vocabulary translation)
 /// - `ValueRange` — temporal window only (the IR treats ranges as
 ///   classifiers, not rejectors; strength would have no enforcement)
-/// - `Glossary` — temporal window only (semantic anchor; strength
+/// - `Concept` — temporal window only (semantic anchor; strength
 ///   carries no enforcement semantics for "this property realises
 ///   this concept")
 ///
@@ -116,9 +116,7 @@ impl BindingStrength {
 /// pattern is a stricter form of another), consumers honour the
 /// first match. `valid_from` / `valid_to` filter the active set
 /// before that ordering applies.
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PropertyBinding {
     /// Values must come from a [`ValueSetDef`](crate::value_set::ValueSetDef)
@@ -184,14 +182,12 @@ pub enum PropertyBinding {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         valid_to: Option<DateTime<Utc>>,
     },
-    /// The property realises a business concept catalogued in the
-    /// [`GlossaryTermDef`](crate::glossary::GlossaryTermDef)
-    /// registry. Pure semantic anchor — no value-domain constraint,
-    /// no enforcement, no strength axis. Pair with a `ValueSet` /
-    /// `CodeSystem` binding when the concept also dictates the value
-    /// vocabulary.
-    Glossary {
-        id: GlossaryTermId,
+    /// The property realises a workspace-canonical business concept.
+    /// This is the semantic anchor for property-level meaning; pair
+    /// with `ValueSet`, `CodeSystem`, `NotationPattern`, or
+    /// `ValueRange` when the concept also has value-domain structure.
+    Concept {
+        id: ConceptId,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         valid_from: Option<DateTime<Utc>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -212,7 +208,7 @@ pub enum PropertyBindingHandle {
     CodeSystem { id: CodeSystemId },
     NotationPattern { id: NotationPatternId },
     ValueRange { id: ValueRangeSetId },
-    Glossary { id: GlossaryTermId },
+    Concept { id: ConceptId },
 }
 
 impl PropertyBinding {
@@ -259,9 +255,9 @@ impl PropertyBinding {
         }
     }
 
-    /// Convenience: a `Glossary` binding (no strength axis).
-    pub fn glossary(id: GlossaryTermId) -> Self {
-        Self::Glossary {
+    /// Convenience: a `Concept` binding (no strength axis).
+    pub fn concept(id: ConceptId) -> Self {
+        Self::Concept {
             id,
             valid_from: None,
             valid_to: None,
@@ -269,7 +265,7 @@ impl PropertyBinding {
     }
 
     /// Override strength on the variants that carry one. Variants
-    /// without a strength axis (`ValueRange`, `Glossary`) return
+    /// without a strength axis (`ValueRange`, `Concept`) return
     /// `self` unchanged — the call is a no-op rather than an error
     /// because tests and migrations sometimes apply a uniform
     /// strength across mixed-kind binding lists.
@@ -312,7 +308,7 @@ impl PropertyBinding {
                 valid_from,
                 valid_to,
             },
-            other @ (Self::ValueRange { .. } | Self::Glossary { .. }) => other,
+            other @ (Self::ValueRange { .. } | Self::Concept { .. }) => other,
         }
     }
 
@@ -378,11 +374,11 @@ impl PropertyBinding {
                 valid_from: new_from.or(valid_from),
                 valid_to: new_to.or(valid_to),
             },
-            Self::Glossary {
+            Self::Concept {
                 id,
                 valid_from,
                 valid_to,
-            } => Self::Glossary {
+            } => Self::Concept {
                 id,
                 valid_from: new_from.or(valid_from),
                 valid_to: new_to.or(valid_to),
@@ -391,7 +387,7 @@ impl PropertyBinding {
     }
 
     /// Override the concept-map on the two variants that carry one.
-    /// `NotationPattern` / `ValueRange` / `Glossary` return `self`
+    /// `NotationPattern` / `ValueRange` / `Concept` return `self`
     /// unchanged — the field has no slot on those shapes.
     pub fn with_concept_map(self, cm: ConceptMapId) -> Self {
         match self {
@@ -432,16 +428,12 @@ impl PropertyBinding {
     pub fn handle(&self) -> PropertyBindingHandle {
         match self {
             Self::ValueSet { id, .. } => PropertyBindingHandle::ValueSet { id: id.clone() },
-            Self::CodeSystem { id, .. } => {
-                PropertyBindingHandle::CodeSystem { id: id.clone() }
-            }
+            Self::CodeSystem { id, .. } => PropertyBindingHandle::CodeSystem { id: id.clone() },
             Self::NotationPattern { id, .. } => {
                 PropertyBindingHandle::NotationPattern { id: id.clone() }
             }
-            Self::ValueRange { id, .. } => {
-                PropertyBindingHandle::ValueRange { id: id.clone() }
-            }
-            Self::Glossary { id, .. } => PropertyBindingHandle::Glossary { id: id.clone() },
+            Self::ValueRange { id, .. } => PropertyBindingHandle::ValueRange { id: id.clone() },
+            Self::Concept { id, .. } => PropertyBindingHandle::Concept { id: id.clone() },
         }
     }
 
@@ -485,7 +477,7 @@ impl PropertyBinding {
                 valid_to,
                 ..
             }
-            | Self::Glossary {
+            | Self::Concept {
                 valid_from,
                 valid_to,
                 ..
@@ -493,7 +485,7 @@ impl PropertyBinding {
         }
     }
 
-    /// The strength of the binding. `Glossary` and `ValueRange`
+    /// The strength of the binding. `Concept` and `ValueRange`
     /// don't carry an explicit strength — both report `Preferred`
     /// (the editor default) for callers that uniformly need a value.
     /// Enforcement consumers should match on the variant directly
@@ -503,7 +495,7 @@ impl PropertyBinding {
             Self::ValueSet { strength, .. }
             | Self::CodeSystem { strength, .. }
             | Self::NotationPattern { strength, .. } => *strength,
-            Self::ValueRange { .. } | Self::Glossary { .. } => BindingStrength::Preferred,
+            Self::ValueRange { .. } | Self::Concept { .. } => BindingStrength::Preferred,
         }
     }
 
@@ -511,11 +503,10 @@ impl PropertyBinding {
     /// one; the other variants always return `None`.
     pub fn concept_map_id(&self) -> Option<&ConceptMapId> {
         match self {
-            Self::ValueSet { concept_map_id, .. }
-            | Self::CodeSystem { concept_map_id, .. } => concept_map_id.as_ref(),
-            Self::NotationPattern { .. }
-            | Self::ValueRange { .. }
-            | Self::Glossary { .. } => None,
+            Self::ValueSet { concept_map_id, .. } | Self::CodeSystem { concept_map_id, .. } => {
+                concept_map_id.as_ref()
+            }
+            Self::NotationPattern { .. } | Self::ValueRange { .. } | Self::Concept { .. } => None,
         }
     }
 }
@@ -597,8 +588,8 @@ mod tests {
                 valid_from: None,
                 valid_to: None,
             },
-            PropertyBinding::Glossary {
-                id: GlossaryTermId::new("gt-customer"),
+            PropertyBinding::Concept {
+                id: ConceptId::new("c-customer"),
                 valid_from: None,
                 valid_to: None,
             },
@@ -617,9 +608,9 @@ mod tests {
     }
 
     #[test]
-    fn glossary_and_value_range_omit_strength_field_on_wire() {
-        let b = PropertyBinding::Glossary {
-            id: GlossaryTermId::new("gt-x"),
+    fn concept_and_value_range_omit_strength_field_on_wire() {
+        let b = PropertyBinding::Concept {
+            id: ConceptId::new("c-x"),
             valid_from: None,
             valid_to: None,
         };

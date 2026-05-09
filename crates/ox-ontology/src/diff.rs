@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Serialize;
 
-use ox_core::graph_label::GraphLabel;
 use crate::ir::*;
+use ox_core::graph_label::GraphLabel;
 use ox_core::property_key::PropertyKey;
 use ox_core::types::PropertyType;
 
@@ -15,7 +15,7 @@ use ox_core::types::PropertyType;
 // not as delete+add pairs.
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct OntologyDiff {
     pub added_nodes: Vec<NodeTypeDef>,
     pub removed_nodes: Vec<NodeTypeDef>,
@@ -33,14 +33,14 @@ impl OntologyDiff {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct NodeDiff {
     pub node_id: NodeTypeId,
     pub label: GraphLabel,
     pub changes: Vec<NodeChange>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum NodeChange {
     LabelChanged {
@@ -69,7 +69,7 @@ pub enum NodeChange {
     },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PropertyChange {
     TypeChanged {
@@ -90,14 +90,14 @@ pub enum PropertyChange {
     },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct EdgeDiff {
     pub edge_id: EdgeTypeId,
     pub label: GraphLabel,
     pub changes: Vec<EdgeChange>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum EdgeChange {
     LabelChanged {
@@ -136,7 +136,7 @@ pub enum EdgeChange {
     },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct DiffSummary {
     pub total_changes: usize,
     pub nodes_added: usize,
@@ -643,8 +643,7 @@ fn resolve_node_label(ontology: &OntologyIR, node_id: &NodeTypeId) -> GraphLabel
 /// existing `GraphLabel::new` test suite.
 #[allow(clippy::expect_used)]
 fn fallback_label() -> GraphLabel {
-    GraphLabel::new("unknown")
-        .expect("literal `unknown` must satisfy GraphLabel invariants")
+    GraphLabel::new("unknown").expect("literal `unknown` must satisfy GraphLabel invariants")
 }
 
 // ---------------------------------------------------------------------------
@@ -654,10 +653,10 @@ fn fallback_label() -> GraphLabel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_fixtures::{property, test_ontology};
     use ox_core::graph_label::GraphLabel;
     use ox_core::i18n::LocalizedText;
     use ox_core::property_key::PropertyKey;
-    use crate::test_fixtures::{property, test_ontology};
 
     fn gl(s: &'static str) -> GraphLabel {
         GraphLabel::new(s).expect("test label literal must be valid")

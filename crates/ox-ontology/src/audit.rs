@@ -11,11 +11,11 @@ use std::collections::BTreeSet;
 use schemars::JsonSchema;
 use serde::Serialize;
 
-use ox_core::error::OxResult;
 use crate::graph_exploration::GraphSchemaOverview;
+use crate::ir::OntologyIR;
+use ox_core::error::OxResult;
 use ox_core::graph_label::GraphLabel;
 use ox_core::i18n::LocalizedText;
-use crate::ir::OntologyIR;
 use ox_core::property_key::PropertyKey;
 
 /// Sync status between ontology and graph data.
@@ -281,10 +281,10 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> OxResu
 mod tests {
     use super::*;
     use crate::graph_exploration::{GraphSchemaOverview, LabelStat, RelationshipPattern};
-    use ox_core::graph_label::GraphLabel;
-    use ox_core::i18n::LocalizedText;
     use crate::ir::OntologyIR;
     use crate::ir::{Cardinality, EdgeTypeDef, NodeTypeDef};
+    use ox_core::graph_label::GraphLabel;
+    use ox_core::i18n::LocalizedText;
 
     fn make_ontology(nodes: &[&str], edges: &[(&str, &str, &str)]) -> OntologyIR {
         let node_types: Vec<NodeTypeDef> = nodes

@@ -49,8 +49,8 @@ use crate::action::RuleId;
 use crate::binding::{BindingStrength, PropertyBinding};
 use crate::ir::{NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId};
 use crate::rule::{
-    ConstraintSignature, ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef,
-    RuleKind, RuleOrigin, Severity, ShaclConstraint,
+    ConstraintSignature, ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef, RuleKind,
+    RuleOrigin, Severity, ShaclConstraint,
 };
 
 /// Prefix marking a synthesised rule. Consumers can filter authored
@@ -387,7 +387,7 @@ fn derive_binding_rule(
         constraints: vec![constraint],
         valid_from,
         valid_to,
-            sh_message: None,
+        sh_message: None,
     })
 }
 
@@ -396,7 +396,9 @@ fn derive_binding_rule(
 mod tests {
     use super::*;
     use crate::binding::{BindingStrength, PropertyBinding};
-    use crate::code_system::{CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId};
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
     use crate::ir::{NodeTypeDef, OntologyIR, PropertyDef};
     use crate::rule::{RuleKind, ShaclConstraint};
     use ox_core::graph_label::GraphLabel;
@@ -507,15 +509,17 @@ mod tests {
     }
 
     #[test]
-    fn glossary_required_binding_yields_no_derived_rule() {
-        // Glossary bindings are semantic anchors — they declare
+    fn concept_binding_yields_no_derived_rule() {
+        // Concept bindings are semantic anchors — they declare
         // "this property realises this concept" without imposing a
         // value-domain constraint. Synthesising a SHACL rule from
         // them would be a heuristic lie.
+        use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
         use crate::glossary::{GlossaryTermDef, GlossaryTermId};
 
         let mut ontology = ontology_with_property("status");
         let term_id = GlossaryTermId::new("gt-customer-status");
+        let concept_id = ConceptId::new("c-customer-status");
         ontology
             .add_glossary_term(GlossaryTermDef {
                 id: term_id.clone(),
@@ -530,17 +534,28 @@ mod tests {
                 valid_from: None,
                 valid_to: None,
                 lifecycle: crate::glossary::TermLifecycle::default(),
-            concept_id: None,
+                concept_id: Some(concept_id.clone()),
+                term_pos: Default::default(),
             })
             .unwrap();
-        push_binding(
-            &mut ontology,
-            PropertyBinding::Glossary {
-                id: term_id,
+        ontology
+            .add_concept(ConceptDef {
+                id: concept_id.clone(),
+                canonical_term_id: term_id,
+                alias_term_ids: Vec::new(),
+                broader: None,
+                description: LocalizedText::default(),
+                examples: Vec::new(),
+                category: None,
+                realisation: None,
+                lifecycle: crate::glossary::TermLifecycle::default(),
+                replaced_by: None,
                 valid_from: None,
                 valid_to: None,
-            },
-        );
+                governance: ConceptGovernance::default(),
+            })
+            .unwrap();
+        push_binding(&mut ontology, PropertyBinding::concept(concept_id));
 
         let derived = ontology.derive_binding_rules();
         assert!(derived.is_empty(), "{derived:?}");
@@ -569,7 +584,16 @@ mod tests {
                 }],
             })
             .unwrap();
-        push_binding(&mut ontology, PropertyBinding::ValueSet { id: vs_id.clone(), strength: BindingStrength::Required, concept_map_id: None, valid_from: None, valid_to: None });
+        push_binding(
+            &mut ontology,
+            PropertyBinding::ValueSet {
+                id: vs_id.clone(),
+                strength: BindingStrength::Required,
+                concept_map_id: None,
+                valid_from: None,
+                valid_to: None,
+            },
+        );
 
         let derived = ontology.derive_binding_rules();
         assert_eq!(derived.len(), 1);
@@ -599,15 +623,13 @@ mod tests {
     /// constraint on the fixture's `(nt-x, p-x)` coordinates.
     fn add_authored_rule(ontology: &mut OntologyIR, id: &str, constraint: ShaclConstraint) {
         use crate::action::RuleId;
-        use crate::rule::{
-            EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity,
-        };
+        use crate::rule::{EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity};
         ontology
             .add_rule(RuleDef {
                 id: RuleId::new(id),
                 name: id.into(),
                 description: LocalizedText::default(),
-            rationale: LocalizedText::default(),
+                rationale: LocalizedText::default(),
                 kind: RuleKind::PropertyShape {
                     target_node_type_id: "nt-x".into(),
                     target_property_id: "p-x".into(),
@@ -619,7 +641,7 @@ mod tests {
                 constraints: vec![constraint],
                 valid_from: None,
                 valid_to: None,
-                            sh_message: None,
+                sh_message: None,
             })
             .expect("authored rule add");
     }
@@ -661,7 +683,16 @@ mod tests {
         let cs_id = add_singleton_code_system(&mut ontology, "cs-status");
         let vs_id = seed_value_set_with_id(&mut ontology, &cs_id, "vs-status");
 
-        push_binding(&mut ontology, PropertyBinding::ValueSet { id: vs_id.clone(), strength: BindingStrength::Required, concept_map_id: None, valid_from: None, valid_to: None });
+        push_binding(
+            &mut ontology,
+            PropertyBinding::ValueSet {
+                id: vs_id.clone(),
+                strength: BindingStrength::Required,
+                concept_map_id: None,
+                valid_from: None,
+                valid_to: None,
+            },
+        );
         add_authored_rule(
             &mut ontology,
             "r-authored-status",
@@ -687,7 +718,16 @@ mod tests {
         let vs_bound = seed_value_set_with_id(&mut ontology, &cs_id, "vs-bound");
         let vs_other = seed_value_set_with_id(&mut ontology, &cs_id, "vs-other");
 
-        push_binding(&mut ontology, PropertyBinding::ValueSet { id: vs_bound.clone(), strength: BindingStrength::Required, concept_map_id: None, valid_from: None, valid_to: None });
+        push_binding(
+            &mut ontology,
+            PropertyBinding::ValueSet {
+                id: vs_bound.clone(),
+                strength: BindingStrength::Required,
+                concept_map_id: None,
+                valid_from: None,
+                valid_to: None,
+            },
+        );
         add_authored_rule(
             &mut ontology,
             "r-other",
@@ -721,7 +761,16 @@ mod tests {
         let cs_id = add_singleton_code_system(&mut ontology, "cs-status");
         let vs_id = seed_value_set_with_id(&mut ontology, &cs_id, "vs-status");
 
-        push_binding(&mut ontology, PropertyBinding::ValueSet { id: vs_id.clone(), strength: BindingStrength::Required, concept_map_id: None, valid_from: None, valid_to: None });
+        push_binding(
+            &mut ontology,
+            PropertyBinding::ValueSet {
+                id: vs_id.clone(),
+                strength: BindingStrength::Required,
+                concept_map_id: None,
+                valid_from: None,
+                valid_to: None,
+            },
+        );
         add_authored_rule(
             &mut ontology,
             "r-min-count",
@@ -745,10 +794,11 @@ mod tests {
         // the authored MinCount's contribution.
         let authored_sigs = ontology.authored_constraint_signatures();
         assert_eq!(authored_sigs.len(), 1);
-        assert!(authored_sigs.iter().any(|(_, _, sig)| matches!(
-            sig,
-            crate::rule::ConstraintSignature::MinCount
-        )));
+        assert!(
+            authored_sigs
+                .iter()
+                .any(|(_, _, sig)| matches!(sig, crate::rule::ConstraintSignature::MinCount))
+        );
     }
 
     // ----- Wave 8.14 — effective-target dedup -----
@@ -803,15 +853,13 @@ mod tests {
         constraint: ShaclConstraint,
     ) {
         use crate::action::RuleId;
-        use crate::rule::{
-            EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity,
-        };
+        use crate::rule::{EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity};
         ontology
             .add_rule(RuleDef {
                 id: RuleId::new(rule_id),
                 name: rule_id.into(),
                 description: LocalizedText::default(),
-            rationale: LocalizedText::default(),
+                rationale: LocalizedText::default(),
                 kind: RuleKind::PropertyShape {
                     target_node_type_id: "nt-x".into(),
                     target_property_id: nominal_property_id.into(),
@@ -823,7 +871,7 @@ mod tests {
                 constraints: vec![constraint],
                 valid_from: None,
                 valid_to: None,
-                            sh_message: None,
+                sh_message: None,
             })
             .expect("authored rule add");
     }
@@ -834,15 +882,13 @@ mod tests {
         constraint: ShaclConstraint,
     ) {
         use crate::action::RuleId;
-        use crate::rule::{
-            EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity,
-        };
+        use crate::rule::{EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity};
         ontology
             .add_rule(RuleDef {
                 id: RuleId::new(rule_id),
                 name: rule_id.into(),
                 description: LocalizedText::default(),
-            rationale: LocalizedText::default(),
+                rationale: LocalizedText::default(),
                 kind: RuleKind::NodeShape {
                     target_node_type_id: "nt-x".into(),
                 },
@@ -853,16 +899,12 @@ mod tests {
                 constraints: vec![constraint],
                 valid_from: None,
                 valid_to: None,
-                            sh_message: None,
+                sh_message: None,
             })
             .expect("authored node-shape rule add");
     }
 
-    fn push_binding_on(
-        ontology: &mut OntologyIR,
-        property_id: &str,
-        binding: PropertyBinding,
-    ) {
+    fn push_binding_on(ontology: &mut OntologyIR, property_id: &str, binding: PropertyBinding) {
         let prop = ontology
             .node_types_mut()
             .iter_mut()
@@ -877,8 +919,7 @@ mod tests {
     }
 
     #[test]
-    fn derived_rule_dedups_against_authored_constraint_with_explicit_property_target_override()
-     {
+    fn derived_rule_dedups_against_authored_constraint_with_explicit_property_target_override() {
         // Authored: PropertyShape nominally on (nt-x, p-y) carrying
         // an `InValueSet` constraint whose `target` overrides to
         // (nt-x, p-x). The constraint EFFECTIVELY enforces p-x.
@@ -890,7 +931,17 @@ mod tests {
         let cs_id = add_singleton_code_system(&mut ontology, "cs-status");
         let vs_id = seed_value_set_with_id(&mut ontology, &cs_id, "vs-status");
 
-        push_binding_on(&mut ontology, "p-x", PropertyBinding::ValueSet { id: vs_id.clone(), strength: BindingStrength::Required, concept_map_id: None, valid_from: None, valid_to: None });
+        push_binding_on(
+            &mut ontology,
+            "p-x",
+            PropertyBinding::ValueSet {
+                id: vs_id.clone(),
+                strength: BindingStrength::Required,
+                concept_map_id: None,
+                valid_from: None,
+                valid_to: None,
+            },
+        );
         add_property_shape_rule_with_constraint_target(
             &mut ontology,
             "r-with-explicit-target",
@@ -922,7 +973,17 @@ mod tests {
         let cs_id = add_singleton_code_system(&mut ontology, "cs-status");
         let vs_id = seed_value_set_with_id(&mut ontology, &cs_id, "vs-status");
 
-        push_binding_on(&mut ontology, "p-x", PropertyBinding::ValueSet { id: vs_id.clone(), strength: BindingStrength::Required, concept_map_id: None, valid_from: None, valid_to: None });
+        push_binding_on(
+            &mut ontology,
+            "p-x",
+            PropertyBinding::ValueSet {
+                id: vs_id.clone(),
+                strength: BindingStrength::Required,
+                concept_map_id: None,
+                valid_from: None,
+                valid_to: None,
+            },
+        );
         add_property_shape_rule_with_constraint_target(
             &mut ontology,
             "r-on-p-y",
@@ -951,7 +1012,17 @@ mod tests {
         let cs_id = add_singleton_code_system(&mut ontology, "cs-status");
         let vs_id = seed_value_set_with_id(&mut ontology, &cs_id, "vs-status");
 
-        push_binding_on(&mut ontology, "p-x", PropertyBinding::ValueSet { id: vs_id.clone(), strength: BindingStrength::Required, concept_map_id: None, valid_from: None, valid_to: None });
+        push_binding_on(
+            &mut ontology,
+            "p-x",
+            PropertyBinding::ValueSet {
+                id: vs_id.clone(),
+                strength: BindingStrength::Required,
+                concept_map_id: None,
+                valid_from: None,
+                valid_to: None,
+            },
+        );
         add_node_shape_rule_with_constraint(
             &mut ontology,
             "r-node-shape-prop",
@@ -1020,7 +1091,10 @@ mod tests {
     fn nullable_true_derives_nothing() {
         let ontology = ontology_with_nullable("optional_field", true);
         let derived = ontology.derive_nullable_rules();
-        assert!(derived.is_empty(), "nullable=true must not derive: {derived:?}");
+        assert!(
+            derived.is_empty(),
+            "nullable=true must not derive: {derived:?}"
+        );
     }
 
     #[test]
@@ -1069,13 +1143,15 @@ mod tests {
             2,
             "binding + nullable axes must each contribute: {implicit:?}",
         );
-        assert!(implicit.iter().any(|r| matches!(
-            &r.constraints[0],
-            ShaclConstraint::InValueSet { .. }
-        )));
-        assert!(implicit.iter().any(|r| matches!(
-            &r.constraints[0],
-            ShaclConstraint::MinCount { min: 1, .. }
-        )));
+        assert!(
+            implicit
+                .iter()
+                .any(|r| matches!(&r.constraints[0], ShaclConstraint::InValueSet { .. }))
+        );
+        assert!(
+            implicit
+                .iter()
+                .any(|r| matches!(&r.constraints[0], ShaclConstraint::MinCount { min: 1, .. }))
+        );
     }
 }

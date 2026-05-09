@@ -164,10 +164,7 @@ fn bands_overlap(a: &ValueBand, b: &ValueBand) -> bool {
     // `None` means unbounded: -∞ on the start side, +∞ on the end
     // side. `None` start / `None` end cannot be "strictly after"
     // anything on the relevant axis.
-    fn starts_strictly_after_end(
-        start: Option<(f64, bool)>,
-        end: Option<(f64, bool)>,
-    ) -> bool {
+    fn starts_strictly_after_end(start: Option<(f64, bool)>, end: Option<(f64, bool)>) -> bool {
         let (Some((sm, s_inc)), Some((em, e_inc))) = (start, end) else {
             return false;
         };
@@ -184,8 +181,7 @@ fn bands_overlap(a: &ValueBand, b: &ValueBand) -> bool {
     let b_start = b.min.map(|m| (m, b.inclusive_min));
     let b_end = b.max.map(|m| (m, b.inclusive_max));
 
-    !starts_strictly_after_end(a_start, b_end)
-        && !starts_strictly_after_end(b_start, a_end)
+    !starts_strictly_after_end(a_start, b_end) && !starts_strictly_after_end(b_start, a_end)
 }
 
 #[cfg(test)]
@@ -193,7 +189,13 @@ fn bands_overlap(a: &ValueBand, b: &ValueBand) -> bool {
 mod tests {
     use super::*;
 
-    fn band(min: Option<f64>, max: Option<f64>, label: &str, inc_min: bool, inc_max: bool) -> ValueBand {
+    fn band(
+        min: Option<f64>,
+        max: Option<f64>,
+        label: &str,
+        inc_min: bool,
+        inc_max: bool,
+    ) -> ValueBand {
         ValueBand {
             min,
             max,

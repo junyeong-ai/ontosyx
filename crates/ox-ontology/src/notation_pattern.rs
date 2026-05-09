@@ -165,42 +165,30 @@ pub enum NotationError {
         found: usize,
         separator: String,
     },
-    #[error(
-        "component '{component}' must be one of the allowed codes; got '{got}'"
-    )]
+    #[error("component '{component}' must be one of the allowed codes; got '{got}'")]
     UnknownCode { component: String, got: String },
-    #[error(
-        "component '{component}' must be an integer in [{min}, {max}]; got '{got}'"
-    )]
+    #[error("component '{component}' must be an integer in [{min}, {max}]; got '{got}'")]
     IntegerOutOfRange {
         component: String,
         min: i64,
         max: i64,
         got: String,
     },
-    #[error(
-        "component '{component}' must be {width} digits wide; got '{got}'"
-    )]
+    #[error("component '{component}' must be {width} digits wide; got '{got}'")]
     IntegerWidthMismatch {
         component: String,
         width: u8,
         got: String,
     },
-    #[error(
-        "component '{component}' must be {width} alphanumeric characters; got '{got}'"
-    )]
+    #[error("component '{component}' must be {width} alphanumeric characters; got '{got}'")]
     AlphanumericWidthMismatch {
         component: String,
         width: u32,
         got: String,
     },
-    #[error(
-        "component '{component}' must be alphanumeric; got '{got}'"
-    )]
+    #[error("component '{component}' must be alphanumeric; got '{got}'")]
     AlphanumericInvalid { component: String, got: String },
-    #[error(
-        "component '{component}' exceeds max_len {max}; got length {got}"
-    )]
+    #[error("component '{component}' exceeds max_len {max}; got length {got}")]
     FreeTextTooLong {
         component: String,
         max: u32,
@@ -286,13 +274,14 @@ impl NotationPatternDef {
     {
         let mut parts = Vec::with_capacity(self.components.len());
         for component in &self.components {
-            let value = values.get(&component.name).ok_or_else(|| {
-                NotationError::ComponentCount {
-                    expected: self.components.len(),
-                    found: values.len(),
-                    separator: self.separator.clone(),
-                }
-            })?;
+            let value =
+                values
+                    .get(&component.name)
+                    .ok_or_else(|| NotationError::ComponentCount {
+                        expected: self.components.len(),
+                        found: values.len(),
+                        separator: self.separator.clone(),
+                    })?;
             parts.push(render_component(component, value, &mut code_resolver)?);
         }
         Ok(parts.join(self.separator.as_str()))
@@ -344,12 +333,14 @@ where
                     got: token.to_string(),
                 });
             }
-            let n: i64 = token.parse().map_err(|_| NotationError::IntegerOutOfRange {
-                component: component.name.clone(),
-                min: *min,
-                max: *max,
-                got: token.to_string(),
-            })?;
+            let n: i64 = token
+                .parse()
+                .map_err(|_| NotationError::IntegerOutOfRange {
+                    component: component.name.clone(),
+                    min: *min,
+                    max: *max,
+                    got: token.to_string(),
+                })?;
             if n < *min || n > *max {
                 return Err(NotationError::IntegerOutOfRange {
                     component: component.name.clone(),
@@ -420,10 +411,7 @@ where
             }
             Ok(c.clone())
         }
-        (
-            NotationComponentKind::IntegerRange { min, max, width },
-            RenderValue::Integer(n),
-        ) => {
+        (NotationComponentKind::IntegerRange { min, max, width }, RenderValue::Integer(n)) => {
             if n < min || n > max {
                 return Err(NotationError::IntegerOutOfRange {
                     component: component.name.clone(),
@@ -455,7 +443,11 @@ where
                     got: s.clone(),
                 });
             }
-            Ok(if *uppercase { s.to_ascii_uppercase() } else { s.clone() })
+            Ok(if *uppercase {
+                s.to_ascii_uppercase()
+            } else {
+                s.clone()
+            })
         }
         (NotationComponentKind::FreeText { max_len }, RenderValue::Text(s)) => {
             if let Some(max) = max_len
@@ -482,10 +474,7 @@ where
 /// function splits as best as it can and downstream parse reports
 /// a width mismatch. `FreeText` without a `max_len` is forbidden
 /// at the end of an empty-separator pattern — ambiguous.
-fn split_fixed_width<'a>(
-    value: &'a str,
-    components: &[NotationComponent],
-) -> Vec<&'a str> {
+fn split_fixed_width<'a>(value: &'a str, components: &[NotationComponent]) -> Vec<&'a str> {
     let mut out = Vec::with_capacity(components.len());
     let mut cursor = 0usize;
     let bytes = value.len();
@@ -564,8 +553,7 @@ mod tests {
     }
 
     fn allow_seasons(set: &ValueSetId, code: &str) -> bool {
-        set.as_str() == "vs-seasons"
-            && matches!(code, "SPRING" | "SUMMER" | "FALL" | "WINTER")
+        set.as_str() == "vs-seasons" && matches!(code, "SPRING" | "SUMMER" | "FALL" | "WINTER")
     }
 
     #[test]

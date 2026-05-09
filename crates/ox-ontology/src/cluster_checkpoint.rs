@@ -79,7 +79,7 @@ impl ClusterSignature {
         }
         hasher.update(b"prh|");
         hasher.update(prompt_render_hash.as_bytes());
-        Self(format!("{:x}", hasher.finalize()))
+        Self(hex::encode(hasher.finalize()))
     }
 
     pub fn as_str(&self) -> &str {
@@ -95,7 +95,10 @@ impl ClusterSignature {
     /// `signature.as_str()` returning garbage to consumers
     /// downstream.
     pub fn from_hex(hex: String) -> Result<Self, ClusterSignatureParseError> {
-        if hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        if hex.len() != 64
+            || !hex
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
         {
             return Err(ClusterSignatureParseError);
         }
@@ -111,9 +114,7 @@ pub struct ClusterSignatureParseError;
 
 impl std::fmt::Display for ClusterSignatureParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            "ClusterSignature must be a 64-character lowercase SHA-256 hex digest",
-        )
+        f.write_str("ClusterSignature must be a 64-character lowercase SHA-256 hex digest")
     }
 }
 
@@ -143,9 +144,7 @@ fn canonicalise_fks(fks: &[ForeignKeyDef], tag: &'static str) -> Vec<String> {
 /// column DEFAULT and stamps `workspace_id` from the active
 /// task-local on insert), `Some(_)` on a checkpoint read back from
 /// the store. Use [`Self::draft`] to author fresh entries.
-#[derive(
-    Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct DraftClusterCheckpoint {
     /// Surrogate key. Set by the persistence layer on insert; absent
     /// on freshly-authored checkpoints.

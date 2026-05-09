@@ -6,17 +6,17 @@ mod tests;
 
 pub use reconcile::{
     DeletedEntity, GeneratedEntity, MatchDecision, PreservedEntity, ReconcileConfidence,
-    ReconcileEntityKind, ReconcileReport, ReconcileResult, UncertainMatch,
-    apply_match_decisions, reconcile_refined,
+    ReconcileEntityKind, ReconcileReport, ReconcileResult, UncertainMatch, apply_match_decisions,
+    reconcile_refined,
 };
 pub use retract::build_retract_source_batch;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::ir::*;
 use ox_core::graph_label::GraphLabel;
 use ox_core::i18n::LocalizedText;
-use crate::ir::*;
 use ox_core::types::{PropertyType, PropertyValue, deserialize_patch_property_value};
 
 // ---------------------------------------------------------------------------
@@ -25,12 +25,12 @@ use ox_core::types::{PropertyType, PropertyValue, deserialize_patch_property_val
 // `OntologyCommand` deliberately covers only the topology + mapping
 // operations the project-flow's commandStack and undo / redo path
 // need to be wire-stable: nodes, edges, properties, constraints,
-// indices, object mappings.
+// indices, object mappings, link mappings.
 //
 // Governance / vocabulary / lineage collections (rules, actions,
 // functions, metrics, enrichments, glossary terms, code systems,
 // value sets, notation patterns, concept maps, segments, interfaces,
-// column profiles, provenances, link mappings) intentionally stay
+// column profiles, provenances) intentionally stay
 // outside this enum. Their mutations land through dedicated admin
 // PATCH endpoints whose wire-shape is owned by the routes that
 // surface them — bundling that long tail under an
@@ -41,7 +41,7 @@ use ox_core::types::{PropertyType, PropertyValue, deserialize_patch_property_val
 // expanding the project-flow's command surface is the only trigger.
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum OntologyCommand {
     AddNode {
@@ -49,6 +49,9 @@ pub enum OntologyCommand {
         label: GraphLabel,
         #[serde(default)]
         description: LocalizedText,
+    },
+    CreateNodeType {
+        node: Box<NodeTypeDef>,
     },
     DeleteNode {
         node_id: NodeTypeId,
@@ -62,21 +65,15 @@ pub enum OntologyCommand {
         #[serde(default)]
         description: LocalizedText,
     },
-    /// Replace the full glossary-anchor list on a node type. Atomic
-    /// — picker UX is "set the list", not "add one + remove one", so
-    /// the audit-log entry records the diff in one row instead of N.
-    SetNodeGlossaryAnchors {
-        node_id: NodeTypeId,
-        #[serde(default)]
-        anchors: Vec<crate::glossary::GlossaryTermId>,
-    },
-
     AddEdge {
         id: EdgeTypeId,
         label: GraphLabel,
         source_node_id: NodeTypeId,
         target_node_id: NodeTypeId,
         cardinality: Cardinality,
+    },
+    CreateEdgeType {
+        edge: Box<EdgeTypeDef>,
     },
     DeleteEdge {
         edge_id: EdgeTypeId,
@@ -94,13 +91,6 @@ pub enum OntologyCommand {
         #[serde(default)]
         description: LocalizedText,
     },
-    /// Symmetric to [`SetNodeGlossaryAnchors`] for edge types.
-    SetEdgeGlossaryAnchors {
-        edge_id: EdgeTypeId,
-        #[serde(default)]
-        anchors: Vec<crate::glossary::GlossaryTermId>,
-    },
-
     AddProperty {
         owner: PropertyOwner,
         // Boxed because `PropertyDef` carries the full property schema
@@ -155,9 +145,20 @@ pub enum OntologyCommand {
     DeleteObjectMapping {
         id: crate::mapping::ObjectMappingId,
     },
+    CreateLinkMapping {
+        mapping: Box<crate::mapping::LinkMappingDef>,
+    },
+    UpdateLinkMapping {
+        id: crate::mapping::LinkMappingId,
+        mapping: Box<crate::mapping::LinkMappingDef>,
+    },
+    DeleteLinkMapping {
+        id: crate::mapping::LinkMappingId,
+    },
 
     Batch {
         description: String,
+        #[schema(no_recursion)]
         commands: Vec<OntologyCommand>,
     },
 }
@@ -184,12 +185,13 @@ impl JsonSchema for OntologyCommand {
                 "op": {
                     "type": "string",
                     "enum": [
-                        "add_node", "delete_node", "rename_node", "update_node_description", "set_node_glossary_anchors",
-                        "add_edge", "delete_edge", "rename_edge", "update_edge_cardinality", "update_edge_description", "set_edge_glossary_anchors",
+                        "add_node", "create_node_type", "delete_node", "rename_node", "update_node_description",
+                        "add_edge", "create_edge_type", "delete_edge", "rename_edge", "update_edge_cardinality", "update_edge_description",
                         "add_property", "delete_property", "update_property",
                         "add_constraint", "remove_constraint",
                         "add_index", "remove_index",
                         "create_object_mapping", "update_object_mapping", "delete_object_mapping",
+                        "create_link_mapping", "update_link_mapping", "delete_link_mapping",
                         "batch"
                     ],
                     "description": "The operation type"
@@ -198,7 +200,10 @@ impl JsonSchema for OntologyCommand {
                 "id": { "type": "string", "description": "ID for the new node (AddNode) or index (AddIndex)" },
                 "label": { "type": "string", "description": "Label for the new node or edge" },
                 "description": { "type": ["string", "null"], "description": "Description for node/edge" },
-                "source_table": { "type": ["string", "null"], "description": "Source table name (AddNode)" },
+                "node": {
+                    "type": "object",
+                    "description": "Full NodeTypeDef payload for lossless node restore/create operations"
+                },
                 // DeleteNode / RenameNode / UpdateNodeDescription / AddConstraint / RemoveConstraint
                 "node_id": { "type": "string", "description": "Target node type ID" },
                 "new_label": { "type": "string", "description": "New label for rename operations" },
@@ -211,8 +216,20 @@ impl JsonSchema for OntologyCommand {
                     "description": "Edge cardinality"
                 },
                 "edge_id": { "type": "string", "description": "Target edge type ID" },
+                "edge": {
+                    "type": "object",
+                    "description": "Full EdgeTypeDef payload for lossless edge restore/create operations"
+                },
                 // Property fields
-                "owner_id": { "type": "string", "description": "Owner node or edge ID (for property operations)" },
+                "owner": {
+                    "type": "object",
+                    "description": "Property owner reference for property operations",
+                    "properties": {
+                        "kind": { "type": "string", "enum": ["node", "edge"] },
+                        "type_id": { "type": "string" }
+                    },
+                    "required": ["kind", "type_id"]
+                },
                 "property": {
                     "type": "object",
                     "description": "PropertyDef: {id, name, property_type, nullable, default_value, description}",
@@ -268,16 +285,10 @@ impl JsonSchema for OntologyCommand {
                     "required": ["id", "type", "node_id"]
                 },
                 "index_id": { "type": "string", "description": "Index ID to remove" },
-                // Glossary-anchor fields (SetNodeGlossaryAnchors / SetEdgeGlossaryAnchors)
-                "anchors": {
-                    "type": "array",
-                    "items": { "type": "string" },
-                    "description": "Replacement list of GlossaryTermId values for the targeted node or edge type"
-                },
-                // ObjectMapping fields (CreateObjectMapping / UpdateObjectMapping / DeleteObjectMapping)
+                // Mapping fields (Create/Update object/link mappings)
                 "mapping": {
                     "type": "object",
-                    "description": "ObjectMappingDef payload — see ox_ontology::ObjectMappingDef for the full schema"
+                    "description": "ObjectMappingDef or LinkMappingDef payload — see ox_ontology mapping schemas for the full schema"
                 },
                 // Batch fields
                 "commands": {
@@ -301,7 +312,7 @@ impl JsonSchema for OntologyCommand {
 // PropertyPatch — partial update for a property
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct PropertyPatch {
     pub name: Option<String>,
     pub property_type: Option<PropertyType>,
@@ -345,21 +356,17 @@ impl OntologyCommand {
     /// Return element IDs affected by this command (for verification invalidation).
     pub fn affected_element_ids(&self) -> Vec<String> {
         match self {
-            Self::AddNode { id, .. }
-            | Self::DeleteNode { node_id: id, .. }
+            Self::AddNode { id, .. } => vec![id.0.clone()],
+            Self::CreateNodeType { node } => vec![node.id.0.clone()],
+            Self::DeleteNode { node_id: id, .. }
             | Self::RenameNode { node_id: id, .. }
-            | Self::UpdateNodeDescription { node_id: id, .. }
-            | Self::SetNodeGlossaryAnchors { node_id: id, .. } => {
-                vec![id.0.clone()]
-            }
-            Self::AddEdge { id, .. }
-            | Self::DeleteEdge { edge_id: id, .. }
+            | Self::UpdateNodeDescription { node_id: id, .. } => vec![id.0.clone()],
+            Self::AddEdge { id, .. } => vec![id.0.clone()],
+            Self::CreateEdgeType { edge } => vec![edge.id.0.clone()],
+            Self::DeleteEdge { edge_id: id, .. }
             | Self::RenameEdge { edge_id: id, .. }
             | Self::UpdateEdgeCardinality { edge_id: id, .. }
-            | Self::UpdateEdgeDescription { edge_id: id, .. }
-            | Self::SetEdgeGlossaryAnchors { edge_id: id, .. } => {
-                vec![id.0.clone()]
-            }
+            | Self::UpdateEdgeDescription { edge_id: id, .. } => vec![id.0.clone()],
             Self::AddProperty { owner, .. }
             | Self::DeleteProperty { owner, .. }
             | Self::UpdateProperty { owner, .. } => {
@@ -373,6 +380,12 @@ impl OntologyCommand {
                 vec![mapping.id.0.clone()]
             }
             Self::UpdateObjectMapping { id, .. } | Self::DeleteObjectMapping { id } => {
+                vec![id.0.clone()]
+            }
+            Self::CreateLinkMapping { mapping } => {
+                vec![mapping.id.0.clone()]
+            }
+            Self::UpdateLinkMapping { id, .. } | Self::DeleteLinkMapping { id } => {
                 vec![id.0.clone()]
             }
             Self::Batch { commands, .. } => commands

@@ -161,8 +161,9 @@ fn merge_node_types(
                 });
             }
         } else {
-            base.add_node_type(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_node_type(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "node_type".into(),
                 id: id_str,
@@ -193,8 +194,9 @@ fn merge_edge_types(
                 });
             }
         } else {
-            base.add_edge_type(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_edge_type(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "edge_type".into(),
                 id: id_str,
@@ -214,9 +216,11 @@ fn merge_indexes(
     // which captures the variant + payload uniformly.
     for item in incoming {
         let id_repr = serde_json::to_string(&item).unwrap_or_else(|_| "<unserialisable>".into());
-        if let Some(existing) = base.indexes().iter().find(|i| {
-            serde_json::to_value(i).ok() == serde_json::to_value(&item).ok()
-        }) {
+        if let Some(existing) = base
+            .indexes()
+            .iter()
+            .find(|i| serde_json::to_value(i).ok() == serde_json::to_value(&item).ok())
+        {
             // Exact match — already present.
             let _ = existing;
             report.skipped.push(MergedItem {
@@ -224,8 +228,9 @@ fn merge_indexes(
                 id: id_repr,
             });
         } else {
-            base.add_index(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_index(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "index".into(),
                 id: id_repr,
@@ -257,7 +262,9 @@ fn merge_object_mappings(
             }
         } else {
             base.add_object_mapping(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+                .map_err(|e| OxError::Ontology {
+                    message: e.to_string(),
+                })?;
             report.added.push(MergedItem {
                 kind: "object_mapping".into(),
                 id: id_str,
@@ -288,8 +295,9 @@ fn merge_link_mappings(
                 });
             }
         } else {
-            base.add_link_mapping(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_link_mapping(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "link_mapping".into(),
                 id: id_str,
@@ -320,8 +328,9 @@ fn merge_interfaces(
                 });
             }
         } else {
-            base.add_interface(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_interface(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "interface".into(),
                 id: id_str,
@@ -353,7 +362,9 @@ fn merge_glossary_terms(
             }
         } else {
             base.add_glossary_term(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+                .map_err(|e| OxError::Ontology {
+                    message: e.to_string(),
+                })?;
             report.added.push(MergedItem {
                 kind: "glossary_term".into(),
                 id: id_str,
@@ -384,8 +395,9 @@ fn merge_code_systems(
                 });
             }
         } else {
-            base.add_code_system(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_code_system(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "code_system".into(),
                 id: id_str,
@@ -416,8 +428,9 @@ fn merge_value_sets(
                 });
             }
         } else {
-            base.add_value_set(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_value_set(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "value_set".into(),
                 id: id_str,
@@ -448,8 +461,9 @@ fn merge_concept_maps(
                 });
             }
         } else {
-            base.add_concept_map(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_concept_map(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "concept_map".into(),
                 id: id_str,
@@ -481,7 +495,9 @@ fn merge_notation_patterns(
             }
         } else {
             base.add_notation_pattern(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+                .map_err(|e| OxError::Ontology {
+                    message: e.to_string(),
+                })?;
             report.added.push(MergedItem {
                 kind: "notation_pattern".into(),
                 id: id_str,
@@ -513,7 +529,9 @@ fn merge_value_range_sets(
             }
         } else {
             base.add_value_range_set(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+                .map_err(|e| OxError::Ontology {
+                    message: e.to_string(),
+                })?;
             report.added.push(MergedItem {
                 kind: "value_range_set".into(),
                 id: id_str,
@@ -544,8 +562,9 @@ fn merge_rules(
                 });
             }
         } else {
-            base.add_rule(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_rule(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "rule".into(),
                 id: id_str,
@@ -576,8 +595,9 @@ fn merge_actions(
                 });
             }
         } else {
-            base.add_action(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_action(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "action".into(),
                 id: id_str,
@@ -608,8 +628,9 @@ fn merge_functions(
                 });
             }
         } else {
-            base.add_function(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_function(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "function".into(),
                 id: id_str,
@@ -640,8 +661,9 @@ fn merge_metrics(
                 });
             }
         } else {
-            base.add_metric(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_metric(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "metric".into(),
                 id: id_str,
@@ -672,8 +694,9 @@ fn merge_enrichments(
                 });
             }
         } else {
-            base.add_enrichment(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_enrichment(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "enrichment".into(),
                 id: id_str,
@@ -744,8 +767,9 @@ fn merge_data_qualities(
                 });
             }
         } else {
-            base.add_data_quality(item)
-                .map_err(|e| OxError::Ontology { message: e.to_string() })?;
+            base.add_data_quality(item).map_err(|e| OxError::Ontology {
+                message: e.to_string(),
+            })?;
             report.added.push(MergedItem {
                 kind: "data_quality".into(),
                 id: id_str,
@@ -888,13 +912,18 @@ mod tests {
     #[test]
     fn extend_grows_multiple_collections_in_one_call() {
         let mut base = empty_ir("base");
-        base.add_node_type(node("n-user", "User")).expect("seed user");
+        base.add_node_type(node("n-user", "User"))
+            .expect("seed user");
 
         let mut other = empty_ir("other");
-        other.add_node_type(node("n-order", "Order")).expect("seed order");
+        other
+            .add_node_type(node("n-order", "Order"))
+            .expect("seed order");
         // Edge between two new nodes — caller's responsibility to
         // ensure source/target exist post-merge.
-        other.add_node_type(node("n-product", "Product")).expect("seed product");
+        other
+            .add_node_type(node("n-product", "Product"))
+            .expect("seed product");
         other
             .add_edge_type(EdgeTypeDef {
                 id: "e-purchased".into(),

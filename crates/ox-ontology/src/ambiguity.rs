@@ -6,7 +6,7 @@
 //! agent — resolve it by attaching an [`AmbiguityResolution`] whose
 //! [`AmbiguityMapping`] either enumerates value meanings, points to
 //! an existing [`crate::code_system::CodeSystemDef`], or pins a
-//! [`crate::glossary::GlossaryTermDef`] for overloaded names.
+//! canonical [`crate::concept::ConceptDef`] for overloaded names.
 //!
 //! The pair is designed as a **closed loop**:
 //! 1. Detector emits `AmbiguityContext` rows on every source
@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::code_system::CodeSystemId;
-use crate::glossary::GlossaryTermId;
+use crate::concept::ConceptId;
 use crate::mapping::refs::{ColumnRef, SourceId};
 
 ox_core::define_id_newtype!(AmbiguityId);
@@ -39,7 +39,7 @@ ox_core::define_id_newtype!(AmbiguityResolutionId);
 /// replaces the row (same natural key), and `detection_source_hash`
 /// invalidates stale resolutions that were attached to an earlier
 /// schema shape.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, PartialEq, Eq)]
 pub struct AmbiguityContext {
     pub id: AmbiguityId,
     pub source_id: SourceId,
@@ -119,7 +119,9 @@ impl AmbiguityContext {
 /// Kind of ambiguity observed. Extending this enum is additive — no
 /// existing `AmbiguityResolution` becomes invalid when a new variant
 /// ships, because resolutions key off `context_id`, not `kind`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AmbiguityKind {
     /// All sampled values parse as integers with low cardinality
@@ -136,7 +138,7 @@ pub enum AmbiguityKind {
 
 /// Repo-derived hint attached to a detected context. Carries the
 /// declaration site so the admin can open the file and confirm.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, PartialEq, Eq)]
 pub struct RepoHint {
     /// Pre-formatted `code=label, ...` suggestion from the repo
     /// scan. UI parses this back into `ValueMapEntry`s when the
@@ -151,7 +153,7 @@ pub struct RepoHint {
 /// A resolved interpretation for an [`AmbiguityContext`]. At most one
 /// resolution is active per context; creating a new one sets the old
 /// one's `supersedes` pointer so the resolution chain is reviewable.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, PartialEq, Eq)]
 pub struct AmbiguityResolution {
     pub id: AmbiguityResolutionId,
     pub context_id: AmbiguityId,
@@ -195,7 +197,7 @@ impl AmbiguityResolution {
 }
 
 /// The actual semantic binding the admin / agent chose.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AmbiguityMapping {
     /// Enumerate each raw value with a display + optional definition.
@@ -207,14 +209,14 @@ pub enum AmbiguityMapping {
     /// values are already semantically managed elsewhere (e.g. an
     /// ISO-standard status code or an internal coded-value table).
     CodeSystemRef { code_system_id: CodeSystemId },
-    /// Pin a Glossary term on this source specifically — the right
+    /// Pin a canonical concept on this source specifically — the right
     /// move for `OverloadedName` where the same column name means
     /// different things across sources.
-    GlossaryRef { term_id: GlossaryTermId },
+    ConceptRef { concept_id: ConceptId },
 }
 
 /// Single entry in a [`AmbiguityMapping::ValueMap`].
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, PartialEq, Eq)]
 pub struct ValueMapEntry {
     /// Raw source value as it appears in the column.
     pub value: String,
@@ -286,12 +288,12 @@ mod tests {
     }
 
     #[test]
-    fn glossary_ref_variant_serialises_distinctly() {
-        let m = AmbiguityMapping::GlossaryRef {
-            term_id: GlossaryTermId::new("g-vip"),
+    fn concept_ref_variant_serialises_distinctly() {
+        let m = AmbiguityMapping::ConceptRef {
+            concept_id: ConceptId::new("c-vip"),
         };
         let j = serde_json::to_string(&m).unwrap();
-        assert!(j.contains("\"kind\":\"glossary_ref\""));
+        assert!(j.contains("\"kind\":\"concept_ref\""));
     }
 
     #[test]

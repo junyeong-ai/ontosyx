@@ -7,7 +7,7 @@ mod tests;
 
 pub use types::*;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -120,7 +120,7 @@ pub enum SchemaView {
 /// [`OntologyInvariantError::DuplicateCollectionId`] rather than
 /// silently last-wins.
 #[derive(Debug, Clone, Default)]
-struct OntologyLookup {
+struct OntologyIndices {
     /// node id → index in node_types
     node_id_idx: HashMap<NodeTypeId, usize>,
     /// node label → index in node_types
@@ -141,19 +141,18 @@ struct OntologyLookup {
     data_quality_id_idx: HashMap<crate::data_quality::DataQualityId, usize>,
     object_mapping_id_idx: HashMap<crate::mapping::ObjectMappingId, usize>,
     link_mapping_id_idx: HashMap<crate::mapping::LinkMappingId, usize>,
+    concept_id_idx: HashMap<crate::concept::ConceptId, usize>,
 
     // Ω-1: terminology registry.
     code_system_id_idx: HashMap<crate::code_system::CodeSystemId, usize>,
     /// `CodedValueId → (code_systems index, codes index inside the
     /// system)` — O(1) lookup for downstream types that reference
     /// a code by its globally-unique id.
-    coded_value_loc:
-        HashMap<crate::code_system::CodedValueId, (usize, usize)>,
+    coded_value_loc: HashMap<crate::code_system::CodedValueId, (usize, usize)>,
     // Ω-2: value sets.
     value_set_id_idx: HashMap<crate::value_set::ValueSetId, usize>,
     // Ω-4: notation patterns.
-    notation_pattern_id_idx:
-        HashMap<crate::notation_pattern::NotationPatternId, usize>,
+    notation_pattern_id_idx: HashMap<crate::notation_pattern::NotationPatternId, usize>,
     concept_map_id_idx: HashMap<crate::concept_map::ConceptMapId, usize>,
     value_range_set_id_idx: HashMap<crate::value_range::ValueRangeSetId, usize>,
     column_profile_id_idx: HashMap<crate::column_profile::ColumnProfileId, usize>,
@@ -162,19 +161,16 @@ struct OntologyLookup {
     /// composite so `add_table_inventory_entry` upserts cleanly and
     /// re-introspection stays idempotent.
     table_inventory_idx: HashMap<(crate::mapping::SourceId, String), usize>,
-    /// Reverse index — glossary term → every NodeType that flags it
-    /// as `concept_id`. Empty Vec when no NodeType realises the
-    /// term (legal — the term stays as a vocabulary entry until an
-    /// implementer is wired, or the term carries no `realisation` and
-    /// is plain glossary content). Built from the forward
-    /// `NodeTypeDef.concept_id` field, so adding / removing the
-    /// pointer on a node automatically rebuilds the reverse view on
-    /// the next `rebuild_indices()`.
-    concept_realised_by_node_types:
-        HashMap<crate::concept::ConceptId, Vec<usize>>,
+    /// Reverse index — concept → every NodeType that realises it.
+    /// Empty Vec when no NodeType realises the concept is legal: the
+    /// concept can stay in the catalogue before an implementer is
+    /// wired. Built from the forward `NodeTypeDef.concept_id` and
+    /// `NodeTypeDef.concept_realizations` fields, so adding/removing
+    /// pointers automatically rebuilds the reverse view on the next
+    /// `rebuild_indices()`.
+    concept_realised_by_node_types: HashMap<crate::concept::ConceptId, Vec<usize>>,
     /// Reverse index for edges; same shape as the node version.
-    concept_realised_by_edge_types:
-        HashMap<crate::concept::ConceptId, Vec<usize>>,
+    concept_realised_by_edge_types: HashMap<crate::concept::ConceptId, Vec<usize>>,
 }
 
 /// Current on-wire schema version for `OntologyIR` JSONB.
@@ -318,7 +314,7 @@ pub struct OntologyIR {
     /// (`SegmentDef` — "Active Customer", "Lapsed Subscriber",
     /// "VIP"). First-class so segment references from
     /// `PropertyBinding`, `RuleDef`, and the glossary realisation
-    /// surface resolve through `OntologyLookup` without
+    /// surface resolve through `OntologyIndices` without
     /// round-tripping a side artifact.
     /// Validated by `validate()`: `target_node_type_id` must
     /// resolve, every `referenced_properties()` entry must exist
@@ -338,7 +334,7 @@ pub struct OntologyIR {
     /// Precomputed lookup indices — not serialized, rebuilt on deserialize.
     #[serde(skip)]
     #[schemars(skip)]
-    lookup: OntologyLookup,
+    lookup: OntologyIndices,
 }
 
 /// Custom Deserialize that rebuilds invariant-checked indices and
@@ -357,6 +353,8 @@ impl<'de> Deserialize<'de> for OntologyIR {
             schema_version: u32,
             id: String,
             name: String,
+            #[serde(default)]
+            display_name: ox_core::i18n::LocalizedText,
             #[serde(default)]
             description: ox_core::i18n::LocalizedText,
             version: OntologyVersion,
@@ -377,6 +375,8 @@ impl<'de> Deserialize<'de> for OntologyIR {
             metrics: Vec<crate::metric::MetricDef>,
             #[serde(default)]
             enrichments: Vec<crate::enrichment::EnrichmentDef>,
+            #[serde(default)]
+            concepts: Vec<crate::concept::ConceptDef>,
             #[serde(default)]
             glossary: Vec<crate::glossary::GlossaryTermDef>,
             #[serde(default)]
@@ -399,6 +399,10 @@ impl<'de> Deserialize<'de> for OntologyIR {
             value_range_sets: Vec<crate::value_range::ValueRangeSetDef>,
             #[serde(default)]
             column_profiles: Vec<crate::column_profile::ColumnProfileDef>,
+            #[serde(default)]
+            segments: Vec<crate::segment::SegmentDef>,
+            #[serde(default)]
+            table_inventory: Vec<crate::table_inventory::TableInventoryEntry>,
         }
 
         let w = Wire::deserialize(deserializer)?;
@@ -424,12 +428,14 @@ impl<'de> Deserialize<'de> for OntologyIR {
         // indices cover the new collections. `try_new` already
         // built the node/edge/property indices; the second pass is
         // idempotent over those and populates the new id→index maps.
+        ont.display_name = w.display_name;
         ont.interfaces = w.interfaces;
         ont.rules = w.rules;
         ont.actions = w.actions;
         ont.functions = w.functions;
         ont.metrics = w.metrics;
         ont.enrichments = w.enrichments;
+        ont.concepts = w.concepts;
         ont.glossary = w.glossary;
         ont.data_quality = w.data_quality;
         ont.provenance = w.provenance;
@@ -441,6 +447,8 @@ impl<'de> Deserialize<'de> for OntologyIR {
         ont.concept_maps = w.concept_maps;
         ont.value_range_sets = w.value_range_sets;
         ont.column_profiles = w.column_profiles;
+        ont.segments = w.segments;
+        ont.table_inventory = w.table_inventory;
         ont.rebuild_indices().map_err(serde::de::Error::custom)?;
         Ok(ont)
     }
@@ -548,7 +556,7 @@ impl OntologyIR {
             column_profiles: Vec::new(),
             segments: Vec::new(),
             table_inventory: Vec::new(),
-            lookup: OntologyLookup::default(),
+            lookup: OntologyIndices::default(),
         };
         ont.rebuild_indices()?;
         Ok(ont)
@@ -566,10 +574,7 @@ impl OntologyIR {
     /// accessor reflects the filtered slice. Returns an error iff the
     /// rebuild surfaces an invariant violation (which can only happen
     /// if the source IR was malformed before filtering).
-    pub fn as_of(
-        &self,
-        at: chrono::DateTime<chrono::Utc>,
-    ) -> Result<Self, OntologyInvariantError> {
+    pub fn as_of(&self, at: chrono::DateTime<chrono::Utc>) -> Result<Self, OntologyInvariantError> {
         let mut out = self.clone();
 
         // Object mappings: drop any whose own window doesn't cover
@@ -653,7 +658,7 @@ impl OntologyIR {
     /// `remove_edge_type`, `with_batch`, etc.) call this automatically, so
     /// most callers never need to invoke it directly.
     pub fn rebuild_indices(&mut self) -> Result<(), OntologyInvariantError> {
-        let mut lookup = OntologyLookup::default();
+        let mut lookup = OntologyIndices::default();
         for (i, node) in self.node_types.iter().enumerate() {
             if lookup.node_id_idx.insert(node.id.clone(), i).is_some() {
                 return Err(OntologyInvariantError::DuplicateNodeTypeId {
@@ -717,6 +722,7 @@ impl OntologyIR {
         index_collection!(data_quality, data_quality_id_idx, "data_quality");
         index_collection!(object_mappings, object_mapping_id_idx, "object_mapping");
         index_collection!(link_mappings, link_mapping_id_idx, "link_mapping");
+        index_collection!(concepts, concept_id_idx, "concept");
 
         // Ω-1 terminology registry: top-level code_systems id index
         // plus nested coded_value id index. CodedValueIds are
@@ -725,14 +731,22 @@ impl OntologyIR {
         // here are a hard error regardless of which system they
         // appear in.
         for (i, system) in self.code_systems.iter().enumerate() {
-            if lookup.code_system_id_idx.insert(system.id.clone(), i).is_some() {
+            if lookup
+                .code_system_id_idx
+                .insert(system.id.clone(), i)
+                .is_some()
+            {
                 return Err(OntologyInvariantError::DuplicateCollectionId {
                     kind: "code_system",
                     id: system.id.to_string(),
                 });
             }
             for (j, cv) in system.codes.iter().enumerate() {
-                if lookup.coded_value_loc.insert(cv.id.clone(), (i, j)).is_some() {
+                if lookup
+                    .coded_value_loc
+                    .insert(cv.id.clone(), (i, j))
+                    .is_some()
+                {
                     return Err(OntologyInvariantError::DuplicateCollectionId {
                         kind: "coded_value",
                         id: cv.id.to_string(),
@@ -741,7 +755,11 @@ impl OntologyIR {
             }
         }
         index_collection!(value_sets, value_set_id_idx, "value_set");
-        index_collection!(notation_patterns, notation_pattern_id_idx, "notation_pattern");
+        index_collection!(
+            notation_patterns,
+            notation_pattern_id_idx,
+            "notation_pattern"
+        );
         index_collection!(concept_maps, concept_map_id_idx, "concept_map");
         index_collection!(value_range_sets, value_range_set_id_idx, "value_range_set");
         index_collection!(column_profiles, column_profile_id_idx, "column_profile");
@@ -753,11 +771,7 @@ impl OntologyIR {
         // payload.
         for (i, entry) in self.table_inventory.iter().enumerate() {
             let key = (entry.source_id.clone(), entry.table_name.clone());
-            if lookup
-                .table_inventory_idx
-                .insert(key, i)
-                .is_some()
-            {
+            if lookup.table_inventory_idx.insert(key, i).is_some() {
                 return Err(OntologyInvariantError::DuplicateCollectionId {
                     kind: "table_inventory",
                     id: format!("{}/{}", entry.source_id, entry.table_name),
@@ -765,26 +779,37 @@ impl OntologyIR {
             }
         }
 
-        // Reverse index: glossary term → every implementing
-        // NodeType / EdgeType. Built from the forward
-        // `concept_id` pointer on each type. A term with no
-        // implementer carries an empty Vec (or simply doesn't appear
-        // in the map — both shapes are distinguishable through
-        // `lookup.glossary_term_id_idx.contains_key`).
+        // Reverse index: concept → every implementing NodeType /
+        // EdgeType. Built from the primary `concept_id` plus every
+        // additional `concept_realizations` entry.
         for (i, node) in self.node_types.iter().enumerate() {
-            if let Some(term_id) = &node.concept_id {
+            if let Some(concept_id) = &node.concept_id {
                 lookup
                     .concept_realised_by_node_types
-                    .entry(term_id.clone())
+                    .entry(concept_id.clone())
+                    .or_default()
+                    .push(i);
+            }
+            for realization in &node.concept_realizations {
+                lookup
+                    .concept_realised_by_node_types
+                    .entry(realization.concept_id.clone())
                     .or_default()
                     .push(i);
             }
         }
         for (i, edge) in self.edge_types.iter().enumerate() {
-            if let Some(term_id) = &edge.concept_id {
+            if let Some(concept_id) = &edge.concept_id {
                 lookup
                     .concept_realised_by_edge_types
-                    .entry(term_id.clone())
+                    .entry(concept_id.clone())
+                    .or_default()
+                    .push(i);
+            }
+            for realization in &edge.concept_realizations {
+                lookup
+                    .concept_realised_by_edge_types
+                    .entry(realization.concept_id.clone())
                     .or_default()
                     .push(i);
             }
@@ -1106,18 +1131,14 @@ impl OntologyIR {
         &self.segments
     }
 
-    /// Every glossary term whose `realisation` field declares an
-    /// executable concept spec (Segment / Function / CrossEntity).
+    /// Every concept whose `realisation` field declares an executable
+    /// spec (Segment / Function / CrossEntity).
     /// Concepts without a realisation are pure identity entries —
     /// the catalogue knows them but no executable membership rule
     /// has landed yet. Consumers that want the full concept catalogue
     /// walk [`OntologyIR::concepts`] directly.
-    pub fn concepts_with_realisation(
-        &self,
-    ) -> impl Iterator<Item = &crate::concept::ConceptDef> {
-        self.concepts
-            .iter()
-            .filter(|c| c.realisation.is_some())
+    pub fn concepts_with_realisation(&self) -> impl Iterator<Item = &crate::concept::ConceptDef> {
+        self.concepts.iter().filter(|c| c.realisation.is_some())
     }
 
     /// Every source-table inventory row the IR carries.
@@ -1193,10 +1214,7 @@ impl OntologyIR {
         self.rebuild_indices()
     }
 
-    pub fn add_rule(
-        &mut self,
-        def: crate::rule::RuleDef,
-    ) -> Result<(), OntologyInvariantError> {
+    pub fn add_rule(&mut self, def: crate::rule::RuleDef) -> Result<(), OntologyInvariantError> {
         if self.lookup.rule_id_idx.contains_key(&def.id) {
             return Err(OntologyInvariantError::DuplicateCollectionId {
                 kind: "rule",
@@ -1204,6 +1222,28 @@ impl OntologyIR {
             });
         }
         self.rules.push(def);
+        self.rebuild_indices()
+    }
+
+    pub fn replace_rule(
+        &mut self,
+        id: &crate::action::RuleId,
+        def: crate::rule::RuleDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if &def.id != id {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "rule.id",
+                id: id.to_string(),
+                target: def.id.to_string(),
+            });
+        }
+        let Some(&idx) = self.lookup.rule_id_idx.get(id) else {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "rule",
+                id: id.to_string(),
+            });
+        };
+        self.rules[idx] = def;
         self.rebuild_indices()
     }
 
@@ -1263,9 +1303,117 @@ impl OntologyIR {
         self.rebuild_indices()
     }
 
+    fn validate_concept_references(
+        &self,
+        def: &crate::concept::ConceptDef,
+    ) -> Result<(), OntologyInvariantError> {
+        let concept_by_id = |id: &crate::concept::ConceptId| {
+            if id == &def.id {
+                Some(def)
+            } else {
+                self.concept_by_id(id)
+            }
+        };
+
+        match self.glossary.iter().find(|t| t.id == def.canonical_term_id) {
+            Some(term) => {
+                if term.concept_id.as_ref() != Some(&def.id) {
+                    return Err(OntologyInvariantError::InvalidReference {
+                        kind: "concept.canonical_term_id.concept_id",
+                        id: def.id.to_string(),
+                        target: term
+                            .concept_id
+                            .as_ref()
+                            .map(|id| id.to_string())
+                            .unwrap_or_default(),
+                    });
+                }
+            }
+            None => {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.canonical_term_id",
+                    id: def.id.to_string(),
+                    target: def.canonical_term_id.to_string(),
+                });
+            }
+        }
+        for alias in &def.alias_term_ids {
+            match self.glossary.iter().find(|t| &t.id == alias) {
+                Some(term) => {
+                    if term.concept_id.as_ref() != Some(&def.id) {
+                        return Err(OntologyInvariantError::InvalidReference {
+                            kind: "concept.alias_term_id.concept_id",
+                            id: def.id.to_string(),
+                            target: term
+                                .concept_id
+                                .as_ref()
+                                .map(|id| id.to_string())
+                                .unwrap_or_default(),
+                        });
+                    }
+                }
+                None => {
+                    return Err(OntologyInvariantError::InvalidReference {
+                        kind: "concept.alias_term_id",
+                        id: def.id.to_string(),
+                        target: alias.to_string(),
+                    });
+                }
+            }
+        }
+        if let Some(parent) = &def.broader
+            && (parent == &def.id || !self.lookup.concept_id_idx.contains_key(parent))
+        {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "concept.broader",
+                id: def.id.to_string(),
+                target: parent.to_string(),
+            });
+        }
+        if let Some(target) = &def.replaced_by
+            && (target == &def.id || !self.lookup.concept_id_idx.contains_key(target))
+        {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "concept.replaced_by",
+                id: def.id.to_string(),
+                target: target.to_string(),
+            });
+        }
+
+        let mut seen = HashSet::new();
+        let mut cursor = Some(&def.id);
+        while let Some(current_id) = cursor {
+            if !seen.insert(current_id.as_str()) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.broader.cycle",
+                    id: def.id.to_string(),
+                    target: current_id.to_string(),
+                });
+            }
+            cursor = concept_by_id(current_id).and_then(|concept| concept.broader.as_ref());
+        }
+
+        let mut seen = HashSet::new();
+        let mut cursor = Some(&def.id);
+        while let Some(current_id) = cursor {
+            if !seen.insert(current_id.as_str()) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.replaced_by.cycle",
+                    id: def.id.to_string(),
+                    target: current_id.to_string(),
+                });
+            }
+            cursor = concept_by_id(current_id).and_then(|concept| concept.replaced_by.as_ref());
+        }
+
+        Ok(())
+    }
+
     /// Register a workspace-canonical concept. The concept's
     /// `canonical_term_id` and every entry in `alias_term_ids` must
-    /// resolve to a `GlossaryTermDef.id` already present in the IR;
+    /// resolve to a `GlossaryTermDef.id` already present in the IR,
+    /// and each referenced term must point back to this concept via
+    /// `GlossaryTermDef.concept_id`;
     /// `broader` and `replaced_by` (when set) must resolve to other
     /// concepts. The order constraint matters: glossary terms land
     /// first, then the concepts that pin them.
@@ -1273,101 +1421,177 @@ impl OntologyIR {
         &mut self,
         def: crate::concept::ConceptDef,
     ) -> Result<(), OntologyInvariantError> {
-        if self.concepts.iter().any(|c| c.id == def.id) {
+        if self.lookup.concept_id_idx.contains_key(&def.id) {
             return Err(OntologyInvariantError::DuplicateCollectionId {
                 kind: "concept",
                 id: def.id.to_string(),
             });
         }
-        if !self.glossary.iter().any(|t| t.id == def.canonical_term_id) {
-            return Err(OntologyInvariantError::InvalidReference {
-                kind: "concept.canonical_term_id",
-                id: def.id.to_string(),
-                target: def.canonical_term_id.to_string(),
-            });
-        }
-        for alias in &def.alias_term_ids {
-            if !self.glossary.iter().any(|t| &t.id == alias) {
-                return Err(OntologyInvariantError::InvalidReference {
-                    kind: "concept.alias_term_id",
-                    id: def.id.to_string(),
-                    target: alias.to_string(),
-                });
-            }
-        }
-        if let Some(parent) = &def.broader {
-            if parent == &def.id {
-                return Err(OntologyInvariantError::InvalidReference {
-                    kind: "concept.broader",
-                    id: def.id.to_string(),
-                    target: parent.to_string(),
-                });
-            }
-            if !self.concepts.iter().any(|c| &c.id == parent) {
-                return Err(OntologyInvariantError::InvalidReference {
-                    kind: "concept.broader",
-                    id: def.id.to_string(),
-                    target: parent.to_string(),
-                });
-            }
-        }
-        if let Some(target) = &def.replaced_by {
-            if target == &def.id {
-                return Err(OntologyInvariantError::InvalidReference {
-                    kind: "concept.replaced_by",
-                    id: def.id.to_string(),
-                    target: target.to_string(),
-                });
-            }
-            if !self.concepts.iter().any(|c| &c.id == target) {
-                return Err(OntologyInvariantError::InvalidReference {
-                    kind: "concept.replaced_by",
-                    id: def.id.to_string(),
-                    target: target.to_string(),
-                });
-            }
-        }
+        self.validate_concept_references(&def)?;
         self.concepts.push(def);
         self.rebuild_indices()
+    }
+
+    pub fn replace_concept(
+        &mut self,
+        id: &crate::concept::ConceptId,
+        def: crate::concept::ConceptDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if &def.id != id {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "concept.id",
+                id: id.to_string(),
+                target: def.id.to_string(),
+            });
+        }
+        let Some(&idx) = self.lookup.concept_id_idx.get(id) else {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "concept",
+                id: id.to_string(),
+            });
+        };
+        self.validate_concept_references(&def)?;
+        self.concepts[idx] = def;
+        self.rebuild_indices()
+    }
+
+    fn validate_glossary_term_references(
+        &self,
+        def: &crate::glossary::GlossaryTermDef,
+    ) -> Result<(), OntologyInvariantError> {
+        use crate::glossary::{TermLifecycle, TermRelationKind};
+
+        let term_by_id = |id: &crate::glossary::GlossaryTermId| {
+            if id == &def.id {
+                Some(def)
+            } else {
+                self.glossary_term_by_id(id)
+            }
+        };
+
+        if let TermLifecycle::Deprecated {
+            replaced_by: Some(target),
+            ..
+        } = &def.lifecycle
+            && (target == &def.id || !self.lookup.glossary_term_id_idx.contains_key(target))
+        {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "glossary_term.replaced_by",
+                id: def.id.to_string(),
+                target: target.to_string(),
+            });
+        }
+
+        let mut seen = HashSet::new();
+        let mut cursor = Some(&def.id);
+        while let Some(current_id) = cursor {
+            if !seen.insert(current_id.as_str()) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "glossary_term.replaced_by.cycle",
+                    id: def.id.to_string(),
+                    target: current_id.to_string(),
+                });
+            }
+            cursor = term_by_id(current_id).and_then(|term| match &term.lifecycle {
+                TermLifecycle::Deprecated {
+                    replaced_by: Some(next),
+                    ..
+                } => Some(next),
+                _ => None,
+            });
+        }
+
+        for relation in &def.related_terms {
+            if relation.target == def.id
+                || !self
+                    .lookup
+                    .glossary_term_id_idx
+                    .contains_key(&relation.target)
+            {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "glossary_term.related_terms.target",
+                    id: def.id.to_string(),
+                    target: relation.target.to_string(),
+                });
+            }
+        }
+
+        let mut stack = vec![(&def.id, Vec::<&str>::new())];
+        while let Some((current_id, mut path)) = stack.pop() {
+            if path.contains(&current_id.as_str()) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "glossary_term.related_terms.broader_cycle",
+                    id: def.id.to_string(),
+                    target: current_id.to_string(),
+                });
+            }
+            path.push(current_id.as_str());
+            if let Some(term) = term_by_id(current_id) {
+                stack.extend(
+                    term.related_terms
+                        .iter()
+                        .filter(|relation| relation.kind == TermRelationKind::Broader)
+                        .map(|relation| (&relation.target, path.clone())),
+                );
+            }
+        }
+
+        Ok(())
     }
 
     pub fn add_glossary_term(
         &mut self,
         def: crate::glossary::GlossaryTermDef,
     ) -> Result<(), OntologyInvariantError> {
-        use crate::glossary::TermLifecycle;
-
         if self.lookup.glossary_term_id_idx.contains_key(&def.id) {
             return Err(OntologyInvariantError::DuplicateCollectionId {
                 kind: "glossary_term",
                 id: def.id.to_string(),
             });
         }
-        // A deprecated term's `replaced_by` must point at a term that
-        // already exists in the IR — otherwise NL-to-Cypher will route
-        // user queries to a phantom successor. Self-replacement is
-        // also rejected: it always produces an infinite redirect loop.
-        if let TermLifecycle::Deprecated {
-            replaced_by: Some(target),
-            ..
-        } = &def.lifecycle
-        {
-            if target == &def.id {
+        self.validate_glossary_term_references(&def)?;
+        self.glossary.push(def);
+        self.rebuild_indices()
+    }
+
+    pub fn replace_glossary_term(
+        &mut self,
+        id: &crate::glossary::GlossaryTermId,
+        def: crate::glossary::GlossaryTermDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if &def.id != id {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "glossary_term.id",
+                id: id.to_string(),
+                target: def.id.to_string(),
+            });
+        }
+        let Some(&idx) = self.lookup.glossary_term_id_idx.get(id) else {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "glossary_term",
+                id: id.to_string(),
+            });
+        };
+        self.validate_glossary_term_references(&def)?;
+        for concept in &self.concepts {
+            if &concept.canonical_term_id == id && def.concept_id.as_ref() != Some(&concept.id) {
                 return Err(OntologyInvariantError::InvalidReference {
-                    kind: "glossary_term.replaced_by",
-                    id: def.id.to_string(),
-                    target: target.to_string(),
+                    kind: "glossary_term.in_use_by_concept_canonical",
+                    id: id.to_string(),
+                    target: concept.id.to_string(),
                 });
             }
-            if !self.lookup.glossary_term_id_idx.contains_key(target) {
+            if concept.alias_term_ids.iter().any(|term_id| term_id == id)
+                && def.concept_id.as_ref() != Some(&concept.id)
+            {
                 return Err(OntologyInvariantError::InvalidReference {
-                    kind: "glossary_term.replaced_by",
-                    id: def.id.to_string(),
-                    target: target.to_string(),
+                    kind: "glossary_term.in_use_by_concept_alias",
+                    id: id.to_string(),
+                    target: concept.id.to_string(),
                 });
             }
         }
-        self.glossary.push(def);
+        self.glossary[idx] = def;
         self.rebuild_indices()
     }
 
@@ -1449,6 +1673,28 @@ impl OntologyIR {
         self.rebuild_indices()
     }
 
+    pub fn replace_object_mapping(
+        &mut self,
+        id: &crate::mapping::ObjectMappingId,
+        def: crate::mapping::ObjectMappingDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if &def.id != id {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "object_mapping.id",
+                id: id.to_string(),
+                target: def.id.to_string(),
+            });
+        }
+        let Some(&idx) = self.lookup.object_mapping_id_idx.get(id) else {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "object_mapping",
+                id: id.to_string(),
+            });
+        };
+        self.object_mappings[idx] = def;
+        self.rebuild_indices()
+    }
+
     pub fn add_link_mapping(
         &mut self,
         def: crate::mapping::LinkMappingDef,
@@ -1463,6 +1709,28 @@ impl OntologyIR {
         self.rebuild_indices()
     }
 
+    pub fn replace_link_mapping(
+        &mut self,
+        id: &crate::mapping::LinkMappingId,
+        def: crate::mapping::LinkMappingDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if &def.id != id {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "link_mapping.id",
+                id: id.to_string(),
+                target: def.id.to_string(),
+            });
+        }
+        let Some(&idx) = self.lookup.link_mapping_id_idx.get(id) else {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "link_mapping",
+                id: id.to_string(),
+            });
+        };
+        self.link_mappings[idx] = def;
+        self.rebuild_indices()
+    }
+
     /// Append (or upsert by id) a column profile snapshot.
     ///
     /// Identity is `(source_id, relation, column)` — encoded into the
@@ -1472,10 +1740,7 @@ impl OntologyIR {
     /// rather than erroring on duplicate id, because the IR's
     /// contract is "always carry the most recent profile per
     /// location" — re-introspection should not require a delete first.
-    pub fn add_column_profile(
-        &mut self,
-        def: crate::column_profile::ColumnProfileDef,
-    ) {
+    pub fn add_column_profile(&mut self, def: crate::column_profile::ColumnProfileDef) {
         if let Some(&idx) = self.lookup.column_profile_id_idx.get(&def.id) {
             self.column_profiles[idx] = def;
         } else {
@@ -1487,7 +1752,10 @@ impl OntologyIR {
         // (which we may have invalidated by mutating
         // `column_profiles`) in sync.
         if let Err(error) = self.rebuild_indices() {
-            tracing::warn!(?error, "rebuild_indices unexpectedly failed during column-profile bulk update");
+            tracing::warn!(
+                ?error,
+                "rebuild_indices unexpectedly failed during column-profile bulk update"
+            );
         }
     }
 
@@ -1510,9 +1778,7 @@ impl OntologyIR {
         profile: &ox_core::source_schema::SourceProfile,
         sampled_at: chrono::DateTime<chrono::Utc>,
     ) -> usize {
-        let entries = crate::column_profile::profile_to_column_defs(
-            source_id, profile, sampled_at,
-        );
+        let entries = crate::column_profile::profile_to_column_defs(source_id, profile, sampled_at);
         let n = entries.len();
         for entry in entries {
             self.add_column_profile(entry);
@@ -1520,11 +1786,10 @@ impl OntologyIR {
         n
     }
 
-    /// Ω-7: add a [`crate::value_range::ValueRangeSetDef`]. Optional
-    /// overlap-check is not enforced at insert time — authors may
-    /// intentionally commit a non-atomic state mid-edit — but the
-    /// `find_overlaps()` method surfaces the issue for the UI to
-    /// flag.
+    /// Ω-7: add a [`crate::value_range::ValueRangeSetDef`]. Range
+    /// sets are authored as non-overlapping interval partitions;
+    /// gaps are allowed, but overlaps and empty / non-finite bands
+    /// are rejected before they can reach runtime classifiers.
     pub fn add_value_range_set(
         &mut self,
         def: crate::value_range::ValueRangeSetDef,
@@ -1535,13 +1800,307 @@ impl OntologyIR {
                 id: def.id.to_string(),
             });
         }
+        self.validate_value_range_set(&def)?;
         self.value_range_sets.push(def);
         self.rebuild_indices()
     }
 
+    pub fn replace_value_range_set(
+        &mut self,
+        id: &crate::value_range::ValueRangeSetId,
+        def: crate::value_range::ValueRangeSetDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if &def.id != id {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "value_range_set.id",
+                id: id.to_string(),
+                target: def.id.to_string(),
+            });
+        }
+        let Some(&idx) = self.lookup.value_range_set_id_idx.get(id) else {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "value_range_set",
+                id: id.to_string(),
+            });
+        };
+        self.validate_value_range_set(&def)?;
+        self.value_range_sets[idx] = def;
+        self.rebuild_indices()
+    }
+
+    fn validate_value_range_set(
+        &self,
+        def: &crate::value_range::ValueRangeSetDef,
+    ) -> Result<(), OntologyInvariantError> {
+        for (idx, band) in def.bands.iter().enumerate() {
+            if let Some(min) = band.min
+                && !min.is_finite()
+            {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "value_range_set.band.min",
+                    id: def.id.to_string(),
+                    target: idx.to_string(),
+                });
+            }
+            if let Some(max) = band.max
+                && !max.is_finite()
+            {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "value_range_set.band.max",
+                    id: def.id.to_string(),
+                    target: idx.to_string(),
+                });
+            }
+            if let (Some(min), Some(max)) = (band.min, band.max)
+                && (min > max || (min == max && !(band.inclusive_min && band.inclusive_max)))
+            {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "value_range_set.band.interval",
+                    id: def.id.to_string(),
+                    target: idx.to_string(),
+                });
+            }
+        }
+        if let Some((left, right)) = def.find_overlaps().into_iter().next() {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "value_range_set.band.overlap",
+                id: def.id.to_string(),
+                target: format!("{left}:{right}"),
+            });
+        }
+        Ok(())
+    }
+
+    fn validate_code_system_references(
+        &self,
+        def: &crate::code_system::CodeSystemDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if let crate::code_system::CodeSystemKind::External { source_ref } = &def.kind
+            && source_ref.trim().is_empty()
+        {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "code_system.external.source_ref",
+                id: def.id.to_string(),
+                target: source_ref.clone(),
+            });
+        }
+
+        if let Some(replacement_id) = &def.replaced_by_id {
+            if replacement_id == &def.id || self.code_system_by_id(replacement_id).is_none() {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "code_system.replaced_by_id",
+                    id: def.id.to_string(),
+                    target: replacement_id.to_string(),
+                });
+            }
+            let mut seen = HashSet::from([def.id.as_str()]);
+            let mut cursor = Some(replacement_id);
+            while let Some(current_id) = cursor {
+                if !seen.insert(current_id.as_str()) {
+                    return Err(OntologyInvariantError::InvalidReference {
+                        kind: "code_system.replaced_by_id.cycle",
+                        id: def.id.to_string(),
+                        target: current_id.to_string(),
+                    });
+                }
+                cursor = self
+                    .code_system_by_id(current_id)
+                    .and_then(|system| system.replaced_by_id.as_ref());
+            }
+        }
+
+        let mut code_strings = HashSet::new();
+        let mut code_by_id: HashMap<&str, &crate::code_system::CodedValue> = HashMap::new();
+        for code in &def.codes {
+            if code.code.trim().is_empty() {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "coded_value.code",
+                    id: code.id.to_string(),
+                    target: code.code.clone(),
+                });
+            }
+            if !code_strings.insert(code.code.as_str()) {
+                return Err(OntologyInvariantError::DuplicateCollectionId {
+                    kind: "coded_value.code",
+                    id: code.code.clone(),
+                });
+            }
+            if code_by_id.insert(code.id.as_str(), code).is_some() {
+                return Err(OntologyInvariantError::DuplicateCollectionId {
+                    kind: "coded_value",
+                    id: code.id.to_string(),
+                });
+            }
+        }
+
+        for code in &def.codes {
+            if let Some(parent_id) = &code.broader_id
+                && (!def.hierarchical
+                    || parent_id == &code.id
+                    || !code_by_id.contains_key(parent_id.as_str()))
+            {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "coded_value.broader_id",
+                    id: code.id.to_string(),
+                    target: parent_id.to_string(),
+                });
+            }
+            if let Some(replacement_id) = &code.replaced_by_id
+                && (replacement_id == &code.id || !code_by_id.contains_key(replacement_id.as_str()))
+            {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "coded_value.replaced_by_id",
+                    id: code.id.to_string(),
+                    target: replacement_id.to_string(),
+                });
+            }
+        }
+
+        for code in &def.codes {
+            let mut seen = HashSet::new();
+            let mut cursor = Some(code.id.as_str());
+            while let Some(current_id) = cursor {
+                if !seen.insert(current_id) {
+                    return Err(OntologyInvariantError::InvalidReference {
+                        kind: "coded_value.broader_id.cycle",
+                        id: code.id.to_string(),
+                        target: current_id.to_string(),
+                    });
+                }
+                cursor = code_by_id
+                    .get(current_id)
+                    .and_then(|current| current.broader_id.as_ref())
+                    .map(|id| id.as_str());
+            }
+
+            let mut seen = HashSet::new();
+            let mut cursor = Some(code.id.as_str());
+            while let Some(current_id) = cursor {
+                if !seen.insert(current_id) {
+                    return Err(OntologyInvariantError::InvalidReference {
+                        kind: "coded_value.replaced_by_id.cycle",
+                        id: code.id.to_string(),
+                        target: current_id.to_string(),
+                    });
+                }
+                cursor = code_by_id
+                    .get(current_id)
+                    .and_then(|current| current.replaced_by_id.as_ref())
+                    .map(|id| id.as_str());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_concept_map_references(
+        &self,
+        def: &crate::concept_map::ConceptMapDef,
+    ) -> Result<(), OntologyInvariantError> {
+        let Some(source_system) = self.code_system_by_id(&def.source_system_id) else {
+            return Err(OntologyInvariantError::DuplicateCollectionId {
+                kind: "concept_map_unknown_source_system",
+                id: def.source_system_id.to_string(),
+            });
+        };
+        let Some(target_system) = self.code_system_by_id(&def.target_system_id) else {
+            return Err(OntologyInvariantError::DuplicateCollectionId {
+                kind: "concept_map_unknown_target_system",
+                id: def.target_system_id.to_string(),
+            });
+        };
+        let source_codes: HashSet<&str> = source_system
+            .codes
+            .iter()
+            .map(|cv| cv.code.as_str())
+            .collect();
+        let target_codes: HashSet<&str> = target_system
+            .codes
+            .iter()
+            .map(|cv| cv.code.as_str())
+            .collect();
+        for mapping in &def.mappings {
+            if !source_codes.contains(mapping.source_code.as_str()) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept_map.mapping.source_code",
+                    id: def.id.to_string(),
+                    target: mapping.source_code.clone(),
+                });
+            }
+            if !target_codes.contains(mapping.target_code.as_str()) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept_map.mapping.target_code",
+                    id: def.id.to_string(),
+                    target: mapping.target_code.clone(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_value_set_references(
+        &self,
+        def: &crate::value_set::ValueSetDef,
+    ) -> Result<(), OntologyInvariantError> {
+        for rule in &def.composition {
+            let Some(system) = self.code_system_by_id(&rule.system_id) else {
+                return Err(OntologyInvariantError::DuplicateCollectionId {
+                    kind: "value_set_unknown_system",
+                    id: rule.system_id.to_string(),
+                });
+            };
+            match &rule.selector {
+                crate::value_set::ValueSetSelector::Explicit { codes } => {
+                    let system_codes: HashSet<&str> =
+                        system.codes.iter().map(|cv| cv.code.as_str()).collect();
+                    for code in codes {
+                        if !system_codes.contains(code.as_str()) {
+                            return Err(OntologyInvariantError::InvalidReference {
+                                kind: "value_set.selector.explicit_code",
+                                id: def.id.to_string(),
+                                target: code.clone(),
+                            });
+                        }
+                    }
+                }
+                crate::value_set::ValueSetSelector::DescendantsOf { root_id } => {
+                    if !system.codes.iter().any(|cv| cv.id == *root_id) {
+                        return Err(OntologyInvariantError::InvalidReference {
+                            kind: "value_set.selector.descendants_root",
+                            id: def.id.to_string(),
+                            target: root_id.to_string(),
+                        });
+                    }
+                }
+                crate::value_set::ValueSetSelector::All
+                | crate::value_set::ValueSetSelector::CodePattern { .. } => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_notation_pattern_references(
+        &self,
+        def: &crate::notation_pattern::NotationPatternDef,
+    ) -> Result<(), OntologyInvariantError> {
+        for component in &def.components {
+            if let crate::notation_pattern::NotationComponentKind::CodeFromSet { value_set_id } =
+                &component.kind
+                && !self.lookup.value_set_id_idx.contains_key(value_set_id)
+            {
+                return Err(OntologyInvariantError::DuplicateCollectionId {
+                    kind: "notation_pattern_unknown_value_set",
+                    id: value_set_id.to_string(),
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// Ω-5: add a [`crate::concept_map::ConceptMapDef`]. Referential
-    /// integrity of source / target `CodeSystemId` fields is
-    /// enforced here so a malformed map fails fast at insert.
+    /// integrity of source / target `CodeSystemId` fields and every
+    /// authored mapping code is enforced here so a malformed map
+    /// fails fast at insert.
     pub fn add_concept_map(
         &mut self,
         def: crate::concept_map::ConceptMapDef,
@@ -1552,19 +2111,31 @@ impl OntologyIR {
                 id: def.id.to_string(),
             });
         }
-        if !self.lookup.code_system_id_idx.contains_key(&def.source_system_id) {
-            return Err(OntologyInvariantError::DuplicateCollectionId {
-                kind: "concept_map_unknown_source_system",
-                id: def.source_system_id.to_string(),
-            });
-        }
-        if !self.lookup.code_system_id_idx.contains_key(&def.target_system_id) {
-            return Err(OntologyInvariantError::DuplicateCollectionId {
-                kind: "concept_map_unknown_target_system",
-                id: def.target_system_id.to_string(),
-            });
-        }
+        self.validate_concept_map_references(&def)?;
         self.concept_maps.push(def);
+        self.rebuild_indices()
+    }
+
+    pub fn replace_concept_map(
+        &mut self,
+        id: &crate::concept_map::ConceptMapId,
+        def: crate::concept_map::ConceptMapDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if &def.id != id {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "concept_map.id",
+                id: id.to_string(),
+                target: def.id.to_string(),
+            });
+        }
+        let Some(&idx) = self.lookup.concept_map_id_idx.get(id) else {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "concept_map",
+                id: id.to_string(),
+            });
+        };
+        self.validate_concept_map_references(&def)?;
+        self.concept_maps[idx] = def;
         self.rebuild_indices()
     }
 
@@ -1582,26 +2153,38 @@ impl OntologyIR {
                 id: def.id.to_string(),
             });
         }
-        for component in &def.components {
-            if let crate::notation_pattern::NotationComponentKind::CodeFromSet {
-                value_set_id,
-            } = &component.kind
-                && !self.lookup.value_set_id_idx.contains_key(value_set_id)
-            {
-                return Err(OntologyInvariantError::DuplicateCollectionId {
-                    kind: "notation_pattern_unknown_value_set",
-                    id: value_set_id.to_string(),
-                });
-            }
-        }
+        self.validate_notation_pattern_references(&def)?;
         self.notation_patterns.push(def);
         self.rebuild_indices()
     }
 
+    pub fn replace_notation_pattern(
+        &mut self,
+        id: &crate::notation_pattern::NotationPatternId,
+        def: crate::notation_pattern::NotationPatternDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if &def.id != id {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "notation_pattern.id",
+                id: id.to_string(),
+                target: def.id.to_string(),
+            });
+        }
+        let Some(&idx) = self.lookup.notation_pattern_id_idx.get(id) else {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "notation_pattern",
+                id: id.to_string(),
+            });
+        };
+        self.validate_notation_pattern_references(&def)?;
+        self.notation_patterns[idx] = def;
+        self.rebuild_indices()
+    }
+
     /// Ω-2: add a [`ValueSetDef`]. Referential integrity of
-    /// `ValueSetIncludeRule.system_id` against existing code
-    /// systems is enforced here so a malformed composition fails
-    /// fast rather than at expansion time.
+    /// `ValueSetIncludeRule.system_id` and every explicit/root code
+    /// selector against existing code systems is enforced here so a
+    /// malformed composition fails fast rather than at expansion time.
     pub fn add_value_set(
         &mut self,
         def: crate::value_set::ValueSetDef,
@@ -1612,16 +2195,354 @@ impl OntologyIR {
                 id: def.id.to_string(),
             });
         }
-        for rule in &def.composition {
-            if !self.lookup.code_system_id_idx.contains_key(&rule.system_id) {
-                return Err(OntologyInvariantError::DuplicateCollectionId {
-                    kind: "value_set_unknown_system",
-                    id: rule.system_id.to_string(),
+        self.validate_value_set_references(&def)?;
+        self.value_sets.push(def);
+        self.rebuild_indices()
+    }
+
+    pub fn replace_value_set(
+        &mut self,
+        id: &crate::value_set::ValueSetId,
+        def: crate::value_set::ValueSetDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if &def.id != id {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "value_set.id",
+                id: id.to_string(),
+                target: def.id.to_string(),
+            });
+        }
+        let Some(&idx) = self.lookup.value_set_id_idx.get(id) else {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "value_set",
+                id: id.to_string(),
+            });
+        };
+        self.validate_value_set_references(&def)?;
+        self.value_sets[idx] = def;
+        self.rebuild_indices()
+    }
+
+    fn ensure_code_system_not_referenced(
+        &self,
+        id: &crate::code_system::CodeSystemId,
+    ) -> Result<(), OntologyInvariantError> {
+        for node in &self.node_types {
+            for property in &node.properties {
+                for binding in &property.bindings {
+                    if let crate::binding::PropertyBinding::CodeSystem { id: binding_id, .. } =
+                        binding
+                        && binding_id == id
+                    {
+                        return Err(OntologyInvariantError::InvalidReference {
+                            kind: "code_system.in_use_by_property_binding",
+                            id: id.to_string(),
+                            target: property.id.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        for value_set in &self.value_sets {
+            if value_set
+                .composition
+                .iter()
+                .any(|rule| &rule.system_id == id)
+            {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "code_system.in_use_by_value_set",
+                    id: id.to_string(),
+                    target: value_set.id.to_string(),
                 });
             }
         }
-        self.value_sets.push(def);
-        self.rebuild_indices()
+        for concept_map in &self.concept_maps {
+            if &concept_map.source_system_id == id || &concept_map.target_system_id == id {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "code_system.in_use_by_concept_map",
+                    id: id.to_string(),
+                    target: concept_map.id.to_string(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn ensure_value_set_not_referenced(
+        &self,
+        id: &crate::value_set::ValueSetId,
+    ) -> Result<(), OntologyInvariantError> {
+        for node in &self.node_types {
+            for property in &node.properties {
+                for binding in &property.bindings {
+                    if let crate::binding::PropertyBinding::ValueSet { id: binding_id, .. } =
+                        binding
+                        && binding_id == id
+                    {
+                        return Err(OntologyInvariantError::InvalidReference {
+                            kind: "value_set.in_use_by_property_binding",
+                            id: id.to_string(),
+                            target: property.id.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        for pattern in &self.notation_patterns {
+            for component in &pattern.components {
+                if let crate::notation_pattern::NotationComponentKind::CodeFromSet { value_set_id } =
+                    &component.kind
+                    && value_set_id == id
+                {
+                    return Err(OntologyInvariantError::InvalidReference {
+                        kind: "value_set.in_use_by_notation_pattern",
+                        id: id.to_string(),
+                        target: pattern.id.to_string(),
+                    });
+                }
+            }
+        }
+        for rule in &self.rules {
+            for constraint in &rule.constraints {
+                for reference in constraint.referenced_ids() {
+                    if let crate::rule::ConstraintRef::ValueSet(value_set_id) = reference
+                        && value_set_id == id
+                    {
+                        return Err(OntologyInvariantError::InvalidReference {
+                            kind: "value_set.in_use_by_rule",
+                            id: id.to_string(),
+                            target: rule.id.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn ensure_concept_map_not_referenced(
+        &self,
+        id: &crate::concept_map::ConceptMapId,
+    ) -> Result<(), OntologyInvariantError> {
+        for node in &self.node_types {
+            for property in &node.properties {
+                for binding in &property.bindings {
+                    if let Some(concept_map_id) = binding.concept_map_id()
+                        && concept_map_id == id
+                    {
+                        return Err(OntologyInvariantError::InvalidReference {
+                            kind: "concept_map.in_use_by_property_binding",
+                            id: id.to_string(),
+                            target: property.id.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn ensure_notation_pattern_not_referenced(
+        &self,
+        id: &crate::notation_pattern::NotationPatternId,
+    ) -> Result<(), OntologyInvariantError> {
+        for node in &self.node_types {
+            for property in &node.properties {
+                for binding in &property.bindings {
+                    if let crate::binding::PropertyBinding::NotationPattern {
+                        id: binding_id, ..
+                    } = binding
+                        && binding_id == id
+                    {
+                        return Err(OntologyInvariantError::InvalidReference {
+                            kind: "notation_pattern.in_use_by_property_binding",
+                            id: id.to_string(),
+                            target: property.id.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        for rule in &self.rules {
+            for constraint in &rule.constraints {
+                for reference in constraint.referenced_ids() {
+                    if let crate::rule::ConstraintRef::NotationPattern(pattern_id) = reference
+                        && pattern_id == id
+                    {
+                        return Err(OntologyInvariantError::InvalidReference {
+                            kind: "notation_pattern.in_use_by_rule",
+                            id: id.to_string(),
+                            target: rule.id.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn ensure_value_range_set_not_referenced(
+        &self,
+        id: &crate::value_range::ValueRangeSetId,
+    ) -> Result<(), OntologyInvariantError> {
+        for node in &self.node_types {
+            for property in &node.properties {
+                for binding in &property.bindings {
+                    if let crate::binding::PropertyBinding::ValueRange { id: binding_id, .. } =
+                        binding
+                        && binding_id == id
+                    {
+                        return Err(OntologyInvariantError::InvalidReference {
+                            kind: "value_range_set.in_use_by_property_binding",
+                            id: id.to_string(),
+                            target: property.id.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn ensure_concept_not_referenced(
+        &self,
+        id: &crate::concept::ConceptId,
+    ) -> Result<(), OntologyInvariantError> {
+        for term in &self.glossary {
+            if term.concept_id.as_ref() == Some(id) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.in_use_by_glossary_term",
+                    id: id.to_string(),
+                    target: term.id.to_string(),
+                });
+            }
+        }
+        for concept in &self.concepts {
+            if &concept.id == id {
+                continue;
+            }
+            if concept.broader.as_ref() == Some(id) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.in_use_by_broader",
+                    id: id.to_string(),
+                    target: concept.id.to_string(),
+                });
+            }
+            if concept.replaced_by.as_ref() == Some(id) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.in_use_by_replacement",
+                    id: id.to_string(),
+                    target: concept.id.to_string(),
+                });
+            }
+        }
+        for node in &self.node_types {
+            if node.concept_id.as_ref() == Some(id)
+                || node
+                    .concept_realizations
+                    .iter()
+                    .any(|realization| &realization.concept_id == id)
+            {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.in_use_by_node_type",
+                    id: id.to_string(),
+                    target: node.id.to_string(),
+                });
+            }
+            for property in &node.properties {
+                for binding in &property.bindings {
+                    if let crate::binding::PropertyBinding::Concept { id: binding_id, .. } = binding
+                        && binding_id == id
+                    {
+                        return Err(OntologyInvariantError::InvalidReference {
+                            kind: "concept.in_use_by_property_binding",
+                            id: id.to_string(),
+                            target: property.id.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        for edge in &self.edge_types {
+            if edge.concept_id.as_ref() == Some(id)
+                || edge
+                    .concept_realizations
+                    .iter()
+                    .any(|realization| &realization.concept_id == id)
+            {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "concept.in_use_by_edge_type",
+                    id: id.to_string(),
+                    target: edge.id.to_string(),
+                });
+            }
+            for property in &edge.properties {
+                for binding in &property.bindings {
+                    if let crate::binding::PropertyBinding::Concept { id: binding_id, .. } = binding
+                        && binding_id == id
+                    {
+                        return Err(OntologyInvariantError::InvalidReference {
+                            kind: "concept.in_use_by_property_binding",
+                            id: id.to_string(),
+                            target: property.id.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn ensure_glossary_term_not_referenced(
+        &self,
+        id: &crate::glossary::GlossaryTermId,
+    ) -> Result<(), OntologyInvariantError> {
+        for concept in &self.concepts {
+            if &concept.canonical_term_id == id {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "glossary_term.in_use_by_concept_canonical",
+                    id: id.to_string(),
+                    target: concept.id.to_string(),
+                });
+            }
+            if concept.alias_term_ids.iter().any(|term_id| term_id == id) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "glossary_term.in_use_by_concept_alias",
+                    id: id.to_string(),
+                    target: concept.id.to_string(),
+                });
+            }
+        }
+        for term in &self.glossary {
+            if &term.id == id {
+                continue;
+            }
+            if term
+                .related_terms
+                .iter()
+                .any(|relation| &relation.target == id)
+            {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "glossary_term.in_use_by_related_term",
+                    id: id.to_string(),
+                    target: term.id.to_string(),
+                });
+            }
+            if matches!(
+                &term.lifecycle,
+                crate::glossary::TermLifecycle::Deprecated {
+                    replaced_by: Some(target),
+                    ..
+                } if target == id
+            ) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "glossary_term.in_use_by_replacement",
+                    id: id.to_string(),
+                    target: term.id.to_string(),
+                });
+            }
+        }
+        Ok(())
     }
 
     /// Remove a [`crate::glossary::GlossaryTermDef`] by id.
@@ -1629,11 +2550,29 @@ impl OntologyIR {
         &mut self,
         id: &crate::glossary::GlossaryTermId,
     ) -> Result<(), OntologyInvariantError> {
+        self.ensure_glossary_term_not_referenced(id)?;
         let before = self.glossary.len();
         self.glossary.retain(|t| &t.id != id);
         if self.glossary.len() == before {
             return Err(OntologyInvariantError::CollectionEntryNotFound {
                 kind: "glossary_term",
+                id: id.to_string(),
+            });
+        }
+        self.rebuild_indices()
+    }
+
+    /// Remove a [`crate::concept::ConceptDef`] by id.
+    pub fn remove_concept(
+        &mut self,
+        id: &crate::concept::ConceptId,
+    ) -> Result<(), OntologyInvariantError> {
+        self.ensure_concept_not_referenced(id)?;
+        let before = self.concepts.len();
+        self.concepts.retain(|concept| &concept.id != id);
+        if self.concepts.len() == before {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "concept",
                 id: id.to_string(),
             });
         }
@@ -1696,6 +2635,7 @@ impl OntologyIR {
         &mut self,
         id: &crate::notation_pattern::NotationPatternId,
     ) -> Result<(), OntologyInvariantError> {
+        self.ensure_notation_pattern_not_referenced(id)?;
         let before = self.notation_patterns.len();
         self.notation_patterns.retain(|p| &p.id != id);
         if self.notation_patterns.len() == before {
@@ -1707,11 +2647,29 @@ impl OntologyIR {
         self.rebuild_indices()
     }
 
+    /// Remove a [`crate::value_range::ValueRangeSetDef`] by id.
+    pub fn remove_value_range_set(
+        &mut self,
+        id: &crate::value_range::ValueRangeSetId,
+    ) -> Result<(), OntologyInvariantError> {
+        self.ensure_value_range_set_not_referenced(id)?;
+        let before = self.value_range_sets.len();
+        self.value_range_sets.retain(|r| &r.id != id);
+        if self.value_range_sets.len() == before {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "value_range_set",
+                id: id.to_string(),
+            });
+        }
+        self.rebuild_indices()
+    }
+
     /// Remove a [`crate::concept_map::ConceptMapDef`] by id.
     pub fn remove_concept_map(
         &mut self,
         id: &crate::concept_map::ConceptMapId,
     ) -> Result<(), OntologyInvariantError> {
+        self.ensure_concept_map_not_referenced(id)?;
         let before = self.concept_maps.len();
         self.concept_maps.retain(|m| &m.id != id);
         if self.concept_maps.len() == before {
@@ -1728,6 +2686,7 @@ impl OntologyIR {
         &mut self,
         id: &crate::value_set::ValueSetId,
     ) -> Result<(), OntologyInvariantError> {
+        self.ensure_value_set_not_referenced(id)?;
         let before = self.value_sets.len();
         self.value_sets.retain(|s| &s.id != id);
         if self.value_sets.len() == before {
@@ -1744,6 +2703,7 @@ impl OntologyIR {
         &mut self,
         id: &crate::code_system::CodeSystemId,
     ) -> Result<(), OntologyInvariantError> {
+        self.ensure_code_system_not_referenced(id)?;
         let before = self.code_systems.len();
         self.code_systems.retain(|s| &s.id != id);
         if self.code_systems.len() == before {
@@ -1755,18 +2715,52 @@ impl OntologyIR {
         self.rebuild_indices()
     }
 
+    pub fn replace_code_system(
+        &mut self,
+        id: &crate::code_system::CodeSystemId,
+        def: crate::code_system::CodeSystemDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if &def.id != id {
+            return Err(OntologyInvariantError::InvalidReference {
+                kind: "code_system.id",
+                id: id.to_string(),
+                target: def.id.to_string(),
+            });
+        }
+        let Some(&idx) = self.lookup.code_system_id_idx.get(id) else {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "code_system",
+                id: id.to_string(),
+            });
+        };
+        self.validate_code_system_references(&def)?;
+        let mut next = self.clone();
+        next.code_systems[idx] = def;
+        next.rebuild_indices()?;
+        for value_set in &next.value_sets {
+            if value_set
+                .composition
+                .iter()
+                .any(|rule| &rule.system_id == id)
+            {
+                next.validate_value_set_references(value_set)?;
+            }
+        }
+        for concept_map in &next.concept_maps {
+            if &concept_map.source_system_id == id || &concept_map.target_system_id == id {
+                next.validate_concept_map_references(concept_map)?;
+            }
+        }
+        *self = next;
+        Ok(())
+    }
+
     /// Ω-1: add a [`CodeSystemDef`] to the terminology registry.
     ///
-    /// Rebuild catches:
-    /// - Duplicate `system.id`.
-    /// - Duplicate [`CodedValueId`] across any existing system —
-    ///   `coded_value_loc` is a global index.
-    ///
-    /// A malformed `broader_id` (pointing outside this system, or
-    /// into a flat system) is caught in the semantic `validate()`
-    /// pass, not here — structural uniqueness + referential
-    /// integrity (the invariants that make lookups safe) is the
-    /// only thing `add_code_system` enforces.
+    /// Insert-time validation enforces aggregate-local invariants
+    /// that must never reach runtime consumers: duplicate code
+    /// strings, malformed hierarchy / replacement pointers, empty
+    /// external source references, and system replacement chains.
     pub fn add_code_system(
         &mut self,
         def: crate::code_system::CodeSystemDef,
@@ -1777,6 +2771,7 @@ impl OntologyIR {
                 id: def.id.to_string(),
             });
         }
+        self.validate_code_system_references(&def)?;
         self.code_systems.push(def);
         self.rebuild_indices()
     }
@@ -1793,20 +2788,17 @@ impl OntologyIR {
         &self,
         id: &crate::interface::InterfaceId,
     ) -> Option<&crate::interface::InterfaceDef> {
-        self.lookup.interface_id_idx.get(id).map(|&i| &self.interfaces[i])
+        self.lookup
+            .interface_id_idx
+            .get(id)
+            .map(|&i| &self.interfaces[i])
     }
 
-    pub fn rule_by_id(
-        &self,
-        id: &crate::action::RuleId,
-    ) -> Option<&crate::rule::RuleDef> {
+    pub fn rule_by_id(&self, id: &crate::action::RuleId) -> Option<&crate::rule::RuleDef> {
         self.lookup.rule_id_idx.get(id).map(|&i| &self.rules[i])
     }
 
-    pub fn action_by_id(
-        &self,
-        id: &crate::action::ActionId,
-    ) -> Option<&crate::action::ActionDef> {
+    pub fn action_by_id(&self, id: &crate::action::ActionId) -> Option<&crate::action::ActionDef> {
         self.lookup.action_id_idx.get(id).map(|&i| &self.actions[i])
     }
 
@@ -1814,13 +2806,13 @@ impl OntologyIR {
         &self,
         id: &crate::function::FunctionId,
     ) -> Option<&crate::function::FunctionDef> {
-        self.lookup.function_id_idx.get(id).map(|&i| &self.functions[i])
+        self.lookup
+            .function_id_idx
+            .get(id)
+            .map(|&i| &self.functions[i])
     }
 
-    pub fn metric_by_id(
-        &self,
-        id: &crate::metric::MetricId,
-    ) -> Option<&crate::metric::MetricDef> {
+    pub fn metric_by_id(&self, id: &crate::metric::MetricId) -> Option<&crate::metric::MetricDef> {
         self.lookup.metric_id_idx.get(id).map(|&i| &self.metrics[i])
     }
 
@@ -1828,14 +2820,20 @@ impl OntologyIR {
         &self,
         id: &crate::enrichment::EnrichmentId,
     ) -> Option<&crate::enrichment::EnrichmentDef> {
-        self.lookup.enrichment_id_idx.get(id).map(|&i| &self.enrichments[i])
+        self.lookup
+            .enrichment_id_idx
+            .get(id)
+            .map(|&i| &self.enrichments[i])
     }
 
     pub fn glossary_term_by_id(
         &self,
         id: &crate::glossary::GlossaryTermId,
     ) -> Option<&crate::glossary::GlossaryTermDef> {
-        self.lookup.glossary_term_id_idx.get(id).map(|&i| &self.glossary[i])
+        self.lookup
+            .glossary_term_id_idx
+            .get(id)
+            .map(|&i| &self.glossary[i])
     }
 
     /// Resolve a free-form phrase to the glossary term that matches
@@ -1885,10 +2883,11 @@ impl OntologyIR {
                 GlossarySlot::DisplayName,
                 GlossarySlot::Alias,
             ] {
-                if let Some(found) = self.glossary.iter().find(|t| {
-                    t.is_active() == prefer_active
-                        && slot_matches(t, slot, &needle)
-                }) {
+                if let Some(found) = self
+                    .glossary
+                    .iter()
+                    .find(|t| t.is_active() == prefer_active && slot_matches(t, slot, &needle))
+                {
                     return Some(self.follow_replacement_chain(found));
                 }
             }
@@ -2389,9 +3388,7 @@ fn slot_matches(
 ) -> bool {
     match slot {
         GlossarySlot::Term => localized_text_contains_ci(&term.term, needle_lower),
-        GlossarySlot::DisplayName => {
-            localized_text_contains_ci(&term.display_name, needle_lower)
-        }
+        GlossarySlot::DisplayName => localized_text_contains_ci(&term.display_name, needle_lower),
         GlossarySlot::Alias => term
             .aliases
             .iter()
@@ -2399,10 +3396,7 @@ fn slot_matches(
     }
 }
 
-fn localized_text_contains_ci(
-    text: &ox_core::i18n::LocalizedText,
-    needle_lower: &str,
-) -> bool {
+fn localized_text_contains_ci(text: &ox_core::i18n::LocalizedText, needle_lower: &str) -> bool {
     if text.default.to_lowercase() == needle_lower {
         return true;
     }

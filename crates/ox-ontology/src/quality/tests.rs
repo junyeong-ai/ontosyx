@@ -1,8 +1,8 @@
 use super::*;
-use ox_core::graph_label::GraphLabel;
-use ox_core::i18n::LocalizedText;
 use crate::ir::{Cardinality, EdgeTypeDef, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef};
 use crate::mapping::{ObjectMappingDef, ObjectMappingId, SourceId, SourceRelationKind};
+use ox_core::graph_label::GraphLabel;
+use ox_core::i18n::LocalizedText;
 use ox_core::source_schema::{
     ForeignKeyDef, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef, TableProfile,
 };
@@ -402,7 +402,7 @@ fn column_clarifications_suppress_data_observation_gaps() {
         ColumnClarification {
             table: "stores".to_string(),
             column: "status".to_string(),
-            hint: "active is the only status for now".to_string(),
+            hint: "active is the sole allowed status".to_string(),
         },
     ];
     let report_clarified = assess_quality(
@@ -1240,10 +1240,8 @@ fn quality_gap_params_match_wire_contract() {
         vec![],
         vec![],
     );
-    let mappings = mapping_with_tables(&[
-        ("node-orders", "orders"),
-        ("node-customers", "customers"),
-    ]);
+    let mappings =
+        mapping_with_tables(&[("node-orders", "orders"), ("node-customers", "customers")]);
 
     let schema = SourceSchema {
         source_type: "postgres".to_string(),
@@ -1321,10 +1319,7 @@ fn quality_gap_params_match_wire_contract() {
                 "edge_count",
             ],
         ),
-        (
-            QualityGapCategory::MissingDescription,
-            &["label"],
-        ),
+        (QualityGapCategory::MissingDescription, &["label"]),
     ];
 
     for (category, keys) in expected {

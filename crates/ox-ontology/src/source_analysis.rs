@@ -27,7 +27,7 @@ pub const LARGE_ONTOLOGY_THRESHOLD: usize = 100;
 
 /// Full analysis report produced by analyzing schema + profile before ontology design.
 /// Contains findings ordered by actionability: implied FKs, PII, ambiguous columns, etc.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SourceAnalysisReport {
     /// Summary statistics about the schema
     pub schema_stats: SchemaStats,
@@ -76,7 +76,7 @@ impl SourceAnalysisReport {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SchemaStats {
     pub table_count: usize,
     pub column_count: usize,
@@ -84,14 +84,16 @@ pub struct SchemaStats {
     pub total_row_count: u64,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AnalysisCompleteness {
     Complete,
     Partial,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum WarningLevel {
     Info,
@@ -99,7 +101,7 @@ pub enum WarningLevel {
     Error,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AnalysisPhase {
     SchemaIntrospection,
@@ -109,7 +111,7 @@ pub enum AnalysisPhase {
 /// Stable warning classification. New backend-specific failure modes
 /// are added as new variants — the discriminant survives wire format,
 /// drives FE grouping, and binds to actionable hints.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum WarningClass {
     // ── Generic kernel-level outcomes ─────────────────────────────
@@ -171,7 +173,7 @@ pub enum WarningClass {
 }
 
 impl WarningClass {
-    /// Stable, lowercase, hyphenated label for diagnostic logs and
+    /// Stable, lowercase label for diagnostic logs and
     /// FE class names. Matches the `serde(rename_all = "snake_case")`
     /// representation but exposed without re-routing through serde.
     pub fn as_str(self) -> &'static str {
@@ -180,9 +182,9 @@ impl WarningClass {
             Self::ColumnSampleSkipped => "column_sample_skipped",
             Self::ForeignKeysUnavailable => "foreign_keys_unavailable",
             Self::SampleValuesOmitted => "sample_values_omitted",
-            Self::BigQueryPartitionFilterRequired => "bigquery_partition_filter_required",
-            Self::BigQueryClusteringFilterRequired => "bigquery_clustering_filter_required",
-            Self::BigQueryJobsCreateDenied => "bigquery_jobs_create_denied",
+            Self::BigQueryPartitionFilterRequired => "big_query_partition_filter_required",
+            Self::BigQueryClusteringFilterRequired => "big_query_clustering_filter_required",
+            Self::BigQueryJobsCreateDenied => "big_query_jobs_create_denied",
             Self::PostgresPermissionDenied => "postgres_permission_denied",
             Self::SnowflakeWarehouseSuspended => "snowflake_warehouse_suspended",
             Self::ValueSetDriftDetected => "value_set_drift_detected",
@@ -196,7 +198,7 @@ impl WarningClass {
 /// can render scoped UI (per-table sections, per-column drilldowns)
 /// without parsing the free-text `location` strings the previous
 /// shape carried.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum WarningScope {
     /// Affects the source as a whole (e.g., FK discovery unavailable).
@@ -242,7 +244,7 @@ impl WarningScope {
 /// server-computed (`class:scope.table` or `class:source`) so the FE
 /// can collapse warnings sharing a fingerprint into a single card
 /// without re-implementing the grouping rule.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, utoipa::ToSchema)]
 pub struct AnalysisWarning {
     pub level: WarningLevel,
     pub phase: AnalysisPhase,
@@ -318,7 +320,7 @@ impl AnalysisWarning {
 // ---------------------------------------------------------------------------
 
 /// A foreign key relationship inferred programmatically (not declared in schema).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ImpliedRelationship {
     pub from_table: String,
     pub from_column: String,
@@ -332,7 +334,7 @@ pub struct ImpliedRelationship {
     pub repo_confirmed: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ImpliedFkPattern {
     /// Column name ends with `_id`, stripped name matches a known table
@@ -343,7 +345,7 @@ pub enum ImpliedFkPattern {
 // Table exclusion suggestions
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct TableExclusionSuggestion {
     pub table_name: String,
     pub reason: TableExclusionReason,
@@ -351,7 +353,7 @@ pub struct TableExclusionSuggestion {
     pub row_count: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum TableExclusionReason {
     /// Likely an audit / history log table
@@ -366,7 +368,7 @@ pub enum TableExclusionReason {
 // Large schema warning
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct LargeSchemaWarning {
     pub table_count: usize,
     pub recommended_max: usize,
@@ -378,7 +380,7 @@ pub struct LargeSchemaWarning {
 
 /// A suggestion for an ambiguous column derived from repo analysis.
 /// Becomes actionable only when the user explicitly accepts it as a column_clarification.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RepoColumnSuggestion {
     pub table: String,
     pub column: String,
@@ -388,7 +390,7 @@ pub struct RepoColumnSuggestion {
 }
 
 /// Outcome of repo enrichment analysis.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RepoAnalysisStatus {
     /// Enrichment completed successfully
@@ -406,7 +408,7 @@ pub enum RepoAnalysisStatus {
 /// render a localised "왜 실패했나" hint without parsing prose. The
 /// emit site additionally `tracing::warn!`s the underlying error
 /// for developer-facing observability.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RepoFailureKind {
     /// Cloning a remote git URL failed (auth, network, branch missing).
@@ -431,7 +433,7 @@ pub enum RepoFailureKind {
     NoRelevantFiles,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RepoAnalysisSummary {
     /// Overall outcome of the repo enrichment attempt.
     pub status: RepoAnalysisStatus,
@@ -472,7 +474,7 @@ pub struct RepoAnalysisSummary {
 /// Operator-confirmed inputs that override or supplement automatic
 /// analysis. Submitted via `PATCH /api/ontology-drafts/:id/decisions` after
 /// reviewing [`SourceAnalysisReport`].
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct DesignOptions {
     /// Implied relationships the operator confirmed as real FKs.
     #[serde(default)]
@@ -503,7 +505,7 @@ pub struct DesignOptions {
     pub large_schema_acknowledged: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ConfirmedRelationship {
     pub from_table: String,
     pub from_column: String,
@@ -512,7 +514,7 @@ pub struct ConfirmedRelationship {
 }
 
 /// A domain clarification for a specific column.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ColumnClarification {
     pub table: String,
     pub column: String,
@@ -569,10 +571,7 @@ pub fn apply_pii_annotations(
     let mut count = 0;
 
     for node in &mut ontology.node_types {
-        let Some(om) = object_mappings
-            .iter()
-            .find(|om| om.node_type_id == node.id)
-        else {
+        let Some(om) = object_mappings.iter().find(|om| om.node_type_id == node.id) else {
             continue;
         };
         let source_table = om.relation.to_lowercase();

@@ -100,6 +100,7 @@ pub enum EntityKind {
     Metric,
     Enrichment,
     // Vocabulary + value semantics
+    Concept,
     GlossaryTerm,
     Taxonomy,
     CodeSystem,
@@ -116,6 +117,17 @@ pub enum EntityKind {
     /// column)` location plus the `ColumnStats` payload from the
     /// introspection kernel.
     ColumnProfile,
+    /// Named subset of a NodeType realising a specific concept
+    /// (ADR-0015). Examples: `customer:vip`, `order:open`. Lives
+    /// on the IR + validation layer + retrieval anchor surface
+    /// — extraction here keeps the search index honest.
+    Segment,
+    /// Per-(source, table) inventory row recording import status
+    /// and contribution edges. Drives the source-as-first-class UX
+    /// and the change log; extraction here lets retrieval resolve
+    /// "which tables did this project use?" without joining
+    /// across mapping rows.
+    TableInventory,
 }
 
 impl EntityKind {
@@ -138,6 +150,7 @@ impl EntityKind {
             EntityKind::Function => "function",
             EntityKind::Metric => "metric",
             EntityKind::Enrichment => "enrichment",
+            EntityKind::Concept => "concept",
             EntityKind::GlossaryTerm => "glossary_term",
             EntityKind::Taxonomy => "taxonomy",
             EntityKind::CodeSystem => "code_system",
@@ -147,6 +160,8 @@ impl EntityKind {
             EntityKind::ConceptMap => "concept_map",
             EntityKind::ValueRangeSet => "value_range_set",
             EntityKind::ColumnProfile => "column_profile",
+            EntityKind::Segment => "segment",
+            EntityKind::TableInventory => "table_inventory",
         }
     }
 
@@ -172,6 +187,7 @@ impl EntityKind {
             "function" => EntityKind::Function,
             "metric" => EntityKind::Metric,
             "enrichment" => EntityKind::Enrichment,
+            "concept" => EntityKind::Concept,
             "glossary_term" => EntityKind::GlossaryTerm,
             "taxonomy" => EntityKind::Taxonomy,
             "code_system" => EntityKind::CodeSystem,
@@ -181,6 +197,8 @@ impl EntityKind {
             "concept_map" => EntityKind::ConceptMap,
             "value_range_set" => EntityKind::ValueRangeSet,
             "column_profile" => EntityKind::ColumnProfile,
+            "segment" => EntityKind::Segment,
+            "table_inventory" => EntityKind::TableInventory,
             other => {
                 return Err(OxError::Runtime {
                     message: format!(
@@ -260,9 +278,7 @@ pub fn canonical_json(value: &Value) -> String {
                 if i > 0 {
                     out.push(',');
                 }
-                out.push_str(
-                    &serde_json::to_string(k).unwrap_or_else(|_| String::from("\"\"")),
-                );
+                out.push_str(&serde_json::to_string(k).unwrap_or_else(|_| String::from("\"\"")));
                 out.push(':');
                 out.push_str(&canonical_json(v));
             }
@@ -347,121 +363,68 @@ pub fn extract_entities(ir: &OntologyIR) -> OxResult<Vec<ExtractedEntity>> {
         content,
     });
 
-    // --- Topology ----------------------------------------------
-    for nt in ir.node_types() {
-        out.push(extract(EntityKind::NodeType, &nt.id, nt)?);
-    }
-    for et in ir.edge_types() {
-        out.push(extract(EntityKind::EdgeType, &et.id, et)?);
-    }
-    for idx in ir.indexes() {
-        // IndexDef is an enum; logical_id is per-variant. All
-        // variants carry an `id` field — exhaustive match so a
-        // new variant surfaces as a compile error here rather
-        // than silently breaking content-address extraction.
-        let id = match idx {
-            crate::ir::IndexDef::Single { id, .. } => id.clone(),
-            crate::ir::IndexDef::Composite { id, .. } => id.clone(),
-            crate::ir::IndexDef::FullText { id, .. } => id.clone(),
-            crate::ir::IndexDef::Vector { id, .. } => id.clone(),
-        };
-        out.push(extract(EntityKind::IndexDef, &id, idx)?);
-    }
-    for iface in ir.interfaces() {
-        out.push(extract(EntityKind::Interface, &iface.id, iface)?);
-    }
+    // Every other collection participates in the
+    // `IrCollection` contract — kind + logical_id flow from the
+    // type, not the loop body. New collections need only an
+    // `IrCollection` impl + one `extract_collection` line.
+    extract_collection(&mut out, ir.node_types())?;
+    extract_collection(&mut out, ir.edge_types())?;
+    extract_collection(&mut out, ir.indexes())?;
+    extract_collection(&mut out, ir.interfaces())?;
 
-    // --- Mapping -----------------------------------------------
-    for om in ir.object_mappings() {
-        out.push(extract(EntityKind::ObjectMapping, &om.id, om)?);
-    }
-    for lm in ir.link_mappings() {
-        out.push(extract(EntityKind::LinkMapping, &lm.id, lm)?);
-    }
-    // PropertyMappingDef is a nested type — extracted separately
-    // once the mapping layer promotes them to top-level. Today
-    // they live inside ObjectMappingDef and ride along with the
-    // parent's hash. When the IR model lifts them out, this loop
-    // activates.
-    // for pm in ir.property_mappings() { ... }
+    extract_collection(&mut out, ir.object_mappings())?;
+    extract_collection(&mut out, ir.link_mappings())?;
+    // PropertyMappingDef is nested inside ObjectMappingDef — when
+    // the mapping layer promotes them to top-level, an
+    // `IrCollection` impl + one line lands them here.
 
-    // --- Governance --------------------------------------------
-    for rule in ir.rules() {
-        out.push(extract(EntityKind::Rule, &rule.id, rule)?);
-    }
-    for dq in ir.data_quality() {
-        out.push(extract(EntityKind::DataQuality, &dq.id, dq)?);
-    }
-    for action in ir.actions() {
-        out.push(extract(EntityKind::Action, &action.id, action)?);
-    }
-    for prov in ir.provenance() {
-        out.push(extract(EntityKind::Provenance, &prov.id, prov)?);
-    }
+    extract_collection(&mut out, ir.rules())?;
+    extract_collection(&mut out, ir.data_quality())?;
+    extract_collection(&mut out, ir.actions())?;
+    extract_collection(&mut out, ir.provenance())?;
 
-    // --- Behaviour ---------------------------------------------
-    for func in ir.functions() {
-        out.push(extract(EntityKind::Function, &func.id, func)?);
-    }
-    for metric in ir.metrics() {
-        out.push(extract(EntityKind::Metric, &metric.id, metric)?);
-    }
-    for enrich in ir.enrichments() {
-        out.push(extract(EntityKind::Enrichment, &enrich.id, enrich)?);
-    }
+    extract_collection(&mut out, ir.functions())?;
+    extract_collection(&mut out, ir.metrics())?;
+    extract_collection(&mut out, ir.enrichments())?;
 
-    // --- Vocabulary + value semantics --------------------------
-    for term in ir.glossary() {
-        out.push(extract(EntityKind::GlossaryTerm, &term.id, term)?);
-    }
-    // TaxonomyDef is accessible via the glossary() collection
-    // today; when it becomes a first-class IR collection the
-    // extraction moves here.
-    for cs in ir.code_systems() {
-        out.push(extract(EntityKind::CodeSystem, &cs.id, cs)?);
-    }
-    for vs in ir.value_sets() {
-        out.push(extract(EntityKind::ValueSet, &vs.id, vs)?);
-    }
-    for np in ir.notation_patterns() {
-        out.push(extract(EntityKind::NotationPattern, &np.id, np)?);
-    }
-    for cm in ir.concept_maps() {
-        out.push(extract(EntityKind::ConceptMap, &cm.id, cm)?);
-    }
-    for rs in ir.value_range_sets() {
-        out.push(extract(EntityKind::ValueRangeSet, &rs.id, rs)?);
-    }
-    for cp in ir.column_profiles() {
-        out.push(extract(EntityKind::ColumnProfile, &cp.id, cp)?);
-    }
+    extract_collection(&mut out, ir.concepts())?;
+    extract_collection(&mut out, ir.glossary())?;
+    extract_collection(&mut out, ir.code_systems())?;
+    extract_collection(&mut out, ir.value_sets())?;
+    extract_collection(&mut out, ir.notation_patterns())?;
+    extract_collection(&mut out, ir.concept_maps())?;
+    extract_collection(&mut out, ir.value_range_sets())?;
+    extract_collection(&mut out, ir.column_profiles())?;
+
+    // Φ8.2 — segments + table inventory promoted to first-class
+    // extraction so retrieval anchors land in the search index +
+    // navigation graph.
+    extract_collection(&mut out, ir.segments())?;
+    extract_collection(&mut out, ir.table_inventory())?;
 
     Ok(out)
 }
 
-/// Shared helper — serialises the entity, computes the hash,
-/// packages the tuple.
-fn extract<T: Serialize>(
-    kind: EntityKind,
-    logical_id: &impl ToString,
-    value: &T,
-) -> OxResult<ExtractedEntity> {
-    let (content, _canonical, hash) = canonical_and_hash(value)?;
-    Ok(ExtractedEntity {
-        kind,
-        logical_id: logical_id.to_string(),
-        hash,
-        content,
-    })
+/// Extract every member of `items` into the supplied accumulator.
+/// One generic loop replaces the per-collection match-and-extract
+/// blocks the older code carried — adding a new collection is
+/// `IrCollection` impl + one call here.
+fn extract_collection<T: crate::ir_collection::IrCollection>(
+    out: &mut Vec<ExtractedEntity>,
+    items: &[T],
+) -> OxResult<()> {
+    for item in items {
+        let (content, _canonical, hash) = canonical_and_hash(item)?;
+        out.push(ExtractedEntity {
+            kind: T::ENTITY_KIND,
+            logical_id: item.logical_id().into_owned(),
+            hash,
+            content,
+        });
+    }
+    Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// Provenance collection accessor — the existing IR exposes a
-// method named `provenance` rather than `provenances`; add a
-// shim so `ir.provenance()` returns the same slice for our
-// iteration style.
-// ---------------------------------------------------------------------------
-// (Already provided via the inline `for prov in ir.provenance()` above.)
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -487,17 +450,17 @@ mod tests {
     fn canonical_json_nested_objects_are_sorted_at_every_depth() {
         let v = json!({"outer": {"z": 1, "a": 2}, "alpha": {"y": 3, "b": 4}});
         let c = canonical_json(&v);
-        assert_eq!(
-            c,
-            r#"{"alpha":{"b":4,"y":3},"outer":{"a":2,"z":1}}"#
-        );
+        assert_eq!(c, r#"{"alpha":{"b":4,"y":3},"outer":{"a":2,"z":1}}"#);
     }
 
     #[test]
     fn hash_canonical_matches_constraint_shape() {
         let h = hash_canonical("{}");
         assert_eq!(h.len(), 64);
-        assert!(h.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(
+            h.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+        );
     }
 
     #[test]
@@ -507,7 +470,10 @@ mod tests {
         // canonicalisation.
         let a = json!({"x": 1, "y": 2});
         let b = json!({"y": 2, "x": 1});
-        assert_eq!(hash_canonical(&canonical_json(&a)), hash_canonical(&canonical_json(&b)));
+        assert_eq!(
+            hash_canonical(&canonical_json(&a)),
+            hash_canonical(&canonical_json(&b))
+        );
     }
 
     /// Single source of truth for "every variant of `EntityKind`" —
@@ -517,7 +483,7 @@ mod tests {
     /// without listing it here is caught by `every_variant_appears_
     /// in_all_variants` (a missing-variant compile error from the
     /// exhaustive `match` below).
-    fn all_variants() -> [EntityKind; 25] {
+    fn all_variants() -> [EntityKind; 28] {
         [
             EntityKind::OntologyHeader,
             EntityKind::NodeType,
@@ -535,6 +501,7 @@ mod tests {
             EntityKind::Function,
             EntityKind::Metric,
             EntityKind::Enrichment,
+            EntityKind::Concept,
             EntityKind::GlossaryTerm,
             EntityKind::Taxonomy,
             EntityKind::CodeSystem,
@@ -544,6 +511,8 @@ mod tests {
             EntityKind::ConceptMap,
             EntityKind::ValueRangeSet,
             EntityKind::ColumnProfile,
+            EntityKind::Segment,
+            EntityKind::TableInventory,
         ]
     }
 
@@ -575,6 +544,7 @@ mod tests {
                 | EntityKind::Function
                 | EntityKind::Metric
                 | EntityKind::Enrichment
+                | EntityKind::Concept
                 | EntityKind::GlossaryTerm
                 | EntityKind::Taxonomy
                 | EntityKind::CodeSystem
@@ -583,7 +553,9 @@ mod tests {
                 | EntityKind::NotationPattern
                 | EntityKind::ConceptMap
                 | EntityKind::ValueRangeSet
-                | EntityKind::ColumnProfile => {}
+                | EntityKind::ColumnProfile
+                | EntityKind::Segment
+                | EntityKind::TableInventory => {}
             }
         }
         for k in all_variants() {
@@ -595,8 +567,8 @@ mod tests {
     fn entity_kind_wire_names_round_trip_through_parse() {
         for kind in all_variants() {
             let wire = kind.as_str();
-            let back = EntityKind::parse(wire)
-                .unwrap_or_else(|_| panic!("parse missing arm for {wire}"));
+            let back =
+                EntityKind::parse(wire).unwrap_or_else(|_| panic!("parse missing arm for {wire}"));
             assert_eq!(back, kind, "round-trip broke for {wire}");
         }
     }
@@ -606,8 +578,7 @@ mod tests {
         // Two variants accidentally returning the same `as_str()`
         // would collide on parse — surface that here rather than
         // letting the second variant silently shadow the first.
-        let mut seen: std::collections::HashSet<&'static str> =
-            std::collections::HashSet::new();
+        let mut seen: std::collections::HashSet<&'static str> = std::collections::HashSet::new();
         for kind in all_variants() {
             let wire = kind.as_str();
             assert!(
@@ -631,8 +602,7 @@ mod tests {
             1,
             vec![crate::ir::NodeTypeDef {
                 id: "nt-1".into(),
-                label: ox_core::graph_label::GraphLabel::new("X")
-                    .expect("valid literal"),
+                label: ox_core::graph_label::GraphLabel::new("X").expect("valid literal"),
                 ..Default::default()
             }],
             vec![],
@@ -641,12 +611,16 @@ mod tests {
         let entities = extract_entities(&ir).unwrap();
         // Header + 1 node type = 2.
         assert_eq!(entities.len(), 2);
-        assert!(entities
-            .iter()
-            .any(|e| e.kind == EntityKind::OntologyHeader && e.logical_id == "ont-1"));
-        assert!(entities
-            .iter()
-            .any(|e| e.kind == EntityKind::NodeType && e.logical_id == "nt-1"));
+        assert!(
+            entities
+                .iter()
+                .any(|e| e.kind == EntityKind::OntologyHeader && e.logical_id == "ont-1")
+        );
+        assert!(
+            entities
+                .iter()
+                .any(|e| e.kind == EntityKind::NodeType && e.logical_id == "nt-1")
+        );
     }
 
     #[test]
@@ -658,8 +632,7 @@ mod tests {
             1,
             vec![crate::ir::NodeTypeDef {
                 id: "nt-1".into(),
-                label: ox_core::graph_label::GraphLabel::new("Customer")
-                    .expect("valid literal"),
+                label: ox_core::graph_label::GraphLabel::new("Customer").expect("valid literal"),
                 ..Default::default()
             }],
             vec![],

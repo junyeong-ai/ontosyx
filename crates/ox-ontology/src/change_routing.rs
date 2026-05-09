@@ -4,8 +4,8 @@
 //! to an automation tier (from 45% on table-merge up to 100% on
 //! rollback). This module encodes that matrix as data:
 //!
-//! - [`ChangeType`] — the ten kinds of edit the matrix names, with
-//!   one variant per row.
+//! - [`ChangeType`] — the edit classes the matrix names, with one
+//!   variant per routable row.
 //! - [`ApprovalRouting`] — the destination: auto-approve, approve-
 //!   with-notification, approve-required-unless-predicate, or
 //!   always-approve.
@@ -30,7 +30,9 @@ ox_core::define_id_newtype!(ChangeRoutingRuleId);
 /// The variant set is closed — adding a new kind is a deliberate
 /// schema extension, not a silent addition. Every `OntologyEditOp`
 /// classifies into exactly one of these.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ChangeType {
     /// Add a code to an existing CodeSystem. 80% auto per patent matrix.
@@ -38,12 +40,13 @@ pub enum ChangeType {
     /// Deprecate or retire a code (`deprecated_at` + `replaced_by`).
     /// 60% auto — historical queries need the rename chain preserved.
     CodedValueDeprecate,
-    /// Create a new GlossaryTerm. 70% auto.
-    GlossaryTermCreate,
-    /// Add an alias to an existing GlossaryTerm. 70% auto — drives
-    /// query-hit-rate improvements so it's the most frequent routine
-    /// edit.
-    GlossaryAliasAdd,
+    /// Update terminology registry content: glossary terms, value
+    /// sets, concept maps, and adjacent vocabulary metadata. 70% auto.
+    TerminologyRegistryUpdate,
+    /// Bind or unbind a property to semantic registry targets
+    /// (`Concept`, `ValueSet`, `CodeSystem`, `NotationPattern`, or
+    /// `ValueRange`). 70% auto.
+    SemanticBindingUpdate,
     /// Declare a new NotationPattern template. 60% auto.
     NotationPatternCreate,
     /// New CustomerSegment / analytical view. 55% auto.
@@ -90,8 +93,8 @@ impl ChangeType {
         &[
             Self::CodedValueCreate,
             Self::CodedValueDeprecate,
-            Self::GlossaryTermCreate,
-            Self::GlossaryAliasAdd,
+            Self::TerminologyRegistryUpdate,
+            Self::SemanticBindingUpdate,
             Self::NotationPatternCreate,
             Self::CustomerSegmentCreate,
             Self::ColumnRename,
@@ -115,19 +118,17 @@ impl ChangeType {
             // 95% — auto only emits a *proposal*, so the "deprecate"
             // write is routine; the human still reviews the proposal
             // list.
-            Self::StaleConceptDeprecate => {
-                ApprovalRouting::AutoApproveWithNotification {
-                    notify_roles: vec![RoleRef::DataSteward],
-                }
-            }
+            Self::StaleConceptDeprecate => ApprovalRouting::AutoApproveWithNotification {
+                notify_roles: vec![RoleRef::DataSteward],
+            },
             // 90% — Temporal RenameCtx carries backward-time queries
             // past the rename, so admins sail through. Non-admins
             // queue; the commit-path validate still enforces IR
             // integrity, so an Admin can't sneak a broken rename by.
             Self::ColumnRename => ApprovalRouting::ApprovalRequiredUnless {
-                skip_predicates: vec![
-                    ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::Admin },
-                ],
+                skip_predicates: vec![ApprovalSkipPredicate::AuthorHasRole {
+                    role: RoleRef::Admin,
+                }],
             },
             // 80% — new codes are low risk; the unique-key CHECK
             // catches duplicates so the routing can lean permissive.
@@ -136,7 +137,9 @@ impl ChangeType {
             // role predicate.
             Self::CodedValueCreate => ApprovalRouting::ApprovalRequiredUnless {
                 skip_predicates: vec![
-                    ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::DataSteward },
+                    ApprovalSkipPredicate::AuthorHasRole {
+                        role: RoleRef::DataSteward,
+                    },
                     ApprovalSkipPredicate::ChangeScopeBelow {
                         scope: ScopeKind::CodeCount,
                         threshold: 5,
@@ -147,15 +150,18 @@ impl ChangeType {
             // routing is permissive for admins but keeps a review
             // loop for non-admin contributors.
             Self::DataSourceRegister => ApprovalRouting::ApprovalRequiredUnless {
-                skip_predicates: vec![ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::Admin }],
+                skip_predicates: vec![ApprovalSkipPredicate::AuthorHasRole {
+                    role: RoleRef::Admin,
+                }],
             },
-            // 70% — alias additions are the most routine edit; MD
-            // teams iterate on glossary coverage constantly.
-            Self::GlossaryAliasAdd | Self::GlossaryTermCreate => {
+            // 70% — terminology curation and semantic bindings are
+            // routine steward work; validation still gates broken
+            // references before commit.
+            Self::SemanticBindingUpdate | Self::TerminologyRegistryUpdate => {
                 ApprovalRouting::ApprovalRequiredUnless {
-                    skip_predicates: vec![
-                        ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::DataSteward },
-                    ],
+                    skip_predicates: vec![ApprovalSkipPredicate::AuthorHasRole {
+                        role: RoleRef::DataSteward,
+                    }],
                 }
             }
             // 60% — notation templates + code deprecation both touch
@@ -174,9 +180,9 @@ impl ChangeType {
             // through; lower roles queue. The commit-path validate
             // still enforces IR integrity.
             Self::RuleCreate => ApprovalRouting::ApprovalRequiredUnless {
-                skip_predicates: vec![
-                    ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::DataSteward },
-                ],
+                skip_predicates: vec![ApprovalSkipPredicate::AuthorHasRole {
+                    role: RoleRef::DataSteward,
+                }],
             },
             // 55% — a tightened rule can retroactively invalidate
             // future rows that a passing validate-now cannot
@@ -184,13 +190,33 @@ impl ChangeType {
             // queues. The commit-path validate still enforces
             // current-state integrity.
             Self::RuleModify => ApprovalRouting::ApprovalRequiredUnless {
-                skip_predicates: vec![
-                    ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::Admin },
-                ],
+                skip_predicates: vec![ApprovalSkipPredicate::AuthorHasRole {
+                    role: RoleRef::Admin,
+                }],
             },
             // Always queues — removing coverage is a governance
             // decision, never mechanical.
             Self::RuleDelete => ApprovalRouting::ApprovalRequired,
+        }
+    }
+
+    /// Default risk badge for the global seed row. Risk is audit/UI
+    /// metadata; it does not affect routing decisions.
+    pub fn default_risk_level(self) -> RiskLevel {
+        match self {
+            Self::CodedValueCreate
+            | Self::TerminologyRegistryUpdate
+            | Self::SemanticBindingUpdate
+            | Self::StaleConceptDeprecate => RiskLevel::Low,
+            Self::CodedValueDeprecate
+            | Self::NotationPatternCreate
+            | Self::CustomerSegmentCreate
+            | Self::DataSourceRegister
+            | Self::OntologyVersionRollback
+            | Self::RuleCreate => RiskLevel::Medium,
+            Self::ColumnRename | Self::TableMerge | Self::RuleModify | Self::RuleDelete => {
+                RiskLevel::High
+            }
         }
     }
 }
@@ -226,7 +252,9 @@ pub enum ApprovalRouting {
 /// New scope dimensions (table count, entity count, ...) slot in
 /// as additional variants without changing the predicate shape or
 /// breaking existing matrix rows / workspace overrides.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ScopeKind {
     /// Number of coded values an op touches. Used by the
@@ -277,7 +305,9 @@ pub enum ApprovalSkipPredicate {
 
 /// Role reference. Declares the hierarchy at a symbolic level so the
 /// routing rules don't hardcode workspace IDs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum RoleRef {
     /// Full admin — top of the ladder.
@@ -307,7 +337,9 @@ pub struct ChangeRoutingRule {
 
 /// Risk tier — metadata for UI badging and audit filtering. Does
 /// not influence routing directly (that's `ApprovalRouting`'s job).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum RiskLevel {
     Low,
@@ -344,10 +376,7 @@ pub struct EditContext {
 /// rule + context, returns the decision. Store lookup + override
 /// precedence is the caller's responsibility (so tests don't need a
 /// DB to pin the logic).
-pub fn decide_edit_routing(
-    routing: &ApprovalRouting,
-    ctx: &EditContext,
-) -> EditRoutingDecision {
+pub fn decide_edit_routing(routing: &ApprovalRouting, ctx: &EditContext) -> EditRoutingDecision {
     match routing {
         ApprovalRouting::AutoApprove => EditRoutingDecision::Apply {
             notify_roles: Vec::new(),
@@ -447,7 +476,9 @@ mod tests {
     #[test]
     fn approval_required_unless_admin_role_skips() {
         let routing = ApprovalRouting::ApprovalRequiredUnless {
-            skip_predicates: vec![ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::DataSteward }],
+            skip_predicates: vec![ApprovalSkipPredicate::AuthorHasRole {
+                role: RoleRef::DataSteward,
+            }],
         };
         let ctx = EditContext {
             author_role: Some(RoleRef::Admin),
@@ -463,14 +494,19 @@ mod tests {
     #[test]
     fn approval_required_unless_analyst_role_queues() {
         let routing = ApprovalRouting::ApprovalRequiredUnless {
-            skip_predicates: vec![ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::DataSteward }],
+            skip_predicates: vec![ApprovalSkipPredicate::AuthorHasRole {
+                role: RoleRef::DataSteward,
+            }],
         };
         let ctx = EditContext {
             author_role: Some(RoleRef::Analyst),
             ..Default::default()
         };
         // Analyst is below DataSteward — still queues.
-        assert_eq!(decide_edit_routing(&routing, &ctx), EditRoutingDecision::Queue);
+        assert_eq!(
+            decide_edit_routing(&routing, &ctx),
+            EditRoutingDecision::Queue
+        );
     }
 
     fn code_count_ctx(value: u32) -> EditContext {
@@ -526,8 +562,7 @@ mod tests {
         // `ChangeType::all()`. A growing matrix shouldn't silently
         // drop a kind from the canonical iteration list.
         let all = ChangeType::all();
-        let mut seen: std::collections::HashSet<ChangeType> =
-            std::collections::HashSet::new();
+        let mut seen: std::collections::HashSet<ChangeType> = std::collections::HashSet::new();
         for c in all {
             assert!(seen.insert(*c), "duplicate variant in all(): {c:?}");
         }
@@ -544,6 +579,7 @@ mod tests {
             // The match in default_routing is exhaustive by construction;
             // calling it on every variant proves no variant panics.
             let _ = c.default_routing();
+            let _ = c.default_risk_level();
         }
     }
 
@@ -625,10 +661,7 @@ mod tests {
         // has no skip predicates for RuleDelete by design.
         for role in [RoleRef::Admin, RoleRef::DataSteward, RoleRef::Analyst] {
             assert_eq!(
-                decide_edit_routing(
-                    &ChangeType::RuleDelete.default_routing(),
-                    &role_ctx(role),
-                ),
+                decide_edit_routing(&ChangeType::RuleDelete.default_routing(), &role_ctx(role),),
                 EditRoutingDecision::Queue,
                 "RuleDelete must queue for role={role:?}",
             );
@@ -676,8 +709,8 @@ mod tests {
     fn every_default_routing_round_trips_through_json() {
         for c in ChangeType::all() {
             let original = c.default_routing();
-            let j = serde_json::to_value(&original)
-                .unwrap_or_else(|e| panic!("serialize {c:?}: {e}"));
+            let j =
+                serde_json::to_value(&original).unwrap_or_else(|e| panic!("serialize {c:?}: {e}"));
             let back: ApprovalRouting = serde_json::from_value(j.clone())
                 .unwrap_or_else(|e| panic!("deserialize {c:?} from {j}: {e}"));
             assert_eq!(back, original, "round-trip drift on {c:?}");

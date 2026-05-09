@@ -41,10 +41,10 @@
 
 use serde::Serialize;
 
-use crate::diff::{compute_diff, EdgeChange, NodeChange, OntologyDiff, PropertyChange};
+use crate::diff::{EdgeChange, NodeChange, OntologyDiff, PropertyChange, compute_diff};
 use crate::ir::OntologyIR;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct RebaseAnalysis {
     /// Diff from the draft's parent version to the canonical head.
     /// Captures what the canonical has done since the draft was
@@ -64,7 +64,7 @@ impl RebaseAnalysis {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RebaseConflict {
     /// Both sides added a node/edge with the same id but
@@ -101,14 +101,14 @@ pub enum RebaseConflict {
     },
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictEntityKind {
     Node,
     Edge,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictSide {
     Draft,
@@ -118,7 +118,7 @@ pub enum ConflictSide {
 /// One overlapping atomic axis on a Modify/Modify conflict.
 /// Carries the canonical and draft values so the operator picks
 /// without an extra fetch.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(tag = "axis", rename_all = "snake_case")]
 pub enum ConflictAxis {
     /// Both sides changed the entity's label.
@@ -150,13 +150,25 @@ pub enum ConflictAxis {
     PropertyAddAdd { property_name: String },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(tag = "axis", rename_all = "snake_case")]
 pub enum PropertyConflictAxis {
-    Type { head: String, draft: String },
-    Nullability { head: bool, draft: bool },
-    Description { head: String, draft: String },
-    DefaultValue { head: Option<String>, draft: Option<String> },
+    Type {
+        head: String,
+        draft: String,
+    },
+    Nullability {
+        head: bool,
+        draft: bool,
+    },
+    Description {
+        head: String,
+        draft: String,
+    },
+    DefaultValue {
+        head: Option<String>,
+        draft: Option<String>,
+    },
 }
 
 /// Compute the rebase analysis. The caller supplies three IRs:
@@ -169,11 +181,7 @@ pub enum PropertyConflictAxis {
 /// canonical did not advance), `base_to_head` is empty and
 /// `conflicts` is necessarily empty. The FE treats that as
 /// "already pinned to head" and skips the rebase call.
-pub fn analyze_rebase(
-    base: &OntologyIR,
-    head: &OntologyIR,
-    draft: &OntologyIR,
-) -> RebaseAnalysis {
+pub fn analyze_rebase(base: &OntologyIR, head: &OntologyIR, draft: &OntologyIR) -> RebaseAnalysis {
     let base_to_head = compute_diff(base, head);
     let base_to_draft = compute_diff(base, draft);
     let conflicts = detect_conflicts(&base_to_head, &base_to_draft);
@@ -270,8 +278,11 @@ fn detect_conflicts(head: &OntologyDiff, draft: &OntologyDiff) -> Vec<RebaseConf
 
     // Modify/Modify — both sides modified the same entity. Walk
     // each side's NodeChange list and intersect by axis.
-    let head_node_map: std::collections::HashMap<&str, &crate::diff::NodeDiff> =
-        head.modified_nodes.iter().map(|n| (n.node_id.as_str(), n)).collect();
+    let head_node_map: std::collections::HashMap<&str, &crate::diff::NodeDiff> = head
+        .modified_nodes
+        .iter()
+        .map(|n| (n.node_id.as_str(), n))
+        .collect();
     for draft_node in &draft.modified_nodes {
         if let Some(head_node) = head_node_map.get(draft_node.node_id.as_str()) {
             let axes = node_conflict_axes(&head_node.changes, &draft_node.changes);
@@ -285,8 +296,11 @@ fn detect_conflicts(head: &OntologyDiff, draft: &OntologyDiff) -> Vec<RebaseConf
             }
         }
     }
-    let head_edge_map: std::collections::HashMap<&str, &crate::diff::EdgeDiff> =
-        head.modified_edges.iter().map(|e| (e.edge_id.as_str(), e)).collect();
+    let head_edge_map: std::collections::HashMap<&str, &crate::diff::EdgeDiff> = head
+        .modified_edges
+        .iter()
+        .map(|e| (e.edge_id.as_str(), e))
+        .collect();
     for draft_edge in &draft.modified_edges {
         if let Some(head_edge) = head_edge_map.get(draft_edge.edge_id.as_str()) {
             let axes = edge_conflict_axes(&head_edge.changes, &draft_edge.changes);
@@ -311,36 +325,31 @@ fn node_conflict_axes(head: &[NodeChange], draft: &[NodeChange]) -> Vec<Conflict
     if let (Some(h), Some(d)) = (
         head.iter().find_map(node_label_changed),
         draft.iter().find_map(node_label_changed),
-    ) {
-        if h != d {
-            axes.push(ConflictAxis::Label {
-                head: h.to_string(),
-                draft: d.to_string(),
-            });
-        }
+    ) && h != d
+    {
+        axes.push(ConflictAxis::Label {
+            head: h.to_string(),
+            draft: d.to_string(),
+        });
     }
 
     // Description.
     if let (Some(h), Some(d)) = (
         head.iter().find_map(node_description_changed),
         draft.iter().find_map(node_description_changed),
-    ) {
-        if h != d {
-            axes.push(ConflictAxis::Description {
-                head: h,
-                draft: d,
-            });
-        }
+    ) && h != d
+    {
+        axes.push(ConflictAxis::Description { head: h, draft: d });
     }
 
     // Properties — collect each side's property activity by name.
     let head_props = collect_node_property_activity(head);
     let draft_props = collect_node_property_activity(draft);
     for (name, draft_act) in &draft_props {
-        if let Some(head_act) = head_props.get(name) {
-            if let Some(axis) = property_conflict_axis(name, head_act, draft_act) {
-                axes.push(axis);
-            }
+        if let Some(head_act) = head_props.get(name)
+            && let Some(axis) = property_conflict_axis(name, head_act, draft_act)
+        {
+            axes.push(axis);
         }
     }
 
@@ -353,68 +362,57 @@ fn edge_conflict_axes(head: &[EdgeChange], draft: &[EdgeChange]) -> Vec<Conflict
     if let (Some(h), Some(d)) = (
         head.iter().find_map(edge_label_changed),
         draft.iter().find_map(edge_label_changed),
-    ) {
-        if h != d {
-            axes.push(ConflictAxis::Label {
-                head: h.to_string(),
-                draft: d.to_string(),
-            });
-        }
+    ) && h != d
+    {
+        axes.push(ConflictAxis::Label {
+            head: h.to_string(),
+            draft: d.to_string(),
+        });
     }
 
     if let (Some(h), Some(d)) = (
         head.iter().find_map(edge_description_changed),
         draft.iter().find_map(edge_description_changed),
-    ) {
-        if h != d {
-            axes.push(ConflictAxis::Description {
-                head: h,
-                draft: d,
-            });
-        }
+    ) && h != d
+    {
+        axes.push(ConflictAxis::Description { head: h, draft: d });
     }
 
     if let (Some(h), Some(d)) = (
         head.iter().find_map(edge_source_changed),
         draft.iter().find_map(edge_source_changed),
-    ) {
-        if h != d {
-            axes.push(ConflictAxis::Source {
-                head: h.to_string(),
-                draft: d.to_string(),
-            });
-        }
+    ) && h != d
+    {
+        axes.push(ConflictAxis::Source {
+            head: h.to_string(),
+            draft: d.to_string(),
+        });
     }
     if let (Some(h), Some(d)) = (
         head.iter().find_map(edge_target_changed),
         draft.iter().find_map(edge_target_changed),
-    ) {
-        if h != d {
-            axes.push(ConflictAxis::Target {
-                head: h.to_string(),
-                draft: d.to_string(),
-            });
-        }
+    ) && h != d
+    {
+        axes.push(ConflictAxis::Target {
+            head: h.to_string(),
+            draft: d.to_string(),
+        });
     }
     if let (Some(h), Some(d)) = (
         head.iter().find_map(edge_cardinality_changed),
         draft.iter().find_map(edge_cardinality_changed),
-    ) {
-        if h != d {
-            axes.push(ConflictAxis::Cardinality {
-                head: h,
-                draft: d,
-            });
-        }
+    ) && h != d
+    {
+        axes.push(ConflictAxis::Cardinality { head: h, draft: d });
     }
 
     let head_props = collect_edge_property_activity(head);
     let draft_props = collect_edge_property_activity(draft);
     for (name, draft_act) in &draft_props {
-        if let Some(head_act) = head_props.get(name) {
-            if let Some(axis) = property_conflict_axis(name, head_act, draft_act) {
-                axes.push(axis);
-            }
+        if let Some(head_act) = head_props.get(name)
+            && let Some(axis) = property_conflict_axis(name, head_act, draft_act)
+        {
+            axes.push(axis);
         }
     }
 
@@ -492,11 +490,9 @@ fn property_conflict_axis(
     draft: &PropertyActivity,
 ) -> Option<ConflictAxis> {
     match (head, draft) {
-        (PropertyActivity::Added, PropertyActivity::Added) => {
-            Some(ConflictAxis::PropertyAddAdd {
-                property_name: name.to_string(),
-            })
-        }
+        (PropertyActivity::Added, PropertyActivity::Added) => Some(ConflictAxis::PropertyAddAdd {
+            property_name: name.to_string(),
+        }),
         (PropertyActivity::Modified(_), PropertyActivity::Removed) => {
             Some(ConflictAxis::PropertyModifyRemove {
                 property_name: name.to_string(),
@@ -532,47 +528,37 @@ fn property_modify_atoms(
     if let (Some((ho, hn)), Some((do_, dn))) = (
         head.iter().find_map(property_type_changed),
         draft.iter().find_map(property_type_changed),
-    ) {
-        if hn != dn {
-            out.push(PropertyConflictAxis::Type {
-                head: format!("{ho} → {hn}"),
-                draft: format!("{do_} → {dn}"),
-            });
-        }
+    ) && hn != dn
+    {
+        out.push(PropertyConflictAxis::Type {
+            head: format!("{ho} → {hn}"),
+            draft: format!("{do_} → {dn}"),
+        });
     }
     if let (Some((ho, hn)), Some((do_, dn))) = (
         head.iter().find_map(property_nullability_changed),
         draft.iter().find_map(property_nullability_changed),
-    ) {
-        if hn != dn {
-            let _ = (ho, do_);
-            out.push(PropertyConflictAxis::Nullability {
-                head: hn,
-                draft: dn,
-            });
-        }
+    ) && hn != dn
+    {
+        let _ = (ho, do_);
+        out.push(PropertyConflictAxis::Nullability {
+            head: hn,
+            draft: dn,
+        });
     }
     if let (Some(h), Some(d)) = (
         head.iter().find_map(property_description_changed),
         draft.iter().find_map(property_description_changed),
-    ) {
-        if h != d {
-            out.push(PropertyConflictAxis::Description {
-                head: h,
-                draft: d,
-            });
-        }
+    ) && h != d
+    {
+        out.push(PropertyConflictAxis::Description { head: h, draft: d });
     }
     if let (Some(h), Some(d)) = (
         head.iter().find_map(property_default_changed),
         draft.iter().find_map(property_default_changed),
-    ) {
-        if h != d {
-            out.push(PropertyConflictAxis::DefaultValue {
-                head: h,
-                draft: d,
-            });
-        }
+    ) && h != d
+    {
+        out.push(PropertyConflictAxis::DefaultValue { head: h, draft: d });
     }
     out
 }
@@ -658,11 +644,11 @@ fn property_default_changed(c: &PropertyChange) -> Option<Option<String>> {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::ir::{NodeTypeDef, PropertyDef};
     use ox_core::graph_label::GraphLabel;
     use ox_core::i18n::LocalizedText;
     use ox_core::property_key::PropertyKey;
     use ox_core::types::PropertyType;
-    use crate::ir::{NodeTypeDef, PropertyDef};
 
     fn node(id: &str, label: &str, _description: &str) -> NodeTypeDef {
         NodeTypeDef {
@@ -701,10 +687,7 @@ mod tests {
     fn add_add_same_id_conflict() {
         let base = ir_with(vec![node("n1", "Alpha", "")]);
         let head = ir_with(vec![node("n1", "Alpha", ""), node("n2", "Beta", "")]);
-        let draft = ir_with(vec![
-            node("n1", "Alpha", ""),
-            node("n2", "DraftBeta", ""),
-        ]);
+        let draft = ir_with(vec![node("n1", "Alpha", ""), node("n2", "DraftBeta", "")]);
         let analysis = analyze_rebase(&base, &head, &draft);
         assert_eq!(analysis.conflicts.len(), 1);
         assert!(matches!(
@@ -741,13 +724,10 @@ mod tests {
         let draft = ir_with(vec![node("n1", "AlphaDraft", "")]);
         let analysis = analyze_rebase(&base, &head, &draft);
         assert_eq!(analysis.conflicts.len(), 1);
-        let RebaseConflict::ModifyModify { axes, .. } = &analysis.conflicts[0]
-        else {
+        let RebaseConflict::ModifyModify { axes, .. } = &analysis.conflicts[0] else {
             panic!("expected modify/modify, got {:?}", analysis.conflicts[0]);
         };
-        assert!(axes
-            .iter()
-            .any(|a| matches!(a, ConflictAxis::Label { .. })));
+        assert!(axes.iter().any(|a| matches!(a, ConflictAxis::Label { .. })));
     }
 
     #[test]
@@ -810,8 +790,7 @@ mod tests {
         )]);
         let analysis = analyze_rebase(&base, &head, &draft);
         assert_eq!(analysis.conflicts.len(), 1);
-        let RebaseConflict::ModifyModify { axes, .. } = &analysis.conflicts[0]
-        else {
+        let RebaseConflict::ModifyModify { axes, .. } = &analysis.conflicts[0] else {
             panic!("expected modify/modify");
         };
         let prop_axis = axes
@@ -821,8 +800,10 @@ mod tests {
                 _ => None,
             })
             .expect("property overlap present");
-        assert!(prop_axis
-            .iter()
-            .any(|a| matches!(a, PropertyConflictAxis::Type { .. })));
+        assert!(
+            prop_axis
+                .iter()
+                .any(|a| matches!(a, PropertyConflictAxis::Type { .. }))
+        );
     }
 }

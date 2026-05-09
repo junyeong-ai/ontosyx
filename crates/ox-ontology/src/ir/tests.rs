@@ -277,7 +277,9 @@ fn test_validate_duplicate_edge_ids() {
 
     let errors2 = ontology2.validate();
     assert!(
-        errors2.iter().any(|e| e.message.contains("Duplicate edge type")),
+        errors2
+            .iter()
+            .any(|e| e.message.contains("Duplicate edge type")),
         "should detect duplicate edge signatures: {:?}",
         errors2
     );
@@ -580,9 +582,84 @@ fn ontology_ir_omits_schema_version_falls_back_to_current() {
     assert!(onto.functions().is_empty());
     assert!(onto.metrics().is_empty());
     assert!(onto.enrichments().is_empty());
+    assert!(onto.concepts().is_empty());
     assert!(onto.glossary().is_empty());
     assert!(onto.data_quality().is_empty());
     assert!(onto.provenance().is_empty());
+    assert!(onto.segments().is_empty());
+    assert!(onto.table_inventory().is_empty());
+}
+
+#[test]
+fn ontology_ir_deserializes_every_semantic_collection() {
+    let blob = serde_json::json!({
+        "id": "ont",
+        "name": "Sample",
+        "display_name": { "default": "Sample ontology" },
+        "description": { "default": "Semantic layer" },
+        "version": { "number": 1 },
+        "node_types": [],
+        "edge_types": [],
+        "indexes": [],
+        "concepts": [{
+            "id": "c-customer",
+            "canonical_term_id": "gt-customer",
+            "alias_term_ids": [],
+            "broader": null,
+            "description": { "default": "Customer concept" },
+            "examples": [],
+            "category": null,
+            "realisation": null,
+            "lifecycle": { "state": "active" },
+            "replaced_by": null,
+            "valid_from": null,
+            "valid_to": null,
+            "governance": {}
+        }],
+        "segments": [{
+            "id": "seg-vip",
+            "name": "VipCustomers",
+            "display_name": { "default": "VIP customers" },
+            "description": { "default": "" },
+            "target_node_type_id": "nt-customer",
+            "filter": {
+                "kind": "equals",
+                "property": "tier",
+                "value": { "kind": "string", "value": "VIP" }
+            },
+            "overlap_policy": "allow",
+            "refresh_policy": { "kind": "on_demand" }
+        }],
+        "table_inventory": [{
+            "source_id": "src-crm",
+            "table_name": "customers",
+            "schema_fingerprint": "fp-1",
+            "contributed_node_ids": ["nt-customer"],
+            "contributed_edge_ids": [],
+            "status": "imported",
+            "recorded_at": "2026-05-06T00:00:00Z"
+        }]
+    });
+
+    let onto: OntologyIR = serde_json::from_value(blob).expect("payload must parse");
+
+    assert_eq!(onto.display_name.default_or(""), "Sample ontology");
+    assert_eq!(onto.concepts().len(), 1);
+    assert_eq!(onto.segments().len(), 1);
+    assert_eq!(onto.table_inventory().len(), 1);
+    assert_eq!(
+        onto.concept_by_id(&crate::concept::ConceptId::new("c-customer"))
+            .expect("concept index must be populated")
+            .canonical_term_id
+            .as_str(),
+        "gt-customer"
+    );
+    assert_eq!(
+        onto.find_table_inventory_entry(&crate::mapping::SourceId::new("src-crm"), "customers")
+            .expect("table inventory index must be populated")
+            .schema_fingerprint,
+        "fp-1"
+    );
 }
 
 #[test]
@@ -606,7 +683,8 @@ fn superstructure_add_methods_populate_the_public_accessors() {
         description: LocalizedText::default(),
         required_properties: vec![],
         required_edges: vec![],
-    }).unwrap();
+    })
+    .unwrap();
 
     onto.add_glossary_term(crate::glossary::GlossaryTermDef {
         id: crate::glossary::GlossaryTermId::new("gt-customer"),
@@ -621,8 +699,10 @@ fn superstructure_add_methods_populate_the_public_accessors() {
         valid_from: None,
         valid_to: None,
         lifecycle: crate::glossary::TermLifecycle::default(),
-    concept_id: None,
-    }).unwrap();
+        concept_id: None,
+        term_pos: Default::default(),
+    })
+    .unwrap();
 
     assert_eq!(onto.interfaces().len(), 1);
     assert_eq!(onto.glossary().len(), 1);
@@ -632,8 +712,8 @@ fn superstructure_add_methods_populate_the_public_accessors() {
 
 #[test]
 fn property_def_carries_phase_5b_semantic_links_through_json() {
+    use crate::concept::ConceptId;
     use crate::function::FunctionId;
-    use crate::glossary::GlossaryTermId;
 
     let p = PropertyDef {
         id: "prop-email".into(),
@@ -642,7 +722,9 @@ fn property_def_carries_phase_5b_semantic_links_through_json() {
         nullable: false,
         default_value: None,
         description: LocalizedText::default(),
-        bindings: vec![crate::binding::PropertyBinding::glossary(GlossaryTermId::new("gt-contact-email"),)],
+        bindings: vec![crate::binding::PropertyBinding::concept(ConceptId::new(
+            "c-contact-email",
+        ))],
         aliases: vec![LocalizedText::new("e-mail")],
         business_context: LocalizedText::new("contact address; source CRM v3"),
         derived_from: Some(FunctionId::new("fn-lowercase-email")),
@@ -650,7 +732,7 @@ fn property_def_carries_phase_5b_semantic_links_through_json() {
     };
     let j = serde_json::to_value(&p).unwrap();
     let back: PropertyDef = serde_json::from_value(j).unwrap();
-    assert_eq!(back.glossary_term_id(), p.glossary_term_id());
+    assert_eq!(back.concept_id(), p.concept_id());
     assert_eq!(back.aliases.len(), 1);
     assert_eq!(back.derived_from, p.derived_from);
 }
@@ -715,7 +797,8 @@ fn validate_flags_node_implementing_unknown_interface() {
     );
     let errs = onto.validate();
     assert!(
-        errs.iter().any(|e| e.message.contains("if-ghost") && e.message.contains("unknown interface")),
+        errs.iter()
+            .any(|e| e.message.contains("if-ghost") && e.message.contains("unknown interface")),
         "validator must flag dangling implements: {errs:?}"
     );
 }
@@ -748,7 +831,8 @@ fn validate_flags_property_derived_from_unknown_function() {
     );
     let errs = onto.validate();
     assert!(
-        errs.iter().any(|e| e.message.contains("derived_from") && e.message.contains("fn-ghost")),
+        errs.iter()
+            .any(|e| e.message.contains("derived_from") && e.message.contains("fn-ghost")),
         "validator must flag dangling derived_from: {errs:?}"
     );
 }
@@ -793,11 +877,13 @@ fn validate_flags_property_with_both_derived_from_and_source_column() {
         purity: FunctionPurity::Pure,
         property_dependencies: vec![],
         edge_dependencies: vec![],
-    }).unwrap();
+    })
+    .unwrap();
     let errs = onto.validate();
     assert!(
-        errs.iter()
-            .any(|e| e.message.contains("both") && e.message.contains("derived_from") && e.message.contains("source_column")),
+        errs.iter().any(|e| e.message.contains("both")
+            && e.message.contains("derived_from")
+            && e.message.contains("source_column")),
         "validator must flag derived_from + source_column collision: {errs:?}"
     );
 }
@@ -828,12 +914,14 @@ fn validate_flags_action_referencing_unknown_rule() {
             postconditions: vec![],
             idempotency: Default::default(),
             approval: Default::default(),
-        }).unwrap();
+        })
+        .unwrap();
         o
     };
     let errs = onto.validate();
     assert!(
-        errs.iter().any(|e| e.message.contains("act-create") || e.message.contains("create_order"))
+        errs.iter()
+            .any(|e| e.message.contains("act-create") || e.message.contains("create_order"))
             && errs.iter().any(|e| e.message.contains("r-ghost")),
         "validator must flag unknown rule in action.preconditions: {errs:?}"
     );
@@ -842,6 +930,7 @@ fn validate_flags_action_referencing_unknown_rule() {
 #[test]
 fn validate_passes_when_all_phase_5b_references_resolve() {
     use crate::action::{ActionDef, ActionId, ActionKind, ActionTarget, RuleId};
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
     use crate::function::{FunctionDef, FunctionExpression, FunctionId, FunctionPurity};
     use crate::glossary::{GlossaryTermDef, GlossaryTermId};
     use crate::interface::{InterfaceDef, InterfaceId};
@@ -852,7 +941,9 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
         name: pk("email"),
         property_type: PropertyType::String,
         nullable: false,
-        bindings: vec![crate::binding::PropertyBinding::glossary(GlossaryTermId::new("gt-email"),)],
+        bindings: vec![crate::binding::PropertyBinding::concept(ConceptId::new(
+            "c-email",
+        ))],
         derived_from: Some(FunctionId::new("fn-lower")),
         ..Default::default()
     };
@@ -879,7 +970,8 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
         description: LocalizedText::default(),
         required_properties: vec![],
         required_edges: vec![],
-    }).unwrap();
+    })
+    .unwrap();
     onto.add_action(ActionDef {
         id: ActionId::new("act-create-user"),
         name: "create_user".into(),
@@ -892,12 +984,13 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
         postconditions: vec![],
         idempotency: Default::default(),
         approval: Default::default(),
-    }).unwrap();
+    })
+    .unwrap();
     onto.add_rule(RuleDef {
         id: RuleId::new("r-email-required"),
         name: "email_required".into(),
         description: LocalizedText::default(),
-            rationale: LocalizedText::default(),
+        rationale: LocalizedText::default(),
         kind: RuleKind::PropertyShape {
             target_node_type_id: "nt-user".into(),
             target_property_id: "p-email".into(),
@@ -912,8 +1005,9 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
         }],
         valid_from: None,
         valid_to: None,
-            sh_message: None,
-    }).unwrap();
+        sh_message: None,
+    })
+    .unwrap();
     onto.add_function(FunctionDef {
         id: FunctionId::new("fn-lower"),
         name: "lower".into(),
@@ -925,7 +1019,8 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
         purity: FunctionPurity::Pure,
         property_dependencies: vec![],
         edge_dependencies: vec![],
-    }).unwrap();
+    })
+    .unwrap();
     onto.add_glossary_term(GlossaryTermDef {
         id: GlossaryTermId::new("gt-email"),
         term: LocalizedText::new("Contact Email"),
@@ -939,8 +1034,26 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
         valid_from: None,
         valid_to: None,
         lifecycle: crate::glossary::TermLifecycle::default(),
-    concept_id: None,
-    }).unwrap();
+        concept_id: Some(ConceptId::new("c-email")),
+        term_pos: Default::default(),
+    })
+    .unwrap();
+    onto.add_concept(ConceptDef {
+        id: ConceptId::new("c-email"),
+        canonical_term_id: GlossaryTermId::new("gt-email"),
+        alias_term_ids: Vec::new(),
+        broader: None,
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        realisation: None,
+        lifecycle: crate::glossary::TermLifecycle::default(),
+        replaced_by: None,
+        valid_from: None,
+        valid_to: None,
+        governance: ConceptGovernance::default(),
+    })
+    .unwrap();
 
     let errs = onto.validate();
     assert!(
@@ -1009,7 +1122,10 @@ fn by_id_accessors_resolve_against_rebuilt_indices() {
         "create",
     );
     // Negative lookup returns None (not an error).
-    assert!(onto.interface_by_id(&InterfaceId::new("if-ghost")).is_none());
+    assert!(
+        onto.interface_by_id(&InterfaceId::new("if-ghost"))
+            .is_none()
+    );
 }
 
 #[test]
@@ -1057,7 +1173,9 @@ fn add_interface_rejects_duplicate_id() {
 
 #[test]
 fn add_code_system_round_trips_through_by_id_lookup() {
-    use crate::code_system::{CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId};
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
 
     let mut onto = OntologyIR::new(
         "t".into(),
@@ -1115,7 +1233,9 @@ fn add_code_system_round_trips_through_by_id_lookup() {
 
 #[test]
 fn add_code_system_rejects_duplicate_coded_value_id_across_systems() {
-    use crate::code_system::{CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId};
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
 
     let mut onto = OntologyIR::new(
         "t".into(),
@@ -1172,6 +1292,1132 @@ fn add_code_system_rejects_duplicate_coded_value_id_across_systems() {
 }
 
 #[test]
+fn add_code_system_rejects_duplicate_code_string_inside_system() {
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+
+    fn cv(id: &str, code: &str) -> CodedValue {
+        CodedValue {
+            id: CodedValueId::new(id),
+            code: code.into(),
+            display: LocalizedText::default(),
+            definition: LocalizedText::default(),
+            aliases: vec![],
+            broader_id: None,
+            examples: vec![],
+            scope_note: LocalizedText::default(),
+            valid_from: None,
+            valid_to: None,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    let err = onto
+        .add_code_system(CodeSystemDef {
+            id: CodeSystemId::new("cs-status"),
+            name: "Status".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            uri: None,
+            version: "1".into(),
+            kind: CodeSystemKind::Internal,
+            hierarchical: false,
+            codes: vec![cv("cv-active", "A"), cv("cv-archived", "A")],
+            deprecated_at: None,
+            replaced_by_id: None,
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::DuplicateCollectionId {
+            kind: "coded_value.code",
+            id
+        } if id == "A"
+    ));
+}
+
+#[test]
+fn add_code_system_rejects_broader_id_on_flat_system() {
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+
+    let mut child = CodedValue {
+        id: CodedValueId::new("cv-child"),
+        code: "CHILD".into(),
+        display: LocalizedText::default(),
+        definition: LocalizedText::default(),
+        aliases: vec![],
+        broader_id: Some(CodedValueId::new("cv-root")),
+        examples: vec![],
+        scope_note: LocalizedText::default(),
+        valid_from: None,
+        valid_to: None,
+        deprecated_at: None,
+        replaced_by_id: None,
+    };
+    let root = CodedValue {
+        id: CodedValueId::new("cv-root"),
+        code: "ROOT".into(),
+        display: LocalizedText::default(),
+        definition: LocalizedText::default(),
+        aliases: vec![],
+        broader_id: None,
+        examples: vec![],
+        scope_note: LocalizedText::default(),
+        valid_from: None,
+        valid_to: None,
+        deprecated_at: None,
+        replaced_by_id: None,
+    };
+
+    let mut onto = sample_user_ontology();
+    let err = onto
+        .add_code_system(CodeSystemDef {
+            id: CodeSystemId::new("cs-flat"),
+            name: "Flat".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            uri: None,
+            version: "1".into(),
+            kind: CodeSystemKind::Internal,
+            hierarchical: false,
+            codes: vec![root.clone(), child.clone()],
+            deprecated_at: None,
+            replaced_by_id: None,
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "coded_value.broader_id",
+            target,
+            ..
+        } if target == "cv-root"
+    ));
+
+    child.broader_id = Some(CodedValueId::new("cv-missing"));
+    let err = onto
+        .add_code_system(CodeSystemDef {
+            id: CodeSystemId::new("cs-hierarchy"),
+            name: "Hierarchy".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            uri: None,
+            version: "1".into(),
+            kind: CodeSystemKind::Internal,
+            hierarchical: true,
+            codes: vec![root, child],
+            deprecated_at: None,
+            replaced_by_id: None,
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "coded_value.broader_id",
+            target,
+            ..
+        } if target == "cv-missing"
+    ));
+}
+
+#[test]
+fn add_code_system_rejects_replacement_cycles() {
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+
+    fn cv(id: &str, code: &str, replaced_by_id: Option<&str>) -> CodedValue {
+        CodedValue {
+            id: CodedValueId::new(id),
+            code: code.into(),
+            display: LocalizedText::default(),
+            definition: LocalizedText::default(),
+            aliases: vec![],
+            broader_id: None,
+            examples: vec![],
+            scope_note: LocalizedText::default(),
+            valid_from: None,
+            valid_to: None,
+            deprecated_at: None,
+            replaced_by_id: replaced_by_id.map(CodedValueId::new),
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    let err = onto
+        .add_code_system(CodeSystemDef {
+            id: CodeSystemId::new("cs-status"),
+            name: "Status".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            uri: None,
+            version: "1".into(),
+            kind: CodeSystemKind::Internal,
+            hierarchical: false,
+            codes: vec![
+                cv("cv-old", "OLD", Some("cv-new")),
+                cv("cv-new", "NEW", Some("cv-old")),
+            ],
+            deprecated_at: None,
+            replaced_by_id: None,
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "coded_value.replaced_by_id.cycle",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn add_code_system_rejects_empty_external_source_ref() {
+    use crate::code_system::{CodeSystemDef, CodeSystemId, CodeSystemKind};
+
+    let mut onto = sample_user_ontology();
+    let err = onto
+        .add_code_system(CodeSystemDef {
+            id: CodeSystemId::new("cs-external"),
+            name: "External".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            uri: None,
+            version: "1".into(),
+            kind: CodeSystemKind::External {
+                source_ref: "   ".into(),
+            },
+            hierarchical: false,
+            codes: vec![],
+            deprecated_at: None,
+            replaced_by_id: None,
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "code_system.external.source_ref",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn add_value_set_rejects_explicit_code_missing_from_system() {
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+    use crate::value_set::{
+        IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
+    };
+
+    let mut onto = sample_user_ontology();
+    onto.add_code_system(CodeSystemDef {
+        id: CodeSystemId::new("cs-status"),
+        name: "Status".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        uri: None,
+        version: "1".into(),
+        kind: CodeSystemKind::Internal,
+        hierarchical: false,
+        codes: vec![CodedValue {
+            id: CodedValueId::new("cv-active"),
+            code: "ACTIVE".into(),
+            display: LocalizedText::default(),
+            definition: LocalizedText::default(),
+            aliases: vec![],
+            broader_id: None,
+            examples: vec![],
+            scope_note: LocalizedText::default(),
+            valid_from: None,
+            valid_to: None,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }],
+        deprecated_at: None,
+        replaced_by_id: None,
+    })
+    .unwrap();
+
+    let err = onto
+        .add_value_set(ValueSetDef {
+            id: ValueSetId::new("vs-status"),
+            name: "Status".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            composition: vec![ValueSetIncludeRule {
+                system_id: CodeSystemId::new("cs-status"),
+                selector: ValueSetSelector::Explicit {
+                    codes: vec!["ACTIVE".into(), "MISSING".into()],
+                },
+                mode: IncludeMode::Include,
+            }],
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "value_set.selector.explicit_code",
+            target,
+            ..
+        } if target == "MISSING"
+    ));
+}
+
+#[test]
+fn add_value_set_rejects_descendants_root_missing_from_system() {
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+    use crate::value_set::{
+        IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
+    };
+
+    let mut onto = sample_user_ontology();
+    onto.add_code_system(CodeSystemDef {
+        id: CodeSystemId::new("cs-topic"),
+        name: "Topic".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        uri: None,
+        version: "1".into(),
+        kind: CodeSystemKind::Internal,
+        hierarchical: true,
+        codes: vec![CodedValue {
+            id: CodedValueId::new("cv-root"),
+            code: "ROOT".into(),
+            display: LocalizedText::default(),
+            definition: LocalizedText::default(),
+            aliases: vec![],
+            broader_id: None,
+            examples: vec![],
+            scope_note: LocalizedText::default(),
+            valid_from: None,
+            valid_to: None,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }],
+        deprecated_at: None,
+        replaced_by_id: None,
+    })
+    .unwrap();
+
+    let err = onto
+        .add_value_set(ValueSetDef {
+            id: ValueSetId::new("vs-topic"),
+            name: "Topic".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            composition: vec![ValueSetIncludeRule {
+                system_id: CodeSystemId::new("cs-topic"),
+                selector: ValueSetSelector::DescendantsOf {
+                    root_id: CodedValueId::new("cv-missing"),
+                },
+                mode: IncludeMode::Include,
+            }],
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "value_set.selector.descendants_root",
+            target,
+            ..
+        } if target == "cv-missing"
+    ));
+}
+
+#[test]
+fn add_concept_map_rejects_mapping_codes_missing_from_declared_systems() {
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+    use crate::concept_map::{ConceptMapDef, ConceptMapId, ConceptMapping, Equivalence};
+
+    fn system(id: &str, cv_id: &str, code: &str) -> CodeSystemDef {
+        CodeSystemDef {
+            id: CodeSystemId::new(id),
+            name: id.into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            uri: None,
+            version: "1".into(),
+            kind: CodeSystemKind::Internal,
+            hierarchical: false,
+            codes: vec![CodedValue {
+                id: CodedValueId::new(cv_id),
+                code: code.into(),
+                display: LocalizedText::default(),
+                definition: LocalizedText::default(),
+                aliases: vec![],
+                broader_id: None,
+                examples: vec![],
+                scope_note: LocalizedText::default(),
+                valid_from: None,
+                valid_to: None,
+                deprecated_at: None,
+                replaced_by_id: None,
+            }],
+            deprecated_at: None,
+            replaced_by_id: None,
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    onto.add_code_system(system("cs-source", "cv-source", "ACTIVE"))
+        .unwrap();
+    onto.add_code_system(system("cs-target", "cv-target", "A"))
+        .unwrap();
+
+    let err = onto
+        .add_concept_map(ConceptMapDef {
+            id: ConceptMapId::new("cm-status"),
+            name: "StatusMap".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            source_system_id: CodeSystemId::new("cs-source"),
+            target_system_id: CodeSystemId::new("cs-target"),
+            mappings: vec![ConceptMapping {
+                source_code: "MISSING".into(),
+                target_code: "A".into(),
+                equivalence: Equivalence::Equivalent,
+                comment: LocalizedText::default(),
+            }],
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "concept_map.mapping.source_code",
+            target,
+            ..
+        } if target == "MISSING"
+    ));
+}
+
+#[test]
+fn remove_code_system_rejects_value_set_reference() {
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+    use crate::value_set::{
+        IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
+    };
+
+    let mut onto = sample_user_ontology();
+    onto.add_code_system(CodeSystemDef {
+        id: CodeSystemId::new("cs-status"),
+        name: "Status".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        uri: None,
+        version: "1".into(),
+        kind: CodeSystemKind::Internal,
+        hierarchical: false,
+        codes: vec![CodedValue {
+            id: CodedValueId::new("cv-active"),
+            code: "ACTIVE".into(),
+            display: LocalizedText::default(),
+            definition: LocalizedText::default(),
+            aliases: vec![],
+            broader_id: None,
+            examples: vec![],
+            scope_note: LocalizedText::default(),
+            valid_from: None,
+            valid_to: None,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }],
+        deprecated_at: None,
+        replaced_by_id: None,
+    })
+    .unwrap();
+    onto.add_value_set(ValueSetDef {
+        id: ValueSetId::new("vs-status"),
+        name: "Status".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        version: "1".into(),
+        composition: vec![ValueSetIncludeRule {
+            system_id: CodeSystemId::new("cs-status"),
+            selector: ValueSetSelector::All,
+            mode: IncludeMode::Include,
+        }],
+    })
+    .unwrap();
+
+    let err = onto
+        .remove_code_system(&CodeSystemId::new("cs-status"))
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "code_system.in_use_by_value_set",
+            target,
+            ..
+        } if target == "vs-status"
+    ));
+}
+
+#[test]
+fn replace_code_system_rejects_removing_code_used_by_value_set_atomically() {
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+    use crate::value_set::{
+        IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
+    };
+
+    fn cv(id: &str, code: &str) -> CodedValue {
+        CodedValue {
+            id: CodedValueId::new(id),
+            code: code.into(),
+            display: LocalizedText::default(),
+            definition: LocalizedText::default(),
+            aliases: vec![],
+            broader_id: None,
+            examples: vec![],
+            scope_note: LocalizedText::default(),
+            valid_from: None,
+            valid_to: None,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    onto.add_code_system(CodeSystemDef {
+        id: CodeSystemId::new("cs-status"),
+        name: "Status".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        uri: None,
+        version: "1".into(),
+        kind: CodeSystemKind::Internal,
+        hierarchical: false,
+        codes: vec![cv("cv-active", "ACTIVE"), cv("cv-paused", "PAUSED")],
+        deprecated_at: None,
+        replaced_by_id: None,
+    })
+    .unwrap();
+    onto.add_value_set(ValueSetDef {
+        id: ValueSetId::new("vs-status"),
+        name: "Status".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        version: "1".into(),
+        composition: vec![ValueSetIncludeRule {
+            system_id: CodeSystemId::new("cs-status"),
+            selector: ValueSetSelector::Explicit {
+                codes: vec!["PAUSED".into()],
+            },
+            mode: IncludeMode::Include,
+        }],
+    })
+    .unwrap();
+
+    let err = onto
+        .replace_code_system(
+            &CodeSystemId::new("cs-status"),
+            CodeSystemDef {
+                id: CodeSystemId::new("cs-status"),
+                name: "Status".into(),
+                display_name: LocalizedText::default(),
+                description: LocalizedText::default(),
+                uri: None,
+                version: "2".into(),
+                kind: CodeSystemKind::Internal,
+                hierarchical: false,
+                codes: vec![cv("cv-active", "ACTIVE")],
+                deprecated_at: None,
+                replaced_by_id: None,
+            },
+        )
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "value_set.selector.explicit_code",
+            target,
+            ..
+        } if target == "PAUSED"
+    ));
+    assert!(
+        onto.code_system_by_id(&CodeSystemId::new("cs-status"))
+            .unwrap()
+            .codes
+            .iter()
+            .any(|cv| cv.code == "PAUSED"),
+        "failed replacement must leave the original code system intact"
+    );
+}
+
+#[test]
+fn remove_value_set_rejects_property_binding_reference() {
+    use crate::binding::PropertyBinding;
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+    use crate::value_set::{
+        IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
+    };
+
+    let mut node = minimal_node("nt-order", "Order");
+    node.properties.push(PropertyDef {
+        id: "p-status".into(),
+        name: pk("status"),
+        property_type: PropertyType::String,
+        nullable: false,
+        bindings: vec![PropertyBinding::value_set(ValueSetId::new("vs-status"))],
+        ..Default::default()
+    });
+    let mut onto = OntologyIR::new(
+        "ont".into(),
+        "Orders".into(),
+        LocalizedText::default(),
+        1,
+        vec![node],
+        vec![],
+        vec![],
+    );
+    onto.add_code_system(CodeSystemDef {
+        id: CodeSystemId::new("cs-status"),
+        name: "Status".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        uri: None,
+        version: "1".into(),
+        kind: CodeSystemKind::Internal,
+        hierarchical: false,
+        codes: vec![CodedValue {
+            id: CodedValueId::new("cv-active"),
+            code: "ACTIVE".into(),
+            display: LocalizedText::default(),
+            definition: LocalizedText::default(),
+            aliases: vec![],
+            broader_id: None,
+            examples: vec![],
+            scope_note: LocalizedText::default(),
+            valid_from: None,
+            valid_to: None,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }],
+        deprecated_at: None,
+        replaced_by_id: None,
+    })
+    .unwrap();
+    onto.add_value_set(ValueSetDef {
+        id: ValueSetId::new("vs-status"),
+        name: "Status".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        version: "1".into(),
+        composition: vec![ValueSetIncludeRule {
+            system_id: CodeSystemId::new("cs-status"),
+            selector: ValueSetSelector::All,
+            mode: IncludeMode::Include,
+        }],
+    })
+    .unwrap();
+
+    let err = onto
+        .remove_value_set(&ValueSetId::new("vs-status"))
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "value_set.in_use_by_property_binding",
+            target,
+            ..
+        } if target == "p-status"
+    ));
+}
+
+#[test]
+fn remove_concept_map_rejects_property_binding_reference() {
+    use crate::binding::PropertyBinding;
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+    use crate::concept_map::{ConceptMapDef, ConceptMapId, ConceptMapping, Equivalence};
+    use crate::value_set::ValueSetId;
+
+    fn system(id: &str, cv_id: &str, code: &str) -> CodeSystemDef {
+        CodeSystemDef {
+            id: CodeSystemId::new(id),
+            name: id.into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            uri: None,
+            version: "1".into(),
+            kind: CodeSystemKind::Internal,
+            hierarchical: false,
+            codes: vec![CodedValue {
+                id: CodedValueId::new(cv_id),
+                code: code.into(),
+                display: LocalizedText::default(),
+                definition: LocalizedText::default(),
+                aliases: vec![],
+                broader_id: None,
+                examples: vec![],
+                scope_note: LocalizedText::default(),
+                valid_from: None,
+                valid_to: None,
+                deprecated_at: None,
+                replaced_by_id: None,
+            }],
+            deprecated_at: None,
+            replaced_by_id: None,
+        }
+    }
+
+    let mut node = minimal_node("nt-order", "Order");
+    node.properties.push(PropertyDef {
+        id: "p-status".into(),
+        name: pk("status"),
+        property_type: PropertyType::String,
+        nullable: false,
+        bindings: vec![
+            PropertyBinding::value_set(ValueSetId::new("vs-status"))
+                .with_concept_map(ConceptMapId::new("cm-status")),
+        ],
+        ..Default::default()
+    });
+    let mut onto = OntologyIR::new(
+        "ont".into(),
+        "Orders".into(),
+        LocalizedText::default(),
+        1,
+        vec![node],
+        vec![],
+        vec![],
+    );
+    onto.add_code_system(system("cs-source", "cv-source", "ACTIVE"))
+        .unwrap();
+    onto.add_code_system(system("cs-target", "cv-target", "A"))
+        .unwrap();
+    onto.add_concept_map(ConceptMapDef {
+        id: ConceptMapId::new("cm-status"),
+        name: "StatusMap".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        version: "1".into(),
+        source_system_id: CodeSystemId::new("cs-source"),
+        target_system_id: CodeSystemId::new("cs-target"),
+        mappings: vec![ConceptMapping {
+            source_code: "ACTIVE".into(),
+            target_code: "A".into(),
+            equivalence: Equivalence::Equivalent,
+            comment: LocalizedText::default(),
+        }],
+    })
+    .unwrap();
+
+    let err = onto
+        .remove_concept_map(&ConceptMapId::new("cm-status"))
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "concept_map.in_use_by_property_binding",
+            target,
+            ..
+        } if target == "p-status"
+    ));
+}
+
+#[test]
+fn remove_notation_pattern_rejects_property_binding_reference() {
+    use crate::binding::PropertyBinding;
+    use crate::notation_pattern::{
+        NotationComponent, NotationComponentKind, NotationPatternDef, NotationPatternId,
+    };
+
+    let mut node = minimal_node("nt-campaign", "Campaign");
+    node.properties.push(PropertyDef {
+        id: "p-code".into(),
+        name: pk("code"),
+        property_type: PropertyType::String,
+        nullable: false,
+        bindings: vec![PropertyBinding::notation_pattern(NotationPatternId::new(
+            "np-campaign-code",
+        ))],
+        ..Default::default()
+    });
+    let mut onto = OntologyIR::new(
+        "ont".into(),
+        "Campaigns".into(),
+        LocalizedText::default(),
+        1,
+        vec![node],
+        vec![],
+        vec![],
+    );
+    onto.add_notation_pattern(NotationPatternDef {
+        id: NotationPatternId::new("np-campaign-code"),
+        name: "CampaignCode".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        template: "{season}".into(),
+        separator: "".into(),
+        components: vec![NotationComponent {
+            name: "season".into(),
+            display: LocalizedText::default(),
+            kind: NotationComponentKind::Alphanumeric {
+                width: 6,
+                uppercase: true,
+            },
+        }],
+        examples: vec![],
+    })
+    .unwrap();
+
+    let err = onto
+        .remove_notation_pattern(&NotationPatternId::new("np-campaign-code"))
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "notation_pattern.in_use_by_property_binding",
+            target,
+            ..
+        } if target == "p-code"
+    ));
+}
+
+#[test]
+fn remove_notation_pattern_rejects_rule_reference() {
+    use crate::action::RuleId;
+    use crate::notation_pattern::{
+        NotationComponent, NotationComponentKind, NotationPatternDef, NotationPatternId,
+    };
+    use crate::rule::{ConstraintTarget, RuleActivationKind, RuleDef, RuleKind, ShaclConstraint};
+
+    let mut onto = sample_user_ontology();
+    onto.add_notation_pattern(NotationPatternDef {
+        id: NotationPatternId::new("np-campaign-code"),
+        name: "CampaignCode".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        template: "{season}".into(),
+        separator: "".into(),
+        components: vec![NotationComponent {
+            name: "season".into(),
+            display: LocalizedText::default(),
+            kind: NotationComponentKind::Alphanumeric {
+                width: 6,
+                uppercase: true,
+            },
+        }],
+        examples: vec![],
+    })
+    .unwrap();
+    onto.add_rule(RuleDef {
+        id: RuleId::new("r-campaign-code"),
+        name: LocalizedText::new("Campaign code shape"),
+        description: LocalizedText::default(),
+        rationale: LocalizedText::default(),
+        kind: RuleKind::CrossEntityShape {
+            predicate: "true".into(),
+        },
+        severity: Default::default(),
+        enforcement: Default::default(),
+        activation: RuleActivationKind::default(),
+        origin: Default::default(),
+        constraints: vec![ShaclConstraint::MatchesPattern {
+            target: ConstraintTarget::Inherit,
+            notation_pattern_id: NotationPatternId::new("np-campaign-code"),
+        }],
+        valid_from: None,
+        valid_to: None,
+        sh_message: None,
+    })
+    .unwrap();
+
+    let err = onto
+        .remove_notation_pattern(&NotationPatternId::new("np-campaign-code"))
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "notation_pattern.in_use_by_rule",
+            target,
+            ..
+        } if target == "r-campaign-code"
+    ));
+}
+
+#[test]
+fn replace_notation_pattern_rejects_missing_value_set_atomically() {
+    use crate::notation_pattern::{
+        NotationComponent, NotationComponentKind, NotationPatternDef, NotationPatternId,
+    };
+    use crate::value_set::ValueSetId;
+
+    let mut onto = sample_user_ontology();
+    onto.add_notation_pattern(NotationPatternDef {
+        id: NotationPatternId::new("np-campaign-code"),
+        name: "CampaignCode".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        template: "{season}".into(),
+        separator: "".into(),
+        components: vec![NotationComponent {
+            name: "season".into(),
+            display: LocalizedText::default(),
+            kind: NotationComponentKind::Alphanumeric {
+                width: 6,
+                uppercase: true,
+            },
+        }],
+        examples: vec![],
+    })
+    .unwrap();
+
+    let err = onto
+        .replace_notation_pattern(
+            &NotationPatternId::new("np-campaign-code"),
+            NotationPatternDef {
+                id: NotationPatternId::new("np-campaign-code"),
+                name: "CampaignCode".into(),
+                display_name: LocalizedText::default(),
+                description: LocalizedText::default(),
+                template: "{season}".into(),
+                separator: "".into(),
+                components: vec![NotationComponent {
+                    name: "season".into(),
+                    display: LocalizedText::default(),
+                    kind: NotationComponentKind::CodeFromSet {
+                        value_set_id: ValueSetId::new("vs-missing"),
+                    },
+                }],
+                examples: vec![],
+            },
+        )
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::DuplicateCollectionId {
+            kind: "notation_pattern_unknown_value_set",
+            id
+        } if id == "vs-missing"
+    ));
+    assert!(matches!(
+        onto.notation_pattern_by_id(&NotationPatternId::new("np-campaign-code"))
+            .unwrap()
+            .components[0]
+            .kind,
+        NotationComponentKind::Alphanumeric { .. }
+    ));
+}
+
+#[test]
+fn add_value_range_set_rejects_overlapping_bands() {
+    use crate::value_range::{ValueBand, ValueRangeSetDef, ValueRangeSetId};
+
+    let mut onto = sample_user_ontology();
+    let err = onto
+        .add_value_range_set(ValueRangeSetDef {
+            id: ValueRangeSetId::new("vrs-risk"),
+            name: "Risk".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            bands: vec![
+                ValueBand {
+                    min: Some(0.0),
+                    max: Some(10.0),
+                    inclusive_min: true,
+                    inclusive_max: true,
+                    label: LocalizedText::new("Low"),
+                    severity: None,
+                },
+                ValueBand {
+                    min: Some(5.0),
+                    max: Some(15.0),
+                    inclusive_min: true,
+                    inclusive_max: false,
+                    label: LocalizedText::new("Medium"),
+                    severity: None,
+                },
+            ],
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "value_range_set.band.overlap",
+            target,
+            ..
+        } if target == "0:1"
+    ));
+}
+
+#[test]
+fn add_value_range_set_rejects_empty_interval() {
+    use crate::value_range::{ValueBand, ValueRangeSetDef, ValueRangeSetId};
+
+    let mut onto = sample_user_ontology();
+    let err = onto
+        .add_value_range_set(ValueRangeSetDef {
+            id: ValueRangeSetId::new("vrs-risk"),
+            name: "Risk".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            bands: vec![ValueBand {
+                min: Some(10.0),
+                max: Some(10.0),
+                inclusive_min: true,
+                inclusive_max: false,
+                label: LocalizedText::new("Empty"),
+                severity: None,
+            }],
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "value_range_set.band.interval",
+            target,
+            ..
+        } if target == "0"
+    ));
+}
+
+#[test]
+fn replace_value_range_set_rejects_overlap_atomically() {
+    use crate::value_range::{ValueBand, ValueRangeSetDef, ValueRangeSetId};
+
+    let mut onto = sample_user_ontology();
+    onto.add_value_range_set(ValueRangeSetDef {
+        id: ValueRangeSetId::new("vrs-risk"),
+        name: "Risk".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        version: "1".into(),
+        bands: vec![ValueBand {
+            min: Some(0.0),
+            max: Some(10.0),
+            inclusive_min: true,
+            inclusive_max: false,
+            label: LocalizedText::new("Low"),
+            severity: None,
+        }],
+    })
+    .unwrap();
+
+    let err = onto
+        .replace_value_range_set(
+            &ValueRangeSetId::new("vrs-risk"),
+            ValueRangeSetDef {
+                id: ValueRangeSetId::new("vrs-risk"),
+                name: "Risk".into(),
+                display_name: LocalizedText::default(),
+                description: LocalizedText::default(),
+                version: "2".into(),
+                bands: vec![
+                    ValueBand {
+                        min: Some(0.0),
+                        max: Some(10.0),
+                        inclusive_min: true,
+                        inclusive_max: true,
+                        label: LocalizedText::new("Low"),
+                        severity: None,
+                    },
+                    ValueBand {
+                        min: Some(10.0),
+                        max: Some(20.0),
+                        inclusive_min: true,
+                        inclusive_max: false,
+                        label: LocalizedText::new("Medium"),
+                        severity: None,
+                    },
+                ],
+            },
+        )
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "value_range_set.band.overlap",
+            ..
+        }
+    ));
+    assert_eq!(
+        onto.value_range_set_by_id(&ValueRangeSetId::new("vrs-risk"))
+            .unwrap()
+            .version,
+        "1"
+    );
+}
+
+#[test]
+fn remove_value_range_set_rejects_property_binding_reference() {
+    use crate::binding::PropertyBinding;
+    use crate::value_range::{ValueBand, ValueRangeSetDef, ValueRangeSetId};
+
+    let mut node = minimal_node("nt-observation", "Observation");
+    node.properties.push(PropertyDef {
+        id: "p-score".into(),
+        name: pk("score"),
+        property_type: PropertyType::Float,
+        nullable: false,
+        bindings: vec![PropertyBinding::value_range(ValueRangeSetId::new(
+            "vrs-risk",
+        ))],
+        ..Default::default()
+    });
+    let mut onto = OntologyIR::new(
+        "ont".into(),
+        "Observations".into(),
+        LocalizedText::default(),
+        1,
+        vec![node],
+        vec![],
+        vec![],
+    );
+    onto.add_value_range_set(ValueRangeSetDef {
+        id: ValueRangeSetId::new("vrs-risk"),
+        name: "Risk".into(),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        version: "1".into(),
+        bands: vec![ValueBand {
+            min: Some(0.0),
+            max: Some(10.0),
+            inclusive_min: true,
+            inclusive_max: false,
+            label: LocalizedText::new("Low"),
+            severity: None,
+        }],
+    })
+    .unwrap();
+
+    let err = onto
+        .remove_value_range_set(&ValueRangeSetId::new("vrs-risk"))
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "value_range_set.in_use_by_property_binding",
+            target,
+            ..
+        } if target == "p-score"
+    ));
+}
+
+#[test]
 fn as_of_drops_rules_outside_window() {
     use chrono::{Duration, Utc};
 
@@ -1197,7 +2443,7 @@ fn as_of_drops_rules_outside_window() {
         constraints: Vec::new(),
         valid_from: None,
         valid_to: None,
-            sh_message: None,
+        sh_message: None,
     };
     let recent = crate::rule::RuleDef {
         id: crate::action::RuleId::new("r-recent"),
@@ -1216,11 +2462,8 @@ fn as_of_drops_rules_outside_window() {
     ontology.add_rule(stale).unwrap();
 
     let snapshot_now = ontology.as_of(now).unwrap();
-    let ids_now: std::collections::BTreeSet<&str> = snapshot_now
-        .rules()
-        .iter()
-        .map(|r| r.id.as_str())
-        .collect();
+    let ids_now: std::collections::BTreeSet<&str> =
+        snapshot_now.rules().iter().map(|r| r.id.as_str()).collect();
     assert!(ids_now.contains("r-always"));
     assert!(ids_now.contains("r-recent"));
     assert!(!ids_now.contains("r-stale"), "stale rule must be filtered");
@@ -1325,8 +2568,10 @@ fn required_binding_to_empty_value_set_is_rejected() {
 
     let errors = ontology.validate();
     assert!(
-        errors.iter().any(|e| e.message.contains("Required binding to value set")
-            && e.message.contains("is empty")),
+        errors
+            .iter()
+            .any(|e| e.message.contains("Required binding to value set")
+                && e.message.contains("is empty")),
         "expected empty-value-set rejection, got {errors:?}"
     );
 }
@@ -1362,7 +2607,9 @@ fn preferred_binding_to_empty_value_set_is_accepted() {
 
     let errors = ontology.validate();
     assert!(
-        !errors.iter().any(|e| e.message.contains("Required binding")),
+        !errors
+            .iter()
+            .any(|e| e.message.contains("Required binding")),
         "Preferred binding should not surface Required-only diagnostic: {errors:?}"
     );
 }
@@ -1461,7 +2708,7 @@ fn advisories_flag_required_dedup_between_node_constraint_and_rule() {
             }],
             valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         })
         .expect("rule");
 
@@ -1476,7 +2723,8 @@ fn advisories_flag_required_dedup_between_node_constraint_and_rule() {
         "expected one dedup advisory, got {advisories:?}"
     );
     assert!(
-        advisories[0].message.contains("Required") && advisories[0].message.contains("source of truth"),
+        advisories[0].message.contains("Required")
+            && advisories[0].message.contains("source of truth"),
         "advisory text shape: {}",
         advisories[0]
     );
@@ -1664,7 +2912,8 @@ fn add_glossary_term_rejects_self_replacement() {
             deprecated_at: Utc::now(),
         },
         concept_id: None,
-    };
+    term_pos: Default::default(),
+        };
     let err = onto.add_glossary_term(term).unwrap_err();
     assert!(matches!(
         err,
@@ -1698,7 +2947,8 @@ fn add_glossary_term_rejects_replacement_pointing_to_missing_term() {
             deprecated_at: Utc::now(),
         },
         concept_id: None,
-    };
+    term_pos: Default::default(),
+        };
     let err = onto.add_glossary_term(term).unwrap_err();
     assert!(matches!(
         err,
@@ -1729,6 +2979,7 @@ fn add_glossary_term_accepts_replacement_pointing_to_existing_term() {
             valid_to: None,
             lifecycle: TermLifecycle::Active,
             concept_id: None,
+            term_pos: Default::default(),
         }
     }
 
@@ -1739,8 +2990,347 @@ fn add_glossary_term_accepts_replacement_pointing_to_existing_term() {
         replaced_by: Some(GlossaryTermId::new("gt-new")),
         deprecated_at: Utc::now(),
     };
-    onto.add_glossary_term(deprecated).expect("valid replacement reference");
+    onto.add_glossary_term(deprecated)
+        .expect("valid replacement reference");
     assert_eq!(onto.glossary().len(), 2);
+}
+
+#[test]
+fn add_glossary_term_rejects_related_term_missing_target() {
+    use crate::glossary::{
+        GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle, TermRelation,
+        TermRelationKind,
+    };
+
+    let mut onto = sample_user_ontology();
+    let err = onto
+        .add_glossary_term(GlossaryTermDef {
+            id: GlossaryTermId::new("gt-child"),
+            term: LocalizedText::new("Child"),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: vec![TermRelation {
+                kind: TermRelationKind::Broader,
+                target: GlossaryTermId::new("gt-missing"),
+            }],
+            governance: TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::default(),
+            concept_id: None,
+    term_pos: Default::default(),
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "glossary_term.related_terms.target",
+            target,
+            ..
+        } if target == "gt-missing"
+    ));
+}
+
+#[test]
+fn remove_glossary_term_rejects_concept_canonical_reference() {
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
+
+    let concept_id = ConceptId::new("c-customer");
+    let mut onto = sample_user_ontology();
+    onto.add_glossary_term(GlossaryTermDef {
+        id: GlossaryTermId::new("gt-customer"),
+        term: LocalizedText::new("Customer"),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        aliases: Vec::new(),
+        related_terms: Vec::new(),
+        governance: TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: TermLifecycle::default(),
+        concept_id: Some(concept_id.clone()),
+        term_pos: Default::default(),
+    })
+    .unwrap();
+    onto.add_concept(ConceptDef {
+        id: concept_id,
+        canonical_term_id: GlossaryTermId::new("gt-customer"),
+        alias_term_ids: Vec::new(),
+        broader: None,
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        realisation: None,
+        lifecycle: TermLifecycle::default(),
+        replaced_by: None,
+        valid_from: None,
+        valid_to: None,
+        governance: ConceptGovernance::default(),
+    })
+    .unwrap();
+
+    let err = onto
+        .remove_glossary_term(&GlossaryTermId::new("gt-customer"))
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "glossary_term.in_use_by_concept_canonical",
+            target,
+            ..
+        } if target == "c-customer"
+    ));
+}
+
+#[test]
+fn remove_glossary_term_rejects_related_term_reference() {
+    use crate::glossary::{
+        GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle, TermRelation,
+        TermRelationKind,
+    };
+
+    fn term(id: &str, label: &str) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(label),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::default(),
+            concept_id: None,
+            term_pos: Default::default(),
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    onto.add_glossary_term(term("gt-parent", "Parent")).unwrap();
+    let mut child = term("gt-child", "Child");
+    child.related_terms.push(TermRelation {
+        kind: TermRelationKind::Broader,
+        target: GlossaryTermId::new("gt-parent"),
+    });
+    onto.add_glossary_term(child).unwrap();
+
+    let err = onto
+        .remove_glossary_term(&GlossaryTermId::new("gt-parent"))
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "glossary_term.in_use_by_related_term",
+            target,
+            ..
+        } if target == "gt-child"
+    ));
+}
+
+#[test]
+fn replace_glossary_term_rejects_breaking_concept_back_reference_atomically() {
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
+
+    let concept_id = ConceptId::new("c-customer");
+    let mut onto = sample_user_ontology();
+    onto.add_glossary_term(GlossaryTermDef {
+        id: GlossaryTermId::new("gt-customer"),
+        term: LocalizedText::new("Customer"),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        aliases: Vec::new(),
+        related_terms: Vec::new(),
+        governance: TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: TermLifecycle::default(),
+        concept_id: Some(concept_id.clone()),
+        term_pos: Default::default(),
+    })
+    .unwrap();
+    onto.add_concept(ConceptDef {
+        id: concept_id,
+        canonical_term_id: GlossaryTermId::new("gt-customer"),
+        alias_term_ids: Vec::new(),
+        broader: None,
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        realisation: None,
+        lifecycle: TermLifecycle::default(),
+        replaced_by: None,
+        valid_from: None,
+        valid_to: None,
+        governance: ConceptGovernance::default(),
+    })
+    .unwrap();
+
+    let err = onto
+        .replace_glossary_term(
+            &GlossaryTermId::new("gt-customer"),
+            GlossaryTermDef {
+                id: GlossaryTermId::new("gt-customer"),
+                term: LocalizedText::new("Customer"),
+                display_name: LocalizedText::default(),
+                description: LocalizedText::default(),
+                examples: Vec::new(),
+                category: None,
+                aliases: Vec::new(),
+                related_terms: Vec::new(),
+                governance: TermGovernance::default(),
+                valid_from: None,
+                valid_to: None,
+                lifecycle: TermLifecycle::default(),
+                concept_id: None,
+                term_pos: Default::default(),
+            },
+        )
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "glossary_term.in_use_by_concept_canonical",
+            ..
+        }
+    ));
+    assert_eq!(
+        onto.glossary_term_by_id(&GlossaryTermId::new("gt-customer"))
+            .unwrap()
+            .concept_id,
+        Some(ConceptId::new("c-customer"))
+    );
+}
+
+#[test]
+fn replace_glossary_term_rejects_replacement_cycle_atomically() {
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
+    use chrono::Utc;
+
+    fn term(id: &str, label: &str) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(label),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::default(),
+            concept_id: None,
+            term_pos: Default::default(),
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    onto.add_glossary_term(term("gt-old", "Old")).unwrap();
+    let mut current = term("gt-current", "Current");
+    current.lifecycle = TermLifecycle::Deprecated {
+        replaced_by: Some(GlossaryTermId::new("gt-old")),
+        deprecated_at: Utc::now(),
+    };
+    onto.add_glossary_term(current).unwrap();
+
+    let mut old = term("gt-old", "Old");
+    old.lifecycle = TermLifecycle::Deprecated {
+        replaced_by: Some(GlossaryTermId::new("gt-current")),
+        deprecated_at: Utc::now(),
+    };
+    let err = onto
+        .replace_glossary_term(&GlossaryTermId::new("gt-old"), old)
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "glossary_term.replaced_by.cycle",
+            ..
+        }
+    ));
+    assert!(matches!(
+        onto.glossary_term_by_id(&GlossaryTermId::new("gt-old"))
+            .unwrap()
+            .lifecycle,
+        TermLifecycle::Active
+    ));
+}
+
+#[test]
+fn replace_glossary_term_rejects_broader_cycle_without_diamond_false_positive() {
+    use crate::glossary::{
+        GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle, TermRelation,
+        TermRelationKind,
+    };
+
+    fn term(id: &str, label: &str, broader: Vec<&str>) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(label),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: broader
+                .into_iter()
+                .map(|target| TermRelation {
+                    kind: TermRelationKind::Broader,
+                    target: GlossaryTermId::new(target),
+                })
+                .collect(),
+            governance: TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::default(),
+            concept_id: None,
+            term_pos: Default::default(),
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    onto.add_glossary_term(term("gt-root", "Root", vec![]))
+        .unwrap();
+    onto.add_glossary_term(term("gt-left", "Left", vec!["gt-root"]))
+        .unwrap();
+    onto.add_glossary_term(term("gt-right", "Right", vec!["gt-root"]))
+        .unwrap();
+    onto.add_glossary_term(term("gt-child", "Child", vec!["gt-left", "gt-right"]))
+        .expect("diamond hierarchy must be accepted");
+
+    let err = onto
+        .replace_glossary_term(
+            &GlossaryTermId::new("gt-root"),
+            term("gt-root", "Root", vec!["gt-child"]),
+        )
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "glossary_term.related_terms.broader_cycle",
+            ..
+        }
+    ));
+    assert!(
+        onto.glossary_term_by_id(&GlossaryTermId::new("gt-root"))
+            .unwrap()
+            .related_terms
+            .is_empty(),
+        "failed replacement must leave original broader relations intact"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1749,8 +3339,8 @@ fn add_glossary_term_accepts_replacement_pointing_to_existing_term() {
 
 #[test]
 fn property_pair_constraint_target_resolves_to_inherit() {
-    use crate::rule::{ConstraintTarget, ShaclConstraint};
     use crate::ir::PropertyId;
+    use crate::rule::{ConstraintTarget, ShaclConstraint};
 
     let lt = ShaclConstraint::LessThan {
         target: ConstraintTarget::Inherit,
@@ -1798,7 +3388,7 @@ fn validate_rejects_property_pair_referencing_unknown_sibling() {
         }],
         valid_from: None,
         valid_to: None,
-            sh_message: None,
+        sh_message: None,
     };
     onto.add_rule(rule).unwrap();
     let errors = onto.validate();
@@ -1875,7 +3465,8 @@ fn phrase_resolver_finds_term_via_default_label() {
         valid_from: None,
         valid_to: None,
         lifecycle: TermLifecycle::Active,
-            concept_id: None,
+        concept_id: None,
+        term_pos: Default::default(),
     })
     .unwrap();
 
@@ -1894,21 +3485,19 @@ fn phrase_resolver_finds_term_via_korean_alias() {
     let id = GlossaryTermId::new("gt-customer");
     onto.add_glossary_term(GlossaryTermDef {
         id: id.clone(),
-        term: LocalizedText::new("Customer")
-            .with_translation(LanguageTag::ko(), "고객"),
+        term: LocalizedText::new("Customer").with_translation(LanguageTag::ko(), "고객"),
         display_name: LocalizedText::default(),
         description: LocalizedText::default(),
         examples: Vec::new(),
         category: None,
-        aliases: vec![
-            LocalizedText::new("Buyer").with_translation(LanguageTag::ko(), "구매자"),
-        ],
+        aliases: vec![LocalizedText::new("Buyer").with_translation(LanguageTag::ko(), "구매자")],
         related_terms: Vec::new(),
         governance: crate::glossary::TermGovernance::default(),
         valid_from: None,
         valid_to: None,
         lifecycle: TermLifecycle::Active,
-            concept_id: None,
+        concept_id: None,
+        term_pos: Default::default(),
     })
     .unwrap();
 
@@ -1943,6 +3532,7 @@ fn phrase_resolver_follows_deprecated_replacement_chain() {
             valid_to: None,
             lifecycle,
             concept_id: None,
+            term_pos: Default::default(),
         }
     }
 
@@ -1984,6 +3574,7 @@ fn phrase_resolver_prefers_active_term_over_deprecated_with_same_alias() {
             valid_to: None,
             lifecycle,
             concept_id: None,
+            term_pos: Default::default(),
         }
     }
 
@@ -1993,7 +3584,9 @@ fn phrase_resolver_prefers_active_term_over_deprecated_with_same_alias() {
         "gt-old",
         "OldCustomer",
         "shopper",
-        TermLifecycle::Retired { retired_at: Utc::now() },
+        TermLifecycle::Retired {
+            retired_at: Utc::now(),
+        },
     ))
     .unwrap();
     onto.add_glossary_term(build(
@@ -2029,6 +3622,7 @@ fn phrase_resolver_prefers_canonical_term_over_alias() {
             valid_to: None,
             lifecycle: TermLifecycle::Active,
             concept_id: None,
+            term_pos: Default::default(),
         }
     }
 
@@ -2069,6 +3663,7 @@ fn validate_flags_glossary_broader_cycle() {
             valid_to: None,
             lifecycle: TermLifecycle::default(),
             concept_id: None,
+            term_pos: Default::default(),
         }
     }
 
@@ -2116,6 +3711,7 @@ fn validate_flags_glossary_replaced_by_cycle() {
                 deprecated_at: Utc::now(),
             },
             concept_id: None,
+            term_pos: Default::default(),
         }
     }
 
@@ -2142,8 +3738,8 @@ fn validate_flags_glossary_replaced_by_cycle() {
 
 #[test]
 fn validate_flags_rule_with_inverted_validity_window() {
-    use crate::rule::{RuleDef, RuleKind};
     use crate::action::RuleId;
+    use crate::rule::{RuleDef, RuleKind};
     use chrono::{Duration, Utc};
 
     let mut onto = OntologyIR::new(
@@ -2234,9 +3830,9 @@ fn validate_with_sources_flags_unknown_object_mapping_source() {
 }
 
 #[test]
-fn validate_flags_property_with_two_glossary_bindings() {
+fn validate_flags_property_with_two_concept_bindings() {
     use crate::binding::PropertyBinding;
-    use crate::glossary::GlossaryTermId;
+    use crate::concept::ConceptId;
 
     let mut node = minimal_node("nt-1", "Doc");
     node.properties.push(PropertyDef {
@@ -2245,16 +3841,8 @@ fn validate_flags_property_with_two_glossary_bindings() {
         property_type: PropertyType::String,
         nullable: false,
         bindings: vec![
-            PropertyBinding::Glossary {
-                id: GlossaryTermId::new("gt-a"),
-                valid_from: None,
-                valid_to: None,
-            },
-            PropertyBinding::Glossary {
-                id: GlossaryTermId::new("gt-b"),
-                valid_from: None,
-                valid_to: None,
-            },
+            PropertyBinding::concept(ConceptId::new("c-a")),
+            PropertyBinding::concept(ConceptId::new("c-b")),
         ],
         ..Default::default()
     });
@@ -2271,14 +3859,14 @@ fn validate_flags_property_with_two_glossary_bindings() {
 
     let errors = onto.validate();
     assert!(
-        errors
-            .iter()
-            .any(|e| e.code == "ontology.validate.property.duplicate_binding_kind"
+        errors.iter().any(
+            |e| e.code == "ontology.validate.property.duplicate_binding_kind"
                 && e.params
                     .get("kind")
-                    .map(|v| v == "glossary")
-                    .unwrap_or(false)),
-        "validator must flag duplicate Glossary bindings: {errors:?}"
+                    .map(|v| v == "concept")
+                    .unwrap_or(false)
+        ),
+        "validator must flag duplicate Concept bindings: {errors:?}"
     );
 }
 
@@ -2314,11 +3902,9 @@ fn add_concept_rejects_canonical_term_id_pointing_to_missing_term() {
 }
 
 #[test]
-fn add_concept_rejects_self_replacement() {
+fn add_concept_rejects_canonical_term_pointing_to_another_concept() {
     use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
-    use crate::glossary::{
-        GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle,
-    };
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
 
     let mut onto = sample_user_ontology();
     onto.add_glossary_term(GlossaryTermDef {
@@ -2334,10 +3920,113 @@ fn add_concept_rejects_self_replacement() {
         valid_from: None,
         valid_to: None,
         lifecycle: TermLifecycle::default(),
-        concept_id: None,
+        concept_id: Some(ConceptId::new("c-other")),
+        term_pos: Default::default(),
     })
     .unwrap();
+    let concept = ConceptDef {
+        id: ConceptId::new("c-customer"),
+        canonical_term_id: GlossaryTermId::new("gt-customer"),
+        alias_term_ids: Vec::new(),
+        broader: None,
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        realisation: None,
+        lifecycle: TermLifecycle::default(),
+        replaced_by: None,
+        valid_from: None,
+        valid_to: None,
+        governance: ConceptGovernance::default(),
+    };
+    let err = onto.add_concept(concept).unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "concept.canonical_term_id.concept_id",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn add_concept_rejects_alias_term_pointing_to_another_concept() {
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
+
+    fn empty_term(id: &str, label: &str, concept_id: &str) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(label),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::default(),
+            concept_id: Some(ConceptId::new(concept_id)),
+            term_pos: Default::default(),
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    onto.add_glossary_term(empty_term("gt-customer", "Customer", "c-customer"))
+        .unwrap();
+    onto.add_glossary_term(empty_term("gt-client", "Client", "c-client"))
+        .unwrap();
+    let concept = ConceptDef {
+        id: ConceptId::new("c-customer"),
+        canonical_term_id: GlossaryTermId::new("gt-customer"),
+        alias_term_ids: vec![GlossaryTermId::new("gt-client")],
+        broader: None,
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        realisation: None,
+        lifecycle: TermLifecycle::default(),
+        replaced_by: None,
+        valid_from: None,
+        valid_to: None,
+        governance: ConceptGovernance::default(),
+    };
+    let err = onto.add_concept(concept).unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "concept.alias_term_id.concept_id",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn add_concept_rejects_self_replacement() {
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
+
+    let mut onto = sample_user_ontology();
     let id = ConceptId::new("c-customer");
+    onto.add_glossary_term(GlossaryTermDef {
+        id: GlossaryTermId::new("gt-customer"),
+        term: LocalizedText::new("Customer"),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        aliases: Vec::new(),
+        related_terms: Vec::new(),
+        governance: TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: TermLifecycle::default(),
+        concept_id: Some(id.clone()),
+        term_pos: Default::default(),
+    })
+    .unwrap();
     let concept = ConceptDef {
         id: id.clone(),
         canonical_term_id: GlossaryTermId::new("gt-customer"),
@@ -2364,13 +4053,11 @@ fn add_concept_rejects_self_replacement() {
 }
 
 #[test]
-fn add_concept_round_trips_with_alias_terms() {
+fn replace_concept_rejects_broader_cycle_atomically() {
     use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
-    use crate::glossary::{
-        GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle,
-    };
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
 
-    fn empty_term(id: &str, label: &str) -> GlossaryTermDef {
+    fn term(id: &str, label: &str, concept_id: &ConceptId) -> GlossaryTermDef {
         GlossaryTermDef {
             id: GlossaryTermId::new(id),
             term: LocalizedText::new(label),
@@ -2384,17 +4071,229 @@ fn add_concept_round_trips_with_alias_terms() {
             valid_from: None,
             valid_to: None,
             lifecycle: TermLifecycle::default(),
-            concept_id: None,
+            concept_id: Some(concept_id.clone()),
+            term_pos: Default::default(),
+        }
+    }
+
+    fn concept(id: &str, term_id: &str, broader: Option<&str>) -> ConceptDef {
+        ConceptDef {
+            id: ConceptId::new(id),
+            canonical_term_id: GlossaryTermId::new(term_id),
+            alias_term_ids: Vec::new(),
+            broader: broader.map(ConceptId::new),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: ConceptGovernance::default(),
         }
     }
 
     let mut onto = sample_user_ontology();
-    onto.add_glossary_term(empty_term("gt-customer-en", "Customer"))
+    let parent_id = ConceptId::new("c-party");
+    let child_id = ConceptId::new("c-customer");
+    onto.add_glossary_term(term("gt-party", "Party", &parent_id))
         .unwrap();
-    onto.add_glossary_term(empty_term("gt-customer-ko", "고객"))
+    onto.add_glossary_term(term("gt-customer", "Customer", &child_id))
+        .unwrap();
+    onto.add_concept(concept("c-party", "gt-party", None))
+        .unwrap();
+    onto.add_concept(concept("c-customer", "gt-customer", Some("c-party")))
+        .unwrap();
+
+    let err = onto
+        .replace_concept(
+            &ConceptId::new("c-party"),
+            concept("c-party", "gt-party", Some("c-customer")),
+        )
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "concept.broader.cycle",
+            ..
+        }
+    ));
+    assert!(
+        onto.concept_by_id(&ConceptId::new("c-party"))
+            .unwrap()
+            .broader
+            .is_none()
+    );
+}
+
+#[test]
+fn replace_concept_rejects_replacement_cycle_atomically() {
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
+
+    fn term(id: &str, label: &str, concept_id: &ConceptId) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(label),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::default(),
+            concept_id: Some(concept_id.clone()),
+            term_pos: Default::default(),
+        }
+    }
+
+    fn concept(id: &str, term_id: &str, replaced_by: Option<&str>) -> ConceptDef {
+        ConceptDef {
+            id: ConceptId::new(id),
+            canonical_term_id: GlossaryTermId::new(term_id),
+            alias_term_ids: Vec::new(),
+            broader: None,
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: TermLifecycle::default(),
+            replaced_by: replaced_by.map(ConceptId::new),
+            valid_from: None,
+            valid_to: None,
+            governance: ConceptGovernance::default(),
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    let old_id = ConceptId::new("c-customer-old");
+    let current_id = ConceptId::new("c-customer-current");
+    onto.add_glossary_term(term("gt-customer-old", "Customer old", &old_id))
+        .unwrap();
+    onto.add_glossary_term(term("gt-customer-current", "Customer current", &current_id))
+        .unwrap();
+    onto.add_concept(concept("c-customer-old", "gt-customer-old", None))
+        .unwrap();
+    onto.add_concept(concept(
+        "c-customer-current",
+        "gt-customer-current",
+        Some("c-customer-old"),
+    ))
+    .unwrap();
+
+    let err = onto
+        .replace_concept(
+            &ConceptId::new("c-customer-old"),
+            concept(
+                "c-customer-old",
+                "gt-customer-old",
+                Some("c-customer-current"),
+            ),
+        )
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "concept.replaced_by.cycle",
+            ..
+        }
+    ));
+    assert!(
+        onto.concept_by_id(&ConceptId::new("c-customer-old"))
+            .unwrap()
+            .replaced_by
+            .is_none()
+    );
+}
+
+#[test]
+fn remove_concept_rejects_glossary_term_reference() {
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
+
+    let concept_id = ConceptId::new("c-customer");
+    let mut onto = sample_user_ontology();
+    onto.add_glossary_term(GlossaryTermDef {
+        id: GlossaryTermId::new("gt-customer"),
+        term: LocalizedText::new("Customer"),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        aliases: Vec::new(),
+        related_terms: Vec::new(),
+        governance: TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: TermLifecycle::default(),
+        concept_id: Some(concept_id.clone()),
+        term_pos: Default::default(),
+    })
+    .unwrap();
+    onto.add_concept(ConceptDef {
+        id: concept_id.clone(),
+        canonical_term_id: GlossaryTermId::new("gt-customer"),
+        alias_term_ids: Vec::new(),
+        broader: None,
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        realisation: None,
+        lifecycle: TermLifecycle::default(),
+        replaced_by: None,
+        valid_from: None,
+        valid_to: None,
+        governance: ConceptGovernance::default(),
+    })
+    .unwrap();
+
+    let err = onto.remove_concept(&concept_id).unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "concept.in_use_by_glossary_term",
+            ..
+        }
+    ));
+    assert!(onto.concept_by_id(&concept_id).is_some());
+}
+
+#[test]
+fn add_concept_round_trips_with_alias_terms() {
+    use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
+
+    fn empty_term(id: &str, label: &str, concept_id: &ConceptId) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(label),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::default(),
+            concept_id: Some(concept_id.clone()),
+            term_pos: Default::default(),
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    let concept_id = ConceptId::new("c-customer");
+    onto.add_glossary_term(empty_term("gt-customer-en", "Customer", &concept_id))
+        .unwrap();
+    onto.add_glossary_term(empty_term("gt-customer-ko", "고객", &concept_id))
         .unwrap();
     onto.add_concept(ConceptDef {
-        id: ConceptId::new("c-customer"),
+        id: concept_id,
         canonical_term_id: GlossaryTermId::new("gt-customer-en"),
         alias_term_ids: vec![GlossaryTermId::new("gt-customer-ko")],
         broader: None,
@@ -2410,5 +4309,448 @@ fn add_concept_round_trips_with_alias_terms() {
     })
     .unwrap();
     assert_eq!(onto.concepts().len(), 1);
-    assert_eq!(onto.concept_by_id(&ConceptId::new("c-customer")).unwrap().id.as_str(), "c-customer");
+    assert_eq!(
+        onto.concept_by_id(&ConceptId::new("c-customer"))
+            .unwrap()
+            .id
+            .as_str(),
+        "c-customer"
+    );
+}
+
+// -- Φ12 SourceContract validator -------------------------------------------
+
+#[cfg(test)]
+mod source_contract_validator {
+    use super::*;
+    use crate::mapping::link::{
+        EndpointRef, LinkCardinality, LinkMappingDef, LinkMappingKind,
+    };
+    use crate::mapping::property::{PropertyLocation, PropertyMappingDef, PropertyTransform};
+    use crate::mapping::refs::{ColumnRef, SourceRelationKind, SourceRelationRef};
+    use crate::mapping::{LinkMappingId, ObjectMappingDef, SourceId};
+    use crate::source_contract::{ColumnSpec, SourceContractDef};
+
+    fn p_str(value: &serde_json::Value) -> Option<&str> {
+        value.as_str()
+    }
+
+    fn small_node(id: &str, label: &str) -> NodeTypeDef {
+        let mut node = minimal_node(id, label);
+        node.properties.push(PropertyDef {
+            id: "p-id".into(),
+            name: pk("id"),
+            property_type: PropertyType::String,
+            nullable: false,
+            ..Default::default()
+        });
+        node.properties.push(PropertyDef {
+            id: "p-name".into(),
+            name: pk("name"),
+            property_type: PropertyType::String,
+            nullable: true,
+            ..Default::default()
+        });
+        node
+    }
+
+    fn ontology_with_one_node(node: NodeTypeDef) -> OntologyIR {
+        OntologyIR::new(
+            "ont".into(),
+            "X".into(),
+            LocalizedText::default(),
+            1,
+            vec![node],
+            vec![],
+            vec![],
+        )
+    }
+
+    fn customers_contract() -> SourceContractDef {
+        SourceContractDef::new(
+            SourceId::new("pg-main"),
+            "customers",
+            vec![
+                ColumnSpec::new("id", "bigint", false),
+                ColumnSpec::new("name", "text", true),
+                ColumnSpec::new("email", "text", true),
+            ],
+            vec!["id".to_string()],
+        )
+    }
+
+    fn property_mapping(
+        property_id: &str,
+        key: &str,
+        relation: &str,
+        column: &str,
+    ) -> PropertyMappingDef {
+        PropertyMappingDef {
+            property_id: property_id.into(),
+            property_key: pk(key),
+            location: PropertyLocation::Column(ColumnRef::new(relation, column)),
+            transform: PropertyTransform::Identity,
+            concept_map_id: None,
+        }
+    }
+
+    fn fk_link_mapping(
+        id: &str,
+        source_relation: &str,
+        target_relation: &str,
+    ) -> LinkMappingDef {
+        LinkMappingDef {
+            id: LinkMappingId::new(id),
+            edge_type_id: "et-1".into(),
+            kind: LinkMappingKind::ForeignKey {
+                source_column: ColumnRef::new(source_relation, "id"),
+                target_column: ColumnRef::new(target_relation, "customer_id"),
+            },
+            source_endpoint: EndpointRef {
+                source_id: SourceId::new("pg-main"),
+                relation: source_relation.into(),
+                key_columns: vec!["id".into()],
+            },
+            target_endpoint: EndpointRef {
+                source_id: SourceId::new("pg-main"),
+                relation: target_relation.into(),
+                key_columns: vec!["customer_id".into()],
+            },
+            join_cost_hint: Default::default(),
+            precedence: 0,
+            cardinality: LinkCardinality::ManyToOne,
+        }
+    }
+
+    #[test]
+    fn empty_contracts_returns_no_diagnostics() {
+        let onto = ontology_with_one_node(small_node("nt-1", "Customer"));
+        let errors = onto.validate_against_source_contracts(&[]);
+        assert!(
+            errors.is_empty(),
+            "empty contracts must soft-skip — bootstrap path before introspection: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn flags_object_mapping_relation_not_in_contracts() {
+        let mut onto = ontology_with_one_node(small_node("nt-1", "Customer"));
+        let mut mapping = ObjectMappingDef::new("om-1", "nt-1", "pg-main", "people");
+        mapping
+            .property_mappings
+            .push(property_mapping("p-id", "id", "people", "id"));
+        onto.object_mappings.push(mapping);
+
+        let errors = onto.validate_against_source_contracts(&[customers_contract()]);
+        assert!(
+            errors.iter().any(|e| e.code
+                == "ontology.validate.object_mapping.relation_not_in_source_contract"),
+            "validator must flag mapping pointing at a relation not in the contract bank: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn flags_property_column_not_in_contracts() {
+        let mut onto = ontology_with_one_node(small_node("nt-1", "Customer"));
+        let mut mapping = ObjectMappingDef::new("om-1", "nt-1", "pg-main", "customers");
+        mapping
+            .property_mappings
+            .push(property_mapping("p-id", "id", "customers", "id"));
+        mapping.property_mappings.push(property_mapping(
+            "p-name",
+            "name",
+            "customers",
+            "full_name",
+        ));
+        onto.object_mappings.push(mapping);
+
+        let errors = onto.validate_against_source_contracts(&[customers_contract()]);
+        assert!(
+            errors.iter().any(|e| e.code
+                == "ontology.validate.object_mapping.column_not_in_source_contract"
+                && e.params.get("column").and_then(p_str) == Some("full_name")),
+            "validator must flag column not in contract: {errors:?}",
+        );
+        assert!(
+            !errors.iter().any(|e| e.code
+                == "ontology.validate.object_mapping.column_not_in_source_contract"
+                && e.params.get("column").and_then(p_str) == Some("id")),
+            "validator must accept column present in contract: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn soft_skips_when_source_has_no_contracts_yet() {
+        let mut onto = ontology_with_one_node(small_node("nt-1", "Customer"));
+        let mut mapping = ObjectMappingDef::new("om-1", "nt-1", "pg-other", "anything");
+        mapping
+            .property_mappings
+            .push(property_mapping("p-id", "id", "anything", "missing"));
+        onto.object_mappings.push(mapping);
+
+        // The contract bank covers `pg-main` but not `pg-other` — the
+        // operator hasn't introspected `pg-other` yet, so the gate
+        // should not fire on its mappings.
+        let errors = onto.validate_against_source_contracts(&[customers_contract()]);
+        assert!(
+            errors.is_empty(),
+            "validator must soft-skip mappings on sources with no captured contracts: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn flags_primary_key_column_not_in_contracts() {
+        let mut onto = ontology_with_one_node(small_node("nt-1", "Customer"));
+        let mut mapping = ObjectMappingDef::new("om-1", "nt-1", "pg-main", "customers");
+        mapping
+            .primary_key_columns
+            .push(ColumnRef::new("customers", "tenant_id"));
+        mapping
+            .property_mappings
+            .push(property_mapping("p-id", "id", "customers", "id"));
+        onto.object_mappings.push(mapping);
+
+        let errors = onto.validate_against_source_contracts(&[customers_contract()]);
+        assert!(
+            errors.iter().any(|e| e.code
+                == "ontology.validate.object_mapping.primary_key_column_not_in_source_contract"
+                && e.params.get("column").and_then(p_str) == Some("tenant_id")),
+            "validator must flag PK column not in contract: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn flags_concat_part_column_not_in_contracts() {
+        let mut onto = ontology_with_one_node(small_node("nt-1", "Customer"));
+        let mut mapping = ObjectMappingDef::new("om-1", "nt-1", "pg-main", "customers");
+        mapping
+            .property_mappings
+            .push(property_mapping("p-id", "id", "customers", "id"));
+        mapping.property_mappings.push(PropertyMappingDef {
+            property_id: "p-name".into(),
+            property_key: pk("name"),
+            location: PropertyLocation::Column(ColumnRef::new("customers", "name")),
+            transform: PropertyTransform::Concat {
+                parts: vec![
+                    ColumnRef::new("customers", "first_name"),
+                    ColumnRef::new("customers", "last_name"),
+                ],
+                separator: " ".into(),
+                skip_when_null: false,
+            },
+            concept_map_id: None,
+        });
+        onto.object_mappings.push(mapping);
+
+        let errors = onto.validate_against_source_contracts(&[customers_contract()]);
+        let concat_errors: Vec<_> = errors
+            .iter()
+            .filter(|e| {
+                e.code == "ontology.validate.object_mapping.column_not_in_source_contract"
+                    && e.params.get("location_kind").and_then(p_str) == Some("concat_part")
+            })
+            .collect();
+        assert_eq!(
+            concat_errors.len(),
+            2,
+            "validator must flag every missing concat part: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn flags_link_mapping_endpoint_relation_not_in_contracts() {
+        let mut onto = ontology_with_one_node(small_node("nt-1", "Customer"));
+        onto.link_mappings
+            .push(fk_link_mapping("lm-1", "customers", "orders"));
+
+        // Only `customers` is in the contract bank; `orders` is missing.
+        let errors = onto.validate_against_source_contracts(&[customers_contract()]);
+        assert!(
+            errors.iter().any(|e| e.code
+                == "ontology.validate.link_mapping.endpoint_relation_not_in_source_contract"
+                && e.params.get("relation").and_then(p_str) == Some("orders")),
+            "validator must flag link endpoint relation not in contracts: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn flags_column_type_incompatible_with_property_type() {
+        // Customer.id is `Int`, contract says `id` is `text` — type mismatch.
+        let mut node = minimal_node("nt-1", "Customer");
+        node.properties.push(PropertyDef {
+            id: "p-id".into(),
+            name: pk("id"),
+            property_type: PropertyType::Int,
+            nullable: false,
+            ..Default::default()
+        });
+        let mut onto = ontology_with_one_node(node);
+        let mut mapping = ObjectMappingDef::new("om-1", "nt-1", "pg-main", "customers");
+        mapping
+            .property_mappings
+            .push(property_mapping("p-id", "id", "customers", "id"));
+        onto.object_mappings.push(mapping);
+
+        // Contract: `id` exists but with the wrong type spelling for Int.
+        let contract = SourceContractDef::new(
+            SourceId::new("pg-main"),
+            "customers",
+            vec![ColumnSpec::new("id", "text", false)],
+            vec!["id".to_string()],
+        );
+        let errors = onto.validate_against_source_contracts(&[contract]);
+        assert!(
+            errors.iter().any(|e| e.code
+                == "ontology.validate.object_mapping.column_type_incompatible"
+                && e.params.get("property_type").and_then(p_str) == Some("int")
+                && e.params.get("source_category").and_then(p_str) == Some("text")),
+            "validator must flag Int property bound to text column: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn type_compat_passes_for_string_universal_catchall() {
+        // String property accepts any column type — Postgres bytea inclusive.
+        let mut node = minimal_node("nt-1", "Doc");
+        node.properties.push(PropertyDef {
+            id: "p-payload".into(),
+            name: pk("payload"),
+            property_type: PropertyType::String,
+            nullable: true,
+            ..Default::default()
+        });
+        let mut onto = ontology_with_one_node(node);
+        let mut mapping = ObjectMappingDef::new("om-1", "nt-1", "pg-main", "docs");
+        mapping
+            .property_mappings
+            .push(property_mapping("p-payload", "payload", "docs", "blob"));
+        onto.object_mappings.push(mapping);
+
+        let contract = SourceContractDef::new(
+            SourceId::new("pg-main"),
+            "docs",
+            vec![ColumnSpec::new("blob", "bytea", true)],
+            Vec::new(),
+        );
+        let errors = onto.validate_against_source_contracts(&[contract]);
+        assert!(
+            !errors.iter().any(|e| e.code
+                == "ontology.validate.object_mapping.column_type_incompatible"),
+            "String property must absorb any source category: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn type_compat_skips_when_transform_is_not_identity() {
+        // Concat / SqlExpr are operator-authored coercions — the
+        // validator must not flag them as type mismatches because
+        // the transform exists precisely to bridge a type gap.
+        let mut node = minimal_node("nt-1", "Customer");
+        node.properties.push(PropertyDef {
+            id: "p-name".into(),
+            name: pk("name"),
+            property_type: PropertyType::String,
+            nullable: true,
+            ..Default::default()
+        });
+        let mut onto = ontology_with_one_node(node);
+        let mut mapping = ObjectMappingDef::new("om-1", "nt-1", "pg-main", "customers");
+        mapping.property_mappings.push(PropertyMappingDef {
+            property_id: "p-name".into(),
+            property_key: pk("name"),
+            location: PropertyLocation::Column(ColumnRef::new("customers", "first_name")),
+            transform: PropertyTransform::SqlExpr {
+                expression: "first_name || ' ' || last_name".into(),
+            },
+            concept_map_id: None,
+        });
+        onto.object_mappings.push(mapping);
+
+        let contract = SourceContractDef::new(
+            SourceId::new("pg-main"),
+            "customers",
+            vec![
+                ColumnSpec::new("first_name", "text", true),
+                ColumnSpec::new("last_name", "text", true),
+            ],
+            vec![],
+        );
+        let errors = onto.validate_against_source_contracts(&[contract]);
+        assert!(
+            !errors.iter().any(|e| e.code
+                == "ontology.validate.object_mapping.column_type_incompatible"),
+            "non-Identity transforms bypass type-compat check: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn type_compat_silent_on_unknown_source_dialect_spelling() {
+        let mut node = minimal_node("nt-1", "Widget");
+        node.properties.push(PropertyDef {
+            id: "p-spec".into(),
+            name: pk("spec"),
+            property_type: PropertyType::Map,
+            nullable: true,
+            ..Default::default()
+        });
+        let mut onto = ontology_with_one_node(node);
+        let mut mapping = ObjectMappingDef::new("om-1", "nt-1", "pg-main", "widgets");
+        mapping
+            .property_mappings
+            .push(property_mapping("p-spec", "spec", "widgets", "spec"));
+        onto.object_mappings.push(mapping);
+
+        // Vendor-specific spelling the categoriser doesn't know.
+        let contract = SourceContractDef::new(
+            SourceId::new("pg-main"),
+            "widgets",
+            vec![ColumnSpec::new("spec", "vendor_specific_widget_blob", true)],
+            vec![],
+        );
+        let errors = onto.validate_against_source_contracts(&[contract]);
+        assert!(
+            !errors.iter().any(|e| e.code
+                == "ontology.validate.object_mapping.column_type_incompatible"),
+            "Unknown category must fail-open even on container property: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn flags_bridge_relation_not_in_contracts() {
+        let mut onto = ontology_with_one_node(small_node("nt-1", "Customer"));
+        onto.link_mappings.push(LinkMappingDef {
+            id: LinkMappingId::new("lm-1"),
+            edge_type_id: "et-1".into(),
+            kind: LinkMappingKind::Bridge {
+                bridge_relation: SourceRelationRef {
+                    source_id: SourceId::new("pg-main"),
+                    relation: "customer_to_order".into(),
+                    kind: SourceRelationKind::Table,
+                },
+                source_join: vec![ColumnRef::new("customer_to_order", "customer_id")],
+                target_join: vec![ColumnRef::new("customer_to_order", "order_id")],
+                bridge_workspace_scope: None,
+            },
+            source_endpoint: EndpointRef {
+                source_id: SourceId::new("pg-main"),
+                relation: "customers".into(),
+                key_columns: vec!["id".into()],
+            },
+            target_endpoint: EndpointRef {
+                source_id: SourceId::new("pg-main"),
+                relation: "customers".into(),
+                key_columns: vec!["id".into()],
+            },
+            join_cost_hint: Default::default(),
+            precedence: 0,
+            cardinality: LinkCardinality::ManyToMany,
+        });
+
+        let errors = onto.validate_against_source_contracts(&[customers_contract()]);
+        assert!(
+            errors.iter().any(|e| e.code
+                == "ontology.validate.link_mapping.bridge_relation_not_in_source_contract"),
+            "validator must flag missing bridge relation: {errors:?}",
+        );
+    }
 }

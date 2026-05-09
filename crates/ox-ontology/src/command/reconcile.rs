@@ -19,7 +19,7 @@ pub struct ReconcileResult {
     pub report: ReconcileReport,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ReconcileReport {
     /// Entities where the LLM preserved the id correctly
     pub preserved_ids: Vec<PreservedEntity>,
@@ -33,21 +33,21 @@ pub struct ReconcileReport {
     pub confidence: ReconcileConfidence,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct PreservedEntity {
     pub id: String,
     pub label: String,
     pub entity_kind: ReconcileEntityKind,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct GeneratedEntity {
     pub id: String,
     pub label: String,
     pub entity_kind: ReconcileEntityKind,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct UncertainMatch {
     pub original_id: String,
     pub original_label: String,
@@ -56,7 +56,7 @@ pub struct UncertainMatch {
     pub entity_kind: ReconcileEntityKind,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct DeletedEntity {
     pub id: String,
     pub label: String,
@@ -77,7 +77,7 @@ pub struct DeletedEntity {
 /// wider surface (every persisted IR entity); the two intentionally
 /// stay separate so a reconcile-flow change doesn't ripple through
 /// the content-addressed storage layer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ReconcileEntityKind {
     Node,
@@ -85,7 +85,7 @@ pub enum ReconcileEntityKind {
     Property,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ReconcileConfidence {
     High,
@@ -94,7 +94,7 @@ pub enum ReconcileConfidence {
 }
 
 /// User decision for an uncertain match during reconcile.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct MatchDecision {
     /// The original entity id (from UncertainMatch.original_id)
     pub original_id: String,
@@ -456,7 +456,9 @@ pub fn reconcile_refined(
             });
             for prop in &ref_node.properties {
                 commands.push(OntologyCommand::AddProperty {
-                    owner: PropertyOwner::Node(ref_node.id.clone()),
+                    owner: PropertyOwner::Node {
+                        type_id: ref_node.id.clone(),
+                    },
                     property: Box::new(prop.clone()),
                 });
             }
@@ -506,7 +508,9 @@ pub fn reconcile_refined(
             });
             for prop in &ref_edge.properties {
                 commands.push(OntologyCommand::AddProperty {
-                    owner: PropertyOwner::Edge(ref_edge.id.clone()),
+                    owner: PropertyOwner::Edge {
+                        type_id: ref_edge.id.clone(),
+                    },
                     property: Box::new(prop.clone()),
                 });
             }
@@ -609,7 +613,9 @@ fn diff_properties(
     for orig_prop in orig_props {
         if !ref_prop_ids.contains(&*orig_prop.id) {
             commands.push(OntologyCommand::DeleteProperty {
-                owner: PropertyOwner::Node(owner_id.into()),
+                owner: PropertyOwner::Node {
+                    type_id: owner_id.into(),
+                },
                 property_id: orig_prop.id.clone(),
             });
         }
@@ -651,14 +657,18 @@ fn diff_properties(
 
             if has_changes {
                 commands.push(OntologyCommand::UpdateProperty {
-                    owner: PropertyOwner::Node(owner_id.into()),
+                    owner: PropertyOwner::Node {
+                        type_id: owner_id.into(),
+                    },
                     property_id: ref_prop.id.clone(),
                     patch,
                 });
             }
         } else {
             commands.push(OntologyCommand::AddProperty {
-                owner: PropertyOwner::Node(owner_id.into()),
+                owner: PropertyOwner::Node {
+                    type_id: owner_id.into(),
+                },
                 property: Box::new(ref_prop.clone()),
             });
         }
@@ -755,9 +765,9 @@ use super::index_id;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_fixtures::{ontologies_equal, property, test_ontology};
     use ox_core::graph_label::GraphLabel;
     use ox_core::i18n::LocalizedText;
-    use crate::test_fixtures::{ontologies_equal, property, test_ontology};
 
     #[test]
     fn reconcile_preserves_ids_when_llm_keeps_them() {

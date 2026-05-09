@@ -16,18 +16,18 @@ fn find_owner_location(
     owner: &PropertyOwner,
 ) -> Result<OwnerLocation, String> {
     match owner {
-        PropertyOwner::Node(id) => ontology
+        PropertyOwner::Node { type_id } => ontology
             .node_types
             .iter()
-            .position(|n| n.id == *id)
+            .position(|n| n.id == *type_id)
             .map(OwnerLocation::Node)
-            .ok_or_else(|| format!("node '{}' not found", id)),
-        PropertyOwner::Edge(id) => ontology
+            .ok_or_else(|| format!("node '{}' not found", type_id)),
+        PropertyOwner::Edge { type_id } => ontology
             .edge_types
             .iter()
-            .position(|e| e.id == *id)
+            .position(|e| e.id == *type_id)
             .map(OwnerLocation::Edge)
-            .ok_or_else(|| format!("edge '{}' not found", id)),
+            .ok_or_else(|| format!("edge '{}' not found", type_id)),
     }
 }
 
@@ -131,6 +131,22 @@ impl OntologyCommand {
                 })
             }
 
+            // ----- CreateNodeType -----
+            OntologyCommand::CreateNodeType { node } => {
+                if ont.node_types.iter().any(|n| n.id == node.id) {
+                    return Err(format!("node with id '{}' already exists", node.id));
+                }
+                if ont.node_types.iter().any(|n| n.label == node.label) {
+                    return Err(format!("node with label '{}' already exists", node.label));
+                }
+                let node_id = node.id.clone();
+                ont.node_types.push((**node).clone());
+                Ok(CommandResult {
+                    new_ontology: ont,
+                    inverse: OntologyCommand::DeleteNode { node_id },
+                })
+            }
+
             // ----- DeleteNode -----
             OntologyCommand::DeleteNode { node_id } => {
                 let idx = node_index(&ont, node_id)?;
@@ -141,6 +157,20 @@ impl OntologyCommand {
                 ont.edge_types.retain(|e| {
                     if e.source_node_id == *node_id || e.target_node_id == *node_id {
                         removed_edges.push(e.clone());
+                        false
+                    } else {
+                        true
+                    }
+                });
+
+                let removed_edge_ids = removed_edges
+                    .iter()
+                    .map(|edge| edge.id.as_str())
+                    .collect::<std::collections::HashSet<_>>();
+                let mut removed_link_mappings = Vec::new();
+                ont.link_mappings.retain(|mapping| {
+                    if removed_edge_ids.contains(mapping.edge_type_id.as_str()) {
+                        removed_link_mappings.push(mapping.clone());
                         false
                     } else {
                         true
@@ -158,54 +188,46 @@ impl OntologyCommand {
                     }
                 });
 
-                // Build inverse batch: re-add node (with all its properties/constraints) + edges + indexes
-                let mut inverse_commands = Vec::new();
-
-                // Re-add the node
-                inverse_commands.push(OntologyCommand::AddNode {
-                    id: node.id.clone(),
-                    label: node.label.clone(),
-                    description: node.description.clone(),
+                // Collect object mappings bound to this node.
+                let mut removed_object_mappings = Vec::new();
+                ont.object_mappings.retain(|mapping| {
+                    if mapping.node_type_id == *node_id {
+                        removed_object_mappings.push(mapping.clone());
+                        false
+                    } else {
+                        true
+                    }
                 });
 
-                // Re-add properties
-                for prop in &node.properties {
-                    inverse_commands.push(OntologyCommand::AddProperty {
-                        owner: PropertyOwner::Node(node.id.clone()),
-                        property: Box::new(prop.clone()),
-                    });
-                }
+                // Build inverse batch: re-add full node/edge definitions + mappings/indexes.
+                let mut inverse_commands = Vec::new();
 
-                // Re-add constraints
-                for constraint in &node.constraints {
-                    inverse_commands.push(OntologyCommand::AddConstraint {
-                        node_id: node.id.clone(),
-                        constraint: constraint.clone(),
-                    });
-                }
+                inverse_commands.push(OntologyCommand::CreateNodeType {
+                    node: Box::new(node.clone()),
+                });
 
-                // Re-add edges
                 for edge in &removed_edges {
-                    inverse_commands.push(OntologyCommand::AddEdge {
-                        id: edge.id.clone(),
-                        label: edge.label.clone(),
-                        source_node_id: edge.source_node_id.clone(),
-                        target_node_id: edge.target_node_id.clone(),
-                        cardinality: edge.cardinality,
+                    inverse_commands.push(OntologyCommand::CreateEdgeType {
+                        edge: Box::new(edge.clone()),
                     });
-                    // Re-add edge properties
-                    for prop in &edge.properties {
-                        inverse_commands.push(OntologyCommand::AddProperty {
-                            owner: PropertyOwner::Edge(edge.id.clone()),
-                            property: Box::new(prop.clone()),
-                        });
-                    }
                 }
 
                 // Re-add indexes
                 for index in &removed_indexes {
                     inverse_commands.push(OntologyCommand::AddIndex {
                         index: index.clone(),
+                    });
+                }
+
+                // Re-add object mappings after the node and its properties exist.
+                for mapping in &removed_object_mappings {
+                    inverse_commands.push(OntologyCommand::CreateObjectMapping {
+                        mapping: Box::new(mapping.clone()),
+                    });
+                }
+                for mapping in &removed_link_mappings {
+                    inverse_commands.push(OntologyCommand::CreateLinkMapping {
+                        mapping: Box::new(mapping.clone()),
                     });
                 }
 
@@ -256,20 +278,6 @@ impl OntologyCommand {
                     inverse: OntologyCommand::UpdateNodeDescription {
                         node_id: node_id.clone(),
                         description: old_desc,
-                    },
-                })
-            }
-
-            // ----- SetNodeGlossaryAnchors -----
-            OntologyCommand::SetNodeGlossaryAnchors { node_id, anchors } => {
-                let idx = node_index(&ont, node_id)?;
-                let old_anchors = ont.node_types[idx].glossary_anchors.clone();
-                ont.node_types[idx].glossary_anchors = anchors.clone();
-                Ok(CommandResult {
-                    new_ontology: ont,
-                    inverse: OntologyCommand::SetNodeGlossaryAnchors {
-                        node_id: node_id.clone(),
-                        anchors: old_anchors,
                     },
                 })
             }
@@ -327,23 +335,62 @@ impl OntologyCommand {
                 })
             }
 
+            // ----- CreateEdgeType -----
+            OntologyCommand::CreateEdgeType { edge } => {
+                if ont.node_types.iter().all(|n| n.id != edge.source_node_id) {
+                    return Err(format!(
+                        "source node '{}' not found for edge",
+                        edge.source_node_id
+                    ));
+                }
+                if ont.node_types.iter().all(|n| n.id != edge.target_node_id) {
+                    return Err(format!(
+                        "target node '{}' not found for edge",
+                        edge.target_node_id
+                    ));
+                }
+                if ont.edge_types.iter().any(|e| e.id == edge.id) {
+                    return Err(format!("edge with id '{}' already exists", edge.id));
+                }
+                if ont.edge_types.iter().any(|e| {
+                    e.label == edge.label
+                        && e.source_node_id == edge.source_node_id
+                        && e.target_node_id == edge.target_node_id
+                }) {
+                    return Err(format!(
+                        "edge '{}' between '{}' and '{}' already exists",
+                        edge.label, edge.source_node_id, edge.target_node_id
+                    ));
+                }
+                let edge_id = edge.id.clone();
+                ont.edge_types.push((**edge).clone());
+                Ok(CommandResult {
+                    new_ontology: ont,
+                    inverse: OntologyCommand::DeleteEdge { edge_id },
+                })
+            }
+
             // ----- DeleteEdge -----
             OntologyCommand::DeleteEdge { edge_id } => {
                 let idx = edge_index(&ont, edge_id)?;
                 let edge = ont.edge_types.remove(idx);
 
-                // Build inverse: restore edge + its properties
-                let mut inverse_cmds = vec![OntologyCommand::AddEdge {
-                    id: edge.id.clone(),
-                    label: edge.label,
-                    source_node_id: edge.source_node_id,
-                    target_node_id: edge.target_node_id,
-                    cardinality: edge.cardinality,
+                let mut removed_link_mappings = Vec::new();
+                ont.link_mappings.retain(|mapping| {
+                    if mapping.edge_type_id == *edge_id {
+                        removed_link_mappings.push(mapping.clone());
+                        false
+                    } else {
+                        true
+                    }
+                });
+
+                let mut inverse_cmds = vec![OntologyCommand::CreateEdgeType {
+                    edge: Box::new(edge.clone()),
                 }];
-                for prop in edge.properties {
-                    inverse_cmds.push(OntologyCommand::AddProperty {
-                        owner: PropertyOwner::Edge(edge.id.clone()),
-                        property: Box::new(prop),
+                for mapping in &removed_link_mappings {
+                    inverse_cmds.push(OntologyCommand::CreateLinkMapping {
+                        mapping: Box::new(mapping.clone()),
                     });
                 }
 
@@ -424,20 +471,6 @@ impl OntologyCommand {
                 })
             }
 
-            // ----- SetEdgeGlossaryAnchors -----
-            OntologyCommand::SetEdgeGlossaryAnchors { edge_id, anchors } => {
-                let idx = edge_index(&ont, edge_id)?;
-                let old_anchors = ont.edge_types[idx].glossary_anchors.clone();
-                ont.edge_types[idx].glossary_anchors = anchors.clone();
-                Ok(CommandResult {
-                    new_ontology: ont,
-                    inverse: OntologyCommand::SetEdgeGlossaryAnchors {
-                        edge_id: edge_id.clone(),
-                        anchors: old_anchors,
-                    },
-                })
-            }
-
             // ----- AddProperty -----
             OntologyCommand::AddProperty { owner, property } => {
                 let loc = find_owner_location(&ont, owner)?;
@@ -474,27 +507,115 @@ impl OntologyCommand {
                 };
 
                 // Remove constraints referencing this property (only on nodes)
-                if let Some(node) = ont
-                    .node_types
-                    .iter_mut()
-                    .find(|n| n.id.as_ref() == owner.as_str())
+                let mut removed_constraints = Vec::new();
+                if let PropertyOwner::Node { type_id: node_id } = owner
+                    && let Some(node) = ont.node_types.iter_mut().find(|n| n.id == *node_id)
                 {
-                    node.constraints
-                        .retain(|c| !constraint_property_ids(c).contains(&&**property_id));
+                    node.constraints.retain(|constraint| {
+                        if constraint_property_ids(constraint).contains(&&**property_id) {
+                            removed_constraints.push(constraint.clone());
+                            false
+                        } else {
+                            true
+                        }
+                    });
                 }
 
                 // Remove indexes on this owner that reference this property
+                let mut removed_indexes = Vec::new();
                 ont.indexes.retain(|idx| {
-                    !(index_node_id(idx) == owner.as_str()
-                        && index_property_ids(idx).contains(&&**property_id))
+                    if index_node_id(idx) == owner.as_str()
+                        && index_property_ids(idx).contains(&&**property_id)
+                    {
+                        removed_indexes.push(idx.clone());
+                        false
+                    } else {
+                        true
+                    }
                 });
+
+                let mut restore_mapping_commands = Vec::new();
+                if matches!(owner, PropertyOwner::Node { .. }) {
+                    for mapping in &mut ont.object_mappings {
+                        if mapping.node_type_id.as_str() != owner.as_str() {
+                            continue;
+                        }
+
+                        let old_mapping = mapping.clone();
+                        mapping
+                            .property_mappings
+                            .retain(|m| m.property_id != *property_id);
+                        if mapping.property_mappings != old_mapping.property_mappings {
+                            restore_mapping_commands.push(OntologyCommand::UpdateObjectMapping {
+                                id: old_mapping.id.clone(),
+                                mapping: Box::new(old_mapping),
+                            });
+                        }
+                    }
+                }
+
+                let add_property = OntologyCommand::AddProperty {
+                    owner: owner.clone(),
+                    property: Box::new(removed_prop),
+                };
+                let inverse = if restore_mapping_commands.is_empty() {
+                    if removed_constraints.is_empty() && removed_indexes.is_empty() {
+                        add_property
+                    } else {
+                        let mut commands = Vec::with_capacity(
+                            1 + removed_constraints.len() + removed_indexes.len(),
+                        );
+                        commands.push(add_property);
+                        if let PropertyOwner::Node { type_id: node_id } = owner {
+                            for constraint in removed_constraints {
+                                commands.push(OntologyCommand::AddConstraint {
+                                    node_id: node_id.clone(),
+                                    constraint,
+                                });
+                            }
+                        }
+                        for index in removed_indexes {
+                            commands.push(OntologyCommand::AddIndex { index });
+                        }
+                        OntologyCommand::Batch {
+                            description: format!(
+                                "restore deleted property '{}' on '{}'",
+                                property_id, owner
+                            ),
+                            commands,
+                        }
+                    }
+                } else {
+                    let mut commands = Vec::with_capacity(
+                        1 + removed_constraints.len()
+                            + removed_indexes.len()
+                            + restore_mapping_commands.len(),
+                    );
+                    commands.push(add_property);
+                    if let PropertyOwner::Node { type_id: node_id } = owner {
+                        for constraint in removed_constraints {
+                            commands.push(OntologyCommand::AddConstraint {
+                                node_id: node_id.clone(),
+                                constraint,
+                            });
+                        }
+                    }
+                    for index in removed_indexes {
+                        commands.push(OntologyCommand::AddIndex { index });
+                    }
+                    commands.extend(restore_mapping_commands);
+                    OntologyCommand::Batch {
+                        description: format!(
+                            "restore deleted property '{}' on '{}'",
+                            property_id, owner
+                        ),
+                        commands,
+                    }
+                };
 
                 Ok(CommandResult {
                     new_ontology: ont,
-                    inverse: OntologyCommand::AddProperty {
-                        owner: owner.clone(),
-                        property: Box::new(removed_prop),
-                    },
+                    inverse,
                 })
             }
 
@@ -643,10 +764,7 @@ impl OntologyCommand {
             // ----- CreateObjectMapping -----
             OntologyCommand::CreateObjectMapping { mapping } => {
                 if ont.object_mappings.iter().any(|m| m.id == mapping.id) {
-                    return Err(format!(
-                        "object mapping '{}' already exists",
-                        mapping.id
-                    ));
+                    return Err(format!("object mapping '{}' already exists", mapping.id));
                 }
                 let mapping_id = mapping.id.clone();
                 ont.object_mappings.push((**mapping).clone());
@@ -658,15 +776,18 @@ impl OntologyCommand {
 
             // ----- UpdateObjectMapping -----
             OntologyCommand::UpdateObjectMapping { id, mapping } => {
+                if mapping.id != *id {
+                    return Err(format!(
+                        "update object mapping id mismatch: payload '{}' does not match path '{}'",
+                        mapping.id, id
+                    ));
+                }
                 let idx = ont
                     .object_mappings
                     .iter()
                     .position(|m| m.id == *id)
                     .ok_or_else(|| format!("object mapping '{}' not found", id))?;
-                let old = std::mem::replace(
-                    &mut ont.object_mappings[idx],
-                    (**mapping).clone(),
-                );
+                let old = std::mem::replace(&mut ont.object_mappings[idx], (**mapping).clone());
                 Ok(CommandResult {
                     new_ontology: ont,
                     inverse: OntologyCommand::UpdateObjectMapping {
@@ -687,6 +808,58 @@ impl OntologyCommand {
                 Ok(CommandResult {
                     new_ontology: ont,
                     inverse: OntologyCommand::CreateObjectMapping {
+                        mapping: Box::new(removed),
+                    },
+                })
+            }
+
+            // ----- CreateLinkMapping -----
+            OntologyCommand::CreateLinkMapping { mapping } => {
+                if ont.link_mappings.iter().any(|m| m.id == mapping.id) {
+                    return Err(format!("link mapping '{}' already exists", mapping.id));
+                }
+                let mapping_id = mapping.id.clone();
+                ont.link_mappings.push((**mapping).clone());
+                Ok(CommandResult {
+                    new_ontology: ont,
+                    inverse: OntologyCommand::DeleteLinkMapping { id: mapping_id },
+                })
+            }
+
+            // ----- UpdateLinkMapping -----
+            OntologyCommand::UpdateLinkMapping { id, mapping } => {
+                if mapping.id != *id {
+                    return Err(format!(
+                        "update link mapping id mismatch: payload '{}' does not match path '{}'",
+                        mapping.id, id
+                    ));
+                }
+                let idx = ont
+                    .link_mappings
+                    .iter()
+                    .position(|m| m.id == *id)
+                    .ok_or_else(|| format!("link mapping '{}' not found", id))?;
+                let old = std::mem::replace(&mut ont.link_mappings[idx], (**mapping).clone());
+                Ok(CommandResult {
+                    new_ontology: ont,
+                    inverse: OntologyCommand::UpdateLinkMapping {
+                        id: id.clone(),
+                        mapping: Box::new(old),
+                    },
+                })
+            }
+
+            // ----- DeleteLinkMapping -----
+            OntologyCommand::DeleteLinkMapping { id } => {
+                let idx = ont
+                    .link_mappings
+                    .iter()
+                    .position(|m| m.id == *id)
+                    .ok_or_else(|| format!("link mapping '{}' not found", id))?;
+                let removed = ont.link_mappings.remove(idx);
+                Ok(CommandResult {
+                    new_ontology: ont,
+                    inverse: OntologyCommand::CreateLinkMapping {
                         mapping: Box::new(removed),
                     },
                 })

@@ -1,11 +1,10 @@
 //! Business-glossary terms and taxonomies.
 //!
-//! A glossary lets the platform record *what* a property means in
-//! domain language — separately from the technical ontology shape.
-//! Two properties both typed as `String` can be distinguished as
-//! "customer email" vs "support inbox" through the glossary term
-//! they link to, even if the ontology's `PropertyDef` looks
-//! identical across implementations.
+//! A glossary lets the platform record domain language separately
+//! from the technical ontology shape. Business concepts own the
+//! semantic identity; glossary terms provide the preferred labels,
+//! aliases, descriptions, examples, and taxonomy edges that make
+//! those concepts usable across locales and source-system wording.
 //!
 //! The data model follows W3C SKOS Core + SKOS-XL + OMG SBVR. Each
 //! `GlossaryTermDef` carries:
@@ -130,11 +129,57 @@ pub struct GlossaryTermDef {
     /// validator rejects an anchor that doesn't resolve.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub concept_id: Option<crate::concept::ConceptId>,
+
+    /// POS hint for the morphological tokenizer's user
+    /// dictionary. Φ-text substrate compiles every Active term
+    /// into a lindera user-dict CSV row keyed by surface; the
+    /// POS field controls how lindera segments adjacent text
+    /// against the term. Default [`TermPos::Auto`] derives the
+    /// tag from the surface's script (Korean → Compound,
+    /// English-only → Foreign, mixed → Compound) — operator
+    /// overrides per term when the heuristic misclassifies
+    /// (e.g. a verb-form term `재인증하다` needs explicit
+    /// [`TermPos::Verb`]).
+    #[serde(default)]
+    pub term_pos: TermPos,
 }
 
-/// Executable realisation of a glossary term that names a business
-/// concept — how the runtime decides membership / value at query
-/// time.
+/// Closed POS surface the platform emits to lindera user
+/// dictionaries. Mirrors the subset of mecab-ko-dic tags the
+/// `ox-text` indexable-POS filter retains; emitting a non-keep
+/// tag would silently drop the dict entry at query time.
+///
+/// `Auto` is the default — script-based heuristic lets
+/// operators add terms without thinking about POS unless they
+/// hit the rare misclassification edge.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash,
+    Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum TermPos {
+    /// Heuristic from surface script (default).
+    #[default]
+    Auto,
+    /// Common noun (NNG).
+    Noun,
+    /// Proper noun (NNP).
+    ProperNoun,
+    /// Verb stem (VV) — for terms like `재인증하다` that act
+    /// verbally in Korean text.
+    Verb,
+    /// Adjective stem (VA).
+    Adjective,
+    /// Foreign word / loanword (SL) — pure ASCII alphanumeric
+    /// terms, technical acronyms, brand names.
+    Foreign,
+    /// Compound noun (NNG with multi-token surface) — mixed
+    /// Korean + non-Korean compounds like `OAuth2 인증`.
+    Compound,
+}
+
+/// Executable realisation of a business concept — how the runtime
+/// decides membership / value at query time.
 ///
 /// `Segment` is the canonical case: "Active Customer = Customer whose
 /// last_order < 90 days" lowers to a `SegmentDef`. `Function` covers
@@ -173,9 +218,7 @@ pub enum TermRealisation {
 /// authored separately when both directions are meaningful — a
 /// `Broader → t-parent` lives on the child term, and the parent
 /// carries `Narrower → t-child` on its own list.
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct TermRelation {
     pub kind: TermRelationKind,
     pub target: GlossaryTermId,
@@ -263,7 +306,10 @@ pub enum TermOrigin {
     /// Imported from an external catalogue (Collibra, Atlan, …). The
     /// catalogue identifier lets a future re-sync match terms back
     /// to their upstream record.
-    ImportedFrom { catalog: String, external_id: Option<String> },
+    ImportedFrom {
+        catalog: String,
+        external_id: Option<String>,
+    },
 }
 
 /// One entry in a term's append-only change log.
@@ -444,7 +490,8 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: TermLifecycle::default(),
-        concept_id: None,
+            concept_id: None,
+            term_pos: Default::default(),
         }
     }
 
@@ -533,10 +580,7 @@ mod tests {
     #[test]
     fn glossary_term_roundtrips_through_json() {
         let mut t = term("t-1", "Customer");
-        t.aliases = vec![
-            LocalizedText::new("Client"),
-            LocalizedText::new("Buyer"),
-        ];
+        t.aliases = vec![LocalizedText::new("Client"), LocalizedText::new("Buyer")];
         t.category = Some("business_concept".into());
         t.governance.origin = TermOrigin::DerivedFromColumn {
             table: "customers".into(),

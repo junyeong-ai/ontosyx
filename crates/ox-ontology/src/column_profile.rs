@@ -102,7 +102,7 @@ pub fn profile_to_column_defs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ox_core::source_schema::{TableProfile};
+    use ox_core::source_schema::TableProfile;
 
     #[test]
     fn make_id_is_deterministic() {

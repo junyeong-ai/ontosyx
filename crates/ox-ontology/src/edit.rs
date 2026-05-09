@@ -4,9 +4,9 @@
 //! (and carries a Bedrock-compatible flat JsonSchema), this module's
 //! [`OntologyEditOp`] is the fine-grained taxonomy the admin API
 //! writes through: per-entity Create / Update / Delete across the
-//! Phase-5B governance collections (CodeSystem, GlossaryTerm,
-//! ObjectMapping / LinkMapping, NotationPattern, ConceptMap,
-//! ValueSet).
+//! Phase-5B governance collections (CodeSystem, Concept,
+//! GlossaryTerm, ObjectMapping / LinkMapping, NotationPattern,
+//! ConceptMap, ValueSet).
 //!
 //! The split exists because the two audiences want different
 //! strengths:
@@ -32,8 +32,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::action::RuleId;
 use crate::change_routing::ChangeType;
 use crate::code_system::{CodeSystemDef, CodeSystemId, CodedValue, CodedValueId};
+use crate::concept::{ConceptDef, ConceptId};
 use crate::concept_map::{ConceptMapDef, ConceptMapId};
 use crate::glossary::{GlossaryTermDef, GlossaryTermId};
 use crate::ir::{EdgeTypeId, NodeTypeId, OntologyIR, PropertyId};
@@ -41,7 +43,6 @@ use crate::mapping::link::LinkMappingDef;
 use crate::mapping::object::ObjectMappingDef;
 use crate::mapping::refs::{LinkMappingId, ObjectMappingId};
 use crate::notation_pattern::{NotationPatternDef, NotationPatternId};
-use crate::action::RuleId;
 use crate::rule::RuleDef;
 use crate::value_set::{ValueSetDef, ValueSetId};
 
@@ -88,6 +89,18 @@ pub enum OntologyEditOp {
     DeleteCodedValue {
         code_system_id: CodeSystemId,
         id: CodedValueId,
+    },
+
+    // --- Concept ---
+    CreateConcept {
+        def: ConceptDef,
+    },
+    UpdateConcept {
+        id: ConceptId,
+        def: ConceptDef,
+    },
+    DeleteConcept {
+        id: ConceptId,
     },
 
     // --- GlossaryTerm ---
@@ -215,8 +228,7 @@ pub enum OntologyEditOp {
 
     // --- Property → registry bindings ---
     //
-    // These variants write single-field pointers on PropertyDef
-    // (`glossary_term_id`, `value_set_id`, `notation_pattern_id`).
+    // These variants write semantic bindings on PropertyDef.
     /// Append a [`PropertyBinding`] to the named property. If a
     /// binding with the same target already exists it is replaced
     /// (so the call is idempotent on `target` identity, not on the
@@ -240,12 +252,9 @@ pub enum OntologyEditOp {
 impl OntologyEditOp {
     /// Map this edit to its `ChangeType` for routing. The mapping is
     /// deliberately many-to-one: every CodedValue lifecycle op lands
-    /// on `CodedValueCreate` or `CodedValueDeprecate` (the matrix
-    /// row), and every terminology CRUD on Glossary / NotationPattern
-    /// / ObjectMapping etc. lands on its matrix row. ConceptMap +
-    /// ValueSet classify as `GlossaryTermCreate` for now — they share
-    /// the "terminology edit" risk class with the matrix row until the
-    /// patent adds dedicated rows for them.
+    /// on `CodedValueCreate` or `CodedValueDeprecate`, terminology
+    /// registry CRUD lands on `TerminologyRegistryUpdate`, and
+    /// property-level semantic links land on `SemanticBindingUpdate`.
     pub fn classify_change_type(&self) -> ChangeType {
         match self {
             Self::CreateCodeSystem { .. } | Self::UpdateCodeSystem { .. } => {
@@ -258,10 +267,12 @@ impl OntologyEditOp {
             }
             Self::DeleteCodedValue { .. } => ChangeType::CodedValueDeprecate,
 
-            Self::CreateGlossaryTerm { .. } | Self::UpdateGlossaryTerm { .. } => {
-                ChangeType::GlossaryTermCreate
-            }
-            Self::DeleteGlossaryTerm { .. } => ChangeType::GlossaryAliasAdd,
+            Self::CreateConcept { .. }
+            | Self::UpdateConcept { .. }
+            | Self::DeleteConcept { .. }
+            | Self::CreateGlossaryTerm { .. }
+            | Self::UpdateGlossaryTerm { .. }
+            | Self::DeleteGlossaryTerm { .. } => ChangeType::TerminologyRegistryUpdate,
 
             Self::CreateObjectMapping { .. }
             | Self::UpdateObjectMapping { .. }
@@ -279,15 +290,10 @@ impl OntologyEditOp {
             | Self::DeleteConceptMap { .. }
             | Self::CreateValueSet { .. }
             | Self::UpdateValueSet { .. }
-            | Self::DeleteValueSet { .. } => ChangeType::GlossaryTermCreate,
+            | Self::DeleteValueSet { .. } => ChangeType::TerminologyRegistryUpdate,
 
-            // Property-level registry bindings route as
-            // `GlossaryAliasAdd` (70% auto per patent matrix). The
-            // data semantics are identical to adding / removing an
-            // alias on a glossary term — the pointer is a reach
-            // extension, not a structural edit.
             Self::BindProperty { .. } | Self::UnbindProperty { .. } => {
-                ChangeType::GlossaryAliasAdd
+                ChangeType::SemanticBindingUpdate
             }
 
             // Type deprecation is the exact matrix row for
@@ -352,9 +358,10 @@ impl OntologyEditOp {
 impl OntologyEditOp {
     pub fn apply_to(&self, ir: &mut OntologyIR) -> Result<(), String> {
         match self.clone() {
-            Self::CreateCodeSystem { def } => {
-                ir.add_code_system(def).map(|_| ()).map_err(|e| e.to_string())
-            }
+            Self::CreateCodeSystem { def } => ir
+                .add_code_system(def)
+                .map(|_| ())
+                .map_err(|e| e.to_string()),
             Self::UpdateCodeSystem { id, def } => {
                 if def.id != id {
                     return Err(format!(
@@ -363,8 +370,9 @@ impl OntologyEditOp {
                         id.as_str(),
                     ));
                 }
-                ir.remove_code_system(&id).map_err(|e| e.to_string())?;
-                ir.add_code_system(def).map(|_| ()).map_err(|e| e.to_string())
+                ir.replace_code_system(&id, def)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
             }
             Self::DeleteCodeSystem { id } => ir
                 .remove_code_system(&id)
@@ -386,8 +394,9 @@ impl OntologyEditOp {
                 codes.push(value);
                 let mut new_cs = cs;
                 new_cs.codes = codes;
-                ir.remove_code_system(&code_system_id).map_err(|e| e.to_string())?;
-                ir.add_code_system(new_cs).map(|_| ()).map_err(|e| e.to_string())
+                ir.replace_code_system(&code_system_id, new_cs)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
             }
             Self::UpdateCodedValue {
                 code_system_id,
@@ -413,13 +422,11 @@ impl OntologyEditOp {
                 codes[pos] = value;
                 let mut new_cs = cs;
                 new_cs.codes = codes;
-                ir.remove_code_system(&code_system_id).map_err(|e| e.to_string())?;
-                ir.add_code_system(new_cs).map(|_| ()).map_err(|e| e.to_string())
+                ir.replace_code_system(&code_system_id, new_cs)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
             }
-            Self::DeleteCodedValue {
-                code_system_id,
-                id,
-            } => {
+            Self::DeleteCodedValue { code_system_id, id } => {
                 let cs = ir
                     .code_system_by_id(&code_system_id)
                     .ok_or_else(|| format!("code_system {} not found", code_system_id.as_str()))?
@@ -432,13 +439,35 @@ impl OntologyEditOp {
                 }
                 let mut new_cs = cs;
                 new_cs.codes = codes;
-                ir.remove_code_system(&code_system_id).map_err(|e| e.to_string())?;
-                ir.add_code_system(new_cs).map(|_| ()).map_err(|e| e.to_string())
+                ir.replace_code_system(&code_system_id, new_cs)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
             }
 
-            Self::CreateGlossaryTerm { def } => {
-                ir.add_glossary_term(def).map(|_| ()).map_err(|e| e.to_string())
+            Self::CreateConcept { def } => {
+                ir.add_concept(def).map(|_| ()).map_err(|e| e.to_string())
             }
+            Self::UpdateConcept { id, def } => {
+                if def.id != id {
+                    return Err(format!(
+                        "update_concept: def.id ({}) does not match path id ({})",
+                        def.id.as_str(),
+                        id.as_str(),
+                    ));
+                }
+                ir.replace_concept(&id, def)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            }
+            Self::DeleteConcept { id } => ir
+                .remove_concept(&id)
+                .map(|_| ())
+                .map_err(|e| e.to_string()),
+
+            Self::CreateGlossaryTerm { def } => ir
+                .add_glossary_term(def)
+                .map(|_| ())
+                .map_err(|e| e.to_string()),
             Self::UpdateGlossaryTerm { id, def } => {
                 if def.id != id {
                     return Err(format!(
@@ -447,8 +476,9 @@ impl OntologyEditOp {
                         id.as_str(),
                     ));
                 }
-                ir.remove_glossary_term(&id).map_err(|e| e.to_string())?;
-                ir.add_glossary_term(def).map(|_| ()).map_err(|e| e.to_string())
+                ir.replace_glossary_term(&id, def)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
             }
             Self::DeleteGlossaryTerm { id } => ir
                 .remove_glossary_term(&id)
@@ -467,8 +497,9 @@ impl OntologyEditOp {
                         id.as_str(),
                     ));
                 }
-                ir.remove_object_mapping(&id).map_err(|e| e.to_string())?;
-                ir.add_object_mapping(mapping).map(|_| ()).map_err(|e| e.to_string())
+                ir.replace_object_mapping(&id, mapping)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
             }
             Self::DeleteObjectMapping { id } => ir
                 .remove_object_mapping(&id)
@@ -487,8 +518,9 @@ impl OntologyEditOp {
                         id.as_str(),
                     ));
                 }
-                ir.remove_link_mapping(&id).map_err(|e| e.to_string())?;
-                ir.add_link_mapping(mapping).map(|_| ()).map_err(|e| e.to_string())
+                ir.replace_link_mapping(&id, mapping)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
             }
             Self::DeleteLinkMapping { id } => ir
                 .remove_link_mapping(&id)
@@ -507,8 +539,9 @@ impl OntologyEditOp {
                         id.as_str(),
                     ));
                 }
-                ir.remove_notation_pattern(&id).map_err(|e| e.to_string())?;
-                ir.add_notation_pattern(def).map(|_| ()).map_err(|e| e.to_string())
+                ir.replace_notation_pattern(&id, def)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
             }
             Self::DeleteNotationPattern { id } => ir
                 .remove_notation_pattern(&id)
@@ -527,18 +560,18 @@ impl OntologyEditOp {
                         id.as_str(),
                     ));
                 }
-                ir.remove_concept_map(&id).map_err(|e| e.to_string())?;
-                ir.add_concept_map(def).map(|_| ()).map_err(|e| e.to_string())
+                ir.replace_concept_map(&id, def)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
             }
             Self::DeleteConceptMap { id } => ir
                 .remove_concept_map(&id)
                 .map(|_| ())
                 .map_err(|e| e.to_string()),
 
-            Self::CreateValueSet { def } => ir
-                .add_value_set(def)
-                .map(|_| ())
-                .map_err(|e| e.to_string()),
+            Self::CreateValueSet { def } => {
+                ir.add_value_set(def).map(|_| ()).map_err(|e| e.to_string())
+            }
             Self::UpdateValueSet { id, def } => {
                 if def.id != id {
                     return Err(format!(
@@ -547,17 +580,16 @@ impl OntologyEditOp {
                         id.as_str(),
                     ));
                 }
-                ir.remove_value_set(&id).map_err(|e| e.to_string())?;
-                ir.add_value_set(def).map(|_| ()).map_err(|e| e.to_string())
+                ir.replace_value_set(&id, def)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
             }
             Self::DeleteValueSet { id } => ir
                 .remove_value_set(&id)
                 .map(|_| ())
                 .map_err(|e| e.to_string()),
 
-            Self::CreateRule { def } => {
-                ir.add_rule(def).map(|_| ()).map_err(|e| e.to_string())
-            }
+            Self::CreateRule { def } => ir.add_rule(def).map(|_| ()).map_err(|e| e.to_string()),
             Self::UpdateRule { id, def } => {
                 if def.id != id {
                     return Err(format!(
@@ -566,13 +598,11 @@ impl OntologyEditOp {
                         id.as_str(),
                     ));
                 }
-                ir.remove_rule(&id).map_err(|e| e.to_string())?;
-                ir.add_rule(def).map(|_| ()).map_err(|e| e.to_string())
+                ir.replace_rule(&id, def)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
             }
-            Self::DeleteRule { id } => ir
-                .remove_rule(&id)
-                .map(|_| ())
-                .map_err(|e| e.to_string()),
+            Self::DeleteRule { id } => ir.remove_rule(&id).map(|_| ()).map_err(|e| e.to_string()),
 
             Self::BindProperty {
                 owner,
@@ -583,9 +613,7 @@ impl OntologyEditOp {
                 // otherwise. Strength / window / concept-map fields
                 // ride along.
                 let handle = binding.handle();
-                if let Some(slot) =
-                    p.bindings.iter_mut().find(|b| b.handle() == handle)
-                {
+                if let Some(slot) = p.bindings.iter_mut().find(|b| b.handle() == handle) {
                     *slot = binding;
                 } else {
                     p.bindings.push(binding);
@@ -786,7 +814,54 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: crate::glossary::TermLifecycle::default(),
-        concept_id: None,
+            concept_id: None,
+            term_pos: Default::default(),
+        }
+    }
+
+    fn bare_concept(id: &str, term_id: &str) -> ConceptDef {
+        ConceptDef {
+            id: ConceptId::new(id),
+            canonical_term_id: GlossaryTermId::new(term_id),
+            alias_term_ids: Vec::new(),
+            broader: None,
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: crate::concept::ConceptGovernance::default(),
+        }
+    }
+
+    fn bare_object_mapping(id: &str, relation: &str) -> ObjectMappingDef {
+        ObjectMappingDef::new(id, "Customer", "pg-main", relation)
+    }
+
+    fn bare_link_mapping(id: &str, predicate: &str) -> LinkMappingDef {
+        use crate::mapping::{
+            EndpointRef, JoinCostHint, LinkCardinality, LinkMappingKind, SourceId,
+        };
+
+        let endpoint = EndpointRef {
+            source_id: SourceId::new("pg-main"),
+            relation: "customers".to_string(),
+            key_columns: vec!["id".to_string()],
+        };
+        LinkMappingDef {
+            id: LinkMappingId::new(id),
+            edge_type_id: EdgeTypeId::new("KNOWS"),
+            kind: LinkMappingKind::Computed {
+                predicate: predicate.to_string(),
+            },
+            source_endpoint: endpoint.clone(),
+            target_endpoint: endpoint,
+            join_cost_hint: JoinCostHint::Unknown,
+            precedence: 0,
+            cardinality: LinkCardinality::ManyToMany,
         }
     }
 
@@ -795,6 +870,9 @@ mod tests {
         let ops = [
             OntologyEditOp::CreateCodeSystem {
                 def: bare_code_system("cs"),
+            },
+            OntologyEditOp::CreateConcept {
+                def: bare_concept("c-term", "g"),
             },
             OntologyEditOp::CreateGlossaryTerm {
                 def: bare_glossary_term("g", "term"),
@@ -901,11 +979,18 @@ mod tests {
             ChangeType::CodedValueDeprecate
         );
         assert_eq!(
+            OntologyEditOp::CreateConcept {
+                def: bare_concept("c-g", "g"),
+            }
+            .classify_change_type(),
+            ChangeType::TerminologyRegistryUpdate
+        );
+        assert_eq!(
             OntologyEditOp::CreateGlossaryTerm {
                 def: bare_glossary_term("g", "t"),
             }
             .classify_change_type(),
-            ChangeType::GlossaryTermCreate
+            ChangeType::TerminologyRegistryUpdate
         );
         assert_eq!(
             OntologyEditOp::BindProperty {
@@ -913,10 +998,12 @@ mod tests {
                     type_id: NodeTypeId::new("Customer"),
                 },
                 property_id: PropertyId::new("tier"),
-                binding: crate::binding::PropertyBinding::glossary(GlossaryTermId::new("vip"),),
+                binding: crate::binding::PropertyBinding::concept(crate::concept::ConceptId::new(
+                    "vip"
+                ),),
             }
             .classify_change_type(),
-            ChangeType::GlossaryAliasAdd
+            ChangeType::SemanticBindingUpdate
         );
     }
 
@@ -934,6 +1021,7 @@ mod tests {
     }
 
     fn sample_ir_with_property() -> OntologyIR {
+        use crate::concept::{ConceptDef, ConceptGovernance, ConceptId};
         use crate::ir::NodeTypeDef;
         let node = NodeTypeDef {
             id: NodeTypeId::new("Customer"),
@@ -950,13 +1038,168 @@ mod tests {
             Vec::new(),
             Vec::new(),
         );
-        ir.add_glossary_term(bare_glossary_term("vip", "VIP"))
+        let mut term = bare_glossary_term("vip", "VIP");
+        term.concept_id = Some(ConceptId::new("c-vip"));
+        ir.add_glossary_term(term).unwrap();
+        ir.add_concept(ConceptDef {
+            id: ConceptId::new("c-vip"),
+            canonical_term_id: GlossaryTermId::new("vip"),
+            alias_term_ids: Vec::new(),
+            broader: None,
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: ConceptGovernance::default(),
+        })
+        .unwrap();
+        ir
+    }
+
+    fn concept_binding(id: &str) -> crate::binding::PropertyBinding {
+        crate::binding::PropertyBinding::concept(crate::concept::ConceptId::new(id))
+    }
+
+    fn sample_ir_with_concepts() -> OntologyIR {
+        let mut ir = OntologyIR::new(
+            "ont-test".to_string(),
+            "Test".to_string(),
+            LocalizedText::default(),
+            1,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        for (term_id, label, concept_id) in [
+            ("gt-party", "Party", "c-party"),
+            ("gt-customer", "Customer", "c-customer"),
+            ("gt-client", "Client", "c-client"),
+        ] {
+            let mut term = bare_glossary_term(term_id, label);
+            term.concept_id = Some(ConceptId::new(concept_id));
+            ir.add_glossary_term(term).unwrap();
+        }
+        ir.add_concept(bare_concept("c-party", "gt-party")).unwrap();
+        let mut customer = bare_concept("c-customer", "gt-customer");
+        customer.broader = Some(ConceptId::new("c-party"));
+        ir.add_concept(customer).unwrap();
+        ir.add_concept(bare_concept("c-client", "gt-client"))
             .unwrap();
         ir
     }
 
-    fn glossary_binding(id: &str) -> crate::binding::PropertyBinding {
-        crate::binding::PropertyBinding::glossary(GlossaryTermId::new(id),)
+    #[test]
+    fn create_concept_op_adds_registry_concept() {
+        let mut ir = OntologyIR::new(
+            "ont-test".to_string(),
+            "Test".to_string(),
+            LocalizedText::default(),
+            1,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        let mut term = bare_glossary_term("gt-customer", "Customer");
+        term.concept_id = Some(ConceptId::new("c-customer"));
+        ir.add_glossary_term(term).unwrap();
+
+        OntologyEditOp::CreateConcept {
+            def: bare_concept("c-customer", "gt-customer"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+
+        assert_eq!(
+            ir.concept_by_id(&ConceptId::new("c-customer"))
+                .unwrap()
+                .canonical_term_id
+                .as_str(),
+            "gt-customer"
+        );
+    }
+
+    #[test]
+    fn update_concept_op_uses_atomic_replace() {
+        let mut ir = sample_ir_with_concepts();
+        let mut replacement = bare_concept("c-party", "gt-party");
+        replacement.broader = Some(ConceptId::new("c-customer"));
+
+        let err = OntologyEditOp::UpdateConcept {
+            id: ConceptId::new("c-party"),
+            def: replacement,
+        }
+        .apply_to(&mut ir)
+        .unwrap_err();
+
+        assert!(err.contains("concept.broader.cycle"));
+        assert!(
+            ir.concept_by_id(&ConceptId::new("c-party"))
+                .unwrap()
+                .broader
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn delete_concept_op_rejects_referenced_concept() {
+        let mut ir = sample_ir_with_concepts();
+
+        let err = OntologyEditOp::DeleteConcept {
+            id: ConceptId::new("c-party"),
+        }
+        .apply_to(&mut ir)
+        .unwrap_err();
+
+        assert!(err.contains("concept.in_use_by_glossary_term"));
+        assert!(ir.concept_by_id(&ConceptId::new("c-party")).is_some());
+    }
+
+    #[test]
+    fn update_object_mapping_uses_atomic_replace() {
+        let mut ir = sample_ir_with_property();
+        OntologyEditOp::CreateObjectMapping {
+            mapping: bare_object_mapping("om-customer", "customers"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+
+        OntologyEditOp::UpdateObjectMapping {
+            id: ObjectMappingId::new("om-customer"),
+            mapping: bare_object_mapping("om-customer", "crm_customers"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+
+        assert_eq!(ir.object_mappings().len(), 1);
+        assert_eq!(ir.object_mappings()[0].relation, "crm_customers");
+    }
+
+    #[test]
+    fn update_link_mapping_uses_atomic_replace() {
+        let mut ir = sample_ir_with_property();
+        OntologyEditOp::CreateLinkMapping {
+            mapping: bare_link_mapping("lm-knows", "a.id = b.id"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+
+        OntologyEditOp::UpdateLinkMapping {
+            id: LinkMappingId::new("lm-knows"),
+            mapping: bare_link_mapping("lm-knows", "a.manager_id = b.id"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+
+        assert_eq!(ir.link_mappings().len(), 1);
+        assert!(matches!(
+            &ir.link_mappings()[0].kind,
+            crate::mapping::LinkMappingKind::Computed { predicate }
+                if predicate == "a.manager_id = b.id"
+        ));
     }
 
     #[test]
@@ -967,12 +1210,12 @@ mod tests {
                 type_id: NodeTypeId::new("Customer"),
             },
             property_id: PropertyId::new("p-tier"),
-            binding: glossary_binding("vip"),
+            binding: concept_binding("c-vip"),
         }
         .apply_to(&mut ir)
         .unwrap();
         let prop = &ir.node_types()[0].properties[0];
-        assert_eq!(prop.glossary_term_id().unwrap().as_str(), "vip");
+        assert_eq!(prop.concept_id().unwrap().as_str(), "c-vip");
     }
 
     #[test]
@@ -983,7 +1226,7 @@ mod tests {
                 type_id: NodeTypeId::new("Customer"),
             },
             property_id: PropertyId::new("p-tier"),
-            binding: glossary_binding("vip"),
+            binding: concept_binding("c-vip"),
         }
         .apply_to(&mut ir)
         .unwrap();
@@ -992,13 +1235,13 @@ mod tests {
                 type_id: NodeTypeId::new("Customer"),
             },
             property_id: PropertyId::new("p-tier"),
-            target: crate::binding::PropertyBindingHandle::Glossary {
-                id: GlossaryTermId::new("vip"),
+            target: crate::binding::PropertyBindingHandle::Concept {
+                id: crate::concept::ConceptId::new("c-vip"),
             },
         }
         .apply_to(&mut ir)
         .unwrap();
-        assert!(ir.node_types()[0].properties[0].glossary_term_id().is_none());
+        assert!(ir.node_types()[0].properties[0].concept_id().is_none());
     }
 
     #[test]
@@ -1009,7 +1252,7 @@ mod tests {
                 type_id: NodeTypeId::new("Customer"),
             },
             property_id: PropertyId::new("p-missing"),
-            binding: glossary_binding("vip"),
+            binding: concept_binding("c-vip"),
         }
         .apply_to(&mut ir)
         .unwrap_err();
@@ -1033,10 +1276,7 @@ mod tests {
         let node = &ir.node_types()[0];
         let ts = node.deprecated_at.expect("deprecated_at set");
         assert!(ts >= before);
-        assert_eq!(
-            node.replaced_by_id.as_ref().unwrap().as_str(),
-            "CustomerV2"
-        );
+        assert_eq!(node.replaced_by_id.as_ref().unwrap().as_str(), "CustomerV2");
     }
 
     #[test]
@@ -1117,7 +1357,7 @@ mod tests {
             constraints: Vec::new(),
             valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         }
     }
 
@@ -1254,7 +1494,7 @@ mod tests {
                 type_id: NodeTypeId::new("Customer"),
             },
             property_id: PropertyId::new("tier"),
-            binding: glossary_binding("vip"),
+            binding: concept_binding("c-vip"),
         };
         let j = serde_json::to_string(&op).unwrap();
         assert!(j.contains("\"op\":\"bind_property\""));
@@ -1264,7 +1504,7 @@ mod tests {
         // binding variant discriminator (PropertyBinding is a tagged
         // enum on `kind`, with the binding kind under "binding"):
         assert!(j.contains("\"binding\""));
-        assert!(j.contains("\"kind\":\"glossary\""));
-        assert!(j.contains("\"id\":\"vip\""));
+        assert!(j.contains("\"kind\":\"concept\""));
+        assert!(j.contains("\"id\":\"c-vip\""));
     }
 }

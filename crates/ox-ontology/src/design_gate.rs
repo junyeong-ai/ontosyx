@@ -28,16 +28,12 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::source_analysis::{
-    DesignOptions, LARGE_SCHEMA_GATE_THRESHOLD, SourceAnalysisReport,
-};
+use crate::source_analysis::{DesignOptions, LARGE_SCHEMA_GATE_THRESHOLD, SourceAnalysisReport};
 
 /// Stable identifier for a single gate the operator must satisfy
 /// before invoking the design action. New variants are additive —
 /// the FE i18n catalogue keys gate copy by `GateId`.
-#[derive(
-    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, utoipa::ToSchema,
-)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum GateId {
     /// Every column the analyzer flagged as ambiguous has either an
@@ -61,9 +57,7 @@ impl GateId {
     }
 }
 
-#[derive(
-    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, utoipa::ToSchema,
-)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum GateStatus {
     Met,
@@ -127,9 +121,10 @@ pub fn evaluate_design_gates(
             .ambiguous_columns
             .iter()
             .filter(|a| {
-                !options.column_clarifications.iter().any(|e| {
-                    e.table == a.column.relation && e.column == a.column.column
-                })
+                !options
+                    .column_clarifications
+                    .iter()
+                    .any(|e| e.table == a.column.relation && e.column == a.column.column)
             })
             .count();
         let status = if pending == 0 {
@@ -163,10 +158,7 @@ pub fn evaluate_design_gates(
                 true,
                 "review-partial-acknowledgement",
             )
-            .with_param(
-                "warning_count",
-                report.analysis_warnings.len().to_string(),
-            ),
+            .with_param("warning_count", report.analysis_warnings.len().to_string()),
         );
     }
 

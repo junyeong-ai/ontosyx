@@ -71,36 +71,88 @@ pub struct DependencyBucket {
 /// serialise the whole shape over the wire without depending on
 /// the per-id wrapper types.
 #[derive(
-    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    JsonSchema,
     utoipa::ToSchema,
 )]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SchemaEntityRef {
-    NodeType { id: String },
-    EdgeType { id: String },
+    NodeType {
+        id: String,
+    },
+    EdgeType {
+        id: String,
+    },
     /// `owner` is the parent NodeType or EdgeType id; `id` is the
     /// PropertyId. Properties are nested entities — the owner
     /// disambiguates same-named properties on different parents.
-    Property { owner: String, id: String },
-    Interface { id: String },
-    GlossaryTerm { id: String },
-    ValueSet { id: String },
-    CodeSystem { id: String },
-    NotationPattern { id: String },
-    ValueRangeSet { id: String },
-    Rule { id: String },
-    Function { id: String },
-    Metric { id: String },
-    Action { id: String },
-    Enrichment { id: String },
-    ObjectMapping { id: String },
-    LinkMapping { id: String },
-    ConceptMap { id: String },
-    DataQuality { id: String },
+    Property {
+        owner: String,
+        id: String,
+    },
+    Interface {
+        id: String,
+    },
+    Concept {
+        id: String,
+    },
+    GlossaryTerm {
+        id: String,
+    },
+    ValueSet {
+        id: String,
+    },
+    CodeSystem {
+        id: String,
+    },
+    NotationPattern {
+        id: String,
+    },
+    ValueRangeSet {
+        id: String,
+    },
+    Rule {
+        id: String,
+    },
+    Function {
+        id: String,
+    },
+    Metric {
+        id: String,
+    },
+    Action {
+        id: String,
+    },
+    Enrichment {
+        id: String,
+    },
+    ObjectMapping {
+        id: String,
+    },
+    LinkMapping {
+        id: String,
+    },
+    ConceptMap {
+        id: String,
+    },
+    DataQuality {
+        id: String,
+    },
     /// CodedValue lives inside a CodeSystem; pinned by both ids
     /// so a property's `unit_id` can deep-link to the correct
     /// system.
-    CodedValue { code_system: String, id: String },
+    CodedValue {
+        code_system: String,
+        id: String,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -119,7 +171,15 @@ pub enum SchemaEntityRef {
 /// single reference, so a consumer can correlate them by `(kind,
 /// label)` if needed.
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    JsonSchema,
     utoipa::ToSchema,
 )]
 pub struct DependencyEdge {
@@ -136,7 +196,17 @@ pub struct DependencyEdge {
 /// Classification of a [`DependencyEdge`]. Each kind carries a
 /// distinct semantic — the FE picks an icon and groups by kind.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
     utoipa::ToSchema,
 )]
 #[serde(rename_all = "snake_case")]
@@ -220,7 +290,9 @@ impl SchemaDependencyGraph {
 
         // ---- NodeTypes ------------------------------------------------
         for node in ontology.node_types() {
-            let node_ref = SchemaEntityRef::NodeType { id: node.id.as_str().to_string() };
+            let node_ref = SchemaEntityRef::NodeType {
+                id: node.id.as_str().to_string(),
+            };
 
             // Properties on a node depend on it via PropertyOf.
             for prop in &node.properties {
@@ -243,7 +315,9 @@ impl SchemaDependencyGraph {
                 add_edge(
                     &mut inbound,
                     &mut outbound,
-                    SchemaEntityRef::Interface { id: if_id.as_str().to_string() },
+                    SchemaEntityRef::Interface {
+                        id: if_id.as_str().to_string(),
+                    },
                     node_ref.clone(),
                     DependencyKind::InterfaceImplementation,
                     format!("implemented by `{}`", node.label),
@@ -259,7 +333,9 @@ impl SchemaDependencyGraph {
                 add_edge(
                     &mut inbound,
                     &mut outbound,
-                    SchemaEntityRef::Rule { id: rule_id.as_str().to_string() },
+                    SchemaEntityRef::Rule {
+                        id: rule_id.as_str().to_string(),
+                    },
                     node_ref.clone(),
                     DependencyKind::RuleConstraint,
                     format!("attached to `{}`", node.label),
@@ -270,7 +346,9 @@ impl SchemaDependencyGraph {
                 add_edge(
                     &mut inbound,
                     &mut outbound,
-                    SchemaEntityRef::Action { id: action_id.as_str().to_string() },
+                    SchemaEntityRef::Action {
+                        id: action_id.as_str().to_string(),
+                    },
                     node_ref.clone(),
                     DependencyKind::ActionTarget,
                     format!("attached to `{}`", node.label),
@@ -281,7 +359,9 @@ impl SchemaDependencyGraph {
                 add_edge(
                     &mut inbound,
                     &mut outbound,
-                    SchemaEntityRef::Metric { id: metric_id.as_str().to_string() },
+                    SchemaEntityRef::Metric {
+                        id: metric_id.as_str().to_string(),
+                    },
                     node_ref.clone(),
                     DependencyKind::MetricScope,
                     format!("scoped to `{}`", node.label),
@@ -291,12 +371,16 @@ impl SchemaDependencyGraph {
 
         // ---- EdgeTypes ------------------------------------------------
         for edge in ontology.edge_types() {
-            let edge_ref = SchemaEntityRef::EdgeType { id: edge.id.as_str().to_string() };
+            let edge_ref = SchemaEntityRef::EdgeType {
+                id: edge.id.as_str().to_string(),
+            };
 
             add_edge(
                 &mut inbound,
                 &mut outbound,
-                SchemaEntityRef::NodeType { id: edge.source_node_id.as_str().to_string() },
+                SchemaEntityRef::NodeType {
+                    id: edge.source_node_id.as_str().to_string(),
+                },
                 edge_ref.clone(),
                 DependencyKind::EdgeSource,
                 format!("source of `{}`", edge.label),
@@ -304,7 +388,9 @@ impl SchemaDependencyGraph {
             add_edge(
                 &mut inbound,
                 &mut outbound,
-                SchemaEntityRef::NodeType { id: edge.target_node_id.as_str().to_string() },
+                SchemaEntityRef::NodeType {
+                    id: edge.target_node_id.as_str().to_string(),
+                },
                 edge_ref.clone(),
                 DependencyKind::EdgeTarget,
                 format!("target of `{}`", edge.label),
@@ -328,15 +414,21 @@ impl SchemaDependencyGraph {
 
         // ---- Rules ----------------------------------------------------
         for rule in &ontology.rules {
-            let rule_ref = SchemaEntityRef::Rule { id: rule.id.as_str().to_string() };
+            let rule_ref = SchemaEntityRef::Rule {
+                id: rule.id.as_str().to_string(),
+            };
 
             // Target references — derived from `RuleKind`.
             match &rule.kind {
-                RuleKind::NodeShape { target_node_type_id } => {
+                RuleKind::NodeShape {
+                    target_node_type_id,
+                } => {
                     add_edge(
                         &mut inbound,
                         &mut outbound,
-                        SchemaEntityRef::NodeType { id: target_node_type_id.as_str().to_string() },
+                        SchemaEntityRef::NodeType {
+                            id: target_node_type_id.as_str().to_string(),
+                        },
                         rule_ref.clone(),
                         DependencyKind::RuleConstraint,
                         format!("rule `{}` (NodeShape)", rule.id),
@@ -358,11 +450,15 @@ impl SchemaDependencyGraph {
                         format!("rule `{}` (PropertyShape)", rule.id),
                     );
                 }
-                RuleKind::EdgeShape { target_edge_type_id } => {
+                RuleKind::EdgeShape {
+                    target_edge_type_id,
+                } => {
                     add_edge(
                         &mut inbound,
                         &mut outbound,
-                        SchemaEntityRef::EdgeType { id: target_edge_type_id.as_str().to_string() },
+                        SchemaEntityRef::EdgeType {
+                            id: target_edge_type_id.as_str().to_string(),
+                        },
                         rule_ref.clone(),
                         DependencyKind::RuleConstraint,
                         format!("rule `{}` (EdgeShape)", rule.id),
@@ -386,7 +482,9 @@ impl SchemaDependencyGraph {
                 add_edge(
                     &mut inbound,
                     &mut outbound,
-                    SchemaEntityRef::Action { id: action_id.as_str().to_string() },
+                    SchemaEntityRef::Action {
+                        id: action_id.as_str().to_string(),
+                    },
                     rule_ref.clone(),
                     DependencyKind::RuleActivation,
                     format!("rule `{}` activates on action", rule.id),
@@ -399,8 +497,12 @@ impl SchemaDependencyGraph {
             add_edge(
                 &mut inbound,
                 &mut outbound,
-                SchemaEntityRef::NodeType { id: om.node_type_id.as_str().to_string() },
-                SchemaEntityRef::ObjectMapping { id: om.id.as_str().to_string() },
+                SchemaEntityRef::NodeType {
+                    id: om.node_type_id.as_str().to_string(),
+                },
+                SchemaEntityRef::ObjectMapping {
+                    id: om.id.as_str().to_string(),
+                },
                 DependencyKind::ObjectMappingTarget,
                 format!("mapped to relation `{}`", om.relation),
             );
@@ -412,7 +514,9 @@ impl SchemaDependencyGraph {
                         owner: om.node_type_id.as_str().to_string(),
                         id: pm.property_id.as_str().to_string(),
                     },
-                    SchemaEntityRef::ObjectMapping { id: om.id.as_str().to_string() },
+                    SchemaEntityRef::ObjectMapping {
+                        id: om.id.as_str().to_string(),
+                    },
                     DependencyKind::PropertyMappingTarget,
                     "object-mapping property binding".to_string(),
                 );
@@ -422,8 +526,12 @@ impl SchemaDependencyGraph {
             add_edge(
                 &mut inbound,
                 &mut outbound,
-                SchemaEntityRef::EdgeType { id: lm.edge_type_id.as_str().to_string() },
-                SchemaEntityRef::LinkMapping { id: lm.id.as_str().to_string() },
+                SchemaEntityRef::EdgeType {
+                    id: lm.edge_type_id.as_str().to_string(),
+                },
+                SchemaEntityRef::LinkMapping {
+                    id: lm.id.as_str().to_string(),
+                },
                 DependencyKind::LinkMappingTarget,
                 link_mapping_label(&lm.kind),
             );
@@ -438,12 +546,11 @@ impl SchemaDependencyGraph {
                     SchemaEntityRef::CodeSystem {
                         id: rule.system_id.as_str().to_string(),
                     },
-                    SchemaEntityRef::ValueSet { id: vs.id.as_str().to_string() },
+                    SchemaEntityRef::ValueSet {
+                        id: vs.id.as_str().to_string(),
+                    },
                     DependencyKind::ValueSetComposition,
-                    format!(
-                        "value set `{}` composition rule {rule_index}",
-                        vs.name
-                    ),
+                    format!("value set `{}` composition rule {rule_index}", vs.name),
                 );
             }
         }
@@ -453,16 +560,24 @@ impl SchemaDependencyGraph {
             add_edge(
                 &mut inbound,
                 &mut outbound,
-                SchemaEntityRef::CodeSystem { id: cm.source_system_id.as_str().to_string() },
-                SchemaEntityRef::ConceptMap { id: cm.id.as_str().to_string() },
+                SchemaEntityRef::CodeSystem {
+                    id: cm.source_system_id.as_str().to_string(),
+                },
+                SchemaEntityRef::ConceptMap {
+                    id: cm.id.as_str().to_string(),
+                },
                 DependencyKind::ConceptMapEndpoint,
                 format!("concept map `{}` source", cm.name),
             );
             add_edge(
                 &mut inbound,
                 &mut outbound,
-                SchemaEntityRef::CodeSystem { id: cm.target_system_id.as_str().to_string() },
-                SchemaEntityRef::ConceptMap { id: cm.id.as_str().to_string() },
+                SchemaEntityRef::CodeSystem {
+                    id: cm.target_system_id.as_str().to_string(),
+                },
+                SchemaEntityRef::ConceptMap {
+                    id: cm.id.as_str().to_string(),
+                },
                 DependencyKind::ConceptMapEndpoint,
                 format!("concept map `{}` target", cm.name),
             );
@@ -473,8 +588,12 @@ impl SchemaDependencyGraph {
             add_edge(
                 &mut inbound,
                 &mut outbound,
-                SchemaEntityRef::NodeType { id: enr.target_node_type_id.as_str().to_string() },
-                SchemaEntityRef::Enrichment { id: enr.id.as_str().to_string() },
+                SchemaEntityRef::NodeType {
+                    id: enr.target_node_type_id.as_str().to_string(),
+                },
+                SchemaEntityRef::Enrichment {
+                    id: enr.id.as_str().to_string(),
+                },
                 DependencyKind::EnrichmentTarget,
                 format!("enrichment `{}`", enr.name),
             );
@@ -482,12 +601,20 @@ impl SchemaDependencyGraph {
 
         // ---- Actions: pre/post-condition rules -----------------------
         for action in ontology.actions() {
-            for rule_id in action.preconditions.iter().chain(action.postconditions.iter()) {
+            for rule_id in action
+                .preconditions
+                .iter()
+                .chain(action.postconditions.iter())
+            {
                 add_edge(
                     &mut inbound,
                     &mut outbound,
-                    SchemaEntityRef::Rule { id: rule_id.as_str().to_string() },
-                    SchemaEntityRef::Action { id: action.id.as_str().to_string() },
+                    SchemaEntityRef::Rule {
+                        id: rule_id.as_str().to_string(),
+                    },
+                    SchemaEntityRef::Action {
+                        id: action.id.as_str().to_string(),
+                    },
                     DependencyKind::ActionRule,
                     format!("action `{}` references rule", action.name),
                 );
@@ -501,7 +628,9 @@ impl SchemaDependencyGraph {
                     &mut inbound,
                     &mut outbound,
                     target_ref,
-                    SchemaEntityRef::DataQuality { id: dq.id.as_str().to_string() },
+                    SchemaEntityRef::DataQuality {
+                        id: dq.id.as_str().to_string(),
+                    },
                     DependencyKind::DataQualityTarget,
                     format!("data quality `{}`", dq.id),
                 );
@@ -563,19 +692,14 @@ fn add_edge(
             kind,
             label: label.clone(),
         });
-    outbound
-        .entry(dependent)
-        .or_default()
-        .push(DependencyEdge {
-            endpoint: target,
-            kind,
-            label,
-        });
+    outbound.entry(dependent).or_default().push(DependencyEdge {
+        endpoint: target,
+        kind,
+        label,
+    });
 }
 
-fn finalize_index(
-    map: BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>,
-) -> Vec<DependencyBucket> {
+fn finalize_index(map: BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>) -> Vec<DependencyBucket> {
     map.into_iter()
         .map(|(target, mut edges)| {
             edges.sort();
@@ -584,10 +708,7 @@ fn finalize_index(
         .collect()
 }
 
-fn lookup<'a>(
-    index: &'a [DependencyBucket],
-    key: &SchemaEntityRef,
-) -> &'a [DependencyEdge] {
+fn lookup<'a>(index: &'a [DependencyBucket], key: &SchemaEntityRef) -> &'a [DependencyEdge] {
     match index.binary_search_by(|b| b.target.cmp(key)) {
         Ok(idx) => &index[idx].edges,
         Err(_) => &[],
@@ -606,13 +727,15 @@ fn walk_property(
     };
 
     // Bindings → ValueSet / CodeSystem / NotationPattern /
-    // ValueRangeSet / GlossaryTerm.
+    // ValueRangeSet / Concept.
     for binding in &prop.bindings {
         match binding {
             PropertyBinding::ValueSet { id, .. } => add_edge(
                 inbound,
                 outbound,
-                SchemaEntityRef::ValueSet { id: id.as_str().to_string() },
+                SchemaEntityRef::ValueSet {
+                    id: id.as_str().to_string(),
+                },
                 prop_ref.clone(),
                 DependencyKind::PropertyBindingRef,
                 format!("property `{}` value-set binding", prop.name),
@@ -620,7 +743,9 @@ fn walk_property(
             PropertyBinding::CodeSystem { id, .. } => add_edge(
                 inbound,
                 outbound,
-                SchemaEntityRef::CodeSystem { id: id.as_str().to_string() },
+                SchemaEntityRef::CodeSystem {
+                    id: id.as_str().to_string(),
+                },
                 prop_ref.clone(),
                 DependencyKind::PropertyBindingRef,
                 format!("property `{}` code-system binding", prop.name),
@@ -628,7 +753,9 @@ fn walk_property(
             PropertyBinding::NotationPattern { id, .. } => add_edge(
                 inbound,
                 outbound,
-                SchemaEntityRef::NotationPattern { id: id.as_str().to_string() },
+                SchemaEntityRef::NotationPattern {
+                    id: id.as_str().to_string(),
+                },
                 prop_ref.clone(),
                 DependencyKind::PropertyBindingRef,
                 format!("property `{}` notation-pattern binding", prop.name),
@@ -636,18 +763,22 @@ fn walk_property(
             PropertyBinding::ValueRange { id, .. } => add_edge(
                 inbound,
                 outbound,
-                SchemaEntityRef::ValueRangeSet { id: id.as_str().to_string() },
+                SchemaEntityRef::ValueRangeSet {
+                    id: id.as_str().to_string(),
+                },
                 prop_ref.clone(),
                 DependencyKind::PropertyBindingRef,
                 format!("property `{}` value-range binding", prop.name),
             ),
-            PropertyBinding::Glossary { id, .. } => add_edge(
+            PropertyBinding::Concept { id, .. } => add_edge(
                 inbound,
                 outbound,
-                SchemaEntityRef::GlossaryTerm { id: id.as_str().to_string() },
+                SchemaEntityRef::Concept {
+                    id: id.as_str().to_string(),
+                },
                 prop_ref.clone(),
                 DependencyKind::PropertyBindingRef,
-                format!("property `{}` glossary binding", prop.name),
+                format!("property `{}` concept binding", prop.name),
             ),
         }
     }
@@ -657,7 +788,9 @@ fn walk_property(
         add_edge(
             inbound,
             outbound,
-            SchemaEntityRef::Function { id: fn_id.as_str().to_string() },
+            SchemaEntityRef::Function {
+                id: fn_id.as_str().to_string(),
+            },
             prop_ref.clone(),
             DependencyKind::FunctionDerivation,
             format!("property `{}` derived_from", prop.name),
@@ -694,8 +827,11 @@ fn walk_constraint(
     // explicitly — record those as RuleConstraint edges so a
     // PropertyShape's dependents include cross-shape constraints
     // too.
-    if let Some(ConstraintTarget::Property { node_type_id, property_id, .. }) =
-        constraint_target(constraint)
+    if let Some(ConstraintTarget::Property {
+        node_type_id,
+        property_id,
+        ..
+    }) = constraint_target(constraint)
     {
         add_edge(
             inbound,
@@ -720,7 +856,9 @@ fn walk_constraint(
             ConstraintRef::ValueSet(id) => add_edge(
                 inbound,
                 outbound,
-                SchemaEntityRef::ValueSet { id: id.as_str().to_string() },
+                SchemaEntityRef::ValueSet {
+                    id: id.as_str().to_string(),
+                },
                 rule_ref.clone(),
                 DependencyKind::RuleVocabulary,
                 format!("rule `{rule_id}` {}", constraint.label_kind()),
@@ -728,7 +866,9 @@ fn walk_constraint(
             ConstraintRef::NotationPattern(id) => add_edge(
                 inbound,
                 outbound,
-                SchemaEntityRef::NotationPattern { id: id.as_str().to_string() },
+                SchemaEntityRef::NotationPattern {
+                    id: id.as_str().to_string(),
+                },
                 rule_ref.clone(),
                 DependencyKind::RuleVocabulary,
                 format!("rule `{rule_id}` {}", constraint.label_kind()),
@@ -783,7 +923,10 @@ fn data_quality_targets(dq: &crate::data_quality::DataQualityDef) -> Vec<SchemaE
         DataQualityTarget::NodeType { node_type_id } => vec![SchemaEntityRef::NodeType {
             id: node_type_id.as_str().to_string(),
         }],
-        DataQualityTarget::Property { node_type_id, property_id } => vec![SchemaEntityRef::Property {
+        DataQualityTarget::Property {
+            node_type_id,
+            property_id,
+        } => vec![SchemaEntityRef::Property {
             owner: node_type_id.as_str().to_string(),
             id: property_id.as_str().to_string(),
         }],
@@ -803,7 +946,10 @@ mod tests {
     fn build_does_not_panic_on_sample_ontology() {
         let ontology = sample_user_ontology();
         let graph = SchemaDependencyGraph::build(&ontology);
-        assert!(graph.edge_count() > 0, "sample ontology must produce some edges");
+        assert!(
+            graph.edge_count() > 0,
+            "sample ontology must produce some edges"
+        );
     }
 
     #[test]
@@ -882,8 +1028,7 @@ mod tests {
             id: edge.id.as_str().to_string(),
         };
         let outbound = graph.references_of(&edge_ref);
-        let kinds: std::collections::BTreeSet<_> =
-            outbound.iter().map(|e| e.kind).collect();
+        let kinds: std::collections::BTreeSet<_> = outbound.iter().map(|e| e.kind).collect();
         assert!(
             kinds.contains(&DependencyKind::EdgeSource),
             "edge should reference its source node: {outbound:#?}",

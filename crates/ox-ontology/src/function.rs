@@ -94,7 +94,9 @@ pub enum FunctionExpression {
 }
 
 /// Purity tag that drives memoization / plan stability.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum FunctionPurity {
     /// Equal arguments → equal output, forever. Safe to memoize.

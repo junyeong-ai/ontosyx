@@ -75,7 +75,9 @@ pub fn assess_quality(
             gaps.push(QualityGap {
                 severity: QualityGapSeverity::Low,
                 category: QualityGapCategory::SmallSample,
-                location: QualityGapRef::SourceTable { table: tp.table_name.clone() },
+                location: QualityGapRef::SourceTable {
+                    table: tp.table_name.clone(),
+                },
                 params: params([
                     ("table", tp.table_name.clone()),
                     ("row_count", tp.row_count.to_string()),
@@ -103,7 +105,10 @@ pub fn assess_quality(
                     gaps.push(QualityGap {
                         severity: QualityGapSeverity::High,
                         category: QualityGapCategory::OpaqueEnumValue,
-                        location: QualityGapRef::SourceColumn { table: tp.table_name.clone(), column: cs.column_name.clone() },
+                        location: QualityGapRef::SourceColumn {
+                            table: tp.table_name.clone(),
+                            column: cs.column_name.clone(),
+                        },
                         params: params([
                             ("sample_values", cs.sample_values.join(", ")),
                             ("short_cryptic", short_cryptic.join(", ")),
@@ -123,7 +128,10 @@ pub fn assess_quality(
                 gaps.push(QualityGap {
                     severity: QualityGapSeverity::High,
                     category: QualityGapCategory::NumericEnumCode,
-                    location: QualityGapRef::SourceColumn { table: tp.table_name.clone(), column: cs.column_name.clone() },
+                    location: QualityGapRef::SourceColumn {
+                        table: tp.table_name.clone(),
+                        column: cs.column_name.clone(),
+                    },
                     params: params([
                         ("sample_values", cs.sample_values.join(", ")),
                         ("distinct_count", cs.distinct_count.to_string()),
@@ -138,7 +146,10 @@ pub fn assess_quality(
                     gaps.push(QualityGap {
                         severity: QualityGapSeverity::Low,
                         category: QualityGapCategory::SparseProperty,
-                        location: QualityGapRef::SourceColumn { table: tp.table_name.clone(), column: cs.column_name.clone() },
+                        location: QualityGapRef::SourceColumn {
+                            table: tp.table_name.clone(),
+                            column: cs.column_name.clone(),
+                        },
                         params: params([
                             ("column", cs.column_name.clone()),
                             ("null_pct", format!("{:.0}", null_rate * 100.0)),
@@ -155,7 +166,10 @@ pub fn assess_quality(
                 gaps.push(QualityGap {
                     severity: QualityGapSeverity::Medium,
                     category: QualityGapCategory::SingleValueBias,
-                    location: QualityGapRef::SourceColumn { table: tp.table_name.clone(), column: cs.column_name.clone() },
+                    location: QualityGapRef::SourceColumn {
+                        table: tp.table_name.clone(),
+                        column: cs.column_name.clone(),
+                    },
                     params: params([
                         ("column", cs.column_name.clone()),
                         ("observed_value", observed.to_string()),
@@ -253,7 +267,9 @@ pub fn assess_quality(
                 gaps.push(QualityGap {
                     severity: QualityGapSeverity::High,
                     category: QualityGapCategory::UnmappedSourceTable,
-                    location: QualityGapRef::SourceTable { table: table.name.clone() },
+                    location: QualityGapRef::SourceTable {
+                        table: table.name.clone(),
+                    },
                     params: params([("table", table.name.clone())]),
                 });
             }
@@ -351,9 +367,7 @@ pub fn assess_quality(
             // Walk this node's ObjectMappingDef → PropertyMappingDef to
             // collect the source-column set. JSON-path locations contribute
             // no column (same as the legacy flat shape), so they drop out.
-            let node_om = object_mappings
-                .iter()
-                .find(|om| om.node_type_id == node.id);
+            let node_om = object_mappings.iter().find(|om| om.node_type_id == node.id);
             let mapped_source_columns: std::collections::HashSet<String> = node_om
                 .into_iter()
                 .flat_map(|om| om.property_mappings.iter())
@@ -393,7 +407,10 @@ pub fn assess_quality(
                     gaps.push(QualityGap {
                         severity: QualityGapSeverity::Medium,
                         category: QualityGapCategory::UnmappedSourceColumn,
-                        location: QualityGapRef::SourceColumn { table: table.name.clone(), column: col.name.clone() },
+                        location: QualityGapRef::SourceColumn {
+                            table: table.name.clone(),
+                            column: col.name.clone(),
+                        },
                         params: params([
                             ("table", table.name.clone()),
                             ("column", col.name.clone()),

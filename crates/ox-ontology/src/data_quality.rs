@@ -28,8 +28,8 @@ use serde::{Deserialize, Serialize};
 
 use ox_core::i18n::LocalizedText;
 
-use crate::ir::{NodeTypeId, PropertyId};
 use crate::action::RuleId;
+use crate::ir::{NodeTypeId, PropertyId};
 
 ox_core::define_id_newtype!(
     /// Stable identifier for a `DataQualityDef`.
@@ -73,7 +73,9 @@ fn default_threshold() -> f32 {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DataQualityTarget {
-    NodeType { node_type_id: NodeTypeId },
+    NodeType {
+        node_type_id: NodeTypeId,
+    },
     Property {
         node_type_id: NodeTypeId,
         property_id: PropertyId,
@@ -81,7 +83,9 @@ pub enum DataQualityTarget {
 }
 
 /// Dimension.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum DataQualityDimensionKind {
     Completeness,
@@ -126,7 +130,9 @@ impl DataQualityDef {
     /// what to render should treat that as "no data" rather than
     /// "passing" or "failing".
     pub fn is_passing(&self) -> Option<bool> {
-        self.last_measurement.as_ref().map(|m| m.score >= self.threshold)
+        self.last_measurement
+            .as_ref()
+            .map(|m| m.score >= self.threshold)
     }
 }
 

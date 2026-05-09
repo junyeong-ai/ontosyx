@@ -21,7 +21,7 @@ the high-level pieces and points at the files that hold depth.
   - `rules` — SHACL-style constraints.
   - `actions`, `functions`, `metrics`, `enrichments` —
     type-bound behavioural surfaces.
-  - `glossary_terms` — domain vocabulary; attaches to types.
+  - `glossary_terms` — lexical vocabulary for canonical concepts.
   - `provenances` — PROV-O style data-origin records.
   - `data_qualities` — per-type DQ checks.
   - `lineage_id` + `version`, optional `valid_from`/`valid_to`
@@ -119,11 +119,11 @@ fails any test fixture or migration that violates them.
   `RuleOrigin::DerivedFromBinding { node, property }` must point at
   a property that still carries ≥1 binding. Unbinding the source
   forces the rule to be regenerated or promoted to `Authored`.
-- **Glossary anchors resolve.** Every `GlossaryTermId` referenced
-  from `NodeTypeDef.glossary_anchors` /
-  `EdgeTypeDef.glossary_anchors` /
-  `PropertyBinding::Glossary { id }` must exist in
-  `OntologyIR::glossary`.
+- **Concept bindings resolve.** Every `ConceptId` referenced from
+  `NodeTypeDef.concept_id`, `EdgeTypeDef.concept_id`,
+  graph-type `concept_realizations`, or
+  `PropertyBinding::Concept { id }` must exist in
+  `OntologyIR::concepts`.
 
 ## Binding resolution is deterministic
 
@@ -133,7 +133,7 @@ is the highest `BindingStrength::priority`
 ties broken by first-in-list. Insertion-order shuffles that don't
 change the strength distribution don't change the answer.
 `PropertyDef::value_set_binding()` /
-`notation_pattern_binding()` / `glossary_binding()` etc. all route
+`notation_pattern_binding()` / `concept_binding()` etc. all route
 through `canonical_binding()` so consumers cannot accidentally
 reach the lower-priority entry.
 

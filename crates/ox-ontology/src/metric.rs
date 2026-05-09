@@ -58,8 +58,12 @@ pub struct MetricDef {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MetricScope {
-    NodeType { node_type_id: NodeTypeId },
-    EdgeType { edge_type_id: EdgeTypeId },
+    NodeType {
+        node_type_id: NodeTypeId,
+    },
+    EdgeType {
+        edge_type_id: EdgeTypeId,
+    },
     /// Global metrics aggregate across the whole ontology snapshot.
     /// Typical: ontology completeness, total entity count, data
     /// quality rollups.
@@ -80,7 +84,9 @@ pub enum MetricExpression {
 /// evaluates at `grain` intervals and produces `(t, value)` points.
 /// The grain is inclusive: `Daily` → one point per day in the
 /// queried window.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum TemporalGrain {
     #[default]

@@ -1,4 +1,4 @@
-use ox_core::diagnostic::{diag, DiagnosticMessage};
+use ox_core::diagnostic::{DiagnosticMessage, diag};
 use ox_core::types::PropertyType;
 
 use super::cycles::find_cycle;
@@ -111,15 +111,14 @@ fn validate_property_defs(
         // a physical source (`source_column`) must travel with its
         // meaning. An empty `bindings` list flags a value that
         // arrives without a value-set / code-system / notation /
-        // glossary anchor — the kind of silent semantic drop the IR
+        // concept binding — the kind of silent semantic drop the IR
         // is meant to prevent. `binding_exempt` is the explicit
         // opt-out for legitimate cases (PK / audit timestamp /
         // opaque id) so an audit can find every exemption by name
         // instead of reading commit history. `Identifier`-role
         // properties get an implicit exemption: they're identity by
         // design and the IR already names that role separately.
-        let is_identifier =
-            matches!(property.aggregation_role, Some(AggregationRole::Identifier));
+        let is_identifier = matches!(property.aggregation_role, Some(AggregationRole::Identifier));
         if property.source_column.is_some()
             && property.bindings.is_empty()
             && property.binding_exempt.is_none()
@@ -299,6 +298,92 @@ fn validate_index_target(
     }
 }
 
+fn validate_column_ref(
+    errors: &mut Vec<DiagnosticMessage>,
+    code: &'static str,
+    link_mapping_id: &str,
+    field: &'static str,
+    column_ref: &crate::mapping::ColumnRef,
+) {
+    if column_ref.relation.trim().is_empty() || column_ref.column.trim().is_empty() {
+        errors.push(
+            diag(code)
+                .with("link_mapping_id", link_mapping_id)
+                .with("field", field)
+                .with("relation", column_ref.relation.as_str())
+                .with("column", column_ref.column.as_str())
+                .message(format!(
+                    "Link mapping '{link_mapping_id}' has an invalid {field} column reference"
+                )),
+        );
+    }
+}
+
+fn validate_endpoint_ref(
+    errors: &mut Vec<DiagnosticMessage>,
+    link_mapping_id: &str,
+    role: &'static str,
+    endpoint: &crate::mapping::EndpointRef,
+) {
+    if endpoint.source_id.trim().is_empty() {
+        errors.push(
+            diag("ontology.validate.link_mapping.empty_endpoint_source_id")
+                .with("link_mapping_id", link_mapping_id)
+                .with("endpoint", role)
+                .message(format!(
+                    "Link mapping '{link_mapping_id}' {role} endpoint has an empty source id"
+                )),
+        );
+    }
+
+    if endpoint.relation.trim().is_empty() {
+        errors.push(
+            diag("ontology.validate.link_mapping.empty_endpoint_relation")
+                .with("link_mapping_id", link_mapping_id)
+                .with("endpoint", role)
+                .message(format!(
+                    "Link mapping '{link_mapping_id}' {role} endpoint has an empty relation"
+                )),
+        );
+    }
+
+    if endpoint.key_columns.is_empty() {
+        errors.push(
+            diag("ontology.validate.link_mapping.empty_endpoint_key")
+                .with("link_mapping_id", link_mapping_id)
+                .with("endpoint", role)
+                .message(format!(
+                    "Link mapping '{link_mapping_id}' {role} endpoint must declare at least one key column"
+                )),
+        );
+        return;
+    }
+
+    let mut seen = std::collections::HashSet::new();
+    for key_column in &endpoint.key_columns {
+        if key_column.trim().is_empty() {
+            errors.push(
+                diag("ontology.validate.link_mapping.empty_endpoint_key_column")
+                    .with("link_mapping_id", link_mapping_id)
+                    .with("endpoint", role)
+                    .message(format!(
+                        "Link mapping '{link_mapping_id}' {role} endpoint has an empty key column"
+                    )),
+            );
+        } else if !seen.insert(key_column.as_str()) {
+            errors.push(
+                diag("ontology.validate.link_mapping.duplicate_endpoint_key_column")
+                    .with("link_mapping_id", link_mapping_id)
+                    .with("endpoint", role)
+                    .with("key_column", key_column.as_str())
+                    .message(format!(
+                        "Link mapping '{link_mapping_id}' {role} endpoint repeats key column '{key_column}'"
+                    )),
+            );
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
@@ -328,6 +413,579 @@ impl OntologyIR {
         known_sources: &std::collections::HashSet<crate::mapping::SourceId>,
     ) -> Vec<DiagnosticMessage> {
         self.validate_internal(Some(known_sources))
+    }
+
+    /// Φ12 — pre-commit gate that enforces every mapping reference
+    /// against the captured `SourceContractDef` bank.
+    ///
+    /// Where [`Self::validate_with_sources`] only checks that
+    /// referenced `source_id`s are in the *registered* source set,
+    /// this validator additionally requires that the
+    /// `(source_id, relation)` pair exists in the contract bank
+    /// and that every column the mapping names lives in that
+    /// contract's `columns` list. The introspection pipeline is
+    /// the only producer of contract rows; the contract is
+    /// authoritative for "what the source actually returned the
+    /// last time we asked".
+    ///
+    /// Returns an empty vec when:
+    ///
+    /// - the mapping bank is empty (a freshly-created ontology
+    ///   with no mappings yet),
+    /// - no contract has been captured for a referenced source
+    ///   *yet* (the operator has registered the source but has
+    ///   not run introspection — soft-skip so first-time setup
+    ///   does not fail; once the operator introspects, the gate
+    ///   becomes enforcing for that source).
+    ///
+    /// The "soft-skip on first-time setup" rule is intentional —
+    /// turning the gate into a hard fail before any contract has
+    /// been captured would prevent the bootstrap workflow from
+    /// reaching the introspection step that would *populate* the
+    /// contract. Once introspection has run once for a source,
+    /// the contract becomes the authoritative shape and any
+    /// subsequent mapping that drifts is caught.
+    ///
+    /// Diagnostic codes emitted:
+    ///
+    /// - `ontology.validate.object_mapping.relation_not_in_source_contract`
+    /// - `ontology.validate.object_mapping.column_not_in_source_contract`
+    /// - `ontology.validate.object_mapping.primary_key_column_not_in_source_contract`
+    /// - `ontology.validate.link_mapping.endpoint_relation_not_in_source_contract`
+    /// - `ontology.validate.link_mapping.endpoint_column_not_in_source_contract`
+    /// - `ontology.validate.link_mapping.foreign_key_column_not_in_source_contract`
+    /// - `ontology.validate.link_mapping.bridge_relation_not_in_source_contract`
+    /// - `ontology.validate.link_mapping.bridge_column_not_in_source_contract`
+    /// - `ontology.validate.link_mapping.federated_match_column_not_in_source_contract`
+    pub fn validate_against_source_contracts(
+        &self,
+        contracts: &[crate::source_contract::SourceContractDef],
+    ) -> Vec<DiagnosticMessage> {
+        use std::collections::{HashMap, HashSet};
+        let mut errors: Vec<DiagnosticMessage> = Vec::new();
+
+        if contracts.is_empty() {
+            return errors;
+        }
+
+        // Index: (source_id, relation) → contract.
+        let mut by_relation: HashMap<
+            (&crate::mapping::SourceId, &str),
+            &crate::source_contract::SourceContractDef,
+        > = HashMap::with_capacity(contracts.len());
+        let mut sources_with_any_contract: HashSet<&crate::mapping::SourceId> =
+            HashSet::with_capacity(contracts.len());
+        for c in contracts {
+            by_relation.insert((&c.source_id, c.relation.as_str()), c);
+            sources_with_any_contract.insert(&c.source_id);
+        }
+
+        let column_check =
+            |contract: &crate::source_contract::SourceContractDef,
+             column: &str,
+             diag_code: &'static str,
+             extra: &[(&str, &str)],
+             errors: &mut Vec<DiagnosticMessage>| {
+                if !contract.has_column(column) {
+                    let mut msg = diag(diag_code)
+                        .with("source_id", contract.source_id.as_str())
+                        .with("relation", contract.relation.as_str())
+                        .with("column", column);
+                    for (k, v) in extra {
+                        msg = msg.with(*k, *v);
+                    }
+                    errors.push(msg.message(format!(
+                        "Column '{column}' is not present on source contract \
+                         '{}.{}' captured at introspection time. Re-introspect \
+                         the source or remove the column from the mapping.",
+                        contract.source_id.as_str(),
+                        contract.relation,
+                    )));
+                }
+            };
+
+        for mapping in &self.object_mappings {
+            // Soft-skip when no contract has been captured for the
+            // source at all — bootstrap path before first introspection.
+            if !sources_with_any_contract.contains(&mapping.source_id) {
+                continue;
+            }
+            let Some(contract) = by_relation
+                .get(&(&mapping.source_id, mapping.relation.as_str()))
+                .copied()
+            else {
+                errors.push(
+                    diag("ontology.validate.object_mapping.relation_not_in_source_contract")
+                        .with("mapping_id", mapping.id.as_str())
+                        .with("source_id", mapping.source_id.as_str())
+                        .with("relation", mapping.relation.as_str())
+                        .message(format!(
+                            "Object mapping '{}' targets relation '{}' on source '{}' \
+                             which is not present in the captured source contracts. \
+                             Re-introspect the source so the contract registers, or \
+                             update the mapping to point at an existing relation.",
+                            mapping.id, mapping.relation, mapping.source_id,
+                        )),
+                );
+                continue;
+            };
+
+            for pk_col in &mapping.primary_key_columns {
+                if pk_col.relation != mapping.relation {
+                    continue;
+                }
+                column_check(
+                    contract,
+                    &pk_col.column,
+                    "ontology.validate.object_mapping.primary_key_column_not_in_source_contract",
+                    &[("mapping_id", mapping.id.as_str())],
+                    &mut errors,
+                );
+            }
+
+            // Resolve the parent NodeTypeDef once per object mapping
+            // — every property mapping in this batch shares it. The
+            // type-compat sub-validator (Φ12.5) reads
+            // `node_type.properties[i].property_type` for each
+            // property_mapping it walks.
+            let parent_node = self
+                .node_types
+                .iter()
+                .find(|n| n.id == mapping.node_type_id);
+            for prop_mapping in &mapping.property_mappings {
+                let property_type = parent_node.and_then(|n| {
+                    n.properties
+                        .iter()
+                        .find(|p| p.id == prop_mapping.property_id)
+                        .map(|p| &p.property_type)
+                });
+                self.validate_property_mapping_columns(
+                    contract,
+                    mapping.id.as_str(),
+                    property_type,
+                    prop_mapping,
+                    &mut errors,
+                );
+            }
+        }
+
+        for mapping in &self.link_mappings {
+            for (role, endpoint) in [
+                ("source", &mapping.source_endpoint),
+                ("target", &mapping.target_endpoint),
+            ] {
+                if !sources_with_any_contract.contains(&endpoint.source_id) {
+                    continue;
+                }
+                let Some(contract) = by_relation
+                    .get(&(&endpoint.source_id, endpoint.relation.as_str()))
+                    .copied()
+                else {
+                    errors.push(
+                        diag(
+                            "ontology.validate.link_mapping.endpoint_relation_not_in_source_contract",
+                        )
+                        .with("mapping_id", mapping.id.as_str())
+                        .with("endpoint_role", role)
+                        .with("source_id", endpoint.source_id.as_str())
+                        .with("relation", endpoint.relation.as_str())
+                        .message(format!(
+                            "Link mapping '{}' {} endpoint references relation '{}' on \
+                             source '{}' which is not present in the captured source contracts.",
+                            mapping.id, role, endpoint.relation, endpoint.source_id,
+                        )),
+                    );
+                    continue;
+                };
+                for col in &endpoint.key_columns {
+                    column_check(
+                        contract,
+                        col,
+                        "ontology.validate.link_mapping.endpoint_column_not_in_source_contract",
+                        &[
+                            ("mapping_id", mapping.id.as_str()),
+                            ("endpoint_role", role),
+                        ],
+                        &mut errors,
+                    );
+                }
+            }
+
+            self.validate_link_kind_columns(mapping, &by_relation, &sources_with_any_contract, &mut errors);
+        }
+
+        errors
+    }
+
+    fn validate_property_mapping_columns(
+        &self,
+        contract: &crate::source_contract::SourceContractDef,
+        mapping_id: &str,
+        property_type: Option<&PropertyType>,
+        prop_mapping: &crate::mapping::property::PropertyMappingDef,
+        errors: &mut Vec<DiagnosticMessage>,
+    ) {
+        match &prop_mapping.location {
+            crate::mapping::property::PropertyLocation::Column(cref) => {
+                if cref.relation == contract.relation {
+                    match contract.column(&cref.column) {
+                        None => {
+                            errors.push(
+                                diag(
+                                    "ontology.validate.object_mapping.column_not_in_source_contract",
+                                )
+                                .with("mapping_id", mapping_id)
+                                .with("source_id", contract.source_id.as_str())
+                                .with("relation", contract.relation.as_str())
+                                .with("column", cref.column.as_str())
+                                .with("property_key", prop_mapping.property_key.as_str())
+                                .message(format!(
+                                    "Property '{}' on mapping '{}' binds to column '{}' which \
+                                     is not present on source contract '{}.{}'.",
+                                    prop_mapping.property_key.as_str(),
+                                    mapping_id,
+                                    cref.column,
+                                    contract.source_id.as_str(),
+                                    contract.relation,
+                                )),
+                            );
+                        }
+                        Some(column) => {
+                            // Φ12.5 — column exists; check that the
+                            // source data type categorises into a
+                            // bucket compatible with the ontology
+                            // property type. `Identity` transform
+                            // only — `SqlExpr` / `Concat` / `Derived`
+                            // are operator-authored coercions that
+                            // intentionally take a lossy or
+                            // type-changing path; the validator
+                            // would emit false positives for them.
+                            if matches!(
+                                prop_mapping.transform,
+                                crate::mapping::property::PropertyTransform::Identity
+                            ) {
+                                self.assert_column_type_compatible(
+                                    contract,
+                                    mapping_id,
+                                    property_type,
+                                    column,
+                                    prop_mapping,
+                                    errors,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            crate::mapping::property::PropertyLocation::JsonPath { root_column, .. } => {
+                if !contract.has_column(root_column) {
+                    errors.push(
+                        diag(
+                            "ontology.validate.object_mapping.column_not_in_source_contract",
+                        )
+                        .with("mapping_id", mapping_id)
+                        .with("source_id", contract.source_id.as_str())
+                        .with("relation", contract.relation.as_str())
+                        .with("column", root_column.as_str())
+                        .with("property_key", prop_mapping.property_key.as_str())
+                        .with("location_kind", "json_path")
+                        .message(format!(
+                            "Property '{}' on mapping '{}' anchors a JSON path on column \
+                             '{}' which is not present on source contract '{}.{}'.",
+                            prop_mapping.property_key.as_str(),
+                            mapping_id,
+                            root_column,
+                            contract.source_id.as_str(),
+                            contract.relation,
+                        )),
+                    );
+                }
+            }
+        }
+
+        if let crate::mapping::property::PropertyTransform::Concat { parts, .. } =
+            &prop_mapping.transform
+        {
+            for part in parts {
+                if part.relation == contract.relation && !contract.has_column(&part.column) {
+                    errors.push(
+                        diag(
+                            "ontology.validate.object_mapping.column_not_in_source_contract",
+                        )
+                        .with("mapping_id", mapping_id)
+                        .with("source_id", contract.source_id.as_str())
+                        .with("relation", contract.relation.as_str())
+                        .with("column", part.column.as_str())
+                        .with("property_key", prop_mapping.property_key.as_str())
+                        .with("location_kind", "concat_part")
+                        .message(format!(
+                            "Property '{}' on mapping '{}' concat part references column \
+                             '{}' which is not present on source contract '{}.{}'.",
+                            prop_mapping.property_key.as_str(),
+                            mapping_id,
+                            part.column,
+                            contract.source_id.as_str(),
+                            contract.relation,
+                        )),
+                    );
+                }
+            }
+        }
+    }
+
+    fn validate_link_kind_columns(
+        &self,
+        mapping: &crate::mapping::link::LinkMappingDef,
+        by_relation: &std::collections::HashMap<
+            (&crate::mapping::SourceId, &str),
+            &crate::source_contract::SourceContractDef,
+        >,
+        sources_with_any_contract: &std::collections::HashSet<&crate::mapping::SourceId>,
+        errors: &mut Vec<DiagnosticMessage>,
+    ) {
+        let resolve = |source_id: &crate::mapping::SourceId, relation: &str| {
+            if !sources_with_any_contract.contains(source_id) {
+                return None;
+            }
+            by_relation.get(&(source_id, relation)).copied()
+        };
+
+        match &mapping.kind {
+            crate::mapping::link::LinkMappingKind::ForeignKey {
+                source_column,
+                target_column,
+            } => {
+                self.assert_link_column_in_contract(
+                    mapping,
+                    "foreign_key_source",
+                    &mapping.source_endpoint.source_id,
+                    source_column,
+                    resolve(&mapping.source_endpoint.source_id, &source_column.relation),
+                    "ontology.validate.link_mapping.foreign_key_column_not_in_source_contract",
+                    errors,
+                );
+                self.assert_link_column_in_contract(
+                    mapping,
+                    "foreign_key_target",
+                    &mapping.target_endpoint.source_id,
+                    target_column,
+                    resolve(&mapping.target_endpoint.source_id, &target_column.relation),
+                    "ontology.validate.link_mapping.foreign_key_column_not_in_source_contract",
+                    errors,
+                );
+            }
+            crate::mapping::link::LinkMappingKind::Bridge {
+                bridge_relation,
+                source_join,
+                target_join,
+                bridge_workspace_scope,
+            } => {
+                let bridge_contract = resolve(&bridge_relation.source_id, &bridge_relation.relation);
+                if sources_with_any_contract.contains(&bridge_relation.source_id)
+                    && bridge_contract.is_none()
+                {
+                    errors.push(
+                        diag(
+                            "ontology.validate.link_mapping.bridge_relation_not_in_source_contract",
+                        )
+                        .with("mapping_id", mapping.id.as_str())
+                        .with("source_id", bridge_relation.source_id.as_str())
+                        .with("relation", bridge_relation.relation.as_str())
+                        .message(format!(
+                            "Link mapping '{}' bridge relation '{}' on source '{}' is \
+                             not present in the captured source contracts.",
+                            mapping.id, bridge_relation.relation, bridge_relation.source_id,
+                        )),
+                    );
+                }
+                if let Some(contract) = bridge_contract {
+                    for col in source_join.iter().chain(target_join.iter()) {
+                        if col.relation == bridge_relation.relation
+                            && !contract.has_column(&col.column)
+                        {
+                            errors.push(
+                                diag("ontology.validate.link_mapping.bridge_column_not_in_source_contract")
+                                    .with("mapping_id", mapping.id.as_str())
+                                    .with("source_id", bridge_relation.source_id.as_str())
+                                    .with("relation", bridge_relation.relation.as_str())
+                                    .with("column", col.column.as_str())
+                                    .message(format!(
+                                        "Link mapping '{}' bridge join column '{}' is not \
+                                         present on source contract '{}.{}'.",
+                                        mapping.id,
+                                        col.column,
+                                        bridge_relation.source_id.as_str(),
+                                        bridge_relation.relation,
+                                    )),
+                            );
+                        }
+                    }
+                    if let Some(scope) = bridge_workspace_scope
+                        && scope.relation == bridge_relation.relation
+                        && !contract.has_column(&scope.column)
+                    {
+                        errors.push(
+                            diag("ontology.validate.link_mapping.bridge_column_not_in_source_contract")
+                                .with("mapping_id", mapping.id.as_str())
+                                .with("source_id", bridge_relation.source_id.as_str())
+                                .with("relation", bridge_relation.relation.as_str())
+                                .with("column", scope.column.as_str())
+                                .with("role", "bridge_workspace_scope")
+                                .message(format!(
+                                    "Link mapping '{}' bridge workspace-scope column '{}' is \
+                                     not present on source contract '{}.{}'.",
+                                    mapping.id,
+                                    scope.column,
+                                    bridge_relation.source_id.as_str(),
+                                    bridge_relation.relation,
+                                )),
+                        );
+                    }
+                }
+            }
+            crate::mapping::link::LinkMappingKind::Computed { .. } => {
+                // Source-dialect predicate — no structural column
+                // surface to validate. Adapters reject malformed
+                // predicates at runtime.
+            }
+            crate::mapping::link::LinkMappingKind::Federated {
+                source_match_column,
+                target_match_column,
+            } => {
+                self.assert_link_column_in_contract(
+                    mapping,
+                    "federated_source_match",
+                    &mapping.source_endpoint.source_id,
+                    source_match_column,
+                    resolve(
+                        &mapping.source_endpoint.source_id,
+                        &source_match_column.relation,
+                    ),
+                    "ontology.validate.link_mapping.federated_match_column_not_in_source_contract",
+                    errors,
+                );
+                self.assert_link_column_in_contract(
+                    mapping,
+                    "federated_target_match",
+                    &mapping.target_endpoint.source_id,
+                    target_match_column,
+                    resolve(
+                        &mapping.target_endpoint.source_id,
+                        &target_match_column.relation,
+                    ),
+                    "ontology.validate.link_mapping.federated_match_column_not_in_source_contract",
+                    errors,
+                );
+            }
+        }
+    }
+
+    /// Φ12.5 — emit
+    /// `ontology.validate.object_mapping.column_type_incompatible`
+    /// when the source column's data-type category does not fit
+    /// the ontology property's `PropertyType`. Silent when:
+    ///
+    /// - no `property_type` was resolved (parent NodeType not
+    ///   found, or property id absent — the topology validator
+    ///   already flagged that case),
+    /// - the source data-type categorises to
+    ///   [`crate::source_contract::SourceTypeCategory::Unknown`]
+    ///   — the classifier doesn't recognise the spelling, fail-
+    ///   open to avoid false positives on dialect extensions.
+    fn assert_column_type_compatible(
+        &self,
+        contract: &crate::source_contract::SourceContractDef,
+        mapping_id: &str,
+        property_type: Option<&PropertyType>,
+        column: &crate::source_contract::ColumnSpec,
+        prop_mapping: &crate::mapping::property::PropertyMappingDef,
+        errors: &mut Vec<DiagnosticMessage>,
+    ) {
+        let Some(property_type) = property_type else {
+            return;
+        };
+        let category = column.category();
+        if category.is_compatible_with(property_type) {
+            return;
+        }
+        // Compose a stable string for the params (PropertyType
+        // serialises through the existing JsonSchema-friendly
+        // Serialize impl — short scalar names).
+        let property_type_label = match property_type {
+            PropertyType::Bool => "bool".to_string(),
+            PropertyType::Int => "int".to_string(),
+            PropertyType::Float => "float".to_string(),
+            PropertyType::String => "string".to_string(),
+            PropertyType::Date => "date".to_string(),
+            PropertyType::DateTime => "datetime".to_string(),
+            PropertyType::Duration => "duration".to_string(),
+            PropertyType::Bytes => "bytes".to_string(),
+            PropertyType::List { .. } => "list".to_string(),
+            PropertyType::Map => "map".to_string(),
+        };
+        let category_label = format!("{category:?}").to_ascii_lowercase();
+        errors.push(
+            diag("ontology.validate.object_mapping.column_type_incompatible")
+                .with("mapping_id", mapping_id)
+                .with("source_id", contract.source_id.as_str())
+                .with("relation", contract.relation.as_str())
+                .with("column", column.name.as_str())
+                .with("source_data_type", column.data_type.as_str())
+                .with("source_category", category_label.as_str())
+                .with("property_key", prop_mapping.property_key.as_str())
+                .with("property_type", property_type_label.as_str())
+                .message(format!(
+                    "Property '{}' (type {}) on mapping '{}' binds to column '{}' \
+                     of source type '{}' which categorises as {} — incompatible. \
+                     Either pick a different column, change the property type, or \
+                     wrap the value in a `PropertyTransform::SqlExpr` that performs \
+                     the explicit coercion.",
+                    prop_mapping.property_key.as_str(),
+                    property_type_label,
+                    mapping_id,
+                    column.name,
+                    column.data_type,
+                    category_label,
+                )),
+        );
+    }
+
+    fn assert_link_column_in_contract(
+        &self,
+        mapping: &crate::mapping::link::LinkMappingDef,
+        role: &str,
+        source_id: &crate::mapping::SourceId,
+        col: &crate::mapping::refs::ColumnRef,
+        contract: Option<&crate::source_contract::SourceContractDef>,
+        diag_code: &'static str,
+        errors: &mut Vec<DiagnosticMessage>,
+    ) {
+        let Some(contract) = contract else {
+            // Caller already filtered via sources_with_any_contract;
+            // a missing contract here means relation-level absence,
+            // already reported by the endpoint-relation pass when
+            // applicable. Don't double-report.
+            return;
+        };
+        if col.relation == contract.relation && !contract.has_column(&col.column) {
+            errors.push(
+                diag(diag_code)
+                    .with("mapping_id", mapping.id.as_str())
+                    .with("role", role)
+                    .with("source_id", source_id.as_str())
+                    .with("relation", contract.relation.as_str())
+                    .with("column", col.column.as_str())
+                    .message(format!(
+                        "Link mapping '{}' {} column '{}' is not present on source contract \
+                         '{}.{}'.",
+                        mapping.id,
+                        role,
+                        col.column,
+                        source_id.as_str(),
+                        contract.relation,
+                    )),
+            );
+        }
     }
 
     fn validate_internal(
@@ -373,9 +1031,8 @@ impl OntologyIR {
         }
 
         if self.id.trim().is_empty() {
-            errors.push(
-                diag("ontology.validate.id.empty").message("Ontology id must not be empty"),
-            );
+            errors
+                .push(diag("ontology.validate.id.empty").message("Ontology id must not be empty"));
         }
         if self.name.trim().is_empty() {
             errors.push(
@@ -394,12 +1051,10 @@ impl OntologyIR {
             || !self.object_mappings.is_empty()
             || !self.link_mappings.is_empty();
         if !has_content {
-            errors.push(
-                diag("ontology.validate.no_content").message(
-                    "Ontology must populate at least one collection \
+            errors.push(diag("ontology.validate.no_content").message(
+                "Ontology must populate at least one collection \
                      (node_types / edge_types / glossary / rules / code_systems / mappings)",
-                ),
-            );
+            ));
         }
 
         let mut seen_node_ids = std::collections::HashSet::<NodeTypeId>::new();
@@ -570,20 +1225,6 @@ impl OntologyIR {
                 );
             }
 
-            for term_id in &edge.glossary_anchors {
-                if !self.lookup.glossary_term_id_idx.contains_key(term_id) {
-                    errors.push(
-                        diag("ontology.validate.edge.unknown_glossary_anchor")
-                            .with("label", label)
-                            .with("glossary_term_id", term_id.as_str())
-                            .message(format!(
-                                "Edge '{}' anchors unknown glossary term id '{}'",
-                                edge.label, term_id
-                            )),
-                    );
-                }
-            }
-
             if !seen_node_ids.contains::<str>(&edge.source_node_id) {
                 errors.push(
                     diag("ontology.validate.edge.unknown_source_node_id")
@@ -667,19 +1308,6 @@ impl OntologyIR {
                     );
                 }
             }
-            for term_id in &node.glossary_anchors {
-                if !self.lookup.glossary_term_id_idx.contains_key(term_id) {
-                    errors.push(
-                        diag("ontology.validate.node.unknown_glossary_anchor")
-                            .with("node_label", node.label.as_str())
-                            .with("glossary_term_id", term_id.as_str())
-                            .message(format!(
-                                "Node '{}' anchors unknown glossary term id '{}'",
-                                node.label, term_id
-                            )),
-                    );
-                }
-            }
 
             // Property-level governance — derived-from checks plus a
             // single walk over `bindings` so every registry-target
@@ -739,7 +1367,12 @@ impl OntologyIR {
                 // additionally rejects targets whose domain is
                 // empty (would force every write to fail).
                 for binding in &prop.bindings {
-                    if let Some(msg) = self.check_binding_target_exists(
+                    if let Some(msg) =
+                        self.check_binding_target_exists(&node.label, prop.name.as_str(), binding)
+                    {
+                        errors.push(msg);
+                    }
+                    if let Some(msg) = self.check_binding_concept_map_compatibility(
                         &node.label,
                         prop.name.as_str(),
                         binding,
@@ -856,7 +1489,11 @@ impl OntologyIR {
         // Action precondition / postcondition ids must reference real
         // rules. Same rationale as rule activations.
         for action in &self.actions {
-            for rule_id in action.preconditions.iter().chain(action.postconditions.iter()) {
+            for rule_id in action
+                .preconditions
+                .iter()
+                .chain(action.postconditions.iter())
+            {
                 if !self.lookup.rule_id_idx.contains_key(rule_id) {
                     errors.push(
                         diag("ontology.validate.action.unknown_rule_id")
@@ -877,7 +1514,7 @@ impl OntologyIR {
         // HashSet alloc.
         // -------------------------------------------------------------
         for om in &self.object_mappings {
-            if !self.lookup.node_id_idx.contains_key(&om.node_type_id) {
+            let Some(&node_idx) = self.lookup.node_id_idx.get(&om.node_type_id) else {
                 errors.push(
                     diag("ontology.validate.object_mapping.unknown_node_type_id")
                         .with("object_mapping_id", om.id.as_str())
@@ -887,9 +1524,64 @@ impl OntologyIR {
                             om.id, om.node_type_id
                         )),
                 );
+                continue;
+            };
+
+            let node = &self.node_types[node_idx];
+            let property_ids = node
+                .properties
+                .iter()
+                .map(|p| &p.id)
+                .collect::<std::collections::HashSet<_>>();
+            let mut mapped_property_ids = std::collections::HashSet::new();
+            for property_mapping in &om.property_mappings {
+                if !mapped_property_ids.insert(&property_mapping.property_id) {
+                    errors.push(
+                        diag("ontology.validate.object_mapping.duplicate_property_mapping")
+                            .with("object_mapping_id", om.id.as_str())
+                            .with("node_type_id", om.node_type_id.as_str())
+                            .with("property_id", property_mapping.property_id.as_str())
+                            .message(format!(
+                                "Object mapping '{}' maps property id '{}' more than once",
+                                om.id, property_mapping.property_id
+                            )),
+                    );
+                }
+
+                if !property_ids.contains(&property_mapping.property_id) {
+                    errors.push(
+                        diag("ontology.validate.object_mapping.unknown_property_id")
+                            .with("object_mapping_id", om.id.as_str())
+                            .with("node_type_id", om.node_type_id.as_str())
+                            .with("property_id", property_mapping.property_id.as_str())
+                            .message(format!(
+                                "Object mapping '{}' targets unknown property id '{}' on node type '{}'",
+                                om.id, property_mapping.property_id, om.node_type_id
+                            )),
+                    );
+                }
+
+                if let Some(concept_map_id) = &property_mapping.concept_map_id
+                    && !self.lookup.concept_map_id_idx.contains_key(concept_map_id)
+                {
+                    errors.push(
+                        diag("ontology.validate.object_mapping.unknown_concept_map_id")
+                            .with("object_mapping_id", om.id.as_str())
+                            .with("node_type_id", om.node_type_id.as_str())
+                            .with("property_id", property_mapping.property_id.as_str())
+                            .with("concept_map_id", concept_map_id.as_str())
+                            .message(format!(
+                                "Object mapping '{}' property '{}' references unknown concept map id '{}'",
+                                om.id, property_mapping.property_id, concept_map_id
+                            )),
+                    );
+                }
             }
         }
         for lm in &self.link_mappings {
+            validate_endpoint_ref(&mut errors, lm.id.as_str(), "source", &lm.source_endpoint);
+            validate_endpoint_ref(&mut errors, lm.id.as_str(), "target", &lm.target_endpoint);
+
             if !self.lookup.edge_id_idx.contains_key(&lm.edge_type_id) {
                 errors.push(
                     diag("ontology.validate.link_mapping.unknown_edge_type_id")
@@ -900,6 +1592,137 @@ impl OntologyIR {
                             lm.id, lm.edge_type_id
                         )),
                 );
+            }
+
+            match &lm.kind {
+                crate::mapping::LinkMappingKind::ForeignKey {
+                    source_column,
+                    target_column,
+                } => {
+                    validate_column_ref(
+                        &mut errors,
+                        "ontology.validate.link_mapping.invalid_foreign_key_column",
+                        lm.id.as_str(),
+                        "source_column",
+                        source_column,
+                    );
+                    validate_column_ref(
+                        &mut errors,
+                        "ontology.validate.link_mapping.invalid_foreign_key_column",
+                        lm.id.as_str(),
+                        "target_column",
+                        target_column,
+                    );
+                }
+                crate::mapping::LinkMappingKind::Bridge {
+                    bridge_relation,
+                    source_join,
+                    target_join,
+                    bridge_workspace_scope,
+                } => {
+                    if bridge_relation.source_id.trim().is_empty()
+                        || bridge_relation.relation.trim().is_empty()
+                    {
+                        errors.push(
+                            diag("ontology.validate.link_mapping.invalid_bridge_relation")
+                                .with("link_mapping_id", lm.id.as_str())
+                                .with("source_id", bridge_relation.source_id.as_str())
+                                .with("relation", bridge_relation.relation.as_str())
+                                .message(format!(
+                                    "Link mapping '{}' has an invalid bridge relation",
+                                    lm.id
+                                )),
+                        );
+                    }
+                    if source_join.len() != lm.source_endpoint.key_columns.len() {
+                        errors.push(
+                            diag("ontology.validate.link_mapping.source_bridge_join_arity_mismatch")
+                                .with("link_mapping_id", lm.id.as_str())
+                                .with("join_columns", source_join.len().to_string())
+                                .with(
+                                    "endpoint_key_columns",
+                                    lm.source_endpoint.key_columns.len().to_string(),
+                                )
+                                .message(format!(
+                                    "Link mapping '{}' source bridge join arity does not match source endpoint key arity",
+                                    lm.id
+                                )),
+                        );
+                    }
+                    if target_join.len() != lm.target_endpoint.key_columns.len() {
+                        errors.push(
+                            diag("ontology.validate.link_mapping.target_bridge_join_arity_mismatch")
+                                .with("link_mapping_id", lm.id.as_str())
+                                .with("join_columns", target_join.len().to_string())
+                                .with(
+                                    "endpoint_key_columns",
+                                    lm.target_endpoint.key_columns.len().to_string(),
+                                )
+                                .message(format!(
+                                    "Link mapping '{}' target bridge join arity does not match target endpoint key arity",
+                                    lm.id
+                                )),
+                        );
+                    }
+                    for column_ref in source_join {
+                        validate_column_ref(
+                            &mut errors,
+                            "ontology.validate.link_mapping.invalid_bridge_join_column",
+                            lm.id.as_str(),
+                            "source_join",
+                            column_ref,
+                        );
+                    }
+                    for column_ref in target_join {
+                        validate_column_ref(
+                            &mut errors,
+                            "ontology.validate.link_mapping.invalid_bridge_join_column",
+                            lm.id.as_str(),
+                            "target_join",
+                            column_ref,
+                        );
+                    }
+                    if let Some(column_ref) = bridge_workspace_scope {
+                        validate_column_ref(
+                            &mut errors,
+                            "ontology.validate.link_mapping.invalid_bridge_workspace_scope",
+                            lm.id.as_str(),
+                            "bridge_workspace_scope",
+                            column_ref,
+                        );
+                    }
+                }
+                crate::mapping::LinkMappingKind::Computed { predicate } => {
+                    if predicate.trim().is_empty() {
+                        errors.push(
+                            diag("ontology.validate.link_mapping.empty_computed_predicate")
+                                .with("link_mapping_id", lm.id.as_str())
+                                .message(format!(
+                                    "Link mapping '{}' computed predicate must not be empty",
+                                    lm.id
+                                )),
+                        );
+                    }
+                }
+                crate::mapping::LinkMappingKind::Federated {
+                    source_match_column,
+                    target_match_column,
+                } => {
+                    validate_column_ref(
+                        &mut errors,
+                        "ontology.validate.link_mapping.invalid_federated_match_column",
+                        lm.id.as_str(),
+                        "source_match_column",
+                        source_match_column,
+                    );
+                    validate_column_ref(
+                        &mut errors,
+                        "ontology.validate.link_mapping.invalid_federated_match_column",
+                        lm.id.as_str(),
+                        "target_match_column",
+                        target_match_column,
+                    );
+                }
             }
             // Π-2: cardinality sanity. A `Bridge` link claiming
             // anything other than `ManyToMany` is almost certainly
@@ -1000,7 +1823,7 @@ impl OntologyIR {
         // walks every `Option<XxxId>` pointer on PropertyDef /
         // RuleDef / ValueSetDef / ConceptMapDef and flags any id
         // that does not resolve.
-        use crate::integrity::{render_dangling_references, RegistryReferenceCheck};
+        use crate::integrity::{RegistryReferenceCheck, render_dangling_references};
         let dangling = self.dangling_references();
         if !dangling.is_empty() {
             errors.extend(render_dangling_references(&dangling));
@@ -1011,16 +1834,10 @@ impl OntologyIR {
         // `contributed_node_ids` entry must resolve to a declared
         // NodeType, and every `contributed_edge_ids` to a declared
         // EdgeType.
-        let known_node_ids: std::collections::HashSet<&str> = self
-            .node_types
-            .iter()
-            .map(|n| n.id.as_str())
-            .collect();
-        let known_edge_ids: std::collections::HashSet<&str> = self
-            .edge_types
-            .iter()
-            .map(|e| e.id.as_str())
-            .collect();
+        let known_node_ids: std::collections::HashSet<&str> =
+            self.node_types.iter().map(|n| n.id.as_str()).collect();
+        let known_edge_ids: std::collections::HashSet<&str> =
+            self.edge_types.iter().map(|e| e.id.as_str()).collect();
         for entry in &self.table_inventory {
             for nid in &entry.contributed_node_ids {
                 if !known_node_ids.contains(nid.as_str()) {
@@ -1058,36 +1875,71 @@ impl OntologyIR {
         // A glossary term whose `realisation` is `Some(_)` is a
         // workspace-canonical business concept. The realisation must
         // resolve to a real Segment / Function on this same IR.
-        let known_segments: std::collections::HashSet<&str> = self
-            .segments
-            .iter()
-            .map(|s| s.id.as_str())
-            .collect();
-        let known_functions: std::collections::HashSet<&str> = self
-            .functions
-            .iter()
-            .map(|f| f.id.as_str())
-            .collect();
+        let known_segments: std::collections::HashSet<&str> =
+            self.segments.iter().map(|s| s.id.as_str()).collect();
+        let known_functions: std::collections::HashSet<&str> =
+            self.functions.iter().map(|f| f.id.as_str()).collect();
 
         // Concept ↔ glossary referential integrity. Every
         // ConceptDef pins a canonical lexical realisation
         // (`canonical_term_id`) and optionally fans out to
         // alias terms (`alias_term_ids`); both sides must
         // resolve to glossary entries that actually exist on
-        // this IR. Without this check a stale concept could
-        // reference a deleted glossary term and the SKOS export
-        // / NL-to-Cypher resolver would surface broken anchors.
+        // this IR and the glossary entries must point back to the
+        // same concept. Without this check a stale lexical term can
+        // make concept-binding suggestions attach properties to the
+        // wrong business concept.
         // `broader` (concept hierarchy parent) must resolve to
         // another concept on the same IR.
+        let glossary_index: std::collections::HashMap<
+            &GlossaryTermId,
+            &crate::glossary::GlossaryTermDef,
+        > = self.glossary.iter().map(|t| (&t.id, t)).collect();
         let known_term_ids: std::collections::HashSet<&GlossaryTermId> =
             self.glossary.iter().map(|t| &t.id).collect();
-        let known_concept_ids: std::collections::HashSet<&str> = self
-            .concepts
-            .iter()
-            .map(|c| c.id.as_str())
-            .collect();
+        let known_concept_ids: std::collections::HashSet<&str> =
+            self.concepts.iter().map(|c| c.id.as_str()).collect();
+        let concept_index: std::collections::HashMap<
+            &crate::concept::ConceptId,
+            &crate::concept::ConceptDef,
+        > = self.concepts.iter().map(|c| (&c.id, c)).collect();
+        let mut claimed_terms =
+            std::collections::HashMap::<&GlossaryTermId, &crate::concept::ConceptId>::new();
         for concept in &self.concepts {
-            if !known_term_ids.contains(&concept.canonical_term_id) {
+            let mut concept_terms = std::collections::HashSet::<&GlossaryTermId>::new();
+            concept_terms.insert(&concept.canonical_term_id);
+            if let Some(term) = glossary_index.get(&concept.canonical_term_id) {
+                if term.concept_id.as_ref() != Some(&concept.id) {
+                    errors.push(
+                        diag("ontology.validate.concept.canonical_term_concept_mismatch")
+                            .with("concept_id", concept.id.as_str())
+                            .with("term_id", concept.canonical_term_id.as_str())
+                            .with(
+                                "term_concept_id",
+                                term.concept_id.as_ref().map(|id| id.as_str()).unwrap_or(""),
+                            )
+                            .message(format!(
+                                "Concept '{}' canonical term '{}' must carry concept_id '{}'",
+                                concept.id, concept.canonical_term_id, concept.id
+                            )),
+                    );
+                }
+                if let Some(previous) =
+                    claimed_terms.insert(&concept.canonical_term_id, &concept.id)
+                    && previous != &concept.id
+                {
+                    errors.push(
+                        diag("ontology.validate.concept.term_reused")
+                            .with("concept_id", concept.id.as_str())
+                            .with("previous_concept_id", previous.as_str())
+                            .with("term_id", concept.canonical_term_id.as_str())
+                            .message(format!(
+                                "Concept '{}' reuses glossary term '{}' already claimed by concept '{}'",
+                                concept.id, concept.canonical_term_id, previous
+                            )),
+                    );
+                }
+            } else if !known_term_ids.contains(&concept.canonical_term_id) {
                 errors.push(
                     diag("ontology.validate.concept.unknown_canonical_term")
                         .with("concept_id", concept.id.as_str())
@@ -1100,7 +1952,48 @@ impl OntologyIR {
                 );
             }
             for alias_id in &concept.alias_term_ids {
-                if !known_term_ids.contains(alias_id) {
+                if !concept_terms.insert(alias_id) {
+                    errors.push(
+                        diag("ontology.validate.concept.duplicate_lexical_term")
+                            .with("concept_id", concept.id.as_str())
+                            .with("term_id", alias_id.as_str())
+                            .message(format!(
+                                "Concept '{}' declares glossary term '{}' more than once",
+                                concept.id, alias_id
+                            )),
+                    );
+                }
+                if let Some(term) = glossary_index.get(alias_id) {
+                    if term.concept_id.as_ref() != Some(&concept.id) {
+                        errors.push(
+                            diag("ontology.validate.concept.alias_term_concept_mismatch")
+                                .with("concept_id", concept.id.as_str())
+                                .with("term_id", alias_id.as_str())
+                                .with(
+                                    "term_concept_id",
+                                    term.concept_id.as_ref().map(|id| id.as_str()).unwrap_or(""),
+                                )
+                                .message(format!(
+                                    "Concept '{}' alias term '{}' must carry concept_id '{}'",
+                                    concept.id, alias_id, concept.id
+                                )),
+                        );
+                    }
+                    if let Some(previous) = claimed_terms.insert(alias_id, &concept.id)
+                        && previous != &concept.id
+                    {
+                        errors.push(
+                            diag("ontology.validate.concept.term_reused")
+                                .with("concept_id", concept.id.as_str())
+                                .with("previous_concept_id", previous.as_str())
+                                .with("term_id", alias_id.as_str())
+                                .message(format!(
+                                    "Concept '{}' reuses glossary term '{}' already claimed by concept '{}'",
+                                    concept.id, alias_id, previous
+                                )),
+                        );
+                    }
+                } else if !known_term_ids.contains(alias_id) {
                     errors.push(
                         diag("ontology.validate.concept.unknown_alias_term")
                             .with("concept_id", concept.id.as_str())
@@ -1127,54 +2020,153 @@ impl OntologyIR {
                         )),
                 );
             }
+            if let Some(target) = &concept.replaced_by
+                && !known_concept_ids.contains(target.as_str())
+            {
+                errors.push(
+                    diag("ontology.validate.concept.unknown_replaced_by")
+                        .with("concept_id", concept.id.as_str())
+                        .with("replaced_by_id", target.as_str())
+                        .message(format!(
+                            "Concept '{}' replaced_by pointer '{}' does not \
+                             resolve to a sibling concept",
+                            concept.id, target
+                        )),
+                );
+            }
+            if let (Some(from), Some(to)) = (concept.valid_from, concept.valid_to)
+                && from >= to
+            {
+                errors.push(
+                    diag("ontology.validate.concept.invalid_validity_window")
+                        .with("concept_id", concept.id.as_str())
+                        .with("valid_from", from.to_rfc3339())
+                        .with("valid_to", to.to_rfc3339())
+                        .message(format!(
+                            "Concept '{}' valid_from ({}) is not strictly before valid_to ({})",
+                            concept.id,
+                            from.to_rfc3339(),
+                            to.to_rfc3339()
+                        )),
+                );
+            }
+        }
+        for term in &self.glossary {
+            if let Some(concept_id) = &term.concept_id
+                && !known_concept_ids.contains(concept_id.as_str())
+            {
+                errors.push(
+                    diag("ontology.validate.glossary_term.unknown_concept")
+                        .with("term_id", term.id.as_str())
+                        .with("concept_id", concept_id.as_str())
+                        .message(format!(
+                            "Glossary term '{}' concept_id '{}' does not resolve to a concept",
+                            term.id, concept_id
+                        )),
+                );
+            }
         }
 
         for concept in &self.concepts {
             match &concept.realisation {
-                Some(crate::glossary::TermRealisation::Segment { segment_id }) => {
-                    if !known_segments.contains(segment_id.as_str()) {
-                        errors.push(
-                            diag("ontology.validate.concept.unknown_realisation_segment")
-                                .with("concept_id", concept.id.as_str())
-                                .with("segment_id", segment_id.as_str())
-                                .message(format!(
-                                    "Concept '{}' realisation references segment '{}' which is not declared",
-                                    concept.id, segment_id
-                                )),
-                        );
-                    }
+                Some(crate::glossary::TermRealisation::Segment { segment_id })
+                    if !known_segments.contains(segment_id.as_str()) =>
+                {
+                    errors.push(
+                        diag("ontology.validate.concept.unknown_realisation_segment")
+                            .with("concept_id", concept.id.as_str())
+                            .with("segment_id", segment_id.as_str())
+                            .message(format!(
+                                "Concept '{}' realisation references segment '{}' which is not declared",
+                                concept.id, segment_id
+                            )),
+                    );
                 }
-                Some(crate::glossary::TermRealisation::Function { function_id }) => {
-                    if !known_functions.contains(function_id.as_str()) {
-                        errors.push(
-                            diag("ontology.validate.concept.unknown_realisation_function")
-                                .with("concept_id", concept.id.as_str())
-                                .with("function_id", function_id.as_str())
-                                .message(format!(
-                                    "Concept '{}' realisation references function '{}' which is not declared",
-                                    concept.id, function_id
-                                )),
-                        );
-                    }
+                Some(crate::glossary::TermRealisation::Function { function_id })
+                    if !known_functions.contains(function_id.as_str()) =>
+                {
+                    errors.push(
+                        diag("ontology.validate.concept.unknown_realisation_function")
+                            .with("concept_id", concept.id.as_str())
+                            .with("function_id", function_id.as_str())
+                            .message(format!(
+                                "Concept '{}' realisation references function '{}' which is not declared",
+                                concept.id, function_id
+                            )),
+                    );
                 }
-                Some(crate::glossary::TermRealisation::CrossEntity { predicate }) => {
-                    if predicate.trim().is_empty() {
-                        errors.push(
-                            diag("ontology.validate.concept.empty_cross_entity_predicate")
-                                .with("concept_id", concept.id.as_str())
-                                .message(format!(
-                                    "Concept '{}' carries a CrossEntity realisation with an empty predicate",
-                                    concept.id
-                                )),
-                        );
-                    }
+                Some(crate::glossary::TermRealisation::CrossEntity { predicate })
+                    if predicate.trim().is_empty() =>
+                {
+                    errors.push(
+                        diag("ontology.validate.concept.empty_cross_entity_predicate")
+                            .with("concept_id", concept.id.as_str())
+                            .message(format!(
+                                "Concept '{}' carries a CrossEntity realisation with an empty predicate",
+                                concept.id
+                            )),
+                    );
                 }
+                Some(_) => {}
                 None => {}
             }
         }
 
-        let glossary_index: std::collections::HashMap<&GlossaryTermId, &crate::glossary::GlossaryTermDef> =
-            self.glossary.iter().map(|t| (&t.id, t)).collect();
+        if let Some(cycle) = find_cycle(self.concepts.iter().map(|c| c.id.clone()), |id| {
+            concept_index
+                .get(id)
+                .and_then(|concept| concept.broader.clone())
+                .map(|next| vec![next])
+                .unwrap_or_default()
+        }) {
+            errors.push(
+                diag("ontology.validate.concept.broader_cycle")
+                    .with(
+                        "cycle",
+                        cycle
+                            .iter()
+                            .map(|id| id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" → "),
+                    )
+                    .message(format!(
+                        "Concept hierarchy forms a cycle: {}",
+                        cycle
+                            .iter()
+                            .map(|id| id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" → ")
+                    )),
+            );
+        }
+
+        if let Some(cycle) = find_cycle(self.concepts.iter().map(|c| c.id.clone()), |id| {
+            concept_index
+                .get(id)
+                .and_then(|concept| concept.replaced_by.clone())
+                .map(|next| vec![next])
+                .unwrap_or_default()
+        }) {
+            errors.push(
+                diag("ontology.validate.concept.replaced_by_cycle")
+                    .with(
+                        "cycle",
+                        cycle
+                            .iter()
+                            .map(|id| id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" → "),
+                    )
+                    .message(format!(
+                        "Concept replacement chain forms a cycle: {}",
+                        cycle
+                            .iter()
+                            .map(|id| id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" → ")
+                    )),
+            );
+        }
 
         if let Some(cycle) = find_cycle(self.glossary.iter().map(|t| t.id.clone()), |id| {
             glossary_index
@@ -1265,7 +2257,7 @@ impl OntologyIR {
                     std::collections::HashMap::new();
                 for binding in &property.bindings {
                     let kind = match binding {
-                        PropertyBinding::Glossary { .. } => "glossary",
+                        PropertyBinding::Concept { .. } => "concept",
                         PropertyBinding::NotationPattern { .. } => "notation_pattern",
                         PropertyBinding::ValueRange { .. } => "value_range",
                         PropertyBinding::ValueSet { .. } | PropertyBinding::CodeSystem { .. } => {
@@ -1310,6 +2302,36 @@ impl OntologyIR {
                         )),
                 );
             }
+            let mut seen_realizations = std::collections::HashSet::new();
+            if let Some(concept_id) = &node.concept_id {
+                seen_realizations.insert(concept_id.as_str());
+            }
+            for realization in &node.concept_realizations {
+                if !known_concepts.contains(realization.concept_id.as_str()) {
+                    errors.push(
+                        diag("ontology.validate.node.unknown_concept_realization")
+                            .with("node_id", node.id.as_str())
+                            .with("concept_id", realization.concept_id.as_str())
+                            .message(format!(
+                                "Node type '{}' realises additional concept '{}' which is not declared",
+                                node.label.as_str(),
+                                realization.concept_id
+                            )),
+                    );
+                }
+                if !seen_realizations.insert(realization.concept_id.as_str()) {
+                    errors.push(
+                        diag("ontology.validate.node.duplicate_concept_realization")
+                            .with("node_id", node.id.as_str())
+                            .with("concept_id", realization.concept_id.as_str())
+                            .message(format!(
+                                "Node type '{}' declares duplicate concept realization '{}'",
+                                node.label.as_str(),
+                                realization.concept_id
+                            )),
+                    );
+                }
+            }
         }
         for edge in &self.edge_types {
             if let Some(concept_id) = &edge.concept_id
@@ -1325,6 +2347,36 @@ impl OntologyIR {
                             concept_id
                         )),
                 );
+            }
+            let mut seen_realizations = std::collections::HashSet::new();
+            if let Some(concept_id) = &edge.concept_id {
+                seen_realizations.insert(concept_id.as_str());
+            }
+            for realization in &edge.concept_realizations {
+                if !known_concepts.contains(realization.concept_id.as_str()) {
+                    errors.push(
+                        diag("ontology.validate.edge.unknown_concept_realization")
+                            .with("edge_id", edge.id.as_str())
+                            .with("concept_id", realization.concept_id.as_str())
+                            .message(format!(
+                                "Edge type '{}' realises additional concept '{}' which is not declared",
+                                edge.label.as_str(),
+                                realization.concept_id
+                            )),
+                    );
+                }
+                if !seen_realizations.insert(realization.concept_id.as_str()) {
+                    errors.push(
+                        diag("ontology.validate.edge.duplicate_concept_realization")
+                            .with("edge_id", edge.id.as_str())
+                            .with("concept_id", realization.concept_id.as_str())
+                            .message(format!(
+                                "Edge type '{}' declares duplicate concept realization '{}'",
+                                edge.label.as_str(),
+                                realization.concept_id
+                            )),
+                    );
+                }
             }
         }
 
@@ -1351,11 +2403,8 @@ impl OntologyIR {
                 );
                 continue;
             };
-            let known_properties: std::collections::HashSet<&str> = target
-                .properties
-                .iter()
-                .map(|p| p.name.as_str())
-                .collect();
+            let known_properties: std::collections::HashSet<&str> =
+                target.properties.iter().map(|p| p.name.as_str()).collect();
             for prop in seg.referenced_properties() {
                 if !known_properties.contains(prop.as_str()) {
                     errors.push(
@@ -1412,11 +2461,11 @@ impl OntologyIR {
                 }
                 ("value range set", id.as_str().to_string())
             }
-            PropertyBinding::Glossary { id, .. } => {
-                if self.lookup.glossary_term_id_idx.contains_key(id) {
+            PropertyBinding::Concept { id, .. } => {
+                if self.lookup.concept_id_idx.contains_key(id) {
                     return None;
                 }
-                ("glossary term", id.as_str().to_string())
+                ("concept", id.as_str().to_string())
             }
         };
         Some(
@@ -1430,6 +2479,86 @@ impl OntologyIR {
                     node_label, property_name, registry, missing_id
                 )),
         )
+    }
+
+    fn check_binding_concept_map_compatibility(
+        &self,
+        node_label: &str,
+        property_name: &str,
+        binding: &crate::binding::PropertyBinding,
+    ) -> Option<DiagnosticMessage> {
+        use crate::binding::PropertyBinding;
+
+        let concept_map_id = binding.concept_map_id()?;
+        let concept_map_idx = *self.lookup.concept_map_id_idx.get(concept_map_id)?;
+        let concept_map = &self.concept_maps[concept_map_idx];
+        let covers_system = |id: &crate::code_system::CodeSystemId| {
+            id == &concept_map.source_system_id || id == &concept_map.target_system_id
+        };
+
+        match binding {
+            PropertyBinding::CodeSystem { id, .. } => {
+                if covers_system(id) {
+                    return None;
+                }
+                Some(
+                    diag("ontology.validate.binding.concept_map_system_mismatch")
+                        .with("node_label", node_label)
+                        .with("property", property_name)
+                        .with("binding_kind", "code_system")
+                        .with("binding_system_id", id.as_str())
+                        .with("concept_map_id", concept_map_id.as_str())
+                        .with("source_system_id", concept_map.source_system_id.as_str())
+                        .with("target_system_id", concept_map.target_system_id.as_str())
+                        .message(format!(
+                            "Property '{}.{}' binding references concept map '{}' but code system '{}' is neither its source nor target system",
+                            node_label, property_name, concept_map_id, id
+                        )),
+                )
+            }
+            PropertyBinding::ValueSet { id, .. } => {
+                let value_set_idx = *self.lookup.value_set_id_idx.get(id)?;
+                let value_set = &self.value_sets[value_set_idx];
+                let uncovered: Vec<&str> = value_set
+                    .composition
+                    .iter()
+                    .filter_map(|rule| {
+                        if self.lookup.code_system_id_idx.contains_key(&rule.system_id)
+                            && !covers_system(&rule.system_id)
+                        {
+                            Some(rule.system_id.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                if uncovered.is_empty() {
+                    return None;
+                }
+                Some(
+                    diag("ontology.validate.binding.concept_map_system_mismatch")
+                        .with("node_label", node_label)
+                        .with("property", property_name)
+                        .with("binding_kind", "value_set")
+                        .with("binding_value_set_id", id.as_str())
+                        .with("concept_map_id", concept_map_id.as_str())
+                        .with("source_system_id", concept_map.source_system_id.as_str())
+                        .with("target_system_id", concept_map.target_system_id.as_str())
+                        .with("uncovered_system_ids", uncovered.join(","))
+                        .message(format!(
+                            "Property '{}.{}' binding references concept map '{}' but value set '{}' includes systems outside that map: {}",
+                            node_label,
+                            property_name,
+                            concept_map_id,
+                            id,
+                            uncovered.join(", ")
+                        )),
+                )
+            }
+            PropertyBinding::NotationPattern { .. }
+            | PropertyBinding::ValueRange { .. }
+            | PropertyBinding::Concept { .. } => None,
+        }
     }
 
     /// Non-blocking author advisories.
@@ -1614,19 +2743,29 @@ impl OntologyIR {
                 }
                 None
             }
-            // ValueRange and Glossary variants don't carry a strength
+            // ValueRange and Concept variants don't carry a strength
             // field — they cannot be `Required` and are unreachable
             // from the strength()==Required gate above.
-            PropertyBinding::ValueRange { .. } | PropertyBinding::Glossary { .. } => None,
+            PropertyBinding::ValueRange { .. } | PropertyBinding::Concept { .. } => None,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::binding::PropertyBinding;
+    use crate::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+    use crate::concept_map::{ConceptMapDef, ConceptMapId, ConceptMapping, Equivalence};
     use crate::ir::*;
+    use crate::value_set::{
+        IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
+    };
     use ox_core::graph_label::GraphLabel;
     use ox_core::i18n::LocalizedText;
+    use ox_core::property_key::PropertyKey;
+    use ox_core::types::PropertyType;
 
     // Shared fixture helpers — validation tests and the sibling
     // `ir::tests` module both draw from `test_fixtures` so the
@@ -1639,10 +2778,176 @@ mod tests {
         sample_user_ontology()
     }
 
+    fn cv(id: &str, code: &str) -> CodedValue {
+        CodedValue {
+            id: CodedValueId::new(id),
+            code: code.into(),
+            display: LocalizedText::default(),
+            definition: LocalizedText::default(),
+            aliases: vec![],
+            broader_id: None,
+            examples: vec![],
+            scope_note: LocalizedText::default(),
+            valid_from: None,
+            valid_to: None,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }
+    }
+
+    fn code_system(id: &str, codes: Vec<CodedValue>) -> CodeSystemDef {
+        CodeSystemDef {
+            id: CodeSystemId::new(id),
+            name: id.into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            uri: None,
+            version: "1".into(),
+            kind: CodeSystemKind::Internal,
+            hierarchical: false,
+            codes,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }
+    }
+
+    fn status_ontology(binding: PropertyBinding) -> OntologyIR {
+        OntologyIR::try_new(
+            "ont".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![NodeTypeDef {
+                id: NodeTypeId::new("nt"),
+                label: GraphLabel::new("Doc").expect("valid label"),
+                properties: vec![PropertyDef {
+                    id: PropertyId::new("p-status"),
+                    name: PropertyKey::new("status").expect("valid property key"),
+                    property_type: PropertyType::String,
+                    bindings: vec![binding],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            vec![],
+            vec![],
+        )
+        .expect("valid ontology")
+    }
+
     #[test]
     fn validate_accepts_well_formed_ontology() {
         let ontology = base_ontology();
         assert!(ontology.validate().is_empty());
+    }
+
+    #[test]
+    fn validate_rejects_code_system_binding_with_incompatible_concept_map() {
+        let mut ontology = status_ontology(
+            PropertyBinding::code_system(CodeSystemId::new("cs-other"))
+                .with_concept_map(ConceptMapId::new("cm-status")),
+        );
+        ontology
+            .add_code_system(code_system("cs-source", vec![cv("cv-active", "ACTIVE")]))
+            .expect("source code system");
+        ontology
+            .add_code_system(code_system("cs-target", vec![cv("cv-a", "A")]))
+            .expect("target code system");
+        ontology
+            .add_code_system(code_system("cs-other", vec![cv("cv-open", "OPEN")]))
+            .expect("other code system");
+        ontology
+            .add_concept_map(ConceptMapDef {
+                id: ConceptMapId::new("cm-status"),
+                name: "StatusMap".into(),
+                display_name: LocalizedText::default(),
+                description: LocalizedText::default(),
+                version: "1".into(),
+                source_system_id: CodeSystemId::new("cs-source"),
+                target_system_id: CodeSystemId::new("cs-target"),
+                mappings: vec![ConceptMapping {
+                    source_code: "ACTIVE".into(),
+                    target_code: "A".into(),
+                    equivalence: Equivalence::Equivalent,
+                    comment: LocalizedText::default(),
+                }],
+            })
+            .expect("concept map");
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.binding.concept_map_system_mismatch"),
+            "expected concept-map system mismatch: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_value_set_binding_with_partly_uncovered_concept_map() {
+        let mut ontology = status_ontology(
+            PropertyBinding::value_set(ValueSetId::new("vs-status"))
+                .with_concept_map(ConceptMapId::new("cm-status")),
+        );
+        ontology
+            .add_code_system(code_system("cs-source", vec![cv("cv-active", "ACTIVE")]))
+            .expect("source code system");
+        ontology
+            .add_code_system(code_system("cs-target", vec![cv("cv-a", "A")]))
+            .expect("target code system");
+        ontology
+            .add_code_system(code_system("cs-other", vec![cv("cv-open", "OPEN")]))
+            .expect("other code system");
+        ontology
+            .add_value_set(ValueSetDef {
+                id: ValueSetId::new("vs-status"),
+                name: "Status".into(),
+                display_name: LocalizedText::default(),
+                description: LocalizedText::default(),
+                version: "1".into(),
+                composition: vec![
+                    ValueSetIncludeRule {
+                        system_id: CodeSystemId::new("cs-source"),
+                        selector: ValueSetSelector::All,
+                        mode: IncludeMode::Include,
+                    },
+                    ValueSetIncludeRule {
+                        system_id: CodeSystemId::new("cs-other"),
+                        selector: ValueSetSelector::All,
+                        mode: IncludeMode::Include,
+                    },
+                ],
+            })
+            .expect("value set");
+        ontology
+            .add_concept_map(ConceptMapDef {
+                id: ConceptMapId::new("cm-status"),
+                name: "StatusMap".into(),
+                display_name: LocalizedText::default(),
+                description: LocalizedText::default(),
+                version: "1".into(),
+                source_system_id: CodeSystemId::new("cs-source"),
+                target_system_id: CodeSystemId::new("cs-target"),
+                mappings: vec![ConceptMapping {
+                    source_code: "ACTIVE".into(),
+                    target_code: "A".into(),
+                    equivalence: Equivalence::Equivalent,
+                    comment: LocalizedText::default(),
+                }],
+            })
+            .expect("concept map");
+
+        let errors = ontology.validate();
+        assert!(
+            errors.iter().any(|e| {
+                e.code == "ontology.validate.binding.concept_map_system_mismatch"
+                    && e.params
+                        .get("uncovered_system_ids")
+                        .map(|v| v == "cs-other")
+                        .unwrap_or(false)
+            }),
+            "expected uncovered value-set system mismatch: {errors:?}"
+        );
     }
 
     #[test]
@@ -1702,11 +3007,23 @@ mod tests {
 
         let errors = ontology.validate();
 
-        assert!(errors.iter().any(|e| e.code == "ontology.validate.id.empty"));
-        assert!(errors.iter().any(|e| e.code == "ontology.validate.name.empty"));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.id.empty")
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.name.empty")
+        );
         // Empty everything also fails the "populate at least one
         // collection" invariant.
-        assert!(errors.iter().any(|e| e.code == "ontology.validate.no_content"));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.no_content")
+        );
     }
 
     #[test]
@@ -1749,8 +3066,7 @@ mod tests {
         // `status` is typed String but declared Measure — a
         // semantic error: you cannot SUM or AVG a string column.
         let mut ontology = base_ontology();
-        ontology.node_types[0].properties[0].aggregation_role =
-            Some(AggregationRole::Measure);
+        ontology.node_types[0].properties[0].aggregation_role = Some(AggregationRole::Measure);
         // The fixture's first property is String-typed; keep it.
 
         let errors = ontology.validate();
@@ -1822,23 +3138,6 @@ mod tests {
     }
 
     #[test]
-    fn validate_rejects_unknown_glossary_anchor_on_node() {
-        let mut ontology = base_ontology();
-        ontology.node_types[0]
-            .glossary_anchors
-            .push(crate::glossary::GlossaryTermId::new("gt-nonexistent"));
-
-        let errors = ontology.validate();
-
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.code == "ontology.validate.node.unknown_glossary_anchor"),
-            "expected unknown_glossary_anchor diagnostic: {errors:?}"
-        );
-    }
-
-    #[test]
     fn validate_rejects_composition_with_many_to_many_cardinality() {
         let mut ontology = base_ontology();
         // Promote first edge to Composition while leaving its
@@ -1849,8 +3148,9 @@ mod tests {
         let errors = ontology.validate();
 
         assert!(
-            errors.iter().any(|e| e.code
-                == "ontology.validate.edge.composition_requires_singular_source"),
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.edge.composition_requires_singular_source"),
             "expected composition cardinality diagnostic: {errors:?}"
         );
     }
@@ -1864,12 +3164,12 @@ mod tests {
         let errors = ontology.validate();
 
         assert!(
-            !errors.iter().any(|e| e.code
-                == "ontology.validate.edge.composition_requires_singular_source"),
+            !errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.edge.composition_requires_singular_source"),
             "OneToMany composition is the canonical case: {errors:?}"
         );
     }
-
 
     #[test]
     fn validate_accepts_segment_targeting_real_node_with_real_properties() {
@@ -1878,8 +3178,10 @@ mod tests {
 
         let mut ontology = base_ontology();
         let target_node_id = ontology.node_types[0].id.clone();
-        let target_property =
-            ontology.node_types[0].properties[0].name.as_str().to_string();
+        let target_property = ontology.node_types[0].properties[0]
+            .name
+            .as_str()
+            .to_string();
 
         ontology
             .add_segment(SegmentDef {
@@ -2004,20 +3306,17 @@ mod tests {
         }
     }
 
-
     #[test]
     fn validate_accepts_inventory_pointing_at_declared_node() {
         let mut ontology = base_ontology();
         let target_node_id = ontology.node_types[0].id.clone();
         ontology
-            .upsert_table_inventory_entry(
-                crate::table_inventory::TableInventoryEntry::imported(
-                    crate::mapping::SourceId::new("pg-main"),
-                    "users",
-                    "fp-1",
-                    vec![target_node_id],
-                ),
-            )
+            .upsert_table_inventory_entry(crate::table_inventory::TableInventoryEntry::imported(
+                crate::mapping::SourceId::new("pg-main"),
+                "users",
+                "fp-1",
+                vec![target_node_id],
+            ))
             .expect("upsert");
         let errors = ontology.validate();
         assert!(
@@ -2032,19 +3331,18 @@ mod tests {
     fn validate_rejects_inventory_pointing_at_unknown_node() {
         let mut ontology = base_ontology();
         ontology
-            .upsert_table_inventory_entry(
-                crate::table_inventory::TableInventoryEntry::imported(
-                    crate::mapping::SourceId::new("pg-main"),
-                    "users",
-                    "fp-1",
-                    vec![NodeTypeId::new("nt-not-declared")],
-                ),
-            )
+            .upsert_table_inventory_entry(crate::table_inventory::TableInventoryEntry::imported(
+                crate::mapping::SourceId::new("pg-main"),
+                "users",
+                "fp-1",
+                vec![NodeTypeId::new("nt-not-declared")],
+            ))
             .expect("upsert");
         let errors = ontology.validate();
         assert!(
-            errors.iter().any(|e| e.code
-                == "ontology.validate.table_inventory.unknown_node_type"),
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.table_inventory.unknown_node_type"),
             "expected unknown_node_type diagnostic: {errors:?}"
         );
     }
@@ -2054,24 +3352,20 @@ mod tests {
         let mut ontology = base_ontology();
         let nid = ontology.node_types[0].id.clone();
         ontology
-            .upsert_table_inventory_entry(
-                crate::table_inventory::TableInventoryEntry::imported(
-                    crate::mapping::SourceId::new("pg-main"),
-                    "users",
-                    "fp-1",
-                    vec![nid.clone()],
-                ),
-            )
+            .upsert_table_inventory_entry(crate::table_inventory::TableInventoryEntry::imported(
+                crate::mapping::SourceId::new("pg-main"),
+                "users",
+                "fp-1",
+                vec![nid.clone()],
+            ))
             .expect("first upsert");
         ontology
-            .upsert_table_inventory_entry(
-                crate::table_inventory::TableInventoryEntry::imported(
-                    crate::mapping::SourceId::new("pg-main"),
-                    "users",
-                    "fp-2",
-                    vec![nid.clone()],
-                ),
-            )
+            .upsert_table_inventory_entry(crate::table_inventory::TableInventoryEntry::imported(
+                crate::mapping::SourceId::new("pg-main"),
+                "users",
+                "fp-2",
+                vec![nid.clone()],
+            ))
             .expect("second upsert");
         assert_eq!(
             ontology.table_inventory().len(),
@@ -2086,26 +3380,19 @@ mod tests {
         let mut ontology = base_ontology();
         let nid = ontology.node_types[0].id.clone();
         ontology
-            .upsert_table_inventory_entry(
-                crate::table_inventory::TableInventoryEntry::imported(
-                    crate::mapping::SourceId::new("pg-main"),
-                    "users",
-                    "fp-1",
-                    vec![nid],
-                ),
-            )
+            .upsert_table_inventory_entry(crate::table_inventory::TableInventoryEntry::imported(
+                crate::mapping::SourceId::new("pg-main"),
+                "users",
+                "fp-1",
+                vec![nid],
+            ))
             .expect("upsert");
-        let resolved = ontology.find_table_inventory_entry(
-            &crate::mapping::SourceId::new("pg-main"),
-            "users",
-        );
+        let resolved =
+            ontology.find_table_inventory_entry(&crate::mapping::SourceId::new("pg-main"), "users");
         assert!(resolved.is_some());
         assert!(
             ontology
-                .find_table_inventory_entry(
-                    &crate::mapping::SourceId::new("pg-main"),
-                    "missing",
-                )
+                .find_table_inventory_entry(&crate::mapping::SourceId::new("pg-main"), "missing",)
                 .is_none()
         );
     }
@@ -2127,7 +3414,18 @@ mod tests {
             valid_to: None,
             lifecycle: crate::glossary::TermLifecycle::default(),
             concept_id: None,
+            term_pos: Default::default(),
         }
+    }
+
+    fn term_for_concept(
+        id: &str,
+        name: &str,
+        concept_id: &str,
+    ) -> crate::glossary::GlossaryTermDef {
+        let mut term = term(id, name);
+        term.concept_id = Some(crate::concept::ConceptId::new(concept_id));
+        term
     }
 
     fn concept_with_realisation(
@@ -2144,6 +3442,24 @@ mod tests {
             examples: Vec::new(),
             category: None,
             realisation: Some(realisation),
+            lifecycle: crate::glossary::TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: crate::concept::ConceptGovernance::default(),
+        }
+    }
+
+    fn concept(id: &str, canonical_term: &str) -> crate::concept::ConceptDef {
+        crate::concept::ConceptDef {
+            id: crate::concept::ConceptId::new(id),
+            canonical_term_id: crate::glossary::GlossaryTermId::new(canonical_term),
+            alias_term_ids: Vec::new(),
+            broader: None,
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
             lifecycle: crate::glossary::TermLifecycle::default(),
             replaced_by: None,
             valid_from: None,
@@ -2169,7 +3485,9 @@ mod tests {
     #[test]
     fn validate_rejects_concept_realisation_pointing_at_missing_segment() {
         let mut ontology = base_ontology();
-        ontology.glossary.push(term("gt-active", "Active"));
+        ontology
+            .glossary
+            .push(term_for_concept("gt-active", "Active", "c-active"));
         ontology
             .add_concept(concept_with_realisation(
                 "c-active",
@@ -2182,8 +3500,9 @@ mod tests {
 
         let errors = ontology.validate();
         assert!(
-            errors.iter().any(|e| e.code
-                == "ontology.validate.concept.unknown_realisation_segment"),
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.unknown_realisation_segment"),
             "expected unknown_realisation_segment diagnostic: {errors:?}"
         );
     }
@@ -2191,8 +3510,7 @@ mod tests {
     #[test]
     fn validate_rejects_node_back_reference_to_unknown_term() {
         let mut ontology = base_ontology();
-        ontology.node_types[0].concept_id =
-            Some(crate::concept::ConceptId::new("c-not-declared"));
+        ontology.node_types[0].concept_id = Some(crate::concept::ConceptId::new("c-not-declared"));
 
         let errors = ontology.validate();
         assert!(
@@ -2206,14 +3524,14 @@ mod tests {
     #[test]
     fn reverse_index_resolves_implementing_node_types_in_constant_time() {
         let mut ontology = base_ontology();
-        ontology.glossary.push(term("gt-customer", "Customer"));
-        ontology.node_types[0].concept_id =
-            Some(crate::concept::ConceptId::new("c-customer"));
+        ontology
+            .glossary
+            .push(term_for_concept("gt-customer", "Customer", "c-customer"));
+        ontology.node_types[0].concept_id = Some(crate::concept::ConceptId::new("c-customer"));
         ontology.rebuild_indices().expect("rebuild");
 
-        let implementers = ontology.node_types_realising_concept(
-            &crate::concept::ConceptId::new("c-customer"),
-        );
+        let implementers =
+            ontology.node_types_realising_concept(&crate::concept::ConceptId::new("c-customer"));
         assert_eq!(implementers.len(), 1);
         assert_eq!(implementers[0].id, ontology.node_types[0].id);
     }
@@ -2225,7 +3543,9 @@ mod tests {
         // shared `concept_id` is what the federation planner
         // walks to enumerate implementers.
         let mut ontology = base_ontology();
-        ontology.glossary.push(term("gt-customer", "Customer"));
+        ontology
+            .glossary
+            .push(term_for_concept("gt-customer", "Customer", "c-customer"));
         ontology
             .add_concept(crate::concept::ConceptDef {
                 id: crate::concept::ConceptId::new("c-customer"),
@@ -2243,8 +3563,7 @@ mod tests {
                 governance: crate::concept::ConceptGovernance::default(),
             })
             .expect("declare concept");
-        ontology.node_types[0].concept_id =
-            Some(crate::concept::ConceptId::new("c-customer"));
+        ontology.node_types[0].concept_id = Some(crate::concept::ConceptId::new("c-customer"));
 
         let extra = NodeTypeDef {
             id: "nt-erp-customer".into(),
@@ -2255,7 +3574,9 @@ mod tests {
             concept_id: Some(crate::concept::ConceptId::new("c-customer")),
             ..Default::default()
         };
-        ontology.add_node_type(extra).expect("add second implementer");
+        ontology
+            .add_node_type(extra)
+            .expect("add second implementer");
 
         let errors = ontology.validate();
         assert!(
@@ -2265,9 +3586,8 @@ mod tests {
             "shared concept term across implementers is the supported pattern: {errors:?}"
         );
 
-        let implementers = ontology.node_types_realising_concept(
-            &crate::concept::ConceptId::new("c-customer"),
-        );
+        let implementers =
+            ontology.node_types_realising_concept(&crate::concept::ConceptId::new("c-customer"));
         assert_eq!(implementers.len(), 2);
     }
 
@@ -2306,9 +3626,56 @@ mod tests {
     }
 
     #[test]
-    fn validate_rejects_concept_alias_pointing_at_missing_glossary_entry() {
+    fn validate_rejects_glossary_term_pointing_at_missing_concept() {
+        let mut ontology = base_ontology();
+        ontology
+            .glossary
+            .push(term_for_concept("gt-customer", "Customer", "c-missing"));
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.glossary_term.unknown_concept"),
+            "expected glossary_term.unknown_concept diagnostic: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn validate_rejects_concept_canonical_term_without_back_reference() {
         let mut ontology = base_ontology();
         ontology.glossary.push(term("gt-customer", "Customer"));
+        ontology.concepts.push(crate::concept::ConceptDef {
+            id: crate::concept::ConceptId::new("c-customer"),
+            canonical_term_id: crate::glossary::GlossaryTermId::new("gt-customer"),
+            alias_term_ids: Vec::new(),
+            broader: None,
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: crate::concept::ConceptGovernance::default(),
+        });
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.canonical_term_concept_mismatch"),
+            "expected canonical_term_concept_mismatch diagnostic: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn validate_rejects_concept_alias_pointing_at_missing_glossary_entry() {
+        let mut ontology = base_ontology();
+        ontology
+            .glossary
+            .push(term_for_concept("gt-customer", "Customer", "c-customer"));
         ontology.concepts.push(crate::concept::ConceptDef {
             id: crate::concept::ConceptId::new("c-customer"),
             canonical_term_id: crate::glossary::GlossaryTermId::new("gt-customer"),
@@ -2331,6 +3698,104 @@ mod tests {
                 .iter()
                 .any(|e| e.code == "ontology.validate.concept.unknown_alias_term"),
             "expected unknown_alias_term diagnostic: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn validate_rejects_concept_alias_term_with_wrong_back_reference() {
+        let mut ontology = base_ontology();
+        ontology
+            .glossary
+            .push(term_for_concept("gt-customer", "Customer", "c-customer"));
+        ontology
+            .glossary
+            .push(term_for_concept("gt-client", "Client", "c-client"));
+        ontology.concepts.push(crate::concept::ConceptDef {
+            id: crate::concept::ConceptId::new("c-customer"),
+            canonical_term_id: crate::glossary::GlossaryTermId::new("gt-customer"),
+            alias_term_ids: vec![crate::glossary::GlossaryTermId::new("gt-client")],
+            broader: None,
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: crate::concept::ConceptGovernance::default(),
+        });
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.alias_term_concept_mismatch"),
+            "expected alias_term_concept_mismatch diagnostic: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_concept_lexical_terms() {
+        let mut ontology = base_ontology();
+        ontology
+            .glossary
+            .push(term_for_concept("gt-customer", "Customer", "c-customer"));
+        ontology.concepts.push(crate::concept::ConceptDef {
+            id: crate::concept::ConceptId::new("c-customer"),
+            canonical_term_id: crate::glossary::GlossaryTermId::new("gt-customer"),
+            alias_term_ids: vec![crate::glossary::GlossaryTermId::new("gt-customer")],
+            broader: None,
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: crate::concept::ConceptGovernance::default(),
+        });
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.duplicate_lexical_term"),
+            "expected duplicate_lexical_term diagnostic: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn validate_rejects_glossary_term_reused_by_multiple_concepts() {
+        let mut ontology = base_ontology();
+        ontology
+            .glossary
+            .push(term_for_concept("gt-customer", "Customer", "c-customer"));
+        for id in ["c-customer", "c-client"] {
+            ontology.concepts.push(crate::concept::ConceptDef {
+                id: crate::concept::ConceptId::new(id),
+                canonical_term_id: crate::glossary::GlossaryTermId::new("gt-customer"),
+                alias_term_ids: Vec::new(),
+                broader: None,
+                description: LocalizedText::default(),
+                examples: Vec::new(),
+                category: None,
+                realisation: None,
+                lifecycle: crate::glossary::TermLifecycle::default(),
+                replaced_by: None,
+                valid_from: None,
+                valid_to: None,
+                governance: crate::concept::ConceptGovernance::default(),
+            });
+        }
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.term_reused"),
+            "expected term_reused diagnostic: {errors:?}",
         );
     }
 
@@ -2364,6 +3829,100 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_concept_broader_cycle() {
+        let mut ontology = base_ontology();
+        ontology
+            .glossary
+            .push(term_for_concept("gt-party", "Party", "c-party"));
+        ontology
+            .glossary
+            .push(term_for_concept("gt-customer", "Customer", "c-customer"));
+        let mut party = concept("c-party", "gt-party");
+        party.broader = Some(crate::concept::ConceptId::new("c-customer"));
+        let mut customer = concept("c-customer", "gt-customer");
+        customer.broader = Some(crate::concept::ConceptId::new("c-party"));
+        ontology.concepts.push(party);
+        ontology.concepts.push(customer);
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.broader_cycle"),
+            "expected concept.broader_cycle diagnostic: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn validate_rejects_concept_replaced_by_cycle() {
+        let mut ontology = base_ontology();
+        ontology.glossary.push(term_for_concept(
+            "gt-customer-old",
+            "Customer old",
+            "c-customer-old",
+        ));
+        ontology.glossary.push(term_for_concept(
+            "gt-customer-new",
+            "Customer new",
+            "c-customer-new",
+        ));
+        let mut old = concept("c-customer-old", "gt-customer-old");
+        old.replaced_by = Some(crate::concept::ConceptId::new("c-customer-new"));
+        let mut new = concept("c-customer-new", "gt-customer-new");
+        new.replaced_by = Some(crate::concept::ConceptId::new("c-customer-old"));
+        ontology.concepts.push(old);
+        ontology.concepts.push(new);
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.replaced_by_cycle"),
+            "expected concept.replaced_by_cycle diagnostic: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn validate_rejects_concept_replaced_by_pointing_at_missing_concept() {
+        let mut ontology = base_ontology();
+        ontology
+            .glossary
+            .push(term_for_concept("gt-customer", "Customer", "c-customer"));
+        let mut customer = concept("c-customer", "gt-customer");
+        customer.replaced_by = Some(crate::concept::ConceptId::new("c-missing"));
+        ontology.concepts.push(customer);
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.unknown_replaced_by"),
+            "expected concept.unknown_replaced_by diagnostic: {errors:?}",
+        );
+    }
+
+    #[test]
+    fn validate_rejects_concept_with_inverted_validity_window() {
+        let mut ontology = base_ontology();
+        ontology
+            .glossary
+            .push(term_for_concept("gt-customer", "Customer", "c-customer"));
+        let now = chrono::Utc::now();
+        let mut customer = concept("c-customer", "gt-customer");
+        customer.valid_from = Some(now);
+        customer.valid_to = Some(now);
+        ontology.concepts.push(customer);
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.invalid_validity_window"),
+            "expected concept.invalid_validity_window diagnostic: {errors:?}",
+        );
+    }
+
+    #[test]
     fn validate_rejects_derived_rule_with_missing_source_binding() {
         use crate::rule::{RuleDef, RuleKind, RuleOrigin};
 
@@ -2393,27 +3952,242 @@ mod tests {
             constraints: Vec::new(),
             valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         });
         ontology.rebuild_indices().expect("rebuild");
 
         let errors = ontology.validate();
 
         assert!(
-            errors.iter().any(|e| e.code
-                == "ontology.validate.rule.derived_origin_missing_binding"),
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.rule.derived_origin_missing_binding"),
             "expected derived-rule orphan diagnostic: {errors:?}"
         );
+    }
+
+    #[test]
+    fn validate_rejects_object_mapping_with_unknown_property_mapping() {
+        use crate::mapping::{ColumnRef, ObjectMappingDef, PropertyLocation, PropertyMappingDef};
+
+        let mut ontology = base_ontology();
+        let mut mapping = ObjectMappingDef::new("om-user", "node-user", "pg-main", "users");
+        mapping.property_mappings.push(PropertyMappingDef {
+            property_id: "prop-missing".into(),
+            property_key: PropertyKey::new("missing").expect("valid property key"),
+            location: PropertyLocation::Column(ColumnRef::new("users", "missing")),
+            transform: Default::default(),
+            concept_map_id: None,
+        });
+        ontology.object_mappings.push(mapping);
+        ontology.rebuild_indices().expect("rebuild");
+
+        let errors = ontology.validate();
+
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.object_mapping.unknown_property_id"),
+            "expected object mapping unknown property diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_object_property_mappings() {
+        use crate::mapping::{ColumnRef, ObjectMappingDef, PropertyLocation, PropertyMappingDef};
+
+        let mut ontology = base_ontology();
+        let mut mapping = ObjectMappingDef::new("om-user", "node-user", "pg-main", "users");
+        mapping.property_mappings.push(PropertyMappingDef {
+            property_id: "prop-email".into(),
+            property_key: PropertyKey::new("email").expect("valid property key"),
+            location: PropertyLocation::Column(ColumnRef::new("users", "email")),
+            transform: Default::default(),
+            concept_map_id: None,
+        });
+        mapping.property_mappings.push(PropertyMappingDef {
+            property_id: "prop-email".into(),
+            property_key: PropertyKey::new("email").expect("valid property key"),
+            location: PropertyLocation::Column(ColumnRef::new("users", "email_address")),
+            transform: Default::default(),
+            concept_map_id: None,
+        });
+        ontology.object_mappings.push(mapping);
+        ontology.rebuild_indices().expect("rebuild");
+
+        let errors = ontology.validate();
+
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.object_mapping.duplicate_property_mapping"),
+            "expected object mapping duplicate property diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_object_property_mapping_with_unknown_concept_map() {
+        use crate::mapping::{ColumnRef, ObjectMappingDef, PropertyLocation, PropertyMappingDef};
+
+        let mut ontology = base_ontology();
+        let mut mapping = ObjectMappingDef::new("om-user", "node-user", "pg-main", "users");
+        mapping.property_mappings.push(PropertyMappingDef {
+            property_id: "prop-email".into(),
+            property_key: PropertyKey::new("email").expect("valid property key"),
+            location: PropertyLocation::Column(ColumnRef::new("users", "email")),
+            transform: Default::default(),
+            concept_map_id: Some(ConceptMapId::new("cm-missing")),
+        });
+        ontology.object_mappings.push(mapping);
+        ontology.rebuild_indices().expect("rebuild");
+
+        let errors = ontology.validate();
+
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.object_mapping.unknown_concept_map_id"),
+            "expected object mapping unknown concept map diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_link_mapping_with_invalid_endpoint_shape() {
+        use crate::mapping::{
+            EndpointRef, JoinCostHint, LinkCardinality, LinkMappingDef, LinkMappingId,
+            LinkMappingKind, SourceId,
+        };
+
+        let mut ontology = base_ontology();
+        ontology.link_mappings.push(LinkMappingDef {
+            id: LinkMappingId::new("lm-bad"),
+            edge_type_id: EdgeTypeId::new("edge-owns"),
+            kind: LinkMappingKind::Computed {
+                predicate: "users.id = users.owner_id".into(),
+            },
+            source_endpoint: EndpointRef {
+                source_id: SourceId::new(""),
+                relation: "".into(),
+                key_columns: Vec::new(),
+            },
+            target_endpoint: EndpointRef {
+                source_id: SourceId::new("pg-main"),
+                relation: "users".into(),
+                key_columns: vec!["id".into(), "id".into()],
+            },
+            join_cost_hint: JoinCostHint::Unknown,
+            precedence: 0,
+            cardinality: LinkCardinality::ManyToMany,
+        });
+        ontology.rebuild_indices().expect("rebuild");
+
+        let errors = ontology.validate();
+
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.link_mapping.empty_endpoint_source_id"),
+            "expected empty endpoint source diagnostic: {errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.link_mapping.empty_endpoint_relation"),
+            "expected empty endpoint relation diagnostic: {errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.link_mapping.empty_endpoint_key"),
+            "expected empty endpoint key diagnostic: {errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.link_mapping.duplicate_endpoint_key_column"),
+            "expected duplicate endpoint key diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_link_mapping_with_invalid_kind_shape() {
+        use crate::mapping::{
+            ColumnRef, EndpointRef, JoinCostHint, LinkCardinality, LinkMappingDef, LinkMappingId,
+            LinkMappingKind, SourceId, SourceRelationRef,
+        };
+
+        let mut ontology = base_ontology();
+        let endpoint = EndpointRef {
+            source_id: SourceId::new("pg-main"),
+            relation: "users".into(),
+            key_columns: vec!["id".into(), "tenant_id".into()],
+        };
+        ontology.link_mappings.push(LinkMappingDef {
+            id: LinkMappingId::new("lm-bad-bridge"),
+            edge_type_id: EdgeTypeId::new("edge-owns"),
+            kind: LinkMappingKind::Bridge {
+                bridge_relation: SourceRelationRef {
+                    source_id: SourceId::new("pg-main"),
+                    relation: "".into(),
+                    kind: Default::default(),
+                },
+                source_join: vec![ColumnRef::new("user_edges", "user_id")],
+                target_join: vec![
+                    ColumnRef::new("user_edges", "owner_id"),
+                    ColumnRef::new("", "tenant_id"),
+                ],
+                bridge_workspace_scope: Some(ColumnRef::new("user_edges", "")),
+            },
+            source_endpoint: endpoint.clone(),
+            target_endpoint: endpoint,
+            join_cost_hint: JoinCostHint::Unknown,
+            precedence: 0,
+            cardinality: LinkCardinality::ManyToMany,
+        });
+        ontology.link_mappings.push(LinkMappingDef {
+            id: LinkMappingId::new("lm-empty-computed"),
+            edge_type_id: EdgeTypeId::new("edge-owns"),
+            kind: LinkMappingKind::Computed {
+                predicate: " ".into(),
+            },
+            source_endpoint: EndpointRef {
+                source_id: SourceId::new("pg-main"),
+                relation: "users".into(),
+                key_columns: vec!["id".into()],
+            },
+            target_endpoint: EndpointRef {
+                source_id: SourceId::new("pg-main"),
+                relation: "users".into(),
+                key_columns: vec!["id".into()],
+            },
+            join_cost_hint: JoinCostHint::Unknown,
+            precedence: 0,
+            cardinality: LinkCardinality::ManyToMany,
+        });
+        ontology.rebuild_indices().expect("rebuild");
+
+        let errors = ontology.validate();
+
+        for code in [
+            "ontology.validate.link_mapping.invalid_bridge_relation",
+            "ontology.validate.link_mapping.source_bridge_join_arity_mismatch",
+            "ontology.validate.link_mapping.invalid_bridge_join_column",
+            "ontology.validate.link_mapping.invalid_bridge_workspace_scope",
+            "ontology.validate.link_mapping.empty_computed_predicate",
+        ] {
+            assert!(
+                errors.iter().any(|e| e.code == code),
+                "expected {code} diagnostic: {errors:?}"
+            );
+        }
     }
 
     #[test]
     fn validate_accepts_measure_aggregation_role_on_numeric_property() {
         let mut ontology = base_ontology();
         // Swap first property's type to Int so Measure is valid.
-        ontology.node_types[0].properties[0].property_type =
-            ox_core::types::PropertyType::Int;
-        ontology.node_types[0].properties[0].aggregation_role =
-            Some(AggregationRole::Measure);
+        ontology.node_types[0].properties[0].property_type = ox_core::types::PropertyType::Int;
+        ontology.node_types[0].properties[0].aggregation_role = Some(AggregationRole::Measure);
 
         let errors = ontology.validate();
 

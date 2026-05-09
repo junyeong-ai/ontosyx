@@ -55,7 +55,8 @@ impl FromStr for OntologyDraftStatus {
 // SourceTypeKind — type-safe source discriminator
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, utoipa::ToSchema)]
+#[schema(rename_all = "snake_case")]
 pub enum SourceTypeKind {
     Text,
     Csv,
@@ -68,6 +69,7 @@ pub enum SourceTypeKind {
     /// Google BigQuery dataset (project_id + dataset).
     Bigquery,
     /// DuckDB in-process file analysis (Parquet, CSV, JSON).
+    #[schema(rename = "duckdb")]
     DuckDb,
     /// Code repository analyzed via LLM to extract ORM models as source schema.
     CodeRepository,
@@ -141,7 +143,7 @@ impl<'de> Deserialize<'de> for SourceTypeKind {
 
 /// Describes which source type was used, without storing credentials.
 /// Stored in the design project for display and reanalysis source-type matching.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SourceConfig {
     pub source_type: SourceTypeKind,
     /// Schema name (postgresql) or database name (mysql, mongodb)
@@ -159,7 +161,7 @@ pub struct SourceConfig {
 // ---------------------------------------------------------------------------
 
 /// A record of a data source that was used to build or extend the project's ontology.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SourceHistoryEntry {
     pub source_type: SourceTypeKind,
     pub added_at: DateTime<Utc>,

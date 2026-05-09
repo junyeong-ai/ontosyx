@@ -85,7 +85,9 @@ pub enum PropertyLocation {
 /// ontology. Identity is the common case; richer transforms let a
 /// mapping handle legacy schemas without dragging ETL into the
 /// platform.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PropertyTransform {
     /// The source value is the property value — no coercion, no

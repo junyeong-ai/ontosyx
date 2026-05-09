@@ -296,10 +296,8 @@ mod tests {
     fn fully_translated_field_yields_no_gap() {
         let mut ir = ontology_with_node(LocalizedText::default());
         let node = &mut ir.node_types_mut()[0];
-        node.description = LocalizedText::new("안녕").with_translation(
-            LanguageTag::parse("en").unwrap(),
-            "hello",
-        );
+        node.description =
+            LocalizedText::new("안녕").with_translation(LanguageTag::parse("en").unwrap(), "hello");
         let gaps = detect_locale_gaps(&ir, &[LanguageTag::parse("en").unwrap()]);
         assert!(gaps.is_empty(), "{gaps:?}");
     }
@@ -343,7 +341,8 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: crate::glossary::TermLifecycle::default(),
-        concept_id: None,
+            concept_id: None,
+            term_pos: Default::default(),
         })
         .unwrap();
         let gaps = detect_locale_gaps(&ir, &[LanguageTag::parse("en").unwrap()]);

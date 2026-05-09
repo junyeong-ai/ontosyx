@@ -90,7 +90,10 @@ pub enum NotationInferenceRejection {
     /// Samples disagreed on token count after tokenisation.
     TokenCountMismatch { observed_counts: Vec<usize> },
     /// Samples disagreed on per-position class.
-    ClassDisagreement { position: usize, observed: Vec<String> },
+    ClassDisagreement {
+        position: usize,
+        observed: Vec<String>,
+    },
     /// Samples disagreed on the separator characters.
     SeparatorDisagreement { observed: Vec<String> },
     /// Tokenised to a single free-text run — no structured
@@ -120,10 +123,7 @@ pub fn propose_notation_pattern(
     }
 
     // Tokenise every sample.
-    let tokenisations: Vec<Tokenisation> = samples
-        .iter()
-        .map(|s| tokenise(s))
-        .collect();
+    let tokenisations: Vec<Tokenisation> = samples.iter().map(|s| tokenise(s)).collect();
 
     // Token-count consensus.
     let token_counts: Vec<usize> = tokenisations.iter().map(|t| t.tokens.len()).collect();
@@ -147,9 +147,7 @@ pub fn propose_notation_pattern(
             .map(|t| t.separators[gap_idx].clone())
             .collect();
         if !observed.iter().all(|s| s == &observed[0]) {
-            return Err(NotationInferenceRejection::SeparatorDisagreement {
-                observed,
-            });
+            return Err(NotationInferenceRejection::SeparatorDisagreement { observed });
         }
     }
     let separator = tokenisations[0]
@@ -169,14 +167,13 @@ pub fn propose_notation_pattern(
         if !classes.iter().all(|c| *c == head) {
             return Err(NotationInferenceRejection::ClassDisagreement {
                 position: pos,
-                observed: classes
-                    .iter()
-                    .map(|c| format!("{c:?}"))
-                    .collect(),
+                observed: classes.iter().map(|c| format!("{c:?}")).collect(),
             });
         }
-        let position_tokens: Vec<&str> =
-            tokenisations.iter().map(|t| t.tokens[pos].as_str()).collect();
+        let position_tokens: Vec<&str> = tokenisations
+            .iter()
+            .map(|t| t.tokens[pos].as_str())
+            .collect();
         consensus_kinds.push(consensus_kind_for(head, &position_tokens));
     }
 
@@ -192,16 +189,9 @@ pub fn propose_notation_pattern(
         })
         .collect();
 
-    let examples: Vec<String> = samples
-        .iter()
-        .take(5)
-        .map(|s| (*s).to_string())
-        .collect();
+    let examples: Vec<String> = samples.iter().take(5).map(|s| (*s).to_string()).collect();
 
-    let pattern_id = NotationPatternId::from(format!(
-        "np_auto_{}",
-        short_hash(samples[0]),
-    ));
+    let pattern_id = NotationPatternId::from(format!("np_auto_{}", short_hash(samples[0]),));
 
     Ok(NotationPatternProposal {
         pattern: NotationPatternDef {
@@ -419,7 +409,7 @@ fn short_hash(s: &str) -> String {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
     h.update(s.as_bytes());
-    format!("{:x}", h.finalize())[..8].to_string()
+    hex::encode(h.finalize())[..8].to_string()
 }
 
 #[cfg(test)]
@@ -577,11 +567,13 @@ mod tests {
         SourceProfile {
             table_profiles: grouped
                 .into_iter()
-                .map(|(table_name, column_stats)| ox_core::source_schema::TableProfile {
-                    table_name,
-                    row_count: 100,
-                    column_stats,
-                })
+                .map(
+                    |(table_name, column_stats)| ox_core::source_schema::TableProfile {
+                        table_name,
+                        row_count: 100,
+                        column_stats,
+                    },
+                )
                 .collect(),
         }
     }
@@ -590,7 +582,11 @@ mod tests {
     fn schema_walk_partitions_proposals_and_rejections() {
         let schema = schema_with_tables(&["orders", "customers"]);
         let profile = profile_with_columns(vec![
-            ("orders", "invoice_no", &["INV-2025-001", "INV-2025-002", "INV-2024-099"]),
+            (
+                "orders",
+                "invoice_no",
+                &["INV-2025-001", "INV-2025-002", "INV-2024-099"],
+            ),
             ("orders", "status", &["pending", "shipped", "returned"]),
             ("customers", "tier", &["a", "b"]),
         ]);

@@ -47,10 +47,7 @@ pub fn to_exchange_format(ontology: &OntologyIR) -> InputOntologyDef {
         }
         for pm in &om.property_mappings {
             if let PropertyLocation::Column(col) = &pm.location {
-                prop_to_column.insert(
-                    (node_id, pm.property_id.as_ref()),
-                    col.column.as_str(),
-                );
+                prop_to_column.insert((node_id, pm.property_id.as_ref()), col.column.as_str());
             }
         }
     }

@@ -17,11 +17,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::action::ActionId;
+use crate::action::RuleId;
 use crate::enrichment::EnrichmentId;
 use crate::function::FunctionId;
 use crate::ir::{EdgeTypeId, NodeTypeId, PropertyId};
 use crate::mapping::{ObjectMappingId, SourceId};
-use crate::action::RuleId;
 
 ox_core::define_id_newtype!(
     /// Stable identifier for a provenance record.
@@ -179,7 +179,9 @@ pub enum ProvenanceActivityKind {
 }
 
 /// Outcome of a rule evaluation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ValidationOutcomeKind {
     Pass,
@@ -191,12 +193,164 @@ pub enum ValidationOutcomeKind {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AgentRef {
-    User { user_id: String },
-    Service { service_id: String },
-    LlmModel { model_id: String },
+    User {
+        user_id: String,
+    },
+    Service {
+        service_id: String,
+    },
+    LlmModel {
+        model_id: String,
+    },
     /// Scheduled task / reconciler. Used when no human principal
     /// is in the loop (cache refresh cron, batch data-quality run).
     System,
+}
+
+/// Pre-validation input for stamping a [`ProvenanceDef`]. Every
+/// mutation that produces a fact accepts a `ProvenanceCapture` as a
+/// required argument; the platform refuses to mutate without one.
+///
+/// ## Why required, not optional
+///
+/// The audit trail is only useful when it covers every mutation —
+/// "every committed ontology version has a provenance row, every
+/// judged evaluation case carries the prompt fingerprint that
+/// produced its scores, every action invocation is attributed to
+/// its caller". Make capture optional and 95% of the time it stays
+/// `None`; the audit becomes a thin scattered set rather than the
+/// authoritative DAG PROV-O is meant to provide.
+///
+/// Required at the function-signature level — the compiler refuses
+/// to call a mutation without a capture. New mutations inherit the
+/// invariant by construction.
+///
+/// ## What the function fills in
+///
+/// `ProvenanceCapture` carries every PROV-O field except the three
+/// the producer knows for itself:
+///
+/// - `id` — the store stamps a fresh [`ProvenanceId`] at insert time.
+/// - `subject` — the entity the activity just produced (the
+///   committed version's id, the judged metric's id, …). Only the
+///   producer knows the exact subject.
+/// - `at_time` — the wall-clock moment of the activity, captured by
+///   the store at the insert boundary.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+pub struct ProvenanceCapture {
+    /// What activity produced the subject. PROV-O: `prov:Activity`.
+    pub activity: ProvenanceActivityKind,
+    /// Who ran the activity. PROV-O: `prov:wasAssociatedWith`.
+    pub agent: AgentRef,
+    /// Recipe / template the activity executed. Required for LLM
+    /// activities so the [`ProvenancePlan::prompt_render_hash`]
+    /// fingerprint pins the exact bytes that fed the model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<ProvenancePlan>,
+    /// Input entities the activity used. PROV-O: `prov:used`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub used: Vec<EntityRef>,
+    /// Entities the subject was derived from. PROV-O:
+    /// `prov:wasDerivedFrom`. For an ontology-edit commit, the
+    /// parent version snapshot id.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub derived_from: Vec<EntityRef>,
+    /// Earlier activities whose output informed this one. PROV-O:
+    /// `prov:wasInformedBy`. Used by judge cascades — a safety
+    /// judge invocation inherits the RAGAS judge's id when scoring
+    /// the same case.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub was_informed_by: Vec<ProvenanceId>,
+    /// Ontology time the subject was valid under (bitemporal axis).
+    /// `None` means "current".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ontology_valid_at: Option<DateTime<Utc>>,
+    /// Data time the subject was valid under (bitemporal axis).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_valid_at: Option<DateTime<Utc>>,
+}
+
+impl ProvenanceCapture {
+    /// Builder for an ontology-version commit. Records the
+    /// operator-supplied commit summary verbatim — downstream
+    /// audit surfaces render it inline.
+    pub fn ontology_edit(agent: AgentRef, command_summary: impl Into<String>) -> Self {
+        Self {
+            activity: ProvenanceActivityKind::OntologyEdit {
+                command_summary: command_summary.into(),
+            },
+            agent,
+            plan: None,
+            used: Vec::new(),
+            derived_from: Vec::new(),
+            was_informed_by: Vec::new(),
+            ontology_valid_at: None,
+            data_valid_at: None,
+        }
+    }
+
+    /// Builder for an LLM-driven proposal — the canonical case is
+    /// an evaluation-judge invocation. Pairs the activity with the
+    /// `ProvenancePlan` so `prompt_render_hash` is always present
+    /// for replay.
+    pub fn draft_proposal(plan: ProvenancePlan, model_id: impl Into<String>) -> Self {
+        let model_id = model_id.into();
+        Self {
+            activity: ProvenanceActivityKind::DraftProposal {
+                prompt_name: plan.template_id.clone(),
+                prompt_version: plan.template_version.clone(),
+                model_id: model_id.clone(),
+            },
+            agent: AgentRef::LlmModel { model_id },
+            plan: Some(plan),
+            used: Vec::new(),
+            derived_from: Vec::new(),
+            was_informed_by: Vec::new(),
+            ontology_valid_at: None,
+            data_valid_at: None,
+        }
+    }
+
+    /// Attach the supplied input entities — extends `used`.
+    pub fn with_used(mut self, used: impl IntoIterator<Item = EntityRef>) -> Self {
+        self.used.extend(used);
+        self
+    }
+
+    /// Attach parent entities the subject derives from.
+    pub fn with_derived_from(
+        mut self,
+        derived_from: impl IntoIterator<Item = EntityRef>,
+    ) -> Self {
+        self.derived_from.extend(derived_from);
+        self
+    }
+
+    /// Chain to an earlier activity (PROV-O `wasInformedBy`).
+    pub fn informed_by(mut self, prior: ProvenanceId) -> Self {
+        self.was_informed_by.push(prior);
+        self
+    }
+
+    /// Promote the capture into a full [`ProvenanceDef`] by
+    /// stamping the producer-supplied `id` + `subject`. The store
+    /// calls this at insert time; downstream code never constructs
+    /// `ProvenanceDef` directly for a runtime mutation.
+    pub fn into_def(self, id: ProvenanceId, subject: EntityRef) -> ProvenanceDef {
+        ProvenanceDef {
+            id,
+            subject,
+            activity: self.activity,
+            agent: self.agent,
+            at_time: chrono::Utc::now(),
+            used: self.used,
+            derived_from: self.derived_from,
+            was_informed_by: self.was_informed_by,
+            plan: self.plan,
+            ontology_valid_at: self.ontology_valid_at,
+            data_valid_at: self.data_valid_at,
+        }
+    }
 }
 
 #[cfg(test)]

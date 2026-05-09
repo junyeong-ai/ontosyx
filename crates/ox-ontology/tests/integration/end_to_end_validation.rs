@@ -18,7 +18,8 @@
 
 use ox_core::i18n::LocalizedText;
 use ox_ontology::OntologyIR;
-use ox_ontology::glossary::{GlossaryTermDef, TermGovernance, TermLifecycle};
+use ox_ontology::concept::{ConceptDef, ConceptGovernance, ConceptId};
+use ox_ontology::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
 use ox_ontology::test_fixtures::test_ontology;
 
 fn diagnostic_codes(ir: &OntologyIR) -> Vec<String> {
@@ -27,7 +28,7 @@ fn diagnostic_codes(ir: &OntologyIR) -> Vec<String> {
 
 fn glossary_term(id: &str, label: &str) -> GlossaryTermDef {
     GlossaryTermDef {
-        id: id.into(),
+        id: GlossaryTermId::new(id),
         term: LocalizedText::new(label),
         display_name: LocalizedText::default(),
         description: LocalizedText::default(),
@@ -40,7 +41,37 @@ fn glossary_term(id: &str, label: &str) -> GlossaryTermDef {
         valid_to: None,
         lifecycle: TermLifecycle::default(),
         concept_id: None,
+        term_pos: Default::default(),
     }
+}
+
+fn concept(id: &str, canonical_term_id: &str) -> ConceptDef {
+    ConceptDef {
+        id: ConceptId::new(id),
+        canonical_term_id: GlossaryTermId::new(canonical_term_id),
+        alias_term_ids: Vec::new(),
+        broader: None,
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        realisation: None,
+        lifecycle: TermLifecycle::default(),
+        replaced_by: None,
+        valid_from: None,
+        valid_to: None,
+        governance: ConceptGovernance::default(),
+    }
+}
+
+fn seed_concept(ir: &mut OntologyIR) -> ConceptId {
+    let concept_id = ConceptId::new("c-customer");
+    let mut term = glossary_term("gt-customer", "Customer");
+    term.concept_id = Some(concept_id.clone());
+    ir.add_glossary_term(term)
+        .expect("seed canonical glossary term");
+    ir.add_concept(concept(concept_id.as_str(), "gt-customer"))
+        .expect("seed concept");
+    concept_id
 }
 
 // ---------------------------------------------------------------------------
@@ -58,44 +89,55 @@ fn baseline_test_ontology_validates_clean() {
 }
 
 // ---------------------------------------------------------------------------
-// Invariant: glossary_anchors must resolve in OntologyIR.glossary
+// Invariant: concept realizations must resolve in OntologyIR.concepts
 // ---------------------------------------------------------------------------
 
 #[test]
-fn glossary_anchor_resolves_when_term_exists() {
+fn concept_realization_resolves_when_concept_exists() {
     let mut ir = test_ontology();
-    ir.add_glossary_term(glossary_term("gt-customer", "Customer"))
-        .expect("seed glossary term");
-    // Round-trip via JSON — anchor mutation needs structural access
-    // and `OntologyIR` exposes a typed setter (`add_node_glossary_anchor`)
-    // for production paths but not a mutable handle into `node_types`.
-    // The JSON detour stays well-bounded (full IR is serializable).
+    let concept = seed_concept(&mut ir);
     let mut value = serde_json::to_value(&ir).expect("ir to json");
-    value["node_types"][0]["glossary_anchors"] =
-        serde_json::json!(["gt-customer"]);
-    let mutated: OntologyIR =
-        serde_json::from_value(value).expect("json to ir");
+    value["node_types"][0]["concept_realizations"] =
+        serde_json::json!([{ "concept_id": concept.as_str(), "role": "secondary" }]);
+    let mutated: OntologyIR = serde_json::from_value(value).expect("json to ir");
     let codes = diagnostic_codes(&mutated);
     assert!(
         codes.is_empty(),
-        "anchor pointing at an existing term must validate, got: {codes:?}",
+        "realization pointing at an existing concept must validate, got: {codes:?}",
     );
 }
 
 #[test]
-fn glossary_anchor_pointing_at_unknown_term_is_rejected() {
+fn concept_realization_pointing_at_unknown_concept_is_rejected() {
     let ir = test_ontology();
     let mut value = serde_json::to_value(&ir).expect("ir to json");
-    value["node_types"][0]["glossary_anchors"] =
-        serde_json::json!(["gt-orphan"]);
-    let mutated: OntologyIR =
-        serde_json::from_value(value).expect("json to ir");
+    value["node_types"][0]["concept_realizations"] =
+        serde_json::json!([{ "concept_id": "c-orphan", "role": "secondary" }]);
+    let mutated: OntologyIR = serde_json::from_value(value).expect("json to ir");
     let codes = diagnostic_codes(&mutated);
     assert!(
         codes
             .iter()
-            .any(|c| c == "ontology.validate.node.unknown_glossary_anchor"),
-        "expected `unknown_glossary_anchor` diagnostic, got: {codes:?}"
+            .any(|c| c == "ontology.validate.node.unknown_concept_realization"),
+        "expected `unknown_concept_realization` diagnostic, got: {codes:?}"
+    );
+}
+
+#[test]
+fn concept_realization_duplicate_of_primary_concept_is_rejected() {
+    let mut ir = test_ontology();
+    let concept = seed_concept(&mut ir);
+    let mut value = serde_json::to_value(&ir).expect("ir to json");
+    value["node_types"][0]["concept_id"] = serde_json::json!(concept.as_str());
+    value["node_types"][0]["concept_realizations"] =
+        serde_json::json!([{ "concept_id": concept.as_str(), "role": "secondary" }]);
+    let mutated: OntologyIR = serde_json::from_value(value).expect("json to ir");
+    let codes = diagnostic_codes(&mutated);
+    assert!(
+        codes
+            .iter()
+            .any(|c| c == "ontology.validate.node.duplicate_concept_realization"),
+        "expected duplicate realization diagnostic, got: {codes:?}"
     );
 }
 
@@ -110,8 +152,7 @@ fn composition_with_many_to_one_source_is_rejected() {
     let mut value = serde_json::to_value(&ir).expect("ir to json");
     value["edge_types"][0]["kind"] = serde_json::json!("composition");
     value["edge_types"][0]["cardinality"] = serde_json::json!("many_to_one");
-    let mutated: OntologyIR =
-        serde_json::from_value(value).expect("json to ir");
+    let mutated: OntologyIR = serde_json::from_value(value).expect("json to ir");
     let codes = diagnostic_codes(&mutated);
     assert!(
         codes
@@ -131,8 +172,8 @@ fn composition_with_many_to_one_source_is_rejected() {
 fn rule_sh_message_does_not_alter_validation() {
     use ox_ontology::action::RuleId;
     use ox_ontology::rule::{
-        ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef, RuleKind,
-        RuleOrigin, Severity, ShaclConstraint,
+        ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef, RuleKind, RuleOrigin,
+        Severity, ShaclConstraint,
     };
 
     let mut ir = test_ontology();
@@ -180,9 +221,7 @@ fn rule_sh_message_does_not_alter_validation() {
 #[test]
 fn source_mapping_artifact_hash_is_stable_across_clones() {
     use chrono::{DateTime, Utc};
-    use ox_ontology::source_mapping::{
-        ArtifactProvenance, SourceMappingArtifact,
-    };
+    use ox_ontology::source_mapping::{ArtifactProvenance, SourceMappingArtifact};
     use std::collections::BTreeMap;
 
     let a = SourceMappingArtifact {

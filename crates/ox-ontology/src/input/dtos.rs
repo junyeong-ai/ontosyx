@@ -2,8 +2,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use ox_core::i18n::LocalizedText;
 use crate::ir::*;
+use ox_core::i18n::LocalizedText;
 use ox_core::types::{PropertyType, PropertyValue, deserialize_optional_property_value};
 
 // ---------------------------------------------------------------------------

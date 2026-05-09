@@ -120,7 +120,9 @@ pub enum ValueSetSelector {
 
 /// Rule mode — include or exclude. A separate enum (rather than a
 /// `bool`) so the wire form is self-documenting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum IncludeMode {
     Include,
@@ -242,7 +244,11 @@ fn select_from_system<'a>(
             descendants_inclusive(system, root_id)
         }
         ValueSetSelector::CodePattern { pattern } => match regex::Regex::new(pattern) {
-            Ok(re) => system.codes.iter().filter(|cv| re.is_match(&cv.code)).collect(),
+            Ok(re) => system
+                .codes
+                .iter()
+                .filter(|cv| re.is_match(&cv.code))
+                .collect(),
             Err(e) => {
                 warnings.push(ExpandWarning::InvalidRegex {
                     pattern: pattern.clone(),

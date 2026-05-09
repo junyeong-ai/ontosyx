@@ -40,7 +40,9 @@ use crate::ir::{DataClassification, PiiKind};
 /// time, every entry here is treated as authoritative for both the
 /// resulting [`crate::ir::PropertyDef::pii_kind`] and any sample-
 /// value redaction performed before the LLM sees the column.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema,
+)]
 pub struct PiiAnnotation {
     pub table: String,
     pub column: String,
@@ -51,7 +53,9 @@ pub struct PiiAnnotation {
 /// entirely. The column's metadata and sample values never reach
 /// the LLM, and the resulting ontology contains no
 /// [`crate::ir::PropertyDef`] for it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema,
+)]
 pub struct ExcludedColumn {
     pub table: String,
     pub column: String,
@@ -74,7 +78,9 @@ pub struct PiiSignals<'a> {
 /// Classifier output. Returned from [`PiiClassifier::classify`] when
 /// the inputs raise the classifier's confidence above the
 /// emit-threshold.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema,
+)]
 pub struct PiiSuggestion {
     pub table: String,
     pub column: String,
@@ -180,61 +186,257 @@ struct PatternEntry {
 
 const DEFAULT_PATTERNS: &[PatternEntry] = &[
     // --- Identity ---
-    PatternEntry { token: "email",       kind: PiiKind::Email,             confidence: 0.9 },
-    PatternEntry { token: "e_mail",      kind: PiiKind::Email,             confidence: 0.9 },
-    PatternEntry { token: "phone",       kind: PiiKind::Phone,             confidence: 0.85 },
-    PatternEntry { token: "mobile",      kind: PiiKind::Phone,             confidence: 0.7 },
-    PatternEntry { token: "tel",         kind: PiiKind::Phone,             confidence: 0.65 },
-    PatternEntry { token: "name",        kind: PiiKind::Name,              confidence: 0.6 },
-    PatternEntry { token: "birth",       kind: PiiKind::DateOfBirth,       confidence: 0.7 },
-    PatternEntry { token: "dob",         kind: PiiKind::DateOfBirth,       confidence: 0.85 },
-    PatternEntry { token: "ssn",         kind: PiiKind::Ssn,               confidence: 0.95 },
-    PatternEntry { token: "rrn",         kind: PiiKind::Ssn,               confidence: 0.9 },
-    PatternEntry { token: "nin",         kind: PiiKind::Ssn,               confidence: 0.85 },
-    PatternEntry { token: "passport",    kind: PiiKind::Passport,          confidence: 0.9 },
-    PatternEntry { token: "license",     kind: PiiKind::DriversLicense,    confidence: 0.7 },
+    PatternEntry {
+        token: "email",
+        kind: PiiKind::Email,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "e_mail",
+        kind: PiiKind::Email,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "phone",
+        kind: PiiKind::Phone,
+        confidence: 0.85,
+    },
+    PatternEntry {
+        token: "mobile",
+        kind: PiiKind::Phone,
+        confidence: 0.7,
+    },
+    PatternEntry {
+        token: "tel",
+        kind: PiiKind::Phone,
+        confidence: 0.65,
+    },
+    PatternEntry {
+        token: "name",
+        kind: PiiKind::Name,
+        confidence: 0.6,
+    },
+    PatternEntry {
+        token: "birth",
+        kind: PiiKind::DateOfBirth,
+        confidence: 0.7,
+    },
+    PatternEntry {
+        token: "dob",
+        kind: PiiKind::DateOfBirth,
+        confidence: 0.85,
+    },
+    PatternEntry {
+        token: "ssn",
+        kind: PiiKind::Ssn,
+        confidence: 0.95,
+    },
+    PatternEntry {
+        token: "rrn",
+        kind: PiiKind::Ssn,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "nin",
+        kind: PiiKind::Ssn,
+        confidence: 0.85,
+    },
+    PatternEntry {
+        token: "passport",
+        kind: PiiKind::Passport,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "license",
+        kind: PiiKind::DriversLicense,
+        confidence: 0.7,
+    },
     // --- Address ---
-    PatternEntry { token: "address",     kind: PiiKind::Address,           confidence: 0.7 },
-    PatternEntry { token: "addr",        kind: PiiKind::Address,           confidence: 0.7 },
-    PatternEntry { token: "street",      kind: PiiKind::Address,           confidence: 0.7 },
-    PatternEntry { token: "zip",         kind: PiiKind::Address,           confidence: 0.6 },
-    PatternEntry { token: "postal",      kind: PiiKind::Address,           confidence: 0.6 },
+    PatternEntry {
+        token: "address",
+        kind: PiiKind::Address,
+        confidence: 0.7,
+    },
+    PatternEntry {
+        token: "addr",
+        kind: PiiKind::Address,
+        confidence: 0.7,
+    },
+    PatternEntry {
+        token: "street",
+        kind: PiiKind::Address,
+        confidence: 0.7,
+    },
+    PatternEntry {
+        token: "zip",
+        kind: PiiKind::Address,
+        confidence: 0.6,
+    },
+    PatternEntry {
+        token: "postal",
+        kind: PiiKind::Address,
+        confidence: 0.6,
+    },
     // --- Network / Geo ---
-    PatternEntry { token: "ipaddr",      kind: PiiKind::IpAddress,         confidence: 0.85 },
-    PatternEntry { token: "ipv4",        kind: PiiKind::IpAddress,         confidence: 0.9 },
-    PatternEntry { token: "ipv6",        kind: PiiKind::IpAddress,         confidence: 0.9 },
-    PatternEntry { token: "latitude",    kind: PiiKind::GeoLocation,       confidence: 0.85 },
-    PatternEntry { token: "longitude",   kind: PiiKind::GeoLocation,       confidence: 0.85 },
-    PatternEntry { token: "geolocation", kind: PiiKind::GeoLocation,       confidence: 0.9 },
-    PatternEntry { token: "geohash",     kind: PiiKind::GeoLocation,       confidence: 0.85 },
+    PatternEntry {
+        token: "ipaddr",
+        kind: PiiKind::IpAddress,
+        confidence: 0.85,
+    },
+    PatternEntry {
+        token: "ipv4",
+        kind: PiiKind::IpAddress,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "ipv6",
+        kind: PiiKind::IpAddress,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "latitude",
+        kind: PiiKind::GeoLocation,
+        confidence: 0.85,
+    },
+    PatternEntry {
+        token: "longitude",
+        kind: PiiKind::GeoLocation,
+        confidence: 0.85,
+    },
+    PatternEntry {
+        token: "geolocation",
+        kind: PiiKind::GeoLocation,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "geohash",
+        kind: PiiKind::GeoLocation,
+        confidence: 0.85,
+    },
     // --- Financial ---
-    PatternEntry { token: "credit_card", kind: PiiKind::PaymentCardNumber, confidence: 0.95 },
-    PatternEntry { token: "creditcard",  kind: PiiKind::PaymentCardNumber, confidence: 0.95 },
-    PatternEntry { token: "card_number", kind: PiiKind::PaymentCardNumber, confidence: 0.95 },
-    PatternEntry { token: "cardnumber",  kind: PiiKind::PaymentCardNumber, confidence: 0.95 },
-    PatternEntry { token: "card_no",     kind: PiiKind::PaymentCardNumber, confidence: 0.85 },
-    PatternEntry { token: "ccnumber",    kind: PiiKind::PaymentCardNumber, confidence: 0.9 },
-    PatternEntry { token: "pan",         kind: PiiKind::PaymentCardNumber, confidence: 0.6 },
-    PatternEntry { token: "iban",        kind: PiiKind::Iban,              confidence: 0.95 },
-    PatternEntry { token: "bankaccount", kind: PiiKind::BankAccountNumber, confidence: 0.9 },
-    PatternEntry { token: "routing",     kind: PiiKind::BankAccountNumber, confidence: 0.6 },
+    PatternEntry {
+        token: "credit_card",
+        kind: PiiKind::PaymentCardNumber,
+        confidence: 0.95,
+    },
+    PatternEntry {
+        token: "creditcard",
+        kind: PiiKind::PaymentCardNumber,
+        confidence: 0.95,
+    },
+    PatternEntry {
+        token: "card_number",
+        kind: PiiKind::PaymentCardNumber,
+        confidence: 0.95,
+    },
+    PatternEntry {
+        token: "cardnumber",
+        kind: PiiKind::PaymentCardNumber,
+        confidence: 0.95,
+    },
+    PatternEntry {
+        token: "card_no",
+        kind: PiiKind::PaymentCardNumber,
+        confidence: 0.85,
+    },
+    PatternEntry {
+        token: "ccnumber",
+        kind: PiiKind::PaymentCardNumber,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "pan",
+        kind: PiiKind::PaymentCardNumber,
+        confidence: 0.6,
+    },
+    PatternEntry {
+        token: "iban",
+        kind: PiiKind::Iban,
+        confidence: 0.95,
+    },
+    PatternEntry {
+        token: "bankaccount",
+        kind: PiiKind::BankAccountNumber,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "routing",
+        kind: PiiKind::BankAccountNumber,
+        confidence: 0.6,
+    },
     // --- Health ---
-    PatternEntry { token: "mrn",         kind: PiiKind::MedicalRecordNumber, confidence: 0.9 },
-    PatternEntry { token: "medicalrecord", kind: PiiKind::MedicalRecordNumber, confidence: 0.95 },
-    PatternEntry { token: "insurance",   kind: PiiKind::InsuranceId,       confidence: 0.7 },
+    PatternEntry {
+        token: "mrn",
+        kind: PiiKind::MedicalRecordNumber,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "medicalrecord",
+        kind: PiiKind::MedicalRecordNumber,
+        confidence: 0.95,
+    },
+    PatternEntry {
+        token: "insurance",
+        kind: PiiKind::InsuranceId,
+        confidence: 0.7,
+    },
     // --- Biometric ---
-    PatternEntry { token: "fingerprint", kind: PiiKind::Biometric,         confidence: 0.95 },
-    PatternEntry { token: "biometric",   kind: PiiKind::Biometric,         confidence: 0.95 },
-    PatternEntry { token: "faceid",      kind: PiiKind::Biometric,         confidence: 0.9 },
-    PatternEntry { token: "voiceprint",  kind: PiiKind::Biometric,         confidence: 0.9 },
+    PatternEntry {
+        token: "fingerprint",
+        kind: PiiKind::Biometric,
+        confidence: 0.95,
+    },
+    PatternEntry {
+        token: "biometric",
+        kind: PiiKind::Biometric,
+        confidence: 0.95,
+    },
+    PatternEntry {
+        token: "faceid",
+        kind: PiiKind::Biometric,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "voiceprint",
+        kind: PiiKind::Biometric,
+        confidence: 0.9,
+    },
     // --- Auth secrets ---
-    PatternEntry { token: "password",    kind: PiiKind::Password,          confidence: 0.95 },
-    PatternEntry { token: "passwd",      kind: PiiKind::Password,          confidence: 0.9 },
-    PatternEntry { token: "pwd",         kind: PiiKind::Password,          confidence: 0.7 },
-    PatternEntry { token: "token",       kind: PiiKind::Token,             confidence: 0.85 },
-    PatternEntry { token: "api_key",     kind: PiiKind::Token,             confidence: 0.85 },
-    PatternEntry { token: "apikey",      kind: PiiKind::Token,             confidence: 0.85 },
-    PatternEntry { token: "secret",      kind: PiiKind::Token,             confidence: 0.6 },
+    PatternEntry {
+        token: "password",
+        kind: PiiKind::Password,
+        confidence: 0.95,
+    },
+    PatternEntry {
+        token: "passwd",
+        kind: PiiKind::Password,
+        confidence: 0.9,
+    },
+    PatternEntry {
+        token: "pwd",
+        kind: PiiKind::Password,
+        confidence: 0.7,
+    },
+    PatternEntry {
+        token: "token",
+        kind: PiiKind::Token,
+        confidence: 0.85,
+    },
+    PatternEntry {
+        token: "api_key",
+        kind: PiiKind::Token,
+        confidence: 0.85,
+    },
+    PatternEntry {
+        token: "apikey",
+        kind: PiiKind::Token,
+        confidence: 0.85,
+    },
+    PatternEntry {
+        token: "secret",
+        kind: PiiKind::Token,
+        confidence: 0.6,
+    },
 ];
 
 fn looks_like_email_samples(samples: &[String]) -> bool {
@@ -257,11 +459,9 @@ fn matches_token(lower: &str, token: &str) -> bool {
     let mut i = 0;
     while i + tlen <= blen {
         if &bytes[i..i + tlen] == token.as_bytes() {
-            let left_ok = i == 0
-                || matches!(bytes[i - 1] as char, '_' | '-' | '.');
+            let left_ok = i == 0 || matches!(bytes[i - 1] as char, '_' | '-' | '.');
             let right_end = i + tlen;
-            let right_ok = right_end == blen
-                || matches!(bytes[right_end] as char, '_' | '-' | '.');
+            let right_ok = right_end == blen || matches!(bytes[right_end] as char, '_' | '-' | '.');
             let suffix_is_fk = right_end < blen && {
                 let suffix = &lower[right_end..];
                 suffix.ends_with("_id") || suffix.ends_with("-id")
@@ -373,11 +573,9 @@ pub fn redact_last4(s: &str) -> String {
 pub fn data_classification_for(kind: &PiiKind) -> DataClassification {
     match kind {
         // Generic personal data — sensitive but not regulator-imposed.
-        PiiKind::Email
-        | PiiKind::Phone
-        | PiiKind::Name
-        | PiiKind::Address
-        | PiiKind::IpAddress => DataClassification::Confidential,
+        PiiKind::Email | PiiKind::Phone | PiiKind::Name | PiiKind::Address | PiiKind::IpAddress => {
+            DataClassification::Confidential
+        }
         // Regulator-imposed: govt ID, finance, health, biometric, precise geo.
         PiiKind::NationalId { .. }
         | PiiKind::Ssn
@@ -417,7 +615,10 @@ mod tests {
 
     #[test]
     fn email_keeps_local_prefix_and_tld() {
-        assert_eq!(redact_value("john.doe@gmail.com", &PiiKind::Email), "joh***@***.com");
+        assert_eq!(
+            redact_value("john.doe@gmail.com", &PiiKind::Email),
+            "joh***@***.com"
+        );
     }
 
     #[test]
@@ -435,15 +636,30 @@ mod tests {
 
     #[test]
     fn email_malformed_falls_back_to_full_redaction() {
-        assert_eq!(redact_value("not-an-email", &PiiKind::Email), REDACTED_PLACEHOLDER);
-        assert_eq!(redact_value("@nodomain.com", &PiiKind::Email), REDACTED_PLACEHOLDER);
-        assert_eq!(redact_value("nolocal@", &PiiKind::Email), REDACTED_PLACEHOLDER);
-        assert_eq!(redact_value("nodot@whatever", &PiiKind::Email), REDACTED_PLACEHOLDER);
+        assert_eq!(
+            redact_value("not-an-email", &PiiKind::Email),
+            REDACTED_PLACEHOLDER
+        );
+        assert_eq!(
+            redact_value("@nodomain.com", &PiiKind::Email),
+            REDACTED_PLACEHOLDER
+        );
+        assert_eq!(
+            redact_value("nolocal@", &PiiKind::Email),
+            REDACTED_PLACEHOLDER
+        );
+        assert_eq!(
+            redact_value("nodot@whatever", &PiiKind::Email),
+            REDACTED_PLACEHOLDER
+        );
     }
 
     #[test]
     fn phone_card_ssn_keep_last4() {
-        assert_eq!(redact_value("1234-5678-9012-3456", &PiiKind::PaymentCardNumber), "***3456");
+        assert_eq!(
+            redact_value("1234-5678-9012-3456", &PiiKind::PaymentCardNumber),
+            "***3456"
+        );
         assert_eq!(redact_value("123-45-6789", &PiiKind::Ssn), "***6789");
         assert_eq!(redact_value("+82-10-1234-5678", &PiiKind::Phone), "***5678");
     }
@@ -456,10 +672,19 @@ mod tests {
 
     #[test]
     fn password_token_custom_use_full_placeholder() {
-        assert_eq!(redact_value("hunter2", &PiiKind::Password), REDACTED_PLACEHOLDER);
-        assert_eq!(redact_value("ya29.A0ARrdaM", &PiiKind::Token), REDACTED_PLACEHOLDER);
         assert_eq!(
-            redact_value("BIO-FINGERPRINT-HEX", &PiiKind::Custom("biometric_v2".into())),
+            redact_value("hunter2", &PiiKind::Password),
+            REDACTED_PLACEHOLDER
+        );
+        assert_eq!(
+            redact_value("ya29.A0ARrdaM", &PiiKind::Token),
+            REDACTED_PLACEHOLDER
+        );
+        assert_eq!(
+            redact_value(
+                "BIO-FINGERPRINT-HEX",
+                &PiiKind::Custom("biometric_v2".into())
+            ),
             REDACTED_PLACEHOLDER
         );
     }
@@ -501,7 +726,10 @@ mod tests {
     #[test]
     fn classifier_does_not_falsely_match_email_template_id() {
         let c = RegexPiiClassifier::new();
-        assert!(c.classify(&signals("t", "email_template_id", &[])).is_none());
+        assert!(
+            c.classify(&signals("t", "email_template_id", &[]))
+                .is_none()
+        );
     }
 
     #[test]
@@ -594,7 +822,10 @@ mod tests {
 
     #[test]
     fn classification_map_groups_kinds_correctly() {
-        assert_eq!(data_classification_for(&PiiKind::Email), DataClassification::Confidential);
+        assert_eq!(
+            data_classification_for(&PiiKind::Email),
+            DataClassification::Confidential
+        );
         assert_eq!(
             data_classification_for(&PiiKind::Ssn),
             DataClassification::Restricted

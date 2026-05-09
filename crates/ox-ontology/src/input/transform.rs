@@ -4,12 +4,12 @@ use std::collections::HashMap;
 use serde::Serialize;
 use tracing::warn;
 
-use ox_core::graph_label::GraphLabel;
 use crate::ir::*;
 use crate::mapping::{
     CacheHintKind, ColumnRef, ObjectMappingDef, ObjectMappingId, PropertyLocation,
     PropertyMappingDef, PropertyTransform, SourceId, SourceRelationKind,
 };
+use ox_core::graph_label::GraphLabel;
 
 use super::dtos::*;
 
@@ -17,7 +17,7 @@ use super::dtos::*;
 // NormalizeOutcome — normalize() output with structured warnings
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct NormalizeWarning {
     pub kind: String,
     pub message: String,
@@ -149,9 +149,10 @@ pub fn normalize(
                     }
                 };
                 prop_name_to_id.push((p.name.clone(), prop_id.clone()));
-                if let (Some(table), Some(col)) =
-                    (input_node.source_table.as_deref(), p.source_column.as_deref())
-                {
+                if let (Some(table), Some(col)) = (
+                    input_node.source_table.as_deref(),
+                    p.source_column.as_deref(),
+                ) {
                     property_mappings.push(PropertyMappingDef {
                         property_id: prop_id.clone(),
                         property_key: name.clone(),
@@ -318,10 +319,7 @@ pub fn normalize(
                 ox_core::diagnostic::diag("ontology.normalize.invalid_node_label")
                     .with("label", input_node.label.clone())
                     .with("error", e.to_string())
-                    .message(format!(
-                        "Node label '{}' is invalid: {e}",
-                        input_node.label
-                    )),
+                    .message(format!("Node label '{}' is invalid: {e}", input_node.label)),
             ]
         })?;
 
@@ -612,8 +610,8 @@ pub fn normalize(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ox_core::i18n::LocalizedText;
     use crate::input::to_exchange_format;
+    use ox_core::i18n::LocalizedText;
     use ox_core::types::PropertyType;
     use uuid::Uuid;
 
@@ -804,7 +802,8 @@ mod tests {
         let mut input = base_input();
         input.edge_types[0].source_type = "NonExistent".to_string();
 
-        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping dangling edge");
+        let nr =
+            normalize(input, &test_source_id()).expect("should succeed, dropping dangling edge");
         assert!(
             nr.ontology.edge_types.is_empty(),
             "dangling edge should be dropped"
@@ -816,7 +815,8 @@ mod tests {
         let mut input = base_input();
         input.edge_types[0].target_type = "Ghost".to_string();
 
-        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping dangling edge");
+        let nr =
+            normalize(input, &test_source_id()).expect("should succeed, dropping dangling edge");
         assert!(
             nr.ontology.edge_types.is_empty(),
             "dangling edge should be dropped"
@@ -880,7 +880,8 @@ mod tests {
                 properties: vec!["zzz_nonexistent_xyz".to_string()],
             });
 
-        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping invalid constraint");
+        let nr = normalize(input, &test_source_id())
+            .expect("should succeed, dropping invalid constraint");
         // Original unique constraint on "email" should still exist
         assert!(nr.ontology.node_types[0].has_unique_constraint());
     }
@@ -895,7 +896,8 @@ mod tests {
                 property: "zzz_nonexistent_xyz".to_string(),
             });
 
-        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping invalid constraint");
+        let nr = normalize(input, &test_source_id())
+            .expect("should succeed, dropping invalid constraint");
         // The invalid exists constraint should be dropped, original constraints remain
         assert!(nr.ontology.node_types[0].has_unique_constraint());
     }
@@ -909,7 +911,8 @@ mod tests {
             property: "name".to_string(),
         });
 
-        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping invalid index");
+        let nr =
+            normalize(input, &test_source_id()).expect("should succeed, dropping invalid index");
         // base_input has 1 valid index; the Ghost index should be dropped
         assert_eq!(
             nr.ontology.indexes.len(),
@@ -927,7 +930,8 @@ mod tests {
             property: "nonexistent".to_string(),
         });
 
-        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping invalid index");
+        let nr =
+            normalize(input, &test_source_id()).expect("should succeed, dropping invalid index");
         // base_input has 1 valid index; the nonexistent property index should be dropped
         assert_eq!(
             nr.ontology.indexes.len(),
@@ -1105,13 +1109,16 @@ mod tests {
         // source_column; add email_addr to verify property_mapping
         // emission on the same pass.
         let mut input = base_input();
-        input.node_types[0].properties[1].source_column =
-            Some("email_addr".to_string());
+        input.node_types[0].properties[1].source_column = Some("email_addr".to_string());
         let nr = normalize(input, &test_source_id()).expect("normalize");
         let user_node = &nr.ontology.node_types[0];
 
         let mappings = nr.ontology.object_mappings();
-        assert_eq!(mappings.len(), 1, "Product has no source_table → no mapping");
+        assert_eq!(
+            mappings.len(),
+            1,
+            "Product has no source_table → no mapping"
+        );
 
         let om = &mappings[0];
         assert_eq!(om.node_type_id, user_node.id);
@@ -1145,8 +1152,7 @@ mod tests {
         // User already has source_table; wipe it but leave a
         // source_column on email.
         input.node_types[0].source_table = None;
-        input.node_types[0].properties[1].source_column =
-            Some("email_addr".to_string());
+        input.node_types[0].properties[1].source_column = Some("email_addr".to_string());
         let nr = normalize(input, &test_source_id()).expect("normalize");
         assert!(
             nr.ontology.object_mappings().is_empty(),
@@ -1160,10 +1166,8 @@ mod tests {
         // produce mappings that differ only in `source_id` + in the
         // canonical `ObjectMappingId` — everything else (node_type_id,
         // relation, property_mappings) stays byte-identical.
-        let a = normalize(base_input(), &SourceId::new("a:alpha"))
-            .expect("normalize a");
-        let b = normalize(base_input(), &SourceId::new("b:beta"))
-            .expect("normalize b");
+        let a = normalize(base_input(), &SourceId::new("a:alpha")).expect("normalize a");
+        let b = normalize(base_input(), &SourceId::new("b:beta")).expect("normalize b");
         let oma = &a.ontology.object_mappings()[0];
         let omb = &b.ontology.object_mappings()[0];
         assert_eq!(oma.relation, omb.relation);

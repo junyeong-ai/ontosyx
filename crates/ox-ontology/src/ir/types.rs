@@ -160,19 +160,6 @@ pub struct NodeTypeDef {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<crate::action::RuleId>,
 
-    /// Glossary terms this node type realises. Direct
-    /// `Concept ↔ Class` semantic anchor — the SKOS-style equivalent
-    /// of `PropertyBinding::Glossary` lifted to the type level. When
-    /// the SKOS exporter walks the IR, every anchor here emits a
-    /// `skos:exactMatch` between the type's URI and the glossary
-    /// concept; admin UI renders the bound terms as a "realises"
-    /// chip on the node detail surface. Multiple anchors are
-    /// allowed (one term may concretise into several types — and
-    /// vice versa). The IR validator rejects anchors that don't
-    /// resolve in `OntologyIR::glossary`.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub glossary_anchors: Vec<crate::glossary::GlossaryTermId>,
-
     /// Workspace-canonical concept this NodeType implements,
     /// expressed as the stable [`crate::concept::ConceptId`].
     /// Multiple NodeTypes may share a `concept_id` (CRM and ERP
@@ -186,21 +173,55 @@ pub struct NodeTypeDef {
     /// identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub concept_id: Option<crate::concept::ConceptId>,
+    /// Additional concepts this NodeType realises beyond its primary
+    /// identity. This preserves multi-concept modelling without tying
+    /// type semantics to glossary labels.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub concept_realizations: Vec<ConceptRealization>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+pub struct ConceptRealization {
+    pub concept_id: crate::concept::ConceptId,
+    #[serde(default)]
+    pub role: ConceptRealizationRole,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    utoipa::ToSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ConceptRealizationRole {
+    #[default]
+    Secondary,
+    Classification,
+    Interface,
+    Analytical,
 }
 
 /// Type-safe reference to the owner of a property — node or edge.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PropertyOwner {
-    Node(NodeTypeId),
-    Edge(EdgeTypeId),
+    Node { type_id: NodeTypeId },
+    Edge { type_id: EdgeTypeId },
 }
 
 impl PropertyOwner {
     pub fn as_str(&self) -> &str {
         match self {
-            Self::Node(id) => id.as_ref(),
-            Self::Edge(id) => id.as_ref(),
+            Self::Node { type_id } => type_id.as_ref(),
+            Self::Edge { type_id } => type_id.as_ref(),
         }
     }
 }
@@ -208,8 +229,8 @@ impl PropertyOwner {
 impl std::fmt::Display for PropertyOwner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Node(id) => write!(f, "node:{id}"),
-            Self::Edge(id) => write!(f, "edge:{id}"),
+            Self::Node { type_id } => write!(f, "node:{type_id}"),
+            Self::Edge { type_id } => write!(f, "edge:{type_id}"),
         }
     }
 }
@@ -237,7 +258,9 @@ pub struct PiiSuggestion {
 /// Tracks which external data source a node type was derived from.
 /// Richer than the legacy `source_table: Option<String>` — includes
 /// composite primary key and source system identifier for impact analysis.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 pub struct SourceLineage {
     /// Registered data source ID (matches `ox-source` registry key).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -250,7 +273,9 @@ pub struct SourceLineage {
 }
 
 /// Governance metadata attached to a node type.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 pub struct Governance {
     /// Principal ID of the business owner responsible for this entity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -306,8 +331,8 @@ impl Default for NodeTypeDef {
             actions: Vec::new(),
             metrics: Vec::new(),
             rules: Vec::new(),
-            glossary_anchors: Vec::new(),
             concept_id: None,
+            concept_realizations: Vec::new(),
         }
     }
 }
@@ -372,14 +397,6 @@ pub struct EdgeTypeDef {
     #[serde(default)]
     pub kind: EdgeKind,
 
-    /// Glossary terms this edge type realises. Same semantic anchor
-    /// surface as [`NodeTypeDef::glossary_anchors`] — `Concept ↔
-    /// Relationship` SKOS link emitted as `skos:exactMatch` by the
-    /// glossary exporter and rendered as a "realises" chip in the
-    /// inspector. Validator rejects unresolved ids.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub glossary_anchors: Vec<crate::glossary::GlossaryTermId>,
-
     /// Workspace-canonical concept this EdgeType realises. Mirrors
     /// [`NodeTypeDef::concept_id`]; multiple EdgeTypes from
     /// different sources can share a `concept_id` to declare
@@ -388,6 +405,10 @@ pub struct EdgeTypeDef {
     /// resolves a concept to its implementing edges in O(1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub concept_id: Option<crate::concept::ConceptId>,
+    /// Additional concepts this EdgeType realises beyond its primary
+    /// relationship concept.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub concept_realizations: Vec<ConceptRealization>,
 }
 
 /// UML / OMG-aligned edge classification.
@@ -411,7 +432,16 @@ pub struct EdgeTypeDef {
 /// semantics unless the operator explicitly opts into a stronger
 /// classification.
 #[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
     utoipa::ToSchema,
 )]
 #[serde(rename_all = "snake_case")]
@@ -449,8 +479,8 @@ impl Default for EdgeTypeDef {
             deprecated_at: None,
             replaced_by_id: None,
             kind: EdgeKind::Association,
-            glossary_anchors: Vec::new(),
             concept_id: None,
+            concept_realizations: Vec::new(),
         }
     }
 }
@@ -459,7 +489,9 @@ impl Default for EdgeTypeDef {
 // DataClassification — sensitivity level for a property
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum DataClassification {
     Public,
@@ -644,7 +676,7 @@ pub struct PropertyDef {
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum BindingExemptReason {
     /// Primary or composite key column. Identity is its meaning;
-    /// no value-set / glossary anchor adds information.
+    /// no value-set / concept binding adds information.
     PrimaryKey,
     /// `created_at` / `updated_at` / `deleted_at` and similar
     /// audit timestamps. The timestamp itself is the meaning.
@@ -671,7 +703,9 @@ pub enum BindingExemptReason {
 /// The `Identifier` variant maps to dbt's `entity` and is separate
 /// from `Attribute` because LLMs treat identifiers very
 /// differently (join keys vs. informational payload).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum AggregationRole {
     /// Numeric property aggregated by metrics (SUM / AVG / MAX).
@@ -725,21 +759,17 @@ impl PropertyDef {
 
     /// Canonical binding pointing at a value-range set, or `None`.
     pub fn value_range_binding(&self) -> Option<&crate::binding::PropertyBinding> {
-        self.canonical_binding(|b| {
-            matches!(b, crate::binding::PropertyBinding::ValueRange { .. })
-        })
+        self.canonical_binding(|b| matches!(b, crate::binding::PropertyBinding::ValueRange { .. }))
     }
 
-    /// Canonical binding pointing at a glossary term, or `None`.
-    pub fn glossary_binding(&self) -> Option<&crate::binding::PropertyBinding> {
-        self.canonical_binding(|b| matches!(b, crate::binding::PropertyBinding::Glossary { .. }))
+    /// Canonical binding pointing at a workspace concept, or `None`.
+    pub fn concept_binding(&self) -> Option<&crate::binding::PropertyBinding> {
+        self.canonical_binding(|b| matches!(b, crate::binding::PropertyBinding::Concept { .. }))
     }
 
     /// Canonical binding pointing at a code system, or `None`.
     pub fn code_system_binding(&self) -> Option<&crate::binding::PropertyBinding> {
-        self.canonical_binding(|b| {
-            matches!(b, crate::binding::PropertyBinding::CodeSystem { .. })
-        })
+        self.canonical_binding(|b| matches!(b, crate::binding::PropertyBinding::CodeSystem { .. }))
     }
 
     /// Id-only accessor: the canonical value-set this property
@@ -752,9 +782,7 @@ impl PropertyDef {
     }
 
     /// Id-only accessor: the canonical notation pattern.
-    pub fn notation_pattern_id(
-        &self,
-    ) -> Option<&crate::notation_pattern::NotationPatternId> {
+    pub fn notation_pattern_id(&self) -> Option<&crate::notation_pattern::NotationPatternId> {
         match self.notation_pattern_binding()? {
             crate::binding::PropertyBinding::NotationPattern { id, .. } => Some(id),
             _ => None,
@@ -769,10 +797,10 @@ impl PropertyDef {
         }
     }
 
-    /// Id-only accessor: the canonical glossary term.
-    pub fn glossary_term_id(&self) -> Option<&crate::glossary::GlossaryTermId> {
-        match self.glossary_binding()? {
-            crate::binding::PropertyBinding::Glossary { id, .. } => Some(id),
+    /// Id-only accessor: the canonical concept this property realises.
+    pub fn concept_id(&self) -> Option<&crate::concept::ConceptId> {
+        match self.concept_binding()? {
+            crate::binding::PropertyBinding::Concept { id, .. } => Some(id),
             _ => None,
         }
     }
@@ -915,7 +943,9 @@ fn default_cardinality() -> Cardinality {
 /// multiplicity (e.g. "Order has between 1 and 5 line items"), the
 /// SHACL `MinCount` / `MaxCount` rule on the property side is the
 /// expressive surface; the edge cardinality stays shorthand.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Cardinality {
     OneToOne,
@@ -1076,7 +1106,9 @@ pub enum IndexDef {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum VectorSimilarity {
     Cosine,

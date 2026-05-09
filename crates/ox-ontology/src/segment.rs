@@ -90,11 +90,17 @@ pub struct SegmentDef {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SegmentFilter {
     #[schema(no_recursion)]
-    And { children: Vec<SegmentFilter> },
+    And {
+        children: Vec<SegmentFilter>,
+    },
     #[schema(no_recursion)]
-    Or { children: Vec<SegmentFilter> },
+    Or {
+        children: Vec<SegmentFilter>,
+    },
     #[schema(no_recursion)]
-    Not { inner: Box<SegmentFilter> },
+    Not {
+        inner: Box<SegmentFilter>,
+    },
     Equals {
         property: PropertyKey,
         value: SegmentLiteral,
@@ -123,7 +129,9 @@ pub enum SegmentFilter {
         property: PropertyKey,
         values: Vec<SegmentLiteral>,
     },
-    IsNull { property: PropertyKey },
+    IsNull {
+        property: PropertyKey,
+    },
 }
 
 /// Literal value a segment filter may compare against. Kept narrow
@@ -146,7 +154,9 @@ pub enum SegmentLiteral {
 /// segments partition the node type; a downstream validator can
 /// then flag an instance that would satisfy two disjoint-partition
 /// segments.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum OverlapPolicy {
     #[default]
@@ -231,9 +241,7 @@ mod tests {
                     },
                     SegmentFilter::Equals {
                         property: pk("country"),
-                        value: SegmentLiteral::String {
-                            value: "KR".into(),
-                        },
+                        value: SegmentLiteral::String { value: "KR".into() },
                     },
                 ],
             },
@@ -258,8 +266,12 @@ mod tests {
                     SegmentFilter::In {
                         property: pk("tier"),
                         values: vec![
-                            SegmentLiteral::String { value: "GOLD".into() },
-                            SegmentLiteral::String { value: "PLATINUM".into() },
+                            SegmentLiteral::String {
+                                value: "GOLD".into(),
+                            },
+                            SegmentLiteral::String {
+                                value: "PLATINUM".into(),
+                            },
                         ],
                     },
                     SegmentFilter::Not {
@@ -280,7 +292,10 @@ mod tests {
     #[test]
     fn default_policies_match_module_docs() {
         assert!(matches!(OverlapPolicy::default(), OverlapPolicy::Allow));
-        assert!(matches!(SegmentRefreshPolicy::default(), SegmentRefreshPolicy::OnDemand));
+        assert!(matches!(
+            SegmentRefreshPolicy::default(),
+            SegmentRefreshPolicy::OnDemand
+        ));
     }
 
     #[test]

@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct SearchResultNode {
     pub element_id: String,
     pub labels: Vec<String>,
-    #[schema(value_type = Object)]
+    #[schema(value_type = HashMap<String, Object>, additional_properties)]
     pub props: HashMap<String, serde_json::Value>,
 }
 
@@ -29,7 +29,7 @@ pub struct SearchResultNode {
 pub struct ExpandNeighbor {
     pub element_id: String,
     pub labels: Vec<String>,
-    #[schema(value_type = Object)]
+    #[schema(value_type = HashMap<String, Object>, additional_properties)]
     pub props: HashMap<String, serde_json::Value>,
     pub relationship_type: String,
     /// "outgoing" or "incoming"

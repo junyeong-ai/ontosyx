@@ -55,9 +55,7 @@ pub fn build_retract_source_batch(
     let mut affected_node_ids: BTreeSet<String> = BTreeSet::new();
     let mut dropped_object_mapping_ids: BTreeSet<String> = BTreeSet::new();
     for mapping in ontology.object_mappings() {
-        if &mapping.source_id == source_id
-            && drop_tables.contains(&mapping.relation)
-        {
+        if &mapping.source_id == source_id && drop_tables.contains(&mapping.relation) {
             commands.push(OntologyCommand::DeleteObjectMapping {
                 id: mapping.id.clone(),
             });
@@ -69,6 +67,7 @@ pub fn build_retract_source_batch(
     // Pass 2: link mappings whose either endpoint references a
     // dropped (source_id, relation). Surfaces affected EdgeType ids.
     let mut affected_edge_ids: BTreeSet<String> = BTreeSet::new();
+    let mut dropped_link_mapping_ids: BTreeSet<String> = BTreeSet::new();
     for link in ontology.link_mappings() {
         let touches_drop = endpoint_touches_drop(
             source_id,
@@ -82,14 +81,10 @@ pub fn build_retract_source_batch(
             &link.target_endpoint.relation,
         );
         if touches_drop {
-            // LinkMapping has no first-class delete command in the
-            // current `OntologyCommand` surface — it lives inside
-            // the IR alongside object mappings but is mutated through
-            // the admin-side OntologyEditOp flow. The retraction
-            // batch records the affected edge type id so the caller
-            // can surface a follow-up step; the EdgeType itself is
-            // dropped below when no other link mapping references
-            // its bound source.
+            commands.push(OntologyCommand::DeleteLinkMapping {
+                id: link.id.clone(),
+            });
+            dropped_link_mapping_ids.insert(link.id.0.clone());
             affected_edge_ids.insert(link.edge_type_id.0.clone());
         }
     }
@@ -100,10 +95,9 @@ pub fn build_retract_source_batch(
         if !affected_node_ids.contains(node.id.as_str()) {
             continue;
         }
-        let still_bound = ontology
-            .object_mappings()
-            .iter()
-            .any(|m| m.node_type_id == node.id && !dropped_object_mapping_ids.contains(m.id.as_str()));
+        let still_bound = ontology.object_mappings().iter().any(|m| {
+            m.node_type_id == node.id && !dropped_object_mapping_ids.contains(m.id.as_str())
+        });
         if !still_bound {
             commands.push(OntologyCommand::DeleteNode {
                 node_id: node.id.clone(),
@@ -121,6 +115,9 @@ pub fn build_retract_source_batch(
         }
         let still_bound = ontology.link_mappings().iter().any(|link| {
             if link.edge_type_id != edge.id {
+                return false;
+            }
+            if dropped_link_mapping_ids.contains(link.id.as_str()) {
                 return false;
             }
             !endpoint_touches_drop(
@@ -146,11 +143,7 @@ pub fn build_retract_source_batch(
         description: format!(
             "Retract source '{}' tables: {}",
             source_id,
-            drop_tables
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(", ")
+            drop_tables.iter().cloned().collect::<Vec<_>>().join(", ")
         ),
         commands,
     }
@@ -162,8 +155,7 @@ fn endpoint_touches_drop(
     endpoint_source: &str,
     endpoint_relation: &str,
 ) -> bool {
-    endpoint_source == source_id.as_str()
-        && drop_tables.contains(endpoint_relation)
+    endpoint_source == source_id.as_str() && drop_tables.contains(endpoint_relation)
 }
 
 #[cfg(test)]
@@ -203,11 +195,7 @@ mod tests {
     #[test]
     fn empty_drop_set_produces_empty_batch() {
         let ir = empty_ontology();
-        let batch = build_retract_source_batch(
-            &ir,
-            &SourceId::new("pg-main"),
-            &BTreeSet::new(),
-        );
+        let batch = build_retract_source_batch(&ir, &SourceId::new("pg-main"), &BTreeSet::new());
         let OntologyCommand::Batch { commands, .. } = batch else {
             panic!("expected Batch");
         };

@@ -1,9 +1,9 @@
-use ox_core::graph_label::GraphLabel;
-use ox_core::i18n::LocalizedText;
 use crate::ir::{
     Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, OntologyIR,
     PropertyDef,
 };
+use ox_core::graph_label::GraphLabel;
+use ox_core::i18n::LocalizedText;
 use ox_core::property_key::PropertyKey;
 use ox_core::types::PropertyType;
 

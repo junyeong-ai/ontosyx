@@ -18,9 +18,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::ir::EdgeTypeId;
-use crate::mapping::refs::{
-    ColumnRef, LinkMappingId, SourceId, SourceRelationRef,
-};
+use crate::mapping::refs::{ColumnRef, LinkMappingId, SourceId, SourceRelationRef};
 
 /// Binding from an `EdgeTypeDef` to a physical relation (or across
 /// several relations).
@@ -81,7 +79,9 @@ pub struct LinkMappingDef {
 /// product (one/many on each side). Naming matches the dbt /
 /// Cube.js / LookML conventions so imports from those systems
 /// round-trip unchanged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, Default,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum LinkCardinality {
     /// Exactly one target per source, exactly one source per
@@ -164,9 +164,8 @@ pub enum LinkMappingKind {
     /// emits an extra equi-predicate on this column against the
     /// caller's `WorkspaceScope`, so a multi-tenant bridge table
     /// (one row set per workspace) doesn't leak rows across the
-    /// scope boundary. `None` keeps the legacy "shared bridge"
-    /// behaviour — only safe when the bridge holds no
-    /// workspace-private joins.
+    /// scope boundary. `None` declares a workspace-agnostic bridge —
+    /// only safe when the bridge holds no workspace-private joins.
     Bridge {
         bridge_relation: SourceRelationRef,
         source_join: Vec<ColumnRef>,
@@ -202,7 +201,9 @@ pub struct EndpointRef {
 
 /// Adapter-reported join-cost hint. Coarse on purpose — a richer
 /// cost estimator belongs to the planner.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum JoinCostHint {
     #[default]

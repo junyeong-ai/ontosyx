@@ -88,7 +88,9 @@ pub enum ExternalSourceRef {
 /// `OnAccess` evaluates the enrichment every query; `Cached` reads
 /// from cache when fresh (TTL-gated); `Scheduled` re-evaluates on a
 /// cron cadence regardless of query activity.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RefreshPolicy {
     #[default]
