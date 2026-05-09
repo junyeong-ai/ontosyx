@@ -990,8 +990,7 @@
       "hideExplorer": "탐색기 숨기기",
       "showExplorer": "탐색기 표시",
       "hideInspector": "인스펙터 숨기기",
-      "showInspector": "인스펙터 표시",
-      "appName": "Ontosyx"
+      "showInspector": "인스펙터 표시"
     },
     "header": {
       "appTitle": "Ontosyx"

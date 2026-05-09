@@ -1,7 +1,5 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { BrandLogo } from "@/components/brand/logo";
 import { ContextSelector } from "@/components/layout/context-selector";
 import { ContextBadge } from "@/components/layout/context-badge";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
@@ -14,30 +12,23 @@ import { selectStateActiveOntologyDraft } from "@/lib/store/selectors";
 import { useAuth } from "@/hooks/use-auth";
 
 // ---------------------------------------------------------------------------
-// Unified Header — [Branding] | [ContextSelector] [ContextBadge] | [Spacer] | [ModeActions] | [UserMenu]
+// Unified Header — [WorkspaceSwitcher] [ContextSelector] [ContextBadge] | [Spacer] | [Presence] [Status] [ModeActions] [UserMenu]
 // ---------------------------------------------------------------------------
-
-/**
- * Brand mark — anchor link to the workspace home (`/design`). The
- * lockup (graph-triple mark + "Ontosyx" wordmark) is owned by
- * `BrandLogo` so favicon / apple-icon / OG image / chrome all render
- * the same geometry. Chrome branding is not a content heading, so it
- * is not an `<h1>`; each route owns its own page-level heading.
- */
-function AppBranding() {
-  const t = useTranslations("chrome.header");
-  return <BrandLogo href="/design" ariaLabel={t("appTitle")} size={16} />;
-}
+//
+// Brand identity (mark + wordmark) lives in the sidebar's top cell —
+// the Linear / Slack / Discord pattern. The header opens straight on
+// workspace + page context, so the operator's eye lands on "what
+// am I working on" rather than re-reading the brand they already
+// recognise from the sidebar tile.
+// ---------------------------------------------------------------------------
 
 export function Header() {
   const activeOntologyDraft = useAppStore(selectStateActiveOntologyDraft);
   const { user } = useAuth();
   return (
     <header className="relative z-chrome flex h-11 shrink-0 items-center justify-between border-b border-divider bg-surface-base px-3">
-      {/* Left: Logo + Context */}
+      {/* Left: Context */}
       <div className="flex min-w-0 items-center gap-3">
-        <span className="shrink-0"><AppBranding /></span>
-        <div className="mx-1 h-5 w-px bg-surface-inset" />
         <WorkspaceSwitcher />
         <div className="mx-1 h-5 w-px bg-surface-inset" />
         <ContextSelector />

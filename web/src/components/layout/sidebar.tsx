@@ -18,8 +18,9 @@ import {
 import { shortcutForRoute } from "@/lib/navigation-shortcuts";
 import type { LucideIcon } from "lucide-react";
 import { Settings2 } from "lucide-react";
-import { FolderOpen, Layers, Network } from "lucide-react";
+import { FolderOpen, Layers } from "lucide-react";
 import { DynamicIcon } from "@/components/ui/dynamic-icon";
+import { BrandMark, BrandWordmark } from "@/components/brand/logo";
 function ModeLink({
   mode,
   active,
@@ -157,7 +158,11 @@ export function Sidebar() {
         expanded ? "w-48" : "w-12",
       )}
     >
-      {/* Logo */}
+      {/* Brand identity — `BrandMark` (single SOT) inside a
+          brand-solid tile, `BrandWordmark` next to it when the
+          sidebar is expanded. Both pieces retype through their own
+          colour tokens, so the same geometry that appears in
+          `app/icon.svg` appears here at chrome scale. */}
       <div
         className={cn(
           "flex h-11 items-center border-b border-divider",
@@ -165,13 +170,9 @@ export function Sidebar() {
         )}
       >
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-solid shadow-1">
-          <Network className="h-3.5 w-3.5 text-foreground-onbrand" />
+          <BrandMark size={16} className="text-foreground-onbrand" />
         </div>
-        {expanded && (
-          <span className="truncate text-sm font-semibold text-foreground-strong">
-            {t("appName")}
-          </span>
-        )}
+        {expanded && <BrandWordmark size={14} />}
       </div>
 
       {/* Workspace mode switcher — driven by the workbench-mode
