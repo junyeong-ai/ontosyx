@@ -29,12 +29,6 @@ impl PgVectorStore {
         Ok(Self { pool, dimensions })
     }
 
-    /// Format a float vector as pgvector literal: '[0.1,0.2,0.3]'
-    fn format_vector(embedding: &[f32]) -> String {
-        let values: Vec<String> = embedding.iter().map(|v| format!("{v}")).collect();
-        format!("[{}]", values.join(","))
-    }
-
     /// Verify pgvector extension is available.
     pub async fn health_check(&self) -> bool {
         sqlx::query("SELECT 1 FROM pg_extension WHERE extname = 'vector'")
@@ -65,7 +59,7 @@ impl VectorStore for PgVectorStore {
             });
         }
 
-        let vector_str = Self::format_vector(embedding);
+        let vector_str = ox_core::pgvector::format_vector(embedding);
 
         sqlx::query(
             "INSERT INTO memory_entries (id, embedding, content, metadata)
@@ -94,7 +88,7 @@ impl VectorStore for PgVectorStore {
         top_k: usize,
         filter: Option<&Value>,
     ) -> OxResult<Vec<VectorHit>> {
-        let vector_str = Self::format_vector(embedding);
+        let vector_str = ox_core::pgvector::format_vector(embedding);
 
         // Extract ontology_lineage_id filter for scoped search
         let ontology_filter = filter
@@ -140,14 +134,17 @@ impl VectorStore for PgVectorStore {
             // Last-access bookkeeping. Failure here only loses the
             // hot-set tracking signal; the search rows the caller
             // wanted are already returned.
-            if let Err(error) = sqlx::query(
-                "UPDATE memory_entries SET last_accessed_at = NOW() WHERE id = ANY($1)",
-            )
-            .bind(&ids)
-            .execute(&self.pool)
-            .await
+            if let Err(error) =
+                sqlx::query("UPDATE memory_entries SET last_accessed_at = NOW() WHERE id = ANY($1)")
+                    .bind(&ids)
+                    .execute(&self.pool)
+                    .await
             {
-                tracing::warn!(?error, hits = ids.len(), "vector last_accessed_at update failed");
+                tracing::warn!(
+                    ?error,
+                    hits = ids.len(),
+                    "vector last_accessed_at update failed"
+                );
             }
         }
 
@@ -170,7 +167,7 @@ impl VectorStore for PgVectorStore {
         top_k: usize,
         filter: &MemoryFilter,
     ) -> OxResult<Vec<VectorHit>> {
-        let vector_str = Self::format_vector(embedding);
+        let vector_str = ox_core::pgvector::format_vector(embedding);
 
         // Build dynamic WHERE clause from non-None filter fields.
         let mut conditions = Vec::new();
@@ -232,14 +229,17 @@ impl VectorStore for PgVectorStore {
             // Last-access bookkeeping. Failure here only loses the
             // hot-set tracking signal; the search rows the caller
             // wanted are already returned.
-            if let Err(error) = sqlx::query(
-                "UPDATE memory_entries SET last_accessed_at = NOW() WHERE id = ANY($1)",
-            )
-            .bind(&ids)
-            .execute(&self.pool)
-            .await
+            if let Err(error) =
+                sqlx::query("UPDATE memory_entries SET last_accessed_at = NOW() WHERE id = ANY($1)")
+                    .bind(&ids)
+                    .execute(&self.pool)
+                    .await
             {
-                tracing::warn!(?error, hits = ids.len(), "vector last_accessed_at update failed");
+                tracing::warn!(
+                    ?error,
+                    hits = ids.len(),
+                    "vector last_accessed_at update failed"
+                );
             }
         }
 

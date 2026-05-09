@@ -104,6 +104,16 @@ impl MemoryStore {
         Self { embedder, vectors }
     }
 
+    /// Shared embedder accessor — re-used by the Brain's
+    /// verified-query NN path (Φ11.5) and the verified-query
+    /// promotion route. The same `Arc` is intentionally shared
+    /// across surfaces so the embedding-dimension contract
+    /// stays trivially aligned (`vector(N)` schemas pin the
+    /// model). Cloning is cheap (Arc).
+    pub fn embedder(&self) -> &Arc<dyn EmbeddingProvider> {
+        &self.embedder
+    }
+
     /// Store a memory entry: embed content → persist to vector store.
     pub async fn store(&self, entry: MemoryEntry) -> OxResult<()> {
         let instruction = instructions::storage(&entry.metadata.source);
