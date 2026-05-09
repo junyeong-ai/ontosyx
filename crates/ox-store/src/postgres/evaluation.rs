@@ -659,7 +659,9 @@ impl EvaluationStore for PostgresStore {
         &self,
         run_id: Uuid,
     ) -> OxResult<crate::evaluation::RunSummary> {
-        use crate::evaluation::{AxisAggregate, RunSummary};
+        use crate::evaluation::{
+            AxisAggregate, RetrievalComparisonAggregate, RetrievalSurface, RunSummary,
+        };
         super::require_workspace_context()?;
 
         // Single round-trip — three SELECTs against
@@ -709,6 +711,94 @@ impl EvaluationStore for PostgresStore {
         .await
         .map_err(to_ox_error)?;
 
+        // Per-(surface, axis) hybrid-vs-trigram aggregate. The
+        // `<surface>.<leg>.<axis>` naming convention is parsed
+        // server-side via SPLIT_PART; the FE only sees the
+        // typed shape. Pairing is intra-case via
+        // `MAX(CASE WHEN leg = … THEN score)` so every paired
+        // row carries both legs. The `HAVING` clause drops
+        // singletons (cases that produced only one leg) so the
+        // denominator stays honest.
+        let comparison_rows: Vec<(String, String, i64, f64, f64, f64, f64)> = sqlx::query_as(
+            "WITH parsed AS (
+                SELECT
+                  c.id AS case_id,
+                  SPLIT_PART(m.name, '.', 1) AS surface,
+                  SPLIT_PART(m.name, '.', 2) AS leg,
+                  SPLIT_PART(m.name, '.', 3) AS axis,
+                  m.score
+                FROM evaluation_metrics m
+                JOIN evaluation_cases c ON c.id = m.case_id
+                WHERE c.run_id = $1
+                  AND m.name LIKE '%.%.%'
+            ),
+            paired AS (
+                SELECT
+                  case_id,
+                  surface,
+                  axis,
+                  MAX(CASE WHEN leg = 'hybrid'  THEN score END) AS hybrid_score,
+                  MAX(CASE WHEN leg = 'trigram' THEN score END) AS trigram_score
+                FROM parsed
+                WHERE surface IN ('verified_query', 'community_summary', 'knowledge_entry')
+                  AND leg IN ('hybrid', 'trigram')
+                  AND axis IN ('precision_at_k', 'recall_at_k', 'mrr', 'ndcg_at_k')
+                GROUP BY case_id, surface, axis
+                HAVING MAX(CASE WHEN leg = 'hybrid'  THEN score END) IS NOT NULL
+                   AND MAX(CASE WHEN leg = 'trigram' THEN score END) IS NOT NULL
+            )
+            SELECT
+              surface,
+              axis,
+              COUNT(*)::int8 AS paired_case_count,
+              AVG(hybrid_score)::float8 AS hybrid_mean,
+              AVG(trigram_score)::float8 AS trigram_mean,
+              AVG(hybrid_score - trigram_score)::float8 AS mean_lift,
+              (100.0 * AVG(
+                  CASE
+                    WHEN hybrid_score > trigram_score THEN 1.0
+                    WHEN hybrid_score = trigram_score THEN 0.5
+                    ELSE 0.0
+                  END
+              ))::float8 AS win_rate_pct
+            FROM paired
+            GROUP BY surface, axis
+            ORDER BY surface ASC, axis ASC",
+        )
+        .bind(run_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        let retrieval_comparisons: Vec<RetrievalComparisonAggregate> = comparison_rows
+            .into_iter()
+            .filter_map(
+                |(surface, axis, paired, hybrid_mean, trigram_mean, mean_lift, win_rate)| {
+                    let surface = match surface.as_str() {
+                        "verified_query" => RetrievalSurface::VerifiedQuery,
+                        "community_summary" => RetrievalSurface::CommunitySummary,
+                        "knowledge_entry" => RetrievalSurface::KnowledgeEntry,
+                        // Forward-compat: a metric with a known leg+axis
+                        // but unknown surface (e.g. a future surface
+                        // landed before the build was bumped) drops
+                        // out of the typed aggregate rather than
+                        // crashing the run-summary call. Operators
+                        // still see the raw rows in `axis_means`.
+                        _ => return None,
+                    };
+                    Some(RetrievalComparisonAggregate {
+                        surface,
+                        axis,
+                        paired_case_count: paired.max(0) as u64,
+                        hybrid_mean,
+                        trigram_mean,
+                        mean_lift,
+                        win_rate_pct: win_rate,
+                    })
+                },
+            )
+            .collect();
+
         Ok(RunSummary {
             run_id,
             total_cases: total_cases.max(0) as u64,
@@ -722,6 +812,7 @@ impl EvaluationStore for PostgresStore {
                     count: cnt.max(0) as u64,
                 })
                 .collect(),
+            retrieval_comparisons,
         })
     }
 

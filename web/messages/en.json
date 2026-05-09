@@ -3104,6 +3104,25 @@
           "goldenBadge": "gold",
           "emptyLeg": "No results returned for this leg."
         },
+        "runComparisonAggregate": {
+          "title": "Run-level hybrid lift",
+          "description": "Aggregate of every retrieval_comparison case as a (surface × axis) matrix. Positive cell lift means hybrid wins on average.",
+          "surfaceHeader": "Surface",
+          "surface": {
+            "verifiedQuery": "Verified queries",
+            "communitySummary": "Community summaries",
+            "knowledgeEntry": "Knowledge entries"
+          },
+          "axis": {
+            "precisionAtK": "Precision@K",
+            "recallAtK": "Recall@K",
+            "mrr": "MRR",
+            "ndcgAtK": "NDCG@K"
+          },
+          "winRateNCases": "win rate {winRate}% · {n} pairs",
+          "liftAriaLabel": "lift {lift}, win rate {winRate}%, {n} paired cases",
+          "emptyCell": "No paired cases on this cell"
+        },
         "caseKey": "Case",
         "latency": "Latency",
         "latencyMs": "{ms} ms",

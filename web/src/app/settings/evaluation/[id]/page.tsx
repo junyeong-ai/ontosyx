@@ -26,6 +26,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
 import { FormTextarea, SettingsInput, SettingsSelect } from "@/components/ui/form-input";
 import { RetrievalComparisonView } from "@/components/settings/evaluation/retrieval-comparison-view";
+import { RunComparisonAggregate } from "@/components/settings/evaluation/run-comparison-aggregate";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import type {
@@ -531,6 +532,12 @@ export default function EvaluationDetailPage({
 
         {summaryQuery.data ? (
           <SummaryCard summary={summaryQuery.data} t={t} />
+        ) : null}
+
+        {summaryQuery.data ? (
+          <RunComparisonAggregate
+            rows={summaryQuery.data.retrieval_comparisons ?? []}
+          />
         ) : null}
 
         <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">

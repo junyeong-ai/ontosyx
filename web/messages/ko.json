@@ -3104,6 +3104,25 @@
           "goldenBadge": "정답",
           "emptyLeg": "이 leg 에서 반환된 결과가 없습니다."
         },
+        "runComparisonAggregate": {
+          "title": "런 전체 하이브리드 lift",
+          "description": "이 실행의 retrieval_comparison 케이스를 (검색 표면 × 축) 매트릭스로 집계. 셀의 lift 가 양수면 하이브리드 평균 우세.",
+          "surfaceHeader": "검색 표면",
+          "surface": {
+            "verifiedQuery": "Verified queries",
+            "communitySummary": "Community summaries",
+            "knowledgeEntry": "Knowledge entries"
+          },
+          "axis": {
+            "precisionAtK": "Precision@K",
+            "recallAtK": "Recall@K",
+            "mrr": "MRR",
+            "ndcgAtK": "NDCG@K"
+          },
+          "winRateNCases": "승률 {winRate}% · {n} 페어",
+          "liftAriaLabel": "lift {lift}, 승률 {winRate}%, 페어 {n} 건",
+          "emptyCell": "이 셀에 페어된 케이스가 없습니다"
+        },
         "caseKey": "케이스",
         "latency": "지연",
         "latencyMs": "{ms} ms",

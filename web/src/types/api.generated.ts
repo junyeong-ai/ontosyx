@@ -12275,6 +12275,56 @@ export interface components {
             project: components["schemas"]["OntologyDraftView"];
         };
         /**
+         * @description Run-level aggregate for one `(surface, axis)` pair across
+         *     every `retrieval_comparison` case in the run. Drives the
+         *     "did hybrid actually help on this dataset?" question without
+         *     the dashboard having to parse the dotted metric-name
+         *     convention itself.
+         *
+         *     Pairing is per-case: a single case contributes at most one
+         *     (hybrid, trigram) pair per axis. Cases that produced only
+         *     one leg (BE half-failed) drop out of the denominator — the
+         *     pair has to be complete to count.
+         */
+        RetrievalComparisonAggregate: {
+            /**
+             * @description Axis tail of the metric name — `precision_at_k` /
+             *     `recall_at_k` / `mrr` / `ndcg_at_k`. The retrieval IR
+             *     scorer pins the closed set; new axes land here without
+             *     schema migration.
+             */
+            axis: string;
+            /** Format: double */
+            hybrid_mean: number;
+            /**
+             * Format: double
+             * @description `hybrid_mean − trigram_mean`. Positive = hybrid wins on
+             *     average across the run. Persisted as a derived value so
+             *     the FE can render directly without re-computing across
+             *     cells.
+             */
+            mean_lift: number;
+            /**
+             * Format: int64
+             * @description Cases where both `<surface>.hybrid.<axis>` and
+             *     `<surface>.trigram.<axis>` landed. Denominator for
+             *     `mean_lift` / `win_rate_pct`.
+             */
+            paired_case_count: number;
+            surface: components["schemas"]["RetrievalSurface"];
+            /** Format: double */
+            trigram_mean: number;
+            /**
+             * Format: double
+             * @description Percentage of paired cases where
+             *     `hybrid_score > trigram_score`. Ties (delta == 0)
+             *     count as half a win — same convention
+             *     `RunComparisonReport.win_rate_pct` uses for the
+             *     baseline-vs-candidate framing.
+             */
+            win_rate_pct: number;
+        };
+        /**
          * @description One leg of an [`EvaluationActual::RetrievalComparison`] —
          *     either the hybrid path or the trigram-only baseline.
          */
@@ -12735,6 +12785,15 @@ export interface components {
              *     reading both would conflate distinct signals.
              */
             judged_cases: number;
+            /**
+             * @description Per-(surface, axis) hybrid-vs-trigram aggregate,
+             *     folded from the case-level `<surface>.<leg>.<axis>`
+             *     metric rows. Empty when the run has no
+             *     `retrieval_comparison` cases, so dashboards can switch
+             *     the lift card on `len() > 0`. Sorted by `(surface,
+             *     axis) ASC` for stable FE rendering.
+             */
+            retrieval_comparisons?: components["schemas"]["RetrievalComparisonAggregate"][];
             /** Format: uuid */
             run_id: string;
             /**

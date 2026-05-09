@@ -646,6 +646,51 @@ pub struct RunSummary {
     /// (`faithfulness` / `answer_relevance` / …) and safety
     /// axes (`safety.toxicity_safe` / …) when present.
     pub axis_means: Vec<AxisAggregate>,
+    /// Per-(surface, axis) hybrid-vs-trigram aggregate,
+    /// folded from the case-level `<surface>.<leg>.<axis>`
+    /// metric rows. Empty when the run has no
+    /// `retrieval_comparison` cases, so dashboards can switch
+    /// the lift card on `len() > 0`. Sorted by `(surface,
+    /// axis) ASC` for stable FE rendering.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retrieval_comparisons: Vec<RetrievalComparisonAggregate>,
+}
+
+/// Run-level aggregate for one `(surface, axis)` pair across
+/// every `retrieval_comparison` case in the run. Drives the
+/// "did hybrid actually help on this dataset?" question without
+/// the dashboard having to parse the dotted metric-name
+/// convention itself.
+///
+/// Pairing is per-case: a single case contributes at most one
+/// (hybrid, trigram) pair per axis. Cases that produced only
+/// one leg (BE half-failed) drop out of the denominator — the
+/// pair has to be complete to count.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct RetrievalComparisonAggregate {
+    pub surface: RetrievalSurface,
+    /// Axis tail of the metric name — `precision_at_k` /
+    /// `recall_at_k` / `mrr` / `ndcg_at_k`. The retrieval IR
+    /// scorer pins the closed set; new axes land here without
+    /// schema migration.
+    pub axis: String,
+    /// Cases where both `<surface>.hybrid.<axis>` and
+    /// `<surface>.trigram.<axis>` landed. Denominator for
+    /// `mean_lift` / `win_rate_pct`.
+    pub paired_case_count: u64,
+    pub hybrid_mean: f64,
+    pub trigram_mean: f64,
+    /// `hybrid_mean − trigram_mean`. Positive = hybrid wins on
+    /// average across the run. Persisted as a derived value so
+    /// the FE can render directly without re-computing across
+    /// cells.
+    pub mean_lift: f64,
+    /// Percentage of paired cases where
+    /// `hybrid_score > trigram_score`. Ties (delta == 0)
+    /// count as half a win — same convention
+    /// `RunComparisonReport.win_rate_pct` uses for the
+    /// baseline-vs-candidate framing.
+    pub win_rate_pct: f64,
 }
 
 /// Two-run comparison report. Returned by
@@ -1131,6 +1176,7 @@ mod tests {
                     count: 3,
                 },
             ],
+            retrieval_comparisons: vec![],
         };
         let v = serde_json::to_value(&s).unwrap();
         // Wire shape pin: counts are u64, axis_means is an
@@ -1142,8 +1188,68 @@ mod tests {
         assert_eq!(v["failed_cases"], 1);
         assert_eq!(v["axis_means"][0]["axis"], "answer_relevance");
         assert_eq!(v["axis_means"][2]["axis"], "safety.toxicity_safe");
+        // Empty `retrieval_comparisons` is skipped on the wire so
+        // dashboards that don't bundle the comparison card still
+        // get a tight payload.
+        assert!(v.get("retrieval_comparisons").is_none());
         let back: RunSummary = serde_json::from_value(v).unwrap();
         assert_eq!(back, s);
+    }
+
+    #[test]
+    fn run_summary_emits_retrieval_comparisons_when_present() {
+        let s = RunSummary {
+            run_id: Uuid::new_v4(),
+            total_cases: 4,
+            judged_cases: 0,
+            failed_cases: 0,
+            axis_means: vec![],
+            retrieval_comparisons: vec![
+                RetrievalComparisonAggregate {
+                    surface: RetrievalSurface::VerifiedQuery,
+                    axis: "recall_at_k".into(),
+                    paired_case_count: 4,
+                    hybrid_mean: 0.72,
+                    trigram_mean: 0.55,
+                    mean_lift: 0.17,
+                    win_rate_pct: 75.0,
+                },
+                RetrievalComparisonAggregate {
+                    surface: RetrievalSurface::CommunitySummary,
+                    axis: "ndcg_at_k".into(),
+                    paired_case_count: 4,
+                    hybrid_mean: 0.61,
+                    trigram_mean: 0.61,
+                    mean_lift: 0.0,
+                    win_rate_pct: 50.0,
+                },
+            ],
+        };
+        let v = serde_json::to_value(&s).unwrap();
+        assert_eq!(v["retrieval_comparisons"][0]["surface"], "verified_query");
+        assert_eq!(v["retrieval_comparisons"][0]["axis"], "recall_at_k");
+        assert_eq!(v["retrieval_comparisons"][0]["paired_case_count"], 4);
+        assert_eq!(v["retrieval_comparisons"][0]["win_rate_pct"], 75.0);
+        let back: RunSummary = serde_json::from_value(v).unwrap();
+        assert_eq!(back, s);
+    }
+
+    #[test]
+    fn retrieval_comparison_aggregate_round_trips() {
+        let a = RetrievalComparisonAggregate {
+            surface: RetrievalSurface::KnowledgeEntry,
+            axis: "mrr".into(),
+            paired_case_count: 8,
+            hybrid_mean: 0.55,
+            trigram_mean: 0.40,
+            mean_lift: 0.15,
+            win_rate_pct: 62.5,
+        };
+        let v = serde_json::to_value(&a).unwrap();
+        assert_eq!(v["surface"], "knowledge_entry");
+        assert_eq!(v["axis"], "mrr");
+        let back: RetrievalComparisonAggregate = serde_json::from_value(v).unwrap();
+        assert_eq!(back, a);
     }
 
     #[test]

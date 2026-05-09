@@ -36229,6 +36229,52 @@
           }
         }
       },
+      "RetrievalComparisonAggregate": {
+        "type": "object",
+        "description": "Run-level aggregate for one `(surface, axis)` pair across\nevery `retrieval_comparison` case in the run. Drives the\n\"did hybrid actually help on this dataset?\" question without\nthe dashboard having to parse the dotted metric-name\nconvention itself.\n\nPairing is per-case: a single case contributes at most one\n(hybrid, trigram) pair per axis. Cases that produced only\none leg (BE half-failed) drop out of the denominator — the\npair has to be complete to count.",
+        "required": [
+          "surface",
+          "axis",
+          "paired_case_count",
+          "hybrid_mean",
+          "trigram_mean",
+          "mean_lift",
+          "win_rate_pct"
+        ],
+        "properties": {
+          "axis": {
+            "type": "string",
+            "description": "Axis tail of the metric name — `precision_at_k` /\n`recall_at_k` / `mrr` / `ndcg_at_k`. The retrieval IR\nscorer pins the closed set; new axes land here without\nschema migration."
+          },
+          "hybrid_mean": {
+            "type": "number",
+            "format": "double"
+          },
+          "mean_lift": {
+            "type": "number",
+            "format": "double",
+            "description": "`hybrid_mean − trigram_mean`. Positive = hybrid wins on\naverage across the run. Persisted as a derived value so\nthe FE can render directly without re-computing across\ncells."
+          },
+          "paired_case_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cases where both `<surface>.hybrid.<axis>` and\n`<surface>.trigram.<axis>` landed. Denominator for\n`mean_lift` / `win_rate_pct`.",
+            "minimum": 0
+          },
+          "surface": {
+            "$ref": "#/components/schemas/RetrievalSurface"
+          },
+          "trigram_mean": {
+            "type": "number",
+            "format": "double"
+          },
+          "win_rate_pct": {
+            "type": "number",
+            "format": "double",
+            "description": "Percentage of paired cases where\n`hybrid_score > trigram_score`. Ties (delta == 0)\ncount as half a win — same convention\n`RunComparisonReport.win_rate_pct` uses for the\nbaseline-vs-candidate framing."
+          }
+        }
+      },
       "RetrievalLeg": {
         "type": "object",
         "description": "One leg of an [`EvaluationActual::RetrievalComparison`] —\neither the hybrid path or the trigram-only baseline.",
@@ -37107,6 +37153,13 @@
             "format": "int64",
             "description": "Cases with at least one metric tagged\n`metadata.kind = 'judge'` (RAGAS rubric). Operators\nsurfacing \"judged 5/12\" want the RAGAS denominator,\nnot the safety one — the safety judge is opt-in and\nreading both would conflate distinct signals.",
             "minimum": 0
+          },
+          "retrieval_comparisons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetrievalComparisonAggregate"
+            },
+            "description": "Per-(surface, axis) hybrid-vs-trigram aggregate,\nfolded from the case-level `<surface>.<leg>.<axis>`\nmetric rows. Empty when the run has no\n`retrieval_comparison` cases, so dashboards can switch\nthe lift card on `len() > 0`. Sorted by `(surface,\naxis) ASC` for stable FE rendering."
           },
           "run_id": {
             "type": "string",
