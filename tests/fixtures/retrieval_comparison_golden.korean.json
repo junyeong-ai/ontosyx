@@ -1,0 +1,139 @@
+{
+  "$schema": "BulkUpsertEvaluationCasesRequest",
+  "$comment": [
+    "Golden dataset template for retrieval_comparison evaluation cases.",
+    "Korean question set covering verified_query / community_summary / knowledge_entry surfaces.",
+    "",
+    "Replace `expected_ids` with the gold-standard ids from your workspace before importing.",
+    "The `verified_query` surface expects `vq-…` ids (server-generated as `vq-{question_hash}`).",
+    "The `community_summary` surface expects `leiden:{level}:{cluster}` ids (cron-emitted).",
+    "The `knowledge_entry` surface expects UUID ids (created via the knowledge admin API).",
+    "",
+    "Import via:",
+    "  POST /api/evaluation/runs/{run_id}/cases/bulk-upsert",
+    "with this file as the request body. Each entry replaces by `(run_id, case_key)`."
+  ],
+  "cases": [
+    {
+      "case_key": "ko-vq-mau-001",
+      "input": {
+        "kind": "retrieval_comparison",
+        "question": "월간 활성 사용자 수를 어떻게 계산하지?",
+        "surface": "verified_query",
+        "top_k": 5,
+        "expected_ids": [
+          "vq-REPLACE-with-the-mau-vq-id",
+          "vq-REPLACE-with-the-active-users-vq-id"
+        ]
+      }
+    },
+    {
+      "case_key": "ko-vq-vip-customer-002",
+      "input": {
+        "kind": "retrieval_comparison",
+        "question": "VIP 고객의 평균 주문 금액은?",
+        "surface": "verified_query",
+        "top_k": 5,
+        "expected_ids": [
+          "vq-REPLACE-with-the-vip-aov-vq-id"
+        ]
+      }
+    },
+    {
+      "case_key": "ko-vq-cohort-retention-003",
+      "input": {
+        "kind": "retrieval_comparison",
+        "question": "최근 3개월 가입 코호트의 리텐션 추이",
+        "surface": "verified_query",
+        "top_k": 5,
+        "expected_ids": [
+          "vq-REPLACE-with-the-retention-vq-id"
+        ]
+      }
+    },
+    {
+      "case_key": "ko-vq-canonical-synonym-004",
+      "input": {
+        "kind": "retrieval_comparison",
+        "question": "고객 생애 가치 LTV 어떻게 구해?",
+        "surface": "verified_query",
+        "top_k": 5,
+        "expected_ids": [
+          "vq-REPLACE-with-the-ltv-vq-id"
+        ]
+      }
+    },
+    {
+      "case_key": "ko-community-customer-cluster-005",
+      "input": {
+        "kind": "retrieval_comparison",
+        "question": "프리미엄 고객층의 구매 패턴",
+        "surface": "community_summary",
+        "top_k": 5,
+        "expected_ids": [
+          "leiden:0:REPLACE-with-the-cluster-id"
+        ]
+      }
+    },
+    {
+      "case_key": "ko-community-product-affinity-006",
+      "input": {
+        "kind": "retrieval_comparison",
+        "question": "함께 자주 팔리는 상품 그룹",
+        "surface": "community_summary",
+        "top_k": 5,
+        "expected_ids": [
+          "leiden:1:REPLACE-with-the-affinity-cluster-id"
+        ]
+      }
+    },
+    {
+      "case_key": "ko-community-fraud-pattern-007",
+      "input": {
+        "kind": "retrieval_comparison",
+        "question": "이상 결제 패턴 탐지",
+        "surface": "community_summary",
+        "top_k": 5,
+        "expected_ids": [
+          "leiden:2:REPLACE-with-the-fraud-cluster-id"
+        ]
+      }
+    },
+    {
+      "case_key": "ko-knowledge-date-truncation-008",
+      "input": {
+        "kind": "retrieval_comparison",
+        "question": "주문 일자를 월 단위로 묶고 싶어",
+        "surface": "knowledge_entry",
+        "top_k": 5,
+        "expected_ids": [
+          "REPLACE-with-the-date-trunc-knowledge-uuid"
+        ]
+      }
+    },
+    {
+      "case_key": "ko-knowledge-null-handling-009",
+      "input": {
+        "kind": "retrieval_comparison",
+        "question": "결측치는 어떻게 처리해야 해?",
+        "surface": "knowledge_entry",
+        "top_k": 5,
+        "expected_ids": [
+          "REPLACE-with-the-null-handling-knowledge-uuid"
+        ]
+      }
+    },
+    {
+      "case_key": "ko-knowledge-currency-conversion-010",
+      "input": {
+        "kind": "retrieval_comparison",
+        "question": "달러 매출을 원화로 환산하려면?",
+        "surface": "knowledge_entry",
+        "top_k": 5,
+        "expected_ids": [
+          "REPLACE-with-the-currency-conversion-knowledge-uuid"
+        ]
+      }
+    }
+  ]
+}
