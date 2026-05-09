@@ -937,7 +937,17 @@
     "signIn": "로그인",
     "signOut": "로그아웃",
     "signInPrompt": "로그인이 필요합니다",
-    "myAccount": "내 계정"
+    "myAccount": "내 계정",
+    "devMode": "개발 모드",
+    "devModeHint": "세션 없음"
+  },
+  "theme": {
+    "switcher": "테마",
+    "option": {
+      "system": "시스템 설정 따르기",
+      "light": "라이트 모드",
+      "dark": "다크 모드"
+    }
   },
   "notFound": {
     "code": "404",

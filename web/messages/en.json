@@ -937,7 +937,17 @@
     "signIn": "Sign in",
     "signOut": "Sign out",
     "signInPrompt": "Sign-in required",
-    "myAccount": "My account"
+    "myAccount": "My account",
+    "devMode": "Dev mode",
+    "devModeHint": "No session"
+  },
+  "theme": {
+    "switcher": "Theme",
+    "option": {
+      "system": "System default",
+      "light": "Light",
+      "dark": "Dark"
+    }
   },
   "notFound": {
     "code": "404",

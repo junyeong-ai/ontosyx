@@ -66,6 +66,19 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable}`}
     >
       <head>
+        {/* Theme bootstrap — runs before first paint to apply the
+            `.dark` class when the persisted preference (or, in its
+            absence, the OS preference) is dark. Without this script
+            a pinned-dark workspace flashes light during hydration.
+            Mirrors `useThemePreference` and reads the same
+            `ontosyx_theme` localStorage key. */}
+        <script
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: boot script must run synchronously before paint
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var p=localStorage.getItem('ontosyx_theme');var d=p==='dark'||(p!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(_){}",
+          }}
+        />
         {/* Pretendard via CDN — primary Korean typeface. Preload +
             stylesheet so CJK-heavy pages avoid FOUT. Variable weight. */}
         <link

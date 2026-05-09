@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Avatar } from "@/components/ui/avatar";
 import { LocaleSwitcher } from "./locale-switcher";
+import { ThemeSwitcher } from "./theme-switcher";
 import { clearCollabClient } from "@/lib/collab";
 
 export function UserMenu() {
@@ -14,9 +15,6 @@ export function UserMenu() {
   const [open, setOpen] = useState(false);
   const t = useTranslations("auth");
 
-  // Render the menu in every signed-in mode — both `authenticated`
-  // (multi-tenant) and `disabled` (dev / on-prem). The disabled path
-  // omits the Sign Out form because there's no session to clear.
   if (mode.kind === "loading") return null;
 
   if (mode.kind === "unauthenticated") {
@@ -31,7 +29,7 @@ export function UserMenu() {
   }
 
   const { user } = mode;
-  const showSignOut = mode.kind === "authenticated";
+  const isDevMode = mode.kind === "disabled";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -41,14 +39,17 @@ export function UserMenu() {
           {user.name}
         </span>
       </PopoverTrigger>
-      <PopoverContent className="z-popover w-56 rounded-lg border border-divider bg-surface-base p-1 shadow-3 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]">
-        <div className="px-3 py-2 text-xs text-foreground-muted">
-          <div className="font-medium text-foreground-strong">
-            {user.name}
-          </div>
-          <div className="mt-0.5 truncate">{user.email}</div>
+      <PopoverContent className="z-popover w-60 rounded-lg border border-divider bg-surface-base p-1 shadow-3 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all duration-[var(--duration-base)] ease-[var(--ease-out)]">
+        {/* Identity header — persona block sits above account
+            actions so the menu opens with the operator's eye on
+            "who am I logged in as". */}
+        <div className="px-3 py-2 text-xs">
+          <div className="font-medium text-foreground-strong">{user.name}</div>
+          <div className="mt-0.5 truncate text-foreground-muted">{user.email}</div>
         </div>
+
         <div className="my-1 h-px bg-surface-inset" />
+
         <Link
           href="/account/profile"
           onClick={() => setOpen(false)}
@@ -56,28 +57,47 @@ export function UserMenu() {
         >
           {t("myAccount")}
         </Link>
+
         <div className="my-1 h-px bg-surface-inset" />
+
+        <ThemeSwitcher />
         <LocaleSwitcher />
-        {showSignOut && (
-          <>
-            <div className="my-1 h-px bg-surface-inset" />
-            <form action="/auth/logout" method="POST">
-              <button
-                type="submit"
-                className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-danger-foreground hover:bg-danger-surface"
-                onClick={() => {
-                  // Tear the collaboration WS down before the cookie
-                  // is wiped — once the form submits, the open socket
-                  // would otherwise keep streaming under a now-revoked
-                  // session for up to the periodic re-check window.
-                  clearCollabClient();
-                  setOpen(false);
-                }}
-              >
-                {t("signOut")}
-              </button>
-            </form>
-          </>
+
+        <div className="my-1 h-px bg-surface-inset" />
+
+        {isDevMode ? (
+          <div
+            className="flex items-center gap-2 rounded-md px-3 py-1.5 text-2xs text-foreground-muted"
+            role="status"
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-warning-foreground"
+              aria-hidden="true"
+            />
+            <span className="font-medium uppercase tracking-wider">
+              {t("devMode")}
+            </span>
+            <span className="ms-auto text-foreground-subtle">
+              {t("devModeHint")}
+            </span>
+          </div>
+        ) : (
+          <form action="/auth/logout" method="POST">
+            <button
+              type="submit"
+              className="flex w-full items-center rounded-md px-3 py-1.5 text-start text-xs text-danger-foreground hover:bg-danger-surface"
+              onClick={() => {
+                // Tear the collaboration WS down before the cookie
+                // is wiped — once the form submits, the open socket
+                // would otherwise keep streaming under a now-revoked
+                // session for up to the periodic re-check window.
+                clearCollabClient();
+                setOpen(false);
+              }}
+            >
+              {t("signOut")}
+            </button>
+          </form>
         )}
       </PopoverContent>
     </Popover>

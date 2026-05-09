@@ -1,8 +1,9 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useTransition } from "react";
+import { useId, useTransition } from "react";
 
+import { FormSelect } from "@/components/ui/form-input";
 import {
   LOCALE_LABELS,
   SUPPORTED_LOCALES,
@@ -14,51 +15,51 @@ import { setLocaleAction } from "@/i18n/actions";
  * Locale switcher — flips the `ontosyx_locale` cookie via a server
  * action and lets next.js re-render the tree with the new messages.
  *
- * Rendered inside the user menu popover. Small footprint so it can sit
- * beside account actions without crowding them.
+ * Uses a compact `<select>` so the dropdown scales to any number of
+ * locales — adding a new entry to `SUPPORTED_LOCALES` lights it up
+ * here without rewriting layout. Inline button groups would visibly
+ * crowd the popover at 4+ locales.
  */
 export function LocaleSwitcher() {
   const current = useLocale() as Locale;
   const t = useTranslations("locale");
   const [isPending, startTransition] = useTransition();
+  const labelId = useId();
 
   const handleChange = (next: Locale) => {
     if (next === current) return;
     startTransition(async () => {
       await setLocaleAction(next);
-      // The server action revalidates the root layout, but the client
-      // router cache also needs to drop — a hard reload is the
-      // least-surprising way to swap every text node at once.
+      // Server action revalidates the layout; the client router
+      // cache also drops with a hard reload — least-surprising way
+      // to swap every text node at once.
       window.location.reload();
     });
   };
 
   return (
     <div className="px-3 py-2">
-      <p className="mb-1 text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
+      <label
+        id={labelId}
+        htmlFor={`${labelId}-select`}
+        className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-foreground-muted"
+      >
         {t("switcher")}
-      </p>
-      <div className="flex gap-1">
-        {SUPPORTED_LOCALES.map((loc) => {
-          const active = loc === current;
-          return (
-            <button
-              key={loc}
-              type="button"
-              disabled={isPending}
-              aria-pressed={active}
-              onClick={() => handleChange(loc)}
-              className={`flex-1 rounded-md border px-2 py-1 text-xs transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] ${
-                active
-                  ? "border-brand-foreground bg-brand-surface text-brand-foreground-strong"
-                  : "border-divider bg-surface-base text-foreground hover:bg-surface-raised"
-              } disabled:opacity-50`}
-            >
-              {LOCALE_LABELS[loc]}
-            </button>
-          );
-        })}
-      </div>
+      </label>
+      <FormSelect
+        id={`${labelId}-select`}
+        density="compact"
+        aria-labelledby={labelId}
+        value={current}
+        disabled={isPending}
+        onChange={(e) => handleChange(e.target.value as Locale)}
+      >
+        {SUPPORTED_LOCALES.map((loc) => (
+          <option key={loc} value={loc}>
+            {LOCALE_LABELS[loc]}
+          </option>
+        ))}
+      </FormSelect>
     </div>
   );
 }
