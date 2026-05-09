@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import messages from "../../../messages/en.json";
-import { GlossaryBindingPanel } from "@/components/glossary/glossary-binding-panel";
+import { ConceptBindingPanel } from "@/components/glossary/concept-binding-panel";
 import * as bindingApi from "@/lib/api/binding-suggestions";
 import * as editOps from "@/lib/api/edit-ops";
 
@@ -15,6 +15,7 @@ vi.mock("@/components/ui/toast", () => ({
 
 const FIXTURE_TERM = {
   term_id: "g-vip",
+  concept_id: "c-vip",
   term: { default: "VIP tier" },
   aliases: [{ default: "premium" }, { default: "loyalty" }],
   description: { default: "Top-tier customers." },
@@ -27,7 +28,7 @@ function renderPanel(term = FIXTURE_TERM) {
   const ui: ReactElement = (
     <NextIntlClientProvider locale="en" messages={messages}>
       <QueryClientProvider client={qc}>
-        <GlossaryBindingPanel
+        <ConceptBindingPanel
           ontologyId="ont-1"
           expectedVersion={2}
           term={term}
@@ -38,20 +39,20 @@ function renderPanel(term = FIXTURE_TERM) {
   return render(ui);
 }
 
-describe("GlossaryBindingPanel", () => {
+describe("ConceptBindingPanel", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
   it("auto-scores on mount with term + aliases + description + term_id", async () => {
     const suggest = vi
-      .spyOn(bindingApi, "suggestGlossaryBindings")
+      .spyOn(bindingApi, "suggestConceptPropertyBindings")
       .mockResolvedValue({ ontology_id: "ont-1", candidates: [] });
 
     renderPanel();
 
     await waitFor(() => expect(suggest).toHaveBeenCalled());
-    expect(suggest).toHaveBeenCalledWith("ont-1", {
+    expect(suggest).toHaveBeenCalledWith("workspace", {
       term: { default: "VIP tier" },
       aliases: [{ default: "premium" }, { default: "loyalty" }],
       description: { default: "Top-tier customers." },
@@ -60,7 +61,7 @@ describe("GlossaryBindingPanel", () => {
   });
 
   it("renders candidate rows with owner, property, score percent", async () => {
-    vi.spyOn(bindingApi, "suggestGlossaryBindings").mockResolvedValue({
+    vi.spyOn(bindingApi, "suggestConceptPropertyBindings").mockResolvedValue({
       ontology_id: "ont-1",
       candidates: [
         {
@@ -82,7 +83,7 @@ describe("GlossaryBindingPanel", () => {
   });
 
   it("batch bind fires /edits with one bind_property per selected row", async () => {
-    vi.spyOn(bindingApi, "suggestGlossaryBindings").mockResolvedValue({
+    vi.spyOn(bindingApi, "suggestConceptPropertyBindings").mockResolvedValue({
       ontology_id: "ont-1",
       candidates: [
         {
@@ -133,13 +134,13 @@ describe("GlossaryBindingPanel", () => {
         op: "bind_property",
         owner: { kind: "node", type_id: "Customer" },
         property_id: "tier",
-        binding: { kind: "glossary", id: "g-vip" },
+        binding: { kind: "concept", id: "c-vip" },
       },
       {
         op: "bind_property",
         owner: { kind: "edge", type_id: "PLACED" },
         property_id: "channel",
-        binding: { kind: "glossary", id: "g-vip" },
+        binding: { kind: "concept", id: "c-vip" },
       },
     ]);
   });

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import messages from "../../../messages/en.json";
-import { LinkTermDropdown } from "@/components/workbench/inspector/link-term-dropdown";
+import { LinkConceptDropdown } from "@/components/workbench/inspector/link-concept-dropdown";
 import * as bindingApi from "@/lib/api/binding-suggestions";
 import * as editOps from "@/lib/api/edit-ops";
 
@@ -36,39 +36,39 @@ const defaultProps = {
   propertyId: "p-tier",
 };
 
-describe("LinkTermDropdown", () => {
+describe("LinkConceptDropdown", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders the unbind pill when boundTermId is present", () => {
+  it("renders the unbind pill when a concept binding is present", () => {
     renderWithProviders(
-      <LinkTermDropdown {...defaultProps} boundTermId="vip-term" />,
+      <LinkConceptDropdown {...defaultProps} boundBinding={{ kind: "concept", id: "c-vip" }} />,
     );
     expect(
-      screen.getByRole("button", { name: /unbind from vip-term/i }),
+      screen.getByRole("button", { name: /unbind from c-vip/i }),
     ).toBeDefined();
-    // The suggest-terms mutation must NOT fire when already bound.
+    // The suggest-concepts mutation must NOT fire when already bound.
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
   it("fetches suggestions when opened and renders candidate scores", async () => {
     const suggest = vi
-      .spyOn(bindingApi, "suggestTermsForProperty")
+      .spyOn(bindingApi, "suggestConceptsForProperty")
       .mockResolvedValue({
         ontology_id: "ont-1",
         candidates: [
-          { term_id: "vip", term: "VIP", score: 0.92, signals: [] },
-          { term_id: "tier", term: "Customer Tier", score: 0.77, signals: [] },
+          { term_id: "vip", concept_id: "c-vip", term: { default: "VIP" }, score: 0.92, signals: [] },
+          { term_id: "tier", concept_id: "c-tier", term: { default: "Customer Tier" }, score: 0.77, signals: [] },
         ],
       });
 
-    renderWithProviders(<LinkTermDropdown {...defaultProps} />);
+    renderWithProviders(<LinkConceptDropdown {...defaultProps} />);
 
     // Open the dropdown.
     fireEvent.click(
       screen.getByRole("button", {
-        name: /link this property to a glossary term/i,
+        name: /link this property to a concept/i,
       }),
     );
 
@@ -81,7 +81,7 @@ describe("LinkTermDropdown", () => {
     expect(screen.getByText("92%")).toBeDefined();
     expect(screen.getByText("77%")).toBeDefined();
     expect(suggest).toHaveBeenCalledWith(
-      "ont-1",
+      "workspace",
       "node",
       "Customer",
       "p-tier",
@@ -90,32 +90,32 @@ describe("LinkTermDropdown", () => {
   });
 
   it("surfaces an empty-state when the API returns no candidates", async () => {
-    vi.spyOn(bindingApi, "suggestTermsForProperty").mockResolvedValue({
+    vi.spyOn(bindingApi, "suggestConceptsForProperty").mockResolvedValue({
       ontology_id: "ont-1",
       candidates: [],
     });
 
-    renderWithProviders(<LinkTermDropdown {...defaultProps} />);
+    renderWithProviders(<LinkConceptDropdown {...defaultProps} />);
     fireEvent.click(
       screen.getByRole("button", {
-        name: /link this property to a glossary term/i,
+        name: /link this property to a concept/i,
       }),
     );
 
     await waitFor(() => {
       expect(
-        screen.getByText(/no matching terms/i),
+        screen.getByText(/no matching concepts/i),
       ).toBeDefined();
     });
   });
 
-  it("clicking a candidate fires a bind_property edit with the glossary target", async () => {
-    vi.spyOn(bindingApi, "suggestTermsForProperty").mockResolvedValue({
-      ontology_id: "ont-1",
-      candidates: [
-        { term_id: "vip", term: "VIP", score: 0.92, signals: [] },
-      ],
-    });
+  it("clicking a candidate fires a bind_property edit with the concept target", async () => {
+    vi.spyOn(bindingApi, "suggestConceptsForProperty").mockResolvedValue({
+        ontology_id: "ont-1",
+        candidates: [
+          { term_id: "vip", concept_id: "c-vip", term: { default: "VIP" }, score: 0.92, signals: [] },
+        ],
+      });
     const apply = vi
       .spyOn(editOps, "submitOntologyEdits")
       .mockResolvedValue({
@@ -126,10 +126,10 @@ describe("LinkTermDropdown", () => {
         committed_at: "2026-04-22T00:00:00Z",
       });
 
-    renderWithProviders(<LinkTermDropdown {...defaultProps} />);
+    renderWithProviders(<LinkConceptDropdown {...defaultProps} />);
     fireEvent.click(
       screen.getByRole("button", {
-        name: /link this property to a glossary term/i,
+        name: /link this property to a concept/i,
       }),
     );
     await waitFor(() => screen.getByText("VIP"));
@@ -145,7 +145,7 @@ describe("LinkTermDropdown", () => {
         op: "bind_property",
         owner: { kind: "node", type_id: "Customer" },
         property_id: "p-tier",
-        binding: { kind: "glossary", id: "vip" },
+        binding: { kind: "concept", id: "c-vip" },
       },
     ]);
   });
@@ -162,10 +162,10 @@ describe("LinkTermDropdown", () => {
       });
 
     renderWithProviders(
-      <LinkTermDropdown {...defaultProps} boundTermId="vip-term" />,
+      <LinkConceptDropdown {...defaultProps} boundBinding={{ kind: "concept", id: "c-vip" }} />,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: /unbind from vip-term/i }),
+      screen.getByRole("button", { name: /unbind from c-vip/i }),
     );
 
     await waitFor(() => {
@@ -174,7 +174,7 @@ describe("LinkTermDropdown", () => {
     const [, body] = apply.mock.calls[0] ?? [];
     expect(body?.operations[0]).toMatchObject({
       op: "unbind_property",
-      target: { kind: "glossary", id: "vip-term" },
+      target: { kind: "concept", id: "c-vip" },
     });
   });
 });

@@ -6,33 +6,36 @@ import { ExternalLink, Link, Unlink } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 import { Tooltip } from "@/components/ui/tooltip";
+import { localize } from "@/lib/locale/localize";
+import { useLocaleChain } from "@/hooks/use-locale-chain";
 import {
   useApplyBindingEdits,
-  useSuggestTerms,
+  useSuggestConcepts,
 } from "@/hooks/api/use-binding-suggestions";
 import type {
   BindingEditOp,
   OwnerKind,
-  TermCandidate,
+  ConceptCandidate,
 } from "@/lib/api/binding-suggestions";
+import type { PropertyBindingHandle } from "@/types/ontology";
 
-export interface LinkTermDropdownProps {
+export interface LinkConceptDropdownProps {
   ontologyId: string;
   expectedVersion: number;
   ownerKind: OwnerKind;
   ownerTypeId: string;
   propertyId: string;
   /**
-   * Currently-bound term id, rendered in the "linked" state. When
+   * Currently-bound semantic target, rendered in the "linked" state. When
    * present, the button offers an unbind action instead of fetching
    * new suggestions.
    */
-  boundTermId?: string | null;
+  boundBinding?: PropertyBindingHandle | null;
 }
 
 const POLICY = { max_results: 3 } as const;
 
-export function LinkTermDropdown(props: LinkTermDropdownProps) {
+export function LinkConceptDropdown(props: LinkConceptDropdownProps) {
   const t = useTranslations("inspector.binding");
   const {
     ontologyId,
@@ -40,18 +43,19 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
     ownerKind,
     ownerTypeId,
     propertyId,
-    boundTermId,
+    boundBinding,
   } = props;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const suggest = useSuggestTerms(ontologyId);
+  const suggest = useSuggestConcepts(ontologyId);
   const apply = useApplyBindingEdits(ontologyId);
+  const localeChain = useLocaleChain();
 
   // Refetch suggestions every time the popover opens so the operator
-  // sees the current candidate set (term list changes as they add /
-  // rename glossary entries in another pane).
+  // sees the current candidate set (concept labels change as they
+  // add or rename glossary lexicalizations in another pane).
   useEffect(() => {
-    if (!open || boundTermId) return;
+    if (!open || boundBinding) return;
     suggest.mutate({
       ownerKind,
       ownerTypeId,
@@ -62,7 +66,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
     // but including it as a dep triggers infinite re-fires because
     // TanStack replaces the mutation state on each call. The identity
     // axis we care about is the four ids + open flag.
-  }, [open, boundTermId, ownerKind, ownerTypeId, propertyId, suggest.mutate]);
+  }, [open, boundBinding, ownerKind, ownerTypeId, propertyId, suggest.mutate]);
 
   // Click-outside closes the popover.
   useEffect(() => {
@@ -74,37 +78,36 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
     return () => window.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const commitBinding = (glossaryTermId: string | null, label?: string) => {
-    const op: BindingEditOp = glossaryTermId
+  const commitBinding = (candidate: ConceptCandidate | null) => {
+    const op: BindingEditOp = candidate
       ? {
           op: "bind_property",
           owner: { kind: ownerKind, type_id: ownerTypeId },
           property_id: propertyId,
-          binding: { kind: "glossary", id: glossaryTermId },
+          binding: { kind: "concept", id: candidate.concept_id },
         }
       : {
           op: "unbind_property",
           owner: { kind: ownerKind, type_id: ownerTypeId },
           property_id: propertyId,
-          // Unbind by `(kind, id)` selector. We always carry the
-          // previously bound term id on `boundTermId`, so use that
-          // to compose the exact handle the BE expects.
-          target: { kind: "glossary", id: boundTermId ?? "" },
+          target: boundBinding ?? { kind: "concept", id: "" },
         };
     apply.mutate(
       {
         expected_version: expectedVersion,
         operations: [op],
-        message: glossaryTermId
-          ? `bind property ${propertyId} → glossary ${glossaryTermId}`
-          : `unbind property ${propertyId} from glossary`,
+        message: candidate
+          ? `bind property ${propertyId} → concept ${candidate.concept_id}`
+          : `unbind property ${propertyId} from concept`,
       },
       {
         onSuccess: () => {
           setOpen(false);
           toast.success(
-            glossaryTermId
-              ? t("linkedToast", { term: label ?? glossaryTermId })
+            candidate
+              ? t("linkedToast", {
+                  term: localize(candidate.term, localeChain) || candidate.term_id,
+                })
               : t("unlinkedToast"),
           );
         },
@@ -117,19 +120,22 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
     );
   };
 
+  const bindableCandidates = suggest.data?.candidates ?? [];
+  const boundLabel = boundBinding?.id ?? "";
+
   return (
     <div ref={rootRef} className="relative">
-      {boundTermId ? (
-        <Tooltip content={t("unlinkTooltip", { term: boundTermId })}>
+      {boundBinding ? (
+        <Tooltip content={t("unlinkTooltip", { term: boundLabel })}>
           <button
             type="button"
             onClick={() => commitBinding(null)}
             disabled={apply.isPending}
-            aria-label={t("unlinkAria", { term: boundTermId })}
+            aria-label={t("unlinkAria", { term: boundLabel })}
             className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs text-concept-foreground hover:bg-concept-surface disabled:opacity-50"
           >
             <ExternalLink className="h-2.5 w-2.5" />
-            <span className="max-w-[100px] truncate">{boundTermId}</span>
+            <span className="max-w-[100px] truncate">{boundLabel}</span>
           </button>
         </Tooltip>
       ) : (
@@ -146,7 +152,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
         </Tooltip>
       )}
 
-      {open && !boundTermId && (
+      {open && !boundBinding && (
         <div
           role="listbox"
           aria-label={t("suggestionsLabel")}
@@ -162,17 +168,18 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
               {t("fetchFailed")}
             </p>
           )}
-          {suggest.isSuccess && suggest.data.candidates.length === 0 && (
+          {suggest.isSuccess && bindableCandidates.length === 0 && (
             <p className="px-2 py-1.5 text-2xs text-foreground-muted">
               {t("noSuggestions")}
             </p>
           )}
           {suggest.isSuccess &&
-            suggest.data.candidates.map((c) => (
+            bindableCandidates.map((c) => (
               <CandidateRow
                 key={c.term_id}
                 candidate={c}
-                onPick={() => commitBinding(c.term_id, c.term)}
+                localeChain={localeChain}
+                onPick={() => commitBinding(c)}
                 disabled={apply.isPending}
               />
             ))}
@@ -189,14 +196,17 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
 
 function CandidateRow({
   candidate,
+  localeChain,
   onPick,
   disabled,
 }: {
-  candidate: TermCandidate;
+  candidate: ConceptCandidate;
+  localeChain: readonly string[];
   onPick: () => void;
   disabled: boolean;
 }) {
   const pct = Math.round(Math.max(0, Math.min(1, candidate.score)) * 100);
+  const termLabel = localize(candidate.term, localeChain) || candidate.term_id;
   return (
     <button
       role="option"
@@ -208,7 +218,7 @@ function CandidateRow({
     >
       <Unlink className="h-2.5 w-2.5 text-foreground-muted" />
       <span className="min-w-0 flex-1 truncate text-2xs font-medium text-foreground-strong">
-        {candidate.term}
+        {termLabel}
       </span>
       <span className="shrink-0 rounded bg-concept-surface px-1 text-2xs font-medium text-concept-foreground">
         {pct}%

@@ -21,6 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 interface BindingTermContext {
   term_id: string;
+  concept_id?: string | null;
   /** Canonical term name with every locale the saved term carries.
    *  The scorer walks every locale, not just the display chain — a
    *  Korean-canonical term with an English alias still matches
@@ -30,21 +31,21 @@ interface BindingTermContext {
   description?: LocalizedText;
 }
 
-interface GlossaryBindingPanelProps {
+interface ConceptBindingPanelProps {
   ontologyId: string;
   /** Current committed ontology version — required for optimistic
    * locking on the `/edits` batch. */
   expectedVersion: number;
-  /** Selected glossary term — drives the suggest call. */
+  /** Selected concept lexicalization — drives the suggest call. */
   term: BindingTermContext;
 }
 
-export function GlossaryBindingPanel({
+export function ConceptBindingPanel({
   ontologyId,
   expectedVersion,
   term,
-}: GlossaryBindingPanelProps) {
-  const t = useTranslations("settings.glossaryBinding");
+}: ConceptBindingPanelProps) {
+  const t = useTranslations("settings.conceptBinding");
 
   // Selected candidates for the batch bind action. Keyed by
   // `kind:type_id:property_id` so the same property can't be picked
@@ -83,7 +84,7 @@ export function GlossaryBindingPanel({
     if (!term.term_id || !displayTerm) return;
     const body: SuggestBindingsRequest = {
       term: term.term,
-      aliases: term.aliases ?? [],
+      aliases: [...(term.aliases ?? [])],
       description: term.description,
       term_id: term.term_id,
     };
@@ -105,7 +106,8 @@ export function GlossaryBindingPanel({
   };
 
   const onBatchBind = () => {
-    if (selected.size === 0) return;
+    const conceptId = term.concept_id;
+    if (selected.size === 0 || !conceptId) return;
     const ops: BindingEditOp[] = candidates
       .filter((c) => selected.has(candidateKey(c)))
       .map(
@@ -116,20 +118,18 @@ export function GlossaryBindingPanel({
               ? { kind: "node", type_id: c.owner_type_id }
               : { kind: "edge", type_id: c.owner_type_id },
           property_id: c.property_id,
-          binding: {
-            kind: "glossary",
-            id: term.term_id,
-          },
+          binding: { kind: "concept", id: conceptId },
         }),
       );
     apply.mutate({
       expected_version: expectedVersion,
       operations: ops,
-      message: `batch bind ${ops.length} properties → glossary ${term.term_id}`,
+      message: `batch bind ${ops.length} properties → concept ${conceptId}`,
     });
   };
 
   const anySelected = selected.size > 0;
+  const canBind = Boolean(term.concept_id);
   const selectedCount = useMemo(() => selected.size, [selected]);
 
   return (
@@ -151,7 +151,7 @@ export function GlossaryBindingPanel({
           onClick={() =>
             suggest.mutate({
               term: term.term,
-              aliases: term.aliases ?? [],
+              aliases: [...(term.aliases ?? [])],
               description: term.description,
               term_id: term.term_id,
             })
@@ -236,7 +236,7 @@ export function GlossaryBindingPanel({
           <button
             type="button"
             onClick={onBatchBind}
-            disabled={apply.isPending}
+            disabled={!canBind || apply.isPending}
             className="rounded bg-brand-solid px-3 py-1 text-2xs font-medium text-foreground-onbrand hover:bg-brand-solid disabled:opacity-50"
           >
             {apply.isPending
