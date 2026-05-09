@@ -9,8 +9,10 @@
 )]
 
 pub mod auth;
+pub mod chat_model_factory;
 pub mod client_pool;
 pub mod design;
+pub mod dyn_chat_model;
 pub mod knowledge_rag;
 pub mod knowledge_util;
 pub mod model_resolver;

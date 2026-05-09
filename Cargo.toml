@@ -69,6 +69,10 @@ ox-ontology = { path = "crates/ox-ontology" }
 ox-query-ir = { path = "crates/ox-query-ir" }
 
 # LLM runtime
+# entelix is being adopted as the LLM runtime — `branchforge` stays only
+# until Phase 6 of the migration. Path dep because entelix has not been
+# published to crates.io yet (workspace version 0.3.0, RC track).
+entelix = { path = "../entelix/crates/entelix", default-features = false }
 branchforge = { version = "0.9", default-features = false }
 
 # Serialization

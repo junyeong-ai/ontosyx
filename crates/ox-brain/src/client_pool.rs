@@ -7,9 +7,12 @@ use dashmap::DashMap;
 use tracing::info;
 
 use branchforge::{Credential, LlmCall, LlmClient};
+use entelix::auth::CredentialProvider;
 use ox_core::error::{OxError, OxResult};
 
 use crate::auth::LlmProviderConfig;
+use crate::chat_model_factory::{BuiltChatModel, build_chat_model};
+use crate::dyn_chat_model::BrainChatModel;
 
 fn now_epoch_secs() -> u64 {
     SystemTime::now()
@@ -29,13 +32,29 @@ fn now_epoch_secs() -> u64 {
 /// with automatic retry — zero provider-specific logic in this module.
 pub struct ClientPool {
     /// Key: provider identity hash. Value: LlmCall client + metadata.
+    /// (Legacy branchforge path — removed in migration Phase 6.)
     clients: DashMap<u64, PoolEntry>,
     /// Cached credentials for Agent auth (Auth::Resolved).
+    /// (Legacy branchforge path — removed in migration Phase 6.)
     credentials: DashMap<u64, Credential>,
+    /// Key: provider identity hash. Value: erased entelix `ChatModel`
+    /// + metadata. Replaces `clients` once Phase 4 (ox-agent) and
+    /// Phase 5 (ox-api) cut over.
+    chat_models: DashMap<u64, ChatModelEntry>,
+    /// Cached credential providers for entelix-side agent auth.
+    /// `None` slot means the provider's auth is internal to its
+    /// transport (Bedrock SigV4) — no separate provider to expose.
+    entelix_credentials: DashMap<u64, Option<Arc<dyn CredentialProvider>>>,
 }
 
 struct PoolEntry {
     client: Arc<dyn LlmCall>,
+    provider: String,
+    last_used: AtomicU64,
+}
+
+struct ChatModelEntry {
+    chat_model: Arc<dyn BrainChatModel>,
     provider: String,
     last_used: AtomicU64,
 }
@@ -51,7 +70,76 @@ impl ClientPool {
         Self {
             clients: DashMap::new(),
             credentials: DashMap::new(),
+            chat_models: DashMap::new(),
+            entelix_credentials: DashMap::new(),
         }
+    }
+
+    /// Get or create an entelix [`BrainChatModel`] for the given
+    /// provider config — the new dispatch path replacing
+    /// [`Self::get_or_create`] once the migration completes.
+    ///
+    /// Pool semantics mirror the legacy `get_or_create`: keyed on
+    /// provider identity (provider name + api_key + base_url +
+    /// region), `last_used` bumped on every hit, idle eviction
+    /// honoured by [`Self::invalidate_idle`].
+    pub async fn get_or_create_chat_model(
+        &self,
+        config: &LlmProviderConfig,
+    ) -> OxResult<Arc<dyn BrainChatModel>> {
+        let key = provider_identity_hash(config);
+
+        if let Some(entry) = self.chat_models.get(&key) {
+            entry.last_used.store(now_epoch_secs(), Ordering::Relaxed);
+            return Ok(Arc::clone(&entry.chat_model));
+        }
+
+        let BuiltChatModel { chat_model, credentials } = build_chat_model(config).await?;
+        self.entelix_credentials.insert(key, credentials);
+
+        info!(
+            provider = %config.provider,
+            model = %config.model,
+            "entelix ChatModel created in pool"
+        );
+
+        self.chat_models.insert(
+            key,
+            ChatModelEntry {
+                chat_model: Arc::clone(&chat_model),
+                provider: config.provider.clone(),
+                last_used: AtomicU64::new(now_epoch_secs()),
+            },
+        );
+        Ok(chat_model)
+    }
+
+    /// Return a cached [`BrainChatModel`] by provider name. Mirrors
+    /// [`Self::by_provider`] for the entelix path.
+    pub fn chat_model_by_provider(&self, provider: &str) -> Option<Arc<dyn BrainChatModel>> {
+        for entry in self.chat_models.iter() {
+            if entry.value().provider == provider {
+                entry
+                    .value()
+                    .last_used
+                    .store(now_epoch_secs(), Ordering::Relaxed);
+                return Some(Arc::clone(&entry.value().chat_model));
+            }
+        }
+        None
+    }
+
+    /// Return the cached `CredentialProvider` for `config` —
+    /// available when the chat model has been built at least once.
+    /// `None` is returned for providers whose auth is internal to
+    /// the transport (Bedrock SigV4) and for configs that have not
+    /// gone through [`Self::get_or_create_chat_model`] yet.
+    pub fn credential_provider_for(
+        &self,
+        config: &LlmProviderConfig,
+    ) -> Option<Arc<dyn CredentialProvider>> {
+        let key = provider_identity_hash(config);
+        self.entelix_credentials.get(&key)?.clone()
     }
 
     /// Get or create an LlmCall client for the given provider config.
@@ -138,6 +226,25 @@ impl ClientPool {
                 "Client pool idle eviction complete"
             );
         }
+
+        // Mirror eviction across the entelix-side pool.
+        let before_cm = self.chat_models.len();
+        self.chat_models.retain(|key, entry| {
+            let keep = entry.last_used.load(Ordering::Relaxed) > cutoff;
+            if !keep {
+                self.entelix_credentials.remove(key);
+                info!(provider = %entry.provider, "Evicted idle entelix ChatModel from pool");
+            }
+            keep
+        });
+        let evicted_cm = before_cm.saturating_sub(self.chat_models.len());
+        if evicted_cm > 0 {
+            info!(
+                evicted = evicted_cm,
+                remaining = self.chat_models.len(),
+                "Chat model pool idle eviction complete"
+            );
+        }
     }
 
     /// Return a pre-resolved `Auth::Resolved` for zero-cost agent auth.
@@ -160,6 +267,8 @@ impl ClientPool {
     pub fn invalidate_all(&self) {
         self.clients.clear();
         self.credentials.clear();
+        self.chat_models.clear();
+        self.entelix_credentials.clear();
         info!("Client pool invalidated");
     }
 
@@ -168,6 +277,8 @@ impl ClientPool {
         let key = provider_identity_hash(config);
         self.clients.remove(&key);
         self.credentials.remove(&key);
+        self.chat_models.remove(&key);
+        self.entelix_credentials.remove(&key);
     }
 }
 

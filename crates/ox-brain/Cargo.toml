@@ -15,6 +15,10 @@ ox-compiler = { workspace = true }
 ox-memory = { workspace = true }
 ox-store = { workspace = true }
 ox-text = { workspace = true }
+# Migration in progress (Phase 1) — entelix is the new LLM runtime; the
+# branchforge dep stays until ox-agent/ox-api migrations land (Phase 4-5)
+# and is removed in Phase 6.
+entelix = { workspace = true, features = ["auth-claude-code"] }
 branchforge = { workspace = true, features = ["cli-auth"] }
 dashmap = { workspace = true }
 serde = { workspace = true }
@@ -44,7 +48,7 @@ futures-util = "0.3"
 # `ox-api/test-helpers` pattern. Off by default so production
 # builds never link the helpers.
 test-helpers = []
-llm-aws = ["branchforge/aws"]
+llm-aws = ["branchforge/aws", "entelix/aws"]
 
 [lints]
 workspace = true
