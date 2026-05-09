@@ -1,0 +1,11 @@
+<svg width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
+  <rect width="180" height="180" rx="40" fill="#f0f9ff"/>
+  <g transform="translate(45 45) scale(3.75)">
+    <line x1="12" y1="6" x2="5" y2="18" stroke="#0e7fc1" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="12" y1="6" x2="19" y2="18" stroke="#0e7fc1" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="5" y1="18" x2="19" y2="18" stroke="#0e7fc1" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="12" cy="6" r="2.6" fill="#0e7fc1"/>
+    <circle cx="5" cy="18" r="2.6" fill="#0e7fc1"/>
+    <circle cx="19" cy="18" r="2.6" fill="#0e7fc1"/>
+  </g>
+</svg>

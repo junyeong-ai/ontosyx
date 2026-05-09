@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { BrandLogo } from "@/components/brand/logo";
 import { ContextSelector } from "@/components/layout/context-selector";
 import { ContextBadge } from "@/components/layout/context-badge";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
@@ -18,23 +18,15 @@ import { useAuth } from "@/hooks/use-auth";
 // ---------------------------------------------------------------------------
 
 /**
- * Brand mark — anchor link to the workspace home (`/design`). Chrome
- * branding is not a content heading, so it is *not* an `<h1>`; each
- * route owns its own page-level heading via `WorkbenchPageShell` /
- * `SettingsPageShell`, and canvas layouts render an `sr-only` `<h1>`
- * for axe's `page-has-heading-one` rule.
+ * Brand mark — anchor link to the workspace home (`/design`). The
+ * lockup (graph-triple mark + "Ontosyx" wordmark) is owned by
+ * `BrandLogo` so favicon / apple-icon / OG image / chrome all render
+ * the same geometry. Chrome branding is not a content heading, so it
+ * is not an `<h1>`; each route owns its own page-level heading.
  */
 function AppBranding() {
   const t = useTranslations("chrome.header");
-  return (
-    <Link
-      href="/design"
-      aria-label={t("appTitle")}
-      className="rounded-sm text-sm font-semibold tracking-tight text-foreground-strong outline-none transition-opacity duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-foreground/40 focus-visible:ring-offset-1"
-    >
-      {t("appTitle")}
-    </Link>
-  );
+  return <BrandLogo href="/design" ariaLabel={t("appTitle")} size={16} />;
 }
 
 export function Header() {
