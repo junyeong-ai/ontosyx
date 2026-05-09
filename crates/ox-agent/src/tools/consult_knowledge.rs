@@ -109,7 +109,7 @@ impl SchemaTool for ConsultKnowledgeTool {
         let hits: Vec<KnowledgeHitEntry> = entries
             .into_iter()
             .map(|e| KnowledgeHitEntry {
-                kind: e.kind,
+                kind: e.kind.to_string(),
                 title: e.title,
                 content: e.content,
                 confidence: e.confidence,

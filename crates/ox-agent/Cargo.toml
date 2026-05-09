@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 ox-core = { workspace = true }
@@ -15,9 +16,10 @@ ox-graph-runtime = { workspace = true }
 ox-brain = { workspace = true }
 ox-store = { workspace = true }
 ox-memory = { workspace = true }
+ox-text = { workspace = true }
 
 # Agent runtime
-branchforge = { workspace = true, features = ["aws"] }
+branchforge = { workspace = true }
 
 # Async
 tokio = { workspace = true }
@@ -34,8 +36,12 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 tempfile = { workspace = true }
 sha2 = { workspace = true }
+hex = { workspace = true }
 dashmap = { workspace = true }
 arc-swap = { workspace = true }
+
+[features]
+llm-aws = ["branchforge/aws", "ox-brain/llm-aws"]
 
 [lints]
 workspace = true

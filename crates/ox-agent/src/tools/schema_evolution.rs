@@ -352,7 +352,7 @@ fn compute_schema_checksum(schema: &SourceSchema) -> String {
     // Hash the normalised representation (includes types for change detection)
     let normalised = serde_json::to_string(&tables).unwrap_or_default();
     let hash = Sha256::digest(normalised.as_bytes());
-    format!("{hash:x}")
+    hex::encode(hash)
 }
 
 fn to_pascal_case(s: &str) -> String {

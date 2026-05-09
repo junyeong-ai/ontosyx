@@ -9,13 +9,12 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use ox_brain::plan_router::{CostBudget, HeuristicPlanRouter, PlanRouter, RouteDecision};
+use ox_brain::plan_router::{CostBudget, PlanRouter, QueryExecutionRouter, RouteDecision};
 use ox_core::error::OxError;
 use ox_graph_runtime::cypher::strict_advisory_diagnostics;
+use ox_ontology::RetrievalProfile;
 use ox_query_ir::resolve_query_bindings;
-use ox_store::{
-    EntryPointSearchOptions, LlmRenderOptions, NeighborExpandOptions, QueryExecution,
-};
+use ox_store::{EntryPointSearchOptions, LlmRenderOptions, NeighborExpandOptions, QueryExecution};
 
 use crate::DomainContext;
 
@@ -143,21 +142,25 @@ impl SchemaTool for QueryGraphTool {
         // draft, system-bypass test) or when navigation calls fail
         // (unavailable index, transient DB blip — the schema RAG
         // path on the Brain side still carries the prompt context).
-        let retrieved_subgraph_md =
-            try_retrieve_subgraph_md(&self.domain, &question).await;
+        let retrieved_subgraph_md = try_retrieve_subgraph_md(&self.domain, &question).await;
         if let Some(md) = retrieved_subgraph_md.as_deref() {
             let approx_chars = md.len();
-            ctx.progress("graphrag_retrieval").completed_with(
-                0,
-                serde_json::json!({ "chars": approx_chars }),
-            );
+            ctx.progress("graphrag_retrieval")
+                .completed_with(0, serde_json::json!({ "chars": approx_chars }));
         }
 
         // Step 1: Translate NL → QueryIR (timeout: 60s)
         // Brain emits sub-steps (schema_discovery, llm_primary, llm_fallback)
         // via ctx.emit_progress(), providing real-time visibility.
         // Cancel is handled by branchforge ToolRegistry at the outer level.
-        let query_ir = match tokio::time::timeout(
+        //
+        // The translate flow runs inside an `InferenceSession` scope —
+        // every attempt the Brain makes (Tier1/2/3 fallback +
+        // label-correction retry) lands as an `InferenceAttempt` row
+        // attributed to the session. Φ9 PipelineStage state machine
+        // observability + audit DAG continuity (ADR-0033).
+        let store_for_session = self.domain.store.clone();
+        let translate_future = tokio::time::timeout(
             std::time::Duration::from_secs(60),
             self.brain.translate_query(
                 &question,
@@ -165,20 +168,33 @@ impl SchemaTool for QueryGraphTool {
                 retrieved_subgraph_md.as_deref(),
                 ctx,
             ),
+        );
+        let session_outcome = ox_store::run_in_inference_session(
+            store_for_session.as_ref(),
+            &question,
+            ox_ontology::AgentRef::User {
+                user_id: self.domain.user_id.clone(),
+            },
+            || async {
+                match translate_future.await {
+                    Ok(result) => result,
+                    Err(_) => Err(ox_core::error::OxError::Runtime {
+                        message: "Query translation timed out after 60 seconds".into(),
+                    }),
+                }
+            },
         )
-        .await
-        {
-            // The agent's persistence path (`QueryExecution`) doesn't
-            // carry CallProvenance today; eval case-execute drives
-            // that capture instead. Drop the provenance handle.
-            Ok(Ok((ir, _provenance))) => ir,
-            Ok(Err(e)) => {
+        .await;
+        let (query_ir, query_provenance) = match session_outcome {
+            Ok(output) => output,
+            Err(e) => {
+                let message = format!("{e:?}");
+                if message.contains("timed out after 60 seconds") {
+                    warn!(question = %question, "Query translation timed out after 60s");
+                    return ToolResult::error("Query translation timed out after 60 seconds");
+                }
                 warn!(question = %question, error = %e, "Query translation failed");
                 return ToolResult::error(format!("Query translation failed: {e}"));
-            }
-            Err(_) => {
-                warn!(question = %question, "Query translation timed out after 60s");
-                return ToolResult::error("Query translation timed out after 60 seconds");
             }
         };
 
@@ -192,7 +208,7 @@ impl SchemaTool for QueryGraphTool {
         // `allow_high_cost` so workspace policy rides on the same
         // gate as the LLM-toggled `?allow_high_cost=true` query
         // parameter.
-        let router = HeuristicPlanRouter::new();
+        let router = QueryExecutionRouter::new();
         let budget = CostBudget {
             allow_high_cost: !self.reject_high_cost,
             ..Default::default()
@@ -216,16 +232,15 @@ impl SchemaTool for QueryGraphTool {
         let cost_estimate = decision
             .cost()
             .cloned()
-            .expect("HeuristicPlanRouter always populates cost");
+            .unwrap_or_else(|| ox_compiler::cost::estimate_cost(&query_ir, &ontology));
         match &decision {
             RouteDecision::Federation { .. } => {
-                // Cross-source traversal: today the agent still
-                // executes via the graph runtime path because
-                // federation execute_plan integration ships in T3.
-                // Surface the routing decision in the attribution
-                // so the operator + EvaluationCapture see the
-                // detection actually fired.
-                info!(question = %question, routing = routing_reason, "Federation routing detected");
+                warn!(question = %question, routing = routing_reason, "Federation route requires DataFusion execution");
+                return ToolResult::error(
+                    "Query requires federation execution across mapped sources. \
+                     Run it through the federation query endpoint or narrow the question \
+                     to data already materialized in the graph runtime.",
+                );
             }
             RouteDecision::Hybrid { .. } => {
                 info!(question = %question, routing = routing_reason, "Hybrid routing");
@@ -359,7 +374,8 @@ impl SchemaTool for QueryGraphTool {
             results: serde_json::to_value(&results).unwrap_or_default(),
             widget: None,
             explanation: String::new(),
-            model: self.brain.default_model_info().model.clone(),
+            model_provider: query_provenance.provider.clone(),
+            model: query_provenance.model_id.clone(),
             execution_time_ms,
             query_bindings: query_bindings_json,
             feedback: None,
@@ -436,10 +452,8 @@ impl SchemaTool for QueryGraphTool {
         // pipeline runs a *permissive* variant so power users aren't
         // blocked; this strict re-pass is pure advice — the query
         // already executed.
-        let validator_notes = strict_advisory_diagnostics(
-            &compiled.statement,
-            &self.domain.workspace_id.to_string(),
-        );
+        let validator_notes =
+            strict_advisory_diagnostics(&compiled.statement, &self.domain.workspace_id.to_string());
         if !validator_notes.is_empty() {
             // The LLM sees a flattened, LLM-friendly form ("<validator>
             // <level>: <message>") in the guidance tail; the structured
@@ -504,7 +518,11 @@ impl SchemaTool for QueryGraphTool {
                 " [Ambiguity: {} unresolved column{} ({}{}); consider calling \
                  resolve_ambiguity to bind one before the next query]",
                 unresolved_ambiguities.len(),
-                if unresolved_ambiguities.len() == 1 { "" } else { "s" },
+                if unresolved_ambiguities.len() == 1 {
+                    ""
+                } else {
+                    "s"
+                },
                 preview,
                 suffix,
             );
@@ -566,16 +584,12 @@ impl SchemaTool for QueryGraphTool {
         let anchor_hit: Option<(f32, Vec<String>)> = if let Some(snapshot) =
             current_version_snapshot.as_ref()
         {
-            let opts = ox_store::navigation::EntryPointSearchOptions::new(
-                snapshot.id,
-                &question,
-                5,
-            );
+            let opts =
+                ox_store::navigation::EntryPointSearchOptions::new(snapshot.id, &question, 5);
             match self.domain.store.search_entry_points(opts).await {
                 Ok(hits) if !hits.is_empty() => {
                     let top = hits[0].score;
-                    let kinds: Vec<String> =
-                        hits.iter().map(|h| h.entity_kind.clone()).collect();
+                    let kinds: Vec<String> = hits.iter().map(|h| h.entity_kind.clone()).collect();
                     Some((top, kinds))
                 }
                 Ok(_) => Some((0.0, Vec::new())),
@@ -599,15 +613,10 @@ impl SchemaTool for QueryGraphTool {
             // tracker lives on `AppState` so resolve + query turns
             // can land on different chat-stream requests and still
             // correlate.
-            let ambiguity_was_clarified = self
-                .domain
-                .clarification_tracker
-                .was_clarified_within(
-                    ctx.session_id(),
-                    chrono::Duration::minutes(
-                        crate::clarification_tracker::DEFAULT_WINDOW_MINUTES,
-                    ),
-                );
+            let ambiguity_was_clarified = self.domain.clarification_tracker.was_clarified_within(
+                ctx.session_id(),
+                chrono::Duration::minutes(crate::clarification_tracker::DEFAULT_WINDOW_MINUTES),
+            );
             let signal = build_query_execution_signal(
                 execution_id,
                 self.domain.workspace_id,
@@ -629,17 +638,12 @@ impl SchemaTool for QueryGraphTool {
             tokio::spawn(async move {
                 ox_store::WORKSPACE_ID
                     .scope(workspace_id, async move {
-                        if let Err(e) = store
-                            .create_query_execution_signal(&signal)
-                            .await
-                        {
+                        if let Err(e) = store.create_query_execution_signal(&signal).await {
                             warn!(error = %e, "quality signal persist failed");
                         }
                         if !type_kinds.is_empty() {
-                            let refs: Vec<(Uuid, &str)> = type_kinds
-                                .iter()
-                                .map(|(id, k)| (*id, k.as_str()))
-                                .collect();
+                            let refs: Vec<(Uuid, &str)> =
+                                type_kinds.iter().map(|(id, k)| (*id, k.as_str())).collect();
                             if let Err(e) = store.upsert_type_last_used(&refs).await {
                                 warn!(error = %e, "type_last_used upsert failed");
                             }
@@ -666,6 +670,34 @@ impl SchemaTool for QueryGraphTool {
     }
 }
 
+/// Resolve the active retrieval profile for the workspace. Tries
+/// the persisted `default` row first; falls back to
+/// [`RetrievalProfile::workspace_default`] (in-memory constants)
+/// for greenfield workspaces that haven't authored a profile
+/// yet. Lookup failure (RLS denial, transient DB blip) logs +
+/// falls back so a profile-store outage cannot break NL→Cypher
+/// translation; the in-memory defaults mirror the pre-Φ10
+/// hardcoded literals exactly so the fallback is behaviour-
+/// preserving.
+async fn resolve_retrieval_profile(domain: &DomainContext) -> RetrievalProfile {
+    match domain
+        .store
+        .find_retrieval_profile_by_name("default")
+        .await
+    {
+        Ok(Some(profile)) => profile,
+        Ok(None) => RetrievalProfile::workspace_default(domain.workspace_id),
+        Err(err) => {
+            warn!(
+                error = %err,
+                workspace_id = %domain.workspace_id,
+                "retrieval profile lookup failed; falling back to workspace defaults",
+            );
+            RetrievalProfile::workspace_default(domain.workspace_id)
+        }
+    }
+}
+
 /// Walk `OntologyNavigationStore` (Postgres-backed Level-3
 /// indexes) and assemble a question-anchored subgraph slice for
 /// the LLM prompt. Returns `None` when navigation is unavailable
@@ -676,16 +708,22 @@ impl SchemaTool for QueryGraphTool {
 ///
 /// Three-step Progressive Disclosure flow per
 /// `crates/ox-store/src/store/ontology_navigation.rs`:
-///   1. `search_entry_points(top_k=8)` → blended trigram + FTS +
-///      embedding anchors against the question.
-///   2. `expand_neighbors{depth:2, max_nodes:40}` → BFS the
-///      anchors into a single subgraph.
+///   1. `search_entry_points(top_k=profile.limits.anchor_top_k)`
+///      → blended trigram + FTS + embedding anchors against the
+///      question.
+///   2. `expand_neighbors{depth, max_nodes}` (sourced from the
+///      active retrieval profile) → BFS the anchors into a
+///      single subgraph.
 ///   3. `render_subgraph_for_llm` → markdown the prompt template
 ///      surfaces under `## Retrieved subgraph`.
-async fn try_retrieve_subgraph_md(
-    domain: &DomainContext,
-    question: &str,
-) -> Option<String> {
+///
+/// Retrieval shape (depth, max_nodes, top-k, token budget) lives
+/// in the active [`RetrievalProfile`] (Φ10.3). The default profile
+/// `default` is upserted via the admin route; greenfield
+/// workspaces fall back to
+/// [`RetrievalProfile::workspace_default`] (in-memory, mirrors
+/// the pre-Φ10 hardcoded literals).
+async fn try_retrieve_subgraph_md(domain: &DomainContext, question: &str) -> Option<String> {
     let ontology_id = domain.ontology_id?;
     let snapshot = domain
         .store
@@ -693,6 +731,8 @@ async fn try_retrieve_subgraph_md(
         .await
         .ok()??;
     let version_id = snapshot.id;
+
+    let profile = resolve_retrieval_profile(domain).await;
 
     // Fan-out: entity-anchor blend + community-summary
     // search. Microsoft GraphRAG's insight is that broad
@@ -713,13 +753,46 @@ async fn try_retrieve_subgraph_md(
     // results on either side don't fail the helper — broad
     // questions can hit only communities, narrow questions
     // only entities.
+    //
+    // Hybrid retrieval feeds three rankers when both the
+    // tokenizer registry and the embedder are wired in;
+    // partial wiring degrades to 2-ranker fusion without a
+    // separate code path.
+    let tokenized_question = match domain.tokenizer_registry.as_ref() {
+        Some(reg) => {
+            let tok = reg.for_workspace(domain.workspace_id);
+            tok.tokenize(question).unwrap_or_else(|_| question.to_string())
+        }
+        None => question.to_string(),
+    };
+    let community_embedding = if let Some(embedder) = domain.embedder.as_ref() {
+        embedder
+            .embed(
+                question,
+                "Represent the analytical question for community retrieval",
+                ox_memory::EmbeddingRole::Query,
+            )
+            .await
+            .map_err(|err| {
+                tracing::warn!(?err, "community embedding failed; degrading to lexical hybrid");
+            })
+            .ok()
+    } else {
+        None
+    };
     let (anchors_res, communities_res) = tokio::join!(
-        domain.store.search_entry_points(
-            EntryPointSearchOptions::new(version_id, question, 8),
+        domain.store.search_entry_points(EntryPointSearchOptions::new(
+            version_id,
+            question,
+            profile.limits.anchor_top_k,
+        ),),
+        domain.store.search_community_summaries(
+            version_id,
+            question,
+            &tokenized_question,
+            community_embedding.as_deref(),
+            profile.limits.community_top_k,
         ),
-        domain
-            .store
-            .search_community_summaries(version_id, question, 4),
     );
     let anchors = anchors_res.unwrap_or_default();
     let communities = communities_res.unwrap_or_default();
@@ -734,23 +807,22 @@ async fn try_retrieve_subgraph_md(
         let anchor_refs: Vec<ox_store::EntityRef> =
             anchors.iter().map(|h| h.as_entity_ref()).collect();
 
-        let mut expand_options =
-            NeighborExpandOptions::new(version_id, anchor_refs);
-        expand_options.depth = 2;
-        expand_options.max_nodes = 40;
+        let mut expand_options = NeighborExpandOptions::new(version_id, anchor_refs);
+        expand_options.depth = profile.traversal.max_depth();
+        expand_options.max_nodes = profile.limits.max_nodes;
 
         if let Ok(subgraph) = domain.store.expand_neighbors(expand_options).await {
-            // Cap the GraphRAG injection at a conservative
+            // Cap the GraphRAG injection at the per-profile
             // token slice so a large ontology can't squeeze
             // the operator's question, the schema RAG, the
             // conversation history, and the answer
-            // reservation out of the context window. The
-            // 1500-token budget reserves the remaining 500
-            // for the community section below; together they
-            // fit the original 2000-token GraphRAG envelope.
+            // reservation out of the context window. Profile
+            // `limits.max_tokens` reserves headroom for the
+            // community section below; together they form the
+            // active retrieval envelope.
             let render_options = LlmRenderOptions {
-                max_nodes: 40,
-                max_tokens: Some(1_500),
+                max_nodes: profile.limits.max_nodes as usize,
+                max_tokens: Some(profile.limits.max_tokens),
                 include_doc_snippets: true,
             };
             let markdown = domain
@@ -782,21 +854,17 @@ async fn try_retrieve_subgraph_md(
 /// inline as a comma-separated list so the LLM can cross-
 /// reference them against the entity-level subgraph above.
 ///
-/// Truncated at 4 communities (the search caller's `top_k = 4`)
-/// + a 600-character clamp on each summary so a single chatty
-/// summary can't exhaust the GraphRAG budget — the
-/// member list survives because operator-facing community
-/// boundaries are usually the load-bearing signal.
-fn format_community_summaries(
-    communities: &[ox_store::community::CommunitySummary],
-) -> String {
-    use std::fmt::Write as _;
-
+/// Truncated by the search caller's `top_k`
+/// (`profile.limits.community_top_k`, Φ10.3) + a 600-character
+/// clamp on each summary so a single chatty summary can't
+/// exhaust the GraphRAG budget — the member list survives
+/// because operator-facing community boundaries are usually the
+/// load-bearing signal.
+fn format_community_summaries(communities: &[ox_store::community::CommunitySummary]) -> String {
     let mut out = String::with_capacity(1024);
-    let _ = writeln!(out, "## Relevant communities");
-    let _ = writeln!(out);
+    out.push_str("## Relevant communities\n\n");
     for c in communities {
-        let _ = writeln!(out, "### {} (level {})", c.title, c.level);
+        out.push_str(&format!("### {} (level {})\n", c.title, c.level));
         let summary_clamped = if c.summary.chars().count() > 600 {
             let take_n = c.summary.chars().take(597).count();
             let take_byte_idx: usize = c
@@ -809,7 +877,8 @@ fn format_community_summaries(
         } else {
             c.summary.clone()
         };
-        let _ = writeln!(out, "{summary_clamped}");
+        out.push_str(&summary_clamped);
+        out.push('\n');
         if !c.member_logical_ids.is_empty() {
             let members: Vec<String> = c
                 .member_entity_kinds
@@ -818,11 +887,14 @@ fn format_community_summaries(
                 .take(8)
                 .map(|(k, l)| format!("`{k}:{l}`"))
                 .collect();
-            let suffix =
-                if c.member_logical_ids.len() > 8 { ", …" } else { "" };
-            let _ = writeln!(out, "_Members:_ {}{suffix}", members.join(", "));
+            let suffix = if c.member_logical_ids.len() > 8 {
+                ", …"
+            } else {
+                ""
+            };
+            out.push_str(&format!("_Members:_ {}{suffix}\n", members.join(", ")));
         }
-        let _ = writeln!(out);
+        out.push('\n');
     }
     out
 }
@@ -872,19 +944,13 @@ fn first_shacl_failure_kind(
             // `crates/ox-graph-runtime/src/cypher/shacl_validator.rs` emit
             // sites. Adding a new SHACL code requires a matching arm
             // here so the failure-kind histogram stays partitioned.
-            "runtime.cypher.shacl.min_count_missing" => {
-                ShaclFailureKind::MandatoryPropertyMissing
-            }
+            "runtime.cypher.shacl.min_count_missing" => ShaclFailureKind::MandatoryPropertyMissing,
             "runtime.cypher.shacl.value_not_in_set"
             | "runtime.cypher.shacl.notation_pattern_mismatch" => {
                 ShaclFailureKind::UnknownCodedValue
             }
-            "runtime.cypher.shacl.measure_group_by_violation" => {
-                ShaclFailureKind::MeasureGroupBy
-            }
-            "runtime.cypher.shacl.cardinality_violation" => {
-                ShaclFailureKind::CardinalityViolation
-            }
+            "runtime.cypher.shacl.measure_group_by_violation" => ShaclFailureKind::MeasureGroupBy,
+            "runtime.cypher.shacl.cardinality_violation" => ShaclFailureKind::CardinalityViolation,
             "runtime.cypher.shacl.temporal_grain_mismatch" => {
                 ShaclFailureKind::TemporalGrainMismatch
             }
@@ -901,12 +967,12 @@ fn first_shacl_failure_kind(
 /// thresholds at `score >= 0.5` so a zero is still valid
 /// ("ontology under-indexed for this phrasing").
 ///
-/// `glossary_term_hits` is populated from the ontology: every
-/// property on a referenced type that carries a
-/// `PropertyDef::glossary_term_id` is treated as a potential hit.
-/// Overcounts if the query only touched a sibling property, but
-/// gives the `glossary_hit_rate` tile a non-zero signal until the
-/// compile-time walk that attributes hits per-property lands.
+/// `concept_hits` is populated from the ontology: property concept
+/// bindings contribute their stable ConceptId when query provenance
+/// touched the owning NodeType or EdgeType. Overcounts if the query
+/// only touched a sibling property, but gives the `concept_hit_rate`
+/// tile a non-zero signal until the compile-time walk that attributes
+/// hits per-property lands.
 fn build_query_execution_signal(
     execution_id: Uuid,
     workspace_id: Uuid,
@@ -936,7 +1002,7 @@ fn build_query_execution_signal(
         })
         .unwrap_or_default();
 
-    let glossary_term_hits = collect_glossary_hits(ontology, provenance);
+    let concept_hits = collect_concept_hits(ontology, provenance);
     let (anchor_top_score, anchor_hit_kinds) = match anchor_hit {
         Some((score, kinds)) => (Some(*score), kinds.clone()),
         None => (None, Vec::new()),
@@ -948,7 +1014,7 @@ fn build_query_execution_signal(
         captured_at: Utc::now(),
         anchor_top_score,
         anchor_hit_kinds,
-        glossary_term_hits,
+        concept_hits,
         ambiguity_resolution_ids: Vec::new(),
         ambiguity_was_clarified,
         shacl_passed,
@@ -959,11 +1025,10 @@ fn build_query_execution_signal(
 }
 
 /// Cross-reference the referenced types with the ontology and return
-/// every glossary-term pointer that fires. UUID-only — id newtypes
-/// that happen to be non-UUID strings (external identifiers, legacy
-/// slugs) are silently dropped since the signal column is
-/// `uuid[]` in postgres.
-fn collect_glossary_hits(
+/// every canonical concept pointer that fires. UUID-only — id
+/// newtypes that happen to be non-UUID strings are silently dropped
+/// since the signal column is `uuid[]` in postgres.
+fn collect_concept_hits(
     ontology: Option<&ox_ontology::OntologyIR>,
     provenance: Option<&ox_query_ir::query::QueryProvenance>,
 ) -> Vec<Uuid> {
@@ -973,16 +1038,17 @@ fn collect_glossary_hits(
     use std::collections::{BTreeSet, HashSet};
     let type_id_set: HashSet<&str> = prov.type_ids.iter().map(|s| s.as_str()).collect();
     let mut hits: BTreeSet<Uuid> = BTreeSet::new();
-    let walk_properties =
-        |hits: &mut BTreeSet<Uuid>, properties: &[ox_ontology::ir::PropertyDef]| {
-            for prop in properties {
-                if let Some(gid) = prop.glossary_term_id()
-                    && let Ok(uuid) = Uuid::parse_str(gid.as_str())
-                {
-                    hits.insert(uuid);
-                }
+    let walk_properties = |hits: &mut BTreeSet<Uuid>,
+                           properties: &[ox_ontology::ir::PropertyDef]| {
+        for prop in properties {
+            if let Some(concept_id) = prop.concept_id()
+                && ir.concept_by_id(concept_id).is_some()
+                && let Ok(uuid) = Uuid::parse_str(concept_id.as_str())
+            {
+                hits.insert(uuid);
             }
-        };
+        }
+    };
     for node in ir.node_types() {
         if type_id_set.contains(node.id.as_str()) {
             walk_properties(&mut hits, &node.properties);
@@ -1016,30 +1082,75 @@ fn signal_type_kinds(
 
 #[cfg(test)]
 mod tests {
-    use super::collect_glossary_hits;
+    use super::collect_concept_hits;
+    use ox_core::i18n::LocalizedText;
     use ox_core::{GraphLabel, PropertyKey};
-    use ox_ontology::glossary::GlossaryTermId;
+    use ox_ontology::concept::{ConceptDef, ConceptGovernance, ConceptId};
+    use ox_ontology::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermLifecycle};
     use ox_ontology::ir::{NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId};
     use ox_query_ir::query::QueryProvenance;
 
-    fn property_with_term(id: &str, gid_uuid: &str) -> PropertyDef {
+    fn property_with_concept(id: &str, concept_id: &str) -> PropertyDef {
         PropertyDef {
             id: PropertyId::new(id),
             name: PropertyKey::new(id).unwrap(),
             property_type: ox_core::types::PropertyType::String,
-            bindings: vec![ox_ontology::PropertyBinding::glossary(GlossaryTermId::new(gid_uuid),)],
+            bindings: vec![ox_ontology::PropertyBinding::concept(ConceptId::new(
+                concept_id,
+            ))],
             ..Default::default()
         }
     }
 
-    fn sample_ir_with_bound_property(node_id: &str, term_uuid: &str) -> OntologyIR {
+    fn glossary_term(id: &str, term: &str, concept_id: Option<&str>) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(term),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::default(),
+            concept_id: concept_id.map(ConceptId::new),
+            term_pos: Default::default(),
+        }
+    }
+
+    fn concept(id: &str, canonical_term_id: &str) -> ConceptDef {
+        ConceptDef {
+            id: ConceptId::new(id),
+            canonical_term_id: GlossaryTermId::new(canonical_term_id),
+            alias_term_ids: Vec::new(),
+            broader: None,
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: ConceptGovernance::default(),
+        }
+    }
+
+    fn sample_ir_with_concept_bound_property(
+        node_id: &str,
+        concept_id: &str,
+        term_id: &str,
+    ) -> OntologyIR {
         let node = NodeTypeDef {
             id: NodeTypeId::new(node_id),
             label: GraphLabel::new(node_id).unwrap(),
-            properties: vec![property_with_term("tier", term_uuid)],
+            properties: vec![property_with_concept("tier", concept_id)],
             ..Default::default()
         };
-        OntologyIR::new(
+        let mut ir = OntologyIR::new(
             "ont-test".into(),
             "Test".into(),
             Default::default(),
@@ -1047,37 +1158,55 @@ mod tests {
             vec![node],
             Vec::new(),
             Vec::new(),
-        )
+        );
+        ir.add_glossary_term(glossary_term(term_id, "VIP tier", Some(concept_id)))
+            .expect("glossary term");
+        ir.add_concept(concept(concept_id, term_id))
+            .expect("concept");
+        ir
     }
 
     #[test]
-    fn collect_glossary_hits_empty_when_no_ontology() {
-        let hits = collect_glossary_hits(None, None);
+    fn collect_concept_hits_empty_when_no_ontology() {
+        let hits = collect_concept_hits(None, None);
         assert!(hits.is_empty());
     }
 
     #[test]
-    fn collect_glossary_hits_returns_uuid_from_bound_property() {
-        let term_uuid = "00000000-0000-0000-0000-00000000abcd";
-        let ir = sample_ir_with_bound_property("Customer", term_uuid);
+    fn collect_concept_hits_returns_uuid_from_bound_property() {
+        let concept_uuid = "00000000-0000-0000-0000-00000000abcd";
+        let ir = sample_ir_with_concept_bound_property("Customer", concept_uuid, "g-vip-tier");
         let prov = QueryProvenance {
             type_ids: vec!["Customer".into()],
             ..Default::default()
         };
-        let hits = collect_glossary_hits(Some(&ir), Some(&prov));
+        let hits = collect_concept_hits(Some(&ir), Some(&prov));
         assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].to_string(), term_uuid);
+        assert_eq!(hits[0].to_string(), concept_uuid);
     }
 
     #[test]
-    fn collect_glossary_hits_skips_unreferenced_types() {
-        let term_uuid = "00000000-0000-0000-0000-00000000abcd";
-        let ir = sample_ir_with_bound_property("Customer", term_uuid);
+    fn collect_concept_hits_resolves_property_concept_binding() {
+        let concept_uuid = "00000000-0000-0000-0000-00000000abcd";
+        let ir = sample_ir_with_concept_bound_property("Customer", concept_uuid, "g-vip-tier");
+        let prov = QueryProvenance {
+            type_ids: vec!["Customer".into()],
+            ..Default::default()
+        };
+        let hits = collect_concept_hits(Some(&ir), Some(&prov));
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].to_string(), concept_uuid);
+    }
+
+    #[test]
+    fn collect_concept_hits_skips_unreferenced_types() {
+        let concept_uuid = "00000000-0000-0000-0000-00000000abcd";
+        let ir = sample_ir_with_concept_bound_property("Customer", concept_uuid, "g-vip-tier");
         let prov = QueryProvenance {
             type_ids: vec!["Order".into()], // not in ontology
             ..Default::default()
         };
-        let hits = collect_glossary_hits(Some(&ir), Some(&prov));
+        let hits = collect_concept_hits(Some(&ir), Some(&prov));
         assert!(hits.is_empty());
     }
 
@@ -1086,17 +1215,22 @@ mod tests {
         use ox_store::community::CommunitySummary;
         use uuid::Uuid;
 
+        let kinds = vec!["NodeType".to_string(), "GlossaryTerm".to_string()];
+        let logical = vec!["nt_customer".to_string(), "gt_vip".to_string()];
         let s = CommunitySummary {
             id: Uuid::new_v4(),
             workspace_id: Uuid::new_v4(),
             ontology_version_id: Uuid::new_v4(),
             community_id: "leiden:1:7".into(),
             level: 1,
-            member_entity_kinds: vec!["NodeType".into(), "GlossaryTerm".into()],
-            member_logical_ids: vec!["nt_customer".into(), "gt_vip".into()],
+            member_entity_kinds: kinds.clone(),
+            member_logical_ids: logical.clone(),
+            member_fingerprint: CommunitySummary::compute_member_fingerprint(&kinds, &logical),
             title: "Premium customer cluster".into(),
-            summary: "Customers with VIP tier ordering high-value premium products."
-                .into(),
+            summary: "Customers with VIP tier ordering high-value premium products.".into(),
+            tokenized_text: String::new(),
+            tokenizer_dict_fingerprint: String::new(),
+            embedding: None,
             generated_at: chrono::Utc::now(),
         };
         let md = super::format_community_summaries(&[s]);
@@ -1123,8 +1257,12 @@ mod tests {
             level: 0,
             member_entity_kinds: vec![],
             member_logical_ids: vec![],
+            member_fingerprint: CommunitySummary::compute_member_fingerprint(&[], &[]),
             title: "Big".into(),
             summary: long_summary,
+            tokenized_text: String::new(),
+            tokenizer_dict_fingerprint: String::new(),
+            embedding: None,
             generated_at: chrono::Utc::now(),
         };
         let md = super::format_community_summaries(&[s]);
@@ -1136,15 +1274,15 @@ mod tests {
     }
 
     #[test]
-    fn collect_glossary_hits_drops_non_uuid_term_ids() {
-        // `glossary_term_id` that doesn't parse as UUID (legacy slug)
-        // is silently dropped — the signal column is `uuid[]`.
-        let ir = sample_ir_with_bound_property("Customer", "g-vip-legacy");
+    fn collect_concept_hits_drops_non_uuid_concept_ids() {
+        // Concept ids that don't parse as UUID are
+        // silently dropped — the signal column is `uuid[]`.
+        let ir = sample_ir_with_concept_bound_property("Customer", "c-vip-tier", "g-vip-tier");
         let prov = QueryProvenance {
             type_ids: vec!["Customer".into()],
             ..Default::default()
         };
-        let hits = collect_glossary_hits(Some(&ir), Some(&prov));
+        let hits = collect_concept_hits(Some(&ir), Some(&prov));
         assert!(hits.is_empty());
     }
 }

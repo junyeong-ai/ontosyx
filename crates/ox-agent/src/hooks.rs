@@ -10,7 +10,7 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use ox_memory::{MemoryEntry, MemoryMetadata, MemorySource, MemoryStore};
-use ox_store::{KnowledgeEntry, KnowledgeStore};
+use ox_store::{KnowledgeEntry, KnowledgeKind, KnowledgeStatus, KnowledgeStore};
 
 /// Maximum concurrent background embedding tasks.
 const MAX_CONCURRENT_EMBEDDINGS: usize = 8;
@@ -88,7 +88,7 @@ impl EmbeddingHook {
             hasher.update(oid.as_bytes());
         }
         hasher.update(content.as_bytes());
-        let entry_id = format!("mem_{:x}", hasher.finalize());
+        let entry_id = format!("mem_{}", hex::encode(hasher.finalize()));
 
         let metadata = MemoryMetadata {
             source,
@@ -669,8 +669,8 @@ impl Hook for RecoveryDetectionHook {
                         ontology_name: self.ontology_name.clone(),
                         ontology_version_min: self.ontology_version,
                         ontology_version_max: None,
-                        kind: "correction".to_string(),
-                        status: "approved".to_string(),
+                        kind: KnowledgeKind::Correction,
+                        status: KnowledgeStatus::Approved,
                         confidence: recovery_confidence_for(failure_kind),
                         title,
                         content,
@@ -698,6 +698,12 @@ impl Hook for RecoveryDetectionHook {
                         last_used_at: None,
                         created_at: Utc::now(),
                         updated_at: Utc::now(),
+                        // Recovery hook lives in ox-agent which doesn't pull
+                        // the lindera tokenizer. Leave the searchable surface
+                        // empty; the next workspace tokenizer publish backfill
+                        // (or scheduled retokenize sweep) lands the tokens.
+                        tokenized_text: String::new(),
+                        tokenizer_dict_fingerprint: String::new(),
                     };
 
                     // Non-blocking knowledge persistence. `create_knowledge_entry`
@@ -754,21 +760,19 @@ impl Hook for RecoveryDetectionHook {
                         // SYSTEM_BYPASS is scoped inline so the spawned
                         // future has the task-local it needs.
                         #[allow(clippy::disallowed_methods)]
-                        tokio::spawn(
-                            ox_store::SYSTEM_BYPASS.scope(true, async move {
-                                match mem.cleanup_by_session(&sid).await {
-                                    Ok(n) if n > 0 => info!(
-                                        session_id = %sid,
-                                        count = n,
-                                        "Cleaned stale session memories after recovery"
-                                    ),
-                                    Err(e) => {
-                                        warn!(error = %e, "Failed to clean stale session memories")
-                                    }
-                                    _ => {}
+                        tokio::spawn(ox_store::SYSTEM_BYPASS.scope(true, async move {
+                            match mem.cleanup_by_session(&sid).await {
+                                Ok(n) if n > 0 => info!(
+                                    session_id = %sid,
+                                    count = n,
+                                    "Cleaned stale session memories after recovery"
+                                ),
+                                Err(e) => {
+                                    warn!(error = %e, "Failed to clean stale session memories")
                                 }
-                            }),
-                        );
+                                _ => {}
+                            }
+                        }));
                     }
 
                     // Clear session outcomes after extraction

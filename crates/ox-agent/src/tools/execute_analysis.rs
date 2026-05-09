@@ -85,7 +85,7 @@ impl SchemaTool for ExecuteAnalysisTool {
         if let Some(ref data) = input.data {
             hasher.update(data.to_string().as_bytes());
         }
-        let input_hash = format!("{:x}", hasher.finalize());
+        let input_hash = hex::encode(hasher.finalize());
 
         let recipe_id = input
             .recipe_id

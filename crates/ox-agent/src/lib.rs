@@ -28,9 +28,9 @@ use branchforge::{Agent, Auth, CacheConfig, ExecutionMode, ToolSurface};
 use hooks::{EmbeddingHook, RecoveryDetectionHook, RecoveryHookConfig};
 use ox_compiler::GraphCompiler;
 use ox_core::error::OxResult;
-use ox_ontology::ir::OntologyIR;
-use ox_memory::MemoryStore;
 use ox_graph_runtime::GraphRuntime;
+use ox_memory::MemoryStore;
+use ox_ontology::ir::OntologyIR;
 use ox_store::Store;
 use tools::{
     ApplyOntologyTool, ConsultKnowledgeTool, EditOntologyTool, ExecuteAnalysisTool,
@@ -89,6 +89,18 @@ pub struct DomainContext {
     /// Original user question — always passed to translate_query as primary context.
     /// Prevents agent-driven question fragmentation that defeats graph traversal.
     pub user_question: Option<String>,
+    /// Workspace tokenizer registry. Hybrid retrieval over the
+    /// community / verified-query / knowledge banks consults the
+    /// same `Arc<dyn Tokenizer>` the index-time pipeline used so
+    /// recall stays consistent. `None` → retrieval degrades to
+    /// raw-text rankers (still functional, less recall on Korean
+    /// compounds + glossary canonicalisations).
+    pub tokenizer_registry: Option<Arc<ox_text::WorkspaceTokenizerRegistry>>,
+    /// Embedding provider — same `Arc` the Brain consumes. The
+    /// retrieval fan-out embeds the question once and threads the
+    /// vector into every hybrid SQL call; cold-start workspaces
+    /// without an embedder still hit the trigram + FTS arms.
+    pub embedder: Option<Arc<dyn ox_memory::EmbeddingProvider>>,
 }
 
 impl DomainContext {
