@@ -52,15 +52,34 @@ import { cn } from "@/lib/cn";
 //
 // Densities:
 //   - `default`  px-3 py-1.5 text-sm  — modal forms, login, dialogs
-//   - `settings` px-3 py-1.5 text-xs  — settings list-of-config rows
-//   - `compact`  px-2 py-1 text-2xs   — inline editors, data-grid cells
+//   - `settings` h-8  px-3 text-xs   — settings list-of-config rows
+//   - `compact`  h-7  px-2 text-2xs  — inline editors, data-grid cells
+//
+// Heights are pinned to `h-N` rather than padding+line-height so a
+// form control sitting beside a `<Button size="md|sm|xs">` lines up
+// to the pixel — the Button primitive's heights are also `h-N`. The
+// resulting matrix:
+//
+//   default + Button md  → both h-9 (36px)
+//   settings + Button sm → both h-8 (32px)
+//   compact + Button xs  → both h-7 (28px)
+//
+// Multi-line textareas substitute `min-h` + `py-N` so content can
+// grow — `h-N` would clamp them to one line. Both axes (input vs
+// textarea) share font-size + horizontal padding for register parity.
 
 export type FormDensity = "default" | "settings" | "compact";
 
 const densityClass: Record<FormDensity, string> = {
-  default: "px-3 py-1.5 text-sm",
-  settings: "px-3 py-1.5 text-xs",
-  compact: "px-2 py-1 text-2xs",
+  default: "h-9 px-3 text-sm",
+  settings: "h-8 px-3 text-xs",
+  compact: "h-7 px-2 text-2xs",
+};
+
+const textareaDensityClass: Record<FormDensity, string> = {
+  default: "min-h-[5rem] px-3 py-2 text-sm",
+  settings: "min-h-[4rem] px-3 py-1.5 text-xs",
+  compact: "min-h-[3rem] px-2 py-1 text-2xs",
 };
 
 const formControlShared =
@@ -73,6 +92,16 @@ const formControlShared =
 
 export function formControlBase(density: FormDensity = "default"): string {
   return cn(formControlShared, densityClass[density]);
+}
+
+/**
+ * Textarea variant of [`formControlBase`] — substitutes `min-h` +
+ * `py-N` for `h-N` so content can grow vertically. Same horizontal
+ * padding + font size per density so a textarea sitting next to an
+ * input reads as a single form-control family.
+ */
+export function formTextareaBase(density: FormDensity = "default"): string {
+  return cn(formControlShared, textareaDensityClass[density]);
 }
 
 // ---------------------------------------------------------------------------
@@ -387,7 +416,7 @@ export const FormTextarea = forwardRef<HTMLTextAreaElement, FormTextareaProps>(
     <textarea
       ref={ref}
       aria-invalid={error || props["aria-invalid"]}
-      className={cn(formControlBase(density), className)}
+      className={cn(formTextareaBase(density), className)}
       {...props}
     />
   ),

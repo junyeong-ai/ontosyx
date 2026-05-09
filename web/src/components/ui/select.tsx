@@ -62,7 +62,13 @@ export function Select({
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
         className={cn(
-          "inline-flex w-full items-center justify-between rounded-md border border-divider bg-surface-base px-3 py-1.5 text-xs text-foreground-strong transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
+          // Height pinned to `h-8` (32px) so the trigger lines up
+          // pixel-for-pixel with `<Button size="sm">` and
+          // `FormInput density="settings"` when they share a row.
+          // Settings density (text-xs / px-3 / h-8) is the right
+          // chrome register — too small for default form-control
+          // height, too large for inline data-grid cells.
+          "inline-flex h-8 w-full items-center justify-between rounded-md border border-divider bg-surface-base px-3 text-xs text-foreground-strong transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
           "outline-none focus-visible:border-brand-foreground focus-visible:ring-2 focus-visible:ring-brand-foreground/40",
           disabled && "cursor-not-allowed opacity-50",
           className,
