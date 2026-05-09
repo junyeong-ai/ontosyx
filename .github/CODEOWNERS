@@ -1,0 +1,26 @@
+# Code ownership — auto-assigns reviewers when a matching path is
+# touched. The last matching pattern wins, so default ownership goes
+# at the top and surface-specific owners come below.
+
+# ---------------------------------------------------------------------------
+# Default — repo-wide
+# ---------------------------------------------------------------------------
+*                                       @junyeong-ai
+
+# ---------------------------------------------------------------------------
+# CI / governance — every change to the build pipeline, dep
+# manifests, or repo policy needs an explicit pass before it lands.
+# ---------------------------------------------------------------------------
+/.github/                               @junyeong-ai
+/Cargo.toml                             @junyeong-ai
+/Cargo.lock                             @junyeong-ai
+/web/package.json                       @junyeong-ai
+/web/pnpm-lock.yaml                     @junyeong-ai
+/Dockerfile                             @junyeong-ai
+/deny.toml                              @junyeong-ai
+
+# ---------------------------------------------------------------------------
+# Architecture decision records — historical contract; edits to
+# landed ADRs require sign-off from the original author baseline.
+# ---------------------------------------------------------------------------
+/docs/adr/                              @junyeong-ai

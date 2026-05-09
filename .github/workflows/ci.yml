@@ -6,6 +6,18 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel superseded runs on PR branches so a rapid push storm doesn't
+# pile up duplicate work. `main` keeps every run for an immutable
+# audit trail — `cancel-in-progress: false` only when ref == main.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Default to the least-privileged token. Jobs that need to comment
+# on PRs, post status checks, or upload artefacts override below.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -303,6 +315,13 @@ jobs:
     name: Security Audit
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
+    permissions:
+      # rustsec/audit-check posts findings as repo issues + check
+      # annotations. Both writes need explicit grants now that the
+      # workflow default is read-only.
+      contents: read
+      issues: write
+      checks: write
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@master
@@ -390,6 +409,12 @@ jobs:
     name: Lighthouse CI
     runs-on: ubuntu-latest
     if: contains(github.event.pull_request.labels.*.name, 'lighthouse')
+    permissions:
+      # `lhci autorun` posts the report URL as a PR comment via the
+      # LHCI GitHub App; the comment write requires the explicit
+      # grant under the workflow's read-only default.
+      contents: read
+      pull-requests: write
     defaults:
       run:
         working-directory: web
