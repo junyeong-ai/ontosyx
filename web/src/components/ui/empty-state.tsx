@@ -1,4 +1,4 @@
-import { AlertCircle, Search } from "lucide-react";
+import { AlertCircle, ArrowRightFromLine, Search } from "lucide-react";
 import { BarChart3, Clock, Lock, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -21,6 +21,12 @@ type EmptyStateVariant = "hero" | "compact";
  *   - `no-permission` — the surface exists, the user can see it,
  *     but lacks read access. Lock-tone icon, no creation CTA;
  *     the recovery is "ask an admin".
+ *   - `prerequisite` — *this* surface is functional, but a piece
+ *     of upstream state in another area must exist first
+ *     (e.g. "no canonical ontology — finish Design mode first").
+ *     Warning tone + action that takes the user to the
+ *     prerequisite area. Distinct from `no-data` because the user
+ *     cannot create here — the create flow lives elsewhere.
  *   - `first-run` — onboarding moment for a workspace that's never
  *     been touched. Sparkle-tone icon, primary CTA leads into the
  *     intended first action.
@@ -35,6 +41,7 @@ export type EmptyStateKind =
   | "no-data"
   | "no-results"
   | "no-permission"
+  | "prerequisite"
   | "first-run"
   | "pending"
   | "error";
@@ -69,13 +76,16 @@ const KIND_DEFAULT_ICON: Record<EmptyStateKind, LucideIcon> = {
   "no-data": BarChart3,
   "no-results": Search,
   "no-permission": Lock,
+  prerequisite: ArrowRightFromLine,
   "first-run": Sparkles,
   pending: Clock,
   error: AlertCircle,
 };
 
 const KIND_TONE: Record<EmptyStateKind, { wrap: string; icon: string }> = {
-  // Brand tone for the affirmative kinds (data and onboarding).
+  // Brand tone — affirmative kinds where the user can act in
+  // place. `Create here`, `Try a different filter`, `Begin
+  // onboarding`. The icon is the brand mark direction.
   "no-data": {
     wrap: "bg-brand-surface",
     icon: "text-brand-foreground",
@@ -88,7 +98,13 @@ const KIND_TONE: Record<EmptyStateKind, { wrap: string; icon: string }> = {
     wrap: "bg-brand-surface",
     icon: "text-brand-foreground",
   },
-  // Muted tones for the descriptive kinds.
+  // Muted tone — descriptive kinds. Surface is informational,
+  // not alarming. The user has not done anything wrong; the
+  // state is reporting an upstream condition (permission,
+  // schedule, prerequisite). The optional action button
+  // carries any directional CTA in brand tone, so visual
+  // affordance still flows toward the recovery without the
+  // surface itself reading as "warning".
   "no-permission": {
     wrap: "bg-surface-inset",
     icon: "text-foreground-muted",
@@ -97,7 +113,13 @@ const KIND_TONE: Record<EmptyStateKind, { wrap: string; icon: string }> = {
     wrap: "bg-surface-inset",
     icon: "text-foreground-muted",
   },
-  // Warning tone for soft errors.
+  prerequisite: {
+    wrap: "bg-surface-inset",
+    icon: "text-foreground-muted",
+  },
+  // Warning tone — soft errors. Distinct from `<ErrorState>`
+  // which handles hard failures; this is "fetch returned
+  // nothing because the backend timed out" surface.
   error: {
     wrap: "bg-warning-surface",
     icon: "text-warning-foreground",

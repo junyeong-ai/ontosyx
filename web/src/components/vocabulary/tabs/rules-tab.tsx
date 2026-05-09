@@ -170,9 +170,12 @@ export function RulesTab() {
   if (!ontology) {
     return (
       <div className={WORKBENCH_GUTTER}>
-        <p className="rounded-md border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground">
-          {t("noOntology")}
-        </p>
+        <EmptyState
+          kind="prerequisite"
+          title={t("noOntology")}
+          description={t("noOntologyDescription")}
+          action={{ label: t("openDesign"), onClick: () => router.push("/design") }}
+        />
       </div>
     );
   }

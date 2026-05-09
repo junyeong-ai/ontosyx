@@ -18,6 +18,7 @@ import {
   useMasterDetailSelection,
 } from "@/hooks/use-master-detail-selection";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -43,8 +44,12 @@ import { Heading } from "@/components/ui/heading";
 export interface MasterDetailEntityPageLabels {
   /** Page title. */
   title: string;
-  /** "No committed ontology yet" amber banner copy. */
+  /** "No committed ontology yet" prerequisite-empty title. */
   noOntology: string;
+  /** Description below `noOntology` — explains the recovery (Design mode). */
+  noOntologyDescription: string;
+  /** Action label that opens Design mode from the prerequisite-empty state. */
+  openDesign: string;
   /** List-pane heading — "코드 시스템 N개" / "Code system" pattern. */
   listHeading: (count: number) => string;
   /** Top-right "Add" button label. */
@@ -114,6 +119,8 @@ export function MasterDetailEntityPage<T extends { id?: string }>({
 }: MasterDetailEntityPageProps<T>) {
   const t = useTranslations("settings.vocabulary.workbench");
   const confirm = useConfirm();
+  const router = useRouter();
+  const openDesign = () => router.push("/design");
 
   const detail = useWorkspaceOntology();
   const ontology = detail.data ?? null;
@@ -212,10 +219,13 @@ export function MasterDetailEntityPage<T extends { id?: string }>({
 
   if (!ontology) {
     return (
-      <div className={cn(WORKBENCH_GUTTER, "flex flex-col gap-4")}>
-        <p className="rounded-md border border-warning-border bg-warning-surface p-3 text-xs text-warning-foreground">
-          {labels.noOntology}
-        </p>
+      <div className={cn(WORKBENCH_GUTTER, "flex flex-col")}>
+        <EmptyState
+          kind="prerequisite"
+          title={labels.noOntology}
+          description={labels.noOntologyDescription}
+          action={{ label: labels.openDesign, onClick: openDesign }}
+        />
       </div>
     );
   }

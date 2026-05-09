@@ -39,6 +39,8 @@ export function CodeSystemsTab() {
       labels={{
         title: t("pageTitle"),
         noOntology: t("noOntology"),
+        noOntologyDescription: t("noOntologyDescription"),
+        openDesign: t("openDesign"),
         listHeading: (count) => t("listHeading", { count }),
         createButton: t("createButton"),
         deleteButton: t("deleteButton"),
