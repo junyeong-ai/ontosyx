@@ -43,9 +43,8 @@ export function RetrievalComparisonView({
   expectedIds,
 }: RetrievalComparisonViewProps) {
   const t = useTranslations("settings.evaluation.detail.retrievalComparison");
-  if (actual.kind !== "retrieval_comparison") return null;
-
   const expectedSet = useMemo(() => new Set(expectedIds), [expectedIds]);
+  if (actual.kind !== "retrieval_comparison") return null;
 
   const axes = [
     {

@@ -57,7 +57,7 @@ export default function GraphRagSettingsPage() {
             }
           />
         ) : (
-          <ul className="flex flex-col gap-3" role="list">
+          <ul className="flex flex-col gap-3">
             {items.map((c) => (
               <CommunityRow key={c.id} community={c} />
             ))}

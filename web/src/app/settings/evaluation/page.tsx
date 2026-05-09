@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useState } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
 import {
