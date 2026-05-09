@@ -8,8 +8,7 @@
 --
 -- Organised by concern with thematic section banners. The file is
 -- the only migration — sqlx's `_sqlx_migrations` ledger records one
--- version and nothing else. A deploy that already ran the historical
--- 31-migration chain must be reset for this schema to apply cleanly.
+-- version and nothing else for this development baseline.
 -- ============================================================================
 
 
@@ -233,15 +232,11 @@ CREATE TABLE ontology_drafts (
     source_history jsonb DEFAULT '[]' NOT NULL,
     analysis_report jsonb,
     design_options jsonb DEFAULT '{}' NOT NULL,
-    -- The `AnalyzeSelection` chosen at project creation. Captures the
-    -- exact subset of source tables the operator picked at the
-    -- bootstrap step ("all" / "subset(...)" / "extend(...)") so the
-    -- decision survives across sessions instead of living only in
-    -- the browser's `BOOTSTRAP_STORAGE_KEY` localStorage entry.
-    initial_selection jsonb,
+    analysis_scope jsonb DEFAULT '{}'::jsonb NOT NULL,
     ontology jsonb,
     quality_report jsonb,
-    ontology_id uuid,
+    parent_version_id UUID,
+    committed_version_id UUID,
     -- `{source_type}:{source_fingerprint}` derived from `source_config`.
     -- Federation plan-cache looks the project up by this string so FKs
     -- are not enough; insert paths MUST supply it explicitly.
@@ -286,6 +281,7 @@ CREATE TABLE query_executions (
     results jsonb NOT NULL,
     widget jsonb,
     explanation text NOT NULL,
+    model_provider text NOT NULL,
     model text NOT NULL,
     execution_time_ms bigint NOT NULL,
     query_bindings jsonb,
@@ -613,9 +609,18 @@ CREATE TABLE knowledge_entries (
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     affected_properties text[] DEFAULT '{}' NOT NULL,
+    -- Tokenizer-aware searchable surface (lindera + workspace
+    -- user dict). Driven by the same SSOT pipeline that powers
+    -- community_summaries and verified_queries hybrid search.
+    tokenized_text text NOT NULL DEFAULT '',
+    tokenizer_dict_fingerprint VARCHAR(64) NOT NULL DEFAULT '',
+    searchable_tsv tsvector
+        GENERATED ALWAYS AS (to_tsvector('simple', tokenized_text)) STORED,
     CONSTRAINT knowledge_entries_pkey PRIMARY KEY (id),
     CONSTRAINT knowledge_entries_confidence_check CHECK ((confidence >= 0.0) AND (confidence <= 1.0))
 );
+CREATE INDEX knowledge_entries_searchable_tsv
+    ON knowledge_entries USING gin (searchable_tsv);
 ALTER TABLE ONLY knowledge_entries FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE pending_embeddings (
@@ -625,8 +630,20 @@ CREATE TABLE pending_embeddings (
     retry_count integer DEFAULT 0 NOT NULL,
     last_error text,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    workspace_id uuid NOT NULL,
     CONSTRAINT pending_embeddings_pkey PRIMARY KEY (id)
 );
+
+CREATE INDEX pending_embeddings_workspace_idx
+    ON pending_embeddings (workspace_id, created_at);
+
+ALTER TABLE pending_embeddings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pending_embeddings FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON pending_embeddings
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON pending_embeddings
+    USING (current_setting('app.system_bypass', true) = 'true');
 
 -- ============================================================================
 -- 10. Memory
@@ -699,7 +716,24 @@ CREATE TABLE model_configs (
     provider_meta jsonb DEFAULT '{}' NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-    CONSTRAINT model_configs_pkey PRIMARY KEY (id)
+    CONSTRAINT model_configs_pkey PRIMARY KEY (id),
+    CONSTRAINT model_configs_identity_check
+        CHECK (btrim(name) <> '' AND btrim(provider) <> '' AND btrim(model_id) <> ''),
+    CONSTRAINT model_configs_provider_check
+        CHECK (provider ~ '^[a-z][a-z0-9_-]{0,63}$'),
+    CONSTRAINT model_configs_limits_check
+        CHECK (
+            max_tokens BETWEEN 1 AND 2000000
+            AND timeout_secs BETWEEN 1 AND 3600
+            AND (temperature IS NULL OR (temperature >= 0.0 AND temperature <= 2.0))
+            AND (cost_per_1m_input IS NULL OR cost_per_1m_input >= 0.0)
+            AND (cost_per_1m_output IS NULL OR cost_per_1m_output >= 0.0)
+            AND (daily_budget_usd IS NULL OR daily_budget_usd >= 0.0)
+        ),
+    CONSTRAINT model_configs_api_key_env_check
+        CHECK (api_key_env IS NULL OR api_key_env ~ '^[A-Z_][A-Z0-9_]*$'),
+    CONSTRAINT model_configs_base_url_check
+        CHECK (base_url IS NULL OR base_url ~ '^https?://')
 );
 ALTER TABLE ONLY model_configs FORCE ROW LEVEL SECURITY;
 
@@ -711,7 +745,12 @@ CREATE TABLE model_routing_rules (
     priority integer DEFAULT 0 NOT NULL,
     enabled boolean DEFAULT true NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-    CONSTRAINT model_routing_rules_pkey PRIMARY KEY (id)
+    CONSTRAINT model_routing_rules_pkey PRIMARY KEY (id),
+    CONSTRAINT model_routing_rules_operation_check
+        CHECK (
+            operation = '*'
+            OR operation ~ '^[a-z][a-z0-9_.:-]{0,127}$'
+        )
 );
 ALTER TABLE ONLY model_routing_rules FORCE ROW LEVEL SECURITY;
 
@@ -889,6 +928,12 @@ CREATE TABLE workbench_perspectives (
     filters jsonb DEFAULT '{}' NOT NULL,
     collapsed_groups jsonb DEFAULT '[]' NOT NULL,
     is_default boolean DEFAULT false NOT NULL,
+    -- Φ10.5: retrieval profile pin. Forward-references the
+    -- `retrieval_profiles` table defined later in this baseline;
+    -- the FK constraint lands as an ALTER TABLE at the bottom of
+    -- the retrieval-profiles section so the DDL still executes
+    -- in linear order.
+    retrieval_profile_id text,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     workspace_id uuid DEFAULT (current_setting('app.workspace_id', true))::uuid NOT NULL,
@@ -1870,7 +1915,7 @@ CREATE TABLE data_sources (
 CREATE INDEX data_sources_workspace_idx ON data_sources (workspace_id);
 
 -- RLS: identical four-statement boilerplate every workspace-scoped
--- table in this schema uses. See 0004_rls.sql for the parent set.
+-- table in this schema uses.
 -- The FORCE line is load-bearing — without it the table owner role
 -- bypasses ws_isolation, defeating the whole gate.
 ALTER TABLE data_sources ENABLE ROW LEVEL SECURITY;
@@ -1924,17 +1969,91 @@ CREATE TABLE ontologies (
     CONSTRAINT ontologies_lineage_id_uq UNIQUE (lineage_id),
     -- Within a workspace a name is unique. Two workspaces can each
     -- have an "E-commerce" ontology.
-    CONSTRAINT ontologies_ws_name_uq UNIQUE (workspace_id, name),
-    -- Composite UNIQUE needed as the FK target for
-    -- `ontology_drafts(workspace_id, ontology_id)` and
-    -- `query_executions(workspace_id, ontology_id)` — PostgreSQL
-    -- requires a matching unique index for multi-column FKs, and
-    -- the primary key on `id` alone does not satisfy it.
-    CONSTRAINT ontologies_ws_id_uq UNIQUE (workspace_id, id)
+    CONSTRAINT ontologies_workspace_singleton_uq UNIQUE (workspace_id)
 );
 
 CREATE INDEX ontologies_workspace_idx ON ontologies (workspace_id, created_at DESC);
 
+
+-- ============================================================================
+-- PROV-O activity records
+-- ============================================================================
+--
+-- Workspace-scoped audit trail of every fact-producing mutation.
+-- Each row mirrors a `ProvenanceDef` (the IR-level PROV-O struct
+-- in `crates/ox-ontology/src/provenance.rs`) — Activity (what was
+-- done), Agent (who did it), subject (the entity that was
+-- produced), used / derived_from / was_informed_by (the DAG),
+-- plus the optional `Plan` reference (template id + version +
+-- prompt render hash) for LLM-driven activities.
+--
+-- Every fact-producing mutation in the platform — committing an
+-- ontology version, judging an evaluation case, executing a
+-- typed action — accepts a `ProvenanceCapture` as a required
+-- argument and inserts a row here on the way through. The audit
+-- DAG is queryable: "which earlier activity produced the input
+-- this activity used?" walks `derived_from` / `was_informed_by`.
+--
+-- ON DELETE RESTRICT on every FK that references this table —
+-- the audit trail must outlive everything it explains.
+
+CREATE TABLE provenance_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL DEFAULT (current_setting('app.workspace_id', true))::uuid
+        REFERENCES workspaces(id) ON DELETE CASCADE,
+    -- The entity the activity produced. JSONB shape mirrors
+    -- `ox_ontology::EntityRef` (NodeInstance / EdgeInstance /
+    -- PropertyValue / Arbitrary) — `Arbitrary { label }` is the
+    -- common case for runtime-mutated rows whose subject is a
+    -- DB primary key not modelled as a typed entity.
+    subject JSONB NOT NULL,
+    -- `ox_ontology::ProvenanceActivityKind` — closed enum,
+    -- `kind` discriminator string (`source_scan`, `function_eval`,
+    -- `rule_validate`, `action_execute`, `ontology_edit`,
+    -- `draft_proposal`, …).
+    activity JSONB NOT NULL,
+    -- `ox_ontology::AgentRef` — closed enum, kind discriminator
+    -- (`user`, `service`, `llm_model`, `system`).
+    agent JSONB NOT NULL,
+    -- `ox_ontology::ProvenancePlan` — template id + version +
+    -- prompt_render_hash. Required for LLM activities so replay
+    -- determinism is guaranteed.
+    plan JSONB,
+    -- `Vec<EntityRef>` — input entities the activity used.
+    used JSONB NOT NULL DEFAULT '[]'::jsonb,
+    -- `Vec<EntityRef>` — entities the subject was derived from.
+    derived_from JSONB NOT NULL DEFAULT '[]'::jsonb,
+    -- `Vec<ProvenanceId>` — earlier activities that informed
+    -- this one (PROV-O `wasInformedBy`).
+    was_informed_by UUID[] NOT NULL DEFAULT '{}',
+    at_time TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Bitemporal axes. `ontology_valid_at = NULL` means "current
+    -- version"; `data_valid_at = NULL` means "as observed at
+    -- `at_time`".
+    ontology_valid_at TIMESTAMPTZ,
+    data_valid_at TIMESTAMPTZ,
+    CONSTRAINT provenance_records_subject_object CHECK (jsonb_typeof(subject) = 'object'),
+    CONSTRAINT provenance_records_activity_object CHECK (jsonb_typeof(activity) = 'object'),
+    CONSTRAINT provenance_records_agent_object CHECK (jsonb_typeof(agent) = 'object'),
+    CONSTRAINT provenance_records_used_array CHECK (jsonb_typeof(used) = 'array'),
+    CONSTRAINT provenance_records_derived_from_array CHECK (jsonb_typeof(derived_from) = 'array')
+);
+
+CREATE INDEX provenance_records_workspace_recent
+    ON provenance_records (workspace_id, at_time DESC);
+CREATE INDEX provenance_records_activity_kind
+    ON provenance_records ((activity ->> 'kind'));
+CREATE INDEX provenance_records_was_informed_by_gin
+    ON provenance_records USING GIN (was_informed_by);
+
+ALTER TABLE provenance_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE provenance_records FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON provenance_records
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON provenance_records
+    USING (current_setting('app.system_bypass', true) = 'true')
+    WITH CHECK (current_setting('app.system_bypass', true) = 'true');
 
 -- --- Level 1 : ontology_version_snapshots ----------------------------------
 --
@@ -1991,6 +2110,23 @@ CREATE TABLE ontology_version_snapshots (
     workspace_id        UUID NOT NULL DEFAULT (current_setting('app.workspace_id', true))::uuid
                              REFERENCES workspaces(id) ON DELETE CASCADE,
 
+    -- PROV-O activity record produced by `commit_version`.
+    -- Required: every snapshot is the output of an activity whose
+    -- agent + plan + derivation chain stay queryable for replay.
+    -- ON DELETE RESTRICT — the audit trail outlives the snapshot.
+    provenance_id       UUID NOT NULL
+                             REFERENCES provenance_records(id) ON DELETE RESTRICT,
+
+    -- sha256 over the tokenizer-relevant glossary state (term
+    -- surfaces + aliases + lifecycle + POS hints + concept
+    -- canonicalisation). Drives the commit-path hook that
+    -- rebuilds the workspace's lindera user dictionary +
+    -- backfills tokenized_text on retrieval surfaces only when
+    -- the glossary's token-shape genuinely changed. Empty
+    -- string permitted for the very first commit of a lineage
+    -- (no previous snapshot to diff against).
+    glossary_tokenizer_fingerprint  VARCHAR(64) NOT NULL DEFAULT '',
+
     -- Each (ontology_id, version) is unique. Two versions cannot
     -- carry the same version tag — the commit path enforces
     -- monotonic version assignment.
@@ -2012,7 +2148,7 @@ CREATE INDEX ontology_version_snapshots_current_idx
 -- --- RLS -------------------------------------------------------------------
 --
 -- Identical four-statement boilerplate used by every other
--- workspace-scoped table. See 0004_rls.sql for the pattern.
+-- workspace-scoped table.
 
 ALTER TABLE ontologies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ontologies FORCE ROW LEVEL SECURITY;
@@ -2029,21 +2165,6 @@ CREATE POLICY ws_isolation ON ontology_version_snapshots
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
 CREATE POLICY system_bypass ON ontology_version_snapshots
     USING (current_setting('app.system_bypass', true) = 'true');
-
--- Cross-table foreign keys that need `ontologies` to exist — the
--- table-creation order means these must land after this section.
-ALTER TABLE ontology_drafts
-    ADD CONSTRAINT ontology_drafts_ontology_ws_fk
-        FOREIGN KEY (workspace_id, ontology_id)
-        REFERENCES ontologies(workspace_id, id)
-        ON DELETE SET NULL;
-
-ALTER TABLE query_executions
-    ADD CONSTRAINT query_executions_ontology_ws_fk
-        FOREIGN KEY (workspace_id, ontology_id)
-        REFERENCES ontologies(workspace_id, id)
-        ON DELETE RESTRICT;
-
 
 -- ============================================================================
 -- Ontology store — Level 2 (content-addressed entity versions)
@@ -2080,6 +2201,7 @@ CREATE TYPE ontology_entity_kind AS ENUM (
     'metric',
     'enrichment',
     -- Vocabulary + value semantics
+    'concept',
     'glossary_term',
     'taxonomy',
     'code_system',
@@ -2097,7 +2219,16 @@ CREATE TYPE ontology_entity_kind AS ENUM (
     'concept_map',
     'value_range_set',
     -- Φ3 — per-column distribution snapshot
-    'column_profile'
+    'column_profile',
+    -- Φ8.2 — IR collections promoted to `IrCollection` extraction.
+    -- `SegmentDef` (named subset of nodes; ADR-0015) and
+    -- `TableInventoryEntry` (storage-tier intake decisions) were
+    -- present in the IR + validation layers but missing from the
+    -- content-addressed store, so retrieval / search anchored on
+    -- their logical ids returned zero. Adding the variants here
+    -- closes the gap.
+    'segment',
+    'table_inventory'
 );
 
 
@@ -2762,6 +2893,7 @@ CREATE TABLE ontology_entity_search_vector (
                        ON DELETE CASCADE,
     entity_kind   ontology_entity_kind NOT NULL,
     logical_id    TEXT NOT NULL,
+    label         TEXT,
     doc           TEXT NOT NULL,
     tsv           tsvector NOT NULL,
     workspace_id  UUID NOT NULL DEFAULT (current_setting('app.workspace_id', true))::uuid
@@ -2774,6 +2906,8 @@ CREATE INDEX ontology_entity_search_vector_tsv_idx
     ON ontology_entity_search_vector USING gin (tsv);
 CREATE INDEX ontology_entity_search_vector_trgm_idx
     ON ontology_entity_search_vector USING gin (doc gin_trgm_ops);
+CREATE INDEX ontology_entity_search_vector_label_trgm_idx
+    ON ontology_entity_search_vector USING gin (label gin_trgm_ops);
 
 
 -- --- Semantic embedding ---------------------------------------------------
@@ -2962,8 +3096,8 @@ CREATE TABLE change_routing_rules (
         CHECK (change_type IN (
             'coded_value_create',
             'coded_value_deprecate',
-            'glossary_term_create',
-            'glossary_alias_add',
+            'terminology_registry_update',
+            'semantic_binding_update',
             'notation_pattern_create',
             'customer_segment_create',
             'column_rename',
@@ -3031,12 +3165,12 @@ INSERT INTO change_routing_rules (id, workspace_id, change_type, routing, risk_l
         'medium', 0
     ),
     (
-        gen_random_uuid(), NULL, 'glossary_term_create',
+        gen_random_uuid(), NULL, 'terminology_registry_update',
         '{"kind":"approval_required_unless","skip_predicates":[{"kind":"author_has_role","role":"data_steward"}]}'::jsonb,
         'low', 0
     ),
     (
-        gen_random_uuid(), NULL, 'glossary_alias_add',
+        gen_random_uuid(), NULL, 'semantic_binding_update',
         '{"kind":"approval_required_unless","skip_predicates":[{"kind":"author_has_role","role":"data_steward"}]}'::jsonb,
         'low', 0
     ),
@@ -3105,8 +3239,8 @@ CREATE TABLE query_execution_signals (
     anchor_top_score            DOUBLE PRECISION,
     anchor_hit_kinds            TEXT[] NOT NULL DEFAULT '{}',
 
-    -- Glossary layer
-    glossary_term_hits          UUID[] NOT NULL DEFAULT '{}',
+    -- Concept layer
+    concept_hits                UUID[] NOT NULL DEFAULT '{}',
 
     -- Ambiguity layer
     ambiguity_resolution_ids    UUID[] NOT NULL DEFAULT '{}',
@@ -3234,7 +3368,7 @@ CREATE TABLE workspace_quality_baseline (
     -- Per-metric `{median, mad, warn, critical}` bundle. The cron
     -- computes `warn = median ± 2·MAD` and `critical = median ±
     -- 3·MAD` per metric key (shacl_pass_rate, query_reproducibility,
-    -- anchor_match_rate, glossary_hit_rate, clarification_success_rate,
+    -- anchor_match_rate, concept_hit_rate, clarification_success_rate,
     -- stale_concept_ratio). JSONB rather than typed columns so new
     -- metrics land without a schema change — the banner's alert
     -- engine reads by key regardless.
@@ -3254,3 +3388,682 @@ CREATE POLICY system_bypass ON workspace_quality_baseline
     USING (current_setting('app.system_bypass', true) = 'true')
     WITH CHECK (current_setting('app.system_bypass', true) = 'true');
 
+-- ============================================================================
+-- Draft cluster checkpoints
+-- ============================================================================
+
+CREATE TABLE draft_cluster_checkpoints (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id uuid NOT NULL,
+    ontology_draft_id uuid NOT NULL,
+    source_id text NOT NULL,
+    signature text NOT NULL,
+    cluster_id integer NOT NULL,
+    output jsonb NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    UNIQUE (workspace_id, ontology_draft_id, source_id, signature)
+);
+
+CREATE INDEX idx_draft_cluster_checkpoints_expired
+    ON draft_cluster_checkpoints (expires_at);
+CREATE INDEX idx_draft_cluster_checkpoints_project
+    ON draft_cluster_checkpoints (ontology_draft_id, created_at DESC);
+
+ALTER TABLE draft_cluster_checkpoints ENABLE ROW LEVEL SECURITY;
+ALTER TABLE draft_cluster_checkpoints FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON draft_cluster_checkpoints
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON draft_cluster_checkpoints
+    USING (current_setting('app.system_bypass', true) = 'true')
+    WITH CHECK (current_setting('app.system_bypass', true) = 'true');
+
+-- ============================================================================
+-- Evaluation
+-- ============================================================================
+
+CREATE TABLE evaluation_datasets (
+    id UUID PRIMARY KEY,
+    workspace_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (workspace_id, name)
+);
+
+CREATE INDEX evaluation_datasets_workspace_id
+    ON evaluation_datasets (workspace_id);
+
+ALTER TABLE evaluation_datasets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE evaluation_datasets FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON evaluation_datasets
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON evaluation_datasets
+    USING (current_setting('app.system_bypass', true) = 'true');
+
+CREATE TABLE evaluation_dataset_items (
+    id UUID PRIMARY KEY,
+    dataset_id UUID NOT NULL REFERENCES evaluation_datasets(id) ON DELETE CASCADE,
+    workspace_id UUID NOT NULL,
+    item_key TEXT NOT NULL,
+    input JSONB NOT NULL,
+    expected JSONB,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (dataset_id, item_key)
+);
+
+CREATE INDEX evaluation_dataset_items_dataset_id
+    ON evaluation_dataset_items (dataset_id);
+
+ALTER TABLE evaluation_dataset_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE evaluation_dataset_items FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON evaluation_dataset_items
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON evaluation_dataset_items
+    USING (current_setting('app.system_bypass', true) = 'true');
+
+CREATE TABLE evaluation_runs (
+    id UUID PRIMARY KEY,
+    workspace_id UUID NOT NULL,
+    -- Reproducibility components live on `fingerprint_components`
+    -- (extensible JSONB source) + `fingerprint_digest`
+    -- (canonical equality token). The columns below are
+    -- denormalised from the JSONB at insert time so FK + index
+    -- remain efficient; the JSONB stays the schema-less source so
+    -- new dimensions land without a migration.
+    --
+    -- ON DELETE RESTRICT — a snapshot or dataset referenced by a
+    -- historical run cannot be garbage-collected. Drift between
+    -- "what we scored" and "what the schema looks like now" is
+    -- the single biggest reproducibility hazard in eval pipelines;
+    -- the FK refusal is the platform's hard guarantee against it.
+    ontology_version_id UUID NOT NULL
+        REFERENCES ontology_version_snapshots(id) ON DELETE RESTRICT,
+    dataset_id UUID NOT NULL
+        REFERENCES evaluation_datasets(id) ON DELETE RESTRICT,
+    model_id TEXT NOT NULL,
+    fingerprint_digest VARCHAR(64) NOT NULL,
+    fingerprint_components JSONB NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    CONSTRAINT evaluation_runs_fingerprint_digest_shape
+        CHECK (length(fingerprint_digest) = 64),
+    CONSTRAINT evaluation_runs_model_id_non_empty
+        CHECK (length(model_id) > 0)
+);
+
+CREATE INDEX evaluation_runs_workspace_recent
+    ON evaluation_runs (workspace_id, started_at DESC);
+CREATE INDEX evaluation_runs_dataset_id
+    ON evaluation_runs (dataset_id);
+CREATE INDEX evaluation_runs_ontology_version_id
+    ON evaluation_runs (ontology_version_id);
+CREATE INDEX evaluation_runs_fingerprint_digest
+    ON evaluation_runs (fingerprint_digest);
+CREATE INDEX evaluation_runs_model_id
+    ON evaluation_runs (model_id);
+
+ALTER TABLE evaluation_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE evaluation_runs FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON evaluation_runs
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON evaluation_runs
+    USING (current_setting('app.system_bypass', true) = 'true')
+    WITH CHECK (current_setting('app.system_bypass', true) = 'true');
+
+CREATE TABLE evaluation_cases (
+    id UUID PRIMARY KEY,
+    run_id UUID NOT NULL REFERENCES evaluation_runs(id) ON DELETE CASCADE,
+    workspace_id UUID NOT NULL,
+    case_key TEXT NOT NULL,
+    input JSONB NOT NULL,
+    expected JSONB,
+    actual JSONB,
+    error TEXT,
+    latency_ms BIGINT,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (run_id, case_key)
+);
+
+CREATE INDEX evaluation_cases_workspace_run
+    ON evaluation_cases (workspace_id, run_id);
+
+ALTER TABLE evaluation_cases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE evaluation_cases FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON evaluation_cases
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON evaluation_cases
+    USING (current_setting('app.system_bypass', true) = 'true')
+    WITH CHECK (current_setting('app.system_bypass', true) = 'true');
+
+CREATE TABLE evaluation_metrics (
+    id UUID PRIMARY KEY,
+    case_id UUID NOT NULL REFERENCES evaluation_cases(id) ON DELETE CASCADE,
+    workspace_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    score DOUBLE PRECISION NOT NULL,
+    reasoning TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- PROV-O activity that produced this score. Required for
+    -- LLM-judged metrics (RAGAS / safety judge) so the prompt
+    -- render hash + model id stay queryable for replay. NULL for
+    -- capture-axis rows (latency / tokens / cost) — those are
+    -- observations of an LLM call whose own provenance is
+    -- attached to the case, not the metric. ON DELETE RESTRICT —
+    -- the audit trail outlives the metric.
+    provenance_id UUID REFERENCES provenance_records(id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (case_id, name)
+);
+
+CREATE INDEX evaluation_metrics_workspace_case
+    ON evaluation_metrics (workspace_id, case_id);
+CREATE INDEX evaluation_metrics_provenance_id
+    ON evaluation_metrics (provenance_id) WHERE provenance_id IS NOT NULL;
+
+ALTER TABLE evaluation_metrics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE evaluation_metrics FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON evaluation_metrics
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON evaluation_metrics
+    USING (current_setting('app.system_bypass', true) = 'true')
+    WITH CHECK (current_setting('app.system_bypass', true) = 'true');
+
+-- ============================================================================
+-- Verified query bank (Φ11)
+-- ============================================================================
+--
+-- Persistence for `ox_ontology::VerifiedQueryDef` — operator-
+-- promoted `(natural-language question, QueryIR)` pairs the
+-- Brain retrieves at translate-query time as ICL exemplars.
+-- Mirror of Vanna.AI's `train(question, sql)` pattern, applied
+-- to typed QueryIR instead of raw SQL strings.
+--
+-- Workspace-scoped per `(workspace_id, question_hash)` UNIQUE so
+-- the same question authored twice collapses to one row. Cross-
+-- ontology-version durable: a verified query persists across
+-- canonical commits; the verified-query freshness cron flips
+-- `status = 'stale'` when the IR references entities that no
+-- longer exist.
+
+CREATE TABLE verified_queries (
+    -- `VerifiedQueryId` is a String newtype.
+    id TEXT PRIMARY KEY,
+    workspace_id UUID NOT NULL,
+    -- Free-text question. The full original wording the operator
+    -- promoted; rendered verbatim on the admin surface.
+    question TEXT NOT NULL,
+    -- SHA-256 of the canonicalised question (lowercase, trim,
+    -- collapse whitespace). UPSERT key; identical questions
+    -- written with cosmetic variations land on the same row.
+    question_hash VARCHAR(64) NOT NULL,
+    -- `QueryIR` JSON — typed at the ox-ontology / ox-query-ir
+    -- layer. Stored as JSONB so the freshness cron can query
+    -- referenced entities without parsing.
+    query_ir JSONB NOT NULL,
+    -- `ComplexityClass` wire string — `trivial` / `simple` /
+    -- `composite` / `complex`. Trivial rows are stored but
+    -- excluded from ICL exemplar retrieval.
+    complexity_class TEXT NOT NULL,
+    -- `VerifiedQueryStatus` wire string — `verified` is the
+    -- only retrievable state.
+    status TEXT NOT NULL,
+    -- `AgentRef` JSONB — who promoted the query. `User` for
+    -- chat-driven SaveAsVqr, `Service` for cron-extracted
+    -- patterns.
+    author JSONB NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    -- Tokenizer-aware searchable surface (lindera + workspace
+    -- user dict). `searchable_tsv` auto-derived from
+    -- `tokenized_text`; `tokenizer_dict_fingerprint` records
+    -- which dict version produced this row's tokenisation.
+    tokenized_text TEXT NOT NULL DEFAULT '',
+    tokenizer_dict_fingerprint VARCHAR(64) NOT NULL DEFAULT '',
+    searchable_tsv tsvector
+        GENERATED ALWAYS AS (to_tsvector('simple', tokenized_text)) STORED,
+    verified_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (workspace_id, question_hash),
+    CONSTRAINT verified_queries_id_non_empty CHECK (length(id) > 0),
+    CONSTRAINT verified_queries_question_non_empty
+        CHECK (length(btrim(question)) > 0),
+    CONSTRAINT verified_queries_question_hash_shape
+        CHECK (length(question_hash) = 64),
+    CONSTRAINT verified_queries_query_ir_object
+        CHECK (jsonb_typeof(query_ir) = 'object'),
+    CONSTRAINT verified_queries_complexity_class_recognised
+        CHECK (complexity_class IN ('trivial', 'simple', 'composite', 'complex')),
+    CONSTRAINT verified_queries_status_recognised
+        CHECK (status IN ('verified', 'under_review', 'deprecated', 'stale')),
+    CONSTRAINT verified_queries_author_object
+        CHECK (jsonb_typeof(author) = 'object')
+);
+
+CREATE INDEX verified_queries_workspace_recent
+    ON verified_queries (workspace_id, updated_at DESC);
+CREATE INDEX verified_queries_status
+    ON verified_queries (workspace_id, status)
+    WHERE status = 'verified';
+CREATE INDEX verified_queries_question_trgm
+    ON verified_queries USING gin (question gin_trgm_ops);
+CREATE INDEX verified_queries_searchable_tsv
+    ON verified_queries USING gin (searchable_tsv);
+
+ALTER TABLE verified_queries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE verified_queries FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON verified_queries
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON verified_queries
+    USING (current_setting('app.system_bypass', true) = 'true')
+    WITH CHECK (current_setting('app.system_bypass', true) = 'true');
+
+-- ============================================================================
+-- GraphRAG retrieval policy + community detection policy (Φ10)
+-- ============================================================================
+--
+-- Persistence for `ox_ontology::RetrievalProfile` +
+-- `CommunityDetectionPolicy`. Pre-Φ10 the GraphRAG retrieval shape
+-- (edge weights, traversal depth, anchor / community top-k) lived
+-- as inline literals scattered across `crates/ox-agent/src/tools/
+-- query_graph.rs`. Promoting them to typed first-class data lets:
+--
+-- 1. Eval surface (Φ8.3 `EvaluationFingerprint`) pin the policy
+--    so RAGAS comparisons across retrieval shapes are reproducible.
+-- 2. Operators name + version retrieval policies without code edits.
+-- 3. Perspectives (sibling FE concept) carry a
+--    `Option<retrieval_profile_id>` FK so different ontology views
+--    pin different retrieval shapes.
+--
+-- Two tables — orthogonal axes:
+-- - `retrieval_profiles` runs at query time (online).
+-- - `community_detection_policies` drives the offline cron that
+--   materialises `ontology_community_summaries` (existing table).
+
+CREATE TABLE retrieval_profiles (
+    -- `RetrievalProfileId` is a String newtype (define_id_newtype!).
+    id TEXT PRIMARY KEY,
+    workspace_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    -- `BTreeMap<EdgeTypeId, f32>` JSON-encoded — typed at the
+    -- ox-ontology layer. Stored as JSONB so adding new edge type
+    -- entries is a write, not a schema change.
+    edge_weights JSONB NOT NULL,
+    default_edge_weight DOUBLE PRECISION NOT NULL,
+    -- `TraversalStrategy` JSONB — `kind`-discriminated
+    -- (bfs / ppr / beam_search) with per-variant parameters
+    -- inline.
+    traversal JSONB NOT NULL,
+    -- `RetrievalLimits` JSONB — max_nodes / max_tokens /
+    -- anchor_top_k / community_top_k as a closed struct.
+    limits JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (workspace_id, name),
+    CONSTRAINT retrieval_profiles_id_non_empty CHECK (length(id) > 0),
+    CONSTRAINT retrieval_profiles_name_non_empty CHECK (length(btrim(name)) > 0),
+    CONSTRAINT retrieval_profiles_default_edge_weight_non_negative
+        CHECK (default_edge_weight >= 0),
+    CONSTRAINT retrieval_profiles_edge_weights_object
+        CHECK (jsonb_typeof(edge_weights) = 'object'),
+    CONSTRAINT retrieval_profiles_traversal_object
+        CHECK (jsonb_typeof(traversal) = 'object'),
+    CONSTRAINT retrieval_profiles_limits_object
+        CHECK (jsonb_typeof(limits) = 'object')
+);
+
+CREATE INDEX retrieval_profiles_workspace_recent
+    ON retrieval_profiles (workspace_id, updated_at DESC);
+
+ALTER TABLE retrieval_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE retrieval_profiles FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON retrieval_profiles
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON retrieval_profiles
+    USING (current_setting('app.system_bypass', true) = 'true')
+    WITH CHECK (current_setting('app.system_bypass', true) = 'true');
+
+-- Φ10.5: workbench_perspectives forward-references this table.
+-- ON DELETE SET NULL — deleting a profile clears every perspective
+-- pin that referenced it; perspectives stay alive and fall back to
+-- the workspace `default` profile.
+ALTER TABLE workbench_perspectives
+    ADD CONSTRAINT workbench_perspectives_retrieval_profile_fk
+    FOREIGN KEY (retrieval_profile_id)
+    REFERENCES retrieval_profiles(id)
+    ON DELETE SET NULL;
+
+CREATE INDEX workbench_perspectives_retrieval_profile_id
+    ON workbench_perspectives (retrieval_profile_id)
+    WHERE retrieval_profile_id IS NOT NULL;
+
+CREATE TABLE community_detection_policies (
+    -- `CommunityDetectionPolicyId` is a String newtype.
+    id TEXT PRIMARY KEY,
+    workspace_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    -- Leiden modularity resolution γ. Microsoft GraphRAG ships
+    -- 1.0; the platform tunes within [0.5, 2.0].
+    resolution DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    -- RNG seed for the local-moving and refinement phases.
+    -- Same `(graph, seed)` produces byte-identical partitions.
+    seed BIGINT NOT NULL DEFAULT 42,
+    levels SMALLINT NOT NULL,
+    min_cluster_size INT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (workspace_id, name),
+    CONSTRAINT cdp_id_non_empty CHECK (length(id) > 0),
+    CONSTRAINT cdp_name_non_empty CHECK (length(btrim(name)) > 0),
+    CONSTRAINT cdp_resolution_finite CHECK (resolution > 0.0 AND resolution = resolution),
+    CONSTRAINT cdp_levels_positive CHECK (levels >= 1),
+    CONSTRAINT cdp_min_cluster_size_positive CHECK (min_cluster_size >= 1)
+);
+
+CREATE INDEX community_detection_policies_workspace_recent
+    ON community_detection_policies (workspace_id, updated_at DESC);
+
+ALTER TABLE community_detection_policies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE community_detection_policies FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON community_detection_policies
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON community_detection_policies
+    USING (current_setting('app.system_bypass', true) = 'true')
+    WITH CHECK (current_setting('app.system_bypass', true) = 'true');
+
+-- ============================================================================
+-- Inference pipeline — typed sessions + attempt history (Φ9)
+-- ============================================================================
+--
+-- Persistence for `ox_ontology::InferenceSession` +
+-- `InferenceAttempt`. The pipeline state machine
+-- (`PipelineStage` enum + `TRANSITIONS` table) is closed at the
+-- type level; these tables persist the per-session attempt chain
+-- so `Refine` can fold over prior failures as ICL and the
+-- audit/diagnostics surface can render "where did this run fail"
+-- without reconstructing from logs.
+
+CREATE TABLE inference_sessions (
+    id UUID PRIMARY KEY,
+    workspace_id UUID NOT NULL,
+    question TEXT NOT NULL,
+    -- `AgentRef` JSONB — `kind`-discriminated union (user /
+    -- service / llm_model / system).
+    initiator JSONB NOT NULL,
+    -- `Option<SessionOutcome>` — NULL while the session is in
+    -- flight; populated when the pipeline lands on
+    -- `PipelineStage::Done`. Carries the winning attempt id on
+    -- success or the rejection classification on failure.
+    final_outcome JSONB,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ended_at TIMESTAMPTZ,
+    CONSTRAINT inference_sessions_question_non_empty
+        CHECK (length(btrim(question)) > 0),
+    CONSTRAINT inference_sessions_initiator_object
+        CHECK (jsonb_typeof(initiator) = 'object'),
+    CONSTRAINT inference_sessions_outcome_aligns_ended_at
+        CHECK ((final_outcome IS NULL) = (ended_at IS NULL))
+);
+
+CREATE INDEX inference_sessions_workspace_recent
+    ON inference_sessions (workspace_id, started_at DESC);
+
+ALTER TABLE inference_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inference_sessions FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON inference_sessions
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON inference_sessions
+    USING (current_setting('app.system_bypass', true) = 'true')
+    WITH CHECK (current_setting('app.system_bypass', true) = 'true');
+
+CREATE TABLE inference_attempts (
+    id UUID PRIMARY KEY,
+    session_id UUID NOT NULL
+        REFERENCES inference_sessions(id) ON DELETE CASCADE,
+    workspace_id UUID NOT NULL,
+    -- Predecessor attempt id. NULL only for the root attempt of a
+    -- session. Walking the chain back to the root reconstructs
+    -- the full retry history.
+    parent_attempt_id UUID
+        REFERENCES inference_attempts(id) ON DELETE CASCADE,
+    -- 0-based per session. The `(session_id, attempt_index)`
+    -- UNIQUE pins replay order — re-running a session does not
+    -- silently overwrite history; a fresh run goes through a new
+    -- session id.
+    attempt_index INT NOT NULL,
+    -- `PipelineStage::as_str` wire name. TEXT (not Postgres ENUM)
+    -- so adding a stage is a Rust-side change with no DDL — the
+    -- catalog parity test in `ox-ontology` pins the wire-string
+    -- set, and the storage CHECK below pins the legal values.
+    emitted_at_stage TEXT NOT NULL,
+    -- Optional `QueryIR` JSONB. NULL when the attempt failed
+    -- before producing a candidate (LLM refused, network error,
+    -- pre-LLM Validate reject).
+    query_ir_candidate JSONB,
+    -- `AttemptOutcome` JSONB — `kind`-discriminated union.
+    outcome JSONB NOT NULL,
+    -- PROV-O activity row for the LLM call this attempt invoked.
+    -- NULL only for purely deterministic attempts (Validate
+    -- pre-flight rejection without an LLM call). When present,
+    -- ON DELETE RESTRICT — the audit row outlives the attempt.
+    provenance_id UUID
+        REFERENCES provenance_records(id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (session_id, attempt_index),
+    CONSTRAINT inference_attempts_index_non_negative
+        CHECK (attempt_index >= 0),
+    CONSTRAINT inference_attempts_outcome_object
+        CHECK (jsonb_typeof(outcome) = 'object'),
+    CONSTRAINT inference_attempts_stage_recognised
+        CHECK (
+            emitted_at_stage IN (
+                'safety_gate', 'retrieve', 'ground', 'compile',
+                'validate', 'refine', 'select', 'compose', 'done'
+            )
+        )
+);
+
+CREATE INDEX inference_attempts_session
+    ON inference_attempts (session_id, attempt_index);
+CREATE INDEX inference_attempts_provenance
+    ON inference_attempts (provenance_id) WHERE provenance_id IS NOT NULL;
+CREATE INDEX inference_attempts_parent
+    ON inference_attempts (parent_attempt_id)
+    WHERE parent_attempt_id IS NOT NULL;
+
+ALTER TABLE inference_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inference_attempts FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON inference_attempts
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON inference_attempts
+    USING (current_setting('app.system_bypass', true) = 'true')
+    WITH CHECK (current_setting('app.system_bypass', true) = 'true');
+
+-- ============================================================================
+-- Model price catalogue
+-- ============================================================================
+--
+-- Per-model tariff used by the evaluation capture path to derive
+-- `cost_micro_usd` from a `ModelCall` observation. Platform-wide
+-- reference data — no `workspace_id`, no RLS. Tariff revisions land
+-- as new rows whose `valid_from` matches the prior row's `valid_to`;
+-- in-place edits are forbidden so the historical cost trail stays
+-- auditable.
+--
+-- `cost_micro_usd` per call =
+--   billable_input × input_price_usd_per_million
+-- + cached_input  × cached_input_price_usd_per_million
+-- + output        × output_price_usd_per_million
+-- divided by 1M tokens, all in micro-USD (1 USD = 1_000_000 micro).
+
+CREATE TABLE model_prices (
+    model_id TEXT NOT NULL,
+    input_price_usd_per_million DOUBLE PRECISION NOT NULL,
+    cached_input_price_usd_per_million DOUBLE PRECISION NOT NULL,
+    output_price_usd_per_million DOUBLE PRECISION NOT NULL,
+    valid_from TIMESTAMPTZ NOT NULL,
+    valid_to TIMESTAMPTZ,
+    PRIMARY KEY (model_id, valid_from),
+    CONSTRAINT model_prices_validity_window
+        CHECK (valid_to IS NULL OR valid_to > valid_from),
+    CONSTRAINT model_prices_input_non_negative
+        CHECK (input_price_usd_per_million >= 0),
+    CONSTRAINT model_prices_cached_input_non_negative
+        CHECK (cached_input_price_usd_per_million >= 0),
+    CONSTRAINT model_prices_output_non_negative
+        CHECK (output_price_usd_per_million >= 0)
+);
+
+CREATE INDEX model_prices_active
+    ON model_prices (model_id, valid_from DESC);
+
+-- 2026 Q2 list prices (USD per million tokens). Cached input
+-- discount mirrors each provider's published prompt-cache rate
+-- — Anthropic ~10%, OpenAI ~25%, Gemini ~10%.
+INSERT INTO model_prices
+    (model_id, input_price_usd_per_million, cached_input_price_usd_per_million,
+     output_price_usd_per_million, valid_from, valid_to)
+VALUES
+    ('claude-opus-4-7',     15.0,  1.5,  75.0, '2026-04-01T00:00:00Z', NULL),
+    ('claude-sonnet-4-6',    3.0,  0.3,  15.0, '2026-04-01T00:00:00Z', NULL),
+    ('claude-haiku-4-5',     0.8,  0.08,  4.0, '2026-04-01T00:00:00Z', NULL),
+    ('gpt-5',               10.0,  2.5,  30.0, '2026-04-01T00:00:00Z', NULL),
+    ('gpt-4.1',              3.0,  0.75, 12.0, '2026-04-01T00:00:00Z', NULL),
+    ('gpt-4o',               5.0,  1.25, 15.0, '2026-04-01T00:00:00Z', NULL),
+    ('o3',                  15.0,  3.75, 60.0, '2026-04-01T00:00:00Z', NULL),
+    ('o4-mini',              1.1,  0.275, 4.4, '2026-04-01T00:00:00Z', NULL),
+    ('gemini-2.5-pro',       3.5,  0.35, 10.5, '2026-04-01T00:00:00Z', NULL),
+    ('gemini-2.5-flash',     0.3,  0.03,  1.2, '2026-04-01T00:00:00Z', NULL);
+
+-- ============================================================================
+-- GraphRAG community summaries
+-- ============================================================================
+
+CREATE TABLE ontology_community_summaries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL DEFAULT (current_setting('app.workspace_id', true))::uuid
+        REFERENCES workspaces(id) ON DELETE CASCADE,
+    ontology_version_id UUID NOT NULL
+        REFERENCES ontology_version_snapshots(id) ON DELETE CASCADE,
+    community_id TEXT NOT NULL,
+    level SMALLINT NOT NULL DEFAULT 0,
+    member_entity_kinds TEXT[] NOT NULL DEFAULT '{}',
+    member_logical_ids TEXT[] NOT NULL DEFAULT '{}',
+    -- sha256 over the canonicalised member set
+    -- (`(kind, logical_id)` pairs sorted lexicographically).
+    -- Lets the cron skip the LLM summary call when the
+    -- membership hasn't shifted since the last detection run.
+    member_fingerprint VARCHAR(64) NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    -- Tokenizer-aware searchable surface. `tokenized_text` is
+    -- the application-side morphological output (lindera +
+    -- workspace user dict + POS filter, space-joined canonical
+    -- lemmas). `searchable_tsv` is the auto-derived tsvector
+    -- the GIN index serves; `tokenizer_dict_fingerprint`
+    -- records which workspace user-dict version produced this
+    -- row's tokenisation so the backfill task can detect
+    -- staleness atomically.
+    tokenized_text TEXT NOT NULL DEFAULT '',
+    tokenizer_dict_fingerprint VARCHAR(64) NOT NULL DEFAULT '',
+    searchable_tsv tsvector
+        GENERATED ALWAYS AS (to_tsvector('simple', tokenized_text)) STORED,
+    generated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (ontology_version_id, community_id),
+    CONSTRAINT ontology_community_summaries_level_non_negative
+        CHECK (level >= 0),
+    CONSTRAINT ontology_community_summaries_non_empty_identity
+        CHECK (btrim(community_id) <> '' AND btrim(title) <> '' AND btrim(summary) <> ''),
+    CONSTRAINT ontology_community_summaries_parallel_members
+        CHECK (
+            array_length(member_entity_kinds, 1)
+            IS NOT DISTINCT FROM
+            array_length(member_logical_ids, 1)
+        ),
+    CONSTRAINT ontology_community_summaries_member_count_limit
+        CHECK (cardinality(member_entity_kinds) <= 10000),
+    CONSTRAINT ontology_community_summaries_no_empty_member_tokens
+        CHECK (
+            array_position(member_entity_kinds, '') IS NULL
+            AND array_position(member_logical_ids, '') IS NULL
+        )
+);
+
+CREATE INDEX ontology_community_summaries_version_idx
+    ON ontology_community_summaries (ontology_version_id);
+CREATE INDEX ontology_community_summaries_summary_trgm_idx
+    ON ontology_community_summaries USING gin (summary gin_trgm_ops);
+CREATE INDEX ontology_community_summaries_title_trgm_idx
+    ON ontology_community_summaries USING gin (title gin_trgm_ops);
+CREATE INDEX ontology_community_summaries_logical_ids_idx
+    ON ontology_community_summaries USING gin (member_logical_ids);
+CREATE INDEX ontology_community_summaries_searchable_tsv_idx
+    ON ontology_community_summaries USING gin (searchable_tsv);
+
+ALTER TABLE ontology_community_summaries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ontology_community_summaries FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON ontology_community_summaries
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON ontology_community_summaries
+    USING (current_setting('app.system_bypass', true) = 'true');
+
+-- ============================================================================
+-- Concept operational index
+-- ============================================================================
+
+CREATE TABLE ontology_concept_index (
+    version_id UUID NOT NULL
+        REFERENCES ontology_version_snapshots(id) ON DELETE CASCADE,
+    logical_id TEXT NOT NULL,
+    entity_hash TEXT NOT NULL
+        REFERENCES ontology_entity_versions(entity_hash),
+    canonical_term_id TEXT NOT NULL,
+    alias_term_ids TEXT[] NOT NULL DEFAULT '{}',
+    broader_id TEXT,
+    replaced_by_id TEXT,
+    lifecycle TEXT NOT NULL,
+    category TEXT,
+    valid_from TIMESTAMPTZ,
+    valid_to TIMESTAMPTZ,
+    workspace_id UUID NOT NULL DEFAULT (current_setting('app.workspace_id', true))::uuid
+        REFERENCES workspaces(id) ON DELETE CASCADE,
+    PRIMARY KEY (version_id, logical_id)
+);
+
+CREATE INDEX ontology_concept_index_canonical_term_idx
+    ON ontology_concept_index (workspace_id, version_id, canonical_term_id);
+CREATE INDEX ontology_concept_index_broader_idx
+    ON ontology_concept_index (workspace_id, version_id, broader_id)
+    WHERE broader_id IS NOT NULL;
+CREATE INDEX ontology_concept_index_replaced_by_idx
+    ON ontology_concept_index (workspace_id, version_id, replaced_by_id)
+    WHERE replaced_by_id IS NOT NULL;
+CREATE INDEX ontology_concept_index_lifecycle_idx
+    ON ontology_concept_index (workspace_id, version_id, lifecycle);
+
+ALTER TABLE ontology_concept_index ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ontology_concept_index FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON ontology_concept_index
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON ontology_concept_index
+    USING (current_setting('app.system_bypass', true) = 'true');
