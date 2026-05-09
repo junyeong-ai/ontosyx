@@ -302,7 +302,10 @@ mod tests {
         };
         let df = expr_to_df(&e).unwrap();
         let rendered = format!("{df}");
-        assert!(rendered.contains("LIKE") && rendered.contains("Al%"), "got: {rendered}");
+        assert!(
+            rendered.contains("LIKE") && rendered.contains("Al%"),
+            "got: {rendered}"
+        );
     }
 
     #[test]

@@ -4,6 +4,8 @@
 //! `CsvAdapter` → `SourceTableProvider` → `FederationContext::run_sql`
 //! returns rows the calling SQL selected.
 
+#![allow(clippy::unwrap_used)]
+
 use std::sync::Arc;
 
 use ox_federation::{FederationContext, SourceTableProvider, context::WorkspaceRef};
@@ -27,7 +29,10 @@ async fn select_star_from_registered_csv_returns_every_row() {
     let ctx = FederationContext::new(WorkspaceRef::new("ws-test"));
     ctx.register_table(Arc::new(provider)).unwrap();
 
-    let batches = ctx.run_sql("SELECT id, name, amount FROM records").await.unwrap();
+    let batches = ctx
+        .run_sql("SELECT id, name, amount FROM records")
+        .await
+        .unwrap();
     let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
     assert_eq!(total_rows, 4);
     // Column count after projection.

@@ -129,8 +129,7 @@ impl<'a> LabelResolver<'a> {
                 // just verified) so the expansion cannot fail — but
                 // we still propagate its `FederationResult` to keep
                 // call-sites honest if that contract changes.
-                let expansion =
-                    InterfaceExpander::new(self.ontology).expand(&interface_id)?;
+                let expansion = InterfaceExpander::new(self.ontology).expand(&interface_id)?;
                 Ok(ResolvedLabelTarget::Interface {
                     interface_id,
                     implementers: expansion.node_type_ids,
@@ -195,7 +194,10 @@ mod tests {
         let ont = ontology_with(vec![node("nt-user", "User", vec![])], vec![]);
         let r = LabelResolver::new(&ont);
         let target = r.resolve(&gl("User")).unwrap();
-        assert_eq!(target, ResolvedLabelTarget::Concrete(NodeTypeId::new("nt-user")));
+        assert_eq!(
+            target,
+            ResolvedLabelTarget::Concrete(NodeTypeId::new("nt-user"))
+        );
         assert!(!target.is_ambiguous());
     }
 
@@ -235,15 +237,13 @@ mod tests {
         let r = LabelResolver::new(&ont);
         let target = r.resolve(&gl("Customer")).unwrap();
         assert!(target.is_ambiguous());
-        match target {
-            ResolvedLabelTarget::Ambiguous {
-                node_type_id,
-                interface_id,
-            } => {
-                assert_eq!(node_type_id, NodeTypeId::new("nt-customer"));
-                assert_eq!(interface_id, InterfaceId::new("if-customer"));
-            }
-            _ => unreachable!(),
+        if let ResolvedLabelTarget::Ambiguous {
+            node_type_id,
+            interface_id,
+        } = target
+        {
+            assert_eq!(node_type_id, NodeTypeId::new("nt-customer"));
+            assert_eq!(interface_id, InterfaceId::new("if-customer"));
         }
     }
 

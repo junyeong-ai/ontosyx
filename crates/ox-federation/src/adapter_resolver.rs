@@ -108,14 +108,11 @@ impl Default for InMemoryAdapterResolver {
 
 impl AdapterResolver for InMemoryAdapterResolver {
     fn resolve(&self, source_id: &SourceId) -> FederationResult<Arc<dyn DataSourceAdapter>> {
-        self.adapters
-            .get(source_id)
-            .cloned()
-            .ok_or_else(|| {
-                FederationError::unsupported(format!(
-                    "AdapterResolver: no adapter registered for source '{source_id}'"
-                ))
-            })
+        self.adapters.get(source_id).cloned().ok_or_else(|| {
+            FederationError::unsupported(format!(
+                "AdapterResolver: no adapter registered for source '{source_id}'"
+            ))
+        })
     }
 }
 
@@ -152,10 +149,8 @@ mod tests {
     #[test]
     fn register_replaces_existing_entry() {
         let mut r = InMemoryAdapterResolver::new();
-        let a1: Arc<dyn DataSourceAdapter> =
-            Arc::new(CsvAdapter::new("id\n1\n").unwrap());
-        let a2: Arc<dyn DataSourceAdapter> =
-            Arc::new(CsvAdapter::new("x,y\n1,2\n").unwrap());
+        let a1: Arc<dyn DataSourceAdapter> = Arc::new(CsvAdapter::new("id\n1\n").unwrap());
+        let a2: Arc<dyn DataSourceAdapter> = Arc::new(CsvAdapter::new("x,y\n1,2\n").unwrap());
         r.register("csv-1", a1);
         r.register("csv-1", a2);
         assert_eq!(r.len(), 1);

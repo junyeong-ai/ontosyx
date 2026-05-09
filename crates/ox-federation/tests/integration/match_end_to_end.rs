@@ -8,13 +8,15 @@
 //! has done its job and the CSV adapter has handed rows back through
 //! the Arrow RecordBatch surface.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::sync::Arc;
 
 use ox_core::graph_label::GraphLabel;
 use ox_core::i18n::LocalizedText;
+use ox_core::property_key::PropertyKey;
 use ox_core::types::{Direction, PropertyValue};
 use ox_core::variable_name::VariableName;
-use ox_core::property_key::PropertyKey;
 use ox_federation::{
     FederationContext, InMemoryAdapterResolver, MatchPlanner, build_match_op, build_match_plan,
     build_query_ir, build_query_ir_scoped, context::WorkspaceRef,
@@ -67,8 +69,7 @@ fn build_customer_ontology() -> (OntologyIR, InMemoryAdapterResolver) {
 
     let mut resolver = InMemoryAdapterResolver::new();
     let csv = "id,name,amount\n1,Alice,100\n2,Bob,250\n3,Charlie,42\n";
-    let adapter: Arc<dyn DataSourceAdapter> =
-        Arc::new(CsvAdapter::new(csv).expect("csv adapter"));
+    let adapter: Arc<dyn DataSourceAdapter> = Arc::new(CsvAdapter::new(csv).expect("csv adapter"));
     resolver.register("csv-crm", adapter);
 
     (ont, resolver)
@@ -151,7 +152,11 @@ async fn match_with_field_projection_narrows_output_to_one_column() {
 
     let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
     assert_eq!(total_rows, 3, "one row per CSV customer");
-    assert_eq!(batches[0].num_columns(), 1, "projection narrows to one column");
+    assert_eq!(
+        batches[0].num_columns(),
+        1,
+        "projection narrows to one column"
+    );
     assert_eq!(batches[0].schema().field(0).name(), "customer_name");
 }
 
@@ -477,7 +482,10 @@ async fn mapping_without_workspace_scope_is_shared_across_workspaces() {
         .iter()
         .map(|b| b.num_rows())
         .sum();
-    assert_eq!(rows, 3, "shared mapping returns every row regardless of workspace");
+    assert_eq!(
+        rows, 3,
+        "shared mapping returns every row regardless of workspace"
+    );
 }
 
 #[tokio::test]
@@ -560,11 +568,17 @@ async fn match_relationship_foreign_key_hop_inner_joins_endpoints() {
     // purely as disambiguators for the FK column refs; scan-time
     // routing reads through the ObjectMappingDef's `relation` field.
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-user", "nt-user", "csv-users", "records",
+        "om-user",
+        "nt-user",
+        "csv-users",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-order", "nt-order", "csv-orders", "records",
+        "om-order",
+        "nt-order",
+        "csv-orders",
+        "records",
     ))
     .unwrap();
     ont.add_link_mapping(LinkMappingDef {
@@ -586,7 +600,7 @@ async fn match_relationship_foreign_key_hop_inner_joins_endpoints() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
 
@@ -637,7 +651,9 @@ async fn match_relationship_foreign_key_hop_inner_joins_endpoints() {
         group_by: vec![],
     };
 
-    let plan = build_match_op(&ont, &op, &resolver).await.expect("join plan");
+    let plan = build_match_op(&ont, &op, &resolver)
+        .await
+        .expect("join plan");
     let ctx = FederationContext::new(WorkspaceRef::new("ws-test"));
     let batches = ctx.execute_plan(plan).await.expect("execute plan");
 
@@ -687,11 +703,17 @@ async fn match_relationship_with_where_filter_pushes_on_left_side() {
         vec![],
     );
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-user", "nt-user", "csv-users", "records",
+        "om-user",
+        "nt-user",
+        "csv-users",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-order", "nt-order", "csv-orders", "records",
+        "om-order",
+        "nt-order",
+        "csv-orders",
+        "records",
     ))
     .unwrap();
     ont.add_link_mapping(LinkMappingDef {
@@ -713,7 +735,7 @@ async fn match_relationship_with_where_filter_pushes_on_left_side() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
 
@@ -772,7 +794,10 @@ async fn match_relationship_with_where_filter_pushes_on_left_side() {
     let ctx = FederationContext::new(WorkspaceRef::new("ws-test"));
     let batches = ctx.execute_plan(plan).await.unwrap();
     let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
-    assert_eq!(total_rows, 2, "Alice has two orders — the WHERE filter keeps both");
+    assert_eq!(
+        total_rows, 2,
+        "Alice has two orders — the WHERE filter keeps both"
+    );
 }
 
 #[tokio::test]
@@ -840,15 +865,24 @@ async fn match_two_hop_chain_inner_joins_every_endpoint() {
         vec![],
     );
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-user", "nt-user", "csv-users", "records",
+        "om-user",
+        "nt-user",
+        "csv-users",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-order", "nt-order", "csv-orders", "records",
+        "om-order",
+        "nt-order",
+        "csv-orders",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-product", "nt-product", "csv-products", "records",
+        "om-product",
+        "nt-product",
+        "csv-products",
+        "records",
     ))
     .unwrap();
     ont.add_link_mapping(LinkMappingDef {
@@ -870,7 +904,7 @@ async fn match_two_hop_chain_inner_joins_every_endpoint() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
     ont.add_link_mapping(LinkMappingDef {
@@ -892,7 +926,7 @@ async fn match_two_hop_chain_inner_joins_every_endpoint() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
 
@@ -981,11 +1015,7 @@ async fn match_two_hop_chain_inner_joins_every_endpoint() {
     );
     assert_eq!(batches[0].num_columns(), 3);
     let schema = batches[0].schema();
-    let fields: Vec<String> = schema
-        .fields()
-        .iter()
-        .map(|f| f.name().clone())
-        .collect();
+    let fields: Vec<String> = schema.fields().iter().map(|f| f.name().clone()).collect();
     assert_eq!(fields, vec!["user_name", "order_id", "product_name"]);
 }
 
@@ -1111,7 +1141,10 @@ async fn match_bridge_link_mapping_joins_via_intermediate_relation() {
         vec![],
     );
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-post", "nt-post", "csv-posts", "records",
+        "om-post",
+        "nt-post",
+        "csv-posts",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
@@ -1143,7 +1176,7 @@ async fn match_bridge_link_mapping_joins_via_intermediate_relation() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
 
@@ -1260,11 +1293,17 @@ async fn match_federated_link_mapping_joins_across_sources() {
         vec![],
     );
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-user", "nt-user", "csv-users", "records",
+        "om-user",
+        "nt-user",
+        "csv-users",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-account", "nt-account", "csv-accounts", "records",
+        "om-account",
+        "nt-account",
+        "csv-accounts",
+        "records",
     ))
     .unwrap();
     ont.add_link_mapping(LinkMappingDef {
@@ -1286,7 +1325,7 @@ async fn match_federated_link_mapping_joins_across_sources() {
         },
         join_cost_hint: JoinCostHint::Scan,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
 
@@ -1387,11 +1426,17 @@ fn build_two_entity_ontology() -> (OntologyIR, InMemoryAdapterResolver) {
         vec![],
     );
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-user", "nt-user", "csv-users", "records",
+        "om-user",
+        "nt-user",
+        "csv-users",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-order", "nt-order", "csv-orders", "records",
+        "om-order",
+        "nt-order",
+        "csv-orders",
+        "records",
     ))
     .unwrap();
     ont.add_link_mapping(LinkMappingDef {
@@ -1413,7 +1458,7 @@ fn build_two_entity_ontology() -> (OntologyIR, InMemoryAdapterResolver) {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
 
@@ -1801,11 +1846,17 @@ async fn match_multi_mapping_hop_unions_per_link_mapping() {
         vec![],
     );
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-user", "nt-user", "csv-users", "records",
+        "om-user",
+        "nt-user",
+        "csv-users",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-order", "nt-order", "csv-orders", "records",
+        "om-order",
+        "nt-order",
+        "csv-orders",
+        "records",
     ))
     .unwrap();
     // Placer FK mapping.
@@ -1828,7 +1879,7 @@ async fn match_multi_mapping_hop_unions_per_link_mapping() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
     // Recipient FK mapping — same edge type, different FK column.
@@ -1851,7 +1902,7 @@ async fn match_multi_mapping_hop_unions_per_link_mapping() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
 
@@ -1922,13 +1973,13 @@ async fn match_multi_mapping_hop_unions_per_link_mapping() {
         total_rows, 6,
         "UNION ALL of placer + recipient mappings emits 3 rows per mapping"
     );
-    assert_eq!(batches[0].num_columns(), 2, "projection narrows to two cols");
+    assert_eq!(
+        batches[0].num_columns(),
+        2,
+        "projection narrows to two cols"
+    );
     let schema = batches[0].schema();
-    let field_names: Vec<String> = schema
-        .fields()
-        .iter()
-        .map(|f| f.name().clone())
-        .collect();
+    let field_names: Vec<String> = schema.fields().iter().map(|f| f.name().clone()).collect();
     assert_eq!(field_names, vec!["user_name", "order_id"]);
 }
 
@@ -1981,7 +2032,10 @@ async fn match_multi_mapping_seed_supports_bridge_alongside_fk() {
         vec![],
     );
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-user", "nt-user", "csv-users", "records",
+        "om-user",
+        "nt-user",
+        "csv-users",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
@@ -2008,7 +2062,7 @@ async fn match_multi_mapping_seed_supports_bridge_alongside_fk() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
     // Link mapping B — Bridge through an interactions table.
@@ -2037,7 +2091,7 @@ async fn match_multi_mapping_seed_supports_bridge_alongside_fk() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
 
@@ -2196,14 +2250,11 @@ async fn match_multi_mapping_hop_at_extend_position_unions_branches() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
     // Second hop: multi-mapping (two ways to tie orders to items).
-    for (id, src) in [
-        ("lm-related-a", "order_id"),
-        ("lm-related-b", "order_id"),
-    ] {
+    for (id, src) in [("lm-related-a", "order_id"), ("lm-related-b", "order_id")] {
         ont.add_link_mapping(LinkMappingDef {
             id: LinkMappingId::new(id),
             edge_type_id: "e-related".into(),
@@ -2361,11 +2412,17 @@ async fn match_multi_mapping_hop_at_close_cycle_unions_predicates() {
         vec![],
     );
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-user", "nt-user", "csv-users", "records",
+        "om-user",
+        "nt-user",
+        "csv-users",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-order", "nt-order", "csv-orders", "records",
+        "om-order",
+        "nt-order",
+        "csv-orders",
+        "records",
     ))
     .unwrap();
     // Seed hop: single mapping.
@@ -2388,7 +2445,7 @@ async fn match_multi_mapping_hop_at_close_cycle_unions_predicates() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
     // Close-cycle hop: two link mappings on the same edge between
@@ -2553,11 +2610,17 @@ async fn match_bridge_with_composite_keys_ands_predicates_per_side() {
         vec![],
     );
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-product", "nt-product", "csv-products", "records",
+        "om-product",
+        "nt-product",
+        "csv-products",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-warehouse", "nt-warehouse", "csv-warehouses", "records",
+        "om-warehouse",
+        "nt-warehouse",
+        "csv-warehouses",
+        "records",
     ))
     .unwrap();
     ont.add_link_mapping(LinkMappingDef {
@@ -2592,7 +2655,7 @@ async fn match_bridge_with_composite_keys_ands_predicates_per_side() {
         },
         join_cost_hint: JoinCostHint::Indexed,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
 
@@ -2708,7 +2771,10 @@ async fn match_computed_link_mapping_filters_via_arbitrary_predicate() {
         vec![],
     );
     ont.add_object_mapping(ObjectMappingDef::new(
-        "om-user", "nt-user", "csv-users", "records",
+        "om-user",
+        "nt-user",
+        "csv-users",
+        "records",
     ))
     .unwrap();
     ont.add_object_mapping(ObjectMappingDef::new(
@@ -2733,7 +2799,7 @@ async fn match_computed_link_mapping_filters_via_arbitrary_predicate() {
         },
         join_cost_hint: JoinCostHint::Scan,
         precedence: 100,
-            cardinality: ox_ontology::LinkCardinality::ManyToMany,
+        cardinality: ox_ontology::LinkCardinality::ManyToMany,
     })
     .unwrap();
 

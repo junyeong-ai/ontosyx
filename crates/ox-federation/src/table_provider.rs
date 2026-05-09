@@ -69,10 +69,8 @@ impl SourceTableProvider {
     ) -> crate::FederationResult<Self> {
         let table_name = table_name.into();
         let table_def = adapter.describe_table(&table_name).await?;
-        let schema = ox_source::normalize::describe_to_arrow_schema(
-            adapter.source_type(),
-            &table_def,
-        );
+        let schema =
+            ox_source::normalize::describe_to_arrow_schema(adapter.source_type(), &table_def);
         Ok(Self {
             adapter,
             table_name,

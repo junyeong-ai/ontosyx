@@ -108,11 +108,7 @@ mod tests {
         }
     }
 
-    fn node_with_interfaces(
-        id: &str,
-        label: &str,
-        ifaces: Vec<&str>,
-    ) -> NodeTypeDef {
+    fn node_with_interfaces(id: &str, label: &str, ifaces: Vec<&str>) -> NodeTypeDef {
         NodeTypeDef {
             id: id.into(),
             label: gl_dynamic(label),
@@ -121,10 +117,7 @@ mod tests {
         }
     }
 
-    fn ontology_with(
-        nodes: Vec<NodeTypeDef>,
-        interfaces: Vec<InterfaceDef>,
-    ) -> OntologyIR {
+    fn ontology_with(nodes: Vec<NodeTypeDef>, interfaces: Vec<InterfaceDef>) -> OntologyIR {
         let mut o = OntologyIR::new(
             "ont".into(),
             "test".into(),

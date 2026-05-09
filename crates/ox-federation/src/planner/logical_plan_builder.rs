@@ -351,9 +351,7 @@ pub async fn build_query_ir_scoped<R: AdapterResolver + ?Sized>(
 /// with the filter so multi-scan JOIN plans stay disambiguated —
 /// `col("n.status")` resolves even when a sibling pattern happens
 /// to carry its own `status` column.
-fn collect_inline_filters(
-    patterns: &[GraphPattern],
-) -> Vec<(VariableName, PropertyKey, IrExpr)> {
+fn collect_inline_filters(patterns: &[GraphPattern]) -> Vec<(VariableName, PropertyKey, IrExpr)> {
     let mut out = Vec::new();
     for p in patterns {
         if let GraphPattern::Node {
@@ -1401,8 +1399,7 @@ impl JoinAssembler {
                     .map_err(FederationError::from)?
                     .build()
                     .map_err(FederationError::from)?;
-                let expr =
-                    parse_computed_predicate(predicate, crossed.schema(), hop)?;
+                let expr = parse_computed_predicate(predicate, crossed.schema(), hop)?;
                 let filtered = DfLogicalPlanBuilder::from(crossed)
                     .filter(expr)
                     .map_err(FederationError::from)?
@@ -1573,10 +1570,9 @@ fn build_bridge_endpoint_predicate(
 /// `LinkMappingKind::Bridge` declares a `bridge_workspace_scope`
 /// column AND the caller supplies a `WorkspaceScope`, an extra
 /// equi-predicate against the workspace id is appended to the
-/// bridge scan. A `None` declaration keeps the legacy "shared
-/// bridge" behaviour — only safe when the bridge holds no
-/// workspace-private joins (the ontology author owns that
-/// declaration).
+/// bridge scan. A `None` declaration means the bridge relation is
+/// workspace-agnostic — only safe when the bridge holds no workspace-
+/// private joins (the ontology author owns that declaration).
 async fn build_bridge_scan<R: AdapterResolver + ?Sized>(
     bridge_relation: &SourceRelationRef,
     bridge_alias: &str,
@@ -1585,9 +1581,8 @@ async fn build_bridge_scan<R: AdapterResolver + ?Sized>(
     bridge_workspace_scope: Option<&ColumnRef>,
 ) -> FederationResult<LogicalPlan> {
     let adapter = adapters.resolve(&bridge_relation.source_id)?;
-    let provider = Arc::new(
-        SourceTableProvider::try_new(adapter, bridge_relation.relation.clone()).await?,
-    );
+    let provider =
+        Arc::new(SourceTableProvider::try_new(adapter, bridge_relation.relation.clone()).await?);
     let source = provider_as_source(provider);
     let mut plan = DfLogicalPlanBuilder::scan(bridge_alias, source, None)
         .map_err(FederationError::from)?
@@ -1682,19 +1677,16 @@ fn qualify_join_column(
 /// (Variable because "order by the whole row" has no SQL meaning;
 /// Aggregation because it needs GROUP BY lowering, which is not
 /// yet implemented).
-fn apply_order_by(
-    base: LogicalPlan,
-    clauses: &[OrderClause],
-) -> FederationResult<LogicalPlan> {
+fn apply_order_by(base: LogicalPlan, clauses: &[OrderClause]) -> FederationResult<LogicalPlan> {
     if clauses.is_empty() {
         return Ok(base);
     }
     let mut sort_exprs: Vec<datafusion::logical_expr::SortExpr> = Vec::with_capacity(clauses.len());
     for c in clauses {
         let df_expr = match &c.projection {
-            Projection::Field { variable, field, .. } => {
-                col(format!("{}.{}", variable.as_str(), field.as_str()))
-            }
+            Projection::Field {
+                variable, field, ..
+            } => col(format!("{}.{}", variable.as_str(), field.as_str())),
             Projection::Variable { variable, .. } => {
                 return Err(FederationError::unsupported(format!(
                     "LogicalPlanBuilder: ORDER BY on bare variable '{variable}' has \
@@ -1707,7 +1699,9 @@ fn apply_order_by(
                      not yet implemented"
                 )));
             }
-            Projection::Aggregation { function, alias, .. } => {
+            Projection::Aggregation {
+                function, alias, ..
+            } => {
                 return Err(FederationError::unsupported(format!(
                     "LogicalPlanBuilder: ORDER BY on aggregation (function={function:?}, \
                      alias='{alias}') is not yet implemented (needs GROUP BY + HAVING)"
@@ -1799,10 +1793,10 @@ fn apply_filters(
 ///   since DataFusion's `col("x")` resolves against the current
 ///   plan scope, a plain `col(field)` is correct for a single-scan
 ///   plan. A future hop-aware version qualifies with `variable.field`.
-/// - `Projection::Variable { variable, alias }` → pass-through.
-///   When the alias is `Some`, we'd ideally rename every column;
-///   for now the plan projects every column unchanged and the
-///   alias is dropped rather than rewritten into the schema.
+/// - `Projection::Variable { alias: None, .. }` → pass-through.
+///   `Projection::Variable` with an alias is rejected because a
+///   multi-column relation has no single deterministic output column
+///   to rename.
 /// - Everything else → `Unsupported` with a descriptive message.
 fn apply_projections(
     base: LogicalPlan,
@@ -1812,7 +1806,9 @@ fn apply_projections(
     // column" request — equivalent to no projection at all. Detect
     // the all-pass-through shape and skip the project node so the
     // resulting plan stays a bare TableScan where possible.
-    let all_pass_through = projections.iter().all(|p| matches!(p, Projection::Variable { .. }));
+    let all_pass_through = projections
+        .iter()
+        .all(|p| matches!(p, Projection::Variable { .. }));
     if all_pass_through {
         return Ok(base);
     }
@@ -1861,19 +1857,17 @@ fn projection_to_df_expr(p: &Projection) -> FederationResult<DfExpr> {
             "LogicalPlanBuilder: Projection::Expression (alias='{alias}') is not \
              yet implemented"
         ))),
-        Projection::Aggregation { function, alias, .. } => {
-            Err(FederationError::unsupported(format!(
-                "LogicalPlanBuilder: Projection::Aggregation (function={function:?}, \
+        Projection::Aggregation {
+            function, alias, ..
+        } => Err(FederationError::unsupported(format!(
+            "LogicalPlanBuilder: Projection::Aggregation (function={function:?}, \
                  alias='{alias}') is not yet implemented (needs GROUP BY)"
-            )))
-        }
-        Projection::AllProperties { variable } => {
-            Err(FederationError::unsupported(format!(
-                "LogicalPlanBuilder: Projection::AllProperties on '{variable}' is \
+        ))),
+        Projection::AllProperties { variable } => Err(FederationError::unsupported(format!(
+            "LogicalPlanBuilder: Projection::AllProperties on '{variable}' is \
                  a Cypher map-projection; SQL emits `SELECT *` only when the \
                  projection list is empty — use an empty Vec<Projection> instead"
-            )))
-        }
+        ))),
     }
 }
 
@@ -1884,9 +1878,8 @@ async fn build_table_scan<R: AdapterResolver + ?Sized>(
     scope: Option<WorkspaceScope<'_>>,
 ) -> FederationResult<LogicalPlan> {
     let adapter = adapters.resolve(&entry.mapping.source_id)?;
-    let provider = Arc::new(
-        SourceTableProvider::try_new(adapter, entry.mapping.relation.clone()).await?,
-    );
+    let provider =
+        Arc::new(SourceTableProvider::try_new(adapter, entry.mapping.relation.clone()).await?);
     let source = provider_as_source(provider);
 
     // Use the query variable as the DataFusion table alias so
@@ -1956,10 +1949,7 @@ mod tests {
             vec![],
         );
         ont.add_object_mapping(ObjectMappingDef::new(
-            "om-u",
-            "nt-user",
-            "csv-src",
-            "records",
+            "om-u", "nt-user", "csv-src", "records",
         ))
         .unwrap();
 
@@ -1987,7 +1977,9 @@ mod tests {
     #[tokio::test]
     async fn single_node_match_lowers_to_a_scan_plan() {
         let (ont, resolver) = ontology_and_resolver();
-        let spec = MatchPlanner::new(&ont).plan(&match_single("n", "User")).unwrap();
+        let spec = MatchPlanner::new(&ont)
+            .plan(&match_single("n", "User"))
+            .unwrap();
         let plan = build_match_plan(&spec, &resolver).await.unwrap();
 
         // The DataFusion plan kind should be `TableScan` for a
@@ -2020,8 +2012,12 @@ mod tests {
         // `mappings` vec; the builder must refuse.
         let _ = &mut ont;
         let resolver = InMemoryAdapterResolver::new();
-        let spec = MatchPlanner::new(&ont).plan(&match_single("n", "User")).unwrap();
-        let err = build_match_plan(&spec, &resolver).await.expect_err("must fail");
+        let spec = MatchPlanner::new(&ont)
+            .plan(&match_single("n", "User"))
+            .unwrap();
+        let err = build_match_plan(&spec, &resolver)
+            .await
+            .expect_err("must fail");
         assert!(matches!(err, FederationError::Unsupported(_)));
     }
 
@@ -2031,8 +2027,10 @@ mod tests {
         // Add a second node type + mapping + adapter so the
         // resolver side is clean — we only want to exercise the
         // multi-variable refusal.
-        ont.add_object_mapping(ObjectMappingDef::new("om-o", "nt-user", "csv-src", "records"))
-            .unwrap();
+        ont.add_object_mapping(ObjectMappingDef::new(
+            "om-o", "nt-user", "csv-src", "records",
+        ))
+        .unwrap();
         let _ = &mut resolver;
 
         let op = QueryOp::Match {
@@ -2068,9 +2066,13 @@ mod tests {
         // the execute path verifies; this test only checks the plan
         // shape (root is a Union node).
         let (mut ont, resolver) = ontology_and_resolver();
-        ont.add_object_mapping(ObjectMappingDef::new("om-u2", "nt-user", "csv-src", "records"))
+        ont.add_object_mapping(ObjectMappingDef::new(
+            "om-u2", "nt-user", "csv-src", "records",
+        ))
+        .unwrap();
+        let spec = MatchPlanner::new(&ont)
+            .plan(&match_single("n", "User"))
             .unwrap();
-        let spec = MatchPlanner::new(&ont).plan(&match_single("n", "User")).unwrap();
         assert_eq!(spec.scans[0].mappings.len(), 2);
         let plan = build_match_plan(&spec, &resolver).await.unwrap();
         match &plan {

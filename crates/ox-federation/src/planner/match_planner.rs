@@ -186,11 +186,8 @@ impl<'a> MatchPlanner<'a> {
                     label,
                     property_filters: _,
                 } => {
-                    let (target, mappings) = self.plan_node(
-                        label.as_ref(),
-                        &label_resolver,
-                        &mapping_resolver,
-                    )?;
+                    let (target, mappings) =
+                        self.plan_node(label.as_ref(), &label_resolver, &mapping_resolver)?;
                     scans.push(NodeScanSpec {
                         variable: variable.clone(),
                         target,
@@ -462,10 +459,7 @@ mod tests {
             "sample".into(),
             LocalizedText::default(),
             1,
-            vec![
-                node("nt-u", "User", vec![]),
-                node("nt-o", "Order", vec![]),
-            ],
+            vec![node("nt-u", "User", vec![]), node("nt-o", "Order", vec![])],
             vec![EdgeTypeDef {
                 id: "e-placed".into(),
                 label: gl("PLACED"),
@@ -710,9 +704,7 @@ mod tests {
         // Resolver pinned to "now" must filter the expired mapping
         // out → spec carries an unmapped scan.
         let planner = MatchPlanner::at(&ont, Utc::now());
-        let spec = planner
-            .plan(&match_single_node("n", Some("User")))
-            .unwrap();
+        let spec = planner.plan(&match_single_node("n", Some("User"))).unwrap();
         assert_eq!(spec.scans.len(), 1);
         assert!(
             spec.scans[0].mappings.is_empty(),
@@ -722,16 +714,12 @@ mod tests {
 
         // Resolver pinned to "two hours ago" sees the same mapping
         // as live — proves the planner reads `at`, not "now".
-        let planner_past =
-            MatchPlanner::at(&ont, Utc::now() - Duration::hours(2));
+        let planner_past = MatchPlanner::at(&ont, Utc::now() - Duration::hours(2));
         let spec_past = planner_past
             .plan(&match_single_node("n", Some("User")))
             .unwrap();
         assert_eq!(spec_past.scans[0].mappings.len(), 1);
-        assert_eq!(
-            spec_past.scans[0].mappings[0].mapping.relation,
-            "users_v1",
-        );
+        assert_eq!(spec_past.scans[0].mappings[0].mapping.relation, "users_v1",);
     }
 
     #[test]

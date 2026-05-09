@@ -12,10 +12,7 @@
 //! - [`error`] — federation-specific error variants that wrap
 //!   `datafusion::error::DataFusionError` and `ox_core::OxError`.
 
-#![cfg_attr(
-    test,
-    allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)
-)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub mod adapter_resolver;
 pub mod context;
@@ -27,9 +24,9 @@ pub use adapter_resolver::{AdapterResolver, InMemoryAdapterResolver};
 pub use context::FederationContext;
 pub use error::{FederationError, FederationResult};
 pub use planner::{
-    ExpandedTargets, HopMappingEntry, HopSpec, InterfaceExpander, LabelResolver,
-    MappingResolver, MatchPlanSpec, MatchPlanner, NodeScanSpec, ResolvedLabelTarget,
-    ResolvedMappings, ScanMappingEntry, TailClauses, WorkspaceScope, build_match_op,
-    build_match_plan, build_match_plan_with_projections, build_query_ir, build_query_ir_scoped,
+    ExpandedTargets, HopMappingEntry, HopSpec, InterfaceExpander, LabelResolver, MappingResolver,
+    MatchPlanSpec, MatchPlanner, NodeScanSpec, ResolvedLabelTarget, ResolvedMappings,
+    ScanMappingEntry, TailClauses, WorkspaceScope, build_match_op, build_match_plan,
+    build_match_plan_with_projections, build_query_ir, build_query_ir_scoped,
 };
 pub use table_provider::SourceTableProvider;

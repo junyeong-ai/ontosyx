@@ -13,9 +13,9 @@
 use chrono::{DateTime, Utc};
 
 use ox_ontology::OntologyIR;
+use ox_ontology::ir::EdgeTypeId;
 use ox_ontology::ir::NodeTypeId;
 use ox_ontology::mapping::{LinkMappingDef, ObjectMappingDef};
-use ox_ontology::ir::EdgeTypeId;
 
 use crate::error::{FederationError, FederationResult};
 
@@ -199,8 +199,7 @@ mod tests {
         relation: &str,
         precedence: u32,
     ) -> ObjectMappingDef {
-        let mut m =
-            ObjectMappingDef::new(id, node_type, source, relation);
+        let mut m = ObjectMappingDef::new(id, node_type, source, relation);
         m.precedence = precedence;
         m
     }
@@ -228,10 +227,14 @@ mod tests {
     #[test]
     fn multiple_mappings_sort_by_precedence_desc_stable_within_ties() {
         let mut ont = ontology_with(vec![node("nt-1", "User")]);
-        ont.add_object_mapping(with_precedence("om-low", "nt-1", "pg", "users_v1", 10)).unwrap();
-        ont.add_object_mapping(with_precedence("om-high", "nt-1", "pg", "users_v3", 200)).unwrap();
-        ont.add_object_mapping(with_precedence("om-mid-a", "nt-1", "pg", "users_v2_a", 100)).unwrap();
-        ont.add_object_mapping(with_precedence("om-mid-b", "nt-1", "pg", "users_v2_b", 100)).unwrap();
+        ont.add_object_mapping(with_precedence("om-low", "nt-1", "pg", "users_v1", 10))
+            .unwrap();
+        ont.add_object_mapping(with_precedence("om-high", "nt-1", "pg", "users_v3", 200))
+            .unwrap();
+        ont.add_object_mapping(with_precedence("om-mid-a", "nt-1", "pg", "users_v2_a", 100))
+            .unwrap();
+        ont.add_object_mapping(with_precedence("om-mid-b", "nt-1", "pg", "users_v2_b", 100))
+            .unwrap();
 
         let r = MappingResolver::new(&ont);
         let out = r.resolve_node_type(&NodeTypeId::new("nt-1")).unwrap();
