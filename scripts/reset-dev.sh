@@ -2,7 +2,7 @@
 # ============================================================
 # Reset the local dev environment to a clean state
 #
-# Clears:  ecommerce source DB, Neo4j graph data
+# Clears:  app Postgres, ecommerce source DB, Neo4j graph data
 # Checks:  Docker services running, API healthy
 # Safe to re-run multiple times (idempotent).
 #
@@ -32,7 +32,9 @@ NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7474}"
 NEO4J_USER="${NEO4J_USER:-neo4j}"
 NEO4J_PASS="${NEO4J_PASS:-ontosyx-dev}"
 
-API_URL="${ONTOSYX_API_URL:-http://localhost:3001/api}"
+API_URL="${ONTOSYX_API_URL:-http://localhost:3101/api}"
+COMPOSE_PROJECT="${COMPOSE_PROJECT_NAME:-$(basename "$ROOT_DIR")}"
+APP_PG_VOLUME="${APP_PG_VOLUME:-${COMPOSE_PROJECT}_pg_data}"
 
 echo "============================================"
 echo " Ontosyx Dev Environment Reset"
@@ -71,9 +73,42 @@ if [ "$SERVICES_OK" = false ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 2: Reset ecommerce source database
+# Step 2: Reset app Postgres database
 # ─────────────────────────────────────────────────────────────
-step "Step 2: Reset ecommerce source database"
+step "Step 2: Reset app Postgres database"
+
+if docker compose -f "$ROOT_DIR/docker-compose.yml" stop postgres >/dev/null; then
+    ok "Postgres stopped"
+else
+    fail "Postgres stop failed"
+fi
+
+docker compose -f "$ROOT_DIR/docker-compose.yml" rm -f postgres >/dev/null || true
+docker volume rm "$APP_PG_VOLUME" >/dev/null 2>&1 || true
+
+if docker compose -f "$ROOT_DIR/docker-compose.yml" up -d postgres >/dev/null; then
+    ok "Postgres recreated with empty pg_data volume"
+else
+    fail "Postgres recreate failed"
+fi
+
+for i in $(seq 1 30); do
+    if docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T postgres pg_isready -U ontosyx >/dev/null 2>&1; then
+        ok "Postgres is ready"
+        break
+    fi
+    if [ "$i" = "30" ]; then
+        fail "Postgres did not become ready"
+    else
+        info "Waiting for Postgres... (attempt $i/30)"
+        sleep 1
+    fi
+done
+
+# ─────────────────────────────────────────────────────────────
+# Step 3: Reset ecommerce source database
+# ─────────────────────────────────────────────────────────────
+step "Step 3: Reset ecommerce source database"
 
 ECOMMERCE_RESET="$ROOT_DIR/data/ecommerce/reset.sh"
 if [ -x "$ECOMMERCE_RESET" ]; then
@@ -87,9 +122,9 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 3: Clear Neo4j graph data
+# Step 4: Clear Neo4j graph data
 # ─────────────────────────────────────────────────────────────
-step "Step 3: Clear Neo4j graph data"
+step "Step 4: Clear Neo4j graph data"
 
 neo4j_query() {
     local query="$1"
@@ -164,9 +199,9 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 4: Wait for API health
+# Step 5: Wait for API health
 # ─────────────────────────────────────────────────────────────
-step "Step 4: API health check"
+step "Step 5: API health check"
 
 API_HEALTHY=false
 for i in $(seq 1 10); do
@@ -187,13 +222,14 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 5: Summary
+# Step 6: Summary
 # ─────────────────────────────────────────────────────────────
 step "Summary"
 
-echo "  Ecommerce DB:  reset and re-seeded"
-echo "  Neo4j:         all nodes, relationships, indexes, constraints cleared"
-echo "  API:           $([ "$API_HEALTHY" = true ] && echo "healthy" || echo "NOT reachable")"
+echo "  App Postgres:  empty pg_data volume"
+echo "  Ecommerce DB: reset and re-seeded"
+echo "  Neo4j:        all nodes, relationships, indexes, constraints cleared"
+echo "  API:          $([ "$API_HEALTHY" = true ] && echo "healthy" || echo "NOT reachable")"
 echo ""
 echo -e "${GREEN}Dev environment reset complete.${NC}"
 echo "Run the Korean E2E lifecycle test: bash scripts/e2e-korean.sh"

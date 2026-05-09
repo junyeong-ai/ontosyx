@@ -13,6 +13,7 @@
 #   ./scripts/dev.sh docker [up|down|reset|status]
 #   ./scripts/dev.sh log [be|fe]      Tail service logs
 #   ./scripts/dev.sh health           Run health checks
+#   ./scripts/dev.sh target [status|prune|clean]
 #   ./scripts/dev.sh clean            Full reset (docker volumes + rebuild)
 # ============================================================================
 set -euo pipefail
@@ -27,10 +28,14 @@ FE_PORT="${OX_FE_PORT:-3100}"
 PG_PORT=5436
 NEO4J_BOLT=7687
 NEO4J_HTTP=7474
+CARGO_PROFILE="${OX_CARGO_PROFILE:-dev}"
+CARGO_FEATURES="${OX_CARGO_FEATURES-source-all}"
 
 # ── Logs ────────────────────────────────────────────────────────
 BE_LOG="/tmp/ontosyx-be.log"
 FE_LOG="/tmp/ontosyx-fe.log"
+BE_SESSION="ontosyx-be-${BE_PORT}"
+FE_SESSION="ontosyx-fe-${FE_PORT}"
 
 # ── Colors (2026 modern palette — subtle, high-contrast) ───────
 R=$'\033[38;5;203m'    # Red (error/stopped)
@@ -63,6 +68,70 @@ _kill_port() {
   fi
 }
 
+_stop_screen_session() {
+  local session=$1
+  if command -v screen >/dev/null 2>&1; then
+    screen -S "$session" -X quit 2>/dev/null || true
+  fi
+}
+
+_screen_session_exists() {
+  local session=$1
+  command -v screen >/dev/null 2>&1 && screen -ls 2>/dev/null | grep -q "[.]${session}[[:space:]]"
+}
+
+_start_screen_session() {
+  local session=$1
+  local command=$2
+  if command -v screen >/dev/null 2>&1; then
+    _stop_screen_session "$session"
+    screen -dmS "$session" zsh -lc "$command"
+    return 0
+  fi
+  return 1
+}
+
+_be_process_alive() {
+  _screen_session_exists "$BE_SESSION" || pgrep -f "$(_be_binary)" >/dev/null 2>&1
+}
+
+_profile_dir() {
+  case "$CARGO_PROFILE" in
+    dev) echo "debug" ;;
+    *) echo "$CARGO_PROFILE" ;;
+  esac
+}
+
+_cargo() {
+  if command -v mise >/dev/null 2>&1 && [ -f "$ROOT_DIR/mise.toml" ]; then
+    (cd "$ROOT_DIR" && mise exec -- cargo "$@")
+    return
+  fi
+  cargo "$@"
+}
+
+_cargo_build_be() {
+  local feature_args=()
+  if [ -n "$CARGO_FEATURES" ]; then
+    feature_args=(--features "$CARGO_FEATURES")
+  fi
+  _cargo build --profile "$CARGO_PROFILE" "${feature_args[@]}" --bin ontosyx --manifest-path "$ROOT_DIR/Cargo.toml" 2>&1 \
+    | tail -3 | sed 's/^/  /'
+}
+
+_be_binary() {
+  echo "$ROOT_DIR/target/$(_profile_dir)/ontosyx"
+}
+
+_du_path() {
+  local path=$1
+  if [ -e "$path" ]; then
+    du -sh "$path" 2>/dev/null | awk '{print $1}'
+  else
+    printf "-"
+  fi
+}
+
 _wait_ready() {
   local port="$1" label="$2" max="${3:-60}" url="${4:-}"
   [ -z "$url" ] && url="http://localhost:${port}"
@@ -74,6 +143,24 @@ _wait_ready() {
     sleep 1
   done
   printf "\r  ${R}timeout waiting for ${label} (${max}s)${N}\n"
+  return 1
+}
+
+_wait_backend_ready() {
+  local max="${1:-90}" url="http://localhost:${BE_PORT}/api/health"
+  for i in $(seq 1 "$max"); do
+    if curl -s "$url" -o /dev/null --max-time 2 2>/dev/null; then
+      return 0
+    fi
+    if ! _be_process_alive; then
+      printf "\r  ${R}backend exited before it became ready${N}\n"
+      tail -50 "$BE_LOG" | sed 's/^/  /'
+      return 1
+    fi
+    printf "\r  ${D}waiting for backend... ${i}/${max}s${N}"
+    sleep 1
+  done
+  printf "\r  ${R}timeout waiting for backend (${max}s)${N}\n"
   return 1
 }
 
@@ -164,14 +251,17 @@ _start_be() {
   fi
 
   echo "  ${B}Building backend...${N}"
-  cargo build --bin ontosyx --manifest-path "$ROOT_DIR/Cargo.toml" 2>&1 | tail -3 | sed 's/^/  /'
+  _cargo_build_be
 
   echo "  ${B}Starting backend on :${BE_PORT}...${N}"
-  cd "$ROOT_DIR"
-  nohup cargo run --bin ontosyx > "$BE_LOG" 2>&1 &
-  cd - > /dev/null
+  : > "$BE_LOG"
+  if ! _start_screen_session "$BE_SESSION" "cd '$ROOT_DIR' && exec '$(_be_binary)' > '$BE_LOG' 2>&1"; then
+    cd "$ROOT_DIR"
+    nohup "$(_be_binary)" > "$BE_LOG" 2>&1 &
+    cd - > /dev/null
+  fi
 
-  if _wait_ready "$BE_PORT" "backend" 90 "http://localhost:${BE_PORT}/api/health"; then
+  if _wait_backend_ready 90; then
     echo ""
     echo "  ${OK} ${G}Backend ready${N} ${D}:${BE_PORT}${N}"
   else
@@ -183,6 +273,7 @@ _start_be() {
 }
 
 _stop_be() {
+  _stop_screen_session "$BE_SESSION"
   if ! _is_running $BE_PORT; then
     echo "  ${D}Backend not running${N}"
     return 0
@@ -203,9 +294,12 @@ _start_fe() {
   rm -f "$WEB_DIR/.next/dev/lock" 2>/dev/null || true
 
   echo "  ${B}Starting frontend on :${FE_PORT}...${N}"
-  cd "$WEB_DIR"
-  PORT=$FE_PORT nohup pnpm dev > "$FE_LOG" 2>&1 &
-  cd - > /dev/null
+  : > "$FE_LOG"
+  if ! _start_screen_session "$FE_SESSION" "cd '$WEB_DIR' && PORT='$FE_PORT' exec pnpm dev > '$FE_LOG' 2>&1"; then
+    cd "$WEB_DIR"
+    PORT=$FE_PORT nohup pnpm dev > "$FE_LOG" 2>&1 &
+    cd - > /dev/null
+  fi
 
   if _wait_ready "$FE_PORT" "frontend" 30; then
     echo ""
@@ -219,6 +313,7 @@ _start_fe() {
 }
 
 _stop_fe() {
+  _stop_screen_session "$FE_SESSION"
   if ! _is_running $FE_PORT; then
     echo "  ${D}Frontend not running${N}"
     return 0
@@ -238,6 +333,20 @@ _jq_or_die() {
   fi
 }
 
+_dev_cred() {
+  local name=$1
+  local value="${!name:-}"
+  if [ -n "$value" ]; then
+    printf "%s" "$value"
+    return 0
+  fi
+
+  local creds="$(_creds_file)"
+  if [ -f "$creds" ]; then
+    sed -nE "s/^export ${name}=\"(.*)\"$/\\1/p" "$creds" | head -1
+  fi
+}
+
 _health() {
   echo ""
   echo "  ${C}HEALTH CHECK${N}"
@@ -250,11 +359,13 @@ _health() {
     local resp
     resp=$(curl -s "http://localhost:${BE_PORT}/api/healthz" --max-time 5 2>/dev/null || echo '{}')
 
-    local status pg_ok neo4j_ok llm_model graph_backend
+    local status pg_ok graph_ok llm_status llm_provider llm_model graph_backend
     status=$(echo "$resp"        | jq -r '.status // "?"')
     pg_ok=$(echo "$resp"         | jq -r '.components.postgres // "?"')
-    neo4j_ok=$(echo "$resp"      | jq -r '.components.neo4j // "?"')
+    graph_ok=$(echo "$resp"      | jq -r '.components.graph // "?"')
     graph_backend=$(echo "$resp" | jq -r '.components.graph_backend // ""')
+    llm_status=$(echo "$resp"    | jq -r '.components.llm.status // "configured"')
+    llm_provider=$(echo "$resp"  | jq -r '.components.llm.provider // "?"')
     llm_model=$(echo "$resp"     | jq -r '.components.llm.model // "?"')
 
     case "$status" in
@@ -274,11 +385,11 @@ _health() {
       fi
     }
     _component_line "postgres" "$pg_ok"
-    _component_line "neo4j"    "$neo4j_ok"
+    _component_line "graph"    "$graph_ok"
     if [ -n "$graph_backend" ] && [ "$graph_backend" != "none" ]; then
       printf "  ${D}  %-9s %s${N}\n" "backend:" "$graph_backend"
     fi
-    printf "  ${D}  %-9s %s${N}\n" "llm:" "$llm_model"
+    printf "  ${D}  %-9s %s/%s (%s)${N}\n" "llm:" "$llm_provider" "$llm_model" "$llm_status"
   else
     echo "  ${NO} ${D}Backend not running${N}"
   fi
@@ -295,11 +406,71 @@ _health() {
   fi
 
   if _is_running $BE_PORT; then
-    local model_count
-    model_count=$(curl -s "http://localhost:${BE_PORT}/api/models/configs" \
-      -H "X-API-Key: dev-api-key-ontosyx" --max-time 5 2>/dev/null | \
-      jq -r '(.data // .) | if type == "array" then length else 0 end' 2>/dev/null || echo "0")
-    printf "  ${D}  %-9s %s${N}\n" "configs:" "$model_count"
+    local api_key workspace_id
+    api_key="$(_dev_cred OX_API_KEY)"
+    workspace_id="$(_dev_cred OX_WORKSPACE_ID)"
+
+    if [ -z "$api_key" ]; then
+      printf "  ${D}  %-9s %s${N}\n" "configs:" "skipped (run ./scripts/dev.sh seed)"
+    else
+      local headers=("-H" "x-api-key: ${api_key}")
+      if [ -n "$workspace_id" ]; then
+        headers+=("-H" "x-workspace-id: ${workspace_id}")
+      fi
+
+      local config_resp config_body config_status model_count
+      config_resp=$(curl -sS -w $'\n%{http_code}' "http://localhost:${BE_PORT}/api/models/configs" \
+        "${headers[@]}" --max-time 5 2>/dev/null || printf '\n000')
+      config_body="${config_resp%$'\n'*}"
+      config_status="${config_resp##*$'\n'}"
+      if [[ "$config_status" =~ ^2 ]]; then
+        model_count=$(echo "$config_body" | jq -r '(.data // .) | if type == "array" then length else 0 end' 2>/dev/null || echo "0")
+        printf "  ${D}  %-9s %s${N}\n" "configs:" "$model_count"
+      else
+        printf "  ${D}  %-9s ${R}%s${N}\n" "configs:" "HTTP ${config_status}"
+      fi
+
+      if [ -n "${llm_provider:-}" ] && [ "$llm_provider" != "?" ] && [ -n "${llm_model:-}" ] && [ "$llm_model" != "?" ]; then
+        local api_key_env model_body probe_resp probe_body probe_status probe_ok probe_message
+        case "$llm_provider" in
+          anthropic)
+            if [ -n "${OX_LLM__API_KEY:-}" ]; then
+              api_key_env="OX_LLM__API_KEY"
+            else
+              api_key_env="ANTHROPIC_API_KEY"
+            fi
+            ;;
+          openai) api_key_env="OPENAI_API_KEY" ;;
+          *) api_key_env="" ;;
+        esac
+        model_body=$(jq -cn \
+          --arg provider "$llm_provider" \
+          --arg model "$llm_model" \
+          --arg api_key_env "$api_key_env" \
+          '{
+            provider: $provider,
+            model_id: $model,
+            api_key_env: (if $api_key_env == "" then null else $api_key_env end),
+            region: null,
+            base_url: null
+          }')
+        probe_resp=$(curl -sS -w $'\n%{http_code}' -X POST "http://localhost:${BE_PORT}/api/models/test" \
+          "${headers[@]}" -H "content-type: application/json" --data-binary "$model_body" --max-time 20 2>/dev/null || printf '\n000')
+        probe_body="${probe_resp%$'\n'*}"
+        probe_status="${probe_resp##*$'\n'}"
+        if [[ "$probe_status" =~ ^2 ]]; then
+          probe_ok=$(echo "$probe_body" | jq -r '.data.ok // false' 2>/dev/null || echo "false")
+          probe_message=$(echo "$probe_body" | jq -r '.data.message // ""' 2>/dev/null || echo "")
+          if [ "$probe_ok" = "true" ]; then
+            printf "  ${D}  %-9s ${G}%s${N}\n" "llm-probe:" "ok"
+          else
+            printf "  ${D}  %-9s ${R}%s${N}\n" "llm-probe:" "${probe_message:-failed}"
+          fi
+        else
+          printf "  ${D}  %-9s ${R}%s${N}\n" "llm-probe:" "HTTP ${probe_status}"
+        fi
+      fi
+    fi
   fi
 
   echo ""
@@ -414,10 +585,50 @@ cmd_clean() {
   fi
   echo ""
   echo "  ${B}Rebuilding backend...${N}"
-  cargo build --bin ontosyx --manifest-path "$ROOT_DIR/Cargo.toml" 2>&1 | tail -3 | sed 's/^/  /'
+  _cargo_build_be
   echo ""
   echo "  ${G}Clean complete. Run ${W}./scripts/dev.sh seed${N}${G} to re-seed credentials.${N}"
   echo ""
+}
+
+cmd_target() {
+  local sub="${1:-status}"
+  case "$sub" in
+    status)
+      echo ""
+      echo "  ${C}TARGET CACHE${N}"
+      echo "  ${D}──────────────────────────────────────────${N}"
+      printf "  %-18s %s\n" "target" "$(_du_path "$ROOT_DIR/target")"
+      printf "  %-18s %s\n" "debug" "$(_du_path "$ROOT_DIR/target/debug")"
+      printf "  %-18s %s\n" "debug/deps" "$(_du_path "$ROOT_DIR/target/debug/deps")"
+      printf "  %-18s %s\n" "debug/incremental" "$(_du_path "$ROOT_DIR/target/debug/incremental")"
+      printf "  %-18s %s\n" "dev-fast" "$(_du_path "$ROOT_DIR/target/dev-fast")"
+      printf "  %-18s %s\n" "release" "$(_du_path "$ROOT_DIR/target/release")"
+      echo ""
+      ;;
+    prune)
+      _header
+      echo "  ${Y}Pruning reproducible dev build artifacts...${N}"
+      _stop_fe
+      _stop_be
+      rm -rf "$ROOT_DIR/target/debug" "$ROOT_DIR/target/dev-fast"
+      echo "  ${G}Removed target/debug and target/dev-fast${N}"
+      echo "  ${D}Release/container artifacts are preserved.${N}"
+      echo ""
+      ;;
+    clean)
+      _header
+      echo "  ${Y}Removing all Cargo build artifacts...${N}"
+      _stop_fe
+      _stop_be
+      _cargo clean --manifest-path "$ROOT_DIR/Cargo.toml"
+      echo "  ${G}Cargo target directory cleaned${N}"
+      echo ""
+      ;;
+    *)
+      echo "  ${R}Unknown: target ${sub}${N}. Use: status|prune|clean"
+      ;;
+  esac
 }
 
 # Path is a two-file contract — the FE proxy reads the same location
@@ -515,7 +726,7 @@ EOF
   echo "  ${D}curl example:${N}"
   echo "    source $creds"
   echo "    curl -H \"x-api-key: \$OX_API_KEY\" -H \"x-workspace-id: \$OX_WORKSPACE_ID\" \\"
-  echo "         http://localhost:${BE_PORT}/api/ontologies"
+  echo "         http://localhost:${BE_PORT}/api/ontology"
   echo ""
   echo "  ${Y}Restart the frontend if NEXT_PUBLIC_OX_DEV_WORKSPACE_ID changed:${N}"
   echo "    ./scripts/dev.sh fe restart  ${D}(API key flows through ${creds} live)${N}"
@@ -532,6 +743,7 @@ cmd_help() {
   echo "  ${W}status${N}           Show service status"
   echo "  ${W}health${N}           Run health checks"
   echo "  ${W}seed${N}             Mint dev API key + default workspace, write creds"
+  echo "  ${W}target${N} ${D}[status|prune|clean]${N}"
   echo ""
   echo "  ${W}be${N} ${D}[start|stop|restart|log]${N}"
   echo "  ${W}fe${N} ${D}[start|stop|restart|log]${N}"
@@ -544,6 +756,8 @@ cmd_help() {
   echo "  ${D}──────────────────────────────────────────${N}"
   echo "  ${D}OX_BE_PORT${N}  Backend port  ${D}(default: ${BE_PORT})${N}"
   echo "  ${D}OX_FE_PORT${N}  Frontend port ${D}(default: ${FE_PORT})${N}"
+  echo "  ${D}OX_CARGO_PROFILE${N} Backend profile ${D}(default: ${CARGO_PROFILE}; use dev-fast explicitly)${N}"
+  echo "  ${D}OX_CARGO_FEATURES${N} Backend features ${D}(active: ${CARGO_FEATURES:-none}; default source-all, set empty for lean build)${N}"
   echo ""
 }
 
@@ -558,6 +772,7 @@ main() {
     restart) cmd_restart ;;
     status)  _status ;;
     health)  _health ;;
+    target)  cmd_target "$@" ;;
     be)      cmd_be "$@" ;;
     fe)      cmd_fe "$@" ;;
     docker)  cmd_docker "$@" ;;

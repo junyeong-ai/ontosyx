@@ -21,7 +21,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FIXTURE="${REPO_ROOT}/tests/fixtures/korean_ecommerce.csv"
 API_HOST="${ONTOSYX_API_HOST:-http://localhost:3101}"
-API_KEY="${OX_API_KEY:-dev-api-key-ontosyx}"
+API_KEY="${OX_API_KEY:-}"
+WORKSPACE_ID="${OX_WORKSPACE_ID:-}"
 API="${API_HOST}/api"
 BACKEND_LOG="${ONTOSYX_BE_LOG:-/tmp/ontosyx-be-e2e-korean.log}"
 DRY_RUN="${1:-}"
@@ -41,6 +42,18 @@ log()  { printf '%s%s%s\n' "$CYAN" "$*" "$NC"; }
 pass() { printf '  %sPASS%s %s\n' "$GREEN" "$NC" "$*"; PASS=$((PASS+1)); TOTAL=$((TOTAL+1)); }
 fail() { printf '  %sFAIL%s %s\n' "$RED"   "$NC" "$*"; FAIL=$((FAIL+1)); TOTAL=$((TOTAL+1)); }
 warn() { printf '  %sWARN%s %s\n' "$YELLOW" "$NC" "$*"; }
+
+load_dev_credential() {
+  local name=$1
+  local creds="${ONTOSYX_DEV_CREDS:-/tmp/ontosyx-dev-creds}"
+  if [[ -n "${!name:-}" ]]; then
+    printf '%s' "${!name}"
+    return 0
+  fi
+  if [[ -f "$creds" ]]; then
+    sed -nE "s/^export ${name}=\"(.*)\"$/\\1/p" "$creds" | head -1
+  fi
+}
 
 cleanup() {
   local rc=$?
@@ -90,6 +103,15 @@ if [[ "$DRY_RUN" == "--dry-run" ]]; then
   exit 0
 fi
 
+API_KEY="$(load_dev_credential OX_API_KEY)"
+WORKSPACE_ID="$(load_dev_credential OX_WORKSPACE_ID)"
+if [[ -z "$API_KEY" ]]; then
+  API_KEY="e2e-$(openssl rand -hex 16)"
+  log "Generated ephemeral bootstrap API key for this E2E run."
+else
+  log "Using API key from environment or dev credential file."
+fi
+
 # ---------------------------------------------------------------------------
 # Boot infrastructure
 # ---------------------------------------------------------------------------
@@ -124,13 +146,13 @@ done
 # ---------------------------------------------------------------------------
 log ""
 log "=== Build backend (ox-api, release) ==="
-(cd "$REPO_ROOT" && cargo build --release -p ox-api) || { fail "cargo build failed"; exit 1; }
+(cd "$REPO_ROOT" && cargo build --release --features source-all -p ox-api) || { fail "cargo build failed"; exit 1; }
 pass "Backend build"
 
 log ""
 log "=== Start backend ==="
 : > "$BACKEND_LOG"
-(cd "$REPO_ROOT" && ./target/release/ontosyx >"$BACKEND_LOG" 2>&1 &)
+(cd "$REPO_ROOT" && OX_AUTH__BOOTSTRAP_KEY="$API_KEY" ./target/release/ontosyx >"$BACKEND_LOG" 2>&1 &)
 BACKEND_PID=$!
 log "Backend PID: $BACKEND_PID, logging to $BACKEND_LOG"
 
@@ -151,12 +173,33 @@ if [[ "$HEALTHY" -ne 1 ]]; then
 fi
 pass "Backend /api/health = ok"
 
+if [[ -z "$WORKSPACE_ID" ]]; then
+  WORKSPACE_ID=$(curl -sf -H "X-API-Key: $API_KEY" "$API/workspaces" | python3 -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin).get("data", [])
+    items = payload if isinstance(payload, list) else payload.get("items", [])
+    if items:
+        print(items[0].get("id", ""))
+except Exception:
+    pass
+' 2>/dev/null || true)
+fi
+if [[ -z "$WORKSPACE_ID" ]]; then
+  fail "Default workspace not returned"
+  tail -40 "$BACKEND_LOG" || true
+  exit 1
+fi
+pass "Default workspace resolved (id=$WORKSPACE_ID)"
+
+API_AUTH_HEADERS=(-H "X-API-Key: $API_KEY" -H "X-Workspace-Id: $WORKSPACE_ID")
+
 # ---------------------------------------------------------------------------
 # Idempotency: delete any prior "Korean E2E Fixture" projects.
 # ---------------------------------------------------------------------------
 log ""
 log "=== Cleanup previous test state ==="
-EXISTING=$(curl -sf -H "X-API-Key: $API_KEY" "$API/projects" || echo '{"projects":[]}')
+EXISTING=$(curl -sf "${API_AUTH_HEADERS[@]}" "$API/projects" || echo '{"projects":[]}')
 OLD_IDS=$(printf '%s' "$EXISTING" | python3 -c '
 import sys, json
 try:
@@ -169,7 +212,7 @@ for p in d.get("projects", d if isinstance(d, list) else []):
 ' 2>/dev/null || true)
 for id in $OLD_IDS; do
   [[ -z "$id" ]] && continue
-  curl -sf -X DELETE -H "X-API-Key: $API_KEY" "$API/projects/$id" >/dev/null || true
+  curl -sf -X DELETE "${API_AUTH_HEADERS[@]}" "$API/projects/$id" >/dev/null || true
   log "  Deleted stale project $id"
 done
 
@@ -199,7 +242,7 @@ sys.stdout.write(json.dumps(body, ensure_ascii=False))
 ' "$CSV_JSON")
 
 PROJ_RESP=$(curl -sf -X POST "$API/projects" \
-  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json; charset=utf-8" \
+  "${API_AUTH_HEADERS[@]}" -H "Content-Type: application/json; charset=utf-8" \
   --data-binary "$PROJ_BODY") || { fail "Project create HTTP failed"; tail -40 "$BACKEND_LOG"; exit 1; }
 
 PROJECT_ID=$(printf '%s' "$PROJ_RESP" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("id",""))')
@@ -223,7 +266,7 @@ fi
 log ""
 log "=== Design ontology (LLM) ==="
 DESIGN_RESP=$(curl -sf --max-time 180 -X POST "$API/projects/$PROJECT_ID/design" \
-  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+  "${API_AUTH_HEADERS[@]}" -H "Content-Type: application/json" \
   -d '{"source_description": "한국어 이커머스 주문 데이터: 사용자, 주문, 상품, 카테고리 관계"}') \
   || { fail "Design call failed"; tail -60 "$BACKEND_LOG"; exit 1; }
 
@@ -274,7 +317,7 @@ sys.stdout.write(json.dumps({
 
   local resp
   resp=$(curl -sf --max-time 120 -X POST "$API/chat/stream" \
-    -H "X-API-Key: $API_KEY" \
+    "${API_AUTH_HEADERS[@]}" \
     -H "Content-Type: application/json; charset=utf-8" \
     -H "Accept: text/event-stream" \
     --data-binary "$body" 2>&1 || true)
@@ -310,7 +353,7 @@ run_korean_query "Q5 평균 수량"        "주문 건당 평균 수량을 계�
 # ---------------------------------------------------------------------------
 log ""
 log "=== Cleanup ==="
-curl -sf -X DELETE -H "X-API-Key: $API_KEY" "$API/projects/$PROJECT_ID" >/dev/null || true
+curl -sf -X DELETE "${API_AUTH_HEADERS[@]}" "$API/projects/$PROJECT_ID" >/dev/null || true
 pass "Deleted test project"
 
 # ---------------------------------------------------------------------------

@@ -12,9 +12,9 @@
 #
 # Required env: `OX_TEST_DATABASE_URL` pointing at a Postgres role
 # with CREATE permission and the `vector`, `pg_trgm`,
-# `uuid-ossp`, `btree_gin` extensions installed. The test harness
-# applies every migration on first connect, so the database
-# starts empty.
+# `uuid-ossp`, `btree_gin` extensions installed. Use a freshly
+# dropped or dedicated test database so the single `0001_schema.sql`
+# baseline can create the schema from an empty migration ledger.
 #
 # Local dev:
 # ```sh

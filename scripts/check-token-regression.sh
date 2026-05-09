@@ -13,7 +13,7 @@
 #
 # Requirements:
 #   - Backend running at $ONTOSYX_API_HOST (default: http://localhost:3101)
-#   - $OX_API_KEY or X-API-Key acceptable
+#   - $OX_API_KEY or /tmp/ontosyx-dev-creds from `./scripts/dev.sh seed`
 #   - bench/token_baseline.json committed
 # =============================================================================
 
@@ -22,7 +22,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BASELINE="${REPO_ROOT}/bench/token_baseline.json"
 API_HOST="${ONTOSYX_API_HOST:-http://localhost:3101}"
-API_KEY="${OX_API_KEY:-dev-api-key-ontosyx}"
+API_KEY="${OX_API_KEY:-}"
 API="${API_HOST}/api"
 
 GREEN=$'\033[0;32m'
@@ -34,6 +34,29 @@ NC=$'\033[0m'
 if [[ ! -f "$BASELINE" ]]; then
   printf '%sERROR%s baseline missing: %s\n' "$RED" "$NC" "$BASELINE" >&2
   exit 2
+fi
+
+load_dev_credential() {
+  local name=$1
+  local creds="${ONTOSYX_DEV_CREDS:-/tmp/ontosyx-dev-creds}"
+  if [[ -n "${!name:-}" ]]; then
+    printf '%s' "${!name}"
+    return 0
+  fi
+  if [[ -f "$creds" ]]; then
+    sed -nE "s/^export ${name}=\"(.*)\"$/\\1/p" "$creds" | head -1
+  fi
+}
+
+API_KEY="$(load_dev_credential OX_API_KEY)"
+WORKSPACE_ID="$(load_dev_credential OX_WORKSPACE_ID)"
+if [[ -z "$API_KEY" ]]; then
+  printf '%sERROR%s missing API key. Run ./scripts/dev.sh seed or export OX_API_KEY.\n' "$RED" "$NC" >&2
+  exit 2
+fi
+API_AUTH_HEADERS=(-H "X-API-Key: $API_KEY")
+if [[ -n "$WORKSPACE_ID" ]]; then
+  API_AUTH_HEADERS+=(-H "X-Workspace-Id: $WORKSPACE_ID")
 fi
 
 # Bail early if the backend isn't reachable.
@@ -58,13 +81,16 @@ fi
 
 # ---------------------------------------------------------------------------
 # Iterate queries and call the chat/stream endpoint.
-# Each query uses a lightweight empty OntologyIR — the test is about prompt
-# budget per query, not correctness of results.
+# Each query uses a lightweight valid OntologyIR — the test is about prompt
+# budget per query, not data correctness. The IR must still satisfy the
+# same validation gate as production chat requests so this script cannot
+# silently pass against a stale request schema.
 # ---------------------------------------------------------------------------
-EMPTY_ONTOLOGY='{"node_types":[],"edge_types":[],"property_types":[]}'
+TOKEN_ONTOLOGY='{"schema_version":1,"id":"token-regression-fixture","name":"token_regression_fixture","description":{},"version":{"number":1},"node_types":[{"id":"11111111-1111-4111-8111-111111111111","label":"Customer","display_name":{},"description":{},"properties":[],"constraints":[]}],"edge_types":[],"indexes":[]}'
 
 PASS=0
 FAIL=0
+ENV_FAIL=0
 TOTAL=0
 
 printf '%s============================================%s\n' "$CYAN" "$NC"
@@ -132,15 +158,23 @@ req = {
     "ontology": json.loads(sys.argv[2]),
 }
 sys.stdout.write(json.dumps(req, ensure_ascii=False))
-' "$PROMPT" "$EMPTY_ONTOLOGY")
+' "$PROMPT" "$TOKEN_ONTOLOGY")
 
   # Capture usage. The server surfaces per-request usage in the SSE stream
   # as `event: usage` with data `{"input_tokens": N, "output_tokens": M}`.
-  RESP=$(curl -sf --max-time 60 -X POST "$API/chat/stream" \
-    -H "X-API-Key: $API_KEY" \
+  CURL_RESP=$(curl -sS -w $'\n%{http_code}' --max-time 60 -X POST "$API/chat/stream" \
+    "${API_AUTH_HEADERS[@]}" \
     -H "Content-Type: application/json; charset=utf-8" \
     -H "Accept: text/event-stream" \
-    --data-binary "$REQ" 2>/dev/null || echo "")
+    --data-binary "$REQ" 2>/dev/null || printf '\n000')
+  RESP="${CURL_RESP%$'\n'*}"
+  HTTP_STATUS="${CURL_RESP##*$'\n'}"
+  if [[ ! "$HTTP_STATUS" =~ ^2 ]]; then
+    printf '  %sFAIL%s %s: HTTP %s from chat/stream\n' "$RED" "$NC" "$qkey" "$HTTP_STATUS"
+    ENV_FAIL=$((ENV_FAIL + 1))
+    TOTAL=$((TOTAL + 1))
+    continue
+  fi
 
   USAGE_PROMPT=$(printf '%s' "$RESP" | python3 -c '
 import sys, json, re
@@ -177,11 +211,16 @@ done <<< "$QUERIES"
 
 printf '\n%s============================================%s\n' "$CYAN" "$NC"
 printf ' Results: %s%d passed%s, %s%d failed%s, %d total\n' \
-  "$GREEN" "$PASS" "$NC" "$RED" "$FAIL" "$NC" "$TOTAL"
+  "$GREEN" "$PASS" "$NC" "$RED" "$((FAIL + ENV_FAIL))" "$NC" "$TOTAL"
 printf '%s============================================%s\n' "$CYAN" "$NC"
 
+if [[ "$ENV_FAIL" -gt 0 ]]; then
+  printf '%sERROR%s %d request(s) failed before token usage could be measured.\n' "$RED" "$NC" "$ENV_FAIL" >&2
+  exit 2
+fi
+
 if [[ "$IS_PLACEHOLDER" == "yes" ]]; then
-  printf '%sNOTE%s placeholder mode — exit 0 regardless of results.\n' "$YELLOW" "$NC"
+  printf '%sNOTE%s placeholder mode — token budgets are recorded but not gated.\n' "$YELLOW" "$NC"
   exit 0
 fi
 

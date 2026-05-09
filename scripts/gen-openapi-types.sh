@@ -12,7 +12,11 @@ cd "$(dirname "$0")/.."
 # JsonSchema/ToSchema generation has room for nested structures
 # (`OntologyIR` → `RuleDef` → `ShaclConstraint::Or { branches:
 # Vec<ShaclConstraint> }` and similar self-referential variants).
-RUST_MIN_STACK=134217728 cargo run --quiet --bin dump_openapi -p ox-api > web/openapi.json
+if command -v mise >/dev/null 2>&1 && [ -f mise.toml ]; then
+  RUST_MIN_STACK=134217728 mise exec -- cargo run --quiet --bin dump_openapi -p ox-api > web/openapi.json
+else
+  RUST_MIN_STACK=134217728 cargo run --quiet --bin dump_openapi -p ox-api > web/openapi.json
+fi
 
 cd web
 pnpm exec openapi-typescript ./openapi.json -o src/types/api.generated.ts
