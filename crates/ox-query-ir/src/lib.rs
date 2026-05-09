@@ -4,10 +4,7 @@
 //! downstream consumer works against) and `PatternIR` (the canvas-
 //! ergonomic UI form). They round-trip via `compile / decompile`.
 
-#![cfg_attr(
-    test,
-    allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)
-)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub mod bindings;
 pub mod eval;
@@ -17,6 +14,7 @@ pub mod ontology_conformance;
 pub mod pattern;
 pub mod query;
 pub mod structured_match;
+pub mod widget;
 
 pub use insight::{InsightDef, InsightId};
 pub use ontology_conformance::unknown_labels_in_query;
@@ -34,3 +32,4 @@ pub use pattern::{
 };
 pub use query::QueryIR;
 pub use structured_match::StructuredMatchQuery;
+pub use widget::{WidgetHint, WidgetType};

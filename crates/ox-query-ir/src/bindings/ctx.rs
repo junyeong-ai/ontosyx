@@ -7,8 +7,8 @@
 
 use std::collections::HashMap;
 
-use ox_ontology::ir::OntologyIR;
 use crate::query::FieldRef;
+use ox_ontology::ir::OntologyIR;
 
 use super::{
     BindingKind, EdgeBinding, NodeBinding, PropertyBinding, PropertyUsageHint,
@@ -95,7 +95,12 @@ impl<'a> ResolverCtx<'a> {
     /// wrappers — the input strings are already known to be valid
     /// identifiers by the time we walk the IR.
     pub(super) fn bind_node_variable(&mut self, variable: &str, label: &str) {
-        if let Some(node) = self.ontology.node_types().iter().find(|n| n.label == *label) {
+        if let Some(node) = self
+            .ontology
+            .node_types()
+            .iter()
+            .find(|n| n.label == *label)
+        {
             self.var_nodes
                 .entry(variable.to_string())
                 .or_insert_with(|| (node.id.to_string(), node.label.to_string()));

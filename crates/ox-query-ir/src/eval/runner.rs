@@ -9,10 +9,10 @@ use std::future::Future;
 use std::pin::Pin;
 use std::time::Instant;
 
+use crate::query::{GraphPattern, PathElement, QueryIR, QueryOp};
 use ox_core::error::OxResult;
 use ox_core::graph_label::GraphLabel;
 use ox_ontology::ir::OntologyIR;
-use crate::query::{GraphPattern, PathElement, QueryIR, QueryOp};
 
 use super::cases::{EvalCase, EvalCategory, ExpectedOp};
 
@@ -529,8 +529,8 @@ fn extract_edge_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<Gra
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ox_core::graph_label::GraphLabel;
     use crate::query::*;
+    use ox_core::graph_label::GraphLabel;
     use ox_core::types::Direction;
 
     fn gl(s: &str) -> GraphLabel {

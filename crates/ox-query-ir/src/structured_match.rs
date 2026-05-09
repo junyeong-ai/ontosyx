@@ -47,11 +47,11 @@
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use ox_core::error::OxError;
 use crate::query::{
     AggFunction, ComparisonOp, Expr, GraphPattern, LogicalOp, OrderClause, Projection, QueryIR,
     QueryOp, SortDirection, StringOp, VarLength,
 };
+use ox_core::error::OxError;
 use ox_core::types::{Direction, PropertyValue, sanitize_variable};
 
 // ---------------------------------------------------------------------------

@@ -17,7 +17,9 @@ use ox_core::variable_name::VariableName;
 
 /// Named graph functions. Each variant maps to a specific Cypher
 /// function via [`GraphFunction::cypher_name`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum GraphFunction {
     // -- Aggregation --
@@ -150,7 +152,7 @@ fn default_query_ir_schema_version() -> u32 {
     QUERY_IR_SCHEMA_VERSION
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct QueryIR {
     /// On-wire struct shape version. Future incompatible layout changes
     /// bump it; deserialisation rejects newer values so a stale server
@@ -158,6 +160,7 @@ pub struct QueryIR {
     #[serde(default = "default_query_ir_schema_version")]
     pub schema_version: u32,
     /// The core query operation
+    #[schema(no_recursion)]
     pub operation: QueryOp,
     /// LIMIT clause
     pub limit: Option<usize>,
@@ -458,10 +461,9 @@ fn validate_expr_scope(
             Ok(())
         }
         // Literal, Param, Property, Exists — no inner Subquery reachable from here.
-        Expr::Literal { .. }
-        | Expr::Param { .. }
-        | Expr::Property { .. }
-        | Expr::Exists { .. } => Ok(()),
+        Expr::Literal { .. } | Expr::Param { .. } | Expr::Property { .. } | Expr::Exists { .. } => {
+            Ok(())
+        }
     }
 }
 
@@ -487,7 +489,7 @@ fn fmt_scope(scope: &HashSet<String>) -> String {
 
 /// Graph algorithm type — backend-agnostic.
 /// Each compiler maps these to native calls (e.g., Neo4j GDS, Neptune Analytics).
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum GraphAlgorithm {
     PageRank,
@@ -498,7 +500,7 @@ pub enum GraphAlgorithm {
 }
 
 /// Source for analytics computation.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AnalyticsSource {
     /// Run on all nodes/edges in the graph
@@ -506,6 +508,7 @@ pub enum AnalyticsSource {
     /// Run on nodes with specific labels
     Labels { labels: Vec<GraphLabel> },
     /// Run on a filtered subgraph
+    #[schema(no_recursion)]
     Subgraph { filter: Box<QueryOp> },
 }
 
@@ -513,10 +516,11 @@ pub enum AnalyticsSource {
 // QueryOp — top-level query operations
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum QueryOp {
     /// Pattern matching with optional filtering and projection
+    #[schema(no_recursion)]
     Match {
         patterns: Vec<GraphPattern>,
         filter: Option<Expr>,
@@ -540,6 +544,7 @@ pub enum QueryOp {
     },
 
     /// Aggregation over a sub-query
+    #[schema(no_recursion)]
     Aggregate {
         source: Box<QueryIR>,
         group_by: Vec<FieldRef>,
@@ -557,14 +562,17 @@ pub enum QueryOp {
     },
 
     /// UNION of multiple queries
+    #[schema(no_recursion)]
     Union { queries: Vec<QueryIR>, all: bool },
 
     /// Sequential chaining (WITH ... MATCH ...)
     /// Allows intermediate result passing between query steps
+    #[schema(no_recursion)]
     Chain { steps: Vec<ChainStep> },
 
     /// Subquery as a query step — runs a nested query inline.
     /// Compiles to Cypher CALL { WITH ... }
+    #[schema(no_recursion)]
     CallSubquery {
         inner: Box<QueryIR>,
         /// Variables to pass from outer to inner scope
@@ -572,6 +580,7 @@ pub enum QueryOp {
     },
 
     /// Mutation operations (CREATE, MERGE, DELETE, SET)
+    #[schema(no_recursion)]
     Mutate {
         /// Optional preceding MATCH for context
         context: Option<Box<QueryOp>>,
@@ -581,6 +590,7 @@ pub enum QueryOp {
 
     /// Run a graph analytics algorithm.
     /// Each compiler maps this to backend-native calls (e.g., Neo4j GDS).
+    #[schema(no_recursion)]
     Analytics {
         algorithm: GraphAlgorithm,
         source: AnalyticsSource,
@@ -607,6 +617,7 @@ pub enum QueryOp {
     /// dimension index — querying a 1536-dim vector against a
     /// 384-dim index is a typed compile-time error caught by
     /// the validator.
+    #[schema(no_recursion)]
     HybridSearch {
         request: crate::hybrid_retrieval::HybridSearchRequest,
     },
@@ -616,10 +627,11 @@ pub enum QueryOp {
 // GraphPattern — describes a subgraph pattern to match
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum GraphPattern {
     /// A single node: (variable:Label {props})
+    #[schema(no_recursion)]
     Node {
         variable: VariableName,
         label: Option<GraphLabel>,
@@ -628,6 +640,7 @@ pub enum GraphPattern {
 
     /// A relationship between two nodes:
     /// (source)-[variable:Label]->(target)
+    #[schema(no_recursion)]
     Relationship {
         variable: Option<VariableName>,
         label: Option<GraphLabel>,
@@ -644,21 +657,22 @@ pub enum GraphPattern {
 }
 
 /// Inline property filter within a pattern: {name: "Alice", age: 30}
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PropertyFilter {
     pub property: PropertyKey,
+    #[schema(no_recursion)]
     pub value: Expr,
 }
 
 /// Variable-length path specification
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct VarLength {
     pub min: Option<usize>,
     pub max: Option<usize>,
 }
 
 /// A single element in a path pattern
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PathElement {
     Node {
@@ -676,7 +690,7 @@ pub enum PathElement {
 // Expr — filter/where expressions (DB-agnostic expression tree)
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "expr_type", rename_all = "snake_case")]
 pub enum Expr {
     /// A literal value
@@ -706,6 +720,7 @@ pub enum Expr {
     },
 
     /// Binary comparison: left op right
+    #[schema(no_recursion)]
     Comparison {
         left: Box<Expr>,
         op: ComparisonOp,
@@ -713,6 +728,7 @@ pub enum Expr {
     },
 
     /// Logical combination: left AND/OR right
+    #[schema(no_recursion)]
     Logical {
         left: Box<Expr>,
         op: LogicalOp,
@@ -720,18 +736,22 @@ pub enum Expr {
     },
 
     /// Negation: NOT expr
+    #[schema(no_recursion)]
     Not { inner: Box<Expr> },
 
     /// IN check: expr IN [values]
+    #[schema(no_recursion)]
     In {
         expr: Box<Expr>,
         values: Vec<PropertyValue>,
     },
 
     /// NULL check: expr IS NULL / IS NOT NULL
+    #[schema(no_recursion)]
     IsNull { expr: Box<Expr>, negated: bool },
 
     /// String operations: STARTS WITH, ENDS WITH, CONTAINS
+    #[schema(no_recursion)]
     StringOp {
         left: Box<Expr>,
         op: StringOp,
@@ -740,6 +760,7 @@ pub enum Expr {
 
     /// Function call: function(args)
     #[serde(alias = "function")]
+    #[schema(no_recursion)]
     FunctionCall {
         #[serde(alias = "name")]
         function: GraphFunction,
@@ -748,9 +769,11 @@ pub enum Expr {
     },
 
     /// Pattern existence check: EXISTS { (a)-[:KNOWS]->(b) }
+    #[schema(no_recursion)]
     Exists { pattern: Box<GraphPattern> },
 
     /// CASE expression: simple or searched
+    #[schema(no_recursion)]
     Case {
         /// Optional operand for simple CASE (CASE expr WHEN ...)
         operand: Option<Box<Expr>>,
@@ -762,6 +785,7 @@ pub enum Expr {
 
     /// Subquery expression — evaluates a nested query and returns scalar/list result.
     /// Compiles to Cypher COUNT { ... } or CALL { ... } depending on context.
+    #[schema(no_recursion)]
     Subquery {
         query: Box<QueryIR>,
         /// Variables from outer scope to import into subquery
@@ -769,9 +793,11 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct WhenClause {
+    #[schema(no_recursion)]
     pub condition: Expr,
+    #[schema(no_recursion)]
     pub result: Expr,
 }
 
@@ -912,7 +938,9 @@ impl<'de> Deserialize<'de> for Expr {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ComparisonOp {
     Eq,
@@ -936,7 +964,9 @@ impl std::fmt::Display for ComparisonOp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum LogicalOp {
     And,
@@ -954,7 +984,9 @@ impl std::fmt::Display for LogicalOp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum StringOp {
     StartsWith,
@@ -978,7 +1010,7 @@ impl std::fmt::Display for StringOp {
 // Projection — RETURN clause
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Projection {
     /// A specific field: variable.field AS alias
@@ -995,10 +1027,12 @@ pub enum Projection {
     },
 
     /// An expression: expr AS alias
+    #[schema(no_recursion)]
     Expression { expr: Expr, alias: String },
 
     /// Aggregation: count(variable), sum(variable.field), etc.
     /// `argument` is `None` for wildcard-style calls like `count(*)`.
+    #[schema(no_recursion)]
     Aggregation {
         function: AggFunction,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1109,8 +1143,7 @@ impl<'de> Deserialize<'de> for Projection {
                         if let Some(field) = obj.get("field").and_then(|v| v.as_str()) {
                             Some(Box::new(Projection::Field {
                                 variable,
-                                field: PropertyKey::new(field)
-                                    .map_err(serde::de::Error::custom)?,
+                                field: PropertyKey::new(field).map_err(serde::de::Error::custom)?,
                                 alias: None,
                             }))
                         } else {
@@ -1145,15 +1178,18 @@ impl<'de> Deserialize<'de> for Projection {
 // Aggregation
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct AggregationExpr {
     pub function: AggFunction,
+    #[schema(no_recursion)]
     pub field: FieldRef,
     pub alias: String,
     pub distinct: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum AggFunction {
     Count,
@@ -1171,22 +1207,24 @@ pub enum AggFunction {
 // References & Ordering
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct FieldRef {
     pub variable: VariableName,
     pub field: Option<PropertyKey>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct NodeRef {
     pub variable: VariableName,
     pub label: Option<GraphLabel>,
+    #[schema(no_recursion)]
     pub property_filters: Vec<PropertyFilter>,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema, utoipa::ToSchema)]
 pub struct OrderClause {
     /// What to order by — a full projection (variable, field, aggregation, etc.)
+    #[schema(no_recursion)]
     pub projection: Projection,
     pub direction: SortDirection,
 }
@@ -1290,7 +1328,9 @@ impl OrderClause {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum SortDirection {
     Asc,
@@ -1301,7 +1341,9 @@ pub enum SortDirection {
 // Path algorithms
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum PathAlgorithm {
     ShortestPath,
@@ -1313,9 +1355,11 @@ pub enum PathAlgorithm {
 // Chain steps (WITH ... MATCH ... pattern)
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ChainStep {
+    #[schema(no_recursion)]
     pub pass_through: Vec<Projection>,
+    #[schema(no_recursion)]
     pub operation: QueryOp,
 }
 
@@ -1323,7 +1367,7 @@ pub struct ChainStep {
 // Mutations — CREATE, MERGE, DELETE, SET
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "mutation", rename_all = "snake_case")]
 pub enum MutateOp {
     /// CREATE (node)
@@ -1388,9 +1432,10 @@ pub enum MutateOp {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PropertyAssignment {
     pub property: PropertyKey,
+    #[schema(no_recursion)]
     pub value: Expr,
 }
 
@@ -1398,7 +1443,7 @@ pub struct PropertyAssignment {
 // QueryResult — runtime result carrier
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct QueryResult {
     /// Column names
     pub columns: Vec<String>,
@@ -1408,7 +1453,7 @@ pub struct QueryResult {
     pub metadata: QueryMetadata,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct QueryMetadata {
     /// Execution time in milliseconds
     pub execution_time_ms: u64,
@@ -1469,7 +1514,7 @@ pub struct QueryMetadata {
 /// through its i18n catalogue, the BE logs / fallbacks consume the
 /// English `message` rendering. Adding a UI language never requires
 /// touching emit sites.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, PartialEq, Eq)]
 pub struct QueryDiagnostic {
     /// Which validator emitted the diagnostic. Matches
     /// `CypherValidator::name()` (e.g. `"complexity"`,
@@ -1484,7 +1529,9 @@ pub struct QueryDiagnostic {
 /// Wire-stable severity for [`QueryDiagnostic`]. Lowercase-serialised
 /// so JSON clients can string-compare without knowing Rust enum
 /// conventions.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash)]
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, PartialEq, Eq, Hash,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum DiagnosticLevel {
     /// Strict-pass violation the permissive runtime let through.
@@ -1505,7 +1552,9 @@ pub enum DiagnosticLevel {
 ///
 /// Industry reference: Snowflake Cortex Analyst "show reasoning"
 /// surface, Looker drill-down, Palantir Foundry "how computed".
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, Default, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, PartialEq, Eq,
+)]
 pub struct QueryProvenance {
     /// The ontology IR id this query ran against.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1571,7 +1620,7 @@ pub struct QueryProvenance {
 /// resolved (a direct `SELECT col FROM t` projection) so the admin
 /// UI / downstream lineage tools never have to reverse-engineer the
 /// scan-to-projection mapping from the rendered Cypher / SQL.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, PartialEq, Eq)]
 pub struct ColumnLineage {
     /// The result-set column the consumer sees.
     pub output_column: String,
@@ -1736,7 +1785,8 @@ mod validate_scope_tests {
             order_by: vec![],
             as_of: None,
         };
-        ir.validate().expect("importing `p` defined by the Match should pass");
+        ir.validate()
+            .expect("importing `p` defined by the Match should pass");
     }
 
     #[test]
@@ -1811,7 +1861,8 @@ mod validate_scope_tests {
             order_by: vec![],
             as_of: None,
         };
-        ir.validate().expect("relationship endpoints must enter scope");
+        ir.validate()
+            .expect("relationship endpoints must enter scope");
     }
 
     #[test]

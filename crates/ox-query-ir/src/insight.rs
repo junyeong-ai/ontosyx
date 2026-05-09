@@ -99,13 +99,11 @@ define_id_newtype!(
 
 /// Persisted insight definition.
 ///
-/// `query_ir` and `original_provenance` are typed `JsonValue` on the
-/// wire so the OpenAPI spec stays import-friendly (the rich
-/// `QueryIR` / `QueryProvenance` schemas live in the generated
-/// `ox-query-ir` types and don't need to be re-emitted by every
-/// endpoint that just round-trips an opaque blob). The Rust API
-/// keeps the typed handles via [`InsightDef::query`] /
-/// [`InsightDef::provenance`].
+/// `query_ir` and `original_provenance` are stored as JSONB so the
+/// persistence layer can round-trip historical payloads, but the
+/// public wire contract is the canonical `QueryIR` /
+/// `QueryProvenance` schema. Rust callers keep typed accessors via
+/// [`InsightDef::query`] / [`InsightDef::provenance`].
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct InsightDef {
     pub id: InsightId,
@@ -122,25 +120,24 @@ pub struct InsightDef {
     /// `"relationship"`, `"summary"`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
-    /// Glossary terms the insight realises. The wire payload is a
-    /// `Vec<String>` of `GlossaryTermId`s — typed at the consumer
-    /// boundary so adding the field doesn't drag the full ontology
-    /// crate into the OpenAPI schema. The semantic axis: `tags` is
-    /// freeform admin shorthand; `concept_anchors` ties the insight
-    /// to the workspace's vocabulary (the 1-pager's
-    /// "용어 사전이 다리" surface), so cross-team filtering by
-    /// concept stays consistent even as tags drift.
+    /// Concepts the insight realises. The wire payload is a
+    /// `Vec<String>` of `ConceptId`s — typed at the consumer
+    /// boundary so this crate does not depend on the full ontology
+    /// crate. The semantic axis: `tags` is freeform admin shorthand;
+    /// `concept_anchors` ties the insight to stable workspace
+    /// concepts, so cross-team filtering remains consistent even as
+    /// glossary wording and tags drift.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub concept_anchors: Vec<String>,
     /// The query the insight runs (logical IR — survives backend /
     /// dialect changes). Wire shape = canonical `QueryIR` JSON.
-    #[schema(value_type = Object)]
+    #[schema(value_type = crate::query::QueryIR)]
     pub query_ir: serde_json::Value,
     /// Provenance the insight was originally computed against —
     /// ontology id + version + registry hashes. Wire shape =
     /// canonical `QueryProvenance` JSON.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = Option<Object>)]
+    #[schema(value_type = Option<crate::query::QueryProvenance>)]
     pub original_provenance: Option<serde_json::Value>,
     /// Author user id — owner of the insight; gates edit/delete in
     /// the admin UI.
@@ -208,11 +205,9 @@ impl InsightDef {
     ) -> InsightCompatibility {
         match self.ontology_id() {
             None => InsightCompatibility::ProvenanceMissing,
-            Some(saved) if saved != current_ontology_id => {
-                InsightCompatibility::OntologyMismatch {
-                    saved_ontology_id: saved,
-                }
-            }
+            Some(saved) if saved != current_ontology_id => InsightCompatibility::OntologyMismatch {
+                saved_ontology_id: saved,
+            },
             Some(_) => match self.ontology_version() {
                 Some(v) if v == current_version => InsightCompatibility::Compatible,
                 Some(saved) => InsightCompatibility::VersionDrift {

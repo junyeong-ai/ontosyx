@@ -21,7 +21,7 @@ use crate::pattern::PatternIR;
 /// for Cohere's `embed-multilingual-v3`); the platform stores
 /// the source model alongside the vector so consumers know
 /// which index to query against.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct Embedding {
     /// Dense vector representation. Per-dimension `f32` is the
     /// industry-standard precision for retrieval embeddings;
@@ -69,7 +69,7 @@ impl Embedding {
 /// future option once the platform's cost model has the data
 /// to pick weights informed by per-workspace retrieval
 /// quality stats.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FusionStrategy {
     /// Reciprocal Rank Fusion. For each result candidate, its
@@ -107,7 +107,7 @@ impl Default for FusionStrategy {
 /// the future `QueryOp::HybridSearch` variant; the variant
 /// itself is deferred (see module-level doc) but the payload
 /// type ships now so consumers can reference it.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct HybridSearchRequest {
     /// Vector query — embeddings of the operator's question
     /// (or a sub-question from the translation pipeline).
@@ -121,6 +121,7 @@ pub struct HybridSearchRequest {
     /// "within 2 hops of customer X"). `None` = no graph
     /// constraint.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schema(no_recursion)]
     pub graph_constraints: Option<PatternIR>,
     /// Score-fusion strategy. Defaults to
     /// `ReciprocalRankFusion { k: 60 }`.
@@ -202,15 +203,12 @@ mod tests {
         // `{"op":"hybrid_search","request":{...}}` — pin the
         // tag rendering + round-trip so a future serde rename
         // doesn't break stored fixtures silently.
-        use crate::query::{QueryIR, QueryOp, QUERY_IR_SCHEMA_VERSION};
+        use crate::query::{QUERY_IR_SCHEMA_VERSION, QueryIR, QueryOp};
         let ir = QueryIR {
             schema_version: QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::HybridSearch {
                 request: HybridSearchRequest {
-                    vector_query: Embedding::new(
-                        vec![0.1, 0.2, 0.3, 0.4],
-                        "all-MiniLM-L6-v2",
-                    ),
+                    vector_query: Embedding::new(vec![0.1, 0.2, 0.3, 0.4], "all-MiniLM-L6-v2"),
                     fulltext_query: Some("customer churn".into()),
                     graph_constraints: None,
                     fuse: FusionStrategy::default(),
@@ -234,7 +232,7 @@ mod tests {
         // A vector whose `dim` field doesn't match `vector.len()`
         // would surface as an opaque driver panic at the index
         // reader. Validator catches it before the runtime.
-        use crate::query::{QueryIR, QueryOp, QUERY_IR_SCHEMA_VERSION};
+        use crate::query::{QUERY_IR_SCHEMA_VERSION, QueryIR, QueryOp};
         let mut bad_emb = Embedding::new(vec![0.0; 4], "test");
         bad_emb.dim = 999; // corruption
         let ir = QueryIR {

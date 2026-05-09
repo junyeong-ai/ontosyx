@@ -5,12 +5,12 @@
 
 use ox_core::graph_label::GraphLabel;
 use ox_core::i18n::LocalizedText;
+use ox_core::property_key::PropertyKey;
+use ox_core::types::PropertyType;
 use ox_ontology::ir::{
     Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, OntologyIR,
     PropertyDef,
 };
-use ox_core::property_key::PropertyKey;
-use ox_core::types::PropertyType;
 
 use super::cases::{EvalCase, EvalCategory, ExpectedOp};
 
@@ -475,12 +475,7 @@ pub fn ecommerce_eval_cases() -> Vec<EvalCase> {
             question: "Customers who ordered products in the Electronics category".into(),
             ontology: ontology.clone(),
             expected_op: ExpectedOp::Match,
-            expected_node_labels: vec![
-                gl("Customer"),
-                gl("Order"),
-                gl("Product"),
-                gl("Category"),
-            ],
+            expected_node_labels: vec![gl("Customer"), gl("Order"), gl("Product"), gl("Category")],
             expected_edge_labels: vec![gl("PLACED"), gl("CONTAINS"), gl("BELONGS_TO")],
             description: "Multi-hop traversal through Order and Product to Category".into(),
         },

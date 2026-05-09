@@ -22,13 +22,14 @@ mod mutations;
 mod ops;
 mod patterns;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use ox_core::graph_label::GraphLabel;
-use ox_ontology::ir::OntologyIR;
-use ox_core::property_key::PropertyKey;
 use crate::query::QueryIR;
+use ox_core::graph_label::GraphLabel;
+use ox_core::property_key::PropertyKey;
 use ox_core::variable_name::VariableName;
+use ox_ontology::ir::OntologyIR;
 
 use ctx::ResolverCtx;
 
@@ -36,7 +37,7 @@ use ctx::ResolverCtx;
 // Output types
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema, utoipa::ToSchema)]
 pub struct ResolvedQueryBindings {
     pub node_bindings: Vec<NodeBinding>,
     pub edge_bindings: Vec<EdgeBinding>,
@@ -44,7 +45,9 @@ pub struct ResolvedQueryBindings {
 }
 
 /// Which kind of query operation produced this binding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum BindingKind {
     Match,
@@ -55,7 +58,7 @@ pub enum BindingKind {
 }
 
 /// Scope path segment for nested query constructs.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum ScopeSegment {
     Root,
@@ -64,7 +67,7 @@ pub enum ScopeSegment {
     ChainStep { index: usize },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct NodeBinding {
     pub variable: VariableName,
     pub node_id: String,
@@ -74,7 +77,7 @@ pub struct NodeBinding {
     pub scope_path: Vec<ScopeSegment>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct EdgeBinding {
     pub variable: Option<VariableName>,
     pub edge_id: String,
@@ -86,7 +89,8 @@ pub struct EdgeBinding {
     pub scope_path: Vec<ScopeSegment>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[schema(as = QueryPropertyBinding)]
 pub struct PropertyBinding {
     pub owner_variable: Option<VariableName>,
     pub property_name: PropertyKey,
@@ -99,7 +103,9 @@ pub struct PropertyBinding {
 }
 
 /// Where in the AST a property reference was encountered.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum PropertyUsageHint {
     PatternFilter,
@@ -143,13 +149,13 @@ pub fn resolve_query_bindings(query: &QueryIR, ontology: &OntologyIR) -> Resolve
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::query::*;
     use ox_core::graph_label::GraphLabel;
     use ox_core::i18n::LocalizedText;
-    use ox_ontology::ir::*;
     use ox_core::property_key::PropertyKey;
-    use crate::query::*;
     use ox_core::types::{Direction, PropertyType, PropertyValue};
     use ox_core::variable_name::VariableName;
+    use ox_ontology::ir::*;
 
     fn vn(s: &'static str) -> VariableName {
         VariableName::new(s).expect("test variable name literal must be valid")

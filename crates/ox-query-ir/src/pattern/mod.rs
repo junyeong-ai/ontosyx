@@ -34,11 +34,11 @@ use std::collections::HashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use ox_core::graph_label::GraphLabel;
 use crate::query::{
     Expr, GraphPattern, LogicalOp, OrderClause, Projection, PropertyFilter, QueryIR, QueryOp,
     VarLength,
 };
+use ox_core::graph_label::GraphLabel;
 use ox_core::types::Direction;
 use ox_core::variable_name::VariableName;
 
@@ -66,7 +66,7 @@ fn default_pattern_ir_schema_version() -> u32 {
 /// (which the UI used to mistake for "this query has no nodes yet")
 /// the decompiler now returns a `ReadOnlyReason` so the UI can render
 /// a clear "not editable: Aggregate query" state.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, PartialEq, Eq)]
 pub struct ReadOnlyReason {
     /// The QueryIR operation variant this PatternIR was decompiled
     /// from, spelled as the Rust variant name (`"Aggregate"`,
@@ -104,7 +104,7 @@ impl ReadOnlyReason {
 /// Root of the canvas representation. Each component (nodes, edges,
 /// filters, projections) is a flat list with stable per-entry ids so a
 /// frontend can address them individually in edit operations.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PatternIR {
     /// On-wire struct shape version.
     #[serde(default = "default_pattern_ir_schema_version")]
@@ -115,16 +115,19 @@ pub struct PatternIR {
     /// Edges between placed nodes. `source_node_id` / `target_node_id`
     /// reference [`PatternNode::id`] — never variable names.
     #[serde(default)]
+    #[schema(no_recursion)]
     pub edges: Vec<PatternEdge>,
     /// Standalone filter rows. A WHERE clause in QueryIR is split into
     /// one entry per AND-connected leaf so the UI can remove / edit
     /// each predicate in isolation.
     #[serde(default)]
+    #[schema(no_recursion)]
     pub filters: Vec<PatternFilter>,
     /// Output projections (RETURN clause). Carried as full
     /// [`Projection`] values — the canvas surfaces their shape in a
     /// "Return" panel rather than trying to render them as nodes.
     #[serde(default)]
+    #[schema(no_recursion)]
     pub projections: Vec<PatternProjection>,
     /// Canvas-wide view state (zoom, pan). Never emitted by `compile`.
     #[serde(default)]
@@ -138,6 +141,7 @@ pub struct PatternIR {
     /// ORDER BY clauses. Round-trip with QueryIR so a saved canvas
     /// reopens with the same sort order the user configured.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schema(no_recursion)]
     pub order_by: Vec<OrderClause>,
     /// `Some(_)` when this PatternIR came out of `decompile` for a
     /// QueryIR operation the canvas can't round-trip. `None` on a
@@ -182,13 +186,14 @@ impl Default for PatternIR {
 /// A single node on the canvas. `id` is the UI identity (stable across
 /// renames of `variable` / `label`); `variable` is the query binding
 /// that the edge's `source` / `target` will reference.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PatternNode {
     pub id: String,
     pub variable: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<GraphLabel>,
     #[serde(default)]
+    #[schema(no_recursion)]
     pub property_filters: Vec<PropertyFilter>,
     /// Canvas position. `None` means "let the UI auto-layout" — the
     /// default after `decompile`.
@@ -199,7 +204,7 @@ pub struct PatternNode {
 /// A relationship edge on the canvas. References nodes by their
 /// `PatternNode::id` (not by variable name) so renaming a variable
 /// doesn't break the visual link.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PatternEdge {
     pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -210,6 +215,7 @@ pub struct PatternEdge {
     pub target_node_id: String,
     pub direction: Direction,
     #[serde(default)]
+    #[schema(no_recursion)]
     pub property_filters: Vec<PropertyFilter>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub var_length: Option<VarLength>,
@@ -219,22 +225,24 @@ pub struct PatternEdge {
 /// expressions survive the round-trip; a multi-predicate WHERE splits
 /// into several `PatternFilter`s so the UI can surface each one as an
 /// independent row.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PatternFilter {
     pub id: String,
+    #[schema(no_recursion)]
     pub expr: Expr,
 }
 
 /// A RETURN-clause projection with a canvas-stable id.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PatternProjection {
     pub id: String,
+    #[schema(no_recursion)]
     pub projection: Projection,
 }
 
 /// Canvas view-state. None of these fields round-trip through
 /// `compile` — a loaded QueryIR hands back `LayoutHints::default()`.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct LayoutHints {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub zoom: Option<f64>,
@@ -245,7 +253,7 @@ pub struct LayoutHints {
 }
 
 /// A 2-D canvas coordinate.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct Position {
     pub x: f64,
     pub y: f64,
