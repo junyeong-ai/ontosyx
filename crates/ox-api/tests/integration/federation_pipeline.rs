@@ -36,9 +36,7 @@ use ox_federation::{
 use ox_ontology::OntologyIR;
 use ox_ontology::ir::NodeTypeDef;
 use ox_ontology::mapping::ObjectMappingDef;
-use ox_query_ir::query::{
-    GraphPattern, Projection, QueryIR, QueryOp, QUERY_IR_SCHEMA_VERSION,
-};
+use ox_query_ir::query::{GraphPattern, Projection, QUERY_IR_SCHEMA_VERSION, QueryIR, QueryOp};
 use ox_source::DataSourceAdapter;
 use ox_source::sample::CsvAdapter;
 

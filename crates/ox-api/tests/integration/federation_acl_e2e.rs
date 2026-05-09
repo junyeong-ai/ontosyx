@@ -36,13 +36,11 @@ use ox_core::variable_name::VariableName;
 use ox_federation::{
     FederationContext, InMemoryAdapterResolver, build_query_ir_scoped, context::WorkspaceRef,
 };
+use ox_graph_runtime::cypher::{AclAction, AclPolicySpec, AclSnapshot};
 use ox_ontology::OntologyIR;
 use ox_ontology::ir::NodeTypeDef;
 use ox_ontology::mapping::ObjectMappingDef;
-use ox_query_ir::query::{
-    GraphPattern, Projection, QueryIR, QueryOp,
-};
-use ox_graph_runtime::cypher::{AclAction, AclPolicySpec, AclSnapshot};
+use ox_query_ir::query::{GraphPattern, Projection, QueryIR, QueryOp};
 use ox_source::DataSourceAdapter;
 use ox_source::sample::CsvAdapter;
 
@@ -404,8 +402,7 @@ fn build_customer_ontology_with_csv(csv: &str) -> (OntologyIR, InMemoryAdapterRe
     .unwrap();
 
     let mut resolver = InMemoryAdapterResolver::new();
-    let adapter: Arc<dyn DataSourceAdapter> =
-        Arc::new(CsvAdapter::new(csv).expect("csv adapter"));
+    let adapter: Arc<dyn DataSourceAdapter> = Arc::new(CsvAdapter::new(csv).expect("csv adapter"));
     resolver.register("csv-crm", adapter);
 
     (ont, resolver)

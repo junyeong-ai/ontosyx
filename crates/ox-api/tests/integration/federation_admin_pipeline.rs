@@ -35,12 +35,10 @@ use ox_store::PostgresStore;
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
-    for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-        {
-            return Some(v);
-        }
+    if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+        && !v.is_empty()
+    {
+        return Some(v);
     }
     None
 }
@@ -122,7 +120,10 @@ async fn register_list_refresh_delete_round_trip_with_resolver_coherence() {
             .expect("upsert csv-demo")
     })
     .await;
-    assert!(!outcome.replaced, "first register for a source_id is an insert");
+    assert!(
+        !outcome.replaced,
+        "first register for a source_id is an insert"
+    );
 
     // LIST mirrors the GET /adapters handler — returns store rows.
     let listed = PostgresStore::with_workspace(ws_id, || async {
@@ -311,4 +312,3 @@ async fn concurrent_upsert_same_source_id_keeps_store_and_memory_coherent() {
     assert_eq!(descriptions.len(), 1);
     assert_eq!(descriptions[0].0.to_string(), "contested");
 }
-

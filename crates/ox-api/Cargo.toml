@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "ontosyx"
@@ -19,11 +20,12 @@ ox-graph-runtime = { workspace = true }
 ox-brain = { workspace = true }
 ox-agent = { workspace = true }
 ox-store = { workspace = true }
-ox-source = { workspace = true, features = ["duckdb"] }
+ox-text = { workspace = true }
+ox-source = { workspace = true }
 ox-federation = { workspace = true }
 arrow = { workspace = true }
-ox-memory = { workspace = true, features = ["onnx"] }
-branchforge = { workspace = true, features = ["aws"] }
+ox-memory = { workspace = true }
+branchforge = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true }
 tokio = { workspace = true }
@@ -43,6 +45,7 @@ tracing-opentelemetry = { workspace = true }
 anyhow = { workspace = true }
 arc-swap = { workspace = true }
 config = { workspace = true }
+dotenvy = { workspace = true }
 jsonwebtoken = { workspace = true }
 dashmap = { workspace = true }
 utoipa = { workspace = true }
@@ -58,6 +61,7 @@ tokio-stream = { workspace = true }
 async-stream = { workspace = true }
 url = "2.5.8"
 sha2 = { workspace = true }
+hex = { workspace = true }
 reqwest = { workspace = true }
 rand = { workspace = true }
 # Optional GCP Secret Manager resolver — enabled with feature `gcp-sm`.
@@ -65,7 +69,7 @@ rand = { workspace = true }
 base64 = { workspace = true, optional = true }
 
 [dev-dependencies]
-criterion = { version = "0.7", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 sqlx = { workspace = true }
 tempfile = { workspace = true }
 mockall = { workspace = true }
@@ -82,11 +86,23 @@ harness = false
 # entirely, so there is no runtime path to skip authentication.
 [features]
 test-helpers = []
+source-bigquery = ["ox-source/bigquery"]
+source-duckdb = ["ox-source/duckdb"]
+source-mongodb = ["ox-source/mongodb"]
+source-snowflake = ["ox-source/snowflake"]
+source-all = [
+    "source-bigquery",
+    "source-duckdb",
+    "source-mongodb",
+    "source-snowflake",
+]
+embedding-onnx = ["ox-memory/onnx"]
+llm-aws = ["branchforge/aws", "ox-agent/llm-aws", "ox-brain/llm-aws"]
 # GCP Secret Manager resolver. Off by default — the env: + file:
 # resolvers cover most deployments. Enable on GCP-hosted servers
 # that want to dereference `gcp-sm:` references through Application
 # Default Credentials.
-gcp-sm = ["dep:base64"]
+gcp-sm = ["dep:base64", "ox-source/gcp-auth"]
 
 
 [lints]

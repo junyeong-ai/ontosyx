@@ -20,12 +20,12 @@ use std::hint::black_box;
 
 use ox_compiler::GraphCompiler;
 use ox_compiler::cypher::CypherCompiler;
+use ox_core::types::{Direction, PropertyValue};
 use ox_core::{GraphLabel, PropertyKey, VariableName};
 use ox_query_ir::query::{
     AggFunction, AggregationExpr, ComparisonOp, Expr, FieldRef, GraphPattern, OrderClause,
     Projection, QueryIR, QueryOp, SortDirection,
 };
-use ox_core::types::{Direction, PropertyValue};
 
 fn vn(s: &'static str) -> VariableName {
     VariableName::new(s).expect("bench variable literal must be valid")
