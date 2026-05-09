@@ -3134,15 +3134,24 @@
           "kindOption": {
             "translateQuery": "translate_query — 자연어 → QueryIR (대표 온톨로지 필요)",
             "explain": "explain — 챗 스타일 답변 (그린필드 가능)",
-            "retrieveAnchors": "retrieve_anchors — IR 리트리벌 (precision/recall/MRR/NDCG)"
+            "retrieveAnchors": "retrieve_anchors — IR 리트리벌 (precision/recall/MRR/NDCG)",
+            "retrievalComparison": "retrieval_comparison — 하이브리드 vs 트리그램 베이스라인 비교"
           },
           "caseKeyLabel": "케이스 키",
           "caseKeyPlaceholder": "q01",
           "questionLabel": "질문",
           "questionPlaceholder": "이번 분기 가장 많이 판매된 제품을 알려주세요",
+          "surfaceLabel": "검색 표면",
+          "surfaceOption": {
+            "verifiedQuery": "verified_query — Vanna-style ICL 뱅크",
+            "communitySummary": "community_summary — Microsoft GraphRAG 커뮤니티",
+            "knowledgeEntry": "knowledge_entry — 학습된 보정/힌트"
+          },
           "topKLabel": "Top-K",
           "anchorIdsLabel": "골드 앵커 ID",
           "anchorIdsPlaceholder": "node_type:Customer, concept:c-vip",
+          "expectedIdsLabel": "골드 ID (콤마/공백 구분)",
+          "expectedIdsPlaceholder": "vq-aa, vq-bb 또는 leiden:0:7",
           "submit": "실행",
           "submitting": "실행 중…",
           "successToast": "케이스 `{caseKey}` 실행 완료",

@@ -21210,6 +21210,33 @@
                 "$ref": "#/components/schemas/RetrievalMetrics"
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "Side-by-side hybrid + trigram baseline retrieval over\nthe chosen surface. Each leg carries its own ranked list\nalongside IR metrics; the FE dashboard pivots\n`hybrid - trigram` per axis to surface where hybrid\nactually moves the needle.",
+            "required": [
+              "surface",
+              "hybrid",
+              "trigram",
+              "kind"
+            ],
+            "properties": {
+              "hybrid": {
+                "$ref": "#/components/schemas/RetrievalLeg"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "retrieval_comparison"
+                ]
+              },
+              "surface": {
+                "$ref": "#/components/schemas/RetrievalSurface"
+              },
+              "trigram": {
+                "$ref": "#/components/schemas/RetrievalLeg"
+              }
+            }
           }
         ],
         "description": "Observed outcome attached to an evaluation case after execution."
@@ -21382,6 +21409,41 @@
               },
               "question": {
                 "type": "string"
+              },
+              "top_k": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Hybrid-vs-baseline retrieval comparison. Same question\nruns through both the hybrid (RRF 3-or-more ranker) path\nand the trigram-only baseline against the chosen\nretrieval surface; precision@k / recall@k / MRR / NDCG@k\nland for each leg, plus per-axis lift on the\n[`EvaluationActual::RetrievalComparison`] envelope.\nDrives the dashboard chart that surfaces \"where does\nhybrid actually win?\" without re-running the prompt.",
+            "required": [
+              "question",
+              "surface",
+              "top_k",
+              "kind"
+            ],
+            "properties": {
+              "expected_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "retrieval_comparison"
+                ]
+              },
+              "question": {
+                "type": "string"
+              },
+              "surface": {
+                "$ref": "#/components/schemas/RetrievalSurface"
               },
               "top_k": {
                 "type": "integer",
@@ -23341,6 +23403,10 @@
             "$ref": "#/components/schemas/LocalizedText",
             "description": "Canonical preferred label. `LocalizedText` so deployments that\nsurface terms in multiple languages can ship one record per\nconcept (English `Customer`, Korean `고객`) instead of two\nduplicate records linked by ad-hoc convention."
           },
+          "term_pos": {
+            "$ref": "#/components/schemas/TermPos",
+            "description": "POS hint for the morphological tokenizer's user\ndictionary. Φ-text substrate compiles every Active term\ninto a lindera user-dict CSV row keyed by surface; the\nPOS field controls how lindera segments adjacent text\nagainst the term. Default [`TermPos::Auto`] derives the\ntag from the surface's script (Korean → Compound,\nEnglish-only → Foreign, mixed → Compound) — operator\noverrides per term when the heuristic misclassifies\n(e.g. a verb-form term `재인증하다` needs explicit\n[`TermPos::Verb`])."
+          },
           "valid_from": {
             "type": [
               "string",
@@ -24965,6 +25031,14 @@
           },
           "title": {
             "type": "string"
+          },
+          "tokenized_text": {
+            "type": "string",
+            "description": "Morphologically-tokenized projection of `title + content`,\nstamped at write time using the workspace's lindera+user-dict\ntokenizer. Drives the `searchable_tsv` GENERATED column +\nhybrid retrieval RRF lexical rank."
+          },
+          "tokenizer_dict_fingerprint": {
+            "type": "string",
+            "description": "sha256 of the workspace tokenizer dict at write time.\nBackfill cron retokenizes any row whose fingerprint is\nstale relative to the current canonical commit."
           },
           "updated_at": {
             "type": "string",
@@ -36155,6 +36229,32 @@
           }
         }
       },
+      "RetrievalLeg": {
+        "type": "object",
+        "description": "One leg of an [`EvaluationActual::RetrievalComparison`] —\neither the hybrid path or the trigram-only baseline.",
+        "required": [
+          "anchor_ids",
+          "hits",
+          "metrics"
+        ],
+        "properties": {
+          "anchor_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvaluationRetrievedAnchor"
+            }
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/RetrievalMetrics"
+          }
+        }
+      },
       "RetrievalLimits": {
         "type": "object",
         "description": "Closed budget for one retrieval invocation. Splitting\nnode-count + token-count is intentional — a graph that fits in\nthe node cap but blows the token budget after rendering still\ngets truncated to the token ceiling. Both axes guard\nindependently.",
@@ -36301,6 +36401,15 @@
       "RetrievalProfileId": {
         "type": "string",
         "description": "Stable identifier for a [`crate::retrieval::RetrievalProfile`].\nThe profile struct itself lands in Φ10 (GraphRAG retrieval as\ndata); the id type is declared early so [`EvaluationFingerprint`]\ncan pin the retrieval policy without a forward-declaration churn\nwhen Φ10 lands."
+      },
+      "RetrievalSurface": {
+        "type": "string",
+        "description": "The retrieval bank a [`EvaluationCaseInput::RetrievalComparison`]\ntargets. Each surface ships a hybrid path (RRF over trigram +\nFTS + optional pgvector) and a trigram-only baseline; the\ncomparison runs both legs and captures the lift.",
+        "enum": [
+          "verified_query",
+          "community_summary",
+          "knowledge_entry"
+        ]
       },
       "ReviewApprovalRequest": {
         "type": "object",
@@ -40537,6 +40646,19 @@
         ],
         "description": "Where the term originated. Drives UI affordances like a \"machine\nsuggestion\" badge that prompts a human to validate."
       },
+      "TermPos": {
+        "type": "string",
+        "description": "Closed POS surface the platform emits to lindera user\ndictionaries. Mirrors the subset of mecab-ko-dic tags the\n`ox-text` indexable-POS filter retains; emitting a non-keep\ntag would silently drop the dict entry at query time.\n\n`Auto` is the default — script-based heuristic lets\noperators add terms without thinking about POS unless they\nhit the rare misclassification edge.",
+        "enum": [
+          "auto",
+          "noun",
+          "proper_noun",
+          "verb",
+          "adjective",
+          "foreign",
+          "compound"
+        ]
+      },
       "TermRealisation": {
         "oneOf": [
           {
@@ -42272,6 +42394,14 @@
           },
           "status": {
             "$ref": "#/components/schemas/VerifiedQueryStatus"
+          },
+          "tokenized_text": {
+            "type": "string",
+            "description": "Application-side morphological tokenisation of\n`question` (workspace tokenizer + user dict). The DB\nderives `searchable_tsv` from this column; index-time\n(promote) + query-time (Brain ICL retrieval) thread the\nsame workspace tokenizer so recall stays consistent."
+          },
+          "tokenizer_dict_fingerprint": {
+            "type": "string",
+            "description": "Workspace user-dict fingerprint that produced\n`tokenized_text`. Diff against the workspace's current\nfingerprint identifies stale rows for the backfill task."
           },
           "updated_at": {
             "type": "string",

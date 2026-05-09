@@ -225,6 +225,42 @@ impl CommunitySummaryStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all, fields(
+        version = %version_id, question_len = question.len(), top_k = top_k,
+    ))]
+    async fn search_community_summaries_trigram_only(
+        &self,
+        version_id: Uuid,
+        question: &str,
+        top_k: u32,
+    ) -> OxResult<Vec<CommunitySummary>> {
+        super::require_workspace_context()?;
+        if question.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        let capped = top_k.clamp(1, 100) as i64;
+        // Trigram-only baseline. Title-weighted blend (1.5×)
+        // mirrors what the hybrid path's trgm CTE does, but no
+        // FTS / vector / RRF — pure pg_trgm similarity.
+        let rows: Vec<CommunitySummaryRow> = sqlx::query_as(&format!(
+            "SELECT {COMMUNITY_SUMMARY_COLUMNS}
+             FROM ontology_community_summaries
+             WHERE ontology_version_id = $1
+               AND (similarity(title, $2) > 0.05 OR similarity(summary, $2) > 0.05)
+             ORDER BY (similarity(title, $2) * 1.5 + similarity(summary, $2)) DESC,
+                      generated_at DESC
+             LIMIT $3",
+            COMMUNITY_SUMMARY_COLUMNS = COMMUNITY_SUMMARY_COLUMNS,
+        ))
+        .bind(version_id)
+        .bind(question)
+        .bind(capped)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(rows.into_iter().map(CommunitySummary::from).collect())
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, fields(
         version = %version_id,
         question_len = question_raw.len(),
         tokenized_len = question_tokenized.len(),

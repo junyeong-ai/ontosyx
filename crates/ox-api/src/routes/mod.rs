@@ -16,6 +16,7 @@ pub mod community_summaries;
 pub mod config;
 pub mod dashboards;
 pub mod evaluation;
+pub mod evaluation_retrieval;
 pub mod federation_admin;
 pub mod governance_audit;
 pub mod governance_routing;

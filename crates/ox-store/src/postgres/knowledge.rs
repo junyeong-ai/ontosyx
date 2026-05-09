@@ -411,6 +411,52 @@ impl KnowledgeStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all, fields(
+        question_len = question.len(), limit = limit,
+    ))]
+    async fn search_knowledge_entries_trigram_only(
+        &self,
+        question: &str,
+        ontology_name: &str,
+        ontology_version: i32,
+        limit: i64,
+    ) -> OxResult<Vec<KnowledgeEntry>> {
+        if question.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        let limit_capped = limit.clamp(1, 100);
+        // Title-weighted trigram blend (1.5×) on the same
+        // eligibility predicate the hybrid path uses. Confidence
+        // multiplies into the ORDER BY so operator-set trust
+        // breaks ties between equally-similar rows — same shape
+        // the hybrid path's outer ORDER BY layers on top of RRF.
+        let rows: Vec<KnowledgeEntryRow> = sqlx::query_as(
+            "SELECT id, workspace_id, ontology_name, ontology_version_min, ontology_version_max,
+                    kind, status, confidence, title, content, structured_data,
+                    version_checked, content_hash, source_execution_ids, source_session_id,
+                    affected_labels, affected_properties, created_by, reviewed_by, reviewed_at, review_notes,
+                    use_count, last_used_at, created_at, updated_at,
+                    tokenized_text, tokenizer_dict_fingerprint
+             FROM knowledge_entries
+             WHERE ontology_name = $1
+               AND status = 'approved'
+               AND ontology_version_min <= $2
+               AND (ontology_version_max IS NULL OR ontology_version_max >= $2)
+               AND (similarity(title, $3) > 0.05 OR similarity(content, $3) > 0.05)
+             ORDER BY ((similarity(title, $3) * 1.5 + similarity(content, $3)) * confidence) DESC,
+                      updated_at DESC
+             LIMIT $4",
+        )
+        .bind(ontology_name)
+        .bind(ontology_version)
+        .bind(question)
+        .bind(limit_capped)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        rows.into_iter().map(KnowledgeEntry::try_from).collect()
+    }
+
+    #[tracing::instrument(level = "debug", skip_all, fields(
         question_len = question_raw.len(),
         tokenized_len = question_tokenized.len(),
         has_embedding = query_embedding.is_some(),

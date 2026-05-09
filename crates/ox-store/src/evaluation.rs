@@ -282,6 +282,52 @@ pub enum EvaluationCaseInput {
         #[serde(default)]
         expected_anchor_ids: Vec<String>,
     },
+    /// Hybrid-vs-baseline retrieval comparison. Same question
+    /// runs through both the hybrid (RRF 3-or-more ranker) path
+    /// and the trigram-only baseline against the chosen
+    /// retrieval surface; precision@k / recall@k / MRR / NDCG@k
+    /// land for each leg, plus per-axis lift on the
+    /// [`EvaluationActual::RetrievalComparison`] envelope.
+    /// Drives the dashboard chart that surfaces "where does
+    /// hybrid actually win?" without re-running the prompt.
+    RetrievalComparison {
+        question: String,
+        surface: RetrievalSurface,
+        top_k: u32,
+        #[serde(default)]
+        expected_ids: Vec<String>,
+    },
+}
+
+/// The retrieval bank a [`EvaluationCaseInput::RetrievalComparison`]
+/// targets. Each surface ships a hybrid path (RRF over trigram +
+/// FTS + optional pgvector) and a trigram-only baseline; the
+/// comparison runs both legs and captures the lift.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RetrievalSurface {
+    /// Verified-query bank — `(question, query_ir)` pairs the
+    /// Brain consults as ICL exemplars (Φ11). Hybrid +
+    /// `search_verified_queries_for_icl` (trigram baseline).
+    VerifiedQuery,
+    /// Microsoft GraphRAG community summaries (Φ10). Hybrid +
+    /// `search_community_summaries_trigram_only` (baseline).
+    CommunitySummary,
+    /// Knowledge corrections / hints. Hybrid +
+    /// `search_knowledge_entries_trigram_only` (baseline).
+    KnowledgeEntry,
+}
+
+impl RetrievalSurface {
+    /// Stable wire string; powers metric naming convention
+    /// (`<surface>.<leg>.<axis>`) so dashboard pivots stay sortable.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::VerifiedQuery => "verified_query",
+            Self::CommunitySummary => "community_summary",
+            Self::KnowledgeEntry => "knowledge_entry",
+        }
+    }
 }
 
 impl EvaluationCaseInput {
@@ -289,7 +335,8 @@ impl EvaluationCaseInput {
         match self {
             Self::TranslateQuery { question, .. }
             | Self::Explain { question, .. }
-            | Self::RetrieveAnchors { question, .. } => question,
+            | Self::RetrieveAnchors { question, .. }
+            | Self::RetrievalComparison { question, .. } => question,
         }
     }
 
@@ -311,13 +358,18 @@ impl EvaluationCaseInput {
             } => Some(EvaluationExpected::AnchorSet {
                 anchor_ids: expected_anchor_ids.clone(),
             }),
+            Self::RetrievalComparison { expected_ids, .. } => Some(EvaluationExpected::AnchorSet {
+                anchor_ids: expected_ids.clone(),
+            }),
         }
     }
 
     pub fn requires_canonical_ontology(&self) -> bool {
         matches!(
             self,
-            Self::TranslateQuery { .. } | Self::RetrieveAnchors { .. }
+            Self::TranslateQuery { .. }
+                | Self::RetrieveAnchors { .. }
+                | Self::RetrievalComparison { .. }
         )
     }
 }
@@ -343,6 +395,9 @@ impl EvaluationExpected {
             EvaluationActual::RetrievedAnchors { anchor_ids, .. } => Self::AnchorSet {
                 anchor_ids: anchor_ids.clone(),
             },
+            EvaluationActual::RetrievalComparison { hybrid, .. } => Self::AnchorSet {
+                anchor_ids: hybrid.anchor_ids.clone(),
+            },
         }
     }
 }
@@ -363,6 +418,25 @@ pub enum EvaluationActual {
         hits: Vec<EvaluationRetrievedAnchor>,
         metrics: RetrievalMetrics,
     },
+    /// Side-by-side hybrid + trigram baseline retrieval over
+    /// the chosen surface. Each leg carries its own ranked list
+    /// alongside IR metrics; the FE dashboard pivots
+    /// `hybrid - trigram` per axis to surface where hybrid
+    /// actually moves the needle.
+    RetrievalComparison {
+        surface: RetrievalSurface,
+        hybrid: RetrievalLeg,
+        trigram: RetrievalLeg,
+    },
+}
+
+/// One leg of an [`EvaluationActual::RetrievalComparison`] —
+/// either the hybrid path or the trigram-only baseline.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct RetrievalLeg {
+    pub anchor_ids: Vec<String>,
+    pub hits: Vec<EvaluationRetrievedAnchor>,
+    pub metrics: RetrievalMetrics,
 }
 
 /// One ranked retrieval hit captured on a graph-RAG evaluation case.
@@ -1105,5 +1179,89 @@ mod tests {
         let v = serde_json::to_value(&r).unwrap();
         let back: RunComparisonReport = serde_json::from_value(v).unwrap();
         assert_eq!(back, r);
+    }
+
+    #[test]
+    fn retrieval_surface_wire_string_pinned() {
+        // Stable contract — every dashboard pivot keys metrics
+        // by these strings.
+        assert_eq!(RetrievalSurface::VerifiedQuery.as_str(), "verified_query");
+        assert_eq!(
+            RetrievalSurface::CommunitySummary.as_str(),
+            "community_summary"
+        );
+        assert_eq!(RetrievalSurface::KnowledgeEntry.as_str(), "knowledge_entry");
+    }
+
+    #[test]
+    fn retrieval_comparison_case_input_round_trips() {
+        let input = EvaluationCaseInput::RetrievalComparison {
+            question: "월간 활성 사용자 추이는?".into(),
+            surface: RetrievalSurface::CommunitySummary,
+            top_k: 10,
+            expected_ids: vec!["leiden:0:7".into(), "leiden:1:3".into()],
+        };
+        let v = serde_json::to_value(&input).unwrap();
+        // Wire shape pin: tag=`retrieval_comparison`, surface as
+        // snake_case, expected_ids as parallel array.
+        assert_eq!(v["kind"], "retrieval_comparison");
+        assert_eq!(v["surface"], "community_summary");
+        assert_eq!(v["top_k"], 10);
+        let back: EvaluationCaseInput = serde_json::from_value(v).unwrap();
+        match back {
+            EvaluationCaseInput::RetrievalComparison {
+                question,
+                surface,
+                top_k,
+                expected_ids,
+            } => {
+                assert_eq!(question, "월간 활성 사용자 추이는?");
+                assert_eq!(surface, RetrievalSurface::CommunitySummary);
+                assert_eq!(top_k, 10);
+                assert_eq!(expected_ids.len(), 2);
+            }
+            other => panic!("unexpected variant: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn retrieval_comparison_marks_canonical_required() {
+        let input = EvaluationCaseInput::RetrievalComparison {
+            question: "q".into(),
+            surface: RetrievalSurface::VerifiedQuery,
+            top_k: 5,
+            expected_ids: vec![],
+        };
+        // Comparison cases need the canonical ontology version
+        // for community / knowledge surface routing — same gate
+        // RetrieveAnchors uses.
+        assert!(input.requires_canonical_ontology());
+    }
+
+    #[test]
+    fn retrieval_comparison_question_accessor() {
+        let input = EvaluationCaseInput::RetrievalComparison {
+            question: "고객 LTV 계산?".into(),
+            surface: RetrievalSurface::KnowledgeEntry,
+            top_k: 3,
+            expected_ids: vec![],
+        };
+        assert_eq!(input.question(), "고객 LTV 계산?");
+    }
+
+    #[test]
+    fn retrieval_comparison_expected_collapses_to_anchor_set() {
+        let input = EvaluationCaseInput::RetrievalComparison {
+            question: "q".into(),
+            surface: RetrievalSurface::VerifiedQuery,
+            top_k: 5,
+            expected_ids: vec!["vq-aa".into(), "vq-bb".into()],
+        };
+        match input.expected() {
+            Some(EvaluationExpected::AnchorSet { anchor_ids }) => {
+                assert_eq!(anchor_ids, vec!["vq-aa".to_string(), "vq-bb".to_string()]);
+            }
+            other => panic!("expected AnchorSet, got {other:?}"),
+        }
     }
 }

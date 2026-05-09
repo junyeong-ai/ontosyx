@@ -75,6 +75,21 @@ pub trait KnowledgeStore: Send + Sync {
         limit: i64,
     ) -> OxResult<Vec<KnowledgeEntry>>;
 
+    /// Trigram-only baseline retrieval over the active knowledge
+    /// bank. Mirrors [`Self::hybrid_search_knowledge_entries`]'s
+    /// eligibility gates (`status = 'approved'`, ontology-version
+    /// window) but uses only `title` + `content` trigram
+    /// similarity — no FTS, no pgvector, no label boost.
+    /// Drives the evaluation loop's `RetrievalComparison` case
+    /// to surface the lift the hybrid path delivers.
+    async fn search_knowledge_entries_trigram_only(
+        &self,
+        question: &str,
+        ontology_name: &str,
+        ontology_version: i32,
+        limit: i64,
+    ) -> OxResult<Vec<KnowledgeEntry>>;
+
     /// Hybrid 4-ranker retrieval over the active knowledge bank.
     ///
     /// Reciprocal Rank Fusion (k = 60) over independent rankers,

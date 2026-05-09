@@ -78,6 +78,20 @@ pub trait CommunitySummaryStore: Send + Sync {
         top_k: u32,
     ) -> OxResult<Vec<CommunitySummary>>;
 
+    /// Trigram-only baseline retrieval. Same surface as
+    /// [`Self::search_community_summaries`] but explicitly
+    /// excludes the FTS + pgvector ranker arms — only `summary`
+    /// + `title` similarity contribute. Used by the evaluation
+    /// loop's `RetrievalComparison` case to measure the lift
+    /// hybrid retrieval delivers on top of the lexical-trigram
+    /// baseline. Production traffic uses the hybrid path.
+    async fn search_community_summaries_trigram_only(
+        &self,
+        version_id: Uuid,
+        question: &str,
+        top_k: u32,
+    ) -> OxResult<Vec<CommunitySummary>>;
+
     /// Reverse lookup: which communities contain this entity?
     /// Walks the `gin (member_logical_ids)` array index. The
     /// future agent path "operator picked this anchor — what

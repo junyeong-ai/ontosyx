@@ -6622,6 +6622,12 @@ export interface components {
             /** @enum {string} */
             kind: "retrieved_anchors";
             metrics: components["schemas"]["RetrievalMetrics"];
+        } | {
+            hybrid: components["schemas"]["RetrievalLeg"];
+            /** @enum {string} */
+            kind: "retrieval_comparison";
+            surface: components["schemas"]["RetrievalSurface"];
+            trigram: components["schemas"]["RetrievalLeg"];
         };
         /**
          * @description Axis tag for [`EvaluationMetricMetadata::Capture`] rows. One
@@ -6681,6 +6687,14 @@ export interface components {
             /** @enum {string} */
             kind: "retrieve_anchors";
             question: string;
+            /** Format: int32 */
+            top_k: number;
+        } | {
+            expected_ids?: string[];
+            /** @enum {string} */
+            kind: "retrieval_comparison";
+            question: string;
+            surface: components["schemas"]["RetrievalSurface"];
             /** Format: int32 */
             top_k: number;
         };
@@ -7503,6 +7517,19 @@ export interface components {
              */
             term: components["schemas"]["LocalizedText"];
             /**
+             * @description POS hint for the morphological tokenizer's user
+             *     dictionary. Φ-text substrate compiles every Active term
+             *     into a lindera user-dict CSV row keyed by surface; the
+             *     POS field controls how lindera segments adjacent text
+             *     against the term. Default [`TermPos::Auto`] derives the
+             *     tag from the surface's script (Korean → Compound,
+             *     English-only → Foreign, mixed → Compound) — operator
+             *     overrides per term when the heuristic misclassifies
+             *     (e.g. a verb-form term `재인증하다` needs explicit
+             *     [`TermPos::Verb`]).
+             */
+            term_pos?: components["schemas"]["TermPos"];
+            /**
              * Format: date-time
              * @description Inclusive lower bound on the term's validity period. `None`
              *     means "valid since the beginning of the ontology lineage".
@@ -8141,6 +8168,19 @@ export interface components {
                 [key: string]: unknown;
             };
             title: string;
+            /**
+             * @description Morphologically-tokenized projection of `title + content`,
+             *     stamped at write time using the workspace's lindera+user-dict
+             *     tokenizer. Drives the `searchable_tsv` GENERATED column +
+             *     hybrid retrieval RRF lexical rank.
+             */
+            tokenized_text?: string;
+            /**
+             * @description sha256 of the workspace tokenizer dict at write time.
+             *     Backfill cron retokenizes any row whose fingerprint is
+             *     stale relative to the current canonical commit.
+             */
+            tokenizer_dict_fingerprint?: string;
             /** Format: date-time */
             updated_at: string;
             /** Format: int64 */
@@ -12235,6 +12275,15 @@ export interface components {
             project: components["schemas"]["OntologyDraftView"];
         };
         /**
+         * @description One leg of an [`EvaluationActual::RetrievalComparison`] —
+         *     either the hybrid path or the trigram-only baseline.
+         */
+        RetrievalLeg: {
+            anchor_ids: string[];
+            hits: components["schemas"]["EvaluationRetrievedAnchor"][];
+            metrics: components["schemas"]["RetrievalMetrics"];
+        };
+        /**
          * @description Closed budget for one retrieval invocation. Splitting
          *     node-count + token-count is intentional — a graph that fits in
          *     the node cap but blows the token budget after rendering still
@@ -12345,6 +12394,14 @@ export interface components {
          *     when Φ10 lands.
          */
         RetrievalProfileId: string;
+        /**
+         * @description The retrieval bank a [`EvaluationCaseInput::RetrievalComparison`]
+         *     targets. Each surface ships a hybrid path (RRF over trigram +
+         *     FTS + optional pgvector) and a trigram-only baseline; the
+         *     comparison runs both legs and captures the lift.
+         * @enum {string}
+         */
+        RetrievalSurface: "verified_query" | "community_summary" | "knowledge_entry";
         ReviewApprovalRequest: {
             approved: boolean;
             /**
@@ -13848,6 +13905,18 @@ export interface components {
             kind: "imported_from";
         };
         /**
+         * @description Closed POS surface the platform emits to lindera user
+         *     dictionaries. Mirrors the subset of mecab-ko-dic tags the
+         *     `ox-text` indexable-POS filter retains; emitting a non-keep
+         *     tag would silently drop the dict entry at query time.
+         *
+         *     `Auto` is the default — script-based heuristic lets
+         *     operators add terms without thinking about POS unless they
+         *     hit the rare misclassification edge.
+         * @enum {string}
+         */
+        TermPos: "auto" | "noun" | "proper_noun" | "verb" | "adjective" | "foreign" | "compound";
+        /**
          * @description Executable realisation of a business concept — how the runtime
          *     decides membership / value at query time.
          *
@@ -14481,6 +14550,20 @@ export interface components {
              */
             question_hash: string;
             status: components["schemas"]["VerifiedQueryStatus"];
+            /**
+             * @description Application-side morphological tokenisation of
+             *     `question` (workspace tokenizer + user dict). The DB
+             *     derives `searchable_tsv` from this column; index-time
+             *     (promote) + query-time (Brain ICL retrieval) thread the
+             *     same workspace tokenizer so recall stays consistent.
+             */
+            tokenized_text?: string;
+            /**
+             * @description Workspace user-dict fingerprint that produced
+             *     `tokenized_text`. Diff against the workspace's current
+             *     fingerprint identifies stale rows for the backfill task.
+             */
+            tokenizer_dict_fingerprint?: string;
             /** Format: date-time */
             updated_at: string;
             /** Format: date-time */

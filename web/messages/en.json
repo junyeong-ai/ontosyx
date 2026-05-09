@@ -3134,8 +3134,17 @@
           "kindOption": {
             "translateQuery": "translate_query — NL → QueryIR (requires canonical ontology)",
             "explain": "explain — chat-style answer (greenfield friendly)",
-            "retrieveAnchors": "retrieve_anchors — IR retrieval (precision/recall/MRR/NDCG)"
+            "retrieveAnchors": "retrieve_anchors — IR retrieval (precision/recall/MRR/NDCG)",
+            "retrievalComparison": "retrieval_comparison — hybrid vs trigram baseline lift"
           },
+          "surfaceLabel": "Retrieval surface",
+          "surfaceOption": {
+            "verifiedQuery": "verified_query — Vanna-style ICL bank",
+            "communitySummary": "community_summary — Microsoft GraphRAG communities",
+            "knowledgeEntry": "knowledge_entry — Learned corrections / hints"
+          },
+          "expectedIdsLabel": "Gold-standard ids (comma / space separated)",
+          "expectedIdsPlaceholder": "vq-aa, vq-bb or leiden:0:7",
           "caseKeyLabel": "Case key",
           "caseKeyPlaceholder": "q01",
           "questionLabel": "Question",

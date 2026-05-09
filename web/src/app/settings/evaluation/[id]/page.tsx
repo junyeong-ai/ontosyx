@@ -291,18 +291,24 @@ export default function EvaluationDetailPage({
   const [executeCaseKey, setExecuteCaseKey] = useState("");
   const [executeQuestion, setExecuteQuestion] = useState("");
   // Retrieval-only inputs. Surface alongside the question textbox
-  // when the operator picks `retrieve_anchors`. Top-K defaults to
-  // 10 (the platform's standard retrieval working set); anchors
-  // accept the comma-separated `kind:logical_id` shape that
-  // matches the BE wire shape.
+  // when the operator picks `retrieve_anchors` or
+  // `retrieval_comparison`. Top-K defaults to 10 (the platform's
+  // standard retrieval working set); expected ids accept the
+  // comma-separated `kind:logical_id` shape that matches the BE
+  // wire shape.
   const [retrieveTopK, setRetrieveTopK] = useState(10);
   const [retrieveAnchorIds, setRetrieveAnchorIds] = useState("");
+  const [comparisonSurface, setComparisonSurface] = useState<
+    "verified_query" | "community_summary" | "knowledge_entry"
+  >("verified_query");
   const isRetrieve = executeKind === "retrieve_anchors";
+  const isComparison = executeKind === "retrieval_comparison";
+  const needsTopK = isRetrieve || isComparison;
   const canExecute =
     executeCaseKey.trim().length > 0 &&
     executeQuestion.trim().length > 0 &&
     !execute.isPending &&
-    (!isRetrieve || retrieveTopK >= 1);
+    (!needsTopK || retrieveTopK >= 1);
   const onExecute = () => {
     const caseKey = executeCaseKey.trim();
     const question = executeQuestion.trim();
@@ -311,6 +317,18 @@ export default function EvaluationDetailPage({
       request = { kind: "translate_query", question };
     } else if (executeKind === "explain") {
       request = { kind: "explain", question };
+    } else if (executeKind === "retrieval_comparison") {
+      const expected_ids = retrieveAnchorIds
+        .split(/[\s,]+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      request = {
+        kind: "retrieval_comparison",
+        question,
+        surface: comparisonSurface,
+        top_k: retrieveTopK,
+        expected_ids,
+      };
     } else {
       const expected_anchor_ids = retrieveAnchorIds
         .split(/[\s,]+/)
@@ -538,7 +556,34 @@ export default function EvaluationDetailPage({
               <option value="retrieve_anchors">
                 {t("detail.execute.kindOption.retrieveAnchors")}
               </option>
+              <option value="retrieval_comparison">
+                {t("detail.execute.kindOption.retrievalComparison")}
+              </option>
             </SettingsSelect>
+            {isComparison ? (
+              <SettingsSelect
+                label={t("detail.execute.surfaceLabel")}
+                value={comparisonSurface}
+                onChange={(e) =>
+                  setComparisonSurface(
+                    e.target.value as
+                      | "verified_query"
+                      | "community_summary"
+                      | "knowledge_entry",
+                  )
+                }
+              >
+                <option value="verified_query">
+                  {t("detail.execute.surfaceOption.verifiedQuery")}
+                </option>
+                <option value="community_summary">
+                  {t("detail.execute.surfaceOption.communitySummary")}
+                </option>
+                <option value="knowledge_entry">
+                  {t("detail.execute.surfaceOption.knowledgeEntry")}
+                </option>
+              </SettingsSelect>
+            ) : null}
             <SettingsInput
               label={t("detail.execute.caseKeyLabel")}
               placeholder={t("detail.execute.caseKeyPlaceholder")}
@@ -562,7 +607,7 @@ export default function EvaluationDetailPage({
                 : t("detail.execute.submit")}
             </Button>
           </div>
-          {isRetrieve ? (
+          {needsTopK ? (
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_3fr] md:items-end">
               <SettingsInput
                 label={t("detail.execute.topKLabel")}
@@ -577,8 +622,16 @@ export default function EvaluationDetailPage({
                 }}
               />
               <SettingsInput
-                label={t("detail.execute.anchorIdsLabel")}
-                placeholder={t("detail.execute.anchorIdsPlaceholder")}
+                label={
+                  isComparison
+                    ? t("detail.execute.expectedIdsLabel")
+                    : t("detail.execute.anchorIdsLabel")
+                }
+                placeholder={
+                  isComparison
+                    ? t("detail.execute.expectedIdsPlaceholder")
+                    : t("detail.execute.anchorIdsPlaceholder")
+                }
                 value={retrieveAnchorIds}
                 onChange={(e) => setRetrieveAnchorIds(e.target.value)}
               />

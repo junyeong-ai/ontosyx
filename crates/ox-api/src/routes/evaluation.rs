@@ -603,7 +603,11 @@ pub(crate) async fn execute_evaluation_case(
                     "workspace ontology has no committed version".to_string(),
                 )
             })?;
-        let ir = if matches!(req, EvaluationCaseInput::TranslateQuery { .. }) {
+        let ir = if matches!(
+            req,
+            EvaluationCaseInput::TranslateQuery { .. }
+                | EvaluationCaseInput::RetrievalComparison { .. }
+        ) {
             Some(
                 state
                     .store
@@ -659,6 +663,9 @@ pub(crate) async fn execute_evaluation_case(
     };
     let brain = Arc::clone(&state.brain);
     let nav_store = Arc::clone(&state.store);
+    let tokenizer_registry = Arc::clone(&state.tokenizer_registry);
+    let embedder = state.memory.as_ref().map(|m| Arc::clone(m.embedder()));
+    let workspace_id = ws.workspace_id;
     let started = std::time::Instant::now();
     // Outcome envelope carries the typed payload + the optional
     // `CallProvenance` from whichever LLM call produced it. The
@@ -774,6 +781,40 @@ pub(crate) async fn execute_evaluation_case(
                     };
                     Ok((payload, None))
                 }
+                EvaluationCaseInput::RetrievalComparison {
+                    question,
+                    surface,
+                    top_k,
+                    expected_ids,
+                } => {
+                    let Some(version_id) = version_id else {
+                        return Err(
+                            "internal: ontology version not resolved for retrieval_comparison case"
+                                .to_string(),
+                        );
+                    };
+                    let Some(ir) = ir.as_ref() else {
+                        return Err(
+                            "internal: ontology IR not loaded for retrieval_comparison case"
+                                .to_string(),
+                        );
+                    };
+                    crate::routes::evaluation_retrieval::execute_retrieval_comparison(
+                        crate::routes::evaluation_retrieval::ComparisonContext {
+                            store: nav_store.as_ref(),
+                            ir,
+                            version_id,
+                            workspace_id,
+                            tokenizer_registry: &tokenizer_registry,
+                            embedder: embedder.as_ref(),
+                            question: &question,
+                            surface,
+                            top_k,
+                            expected_ids: &expected_ids,
+                        },
+                    )
+                    .await
+                }
             }
         })
         .await;
@@ -861,6 +902,54 @@ pub(crate) async fn execute_evaluation_case(
                 .upsert_evaluation_metric(&row)
                 .await
                 .map_err(AppError::from)?;
+        }
+    }
+
+    // Hybrid-vs-baseline comparison: persist 8 metric rows
+    // (`<surface>.<leg>.<axis>`) so the dashboard's standard
+    // axis chart pivots both legs identically. FE computes
+    // `lift = hybrid - trigram` per axis on display — keeping
+    // lift derived rather than persisted means future
+    // re-runs that flip one leg's score don't drift the
+    // other axis's lift out of date.
+    if let Some(EvaluationActual::RetrievalComparison {
+        surface,
+        hybrid,
+        trigram,
+    }) = case.actual.as_ref()
+    {
+        let surface_tag = surface.as_str();
+        for (leg_tag, leg) in [("hybrid", hybrid), ("trigram", trigram)] {
+            let metric_metadata = EvaluationMetricMetadata::Retrieval {
+                k: leg.metrics.k,
+                topk_hit_count: leg.metrics.topk_hit_count,
+                expected_count: leg.metrics.expected_count,
+            };
+            let axes: [(&str, f64); 4] = [
+                ("precision_at_k", leg.metrics.precision_at_k),
+                ("recall_at_k", leg.metrics.recall_at_k),
+                ("mrr", leg.metrics.mrr),
+                ("ndcg_at_k", leg.metrics.ndcg_at_k),
+            ];
+            for (axis, score) in axes {
+                let name = format!("{surface_tag}.{leg_tag}.{axis}");
+                let row = EvaluationMetric {
+                    id: Uuid::now_v7(),
+                    case_id: case.id,
+                    workspace_id: ws.workspace_id,
+                    name,
+                    score,
+                    reasoning: None,
+                    metadata: metric_metadata.clone(),
+                    provenance_id: None,
+                    created_at: chrono::Utc::now(),
+                };
+                state
+                    .store
+                    .upsert_evaluation_metric(&row)
+                    .await
+                    .map_err(AppError::from)?;
+            }
         }
     }
 
