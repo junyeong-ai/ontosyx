@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
-import { Heading } from "@/components/ui/heading";
 import { SettingsInput } from "@/components/ui/form-input";
 import { toast } from "@/components/ui/toast";
 import {
@@ -88,14 +87,9 @@ export function RegressionPolicyForm() {
   };
 
   return (
-    <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">
-      <Heading level={2} size={5}>
-        {t("title")}
-      </Heading>
-      <p className="mt-1 text-xs text-foreground-muted">
-        {t("description")}
-      </p>
-      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-foreground-muted">{t("description")}</p>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
         <SettingsInput
           label={t("thresholdLabel")}
           type="number"
@@ -124,12 +118,14 @@ export function RegressionPolicyForm() {
           {update.isPending ? t("saving") : t("save")}
         </Button>
       </div>
-      <p id="threshold-help" className="mt-2 text-2xs text-foreground-muted">
-        {t("thresholdHelp")}
-      </p>
-      <p id="min-n-help" className="mt-1 text-2xs text-foreground-muted">
-        {t("minPairedNHelp")}
-      </p>
-    </section>
+      <div className="flex flex-col gap-1">
+        <p id="threshold-help" className="text-2xs text-foreground-muted">
+          {t("thresholdHelp")}
+        </p>
+        <p id="min-n-help" className="text-2xs text-foreground-muted">
+          {t("minPairedNHelp")}
+        </p>
+      </div>
+    </div>
   );
 }
