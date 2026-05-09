@@ -189,6 +189,11 @@ export default function WorkspaceSettingsPage() {
         </Button>
       }
     >
+      {/* Form-heavy page — width-clamp the content so input fields
+          stay within the readable 50–75-char range while the page
+          shell keeps the same `max-w-7xl` as every other settings
+          page (consistent group register). */}
+      <div className="max-w-3xl">
       {/* ── General ────────────────────────────────────────────── */}
       <section className="mt-6">
         <Heading level={2} size={6}>
@@ -320,6 +325,7 @@ export default function WorkspaceSettingsPage() {
 
       {/* ── Danger zone (admin only) ──────────────────────────── */}
       {isAdmin && <WorkspaceDangerZone workspace={workspace} />}
+      </div>
     </SettingsPageShell>
   );
 }

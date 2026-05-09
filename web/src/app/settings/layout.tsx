@@ -4,8 +4,6 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { SettingsCommandSource } from "@/components/settings/settings-command-source";
-import { isNarrowSettingsPage } from "@/lib/constants/settings";
-import { cn } from "@/lib/cn";
 import { useIsClient } from "@/hooks/use-is-client";
 import { useNavigationShortcuts } from "@/hooks/use-navigation-shortcuts";
 import { SessionExpiredOverlay } from "@/components/collab/session-expired-overlay";
@@ -36,10 +34,6 @@ export default function SettingsLayout({
   const pathname = usePathname();
   const t = useTranslations("settings.chrome");
   const tSkip = useTranslations("chrome.skipLinks");
-  // Wide-by-default; only pure-form pages opt into narrow. Match is
-  // prefix-aware so a deep-link inside an opted-in subtree stays
-  // width-consistent with its parent.
-  const isNarrow = isNarrowSettingsPage(pathname);
   const pageTitle = deriveTitle(pathname);
 
   // Prevent hydration mismatch: client-only state (useAuth, localStorage)
@@ -80,7 +74,7 @@ export default function SettingsLayout({
         tabIndex={0}
         className="flex-1 overflow-y-auto p-6 outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/50 focus-visible:ring-inset lg:p-8"
       >
-        <div className={cn("mx-auto", isNarrow ? "max-w-3xl" : "max-w-7xl")}>
+        <div className="mx-auto max-w-7xl">
           {/* Visually-hidden page title — subpages render their own
               human-facing heading via `SettingsSection`, which is now an
               `<h2>` to preserve the page hierarchy. */}
