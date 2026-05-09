@@ -123,7 +123,7 @@ export default function WorkbenchLayout({
             owns only `#main`; surface-specific targets live with the
             layout that actually renders the landmark, so axe never
             sees a skip link pointing at a missing element. */}
-        <nav aria-label={tSkip("label")} className="contents">
+        <nav aria-label={tSkip("labelWorkbench")} className="contents">
           <a
             href="#sidebar"
             className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-skip-link focus:rounded-md focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground-onbrand focus:outline-none focus:ring-2 focus:ring-brand-foreground/40 focus:ring-offset-2"

@@ -1070,7 +1070,10 @@
       }
     },
     "skipLinks": {
-      "label": "건너뛰기 링크",
+      "labelGlobal": "전역 건너뛰기 링크",
+      "labelSettings": "설정 건너뛰기 링크",
+      "labelWorkbench": "워크벤치 건너뛰기 링크",
+      "labelAccount": "계정 건너뛰기 링크",
       "toMain": "본문으로 건너뛰기",
       "toSidebar": "내비게이션으로 건너뛰기",
       "toInspector": "인스펙터로 건너뛰기"

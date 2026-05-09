@@ -1070,7 +1070,10 @@
       }
     },
     "skipLinks": {
-      "label": "Skip links",
+      "labelGlobal": "Page skip links",
+      "labelSettings": "Settings skip links",
+      "labelWorkbench": "Workbench skip links",
+      "labelAccount": "Account skip links",
       "toMain": "Skip to main content",
       "toSidebar": "Skip to navigation",
       "toInspector": "Skip to inspector"
