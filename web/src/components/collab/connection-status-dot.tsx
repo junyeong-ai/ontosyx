@@ -36,11 +36,24 @@ export function ConnectionStatusDot({ className }: { className?: string }) {
   // when something needs their attention.
   if (!VISIBLE_STATES.has(state)) return null;
 
+  // The terminal `closed` state is the most consequential — the
+  // collaboration session has stopped trying to reconnect. A bare
+  // red dot communicates only via colour, which fails WCAG 1.4.1
+  // for users with colour-vision deficiencies. Promote the marker
+  // to an inline pill with a label + dot so the meaning is legible
+  // without hover. Transient states (`connecting`, `reconnecting`)
+  // stay as the smaller pulse-only dot — the indicator is meant to
+  // *fade away* once the session steadies.
+  const isCritical = state === "closed";
+
   return (
     <Tooltip content={t(state)}>
       <div
         className={cn(
-          "flex h-5 w-5 items-center justify-center",
+          "flex items-center gap-1.5",
+          isCritical
+            ? "rounded-full bg-danger-surface px-2 py-0.5 ring-1 ring-inset ring-danger-border"
+            : "h-5 w-5 justify-center",
           className,
         )}
         role="status"
@@ -48,10 +61,15 @@ export function ConnectionStatusDot({ className }: { className?: string }) {
       >
         <span
           className={cn(
-            "block h-2 w-2 rounded-full",
+            "block h-2 w-2 shrink-0 rounded-full",
             COLOR_CLASSES[state],
           )}
         />
+        {isCritical && (
+          <span className="text-2xs font-medium text-danger-foreground">
+            {t(state)}
+          </span>
+        )}
       </div>
     </Tooltip>
   );

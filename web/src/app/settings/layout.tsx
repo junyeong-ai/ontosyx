@@ -1,9 +1,12 @@
 "use client";
 
+import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { SettingsCommandSource } from "@/components/settings/settings-command-source";
+import { MobileNavRoot } from "@/components/layout/mobile-nav-root";
+import { useAppStore } from "@/lib/store";
 import { useIsClient } from "@/hooks/use-is-client";
 import { useNavigationShortcuts } from "@/hooks/use-navigation-shortcuts";
 import { SessionExpiredOverlay } from "@/components/collab/session-expired-overlay";
@@ -33,8 +36,10 @@ export default function SettingsLayout({
 }) {
   const pathname = usePathname();
   const t = useTranslations("settings.chrome");
+  const tSidebar = useTranslations("chrome.sidebar");
   const tSkip = useTranslations("chrome.skipLinks");
   const pageTitle = deriveTitle(pathname);
+  const setMobileNavOpen = useAppStore((s) => s.setMobileNavOpen);
 
   // Prevent hydration mismatch: client-only state (useAuth, localStorage)
   // causes SSR/client tree divergence in the PAGE BODY. Defer only the
@@ -60,32 +65,37 @@ export default function SettingsLayout({
       </a>
     </nav>
     <div className="flex h-screen bg-surface-raised">
-      <SettingsSidebar />
+      <MobileNavRoot>
+        <SettingsSidebar />
+      </MobileNavRoot>
       <SessionExpiredOverlay />
-      <main
-        id="main"
-        // `tabIndex={0}` makes the scroll container reachable for
-        // keyboard users on read-only pages that have no focusable
-        // children of their own (e.g. settings/providers — `region`
-        // landmark must be focusable per WCAG 2.1 SC 2.1.1). The
-        // `focus-visible:` ring keeps the indicator visible only for
-        // keyboard activation, not mouse clicks — so casual scrolling
-        // doesn't paint a ring.
-        tabIndex={0}
-        className="flex-1 overflow-y-auto p-6 outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/50 focus-visible:ring-inset lg:p-8"
-      >
-        <div className="mx-auto max-w-7xl">
-          {/* Visually-hidden page title — subpages render their own
-              human-facing heading via `SettingsSection`, which is now an
-              `<h2>` to preserve the page hierarchy. */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex h-11 shrink-0 items-center border-b border-divider bg-surface-base px-3 md:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            aria-label={tSidebar("openMobileNav")}
+            className="-ms-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-foreground-muted transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)] hover:bg-surface-inset hover:text-foreground-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/40"
+          >
+            <Menu className="h-4 w-4" aria-hidden />
+          </button>
+          <span className="ms-2 text-sm font-medium text-foreground-strong">
+            {pageTitle ? t("pageTitle", { page: pageTitle }) : t("rootTitle")}
+          </span>
+        </div>
+        <main
+          id="main"
+          tabIndex={0}
+          className="flex-1 overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/50 focus-visible:ring-inset"
+        >
           <h1 className="sr-only">
             {pageTitle ? t("pageTitle", { page: pageTitle }) : t("rootTitle")}
           </h1>
           {mounted ? (
             <PageTransition motionKey={pathname}>{children}</PageTransition>
           ) : null}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
     <SettingsCommandSource />
     </AuthGuard>
