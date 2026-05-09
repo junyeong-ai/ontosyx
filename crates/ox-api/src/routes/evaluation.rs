@@ -1801,6 +1801,32 @@ pub(crate) async fn compare_evaluation_runs(
         .compare_evaluation_runs(q.baseline, q.candidate, policy)
         .await
         .map_err(AppError::from)?;
+
+    // Fan out the regression alerts to every channel subscribed
+    // to `retrieval_lift_regression`. Fire-and-forget so the
+    // diff response stays snappy regardless of webhook latency;
+    // failures land on `notification_logs.status = "failed"`
+    // for operator audit. `spawn_scoped` captures
+    // `WORKSPACE_ID` so the inner store calls (channel list,
+    // log insert) succeed under RLS.
+    if !report.retrieval_lift_regressions.is_empty() {
+        let store_clone = state.store.clone();
+        let ws_id = ws.workspace_id;
+        let baseline = q.baseline;
+        let candidate = q.candidate;
+        let alerts = report.retrieval_lift_regressions.clone();
+        crate::spawn_scoped::spawn_scoped(async move {
+            crate::notifications::dispatch_retrieval_lift_regression(
+                store_clone.as_ref(),
+                ws_id,
+                baseline,
+                candidate,
+                &alerts,
+            )
+            .await;
+        });
+    }
+
     Ok(ApiResponse::of(report))
 }
 

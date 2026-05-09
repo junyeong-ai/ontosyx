@@ -5701,7 +5701,8 @@
       },
       "event": {
         "quality_rule_failed": "Quality Rule Failed",
-        "quality_rule_passed": "Quality Rule Passed"
+        "quality_rule_passed": "Quality Rule Passed",
+        "retrieval_lift_regression": "Hybrid Lift Regression Detected"
       },
       "status": {
         "sent": "Sent",

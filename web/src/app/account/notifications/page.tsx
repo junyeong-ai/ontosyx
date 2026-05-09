@@ -40,11 +40,12 @@ const CHANNEL_TYPE_VALUES = ["slack_webhook", "generic_webhook"] as const;
 const EVENT_TYPE_VALUES = [
   "quality_rule_failed",
   "quality_rule_passed",
+  "retrieval_lift_regression",
 ] as const;
 type KnownEventType = (typeof EVENT_TYPE_VALUES)[number];
 
 function isKnownEventType(s: string): s is KnownEventType {
-  return s === "quality_rule_failed" || s === "quality_rule_passed";
+  return (EVENT_TYPE_VALUES as readonly string[]).includes(s);
 }
 
 type KnownStatus = "sent" | "failed";
