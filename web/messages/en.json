@@ -178,6 +178,9 @@
       "search-entities": {
         "label": "Search entities"
       },
+      "show-keyboard-shortcuts": {
+        "label": "Show keyboard shortcuts"
+      },
       "navigate-design": {
         "label": "Go to Design"
       },
@@ -987,6 +990,8 @@
       "modesAria": "Workspace modes",
       "operationsAria": "Operations",
       "panelTogglesAria": "Panel toggles",
+      "openMobileNav": "Open navigation",
+      "closeMobileNav": "Close navigation",
       "sectionWorkbench": "Workbench",
       "sectionOperations": "Operations",
       "modeEvaluation": "Evaluation",
@@ -1637,6 +1642,7 @@
           "title": "Audit Log",
           "description": "Track user actions, resource changes, and system events.",
           "empty": "No audit entries for the selected period",
+          "emptyHint": "Widen the time range, or new entries appear automatically as user actions land.",
           "tableAria": "Audit entries — scroll horizontally",
           "column": {
             "action": "Action",
@@ -2796,6 +2802,7 @@
           "statusChangeFailed": "Failed to update status",
           "deleted": "Deleted",
           "deleteFailed": "Delete failed",
+          "undo": "Undo",
           "bulkDeprecated": "{count} deprecated",
           "bulkFailed": "Failed",
           "bulk": {
@@ -3489,15 +3496,17 @@
       "stale": {
         "title": "Stale Concepts",
         "subtitle": "Types the daily cron flagged as unused for 180+ days. Approving a row records intent to deprecate — the actual ontology edit still goes through the normal edit-log path.",
-        "tabsLabel": "Status filter",
         "loading": "Loading…",
-        "tabs": {
-          "pending": "Pending",
-          "decided": "History"
+        "filter": {
+          "statusLabel": "Status",
+          "pending": "Pending ({count})",
+          "decided": "Decided ({count})",
+          "all": "All ({count})"
         },
         "empty": {
           "pending": "No stale-concept proposals pending. The cron writes fresh rows daily.",
-          "decided": "No decisions recorded yet."
+          "decided": "No decisions recorded yet.",
+          "all": "No stale-concept proposals on record."
         },
         "columns": {
           "type": "Type id",
@@ -3512,6 +3521,7 @@
           "review": "Review"
         },
         "selectAll": "Select all",
+        "selectAllRow": "Select row",
         "selectRow": "Select row {id}",
         "bulkSelectedCount": "{count} selected",
         "bulkBarLabel": "Bulk action bar",
@@ -3553,22 +3563,30 @@
       "ambiguity": {
         "title": "Ambiguity Resolution",
         "subtitle": "Columns whose values cannot be interpreted from schema alone become 'ambiguity contexts'. Resolve each one by mapping the values to a CodeSystem, a Glossary term, or an inline value map.",
-        "tabsLabel": "Status filter",
         "loading": "Loading…",
-        "tabs": {
+        "filter": {
+          "statusLabel": "Status",
+          "pending": "Needs attention ({count})",
+          "stale": "Re-check ({count})",
+          "resolved": "Resolved ({count})",
+          "all": "All ({count})"
+        },
+        "statusLabel": {
           "pending": "Needs attention",
-          "stale": "Stale (re-check)",
+          "stale": "Re-check",
           "resolved": "Resolved"
         },
         "empty": {
           "pending": "Nothing to resolve — every ambiguous column has an up-to-date resolution.",
           "stale": "No stale resolutions — every active resolution matches its context hash.",
-          "resolved": "No resolved ambiguities yet."
+          "resolved": "No resolved ambiguities yet.",
+          "all": "No ambiguity contexts detected."
         },
         "columns": {
           "source": "Source",
           "column": "Column",
           "kind": "Kind",
+          "status": "Status",
           "mapping": "Mapping",
           "detected": "Detected",
           "actions": "Actions"
@@ -3590,11 +3608,13 @@
           "resolved": "Resolution saved",
           "resolveFailed": "Failed to save resolution",
           "revoked": "Resolution revoked",
-          "revokeFailed": "Failed to revoke"
+          "revokeFailed": "Failed to revoke",
+          "undo": "Undo"
         },
         "bulk": {
           "selectAllAria": "Select all resolved ambiguities",
           "selectRowAria": "Select {column}",
+          "selectRowGeneric": "Select row",
           "selectedCount": "{count, plural, one {# selected} other {# selected}}",
           "clear": "Clear",
           "barLabel": "Bulk actions",
@@ -3666,6 +3686,7 @@
           "delete": "Delete"
         },
         "empty": "No quality rules configured",
+        "emptyHint": "Create your first SHACL-style rule to start automatic evaluation against the workspace ontology.",
         "ruleType": {
           "completeness": "completeness",
           "uniqueness": "uniqueness",

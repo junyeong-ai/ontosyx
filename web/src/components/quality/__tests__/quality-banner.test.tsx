@@ -58,7 +58,7 @@ describe("QualityBanner", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders nothing on the /settings/quality?tab=signals route", () => {
+  it("renders nothing on the /quality?tab=signals route", () => {
     // Even with active alerts, the banner is hidden on the details
     // page it otherwise links to — avoids a redundant banner right
     // above the full dashboard.
@@ -71,7 +71,7 @@ describe("QualityBanner", () => {
       },
     ];
     hookReturn.visible = true;
-    mockPathname = "/settings/quality?tab=signals";
+    mockPathname = "/quality?tab=signals";
     const { container } = render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <QualityBanner />
@@ -97,7 +97,7 @@ describe("QualityBanner", () => {
       screen.getByText(/SHACL pass rate dipped to 50% \(below 80%\)/),
     ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: /View signal details/i });
-    expect(link).toHaveAttribute("href", "/settings/quality?tab=signals");
+    expect(link).toHaveAttribute("href", "/quality?tab=signals");
   });
 
   it("reports the count of additional metrics when more than one is alerting", () => {

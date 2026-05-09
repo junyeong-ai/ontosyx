@@ -178,6 +178,9 @@
       "search-entities": {
         "label": "엔티티 검색"
       },
+      "show-keyboard-shortcuts": {
+        "label": "키보드 단축키 보기"
+      },
       "navigate-design": {
         "label": "디자인으로 이동"
       },
@@ -987,6 +990,8 @@
       "modesAria": "워크스페이스 모드",
       "operationsAria": "운영 surface",
       "panelTogglesAria": "패널 토글",
+      "openMobileNav": "내비게이션 열기",
+      "closeMobileNav": "내비게이션 닫기",
       "sectionWorkbench": "작업",
       "sectionOperations": "운영",
       "modeEvaluation": "평가",
@@ -1637,6 +1642,7 @@
           "title": "감사 로그",
           "description": "사용자 동작, 리소스 변경, 시스템 이벤트를 추적합니다.",
           "empty": "선택한 기간에 감사 기록이 없습니다",
+          "emptyHint": "기간을 늘리거나 사용자 작업이 발생하면 자동으로 기록이 누적됩니다.",
           "tableAria": "감사 기록 — 가로 스크롤 가능",
           "column": {
             "action": "동작",
@@ -2796,6 +2802,7 @@
           "statusChangeFailed": "상태를 업데이트하지 못했습니다",
           "deleted": "삭제됨",
           "deleteFailed": "삭제에 실패했습니다",
+          "undo": "되돌리기",
           "bulkDeprecated": "{count}개 폐기됨",
           "bulkFailed": "실패",
           "bulk": {
@@ -3489,15 +3496,17 @@
       "stale": {
         "title": "비활성 타입 관리",
         "subtitle": "180일 이상 미사용으로 감지된 타입 목록입니다. 승인 시 사용 중단 의사가 기록되며, 실제 온톨로지 편집은 편집 로그 경로를 따릅니다.",
-        "tabsLabel": "상태 필터",
         "loading": "불러오는 중…",
-        "tabs": {
-          "pending": "대기",
-          "decided": "결정 이력"
+        "filter": {
+          "statusLabel": "상태",
+          "pending": "대기 ({count})",
+          "decided": "결정됨 ({count})",
+          "all": "전체 ({count})"
         },
         "empty": {
           "pending": "대기 중인 제안이 없습니다. 크론이 매일 새 제안을 기록합니다.",
-          "decided": "결정 이력이 아직 없습니다."
+          "decided": "결정 이력이 아직 없습니다.",
+          "all": "기록된 비활성 타입 제안이 없습니다."
         },
         "columns": {
           "type": "타입 ID",
@@ -3512,6 +3521,7 @@
           "review": "검토"
         },
         "selectAll": "모두 선택",
+        "selectAllRow": "행 선택",
         "selectRow": "{id} 행 선택",
         "bulkSelectedCount": "{count}개 선택됨",
         "bulkBarLabel": "다중 선택 작업",
@@ -3553,22 +3563,30 @@
       "ambiguity": {
         "title": "모호성 해결",
         "subtitle": "스키마만으로 값의 의미를 해석할 수 없는 컬럼은 '모호성 컨텍스트'로 감지됩니다. 각 컨텍스트를 CodeSystem·용어·값 매핑 중 하나로 해결하세요.",
-        "tabsLabel": "상태 필터",
         "loading": "불러오는 중…",
-        "tabs": {
+        "filter": {
+          "statusLabel": "상태",
+          "pending": "해결 필요 ({count})",
+          "stale": "재검증 ({count})",
+          "resolved": "해결됨 ({count})",
+          "all": "전체 ({count})"
+        },
+        "statusLabel": {
           "pending": "해결 필요",
-          "stale": "스테일 (재검증)",
+          "stale": "재검증",
           "resolved": "해결됨"
         },
         "empty": {
           "pending": "해결이 필요한 항목이 없습니다. 모든 컨텍스트에 최신 결정이 연결되어 있습니다.",
           "stale": "스테일 결정이 없습니다. 모든 활성 결정이 컨텍스트 해시와 일치합니다.",
-          "resolved": "해결된 모호성이 아직 없습니다."
+          "resolved": "해결된 모호성이 아직 없습니다.",
+          "all": "감지된 모호성 컨텍스트가 없습니다."
         },
         "columns": {
           "source": "소스",
           "column": "컬럼",
           "kind": "유형",
+          "status": "상태",
           "mapping": "매핑",
           "detected": "감지일",
           "actions": "작업"
@@ -3590,11 +3608,13 @@
           "resolved": "결정이 저장되었습니다",
           "resolveFailed": "결정 저장에 실패했습니다",
           "revoked": "결정이 취소되었습니다",
-          "revokeFailed": "취소에 실패했습니다"
+          "revokeFailed": "취소에 실패했습니다",
+          "undo": "되돌리기"
         },
         "bulk": {
           "selectAllAria": "해결된 모호성 전체 선택",
           "selectRowAria": "{column} 선택",
+          "selectRowGeneric": "행 선택",
           "selectedCount": "{count}건 선택됨",
           "clear": "선택 해제",
           "barLabel": "일괄 작업",
@@ -3666,6 +3686,7 @@
           "delete": "삭제"
         },
         "empty": "등록된 품질 규칙이 없습니다",
+        "emptyHint": "온톨로지 데이터에 자동 평가될 첫 번째 SHACL-style 규칙을 만들어 시작하세요.",
         "ruleType": {
           "completeness": "완전성",
           "uniqueness": "고유성",

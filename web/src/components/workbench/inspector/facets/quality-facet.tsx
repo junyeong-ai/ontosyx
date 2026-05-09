@@ -25,7 +25,7 @@ export function QualityFacet({ gaps }: { gaps: QualityGap[] }) {
           {t("noGaps")}
         </p>
         <Link
-          href="/settings/quality?tab=signals"
+          href="/quality?tab=signals"
           className="text-2xs font-medium text-brand-foreground hover:underline"
         >
           {t("viewWorkspaceSignals")}
@@ -38,7 +38,7 @@ export function QualityFacet({ gaps }: { gaps: QualityGap[] }) {
     <div className="flex flex-col gap-2">
       <QualityGapsList gaps={gaps} />
       <Link
-        href="/settings/quality?tab=signals"
+        href="/quality?tab=signals"
         className="text-2xs font-medium text-brand-foreground hover:underline"
       >
         {t("viewWorkspaceSignals")}

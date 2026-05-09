@@ -68,7 +68,7 @@ export function RulesFacet({ ontology, entity, kind }: RulesFacetProps) {
               </div>
             </div>
             <Link
-              href={`/settings/quality?tab=rules&id=${encodeURIComponent(rule.id)}`}
+              href={`/quality?tab=rules&id=${encodeURIComponent(rule.id)}`}
               className="shrink-0 rounded px-2 py-1 text-2xs font-medium text-brand-foreground hover:bg-brand-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring-default"
             >
               {t("openLink")}

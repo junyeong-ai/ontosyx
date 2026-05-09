@@ -64,6 +64,13 @@ export default async function RootLayout({
       lang={locale}
       dir={dir}
       className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable}`}
+      // The pre-paint theme bootstrap below adds `.dark` to <html>
+      // synchronously based on localStorage / system preference, so
+      // the post-script className diverges from the server-rendered
+      // one. The mismatch is intentional and benign — suppress the
+      // hydration warning rather than skipping the script and
+      // accepting a flash of light theme on dark-pinned workspaces.
+      suppressHydrationWarning
     >
       <head>
         {/* Theme bootstrap — runs before first paint to apply the

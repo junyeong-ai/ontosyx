@@ -122,43 +122,44 @@ const DEFAULT_MODES: readonly WorkbenchMode[] = [
   defaultMode("branches", "modeBranches", GitFork),
   defaultMode("recipes", "modeRecipes", LineChart),
   // --- Operations ---------------------------------------------------------
-  // Workspace-level monitoring + action queues. Daily-visit surfaces
-  // get top-level navigation parity with workbench tools; the underlying
-  // route stays under `/settings/*` until a follow-up URL migration.
+  // Workspace-level monitoring + action queues. Routes sit at the
+  // same top-level depth as workbench tools so the navigation
+  // hierarchy matches mental model — operate verbs beside build
+  // verbs, not buried inside settings.
   {
     id: "evaluation",
     category: "operations",
     labelKey: "modeEvaluation",
     icon: FlaskConical,
-    href: "/settings/evaluation",
+    href: "/evaluation",
   },
   {
     id: "approvals",
     category: "operations",
     labelKey: "modeApprovals",
     icon: ShieldCheck,
-    href: "/settings/governance/approvals",
+    href: "/approvals",
   },
   {
     id: "audit",
     category: "operations",
     labelKey: "modeAudit",
     icon: History,
-    href: "/settings/governance/audit",
+    href: "/audit",
   },
   {
     id: "quality",
     category: "operations",
     labelKey: "modeQuality",
     icon: CircleCheck,
-    href: "/settings/quality",
+    href: "/quality",
   },
   {
     id: "knowledgeBase",
     category: "operations",
     labelKey: "modeKnowledgeBase",
     icon: BookOpen,
-    href: "/settings/knowledge/base",
+    href: "/knowledge",
   },
 ];
 

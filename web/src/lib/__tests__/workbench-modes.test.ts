@@ -29,19 +29,25 @@ describe("workbench-mode registry (defaults)", () => {
   it("default workbench entries carry an `href` and a navigation shortcut", () => {
     // Workbench modes are derived from `defaultMode()` which pins
     // `href = "/<id>"` and a navigation shortcut. Operations modes
-    // route under `/settings/*` and ship without shortcuts; they
-    // are exercised by the operations-category test below.
+    // ship without shortcuts; they are exercised by the
+    // operations-category test below.
     for (const mode of listModesByCategory("workbench")) {
       expect(mode.href).toBe(`/${mode.id}`);
       expect(mode.shortcut?.route).toBe(mode.id);
     }
   });
 
-  it("operations entries route under settings and omit shortcuts", () => {
+  it("operations entries route at top level and omit shortcuts", () => {
+    // Operations sit beside workbench tools in the navigation
+    // hierarchy — `/<id>`, not buried under `/settings/*` —
+    // so the URL depth matches the sidebar grouping. They opt
+    // out of palette shortcuts since they aren't part of the
+    // workbench keyboard rotation.
     const ops = listModesByCategory("operations");
     expect(ops.length).toBeGreaterThan(0);
     for (const mode of ops) {
-      expect(mode.href.startsWith("/settings/")).toBe(true);
+      expect(mode.href).toMatch(/^\/[a-z]+$/);
+      expect(mode.href.startsWith("/settings/")).toBe(false);
       expect(mode.shortcut).toBeUndefined();
     }
   });
