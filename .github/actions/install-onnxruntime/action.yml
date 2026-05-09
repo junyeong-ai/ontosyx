@@ -2,41 +2,75 @@
 #
 # The `ox-memory` crate links against onnxruntime at build time. Every
 # backend CI job that touches Rust needs the shared library on
-# LD_LIBRARY_PATH and the path in ORT_LIB_LOCATION, so we centralize the
-# install here instead of copy-pasting seven `run:` blocks across jobs.
+# LD_LIBRARY_PATH and the path in ORT_LIB_LOCATION, so we centralize
+# the install here instead of copy-pasting the same `run:` block
+# across every Rust job.
 #
 # Usage:
 #   - uses: ./.github/actions/install-onnxruntime
 #
-# Bump the `version` input when upgrading onnxruntime so the SHA ref
-# and the URL stay in sync.
+# The default `version` tracks the latest tag the upstream
+# `microsoft/onnxruntime` repo publishes a `linux-x64-${v}.tgz`
+# asset for. Bump the input together with any `ort` crate upgrade
+# so the runtime ABI matches the binding.
 
 name: Install onnxruntime
-description: Download onnxruntime linux-x64 and expose it via ORT_LIB_LOCATION + LD_LIBRARY_PATH.
+description: Download onnxruntime linux-x64 + cache it. Exposes ORT_LIB_LOCATION + LD_LIBRARY_PATH.
 
 inputs:
   version:
     description: onnxruntime release tag (without leading `v`).
     required: false
-    default: "1.21.1"
+    default: "1.26.0"
 
 runs:
   using: composite
   steps:
-    - name: Install onnxruntime
+    # The download is content-addressed by version, so a cache hit
+    # on the version key gives us the lib for free. ~70MB of tarball
+    # extraction skipped per job — multiplied across the 6 Rust jobs
+    # this saves ~7 minutes of CI per run.
+    - name: Cache onnxruntime
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/onnxruntime-linux-x64-${{ inputs.version }}
+        key: onnxruntime-linux-x64-${{ inputs.version }}
+
+    - name: Download onnxruntime
+      if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      # `working-directory` is pinned to `github.workspace` (absolute) so
-      # this action stays correct even when the caller sets
-      # `defaults.run.working-directory: web`. Without this pin, the
-      # tarball would land under `web/` and the exported `LD_LIBRARY_PATH`
-      # would point at a non-existent absolute path.
+      # `working-directory` is pinned to `github.workspace` (absolute)
+      # so this stays correct when the caller sets
+      # `defaults.run.working-directory: web`. Without the pin, the
+      # tarball lands under `web/` and the exported `LD_LIBRARY_PATH`
+      # points at a non-existent absolute path.
       working-directory: ${{ github.workspace }}
       run: |
         set -euo pipefail
         v="${{ inputs.version }}"
         url="https://github.com/microsoft/onnxruntime/releases/download/v${v}/onnxruntime-linux-x64-${v}.tgz"
-        wget -q "$url"
+        # `--retry` rides through transient GitHub release CDN
+        # blips; `--show-error` surfaces a real 4xx/5xx instead of
+        # the silent `wget -q` exit-8 that hid the problem when the
+        # URL was a yanked release tag.
+        curl --proto '=https' --tlsv1.2 \
+             --retry 5 --retry-delay 2 --retry-connrefused \
+             --location --show-error --fail \
+             --output "onnxruntime-linux-x64-${v}.tgz" \
+             "$url"
         tar xzf "onnxruntime-linux-x64-${v}.tgz"
+        rm -f "onnxruntime-linux-x64-${v}.tgz"
+
+    - name: Export library paths
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        v="${{ inputs.version }}"
         lib_dir="${GITHUB_WORKSPACE}/onnxruntime-linux-x64-${v}/lib"
+        if [ ! -d "$lib_dir" ]; then
+          echo "::error::onnxruntime lib_dir missing at $lib_dir — cache restore corrupted or download failed silently"
+          exit 1
+        fi
         echo "ORT_LIB_LOCATION=$lib_dir" >> "$GITHUB_ENV"
         echo "LD_LIBRARY_PATH=$lib_dir" >> "$GITHUB_ENV"
