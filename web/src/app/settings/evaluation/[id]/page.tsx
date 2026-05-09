@@ -25,6 +25,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
 import { FormTextarea, SettingsInput, SettingsSelect } from "@/components/ui/form-input";
+import { RetrievalComparisonView } from "@/components/settings/evaluation/retrieval-comparison-view";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import type {
@@ -788,6 +789,17 @@ export default function EvaluationDetailPage({
               </ul>
             )}
           </section>
+
+          {selectedCase?.actual?.kind === "retrieval_comparison" ? (
+            <RetrievalComparisonView
+              actual={selectedCase.actual}
+              expectedIds={
+                selectedCase.input.kind === "retrieval_comparison"
+                  ? selectedCase.input.expected_ids ?? []
+                  : []
+              }
+            />
+          ) : null}
 
           <section>
             <header className="mb-2 flex items-baseline justify-between gap-3">

@@ -3087,6 +3087,23 @@
         "metricsDescription": "축별 루브릭 점수. RAGAS 기본 + 테넌트 정의 메트릭이 같은 컬럼을 공유합니다.",
         "noCases": "이 실행에 기록된 케이스가 없습니다.",
         "noMetrics": "이 케이스에 기록된 메트릭이 없습니다.",
+        "retrievalComparison": {
+          "title": "하이브리드 vs 트리그램",
+          "description": "Top-{k} 결과 기준 양쪽 leg 의 IR 메트릭. lift 가 0 이상이면 하이브리드 우세.",
+          "surfaceTag": "검색 표면 · {surface}",
+          "axisHeader": "축",
+          "hybridHeader": "하이브리드",
+          "trigramHeader": "트리그램 베이스라인",
+          "liftHeader": "lift",
+          "axis": {
+            "precisionAtK": "Precision@K",
+            "recallAtK": "Recall@K",
+            "mrr": "MRR",
+            "ndcgAtK": "NDCG@K"
+          },
+          "goldenBadge": "정답",
+          "emptyLeg": "이 leg 에서 반환된 결과가 없습니다."
+        },
         "caseKey": "케이스",
         "latency": "지연",
         "latencyMs": "{ms} ms",

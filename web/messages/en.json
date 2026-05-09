@@ -3087,6 +3087,23 @@
         "metricsDescription": "Per-axis rubric scores. RAGAS canonicals plus tenant-defined metrics ride on the same column.",
         "noCases": "No cases recorded for this run.",
         "noMetrics": "No metrics recorded for this case.",
+        "retrievalComparison": {
+          "title": "Hybrid vs trigram",
+          "description": "IR metrics for both legs at Top-{k}. Positive lift means hybrid wins.",
+          "surfaceTag": "Surface · {surface}",
+          "axisHeader": "Axis",
+          "hybridHeader": "Hybrid",
+          "trigramHeader": "Trigram baseline",
+          "liftHeader": "lift",
+          "axis": {
+            "precisionAtK": "Precision@K",
+            "recallAtK": "Recall@K",
+            "mrr": "MRR",
+            "ndcgAtK": "NDCG@K"
+          },
+          "goldenBadge": "gold",
+          "emptyLeg": "No results returned for this leg."
+        },
         "caseKey": "Case",
         "latency": "Latency",
         "latencyMs": "{ms} ms",
