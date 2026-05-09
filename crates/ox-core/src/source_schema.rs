@@ -2,7 +2,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Schema information extracted from a data source (RDBMS, document DB, etc.)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema,
+)]
 pub struct SourceSchema {
     /// Data source type (e.g., "postgresql", "mysql", "mongodb")
     pub source_type: String,
@@ -79,7 +81,7 @@ impl SourceSchema {
             hasher.update(b"\x1e");
         }
 
-        format!("{:x}", hasher.finalize())
+        hex::encode(hasher.finalize())
     }
 }
 
@@ -115,7 +117,7 @@ pub fn table_fingerprint(table: &SourceTableDef) -> String {
         hasher.update(b"\x1d");
     }
 
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.finalize())
 }
 
 /// Lightweight metadata for one table — meant for **selection UIs**
@@ -189,20 +191,24 @@ impl SchemaFingerprint {
             hasher.update(b"\x1e");
         }
         Self {
-            hash: format!("{:x}", hasher.finalize()),
+            hash: hex::encode(hasher.finalize()),
             computed_at: Utc::now(),
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema,
+)]
 pub struct SourceTableDef {
     pub name: String,
     pub columns: Vec<SourceColumnDef>,
     pub primary_key: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema,
+)]
 pub struct SourceColumnDef {
     pub name: String,
     /// Original DB type (e.g., "varchar", "int4", "jsonb", "timestamp")
@@ -210,7 +216,17 @@ pub struct SourceColumnDef {
     pub nullable: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, schemars::JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    Hash,
+    schemars::JsonSchema,
+    utoipa::ToSchema,
+)]
 pub struct ForeignKeyDef {
     pub from_table: String,
     pub from_column: String,
@@ -227,19 +243,25 @@ fn is_false(v: &bool) -> bool {
 }
 
 /// Statistics collected from actual data in the source
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema,
+)]
 pub struct SourceProfile {
     pub table_profiles: Vec<TableProfile>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema,
+)]
 pub struct TableProfile {
     pub table_name: String,
     pub row_count: u64,
     pub column_stats: Vec<ColumnStats>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, utoipa::ToSchema,
+)]
 pub struct ColumnStats {
     pub column_name: String,
     pub null_count: u64,
@@ -273,7 +295,9 @@ pub struct ColumnStats {
 /// tripping the user-confirmed annotation. Open extension via
 /// [`PiiSuspectKind::Other`] for catalogues that want to flag a
 /// custom pattern without adding a first-class variant.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema,
+)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum PiiSuspectKind {
     Email,
@@ -570,11 +594,7 @@ mod tests {
 
     #[test]
     fn schema_fingerprint_differs_when_column_added() {
-        let base = table(
-            "users",
-            vec![col("id", "uuid", false)],
-            vec!["id"],
-        );
+        let base = table("users", vec![col("id", "uuid", false)], vec!["id"]);
         let extended = table(
             "users",
             vec![col("id", "uuid", false), col("email", "text", true)],

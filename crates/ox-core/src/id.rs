@@ -48,6 +48,8 @@ macro_rules! define_id_newtype {
             Default,
             PartialEq,
             Eq,
+            PartialOrd,
+            Ord,
             Hash,
             ::serde::Serialize,
             ::serde::Deserialize,

@@ -267,15 +267,17 @@ mod tests {
     fn empty_params_omitted() {
         let d = diag("runtime.cypher.empty_pattern").message("Empty pattern in MATCH clause");
         let s = serde_json::to_string(&d).unwrap();
-        assert!(!s.contains("params"), "empty params must be omitted, got {s}");
+        assert!(
+            !s.contains("params"),
+            "empty params must be omitted, got {s}"
+        );
     }
 
     #[test]
     fn deserialises_with_or_without_params() {
-        let with_params: DiagnosticMessage = serde_json::from_str(
-            r#"{"code":"x.y.z","message":"hi","params":{"a":1,"b":"two"}}"#,
-        )
-        .unwrap();
+        let with_params: DiagnosticMessage =
+            serde_json::from_str(r#"{"code":"x.y.z","message":"hi","params":{"a":1,"b":"two"}}"#)
+                .unwrap();
         assert_eq!(with_params.params.get("a"), Some(&json!(1)));
         assert_eq!(with_params.params.get("b"), Some(&json!("two")));
 
@@ -309,7 +311,10 @@ mod tests {
         let alpha = s.find("alpha").unwrap();
         let middle = s.find("middle").unwrap();
         let zeta = s.find("zeta").unwrap();
-        assert!(alpha < middle && middle < zeta, "BTreeMap must serialise keys sorted: {s}");
+        assert!(
+            alpha < middle && middle < zeta,
+            "BTreeMap must serialise keys sorted: {s}"
+        );
     }
 
     // -- Diagnostic code format invariant --------------------------------------
@@ -333,18 +338,18 @@ mod tests {
     #[test]
     fn invalid_codes_are_rejected() {
         for code in [
-            "",                     // empty
-            "x",                    // single segment
-            ".x",                   // leading dot
-            "x.",                   // trailing dot
-            "x..y",                 // empty middle segment
-            "X.y",                  // uppercase head
-            "x.Y",                  // uppercase second segment
-            "1x.y",                 // digit head
-            "x-y.z",                // hyphen
-            "x.y-z",                // hyphen in second segment
-            "x y.z",                // space
-            "x.y.z!",               // punctuation
+            "",       // empty
+            "x",      // single segment
+            ".x",     // leading dot
+            "x.",     // trailing dot
+            "x..y",   // empty middle segment
+            "X.y",    // uppercase head
+            "x.Y",    // uppercase second segment
+            "1x.y",   // digit head
+            "x-y.z",  // hyphen
+            "x.y-z",  // hyphen in second segment
+            "x y.z",  // space
+            "x.y.z!", // punctuation
         ] {
             assert!(
                 !is_valid_diagnostic_code(code),

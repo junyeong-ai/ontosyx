@@ -28,6 +28,7 @@
 // ---------------------------------------------------------------------------
 
 pub mod diagnostic;
+pub mod pgvector;
 pub mod error;
 pub mod graph_label;
 pub mod i18n;
@@ -35,6 +36,7 @@ pub mod id;
 pub mod prompt_version;
 pub mod property_key;
 pub mod source_schema;
+pub mod source_scope;
 pub mod types;
 pub mod variable_name;
 
@@ -44,18 +46,19 @@ pub mod variable_name;
 // ---------------------------------------------------------------------------
 
 pub use diagnostic::{
-    diag, is_valid_diagnostic_code, join_messages, DiagnosticBuilder, DiagnosticMessage,
+    DiagnosticBuilder, DiagnosticMessage, diag, is_valid_diagnostic_code, join_messages,
 };
 pub use error::{ErrorContext, OxError};
 pub use graph_label::GraphLabel;
 pub use i18n::{
-    admin_locale_fallback_default_tags, display_name_with_fallback,
-    llm_locale_fallback_default_tags, LanguageTag, LocaleError, LocalizedText,
-    ADMIN_LOCALE_FALLBACK_DEFAULT, LLM_LOCALE_FALLBACK_DEFAULT, PRIMARY_LOCALE_DEFAULT,
+    ADMIN_LOCALE_FALLBACK_DEFAULT, LLM_LOCALE_FALLBACK_DEFAULT, LanguageTag, LocaleError,
+    LocalizedText, PRIMARY_LOCALE_DEFAULT, admin_locale_fallback_default_tags,
+    display_name_with_fallback, llm_locale_fallback_default_tags,
 };
 pub use prompt_version::PromptVersion;
 pub use property_key::PropertyKey;
 pub use source_schema::{SchemaFingerprint, SourceProfile, SourceSchema, TableSummary};
+pub use source_scope::{AnalysisScope, AnalyzeSelection, DeferredTable, TableSelection};
 pub use types::{escape_cypher_identifier, is_valid_graph_identifier, sanitize_variable};
 pub use variable_name::VariableName;
 

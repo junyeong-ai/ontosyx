@@ -479,7 +479,10 @@ pub fn display_name_with_fallback<'a>(
     if display.is_empty() {
         (serde_json::Value::String(canonical.to_string()), canonical)
     } else {
-        (serde_json::Value::from(display), display.english_or_default())
+        (
+            serde_json::Value::from(display),
+            display.english_or_default(),
+        )
     }
 }
 
@@ -842,8 +845,14 @@ mod tests {
         let lt = LocalizedText::bilingual("필수", "required");
         let v: serde_json::Value = (&lt).into();
         assert_eq!(v["default"], serde_json::Value::String("필수".into()));
-        assert_eq!(v["translations"]["ko"], serde_json::Value::String("필수".into()));
-        assert_eq!(v["translations"]["en"], serde_json::Value::String("required".into()));
+        assert_eq!(
+            v["translations"]["ko"],
+            serde_json::Value::String("필수".into())
+        );
+        assert_eq!(
+            v["translations"]["en"],
+            serde_json::Value::String("required".into())
+        );
     }
 
     #[test]
@@ -859,8 +868,7 @@ mod tests {
 
     #[test]
     fn localized_text_into_value_round_trips_through_deserialize() {
-        let lt = LocalizedText::bilingual("값", "value")
-            .with_translation(zh_hant(), "値");
+        let lt = LocalizedText::bilingual("값", "value").with_translation(zh_hant(), "値");
         let v: serde_json::Value = (&lt).into();
         let back: LocalizedText = serde_json::from_value(v).unwrap();
         assert_eq!(back, lt);

@@ -46,20 +46,63 @@ impl JsonSchema for PropertyType {
     }
 }
 
-/// utoipa counterpart — same simplification as the JsonSchema impl
-/// (plain string in the OpenAPI spec). Keeping the two impls aligned
-/// ensures the FE-codegen output and the LLM JsonSchemaSpec see the
-/// same shape.
+/// utoipa counterpart for the public HTTP contract. Unlike the
+/// Bedrock-oriented `JsonSchema` above, OpenAPI must describe the
+/// actual serde wire shape: a tagged object (`{"type": "string"}`),
+/// with recursive `element` only when `type = "list"`.
 impl utoipa::PartialSchema for PropertyType {
     fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::schema::{ObjectBuilder, SchemaType, Type};
-        ObjectBuilder::new()
-            .schema_type(SchemaType::Type(Type::String))
+        use utoipa::openapi::{
+            Ref, RefOr,
+            schema::{AdditionalProperties, ObjectBuilder, OneOfBuilder, Schema, SchemaType, Type},
+        };
+
+        fn scalar_property_type(name: &'static str) -> Schema {
+            ObjectBuilder::new()
+                .schema_type(SchemaType::Type(Type::Object))
+                .required("type")
+                .property(
+                    "type",
+                    ObjectBuilder::new()
+                        .schema_type(SchemaType::Type(Type::String))
+                        .enum_values(Some([name])),
+                )
+                .additional_properties(Some(AdditionalProperties::FreeForm(false)))
+                .build()
+                .into()
+        }
+
+        let list = ObjectBuilder::new()
+            .schema_type(SchemaType::Type(Type::Object))
+            .required("type")
+            .required("element")
+            .property(
+                "type",
+                ObjectBuilder::new()
+                    .schema_type(SchemaType::Type(Type::String))
+                    .enum_values(Some(["list"])),
+            )
+            .property("element", RefOr::Ref(Ref::from_schema_name("PropertyType")))
+            .additional_properties(Some(AdditionalProperties::FreeForm(false)))
+            .build();
+
+        RefOr::T(Schema::OneOf(
+            OneOfBuilder::new()
+            .item(scalar_property_type("bool"))
+            .item(scalar_property_type("int"))
+            .item(scalar_property_type("float"))
+            .item(scalar_property_type("string"))
+            .item(scalar_property_type("date"))
+            .item(scalar_property_type("date_time"))
+            .item(scalar_property_type("duration"))
+            .item(scalar_property_type("bytes"))
+            .item(Schema::Object(list))
+            .item(scalar_property_type("map"))
             .description(Some(
-                "Property type: bool, int, float, string, date, datetime, duration, bytes, map",
+                r#"Tagged property type. Examples: {"type":"string"} or {"type":"list","element":{"type":"int"}}"#,
             ))
-            .build()
-            .into()
+            .build(),
+        ))
     }
 }
 
@@ -420,21 +463,135 @@ impl JsonSchema for PropertyValue {
     }
 }
 
-/// utoipa counterpart — opaque object in OpenAPI to match the
-/// JsonSchema impl. The on-wire shape is a tagged enum
-/// (`{"type": "string", "value": "hello"}`), but exposing every
-/// variant in the spec costs more than it gives — clients route
-/// through the typed `PropertyType` discriminator.
+/// utoipa counterpart for the canonical public HTTP shape. The
+/// deserializer accepts bare primitives for LLM tolerance, but
+/// responses serialise as this tagged enum (`{"type": "string",
+/// "value": "hello"}`).
 impl utoipa::PartialSchema for PropertyValue {
     fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::schema::{ObjectBuilder, SchemaType, Type};
-        ObjectBuilder::new()
+        use utoipa::openapi::{
+            Ref, RefOr,
+            schema::{
+                AdditionalProperties, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
+                SchemaType, Type,
+            },
+        };
+
+        fn tagged_value<I: Into<RefOr<Schema>>>(name: &'static str, value: I) -> Schema {
+            ObjectBuilder::new()
+                .schema_type(SchemaType::Type(Type::Object))
+                .required("type")
+                .required("value")
+                .property(
+                    "type",
+                    ObjectBuilder::new()
+                        .schema_type(SchemaType::Type(Type::String))
+                        .enum_values(Some([name])),
+                )
+                .property("value", value)
+                .additional_properties(Some(AdditionalProperties::FreeForm(false)))
+                .build()
+                .into()
+        }
+
+        let null = ObjectBuilder::new()
             .schema_type(SchemaType::Type(Type::Object))
-            .description(Some(
-                r#"Typed property value, e.g. {"type": "string", "value": "hello"} or null"#,
-            ))
-            .build()
-            .into()
+            .required("type")
+            .property(
+                "type",
+                ObjectBuilder::new()
+                    .schema_type(SchemaType::Type(Type::String))
+                    .enum_values(Some(["null"])),
+            )
+            .additional_properties(Some(AdditionalProperties::FreeForm(false)))
+            .build();
+        let list = ObjectBuilder::new()
+            .schema_type(SchemaType::Type(Type::Object))
+            .required("type")
+            .required("value")
+            .property(
+                "type",
+                ObjectBuilder::new()
+                    .schema_type(SchemaType::Type(Type::String))
+                    .enum_values(Some(["list"])),
+            )
+            .property(
+                "value",
+                Schema::Array(
+                    ArrayBuilder::new()
+                        .items(RefOr::Ref(Ref::from_schema_name("PropertyValue")))
+                        .build(),
+                ),
+            )
+            .additional_properties(Some(AdditionalProperties::FreeForm(false)))
+            .build();
+        let map = ObjectBuilder::new()
+            .schema_type(SchemaType::Type(Type::Object))
+            .required("type")
+            .required("value")
+            .property(
+                "type",
+                ObjectBuilder::new()
+                    .schema_type(SchemaType::Type(Type::String))
+                    .enum_values(Some(["map"])),
+            )
+            .property(
+                "value",
+                ObjectBuilder::new()
+                    .schema_type(SchemaType::Type(Type::Object))
+                    .additional_properties(Some(Ref::from_schema_name("PropertyValue"))),
+            )
+            .additional_properties(Some(AdditionalProperties::FreeForm(false)))
+            .build();
+
+        RefOr::T(Schema::OneOf(
+            OneOfBuilder::new()
+                .item(Schema::Object(null))
+                .item(tagged_value(
+                    "bool",
+                    ObjectBuilder::new().schema_type(SchemaType::Type(Type::Boolean)),
+                ))
+                .item(tagged_value(
+                    "int",
+                    ObjectBuilder::new().schema_type(SchemaType::Type(Type::Integer)),
+                ))
+                .item(tagged_value(
+                    "float",
+                    ObjectBuilder::new().schema_type(SchemaType::Type(Type::Number)),
+                ))
+                .item(tagged_value(
+                    "string",
+                    ObjectBuilder::new().schema_type(SchemaType::Type(Type::String)),
+                ))
+                .item(tagged_value(
+                    "date",
+                    ObjectBuilder::new().schema_type(SchemaType::Type(Type::String)),
+                ))
+                .item(tagged_value(
+                    "date_time",
+                    ObjectBuilder::new().schema_type(SchemaType::Type(Type::String)),
+                ))
+                .item(tagged_value(
+                    "duration",
+                    ObjectBuilder::new().schema_type(SchemaType::Type(Type::String)),
+                ))
+                .item(tagged_value(
+                    "bytes",
+                    Schema::Array(
+                        ArrayBuilder::new()
+                            .items(
+                                ObjectBuilder::new().schema_type(SchemaType::Type(Type::Integer)),
+                            )
+                            .build(),
+                    ),
+                ))
+                .item(Schema::Object(list))
+                .item(Schema::Object(map))
+                .description(Some(
+                    r#"Typed property value, e.g. {"type": "string", "value": "hello"} or null"#,
+                ))
+                .build(),
+        ))
     }
 }
 
@@ -524,7 +681,9 @@ impl std::fmt::Display for PropertyValue {
 // Direction — edge traversal direction
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Direction {
     Outgoing,
