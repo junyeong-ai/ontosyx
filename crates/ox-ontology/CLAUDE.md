@@ -1,209 +1,59 @@
 # ox-ontology
 
-Domain layer for the platform's knowledge graph: what types of nodes
-and edges exist, how they're labelled, which properties they carry,
-how they map to physical relations, and every governance surface
-layered on top (interfaces, rules, provenance, data quality,
-glossary, functions, actions, metrics, enrichment).
+Domain layer of the platform's knowledge graph: node / edge types, mappings to physical relations, and every governance surface layered on top (interfaces, rules, glossary, provenance, data quality, functions, actions, metrics, enrichments).
 
-This is the biggest IR crate by surface area. The doc below names
-the high-level pieces and points at the files that hold depth.
+`OntologyIR` (`src/ir/mod.rs`) is the root struct. Each governance collection has an `add_X` method that runs referential-integrity at insert time and returns `Result<_, OntologyInvariantError>`, plus an O(1) `x_by_id` accessor. Don't mutate the collection vectors directly — go through the `add_X` methods.
 
-## Core IR
+`OntologyIR::validate() -> Vec<DiagnosticMessage>` runs whole-IR cross-reference validation (empty vec on valid). Diagnostics carry stable `code` + `params`; the FE i18n catalogue interpolates the prose.
 
-- **`OntologyIR`** (`src/ir/mod.rs`) — the root struct. Owns the full
-  graph schema plus every governance collection:
-  - `node_types`, `edge_types` — primary topology.
-  - `indexes`, `constraints` — lookup + invariant metadata.
-  - `object_mappings`, `link_mappings`, `property_mappings`
-    — physical mapping layer. See `src/mapping/`.
-  - `interfaces` — shared-property abstractions (e.g., `HasAddress`).
-  - `rules` — SHACL-style constraints.
-  - `actions`, `functions`, `metrics`, `enrichments` —
-    type-bound behavioural surfaces.
-  - `glossary_terms` — lexical vocabulary for canonical concepts.
-  - `provenances` — PROV-O style data-origin records.
-  - `data_qualities` — per-type DQ checks.
-  - `lineage_id` + `version`, optional `valid_from`/`valid_to`
-    — bitemporal identity.
+## Identifier conventions
 
-  Every collection has an `add_X` method returning
-  `Result<_, OntologyInvariantError>` (referential integrity check
-  at insert time) and an `x_by_id` O(1) accessor.
-
-- **`OntologyIR::validate()`** (`src/ir/validation.rs`) — whole-IR
-  cross-reference check. Call at ontology-edit boundaries; returns
-  `Vec<String>` of diagnostic strings (empty on valid).
+- **Canonical defs** (`XxxDef`): the validated, persisted shape. The compiler / runtime / federation only ever see canonical.
+- **Input DTOs** (`InputXxxDef`, `src/input/`): the user / LLM shape *before* validation. Convert to canonical at the validation boundary.
+- **Commands** (`OntologyCommand`, `src/command/`): incremental schema edits (add / delete / rename) reconciled into the canonical `OntologyIR`.
 
 ## Mapping layer
 
-`src/mapping/`:
+`src/mapping/` binds logical types to physical relations:
 
-- `ObjectMappingDef` — one NodeType ↔ one physical relation.
-  Carries `workspace_scope`, `row_filter`, `primary_key_columns`,
-  `valid_from`/`valid_to` (temporal pivot support), `precedence`
-  (for multi-mapping dedup), and `cache_hint`.
-- `LinkMappingDef` — one EdgeType ↔ the relation(s) supplying edges.
-  Four `LinkMappingKind` variants:
-  - `ForeignKey { source_column, target_column }`
-  - `Bridge { bridge_relation, source_join: Vec<ColumnRef>,
-    target_join: Vec<ColumnRef> }` — composite keys are supported.
-  - `Computed { predicate }` — source-dialect SQL predicate;
-    needs adapter-side pushdown.
-  - `Federated { source_match_column, target_match_column }` —
-    cross-source value match.
-- `PropertyMappingDef` — one property ↔ one value location (column /
-  JSON path) plus optional `PropertyTransform`.
-- `SourceId`, `ObjectMappingId`, `LinkMappingId` — id newtypes.
-- `SourceRelationRef`, `ColumnRef`, `EndpointRef` — location
-  primitives.
+- `ObjectMappingDef` — one NodeType ↔ one relation. Carries `workspace_scope`, `row_filter`, `primary_key_columns`, `valid_from`/`valid_to` (temporal), `precedence` (multi-mapping dedup), `cache_hint`.
+- `LinkMappingDef` — one EdgeType ↔ relation(s). Variants: `ForeignKey`, `Bridge` (composite keys supported), `Computed` (source-dialect SQL predicate, needs adapter pushdown), `Federated`.
+- `PropertyMappingDef` — one property ↔ one column / JSON path with optional `PropertyTransform`.
 
-`OntologyIR.object_mappings` is the single source of truth for
-node ↔ table binding. The legacy flat-HashMap `SourceMapping` and
-the transitional `ObjectMappingLookup` trait have been removed;
-all PII / quality / load-plan consumers walk the canonical slice
-directly.
-
-## Governance surfaces
-
-Each has its own file and follows the same structural pattern:
-id newtype + struct + builder + validation entry-points.
-
-- `interface.rs` — `InterfaceDef { required_properties,
-  required_edges }`. Matched by `LabelResolver` in ox-federation.
-- `rule.rs` — SHACL Core rule kinds (pre-execute validation).
-- `action.rs`, `function.rs`, `metric.rs`, `enrichment.rs` —
-  type-bound behaviours; scheduled / triggered from ox-api.
-- `glossary.rs` — domain vocabulary.
-- `provenance.rs` — PROV-O activity/entity/agent.
-- `data_quality.rs` — assertion + severity + threshold.
-
-## Input / command / quality sub-modules
-
-- `src/input/` — DTO layer for user / LLM input before validation.
-  `InputXxxDef` structs convert to their canonical `XxxDef` counterparts.
-- `src/command/` — `OntologyCommand` — incremental schema edits
-  (add / delete / rename node / edge / property). Reconciled into
-  the authoritative `OntologyIR`.
-- `src/quality/` — ontology-level quality assessment (different from
-  `data_quality.rs` which is per-node-type DQ).
-
-## Analysis / scratch surfaces
-
-- `audit.rs`, `diff.rs` — before/after reports for edits.
-- `insight.rs`, `repo_insights.rs`, `source_analysis.rs` — design-time
-  recommendations.
-- `graph_exploration.rs`, `table_clustering.rs`,
-  `widget_spec.rs`, `load_plan.rs`, `ontology_draft.rs` — per-surface
-  DTOs the ox-api routes return. These do not roll into `OntologyIR`;
-  they describe projects / plans / explorations over it.
+`OntologyIR.object_mappings` is the only source of truth for node-to-table binding. PII / quality / load-plan consumers walk that slice directly.
 
 ## IR invariants enforced by `validate()`
 
-These are the platform-wide rules every persisted ontology must
-satisfy. The validator emits structured `DiagnosticMessage`s
-(stable code + params) the FE renders through next-intl; CI
-fails any test fixture or migration that violates them.
+The validator emits structured `DiagnosticMessage`s; CI fails any fixture or migration that violates these:
 
-- **Mapping carries meaning.** A `PropertyDef` with `source_column`
-  set must have ≥1 `PropertyBinding` *or* a `binding_exempt`
-  reason (`PrimaryKey`, `AuditTimestamp`, `OpaqueIdentifier`,
-  `Custom(_)`). `aggregation_role = Identifier` is an implicit
-  exemption. Diagnostic:
-  `ontology.validate.property.mapping_without_binding`.
-- **Composition keeps source singular.** `EdgeKind::Composition`
-  requires `cardinality.source_is_singular()` (`OneToOne` /
-  `OneToMany`). UML strong ownership = each part has exactly one
-  whole; `ManyToOne` / `ManyToMany` would break cascade-delete.
-- **Derived rules track their source.** A `RuleDef` with
-  `RuleOrigin::DerivedFromBinding { node, property }` must point at
-  a property that still carries ≥1 binding. Unbinding the source
-  forces the rule to be regenerated or promoted to `Authored`.
-- **Concept bindings resolve.** Every `ConceptId` referenced from
-  `NodeTypeDef.concept_id`, `EdgeTypeDef.concept_id`,
-  graph-type `concept_realizations`, or
-  `PropertyBinding::Concept { id }` must exist in
-  `OntologyIR::concepts`.
+- **Mapping carries meaning.** A `PropertyDef` with `source_column` set must have ≥1 `PropertyBinding` *or* a `binding_exempt` reason (`PrimaryKey`, `AuditTimestamp`, `OpaqueIdentifier`, `Custom(_)`). `aggregation_role = Identifier` is an implicit exemption.
+- **Composition keeps source singular.** `EdgeKind::Composition` requires `cardinality.source_is_singular()` (`OneToOne` / `OneToMany`). `ManyToOne` / `ManyToMany` would break cascade-delete (UML strong ownership = each part has exactly one whole).
+- **Derived rules track their source.** A `RuleDef` with `RuleOrigin::DerivedFromBinding { node, property }` must point at a property that still carries ≥1 binding.
+- **Concept bindings resolve.** Every `ConceptId` referenced from `NodeTypeDef.concept_id`, `EdgeTypeDef.concept_id`, graph-type `concept_realizations`, or `PropertyBinding::Concept { id }` must exist in `OntologyIR::concepts`.
 
 ## Binding resolution is deterministic
 
-When several `PropertyBinding`s share a kind, the canonical pick
-is the highest `BindingStrength::priority`
-(`Required`(4) > `Preferred`(3) > `Extensible`(2) > `Example`(1)),
-ties broken by first-in-list. Insertion-order shuffles that don't
-change the strength distribution don't change the answer.
-`PropertyDef::value_set_binding()` /
-`notation_pattern_binding()` / `concept_binding()` etc. all route
-through `canonical_binding()` so consumers cannot accidentally
-reach the lower-priority entry.
+When several `PropertyBinding`s share a kind, the canonical pick is the highest `BindingStrength::priority` (`Required`(4) > `Preferred`(3) > `Extensible`(2) > `Example`(1)), ties broken by first-in-list. `PropertyDef::value_set_binding()` / `notation_pattern_binding()` / `concept_binding()` route through `canonical_binding()` — consumers cannot accidentally reach a lower-priority entry.
 
-## Implicit-rule derivation — three layers
+## Implicit-rule derivation — two axes
 
-`derived_rules.rs` synthesises SHACL rules along two orthogonal
-axes so a write reaching the runtime SHACL validator gets every
-schema-level invariant enforced without the operator hand-
-authoring a redundant `RuleDef`:
+`derived_rules.rs` synthesises SHACL rules so a write reaching the runtime validator gets every schema-level invariant enforced without an operator hand-authoring a redundant `RuleDef`:
 
-- **Binding axis** — `PropertyBinding { strength: Required }` →
-  `InValueSet` / `MatchesPattern`. The `Required` strength is a
-  promise; the derivation turns the promise into an enforced
-  rule. CodeSystem-targeted bindings deliberately produce
-  nothing — wrap the system in a value set if you need
-  enforcement.
+- **Binding axis** — `PropertyBinding { strength: Required }` → `InValueSet` / `MatchesPattern`. CodeSystem-targeted bindings produce nothing — wrap in a value set if you need enforcement.
 - **Nullable axis** — `PropertyDef.nullable=false` → `MinCount=1`.
-  The schema-level NOT NULL declaration that the planner reads
-  on the source-mapping side. Without this derivation the
-  declaration would never reach the runtime validator and a
-  `CREATE` missing the property would land silently.
 
-Three methods, one per consumer shape:
+`derive_implicit_rules()` is the union the SHACL validator and the dedup index call. Per-axis variants (`derive_binding_rules` / `derive_nullable_rules`) exist for consumers that filter to one axis.
 
-- `derive_binding_rules()` — binding axis only. Rule-suggestion
-  engines that filter by binding kind use this.
-- `derive_nullable_rules()` — nullable axis only. Symmetric
-  per-axis surface.
-- `derive_implicit_rules()` — full safety-net union. The SHACL
-  validator and the dedup-signature index call this; both the
-  binding and nullable derivations contribute.
-
-Dedup is signature-keyed via `ConstraintSignature`. New
-constraint kinds opt in by returning `Some(...)` from
-`ShaclConstraint::signature()`; `None`-signed constraints never
-collapse. `MinCount` is signature-marked (axis identity, ignores
-the numeric `min`) so an authored `MinCount=2` correctly
-suppresses the implicit nullable derivation — the stronger
-authored bound already implies the weaker implicit one.
+Dedup is signature-keyed via `ConstraintSignature`. New constraint kinds opt in by returning `Some(...)` from `ShaclConstraint::signature()`; `None`-signed constraints never collapse. `MinCount`'s signature ignores the numeric `min`, so an authored `MinCount=2` correctly suppresses the implicit nullable derivation.
 
 ## On-wire shape gate
 
-`OntologyIR` carries `ONTOLOGY_IR_SCHEMA_VERSION` (currently `1`)
-as a forward-compat marker — a JSONB row tagged with a version
-the running build doesn't recognise is rejected at deserialise
-time so the server fails fast on a future-shape blob. Sibling IRs
-(`QueryIR`, `PatternIR`) follow the same pattern. Additive fields
-ride on `#[serde(default)]` and don't require a bump; an
-incompatible struct-shape change is not a free action — it
-invalidates every persisted row and forces a coordinated
-re-materialise across deployments.
+Every IR carries an explicit `schema_version` constant (`ONTOLOGY_IR_SCHEMA_VERSION`, `QUERY_IR_SCHEMA_VERSION`, etc.). Deserialisation rejects a JSONB row whose version exceeds the running build's — fail-fast on a future-shape blob. Additive optional fields ride on `#[serde(default)]` and don't require a bump; an incompatible struct-shape change forces a coordinated re-materialise across deployments.
 
 ## Don't
 
-- Don't add an `extends` / `parent` / `super_type` field to
-  `NodeTypeDef`. Type taxonomy is `InterfaceDef.implements: Vec<InterfaceId>`
-  — a node lists the interfaces it fulfils and the federation
-  planner's `InterfaceExpander` resolves `(:Iface)` to the union
-  of concrete implementers. Forcing a single named superclass
-  loses multiple inheritance, drags display semantics into the
-  query path, and competes with the canonical primitive.
-- Don't mutate `OntologyIR` collections directly — go through the
-  `add_X` methods so referential-integrity checks run at insert.
-- Don't introduce a reverse edge from `ox-core` to this crate. The
-  workspace DAG keeps `ox-core ← ox-ontology` strict; `cargo-deny`
-  enforces it.
-- Don't mix the "canonical `XxxDef`" structs with the
-  `InputXxxDef` structs across module boundaries. Input DTOs carry
-  pre-validation shape; canonical defs come out of validation. The
-  compiler / runtime / federation layers only ever see canonical.
-- Don't add raw SQL / Cypher strings here. This crate stays logical —
-  physical translation lives in `ox-compiler` (Cypher) and
-  `ox-federation` (DataFusion LogicalPlan).
+- Don't add an `extends` / `parent` / `super_type` field to `NodeTypeDef`. Type taxonomy is `InterfaceDef.implements: Vec<InterfaceId>`; the federation planner's `InterfaceExpander` resolves `(:Iface)` to the union of concrete implementers.
+- Don't mutate `OntologyIR` collections directly — use the `add_X` methods so referential-integrity checks run.
+- Don't introduce a reverse edge from `ox-core` to this crate. The workspace DAG keeps `ox-core ← ox-ontology` strict; `cargo-deny` enforces it.
+- Don't mix canonical `XxxDef` with `InputXxxDef` across module boundaries. Compiler / runtime / federation only see canonical.
+- Don't add raw SQL / Cypher strings here. Physical translation lives in `ox-compiler` (Cypher) and `ox-federation` (DataFusion `LogicalPlan`).

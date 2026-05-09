@@ -1,77 +1,76 @@
 # Ontosyx
 
-Knowledge Graph Lifecycle Platform — design ontologies from source data, translate natural language into graph queries, and analyze knowledge graphs through an AI agent.
+Knowledge graph lifecycle platform — design ontologies from source data, translate natural language into graph queries, and analyse knowledge graphs through an AI agent.
 
 ## Architecture
 
 ```
 Source DB / CSV / Code Repo
-  → ox-source (schema introspection)
-  → ox-brain (LLM ontology design via branchforge)
-  → OntologyIR
-  → ox-brain (LLM query translation)
-  → QueryIR
-  → ox-compiler (IR → Cypher)
-  → ox-runtime (Neo4j execution)
-  → Results + Visualization
+  → ox-source              (schema introspection)
+  → ox-brain               (LLM ontology design via branchforge)
+  → OntologyIR             (ox-ontology)
+  → ox-brain               (NL → QueryIR translation)
+  → ox-compiler            (IR → Cypher) / ox-federation (IR → DataFusion)
+  → ox-graph-runtime       (Neo4j / Memgraph execution)
+  → results + visualisation
 ```
 
 ### Crates
 
-| Crate | Description |
-|-------|-------------|
-| `ox-core` | Domain types — OntologyIR, QueryIR, LoadPlan, SourceSchema, OntologyCommand |
-| `ox-brain` | LLM orchestration via branchforge — ClientPool, ModelResolver, prompt caching |
-| `ox-compiler` | IR → Cypher compiler, export (Python, TypeScript, GraphQL, OWL, SHACL, Mermaid) |
-| `ox-runtime` | Neo4j driver with retry, sandbox isolation, workspace-scoped queries |
-| `ox-store` | PostgreSQL persistence — store traits, RLS workspace isolation, migrations |
-| `ox-source` | Data source introspection — PostgreSQL, MySQL, MongoDB, CSV |
-| `ox-memory` | Semantic memory — ONNX embedding + pgvector search |
-| `ox-agent` | AI agent with domain tools built on branchforge |
-| `ox-api` | Axum HTTP server — REST API, SSE streaming, OIDC auth |
+| Crate | Role |
+|-------|------|
+| `ox-core` | Primitive newtypes, errors, localised text, source schema. The bottom of the dependency graph. |
+| `ox-ontology` | `OntologyIR` and every governance surface (interfaces, rules, mappings, glossary, provenance, data quality). |
+| `ox-query-ir` | `QueryIR` (compile target) + `PatternIR` (canvas-facing form). |
+| `ox-compiler` | IR → Cypher (Neo4j + Memgraph dialects); export to OWL / SHACL / Python / TypeScript / GraphQL / Mermaid. |
+| `ox-graph-runtime` | Bolt drivers, pre-execute pipeline (validators + isolation rewriters), enrichment. |
+| `ox-brain` | LLM orchestration through branchforge — `ClientPool`, `ModelResolver`, prompt caching, schema RAG. |
+| `ox-agent` | Branchforge-powered agent with domain tools. |
+| `ox-memory` | Embedding + vector search (`PgVectorStore`, optional ONNX provider). |
+| `ox-text` | Korean morphological tokeniser substrate (lindera + mecab-ko-dic). |
+| `ox-source` | `DataSourceAdapter` introspection — Postgres, MySQL, MongoDB, CSV, JSON, DuckDB, Snowflake, BigQuery. |
+| `ox-federation` | Virtual ontology layer; lowers `QueryIR` to a DataFusion `LogicalPlan`. |
+| `ox-store` | Postgres persistence with Row-Level Security; the canonical reference for the store-method vocabulary. |
+| `ox-api` | Axum HTTP server (binary `ontosyx`) — REST API, SSE streaming, OIDC auth, MCP server, collaboration WebSocket. |
 
 ### Frontend
 
-Next.js 16, React 19, Tailwind CSS 4, Zustand 5, streamdown (AI-optimized streaming markdown).
+`web/` — Next.js 16, React 19, Tailwind CSS 4, Zustand 5, streamdown for streaming markdown.
 
-## Quick Start
+## Quick start
 
 ### Prerequisites
 
-- Rust 1.95+
-- Node.js 24+ / pnpm 11+
-- Docker (Neo4j + PostgreSQL with pgvector)
+- Rust (the workspace pins a recent stable; `rustup show` will install what `rust-toolchain.toml` asks for).
+- Node.js + pnpm (the version is recorded in `web/package.json::packageManager`).
+- Docker (Postgres + Neo4j run in containers).
 
 ### Setup
 
 ```bash
-# Start everything (Docker + backend + frontend)
-./scripts/dev.sh start
-
-# Or individually:
-./scripts/dev.sh docker up     # Infrastructure only
-./scripts/dev.sh be start      # Backend on :3101
-./scripts/dev.sh fe start      # Frontend on :3100
+./scripts/dev.sh start         # Docker + backend + frontend
+./scripts/dev.sh docker up     # infrastructure only
+./scripts/dev.sh be start      # backend on :3101
+./scripts/dev.sh fe start      # frontend on :3100
 ```
 
-### Service Management
+### Day-to-day
 
 ```bash
-./scripts/dev.sh              # Status dashboard + health check
-./scripts/dev.sh status       # Service status
-./scripts/dev.sh health       # API health + component checks
-./scripts/dev.sh restart      # Restart BE + FE
-./scripts/dev.sh be log       # Tail backend logs
-./scripts/dev.sh fe log       # Tail frontend logs
-./scripts/dev.sh stop         # Stop BE + FE
-./scripts/dev.sh clean        # Full reset (volumes + rebuild)
+./scripts/dev.sh status        # service status
+./scripts/dev.sh health        # API health + component checks
+./scripts/dev.sh restart       # restart BE + FE
+./scripts/dev.sh be log        # tail backend logs
+./scripts/dev.sh fe log        # tail frontend logs
+./scripts/dev.sh stop          # stop BE + FE
+./scripts/dev.sh clean         # full reset (volumes + rebuild)
 ```
 
-Backend dev builds use the product connector bundle by default:
+Backend builds default to the product connector bundle; override with `OX_CARGO_FEATURES`:
 
 ```bash
-OX_CARGO_FEATURES=source-all ./scripts/dev.sh be restart  # default
-OX_CARGO_FEATURES="" ./scripts/dev.sh be restart          # lean build
+OX_CARGO_FEATURES=source-all ./scripts/dev.sh be restart   # default
+OX_CARGO_FEATURES="" ./scripts/dev.sh be restart           # lean build
 ```
 
 ### URLs
@@ -79,71 +78,33 @@ OX_CARGO_FEATURES="" ./scripts/dev.sh be restart          # lean build
 | Service | URL |
 |---------|-----|
 | Frontend | http://localhost:3100 |
-| Backend API | http://localhost:3101/api/health |
+| Backend health | http://localhost:3101/api/health |
 | Swagger UI | http://localhost:3101/swagger-ui/ |
 | Neo4j Browser | http://localhost:7474 |
 
-## API Endpoints
+Override the ports with `OX_BE_PORT` / `OX_FE_PORT`.
 
-### Chat (SSE Agent Streaming)
+## API
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/chat/stream` | Agent chat with SSE streaming, tool calls, model override |
-
-### Design Projects
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/projects` | Create project + analyze source |
-| POST | `/api/projects/{id}/design` | Generate ontology via LLM |
-| POST | `/api/projects/{id}/refine` | Refine with graph profile |
-| POST | `/api/projects/{id}/edit` | Surgical ontology edits |
-| POST | `/api/projects/{id}/complete` | Promote to saved ontology |
-| POST | `/api/projects/{id}/deploy-schema` | Deploy schema to Neo4j |
-
-### Model Management
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET/POST | `/api/models/configs` | List / create model configs |
-| PATCH/DELETE | `/api/models/configs/{id}` | Update / delete model config |
-| GET/POST | `/api/models/routing-rules` | List / create routing rules |
-| PATCH/DELETE | `/api/models/routing-rules/{id}` | Update / delete routing rule |
-| POST | `/api/models/test` | Test model connectivity |
-
-### Query
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/query/history` | List query executions |
-| POST | `/api/query/raw` | Direct Cypher execution |
-| POST | `/api/query/from-ir` | Execute from QueryIR JSON |
-| PATCH | `/api/query/history/{id}/feedback` | Submit accuracy feedback (toggleable) |
-
-### Additional Endpoints
-
-Workspaces, ontology export/import, dashboards, recipes, reports, sessions,
-ACL policies, audit log, usage metering, data lineage, quality rules,
-approval workflows, admin prompt management. See Swagger UI for full list.
+Swagger UI at `/swagger-ui/` is the live, generated reference. The OpenAPI document is regenerated by `cargo run --bin dump_openapi -p ox-api > web/openapi.json` and consumed by the FE through `pnpm openapi-typescript` (`scripts/gen-openapi-types.sh`).
 
 ## Authentication
 
-Three auth methods (configurable in `ontosyx.toml`):
+Three auth methods, configurable in `ontosyx.toml`:
 
-- **JWT** — OIDC providers (Google, Microsoft, Okta, Auth0, Keycloak)
-- **API Key** — for programmatic/CI access (`X-API-Key` header)
-- **Workspace isolation** — Row-Level Security scopes all data per workspace
+- **OIDC** — Google, Microsoft, Okta, Auth0, Keycloak.
+- **API key** — for programmatic / CI access (`X-API-Key` header).
+- **Workspace isolation** — Postgres Row-Level Security scopes all data per workspace.
 
 ## Configuration
 
-Layered precedence: defaults → `ontosyx.toml` → `OX_*` env vars.
+Layered precedence: defaults → `ontosyx.toml` → `OX_*` env vars. Major sections: `[server]` · `[graph]` · `[postgres]` · `[llm]` · `[fast_llm]` · `[embedding]` · `[auth]` · `[timeouts]` · `[retention]` · `[mcp]`.
 
-Key sections: `[server]`, `[graph]`, `[postgres]`, `[llm]`, `[fast_llm]`,
-`[embedding]`, `[auth]`, `[timeouts]`, `[retention]`, `[mcp]`.
+Model configuration is DB-backed and runtime-changeable (`/api/models/configs`). TOML values seed the DB on first boot only.
 
-Model configuration is DB-backed (runtime-changeable via `/api/models/configs`).
-TOML values seed the DB on first boot.
+## Architecture decisions
+
+`docs/adr/` carries every long-lived decision in MADR-lite form. Read `docs/adr/README.md` before changing anything load-bearing. Companion design docs live in `docs/architecture/` (`6-axes.md`, `crate-dag.md`).
 
 ## License
 
