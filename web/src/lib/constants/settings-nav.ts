@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Building, Cpu, Database, FlaskConical, Network, ShieldCheck } from "lucide-react";
+import { Building, Cpu, Database, ShieldCheck } from "lucide-react";
 export interface NavItem {
   labelKey: string;
   href: string;
@@ -42,7 +42,6 @@ export const SETTINGS_NAV_GROUPS: readonly NavGroup[] = [
     titleKey: "data",
     icon: Database,
     items: [
-      { labelKey: "knowledgeBase", href: "/settings/knowledge/base", adminOnly: true },
       { labelKey: "federation", href: "/settings/knowledge/federation", adminOnly: true },
     ],
   },
@@ -57,39 +56,11 @@ export const SETTINGS_NAV_GROUPS: readonly NavGroup[] = [
     ],
   },
   {
-    titleKey: "quality",
-    icon: ShieldCheck,
-    href: "/settings/quality",
-    items: [],
-  },
-  {
-    titleKey: "graphrag",
-    icon: Network,
-    href: "/settings/graphrag",
-    items: [],
-  },
-  {
-    titleKey: "evaluation",
-    icon: FlaskConical,
-    href: "/settings/evaluation",
-    items: [
-      { labelKey: "runs", href: "/settings/evaluation", adminOnly: true },
-      {
-        labelKey: "datasets",
-        href: "/settings/evaluation/datasets",
-        adminOnly: true,
-      },
-      { labelKey: "diff", href: "/settings/evaluation/diff", adminOnly: true },
-    ],
-  },
-  {
     titleKey: "governance",
     icon: ShieldCheck,
     items: [
       { labelKey: "accessControl", href: "/settings/governance/acl", adminOnly: true },
       { labelKey: "routingMatrix", href: "/settings/governance/routing", adminOnly: true },
-      { labelKey: "approvals", href: "/settings/governance/approvals", adminOnly: true },
-      { labelKey: "audit", href: "/settings/governance/audit", adminOnly: true },
     ],
   },
 ] as const;

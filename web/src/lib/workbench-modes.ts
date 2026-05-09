@@ -18,7 +18,7 @@
 // (`g ,`) but is not a peer of the workbench modes; it lives in the
 // chrome footer and follows its own sub-navigation tree.
 
-import { Book, GitBranch, GitFork, LayoutDashboard, LineChart, Link, List, MessageCircle, Search, Wand2 } from "lucide-react";
+import { Book, BookOpen, CircleCheck, FlaskConical, GitBranch, GitFork, History, LayoutDashboard, LineChart, Link, List, MessageCircle, Search, ShieldCheck, Wand2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
   shortcutForRoute,
@@ -27,10 +27,26 @@ import {
 } from "./navigation-shortcuts";
 import type { WorkspaceMode } from "./store";
 
+/**
+ * Sidebar navigation category — workbench surfaces are ontology-
+ * authoring tools (design / explore / vocabulary / …), operations
+ * surfaces are workspace-level monitoring + action queues
+ * (evaluation / approvals / audit / …). The sidebar groups modes
+ * by this discriminator with a section heading between, mirroring
+ * the Linear / Datadog / Stripe Dashboard pattern of separating
+ * "build" from "operate". Settings (cog) sits below both as
+ * system configuration.
+ */
+export type ModeCategory = "workbench" | "operations";
+
 export interface WorkbenchMode {
   /** Stable identity. Matches a `WorkspaceMode` literal for default
    *  modes; plugin-registered modes use their own id string. */
   id: WorkspaceMode;
+  /** Whether this mode lives under the Workbench or Operations
+   *  group in the sidebar. Defaults to `"workbench"` so legacy
+   *  registrations stay where they are. */
+  category?: ModeCategory;
   /** Sidebar label key (resolved through the `chrome.sidebar` namespace). */
   labelKey: string;
   /** Sidebar icon glyph. */
@@ -85,9 +101,14 @@ function defaultMode(
 
 /**
  * Order matters — the sidebar renders modes top-to-bottom in
- * registration order. Defaults group related modes adjacently
- * (Design / Analyze / Explore are the editing trio; Dashboard,
- * Glossary, Vocabulary, Recipes are the artifact surfaces).
+ * registration order, grouped by `category`. Workbench defaults
+ * cluster the editing trio (Design / Analyze / Explore) ahead of
+ * the artifact surfaces (Dashboard / Glossary / Vocabulary /
+ * Recipes); Operations modes are the "monitor + act" surfaces
+ * that operators visit daily. Operations URLs live under
+ * `/settings/*` today — the chrome groups them as Operations so
+ * the navigation reads as "Workbench vs Operations vs Settings"
+ * regardless of route nesting.
  */
 const DEFAULT_MODES: readonly WorkbenchMode[] = [
   defaultMode("design", "modeDesign", Wand2, { hasPanelToggles: true }),
@@ -100,6 +121,45 @@ const DEFAULT_MODES: readonly WorkbenchMode[] = [
   defaultMode("lineage", "modeLineage", GitBranch, { requiresCanonical: true }),
   defaultMode("branches", "modeBranches", GitFork),
   defaultMode("recipes", "modeRecipes", LineChart),
+  // --- Operations ---------------------------------------------------------
+  // Workspace-level monitoring + action queues. Daily-visit surfaces
+  // get top-level navigation parity with workbench tools; the underlying
+  // route stays under `/settings/*` until a follow-up URL migration.
+  {
+    id: "evaluation",
+    category: "operations",
+    labelKey: "modeEvaluation",
+    icon: FlaskConical,
+    href: "/settings/evaluation",
+  },
+  {
+    id: "approvals",
+    category: "operations",
+    labelKey: "modeApprovals",
+    icon: ShieldCheck,
+    href: "/settings/governance/approvals",
+  },
+  {
+    id: "audit",
+    category: "operations",
+    labelKey: "modeAudit",
+    icon: History,
+    href: "/settings/governance/audit",
+  },
+  {
+    id: "quality",
+    category: "operations",
+    labelKey: "modeQuality",
+    icon: CircleCheck,
+    href: "/settings/quality",
+  },
+  {
+    id: "knowledgeBase",
+    category: "operations",
+    labelKey: "modeKnowledgeBase",
+    icon: BookOpen,
+    href: "/settings/knowledge/base",
+  },
 ];
 
 const modeOrder: WorkspaceMode[] = DEFAULT_MODES.map((m) => m.id);
@@ -151,6 +211,17 @@ export function unregisterWorkbenchMode(id: WorkspaceMode): void {
 /** Snapshot of currently-registered modes in declared order. */
 export function listWorkbenchModes(): WorkbenchMode[] {
   return modeOrder.map((id) => modeById.get(id)!).filter(Boolean);
+}
+
+/**
+ * Filter `listWorkbenchModes()` by sidebar category so the chrome
+ * can render Workbench / Operations sections separately. Modes
+ * without an explicit `category` resolve to `"workbench"`.
+ */
+export function listModesByCategory(category: ModeCategory): WorkbenchMode[] {
+  return listWorkbenchModes().filter(
+    (m) => (m.category ?? "workbench") === category,
+  );
 }
 
 /** Resolve a registered mode by id, or `undefined` if not registered. */

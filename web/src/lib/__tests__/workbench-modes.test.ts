@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   _resetWorkbenchModeRegistryForTests,
+  listModesByCategory,
   listWorkbenchModes,
   registerWorkbenchMode,
   unregisterWorkbenchMode,
@@ -25,10 +26,23 @@ describe("workbench-mode registry (defaults)", () => {
     expect(listWorkbenchModes().length).toBeGreaterThan(0);
   });
 
-  it("default entries carry an `href` and a navigation shortcut", () => {
-    for (const mode of listWorkbenchModes()) {
+  it("default workbench entries carry an `href` and a navigation shortcut", () => {
+    // Workbench modes are derived from `defaultMode()` which pins
+    // `href = "/<id>"` and a navigation shortcut. Operations modes
+    // route under `/settings/*` and ship without shortcuts; they
+    // are exercised by the operations-category test below.
+    for (const mode of listModesByCategory("workbench")) {
       expect(mode.href).toBe(`/${mode.id}`);
       expect(mode.shortcut?.route).toBe(mode.id);
+    }
+  });
+
+  it("operations entries route under settings and omit shortcuts", () => {
+    const ops = listModesByCategory("operations");
+    expect(ops.length).toBeGreaterThan(0);
+    for (const mode of ops) {
+      expect(mode.href.startsWith("/settings/")).toBe(true);
+      expect(mode.shortcut).toBeUndefined();
     }
   });
 

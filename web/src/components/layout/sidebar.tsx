@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
 import {
-  listWorkbenchModes,
+  listModesByCategory,
   workbenchModeById,
   type WorkbenchMode,
 } from "@/lib/workbench-modes";
@@ -136,13 +136,29 @@ export function Sidebar() {
   // page reload needed (TanStack invalidation re-renders the rail).
   const ontologyQuery = useWorkspaceOntology();
   const hasCanonical = !!ontologyQuery.data;
-  const visibleModes = useMemo(
+  const visibleWorkbenchModes = useMemo(
     () =>
-      listWorkbenchModes().filter(
+      listModesByCategory("workbench").filter(
         (m) => !m.requiresCanonical || hasCanonical,
       ),
     [hasCanonical],
   );
+  const visibleOperationsModes = useMemo(
+    () =>
+      listModesByCategory("operations").filter(
+        (m) => !m.requiresCanonical || hasCanonical,
+      ),
+    [hasCanonical],
+  );
+  // Operations modes route under `/settings/*`; their active state
+  // matches by URL prefix rather than the workspace-mode store.
+  const activeOperationsId = useMemo(() => {
+    if (!pathname) return null;
+    const match = visibleOperationsModes.find(
+      (m) => pathname === m.href || pathname.startsWith(`${m.href}/`),
+    );
+    return match?.id ?? null;
+  }, [pathname, visibleOperationsModes]);
 
   return (
     <nav
@@ -175,13 +191,20 @@ export function Sidebar() {
         {expanded && <BrandWordmark size={14} />}
       </div>
 
-      {/* Workspace mode switcher — driven by the workbench-mode
-          registry (`@/lib/workbench-modes`). The default 7 modes ship
-          pre-registered; plugins call `registerWorkbenchMode()` to
-          add more. The sidebar, help dialog, and navigation-shortcut
-          handler all read through the same registry. */}
-      <nav className="flex flex-col pt-1" aria-label={t("modesAria")}>
-        {visibleModes.map((m) => (
+      {/* Workbench modes — ontology-authoring surfaces. Driven by
+          the workbench-mode registry (`@/lib/workbench-modes`); the
+          sidebar, help dialog, and navigation-shortcut handler all
+          read through the same source. */}
+      {expanded && (
+        <p className="mt-2 px-3 pb-1 text-2xs font-semibold uppercase tracking-wider text-foreground-subtle">
+          {t("sectionWorkbench")}
+        </p>
+      )}
+      <nav
+        className={cn("flex flex-col", !expanded && "pt-1")}
+        aria-label={t("modesAria")}
+      >
+        {visibleWorkbenchModes.map((m) => (
           <ModeLink
             key={m.id}
             mode={m}
@@ -191,6 +214,38 @@ export function Sidebar() {
           />
         ))}
       </nav>
+
+      {/* Operations modes — workspace-level monitoring + action
+          queues. Daily-visit surfaces (evaluation / approvals /
+          audit / quality / knowledge base) get top-level navigation
+          parity with workbench tools so they're not buried in
+          settings. URLs still resolve under `/settings/*` until a
+          follow-up route migration. */}
+      {visibleOperationsModes.length > 0 && (
+        <>
+          {expanded ? (
+            <p className="mt-3 px-3 pb-1 text-2xs font-semibold uppercase tracking-wider text-foreground-subtle">
+              {t("sectionOperations")}
+            </p>
+          ) : (
+            <div className="mx-2 my-1 h-px bg-surface-inset" />
+          )}
+          <nav
+            className="flex flex-col"
+            aria-label={t("operationsAria")}
+          >
+            {visibleOperationsModes.map((m) => (
+              <ModeLink
+                key={m.id}
+                mode={m}
+                active={activeOperationsId === m.id}
+                label={t(m.labelKey)}
+                expanded={expanded}
+              />
+            ))}
+          </nav>
+        </>
+      )}
 
       {/* Separator */}
       <div className="mx-2 my-1 h-px bg-surface-inset" />
