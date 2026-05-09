@@ -15,7 +15,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import messages from "../../../../messages/en.json";
-import { LinkTermDropdown } from "@/components/workbench/inspector/link-term-dropdown";
+import { LinkConceptDropdown } from "@/components/workbench/inspector/link-concept-dropdown";
 import { ResolutionModal } from "@/components/ambiguity/resolution-modal";
 import { ExploreFacetSidebar } from "@/components/workbench/explore/facet-sidebar";
 import { StepShell } from "@/app/bootstrap/step-shell";
@@ -47,9 +47,9 @@ function renderA11y(ui: ReactElement) {
 }
 
 describe("A11y — composed surfaces", () => {
-  it("LinkTermDropdown (unbound state) has no axe violations", async () => {
+  it("LinkConceptDropdown (unbound state) has no axe violations", async () => {
     const { container } = renderA11y(
-      <LinkTermDropdown
+      <LinkConceptDropdown
         ontologyId="ont-1"
         expectedVersion={1}
         ownerKind="node"
@@ -60,15 +60,15 @@ describe("A11y — composed surfaces", () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it("LinkTermDropdown (bound state) has no axe violations", async () => {
+  it("LinkConceptDropdown (bound state) has no axe violations", async () => {
     const { container } = renderA11y(
-      <LinkTermDropdown
+      <LinkConceptDropdown
         ontologyId="ont-1"
         expectedVersion={1}
         ownerKind="node"
         ownerTypeId="Customer"
         propertyId="p-tier"
-        boundTermId="g-vip"
+        boundBinding={{ kind: "concept", id: "c-vip" }}
       />,
     );
     expect(await axe(container)).toHaveNoViolations();

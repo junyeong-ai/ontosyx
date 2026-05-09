@@ -11,6 +11,7 @@ import type {
   DiffAddedNode,
   DiffModifiedEdge,
   DiffModifiedNode,
+  OntologyDiffSummary,
 } from "@/types/ontology-branches";
 
 import { EdgeChangeList, NodeChangeList } from "./diff-change-list";
@@ -272,7 +273,7 @@ export function DiffModal({
 function ListDiffView({
   diff,
 }: {
-  diff: import("@/types/ontology-branches").OntologyDiffSummary;
+  diff: OntologyDiffSummary;
 }) {
   const t = useTranslations("workbench.branches");
   return (

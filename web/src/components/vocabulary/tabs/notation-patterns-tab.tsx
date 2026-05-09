@@ -16,10 +16,7 @@ export function NotationPatternsTab() {
   return (
     <MasterDetailEntityPage<NotationPatternDef>
       schema={notationPatternSchema}
-      selectItems={(ir) =>
-        ((ir as unknown as { notation_patterns?: NotationPatternDef[] })
-          .notation_patterns ?? [])
-      }
+      selectItems={(ir) => ir.notation_patterns ?? []}
       itemId={(np) => np.id}
       buildCreateOp={(def) => ({ op: "create_notation_pattern", def })}
       buildUpdateOp={(id, def) => ({

@@ -25,22 +25,24 @@ import { mockAuth } from "@/test-utils/auth";
 import { toast } from "@/components/ui/toast";
 
 const UI_CONFIG = {
-  ui: [
-    {
-      key: "theme",
-      value: "dark",
-      data_type: "string",
-      description: "Default theme",
-    },
-  ],
-  thresholds: [
-    {
-      key: "max_hops",
-      value: "3",
-      data_type: "int",
-      description: "Maximum traversal depth",
-    },
-  ],
+  categories: {
+    ui: [
+      {
+        key: "theme",
+        value: "dark",
+        data_type: "string",
+        description: "Default theme",
+      },
+    ],
+    thresholds: [
+      {
+        key: "max_hops",
+        value: "3",
+        data_type: "int",
+        description: "Maximum traversal depth",
+      },
+    ],
+  },
 };
 
 function renderPage(): void {

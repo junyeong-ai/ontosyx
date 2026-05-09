@@ -15,33 +15,38 @@
 
 import type {
   ConstraintTarget,
+  PropertyType,
   ShaclConstraint,
 } from "@/lib/api/edit-ops";
 
 /** Datatype options exposed by [`ShaclConstraint::Datatype`]. Mirrors
  *  `ox_core::types::PropertyType` discriminants. */
 export const DATATYPE_OPTIONS = [
-  "String",
-  "Int",
-  "Float",
-  "Bool",
-  "Date",
-  "Timestamp",
-  "Json",
+  "string",
+  "int",
+  "float",
+  "bool",
+  "date",
+  "date_time",
+  "duration",
+  "bytes",
 ] as const;
 
 /** Field types the [`ConstraintFormField`] kind enum understands. */
 export type ConstraintFieldKind =
   | "text"
   | "number"
+  | "optional_number"
   | "select"
   | "value_set_id"
   | "notation_pattern_id"
   | "node_type_id"
+  | "property_id"
   | "edge_label"
   | "property_key_list"
   | "constraint_target"
-  | "constraint_target_pair";
+  | "constraint"
+  | "constraint_list";
 
 /** One field in a constraint's form schema. */
 export interface ConstraintFormField {
@@ -104,10 +109,51 @@ function readString(values: Record<string, unknown>, key: string, fallback = "")
   return typeof v === "string" ? v : fallback;
 }
 
+function isScalarPropertyTypeTag(
+  value: string,
+): value is (typeof DATATYPE_OPTIONS)[number] {
+  return DATATYPE_OPTIONS.some((option) => option === value);
+}
+
+function propertyTypeTag(type: PropertyType): (typeof DATATYPE_OPTIONS)[number] {
+  return isScalarPropertyTypeTag(type.type) ? type.type : "string";
+}
+
+function readPropertyType(
+  values: Record<string, unknown>,
+  key: string,
+  fallback: (typeof DATATYPE_OPTIONS)[number] = "string",
+): PropertyType {
+  const value = readString(values, key, fallback);
+  return isScalarPropertyTypeTag(value)
+    ? { type: value }
+    : { type: fallback };
+}
+
 function readStringList(values: Record<string, unknown>, key: string): string[] {
   const v = values[key];
   if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string");
   return [];
+}
+
+export function defaultConstraint(): ShaclConstraint {
+  return { kind: "min_count", target: inheritTarget, min: 1 };
+}
+
+function readConstraint(values: Record<string, unknown>, key: string): ShaclConstraint {
+  const value = values[key];
+  return value && typeof value === "object" && "kind" in value
+    ? (value as ShaclConstraint)
+    : defaultConstraint();
+}
+
+function readConstraintList(values: Record<string, unknown>, key: string): ShaclConstraint[] {
+  const value = values[key];
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is ShaclConstraint =>
+      item !== null && typeof item === "object" && "kind" in item,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -165,13 +211,15 @@ export const CONSTRAINT_REGISTRY: ReadonlyArray<ConstraintFormSpec> = [
         required: true,
       },
     ],
-    defaults: () => ({ target: inheritTarget, expected: "String" }),
+    defaults: () => ({ target: inheritTarget, expected: "string" }),
     fromConstraint: (c) =>
-      c.kind === "datatype" ? { target: c.target, expected: c.expected } : {},
+      c.kind === "datatype"
+        ? { target: c.target, expected: propertyTypeTag(c.expected) }
+        : {},
     toConstraint: (v) => ({
       kind: "datatype",
       target: readTarget(v),
-      expected: readString(v, "expected", "String"),
+      expected: readPropertyType(v, "expected"),
     }),
   },
   {
@@ -366,6 +414,155 @@ export const CONSTRAINT_REGISTRY: ReadonlyArray<ConstraintFormSpec> = [
       target_node_type_id: readString(v, "target_node_type_id"),
       property_keys: readStringList(v, "property_keys"),
     }),
+  },
+  {
+    kind: "less_than",
+    fields: [
+      TARGET_FIELD,
+      {
+        key: "other_property",
+        labelKey: "otherProperty",
+        kind: "property_id",
+        required: true,
+      },
+    ],
+    defaults: () => ({ target: inheritTarget, other_property: "" }),
+    fromConstraint: (c) =>
+      c.kind === "less_than"
+        ? { target: c.target, other_property: c.other_property }
+        : {},
+    toConstraint: (v) => ({
+      kind: "less_than",
+      target: readTarget(v),
+      other_property: readString(v, "other_property"),
+    }),
+  },
+  {
+    kind: "equals",
+    fields: [
+      TARGET_FIELD,
+      {
+        key: "other_property",
+        labelKey: "otherProperty",
+        kind: "property_id",
+        required: true,
+      },
+    ],
+    defaults: () => ({ target: inheritTarget, other_property: "" }),
+    fromConstraint: (c) =>
+      c.kind === "equals"
+        ? { target: c.target, other_property: c.other_property }
+        : {},
+    toConstraint: (v) => ({
+      kind: "equals",
+      target: readTarget(v),
+      other_property: readString(v, "other_property"),
+    }),
+  },
+  {
+    kind: "or",
+    fields: [
+      {
+        key: "branches",
+        labelKey: "branches",
+        kind: "constraint_list",
+      },
+    ],
+    defaults: () => ({ branches: [] }),
+    fromConstraint: (c) => (c.kind === "or" ? { branches: c.branches } : {}),
+    toConstraint: (v) => ({
+      kind: "or",
+      branches: readConstraintList(v, "branches"),
+    }),
+  },
+  {
+    kind: "and",
+    fields: [
+      {
+        key: "branches",
+        labelKey: "branches",
+        kind: "constraint_list",
+      },
+    ],
+    defaults: () => ({ branches: [] }),
+    fromConstraint: (c) => (c.kind === "and" ? { branches: c.branches } : {}),
+    toConstraint: (v) => ({
+      kind: "and",
+      branches: readConstraintList(v, "branches"),
+    }),
+  },
+  {
+    kind: "not",
+    fields: [
+      {
+        key: "inner",
+        labelKey: "inner",
+        kind: "constraint",
+        required: true,
+      },
+    ],
+    defaults: () => ({ inner: defaultConstraint() }),
+    fromConstraint: (c) => (c.kind === "not" ? { inner: c.inner } : {}),
+    toConstraint: (v) => ({
+      kind: "not",
+      inner: readConstraint(v, "inner"),
+    }),
+  },
+  {
+    kind: "xone",
+    fields: [
+      {
+        key: "branches",
+        labelKey: "branches",
+        kind: "constraint_list",
+      },
+    ],
+    defaults: () => ({ branches: [] }),
+    fromConstraint: (c) => (c.kind === "xone" ? { branches: c.branches } : {}),
+    toConstraint: (v) => ({
+      kind: "xone",
+      branches: readConstraintList(v, "branches"),
+    }),
+  },
+  {
+    kind: "qualified_value_shape",
+    fields: [
+      {
+        key: "shape",
+        labelKey: "shape",
+        kind: "constraint",
+        required: true,
+      },
+      {
+        key: "qualified_min_count",
+        labelKey: "qualifiedMinCount",
+        kind: "optional_number",
+      },
+      {
+        key: "qualified_max_count",
+        labelKey: "qualifiedMaxCount",
+        kind: "optional_number",
+      },
+    ],
+    defaults: () => ({ shape: defaultConstraint() }),
+    fromConstraint: (c) =>
+      c.kind === "qualified_value_shape"
+        ? {
+            shape: c.shape,
+            qualified_min_count: c.qualified_min_count ?? "",
+            qualified_max_count: c.qualified_max_count ?? "",
+          }
+        : {},
+    toConstraint: (v) => {
+      const min = readNumber(v, "qualified_min_count", Number.NaN);
+      const max = readNumber(v, "qualified_max_count", Number.NaN);
+      return {
+        kind: "qualified_value_shape",
+        shape: readConstraint(v, "shape"),
+        ...(Number.isFinite(min) ? { qualified_min_count: min } : {}),
+        ...(Number.isFinite(max) ? { qualified_max_count: max } : {}),
+      };
+    },
   },
 ];
 

@@ -41,7 +41,7 @@ function makeMetric(
 
 const FULL_REPORT = {
   anchor_match_rate: makeMetric(0.62, 0.012),
-  glossary_hit_rate: makeMetric(0.71, -0.008),
+  concept_hit_rate: makeMetric(0.71, -0.008),
   clarification_success_rate: makeMetric(0.55, 0.002),
   query_reproducibility: makeMetric(0.84, 0.0),
   shacl_pass_rate: makeMetric(0.93, 0.005),
@@ -89,7 +89,7 @@ describe("SignalsFacet", () => {
     await waitFor(() =>
       expect(screen.getByText("Anchor match rate")).toBeInTheDocument(),
     );
-    expect(screen.getByText("Glossary hit rate")).toBeInTheDocument();
+    expect(screen.getByText("Concept hit rate")).toBeInTheDocument();
     expect(screen.getByText("Clarification success rate")).toBeInTheDocument();
     expect(screen.getByText("Query reproducibility")).toBeInTheDocument();
     expect(screen.getByText("SHACL pass rate")).toBeInTheDocument();
@@ -108,16 +108,16 @@ describe("SignalsFacet", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(getQualityMetrics).toHaveBeenCalledWith("7d"),
+      expect(getQualityMetrics).toHaveBeenCalledWith("last7d"),
     );
     // Time-window <select>.
     fireEvent.change(screen.getByDisplayValue("Last 7 days"), {
-      target: { value: "30d" },
+      target: { value: "last30d" },
     });
     await waitFor(() =>
-      expect(getQualityMetrics).toHaveBeenCalledWith("30d"),
+      expect(getQualityMetrics).toHaveBeenCalledWith("last30d"),
     );
-    expect(listShaclFailures).toHaveBeenCalledWith("30d");
+    expect(listShaclFailures).toHaveBeenCalledWith("last30d");
   });
 
   it("renders SHACL failure bars when the failure list is non-empty", async () => {

@@ -6,7 +6,8 @@ import { ApiError, getOntologyDraft } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { toast } from "@/components/ui/toast";
 import { KeyboardShortcut } from "@/components/ui/keyboard-shortcut";
-import type { OntologyDraft} from "@/types/api";import { AnalysisReviewSection } from "./analysis-review-section";
+import type { OntologyDraft } from "@/types/api";
+import { AnalysisReviewSection } from "./analysis-review-section";
 import { useAppStore } from "@/lib/store";
 import { WorkflowActions } from "./workflow-actions";
 import { PhaseStepper } from "./phase-stepper";
@@ -34,7 +35,7 @@ export function OntologyDraftWorkflow({
 }) {
   const t = useTranslations("workbench.bottomPanel.workflow");
   const tActions = useTranslations("workbench.bottomPanel.workflowActions");
-  const report = project.analysis_report;
+  const report = project.analysis_report ?? null;
   const [loading, setLoading] = useState(false);
   const analysisRef = useRef<HTMLDetailsElement>(null);
 

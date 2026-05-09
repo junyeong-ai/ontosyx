@@ -1,3 +1,7 @@
+import { useTranslations } from "next-intl";
+
+import { FormInput, FormSelect } from "@/components/ui/form-input";
+import { ChipInput } from "@/components/ui/chip-input";
 import type { ValueSetDef } from "@/lib/api/edit-ops";
 import type { EntitySchema, FieldSchema } from "@/lib/forms/field-schema";
 
@@ -8,6 +12,89 @@ import type { EntitySchema, FieldSchema } from "@/lib/forms/field-schema";
 // field once the ref autocomplete contract is wired.
 
 type CompositionEntry = NonNullable<ValueSetDef["composition"]>[number];
+type ValueSetSelector = CompositionEntry["selector"];
+
+function defaultSelector(kind: ValueSetSelector["kind"]): ValueSetSelector {
+  switch (kind) {
+    case "explicit":
+      return { kind, codes: [] };
+    case "descendants_of":
+      return { kind, root_id: "" };
+    case "code_pattern":
+      return { kind, pattern: "" };
+    case "all":
+      return { kind };
+  }
+}
+
+function normalizeSelector(value: unknown): ValueSetSelector {
+  if (value && typeof value === "object" && "kind" in value) {
+    return value as ValueSetSelector;
+  }
+  return { kind: "all" };
+}
+
+function ValueSetSelectorControl({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (next: unknown) => void;
+}) {
+  const t = useTranslations("settings.vocabulary.valueSets.form");
+  const selector = normalizeSelector(value);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <FormSelect
+        value={selector.kind}
+        onChange={(event) =>
+          onChange(defaultSelector(event.target.value as ValueSetSelector["kind"]))
+        }
+        density="compact"
+      >
+        <option value="all">{t("selectorOptions.all")}</option>
+        <option value="explicit">{t("selectorOptions.explicit")}</option>
+        <option value="descendants_of">
+          {t("selectorOptions.descendants_of")}
+        </option>
+        <option value="code_pattern">{t("selectorOptions.code_pattern")}</option>
+      </FormSelect>
+
+      {selector.kind === "explicit" && (
+        <ChipInput
+          values={selector.codes}
+          onChange={(codes) => onChange({ ...selector, codes })}
+          placeholder={t("codePlaceholder")}
+          ariaLabel={t("codes")}
+          monospace
+        />
+      )}
+      {selector.kind === "descendants_of" && (
+        <FormInput
+          value={selector.root_id}
+          onChange={(event) =>
+            onChange({ ...selector, root_id: event.target.value })
+          }
+          placeholder={t("rootIdPlaceholder")}
+          density="compact"
+          className="font-mono"
+        />
+      )}
+      {selector.kind === "code_pattern" && (
+        <FormInput
+          value={selector.pattern}
+          onChange={(event) =>
+            onChange({ ...selector, pattern: event.target.value })
+          }
+          placeholder="^A-"
+          density="compact"
+          className="font-mono"
+        />
+      )}
+    </div>
+  );
+}
 
 const compositionItemSchema: EntitySchema<CompositionEntry> = {
   entityKind: "settings.vocabulary.valueSets.form.composition",
@@ -33,6 +120,34 @@ const compositionItemSchema: EntitySchema<CompositionEntry> = {
         { value: "include", labelKey: "modeOptions.include" },
         { value: "exclude", labelKey: "modeOptions.exclude" },
       ],
+    },
+    {
+      kind: "custom",
+      key: "selector",
+      labelKey: "selector",
+      required: true,
+      validate: (value) => {
+        const selector = normalizeSelector(value);
+        if (selector.kind === "explicit" && selector.codes.length === 0) {
+          return { messageKey: "required", params: { field: "codes" } };
+        }
+        if (
+          selector.kind === "descendants_of" &&
+          selector.root_id.trim().length === 0
+        ) {
+          return { messageKey: "required", params: { field: "root_id" } };
+        }
+        if (
+          selector.kind === "code_pattern" &&
+          selector.pattern.trim().length === 0
+        ) {
+          return { messageKey: "required", params: { field: "pattern" } };
+        }
+        return null;
+      },
+      render: ({ value, onChange }) => (
+        <ValueSetSelectorControl value={value} onChange={onChange} />
+      ),
     },
   ],
 };

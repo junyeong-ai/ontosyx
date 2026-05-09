@@ -41,6 +41,7 @@ const CONFIG_ENABLED = {
   api_key_env: "ANTHROPIC_API_KEY",
   region: null,
   base_url: null,
+  provider_meta: {},
 };
 
 const CONFIG_DISABLED = {
@@ -64,6 +65,7 @@ function setMocks(
   rules: typeof RULE[] = [],
 ) {
   vi.mocked(request).mockImplementation((url: string) => {
+    if (url === "/models/operations") return Promise.resolve([]);
     if (url === "/models/configs") return Promise.resolve(configs);
     if (url === "/models/routing-rules") return Promise.resolve(rules);
     return Promise.resolve(undefined);
@@ -135,6 +137,64 @@ describe("ModelsSettingsPage", () => {
     expect(valueOfCard("Routing Rules")).toBe("1");
   });
 
+  it("can create a chat routing rule from the runtime settings UI", async () => {
+    vi.mocked(request).mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/models/operations") {
+        return Promise.resolve([{ key: "chat", tier: "primary", description: "Chat" }]);
+      }
+      if (url === "/models/configs") return Promise.resolve([CONFIG_ENABLED]);
+      if (url === "/models/routing-rules" && init?.method === "POST") {
+        return Promise.resolve({
+          id: "rule-chat",
+          operation: "chat",
+          model_config_id: "cfg-1",
+          priority: 0,
+          enabled: true,
+        });
+      }
+      if (url === "/models/routing-rules") return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    });
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const ui: ReactElement = (
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <QueryClientProvider client={qc}>
+          <ModelsSettingsPage />
+        </QueryClientProvider>
+      </NextIntlClientProvider>
+    );
+    render(ui);
+    await waitFor(() =>
+      expect(screen.getAllByText("Opus prod").length).toBeGreaterThan(0),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^Add Rule$/ }));
+    fireEvent.change(screen.getByLabelText("Operation"), {
+      target: { value: "chat" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Create Rule$/ }));
+
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith(
+        "/models/routing-rules",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            operation: "chat",
+            model_config_id: "cfg-1",
+            priority: 0,
+            enabled: true,
+          }),
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Routing rule created"),
+    );
+  });
+
   it("Delete with confirm=true calls DELETE and shows the success toast", async () => {
     setMocks([CONFIG_ENABLED], []);
     confirmMock.mockResolvedValueOnce(true);
@@ -167,16 +227,16 @@ describe("ModelsSettingsPage", () => {
     );
   });
 
-  it("Test config posts to /models/test and surfaces the latency in a success toast", async () => {
+  it("Test config posts the model connection request and surfaces the server message", async () => {
     vi.mocked(request).mockImplementation((url: string) => {
+      if (url === "/models/operations") return Promise.resolve([]);
       if (url === "/models/configs")
         return Promise.resolve([CONFIG_ENABLED]);
       if (url === "/models/routing-rules") return Promise.resolve([]);
       if (url === "/models/test") {
         return Promise.resolve({
-          success: true,
-          latency_ms: 240,
-          error: null,
+          ok: true,
+          message: "Successfully connected to anthropic / claude-opus-4-7",
         });
       }
       return Promise.resolve(undefined);
@@ -197,13 +257,21 @@ describe("ModelsSettingsPage", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /^Test$/ }));
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith("Model responded in 240ms"),
+      expect(toast.success).toHaveBeenCalledWith(
+        "Successfully connected to anthropic / claude-opus-4-7",
+      ),
     );
     expect(request).toHaveBeenCalledWith(
       "/models/test",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ model_config_id: "cfg-1" }),
+        body: JSON.stringify({
+          provider: "anthropic",
+          model_id: "claude-opus-4-7",
+          api_key_env: "ANTHROPIC_API_KEY",
+          region: null,
+          base_url: null,
+        }),
       }),
     );
   });

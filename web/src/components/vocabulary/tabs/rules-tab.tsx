@@ -53,7 +53,7 @@ export function RulesTab() {
   const confirm = useConfirm();
 
   const rules = useMemo<RuleDef[]>(
-    () => (detail.data?.ontology_ir?.rules as RuleDef[] | undefined) ?? [],
+    () => detail.data?.ontology_ir?.rules ?? [],
     [detail.data?.ontology_ir?.rules],
   );
   const expectedVersion =

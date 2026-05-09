@@ -11,10 +11,17 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { FormInput, FormSelect } from "@/components/ui/form-input";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { PropertyDef, PropertyPatch, OntologyCommand, DataClassification } from "@/types/api";
+import type {
+  PropertyDef,
+  PropertyPatch,
+  OntologyCommand,
+  DataClassification,
+  PropertyTypeKind,
+  PropertyType,
+} from "@/types/api";
 import { formatPropertyType } from "@/types/api";
 import { InlineEdit } from "./inline-edit";
-import { LinkTermDropdown } from "./link-term-dropdown";
+import { LinkConceptDropdown } from "./link-concept-dropdown";
 import type { OwnerKind } from "@/lib/api/binding-suggestions";
 
 const classificationStyles: Record<
@@ -38,6 +45,24 @@ const classificationStyles: Record<
     text: "text-danger-foreground",
   },
 };
+
+type EditablePropertyTypeKind = Exclude<PropertyTypeKind, "list">;
+
+const PROPERTY_TYPE_OPTIONS: readonly EditablePropertyTypeKind[] = [
+  "string",
+  "int",
+  "float",
+  "bool",
+  "date",
+  "date_time",
+  "duration",
+  "bytes",
+  "map",
+];
+
+function editablePropertyType(type: EditablePropertyTypeKind): PropertyType {
+  return { type };
+}
 
 function ClassificationBadge({ classification }: { classification: DataClassification }) {
   const t = useTranslations("inspector.classification");
@@ -64,16 +89,18 @@ function ClassificationBadge({ classification }: { classification: DataClassific
 
 export function PropertyEditor({
   ownerId,
+  ownerKind,
   onClose,
 }: {
   ownerId: string;
+  ownerKind: OwnerKind;
   onClose: () => void;
 }) {
   const t = useTranslations("inspector.property.addForm");
   const tCommon = useTranslations("common");
   const applyCommand = useAppStore((s) => s.applyCommand);
   const [name, setName] = useState("");
-  const [propType, setPropType] = useState("string");
+  const [propType, setPropType] = useState<EditablePropertyTypeKind>("string");
   const [nullable, setNullable] = useState(true);
 
   const handleSave = () => {
@@ -81,11 +108,11 @@ export function PropertyEditor({
     if (!trimmed) return;
     const cmd: OntologyCommand = {
       op: "add_property",
-      owner_id: ownerId,
+      owner: { kind: ownerKind, type_id: ownerId },
       property: {
         id: crypto.randomUUID(),
         name: trimmed,
-        property_type: { type: propType },
+        property_type: editablePropertyType(propType),
         nullable,
         description: { default: "" },
       },
@@ -113,17 +140,14 @@ export function PropertyEditor({
         <FormSelect
           density="compact"
           value={propType}
-          onChange={(e) => setPropType(e.target.value)}
+          onChange={(e) => setPropType(e.target.value as EditablePropertyTypeKind)}
           className="w-auto"
         >
-          <option value="string">string</option>
-          <option value="int">int</option>
-          <option value="float">float</option>
-          <option value="bool">bool</option>
-          <option value="date">date</option>
-          <option value="datetime">datetime</option>
-          <option value="duration">duration</option>
-          <option value="bytes">bytes</option>
+          {PROPERTY_TYPE_OPTIONS.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
         </FormSelect>
         <Checkbox
           checked={nullable}
@@ -193,21 +217,22 @@ export function PropertyRow({
               density="compact"
               value={prop.property_type.type}
               onChange={(e) => {
-                onUpdate({ property_type: { type: e.target.value } });
+                onUpdate({
+                  property_type: editablePropertyType(
+                    e.target.value as EditablePropertyTypeKind,
+                  ),
+                });
                 setEditingType(false);
               }}
               onBlur={() => setEditingType(false)}
               className="w-auto"
             >
               {/* i18n-audit-ignore(10) — wire-protocol PropertyType discriminants. */}
-              <option value="string">string</option>
-              <option value="int">int</option>
-              <option value="float">float</option>
-              <option value="bool">bool</option>
-              <option value="date">date</option>
-              <option value="datetime">datetime</option>
-              <option value="duration">duration</option>
-              <option value="bytes">bytes</option>
+              {PROPERTY_TYPE_OPTIONS.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
             </FormSelect>
           ) : (
             <button type="button"
@@ -231,16 +256,13 @@ export function PropertyRow({
             <ClassificationBadge classification={prop.classification} />
           )}
           {binding && (
-            <LinkTermDropdown
+            <LinkConceptDropdown
               ontologyId={binding.ontologyId}
               expectedVersion={binding.expectedVersion}
               ownerKind={binding.ownerKind}
               ownerTypeId={binding.ownerTypeId}
               propertyId={prop.id}
-              boundTermId={
-                prop.bindings?.find((b) => b.kind === "glossary")?.id
-                ?? undefined
-              }
+              boundBinding={prop.bindings?.find((b) => b.kind === "concept")}
             />
           )}
         </div>

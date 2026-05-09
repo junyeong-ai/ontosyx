@@ -20,20 +20,23 @@ export const SourceTypeKindSchema = z.enum([
   "postgresql",
   "mysql",
   "mongodb",
+  "snowflake",
+  "bigquery",
+  "duckdb",
   "ontology",
   "code_repository",
 ]);
 
 export const SourceConfigSchema = z.object({
   source_type: SourceTypeKindSchema,
-  schema_name: z.string().optional(),
-  source_fingerprint: z.string().optional(),
+  schema_name: z.string().nullable().optional(),
+  source_fingerprint: z.string().nullable().optional(),
 });
 
 export const SourceHistoryEntrySchema = z.object({
   source_type: SourceTypeKindSchema,
   added_at: z.string(),
-  schema_name: z.string().optional(),
+  schema_name: z.string().nullable().optional(),
   url: z.string().optional(),
   fingerprint: z.string().optional(),
 });
@@ -149,8 +152,8 @@ export const AmbiguityContextSchema = z.object({
   source_id: z.string(),
   column: AmbiguityColumnRefSchema,
   kind: AmbiguityKindSchema,
-  sample_values: z.array(z.string()),
-  distinct_estimate: z.number().optional(),
+  sample_values: z.array(z.string()).optional(),
+  distinct_estimate: z.number().nullable().optional(),
   nullable: z.boolean(),
   clarification_prompt: z.string(),
   detection_source_hash: z.string(),
@@ -216,9 +219,9 @@ export const WarningClassSchema = z.enum([
   "column_sample_skipped",
   "foreign_keys_unavailable",
   "sample_values_omitted",
-  "bigquery_partition_filter_required",
-  "bigquery_clustering_filter_required",
-  "bigquery_jobs_create_denied",
+  "big_query_partition_filter_required",
+  "big_query_clustering_filter_required",
+  "big_query_jobs_create_denied",
   "postgres_permission_denied",
   "snowflake_warehouse_suspended",
   "value_set_drift_detected",
@@ -257,11 +260,11 @@ export const SourceAnalysisReportSchema = z.object({
   pii_suggestions: z.array(PiiSuggestionSchema),
   ambiguous_columns: z.array(AmbiguityContextSchema),
   table_exclusion_suggestions: z.array(TableExclusionSuggestionSchema),
-  large_schema_warning: LargeSchemaWarningSchema.optional(),
+  large_schema_warning: LargeSchemaWarningSchema.nullable().optional(),
   repo_suggestions: z.array(RepoColumnSuggestionSchema),
-  repo_summary: RepoAnalysisSummarySchema.optional(),
+  repo_summary: RepoAnalysisSummarySchema.nullable().optional(),
   analysis_completeness: z.enum(["complete", "partial"]),
-  analysis_warnings: z.array(AnalysisWarningSchema),
+  analysis_warnings: z.array(AnalysisWarningSchema).optional(),
 });
 
 export const ConfirmedRelationshipSchema = z.object({
@@ -350,7 +353,8 @@ export const OntologyDraftSchema = z.object({
   design_options: DesignOptionsSchema,
   ontology: OntologyIRSchema.nullable(),
   quality_report: OntologyQualityReportSchema.nullable(),
-  ontology_id: z.string().nullable(),
+  parent_version_id: z.string().nullable().optional(),
+  committed_version_id: z.string().nullable().optional(),
   source_history: z.array(SourceHistoryEntrySchema),
   analysis_scope: AnalysisScopeSchema.default({
     included: [],

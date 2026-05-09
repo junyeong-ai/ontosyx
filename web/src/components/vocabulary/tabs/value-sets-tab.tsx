@@ -17,9 +17,7 @@ export function ValueSetsTab() {
   return (
     <MasterDetailEntityPage<ValueSetDef>
       schema={valueSetSchema}
-      selectItems={(ir) =>
-        ((ir as unknown as { value_sets?: ValueSetDef[] }).value_sets ?? [])
-      }
+      selectItems={(ir) => ir.value_sets ?? []}
       itemId={(vs) => vs.id}
       buildCreateOp={(def) => ({ op: "create_value_set", def })}
       buildUpdateOp={(id, def) => ({ op: "update_value_set", id, def })}

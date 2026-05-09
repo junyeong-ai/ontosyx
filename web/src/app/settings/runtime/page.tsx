@@ -60,7 +60,7 @@ export default function SystemSettingsPage() {
 
   const handleChange = (category: string, key: string, value: string) => {
     const ck = compositeKey(category, key);
-    const original = config?.[category]?.find((e) => e.key === key)?.value;
+    const original = config?.categories[category]?.find((e) => e.key === key)?.value;
 
     setEditedValues((prev) => {
       if (value === original) {
@@ -85,7 +85,7 @@ export default function SystemSettingsPage() {
     const updates: ConfigUpdateItem[] = [];
     for (const [ck, value] of Object.entries(editedValues)) {
       const [category, key] = ck.split(".", 2);
-      const entry = config[category]?.find((e) => e.key === key);
+      const entry = config.categories[category]?.find((e) => e.key === key);
       if (!entry) continue;
 
       if (entry.data_type === "int") {
@@ -161,10 +161,10 @@ export default function SystemSettingsPage() {
   // surfaces in the UI without a matching frontend constant. Empty
   // arrays are dropped so a stray `category: []` doesn't ghost a tab.
   const knownCategories = CATEGORY_ORDER.filter(
-    (c) => c in config && config[c].length > 0,
+    (c) => c in config.categories && config.categories[c].length > 0,
   );
-  const unknownCategories = Object.keys(config).filter(
-    (c) => !isKnownCategory(c) && config[c].length > 0,
+  const unknownCategories = Object.keys(config.categories).filter(
+    (c) => !isKnownCategory(c) && config.categories[c].length > 0,
   );
   const categories = [...knownCategories, ...unknownCategories];
 
@@ -210,7 +210,7 @@ export default function SystemSettingsPage() {
               key={category}
               label={categoryLabel(category)}
               description={categoryDescription(category)}
-              entries={config[category]}
+              entries={config.categories[category]}
               getCurrentValue={(entry) =>
                 getCurrentValue(category, entry)
               }

@@ -41,7 +41,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
  */
 export function SignalsFacet() {
   const t = useTranslations("settings.quality.signals");
-  const [windowChoice, setWindowChoice] = useState<MetricWindow>("7d");
+  const [windowChoice, setWindowChoice] = useState<MetricWindow>("last7d");
   const [staleDays, setStaleDays] = useState(180);
 
   const metrics = useQualityMetrics(windowChoice);
@@ -57,9 +57,9 @@ export function SignalsFacet() {
           value={windowChoice}
           onChange={(e) => setWindowChoice(e.target.value as MetricWindow)}
         >
-          <option value="7d">{t("window.last7d")}</option>
-          <option value="30d">{t("window.last30d")}</option>
-          <option value="90d">{t("window.last90d")}</option>
+          <option value="last7d">{t("window.last7d")}</option>
+          <option value="last30d">{t("window.last30d")}</option>
+          <option value="last90d">{t("window.last90d")}</option>
         </SettingsSelect>
       </div>
 
@@ -168,7 +168,7 @@ function MetricsGrid({
 
   const tiles = [
     { key: "anchor_match_rate", value: report?.anchor_match_rate },
-    { key: "glossary_hit_rate", value: report?.glossary_hit_rate },
+    { key: "concept_hit_rate", value: report?.concept_hit_rate },
     {
       key: "clarification_success_rate",
       value: report?.clarification_success_rate,

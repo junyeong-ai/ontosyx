@@ -5,6 +5,7 @@ import type { QueryExecutionSummary } from "@/types/api";
 import { Card } from "@/components/ui/card";
 import { BarChart, Table } from "lucide-react";
 import { useFormatters } from "@/hooks/use-formatters";
+import { formatModelIdentity } from "@/lib/model-identity";
 
 // ---------------------------------------------------------------------------
 // ExecutionCard — list item for query executions
@@ -46,6 +47,9 @@ export function ExecutionCard({ item, onClick }: ExecutionCardProps) {
           {t("rowsSummary", { count: item.row_count })}
         </span>
         <span>{item.execution_time_ms}ms</span>
+        <span className="truncate font-mono">
+          {formatModelIdentity(item.model_provider, item.model)}
+        </span>
         <span className="ms-auto">{timeStr}</span>
       </div>
     </Card>

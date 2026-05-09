@@ -14,7 +14,7 @@
 //   value_range             → strength is informational; the IR
 //                              treats ranges as classifiers, not
 //                              rejectors. Render disabled.
-//   glossary                → strength has no enforcement semantics;
+//   concept                 → strength has no enforcement semantics;
 //                              the binding is a semantic anchor
 //                              ("this property realises this
 //                              concept"). Render disabled.
@@ -71,10 +71,10 @@ function policyFor(kind: BindingKind): Policy {
         options: ALL_STRENGTHS,
         disabledReasonKey: "disabled.valueRange",
       };
-    case "glossary":
+    case "concept":
       return {
         options: ALL_STRENGTHS,
-        disabledReasonKey: "disabled.glossary",
+        disabledReasonKey: "disabled.concept",
       };
   }
 }

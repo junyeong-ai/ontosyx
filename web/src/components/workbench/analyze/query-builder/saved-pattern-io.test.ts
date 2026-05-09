@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { fromPatternIR, type WirePatternIR } from "./saved-pattern-io";
+import { fromPatternIR, toPatternIR, type WirePatternIR } from "./saved-pattern-io";
 
 describe("fromPatternIR — read_only_reason passthrough", () => {
   it("returns undefined readOnlyReason on a pattern without the field", () => {
@@ -49,5 +49,37 @@ describe("fromPatternIR — read_only_reason passthrough", () => {
     };
     expect(fromPatternIR(unknown).readOnlyReason).toBeUndefined();
     expect(fromPatternIR(locked).readOnlyReason?.original_op).toBe("PathFind");
+  });
+});
+
+describe("toPatternIR — canonical backend wire shape", () => {
+  it("serializes filters as Expr and literals as tagged PropertyValue", () => {
+    const wire = toPatternIR({
+      nodes: [
+        {
+          id: "n1",
+          label: "Person",
+          alias: "p",
+          filters: [{ id: "f1", property: "age", operator: ">=", value: "42" }],
+        },
+      ],
+      edges: [],
+      returnFields: [{ alias: "p", property: "name", aggregation: null }],
+      orderBy: [{ alias: "p", property: "name", direction: "asc" }],
+      limit: 25,
+    });
+
+    expect(wire.filters?.[0]?.expr).toEqual({
+      expr_type: "comparison",
+      left: { expr_type: "property", variable: "p", field: "age" },
+      op: "gte",
+      right: { expr_type: "literal", value: { type: "int", value: 42 } },
+    });
+    expect(wire.projections?.[0]?.projection).toEqual({
+      kind: "field",
+      variable: "p",
+      field: "name",
+      alias: undefined,
+    });
   });
 });

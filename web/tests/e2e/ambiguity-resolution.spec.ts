@@ -31,7 +31,7 @@ const PENDING_ENTRY = mockAmbiguitySummary({
 const RESOLVE_RESPONSE = mockAmbiguityResolution({
   context_id: "ctx-pending-1",
   context_source_hash: "sha256:abc123",
-  mapping: { kind: "glossary_ref", term_id: "glossary-order-status" },
+  mapping: { kind: "concept_ref", concept_id: "c-order-status" },
 });
 
 test.describe("ambiguity resolution", () => {
@@ -84,7 +84,7 @@ test.describe("ambiguity resolution", () => {
       page.getByText(/Resolve orders\.status/i),
     ).toBeVisible();
     // The clarification prompt from the detection hash is shown so
-    // the operator picks the right code system / glossary term.
+    // the operator picks the right code system / concept.
     await expect(
       page.getByText(
         /Which code system catalogs 1\/2\/3 as order statuses/,
@@ -92,7 +92,7 @@ test.describe("ambiguity resolution", () => {
     ).toBeVisible();
   });
 
-  test("submitting a glossary_ref posts {mapping: {kind, term_id}} to /resolve", async ({
+  test("submitting a concept_ref posts {mapping: {kind, concept_id}} to /resolve", async ({
     page,
   }) => {
     await page.goto("/settings/ambiguity");
@@ -104,17 +104,13 @@ test.describe("ambiguity resolution", () => {
 
     // Mode switcher is a radio group. The `<input type="radio">` is
     // `.sr-only` wrapped by a `<label>` carrying the translated
-    // "Glossary term" copy — `.check({ force: true })` is required
+    // "Concept" copy — `.check({ force: true })` is required
     // because the input stays visually hidden.
     await page
-      .getByRole("radio", { name: /^Glossary term$/ })
+      .getByRole("radio", { name: /^Concept$/ })
       .check({ force: true });
 
-    // Glossary mode reveals `<input id="term-id">` labelled
-    // "Glossary term id" by the adjacent `<label htmlFor>`.
-    await page
-      .getByLabel(/^Glossary term id$/)
-      .fill("glossary-order-status");
+    await page.getByLabel(/^Concept id$/).fill("c-order-status");
 
     const resolveRequest = page.waitForRequest(
       (req) =>
@@ -126,10 +122,10 @@ test.describe("ambiguity resolution", () => {
     const req = await resolveRequest;
 
     const body = req.postDataJSON() as {
-      mapping: { kind: string; term_id?: string; code_system_id?: string };
+      mapping: { kind: string; concept_id?: string; code_system_id?: string };
     };
-    expect(body.mapping.kind).toBe("glossary_ref");
-    expect(body.mapping.term_id).toBe("glossary-order-status");
+    expect(body.mapping.kind).toBe("concept_ref");
+    expect(body.mapping.concept_id).toBe("c-order-status");
     // The resolve URL encodes the context id from the list row.
     expect(req.url()).toMatch(/ambiguities\/ctx-pending-1\/resolve$/);
   });

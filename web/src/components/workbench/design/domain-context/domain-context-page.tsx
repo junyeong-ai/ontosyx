@@ -68,7 +68,6 @@ function NodeView({
 
   const propertyCount = arr(node.properties).length;
   const constraintCount = arr(node.constraints).length;
-  const anchors = arr(node.glossary_anchors);
   const entityRef: SchemaEntityRef = { kind: "node_type", id: node.id };
 
   const handleRename = useCallback(
@@ -108,9 +107,7 @@ function NodeView({
           <CollapsibleSection
             title={t("sections.definition.title")}
             description={t("sections.definition.subtitle")}
-            badge={
-              anchors.length > 0 ? <CountBadge count={anchors.length} /> : undefined
-            }
+            badge={node.concept_id ? <CountBadge count={1} /> : undefined}
           >
             <DefinitionFacet ontology={ontology} entity={node} kind="node" />
           </CollapsibleSection>
@@ -195,7 +192,7 @@ function evaluateReadiness(
   );
   return [
     { id: "description", passed: description.length > 0 },
-    { id: "anchors", passed: arr(node.glossary_anchors).length > 0 },
+    { id: "concept", passed: !!node.concept_id },
     { id: "properties", passed: arr(node.properties).length > 0 },
     { id: "mapping", passed: hasMapping },
     { id: "sourceLineage", passed: !!node.source_lineage?.table },

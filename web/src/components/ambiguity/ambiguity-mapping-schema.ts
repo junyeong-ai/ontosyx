@@ -1,6 +1,6 @@
 // Discriminated-union schema for the ambiguity-resolution form.
 //
-// Three variants — `value_map`, `code_system_ref`, `glossary_ref` —
+// Three variants — `value_map`, `code_system_ref`, `concept_ref` —
 // match the Rust `AmbiguityMapping` wire enum 1:1. Each variant
 // validates its own required fields; the schema's discriminator is
 // `kind` so an invalid value-map entry never produces "code_system_id
@@ -41,15 +41,18 @@ const CodeSystemRefVariant = z.object({
     .min(1, { message: "errors.codeSystemRequired" }),
 });
 
-const GlossaryRefVariant = z.object({
-  kind: z.literal("glossary_ref"),
-  term_id: z.string().trim().min(1, { message: "errors.termRequired" }),
+const ConceptRefVariant = z.object({
+  kind: z.literal("concept_ref"),
+  concept_id: z
+    .string()
+    .trim()
+    .min(1, { message: "errors.conceptRequired" }),
 });
 
 export const AmbiguityMappingFormSchema = z.discriminatedUnion("kind", [
   ValueMapVariant,
   CodeSystemRefVariant,
-  GlossaryRefVariant,
+  ConceptRefVariant,
 ]);
 
 export type AmbiguityMappingFormInput = z.input<
@@ -82,7 +85,7 @@ export function toAmbiguityMapping(
       };
     case "code_system_ref":
       return { kind: "code_system_ref", code_system_id: v.code_system_id };
-    case "glossary_ref":
-      return { kind: "glossary_ref", term_id: v.term_id };
+    case "concept_ref":
+      return { kind: "concept_ref", concept_id: v.concept_id };
   }
 }

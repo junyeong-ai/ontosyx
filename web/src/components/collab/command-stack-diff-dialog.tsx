@@ -29,9 +29,11 @@ import { useTranslations } from "next-intl";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { commandOpBadge, formatCommand } from "@/lib/command-format";
+import type { FormattableOntologyCommand } from "@/lib/command-format";
 import { cn } from "@/lib/cn";
-import type { OntologyCommand, OntologyIR } from "@/types/api";
+import type { OntologyIR } from "@/types/api";
 import type { CommandEntry } from "@/lib/store";
+import type { WireOntologyCommand } from "@/lib/collab/types";
 
 export interface CommandStackDiffDialogProps {
   open: boolean;
@@ -55,7 +57,7 @@ export interface CommandStackDiffDialogProps {
    * symmetric inventory when supplied and falls back to an opaque
    * "remote arrived" message otherwise.
    */
-  remoteCommands?: readonly OntologyCommand[];
+  remoteCommands?: readonly WireOntologyCommand[];
   /** Resolve by rebasing local stack atop the remote. */
   onKeepLocal: () => void;
   /** Resolve by dropping local stack and accepting the remote. */
@@ -212,7 +214,7 @@ function CommandRow({
   tCommand,
 }: {
   index: number;
-  command: OntologyCommand;
+  command: FormattableOntologyCommand;
   ontology: OntologyIR | null;
   tCommand: (k: string, params?: Record<string, string | number>) => string;
 }) {
@@ -254,7 +256,7 @@ const BADGE_TONE: Record<
  * collide if we key on the op name alone, so we splice in any
  * structural identifier the variant carries.
  */
-function commandKey(command: OntologyCommand): string {
+function commandKey(command: FormattableOntologyCommand): string {
   if ("node_id" in command && command.node_id) return `${command.op}-${command.node_id}`;
   if ("edge_id" in command && command.edge_id) return `${command.op}-${command.edge_id}`;
   if ("id" in command && command.id) return `${command.op}-${String(command.id)}`;

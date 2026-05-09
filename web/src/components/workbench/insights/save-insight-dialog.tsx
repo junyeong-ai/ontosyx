@@ -22,14 +22,15 @@ import { FormField } from "@/components/ui/form-field";
 import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { useCreateInsight } from "@/hooks/api/use-insights";
 import { useFormWithSchema } from "@/hooks/use-form-with-schema";
+import type { InsightProvenance, InsightQueryIR } from "@/types/api";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The QueryIR to persist — server validates it again. */
-  queryIr: unknown;
+  queryIr: InsightQueryIR;
   /** Optional provenance from the most recent execution. */
-  originalProvenance?: unknown;
+  originalProvenance?: InsightProvenance;
   /** Pre-filled question text (e.g. the Analyze chat prompt). */
   defaultQuestion?: string;
 }

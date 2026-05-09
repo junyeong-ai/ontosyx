@@ -502,7 +502,7 @@ export function QueryBuilder() {
 
   const applyLoadedPattern = useCallback((pattern: SavedPattern) => {
     const { visual, layoutHints, readOnlyReason: reason } = fromPatternIR(
-      pattern.pattern_ir as never,
+      pattern.pattern_ir,
     );
     setNodes(visual.nodes);
     setEdges(visual.edges);

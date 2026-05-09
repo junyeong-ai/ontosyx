@@ -139,7 +139,7 @@ export function mockAmbiguityResolution(
     id: "res-1",
     context_id: "ctx-1",
     context_source_hash: "sha256:abc",
-    mapping: { kind: "glossary_ref", term_id: "term-x" } as AmbiguityMapping,
+    mapping: { kind: "concept_ref", concept_id: "concept-x" } as AmbiguityMapping,
     resolved_at: "2026-04-23T00:00:00Z",
     ...overrides,
   };

@@ -122,6 +122,59 @@ describe("OntologySlice", () => {
     expect(store.getState().ontology!.node_types).toHaveLength(0);
   });
 
+  it("applyCommand: delete_property removes object property mappings and undo restores them", () => {
+    store.getState().loadStandaloneOntology(makeOntology({
+      node_types: [
+        {
+          id: "n1",
+          label: "Person",
+          description: { default: "" },
+          properties: [
+            { id: "p1", name: "name", description: { default: "" }, property_type: { type: "string" }, nullable: false },
+          ],
+          constraints: [{ id: "c1", type: "unique", property_ids: ["p1"] }],
+        },
+      ],
+      indexes: [{ id: "idx1", type: "single", node_id: "n1", property_id: "p1" }],
+      object_mappings: [
+        {
+          id: "om-person",
+          node_type_id: "n1",
+          source_id: "pg-main",
+          relation: "people",
+          property_mappings: [
+            {
+              property_id: "p1",
+              property_key: "name",
+              location: { kind: "column", relation: "people", column: "name" },
+            },
+          ],
+        },
+      ],
+    }));
+
+    store.getState().applyCommand({
+      op: "delete_property",
+      owner: { kind: "node", type_id: "n1" },
+      property_id: "p1",
+    });
+
+    expect(store.getState().ontology!.node_types[0].properties).toHaveLength(0);
+    expect(store.getState().ontology!.node_types[0].constraints).toHaveLength(0);
+    expect(store.getState().ontology!.indexes).toHaveLength(0);
+    expect(store.getState().ontology!.object_mappings![0].property_mappings).toHaveLength(0);
+
+    store.getState().undo();
+
+    expect(store.getState().ontology!.node_types[0].properties).toHaveLength(1);
+    expect(store.getState().ontology!.node_types[0].constraints).toHaveLength(1);
+    expect(store.getState().ontology!.indexes).toHaveLength(1);
+    expect(store.getState().ontology!.object_mappings![0].property_mappings).toHaveLength(1);
+    expect(
+      store.getState().ontology!.object_mappings![0].property_mappings[0].property_id,
+    ).toBe("p1");
+  });
+
   it("clearCommandStack resets undo/redo", () => {
     store.getState().loadStandaloneOntology(makeOntology());
     store.getState().applyCommand({

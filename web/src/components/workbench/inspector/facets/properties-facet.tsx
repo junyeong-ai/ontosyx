@@ -47,24 +47,24 @@ export function PropertiesFacet({
     (propId: string, propName: string) => {
       applyCommand({
         op: "delete_property",
-        owner_id: entity.id,
+        owner: { kind, type_id: entity.id },
         property_id: propId,
       });
       toast.success(t("deletedToast", { name: propName }));
     },
-    [applyCommand, entity.id, t],
+    [applyCommand, entity.id, kind, t],
   );
 
   const handleUpdate = useCallback(
     (propId: string, patch: PropertyPatch) => {
       applyCommand({
         op: "update_property",
-        owner_id: entity.id,
+        owner: { kind, type_id: entity.id },
         property_id: propId,
         patch,
       });
     },
-    [applyCommand, entity.id],
+    [applyCommand, entity.id, kind],
   );
 
   const handleAiSuggest = useCallback(() => {
@@ -108,6 +108,7 @@ export function PropertiesFacet({
       {adding && (
         <PropertyEditor
           ownerId={entity.id}
+          ownerKind={kind}
           onClose={() => setAdding(false)}
         />
       )}

@@ -28,6 +28,7 @@ import {
   testChannel,
   listLogs,
   type NotificationChannel,
+  type NotificationChannelType,
 } from "@/lib/api/notifications";
 
 // ---------------------------------------------------------------------------
@@ -35,11 +36,6 @@ import {
 // ---------------------------------------------------------------------------
 
 const CHANNEL_TYPE_VALUES = ["slack_webhook", "generic_webhook"] as const;
-type KnownChannelType = (typeof CHANNEL_TYPE_VALUES)[number];
-
-function isKnownChannelType(s: string): s is KnownChannelType {
-  return s === "slack_webhook" || s === "generic_webhook";
-}
 
 const EVENT_TYPE_VALUES = [
   "quality_rule_failed",
@@ -59,7 +55,7 @@ function isKnownStatus(s: string): s is KnownStatus {
 
 type ChannelFormValues = {
   name: string;
-  channel_type: string;
+  channel_type: NotificationChannelType;
   url: string;
   events: string[];
 };
@@ -468,11 +464,9 @@ export default function NotificationsSettingsPage() {
 // Channel type badge
 // ---------------------------------------------------------------------------
 
-function ChannelTypeBadge({ type }: { type: string }) {
+function ChannelTypeBadge({ type }: { type: NotificationChannelType }) {
   const t = useTranslations("account.notifications");
-  const label = isKnownChannelType(type)
-    ? t(`channelType.${type}Short`)
-    : type;
+  const label = t(`channelType.${type}Short`);
   const color =
     type === "slack_webhook"
       ? "bg-concept-surface text-concept-foreground"
@@ -580,7 +574,9 @@ function ChannelForm({
             hideLabel
             value={form.channel_type}
             onChange={(e) =>
-              update("channel_type", { channel_type: e.target.value })
+              update("channel_type", {
+                channel_type: e.target.value as NotificationChannelType,
+              })
             }
             disabled={isEditing}
           >

@@ -317,5 +317,5 @@ function MappingBadge({ mapping }: { mapping: AmbiguityMapping }) {
   if (mapping.kind === "code_system_ref") {
     return <span className="font-mono text-2xs">CS: {mapping.code_system_id}</span>;
   }
-  return <span className="font-mono text-2xs">G: {mapping.term_id}</span>;
+  return <span className="font-mono text-2xs">C: {mapping.concept_id}</span>;
 }

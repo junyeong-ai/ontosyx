@@ -13,7 +13,6 @@ import { FolderOpen } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
-import type { OntologyIR } from "@/types/api";
 import { getOntologyDraft } from "@/lib/api";
 import { useOntologyDrafts } from "@/hooks/api/use-ontology-drafts";
 import { useCreateDashboard, useDashboards } from "@/hooks/api/use-dashboards";
@@ -163,7 +162,7 @@ function AnalyzeSelector() {
   useEffect(() => {
     if (!detail?.ontology_ir) return;
     const store = useAppStore.getState();
-    store.loadStandaloneOntology(detail.ontology_ir as OntologyIR);
+    store.loadStandaloneOntology(detail.ontology_ir);
     store.setOntologyId(detail.id);
   }, [detail]);
 
@@ -228,7 +227,7 @@ function ExploreSelector() {
   useEffect(() => {
     if (!detail?.ontology_ir) return;
     const store = useAppStore.getState();
-    store.loadStandaloneOntology(detail.ontology_ir as OntologyIR);
+    store.loadStandaloneOntology(detail.ontology_ir);
     store.setOntologyId(detail.id);
   }, [detail]);
 

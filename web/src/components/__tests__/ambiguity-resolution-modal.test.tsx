@@ -77,6 +77,18 @@ describe("ResolutionModal", () => {
     });
   });
 
+  it("switching to ConceptRef mode + submitting emits concept_ref", () => {
+    const { onSubmit } = renderModal();
+    fireEvent.click(screen.getByRole("radio", { name: /Concept/i }));
+    const input = screen.getByLabelText(/Concept id/i);
+    fireEvent.change(input, { target: { value: "c-order-status" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save resolution/i }));
+    expect(onSubmit).toHaveBeenCalledWith({
+      kind: "concept_ref",
+      concept_id: "c-order-status",
+    });
+  });
+
   it("pre-fills from an existing resolution's mapping", () => {
     const active = {
       id: "r-1",

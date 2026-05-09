@@ -6,6 +6,7 @@
  */
 import { NextResponse } from "next/server";
 import { getSessionUser, isAuthEnabled } from "@/lib/server/auth";
+import { apiErrorResponse } from "@/lib/server/api-error";
 
 export async function GET() {
   if (!isAuthEnabled()) {
@@ -20,10 +21,7 @@ export async function GET() {
 
   const user = await getSessionUser();
   if (!user) {
-    return NextResponse.json(
-      { error: { type: "unauthorized", message: "Not authenticated" } },
-      { status: 401 },
-    );
+    return apiErrorResponse(401, "unauthorized", "client_error");
   }
 
   return NextResponse.json({ ...user, auth_enabled: true });

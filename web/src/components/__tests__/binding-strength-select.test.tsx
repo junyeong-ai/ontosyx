@@ -52,7 +52,7 @@ describe("BindingStrengthSelect", () => {
 
   it.each([
     ["value_range", "Value-range bindings classify values only"],
-    ["glossary", "Glossary bindings express semantic links only"],
+    ["concept", "Concept bindings express semantic links only"],
   ])(
     "disables the control for %s with an aria-describedby reason",
     (kind, expectedSubstring) => {
@@ -79,7 +79,7 @@ describe("BindingStrengthSelect", () => {
     wrap(
       <div>
         <BindingStrengthSelect
-          targetKind="glossary"
+          targetKind="concept"
           value="preferred"
           onChange={vi.fn()}
         />

@@ -15,7 +15,9 @@ import {
 
 import type { SelectionRef } from "@/lib/store";
 
-import { CommandBar, DiffOverlayBar, VersionDiffBar } from "./command-bar";
+import { CommandBar } from "./command-bar";
+import { DiffOverlayBar } from "./diff-overlay-bar";
+import { VersionDiffBar } from "./version-diff-bar";
 import { ContextMenu } from "./context-menu";
 import { CanvasCommandSource } from "./canvas-command-source";
 import { NeighborhoodToolbar } from "./neighborhood-toolbar";

@@ -15,6 +15,16 @@ interface ThresholdConfig {
   direction?: "above" | "below";
 }
 
+function compactThresholds(
+  thresholds: DashboardWidget["thresholds"],
+): ThresholdConfig {
+  return {
+    warning: thresholds?.warning ?? undefined,
+    critical: thresholds?.critical ?? undefined,
+    direction: thresholds?.direction ?? undefined,
+  };
+}
+
 export interface WidgetInspectorProps {
   widget: DashboardWidget;
   dashboardId: string;
@@ -27,7 +37,9 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
   const [widgetType, setWidgetType] = useState(widget.widget_type);
   const [query, setQuery] = useState(widget.query ?? "");
   const [refreshSecs, setRefreshSecs] = useState(widget.refresh_interval_secs ?? 0);
-  const [thresholds, setThresholds] = useState<ThresholdConfig>(widget.thresholds ?? {});
+  const [thresholds, setThresholds] = useState<ThresholdConfig>(
+    compactThresholds(widget.thresholds),
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   // Reset when widget changes
@@ -36,10 +48,10 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
     setWidgetType(widget.widget_type);
     setQuery(widget.query ?? "");
     setRefreshSecs(widget.refresh_interval_secs ?? 0);
-    setThresholds(widget.thresholds ?? {});
+    setThresholds(compactThresholds(widget.thresholds));
   }, [widget.title, widget.widget_type, widget.query, widget.refresh_interval_secs, widget.thresholds]);
 
-  const origThresholds = widget.thresholds ?? {};
+  const origThresholds = compactThresholds(widget.thresholds);
   const thresholdsChanged =
     thresholds.warning !== origThresholds.warning ||
     thresholds.critical !== origThresholds.critical ||

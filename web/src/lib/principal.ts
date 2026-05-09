@@ -7,8 +7,8 @@
  * server-side in the API proxy — the client does not need to send it.
  * This function returns undefined in that case.
  *
- * When auth is disabled (dev mode), falls back to the localStorage UUID
- * for backward compatibility.
+ * When auth is disabled, local development uses a stable browser-local
+ * UUID so workspace-scoped requests still carry an explicit principal.
  */
 const PRINCIPAL_STORAGE_KEY = "ontosyx.principal_id";
 

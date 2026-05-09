@@ -19,7 +19,7 @@ function report(overrides: Partial<QualityMetricsReport> = {}): QualityMetricsRe
   const staleHealthy = { value: 0.05, trend_delta: 0, lower_bound_95: 0.03, upper_bound_95: 0.08 };
   return {
     anchor_match_rate: healthy,
-    glossary_hit_rate: healthy,
+    concept_hit_rate: healthy,
     clarification_success_rate: healthy,
     query_reproducibility: healthy,
     shacl_pass_rate: healthy,
@@ -135,7 +135,7 @@ describe("resolveThresholds", () => {
   ): QualityBaseline {
     return {
       workspace_id: "ws-1",
-      window: "30d",
+      window_label: "last30d",
       sample_size: 100,
       thresholds: {},
       computed_at: "2026-04-23T00:00:00Z",
@@ -184,7 +184,7 @@ describe("resolveThresholds", () => {
       },
     });
     const out = resolveThresholds(b);
-    expect(out.glossary_hit_rate).toEqual(DEFAULT_THRESHOLDS.glossary_hit_rate);
+    expect(out.concept_hit_rate).toEqual(DEFAULT_THRESHOLDS.concept_hit_rate);
   });
 
   it("preserves the lower-is-better direction on stale_concept_ratio", () => {
@@ -209,7 +209,7 @@ describe("dominantAlert", () => {
   });
 
   it("prefers critical over warning regardless of order", () => {
-    const warn = { metric: "glossary_hit_rate", severity: "warning", value: 0.4, threshold: 0.5 } as const;
+    const warn = { metric: "concept_hit_rate", severity: "warning", value: 0.4, threshold: 0.5 } as const;
     const crit = { metric: "shacl_pass_rate", severity: "critical", value: 0.5, threshold: 0.8 } as const;
     expect(dominantAlert([warn, crit])?.metric).toBe("shacl_pass_rate");
     expect(dominantAlert([crit, warn])?.metric).toBe("shacl_pass_rate");

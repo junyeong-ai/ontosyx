@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import en from "../../messages/en.json";
 import ko from "../../messages/ko.json";
+import { CHANGE_TYPE_ORDER } from "./change-types";
 
 /**
  * Walk a nested message dictionary and yield the dotted path of
@@ -49,5 +50,18 @@ describe("messages catalogue parity", () => {
       { onlyInEn, onlyInKo },
       "catalogue trees diverged — every key must exist in both en.json and ko.json",
     ).toEqual({ onlyInEn: [], onlyInKo: [] });
+  });
+
+  it("governance routing labels cover every ChangeType", () => {
+    const enLabels = en.settings.governance.routing.changeTypes;
+    const koLabels = ko.settings.governance.routing.changeTypes;
+
+    expect(Object.keys(enLabels).sort()).toEqual([...CHANGE_TYPE_ORDER].sort());
+    expect(Object.keys(koLabels).sort()).toEqual([...CHANGE_TYPE_ORDER].sort());
+
+    for (const changeType of CHANGE_TYPE_ORDER) {
+      expect(enLabels[changeType].trim().length, `en label for ${changeType}`).toBeGreaterThan(0);
+      expect(koLabels[changeType].trim().length, `ko label for ${changeType}`).toBeGreaterThan(0);
+    }
   });
 });

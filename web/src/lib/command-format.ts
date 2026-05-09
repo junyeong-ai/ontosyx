@@ -1,4 +1,5 @@
 import type { OntologyCommand, OntologyIR } from "@/types/api";
+import type { components } from "@/types/api.generated";
 import { arr } from "@/lib/ir-collections";
 
 /**
@@ -12,16 +13,16 @@ import { arr } from "@/lib/ir-collections";
  */
 export type FormattedCommandKey =
   | "addNode"
+  | "createNodeType"
   | "deleteNode"
   | "renameNode"
   | "updateNodeDescription"
-  | "setNodeGlossaryAnchors"
   | "addEdge"
+  | "createEdgeType"
   | "deleteEdge"
   | "renameEdge"
   | "updateEdgeCardinality"
   | "updateEdgeDescription"
-  | "setEdgeGlossaryAnchors"
   | "addProperty"
   | "deleteProperty"
   | "updateProperty"
@@ -32,12 +33,23 @@ export type FormattedCommandKey =
   | "createObjectMapping"
   | "updateObjectMapping"
   | "deleteObjectMapping"
+  | "createLinkMapping"
+  | "updateLinkMapping"
+  | "deleteLinkMapping"
   | "batch"
   | "unknown";
 
 export interface FormattedCommand {
   key: FormattedCommandKey;
   params: Record<string, string | number>;
+}
+
+export type FormattableOntologyCommand =
+  | OntologyCommand
+  | components["schemas"]["OntologyCommand"];
+
+function propertyOwnerId(owner: { type_id: string }): string {
+  return owner.type_id;
 }
 
 function resolveLabel(
@@ -86,12 +98,14 @@ function shortId(id: string): string {
  * the wire-protocol stay language-neutral while UI surfaces stay localised.
  */
 export function formatCommand(
-  cmd: OntologyCommand,
+  cmd: FormattableOntologyCommand,
   ontology?: OntologyIR | null,
 ): FormattedCommand {
   switch (cmd.op) {
     case "add_node":
       return { key: "addNode", params: { label: cmd.label } };
+    case "create_node_type":
+      return { key: "createNodeType", params: { label: cmd.node.label } };
     case "delete_node":
       return {
         key: "deleteNode",
@@ -110,14 +124,6 @@ export function formatCommand(
         key: "updateNodeDescription",
         params: { label: resolveLabel(ontology, cmd.node_id, "node") },
       };
-    case "set_node_glossary_anchors":
-      return {
-        key: "setNodeGlossaryAnchors",
-        params: {
-          label: resolveLabel(ontology, cmd.node_id, "node"),
-          count: cmd.anchors.length,
-        },
-      };
     case "add_edge":
       return {
         key: "addEdge",
@@ -125,6 +131,15 @@ export function formatCommand(
           label: cmd.label,
           source: resolveLabel(ontology, cmd.source_node_id, "node"),
           target: resolveLabel(ontology, cmd.target_node_id, "node"),
+        },
+      };
+    case "create_edge_type":
+      return {
+        key: "createEdgeType",
+        params: {
+          label: cmd.edge.label,
+          source: resolveLabel(ontology, cmd.edge.source_node_id, "node"),
+          target: resolveLabel(ontology, cmd.edge.target_node_id, "node"),
         },
       };
     case "delete_edge":
@@ -153,38 +168,36 @@ export function formatCommand(
         key: "updateEdgeDescription",
         params: { label: resolveLabel(ontology, cmd.edge_id, "edge") },
       };
-    case "set_edge_glossary_anchors":
-      return {
-        key: "setEdgeGlossaryAnchors",
-        params: {
-          label: resolveLabel(ontology, cmd.edge_id, "edge"),
-          count: cmd.anchors.length,
-        },
-      };
-    case "add_property":
+    case "add_property": {
+      const addPropertyOwnerId = propertyOwnerId(cmd.owner);
       return {
         key: "addProperty",
         params: {
           name: cmd.property.name,
-          owner: resolveLabel(ontology, cmd.owner_id, "any"),
+          owner: resolveLabel(ontology, addPropertyOwnerId, "any"),
         },
       };
-    case "delete_property":
+    }
+    case "delete_property": {
+      const deletePropertyOwnerId = propertyOwnerId(cmd.owner);
       return {
         key: "deleteProperty",
         params: {
-          name: resolveProperty(ontology, cmd.owner_id, cmd.property_id),
-          owner: resolveLabel(ontology, cmd.owner_id, "any"),
+          name: resolveProperty(ontology, deletePropertyOwnerId, cmd.property_id),
+          owner: resolveLabel(ontology, deletePropertyOwnerId, "any"),
         },
       };
-    case "update_property":
+    }
+    case "update_property": {
+      const updatePropertyOwnerId = propertyOwnerId(cmd.owner);
       return {
         key: "updateProperty",
         params: {
-          name: resolveProperty(ontology, cmd.owner_id, cmd.property_id),
-          owner: resolveLabel(ontology, cmd.owner_id, "any"),
+          name: resolveProperty(ontology, updatePropertyOwnerId, cmd.property_id),
+          owner: resolveLabel(ontology, updatePropertyOwnerId, "any"),
         },
       };
+    }
     case "add_constraint":
       return {
         key: "addConstraint",
@@ -214,6 +227,18 @@ export function formatCommand(
       };
     case "delete_object_mapping":
       return { key: "deleteObjectMapping", params: { id: shortId(cmd.id) } };
+    case "create_link_mapping":
+      return {
+        key: "createLinkMapping",
+        params: { id: shortId(cmd.mapping.id) },
+      };
+    case "update_link_mapping":
+      return {
+        key: "updateLinkMapping",
+        params: { id: shortId(cmd.id) },
+      };
+    case "delete_link_mapping":
+      return { key: "deleteLinkMapping", params: { id: shortId(cmd.id) } };
     case "batch":
       return { key: "batch", params: { count: cmd.commands.length } };
     default: {
@@ -231,22 +256,28 @@ export function formatCommand(
   }
 }
 
-export function commandOpBadge(cmd: OntologyCommand): {
+export function commandOpBadge(cmd: FormattableOntologyCommand): {
   label: string;
   color: "green" | "red" | "blue";
 } {
   switch (cmd.op) {
     case "add_node":
+    case "create_node_type":
     case "add_edge":
+    case "create_edge_type":
     case "add_property":
     case "add_constraint":
     case "add_index":
+    case "create_object_mapping":
+    case "create_link_mapping":
       return { label: "ADD", color: "green" };
     case "delete_node":
     case "delete_edge":
     case "delete_property":
     case "remove_constraint":
     case "remove_index":
+    case "delete_object_mapping":
+    case "delete_link_mapping":
       return { label: "DEL", color: "red" };
     default:
       return { label: "UPD", color: "blue" };

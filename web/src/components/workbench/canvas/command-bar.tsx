@@ -20,10 +20,6 @@ import { TOAST_WARNING } from "@/lib/toast/durations";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import type { OntologyCommand } from "@/types/api";
 
-// Re-export extracted components for backward compatibility
-export { DiffOverlayBar } from "./diff-overlay-bar";
-export { VersionDiffBar } from "./version-diff-bar";
-
 // ---------------------------------------------------------------------------
 // Loading hints — rotate tips while LLM processes
 // ---------------------------------------------------------------------------

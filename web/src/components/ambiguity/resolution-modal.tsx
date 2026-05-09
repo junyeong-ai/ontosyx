@@ -1,7 +1,7 @@
 "use client";
 
 // Resolution editor. Three mapping modes — ValueMap, CodeSystemRef,
-// GlossaryRef — each maps 1:1 onto the Rust `AmbiguityMapping`
+// ConceptRef — each maps 1:1 onto the Rust `AmbiguityMapping`
 // variant the backend persists.
 //
 // The modal is single-purpose (one context at a time) and stateless
@@ -27,7 +27,7 @@ import {
   type ValidatedAmbiguityMapping,
 } from "./ambiguity-mapping-schema";
 
-type Mode = "value_map" | "code_system_ref" | "glossary_ref";
+type Mode = "value_map" | "code_system_ref" | "concept_ref";
 
 export interface ResolutionModalProps {
   context: AmbiguityContext;
@@ -54,8 +54,8 @@ export function ResolutionModal({
   const initialMode: Mode =
     active?.mapping.kind === "code_system_ref"
       ? "code_system_ref"
-      : active?.mapping.kind === "glossary_ref"
-        ? "glossary_ref"
+      : active?.mapping.kind === "concept_ref"
+        ? "concept_ref"
         : "value_map";
 
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -87,8 +87,8 @@ export function ResolutionModal({
       ? active.mapping.code_system_id
       : "",
   );
-  const [termId, setTermId] = useState(
-    active?.mapping.kind === "glossary_ref" ? active.mapping.term_id : "",
+  const [conceptId, setConceptId] = useState(
+    active?.mapping.kind === "concept_ref" ? active.mapping.concept_id : "",
   );
 
   // Re-seed entries when the underlying context changes (pin id).
@@ -117,14 +117,14 @@ export function ResolutionModal({
       void submit({ kind: "code_system_ref", code_system_id: codeSystemId });
       return;
     }
-    void submit({ kind: "glossary_ref", term_id: termId });
+    void submit({ kind: "concept_ref", concept_id: conceptId });
   };
 
   const localizeError = (key: string | undefined) =>
     key ? t(key) : undefined;
   const valueMapError = localizeError(errors.entries ?? errors._form);
   const codeSystemError = localizeError(errors.code_system_id);
-  const termError = localizeError(errors.term_id);
+  const conceptError = localizeError(errors.concept_id);
 
   return (
     <div
@@ -157,7 +157,7 @@ export function ResolutionModal({
         <div className="flex-1 overflow-auto px-5 py-4 text-xs">
           {/* Mode switcher */}
           <fieldset className="mb-4 flex gap-2" aria-label={t("modeLabel")}>
-            {(["value_map", "code_system_ref", "glossary_ref"] as const).map((m) => (
+            {(["value_map", "code_system_ref", "concept_ref"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
@@ -215,21 +215,21 @@ export function ResolutionModal({
               />
             </FormField>
           )}
-          {mode === "glossary_ref" && (
+          {mode === "concept_ref" && (
             <FormField
-              label={t("termIdLabel")}
-              error={termError}
-              hint={t("termHint")}
+              label={t("conceptIdLabel")}
+              error={conceptError}
+              hint={t("conceptHint")}
             >
               <FormInput
-                value={termId}
+                value={conceptId}
                 onChange={(e) => {
-                  setTermId(e.target.value);
-                  clearErrors("term_id");
+                  setConceptId(e.target.value);
+                  clearErrors("concept_id");
                 }}
-                // i18n-audit-ignore — glossary-term slug example, language-neutral identifier
-                placeholder="g-vip-tier"
-                error={!!termError}
+                // i18n-audit-ignore — concept slug example, language-neutral identifier
+                placeholder="c-vip-tier"
+                error={!!conceptError}
               />
             </FormField>
           )}

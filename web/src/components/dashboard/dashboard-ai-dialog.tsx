@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { chatStream, addWidget, type StreamCallbacks } from "@/lib/api";
-import type { DashboardWidget, OntologyIR, QueryResult, WidgetSpec } from "@/types/api";
+import type { DashboardWidget, QueryResult, WidgetSpec } from "@/types/api";
 import { ArrowRight, Plus, X } from "lucide-react";
 import { Network, TrendingUp } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -179,7 +179,7 @@ export function DashboardAiDialog({
     await chatStream(
       {
         message: prompt,
-        ontology: ontology as OntologyIR,
+        ontology,
         session_id: sessionId,
       },
       callbacks,
@@ -210,7 +210,7 @@ export function DashboardAiDialog({
           title: preview.title,
           widget_type: preview.chartType,
           query: preview.query,
-          widget_spec: preview.spec as unknown as Record<string, unknown>,
+          widget_spec: preview.spec,
           position: {
             x: (addedCount % 2) * 6,
             y: Math.floor(addedCount / 2) * 4,

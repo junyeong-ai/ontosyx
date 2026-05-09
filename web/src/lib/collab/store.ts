@@ -7,12 +7,12 @@ import { create } from "zustand";
 import type {
   ConnectionState,
 } from "./client";
-import type { OntologyCommand } from "@/types/api";
 import type {
   CursorPosition,
   LockState,
   PresenceInfo,
   ServerMessage,
+  WireOntologyCommand,
 } from "./types";
 
 // Module-level singletons returned from selectors when a room
@@ -51,7 +51,7 @@ export interface RemoteUpdateSnapshot {
   authorUserName: string;
   baseRevision: number;
   newRevision: number;
-  commands: readonly OntologyCommand[];
+  commands: readonly WireOntologyCommand[];
 }
 
 /** Snapshot of one collaboration room. */
@@ -263,13 +263,6 @@ export function applyServerMessage(
     case "entity_updated": {
       const rooms = new Map(state.rooms);
       const room = rooms.get(msg.ontology_draft_id) ?? emptyRoom();
-      // The OpenAPI surface types `commands` as
-      // `Record<string, never>[]` because `OntologyCommand` is an
-      // internally-tagged union utoipa can't derive a static schema
-      // for. The runtime payload is the canonical wire shape — narrow
-      // it through `unknown` at the single wire boundary so downstream
-      // consumers see the typed union.
-      const commands = msg.commands as unknown as readonly OntologyCommand[];
       rooms.set(msg.ontology_draft_id, {
         ...room,
         latestRemoteUpdate: {
@@ -277,7 +270,7 @@ export function applyServerMessage(
           authorUserName: msg.author_user_name,
           baseRevision: msg.base_revision,
           newRevision: msg.new_revision,
-          commands,
+          commands: msg.commands,
         },
       });
       return { rooms };

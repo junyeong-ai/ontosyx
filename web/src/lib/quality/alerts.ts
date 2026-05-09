@@ -16,7 +16,7 @@ import type { QualityMetricsReport } from "@/types/api";
 /** Every forward-facing metric surfaced by `GET /quality/metrics`. */
 export type MetricKey =
   | "anchor_match_rate"
-  | "glossary_hit_rate"
+  | "concept_hit_rate"
   | "clarification_success_rate"
   | "query_reproducibility"
   | "shacl_pass_rate"
@@ -60,7 +60,7 @@ export const DEFAULT_THRESHOLDS: Record<MetricKey, ThresholdSpec> = {
     warning: 0.7,
     critical: 0.5,
   },
-  glossary_hit_rate: {
+  concept_hit_rate: {
     direction: "higher_is_better",
     warning: 0.5,
     critical: 0.3,

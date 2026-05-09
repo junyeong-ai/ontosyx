@@ -38,7 +38,7 @@ const federationKeys = {
   health: () => [...federationKeys.all, "health"] as const,
 };
 
-type AdapterKind = "csv" | "json" | "postgres" | "mysql" | "bigquery";
+type AdapterKind = "csv" | "json" | "postgres" | "mysql";
 
 type FormState = {
   sourceId: string;
@@ -63,7 +63,7 @@ function requiresPayload(kind: AdapterKind): boolean {
 }
 
 function requiresConnectionString(kind: AdapterKind): boolean {
-  return kind === "postgres" || kind === "mysql" || kind === "bigquery";
+  return kind === "postgres" || kind === "mysql";
 }
 
 /// Build the adapter-kind payload (credential + kind-specific fields)
@@ -93,8 +93,7 @@ function formToPreviewRequest(form: FormState): PreviewFederationAdapterRequest 
     // adapter has no default-database equivalent of Postgres' `public`.
     return { kind, credential, schema_name: schemaName };
   }
-  // bigquery — no schema_name (dataset lives in the connection URI).
-  return { kind: "bigquery", credential };
+  return { kind, credential };
 }
 
 function formToRequest(form: FormState): RegisterFederationAdapterRequest {
@@ -316,7 +315,6 @@ export default function FederationAdaptersPage() {
             <option value="json">{t("register.json")}</option>
             <option value="postgres">{t("register.postgres")}</option>
             <option value="mysql">{t("register.mysql")}</option>
-            <option value="bigquery">{t("register.bigquery")}</option>
           </SettingsSelect>
           <SettingsSwitch
             label={t("register.useSecretRef")}

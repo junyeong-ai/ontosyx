@@ -68,7 +68,7 @@ function piiKindFromValue(value: string): PiiKind | undefined {
 
 function inferClarification(column: AmbiguityContext, t: AnalysisTranslator): string {
   const col = column.column.column.toLowerCase();
-  const samples = column.sample_values;
+  const samples = column.sample_values ?? [];
 
   if (/year/.test(col) && samples.every((v) => /^\d{4}$/.test(v.trim()))) {
     return t("clarHintDefault");
@@ -290,6 +290,7 @@ export function AnalysisReviewSection({
     unresolvedExcludedCount;
   const totalResolved = totalItems - totalUnresolved;
   const progressPercent = totalItems > 0 ? Math.round((totalResolved / totalItems) * 100) : 100;
+  const analysisWarnings = report.analysis_warnings ?? [];
 
   // Sticky-TOC backing data. Keep this declarative so adding a new
   // review section is one entry here + one anchor id on the
@@ -299,8 +300,8 @@ export function AnalysisReviewSection({
     {
       anchor: "review-warnings",
       labelKey: "warnings",
-      total: report.analysis_warnings.length,
-      unresolved: partialAnalysisAcknowledged ? 0 : report.analysis_warnings.length,
+      total: analysisWarnings.length,
+      unresolved: partialAnalysisAcknowledged ? 0 : analysisWarnings.length,
     },
     {
       anchor: "review-relationships",
@@ -634,7 +635,7 @@ export function AnalysisReviewSection({
         </div>
       )}
 
-      {report.analysis_warnings.length > 0 && (
+      {analysisWarnings.length > 0 && (
         <div
           id="review-warnings"
           className="rounded-md border border-warning-border bg-warning-surface p-2"
@@ -646,7 +647,7 @@ export function AnalysisReviewSection({
             </span>
           </div>
           <div className="mt-2">
-            <WarningGroupList warnings={report.analysis_warnings} />
+            <WarningGroupList warnings={analysisWarnings} />
           </div>
           <Checkbox
             id="review-partial-acknowledgement"

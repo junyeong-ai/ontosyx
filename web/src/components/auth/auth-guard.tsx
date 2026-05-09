@@ -38,9 +38,13 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   if (mode.kind === "loading" || mode.kind === "unauthenticated") {
     return (
-      <div className="flex h-dvh items-center justify-center bg-surface-base">
+      <main
+        id="main"
+        tabIndex={0}
+        className="flex h-dvh items-center justify-center bg-surface-base outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground/50 focus-visible:ring-inset"
+      >
         <Spinner size="lg" className="text-brand-foreground" />
-      </div>
+      </main>
     );
   }
   return <>{children}</>;

@@ -18,11 +18,12 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 // UsageMap — right pane of the Glossary workbench.
 //
 // Walks the loaded `OntologyIR` to surface every reverse pointer at
-// the selected term: NodeType / EdgeType `glossary_anchors` and
-// PropertyDef `bindings[kind=glossary]`. The walk runs in-memory
-// against a snapshot the workbench already holds — no extra fetches.
-// Empty groups render with a "0" hint instead of being hidden so the
-// modeller sees coverage at a glance.
+// the selected term through its canonical or alias concept:
+// NodeType / EdgeType concept realizations and PropertyDef concept
+// bindings. The walk runs in-memory against a snapshot the workbench
+// already holds — no extra fetches. Empty groups render with a "0"
+// hint instead of being hidden so the modeller sees coverage at a
+// glance.
 // ---------------------------------------------------------------------------
 
 interface NodeAnchor {
@@ -47,14 +48,26 @@ type Anchor = NodeAnchor | EdgeAnchor | PropertyAnchor;
 
 function collectAnchors(ontology: OntologyIR, termId: string): Anchor[] {
   const out: Anchor[] = [];
+  const conceptIds = new Set(
+    arr(ontology.concepts)
+      .filter(
+        (concept) =>
+          concept.canonical_term_id === termId ||
+          arr(concept.alias_term_ids).includes(termId),
+      )
+      .map((concept) => concept.id),
+  );
   for (const node of arr(ontology.node_types)) {
-    if (arr(node.glossary_anchors).includes(termId)) {
+    if (
+      (node.concept_id && conceptIds.has(node.concept_id)) ||
+      arr(node.concept_realizations).some((r) => conceptIds.has(r.concept_id))
+    ) {
       out.push({ kind: "node", node });
     }
     for (const property of arr(node.properties)) {
       const bindings = arr(property.bindings);
       if (
-        bindings.some((b) => b.kind === "glossary" && b.id === termId)
+        bindings.some((b) => b.kind === "concept" && conceptIds.has(b.id))
       ) {
         out.push({
           kind: "property",
@@ -67,13 +80,16 @@ function collectAnchors(ontology: OntologyIR, termId: string): Anchor[] {
     }
   }
   for (const edge of arr(ontology.edge_types)) {
-    if (arr(edge.glossary_anchors).includes(termId)) {
+    if (
+      (edge.concept_id && conceptIds.has(edge.concept_id)) ||
+      arr(edge.concept_realizations).some((r) => conceptIds.has(r.concept_id))
+    ) {
       out.push({ kind: "edge", edge });
     }
     for (const property of arr(edge.properties)) {
       const bindings = arr(property.bindings);
       if (
-        bindings.some((b) => b.kind === "glossary" && b.id === termId)
+        bindings.some((b) => b.kind === "concept" && conceptIds.has(b.id))
       ) {
         out.push({
           kind: "property",

@@ -100,7 +100,7 @@ function buildAcknowledgmentHint(
   tGap: QualityGapTranslator,
 ): string {
   if (gap.category === "single_value_bias") {
-    const value = gap.params.observed_value ?? t("acknowledgmentHintSingleValueDefault");
+    const value = gap.params?.observed_value ?? t("acknowledgmentHintSingleValueDefault");
     return t("acknowledgmentHintSingleValue", { value });
   }
   if (gap.category === "sparse_property") {

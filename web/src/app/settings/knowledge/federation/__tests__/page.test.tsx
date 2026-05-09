@@ -39,6 +39,7 @@ import { toast } from "@/components/ui/toast";
 const SAMPLE_ADAPTER = {
   source_id: "csv-orders",
   source_type: "csv",
+  supports_scan: true,
 };
 
 const HEALTH_OK = {

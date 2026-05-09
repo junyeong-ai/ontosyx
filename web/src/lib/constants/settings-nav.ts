@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Building, Cpu, Database, FlaskConical, ShieldCheck } from "lucide-react";
+import { Building, Cpu, Database, FlaskConical, Network, ShieldCheck } from "lucide-react";
 export interface NavItem {
   labelKey: string;
   href: string;
@@ -60,6 +60,12 @@ export const SETTINGS_NAV_GROUPS: readonly NavGroup[] = [
     titleKey: "quality",
     icon: ShieldCheck,
     href: "/settings/quality",
+    items: [],
+  },
+  {
+    titleKey: "graphrag",
+    icon: Network,
+    href: "/settings/graphrag",
     items: [],
   },
   {

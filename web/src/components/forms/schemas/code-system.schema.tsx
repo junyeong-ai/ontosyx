@@ -3,9 +3,30 @@ import type { EntitySchema, FieldSchema } from "@/lib/forms/field-schema";
 
 // CodeSystem entity schema. The CodeSystem wire shape mirrors the
 // Rust internally-tagged enum for `kind` (`{"kind": "internal"}` or
-// `{"kind": "external", "uri": ...}`). Schema lives next to the
+// `{"kind": "external", "source_ref": ...}`). Schema lives next to the
 // other vocabulary entity schemas so adding a new entity is a single
 // file change + i18n addition.
+
+const internalKindSchema: EntitySchema<{ kind: "internal" }> = {
+  entityKind: "settings.vocabulary.codeSystems.form.kindOptions",
+  buildDefault: () => ({ kind: "internal" }),
+  fields: [],
+};
+
+const externalKindSchema: EntitySchema<{ kind: "external"; source_ref: string }> = {
+  entityKind: "settings.vocabulary.codeSystems.form.kindOptions",
+  buildDefault: () => ({ kind: "external", source_ref: "" }),
+  fields: [
+    {
+      kind: "text",
+      key: "source_ref",
+      labelKey: "sourceRef",
+      required: true,
+      placeholder: "urn:iso:std:iso:3166",
+      monospace: true,
+    },
+  ],
+};
 
 const codedValueItemSchema: EntitySchema<CodedValue> = {
   entityKind: "settings.vocabulary.codeSystems.form.code",
@@ -58,7 +79,7 @@ export const codeSystemSchema: EntitySchema<CodeSystemDef> = {
     display_name: { default: "" },
     description: { default: "" },
     version: "1",
-    kind: "internal" as CodeSystemDef["kind"],
+    kind: internalKindSchema.buildDefault() as CodeSystemDef["kind"],
     hierarchical: false,
     codes: [],
   }),
@@ -125,16 +146,15 @@ export const codeSystemSchema: EntitySchema<CodeSystemDef> = {
       monospace: true,
     },
     {
-      kind: "enum",
+      kind: "discriminated",
       key: "kind",
       labelKey: "kind",
       required: true,
-      options: [
-        { value: "internal", labelKey: "kindOptions.internal" },
-        { value: "international", labelKey: "kindOptions.international" },
-        { value: "standard", labelKey: "kindOptions.standard" },
-        { value: "custom", labelKey: "kindOptions.custom" },
-      ],
+      tag: "kind",
+      variants: {
+        internal: internalKindSchema as EntitySchema<unknown>,
+        external: externalKindSchema as EntitySchema<unknown>,
+      },
     },
     {
       kind: "toggle",

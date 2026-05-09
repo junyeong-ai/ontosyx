@@ -17,6 +17,7 @@ import {
   useCreateRoutingRule,
   useDeleteModelConfig,
   useDeleteRoutingRule,
+  useModelOperations,
   useModelConfigs,
   useRoutingRules,
   useTestModelConfig,
@@ -74,6 +75,7 @@ const PROVIDERS = [
 
 const OPERATIONS = [
   "*",
+  "chat",
   "design_ontology",
   "refine_ontology",
   "resolve_cross_edges",
@@ -85,6 +87,8 @@ const OPERATIONS = [
   "suggest_insights",
   "repo_navigate",
   "repo_analyze",
+  "evaluation_judge",
+  "evaluation_safety_judge",
 ] as const;
 
 interface RuleFormValues {
@@ -110,6 +114,7 @@ export default function ModelsSettingsPage() {
   const tCommon = useTranslations("common");
   const confirm = useConfirm();
 
+  const operationsQuery = useModelOperations();
   const configsQuery = useModelConfigs();
   const rulesQuery = useRoutingRules();
   const createConfig = useCreateModelConfig();
@@ -122,6 +127,7 @@ export default function ModelsSettingsPage() {
 
   const configs = configsQuery.data ?? [];
   const rules = rulesQuery.data ?? [];
+  const operations = operationsQuery.data?.map((op) => op.key) ?? [...OPERATIONS];
   const loading = configsQuery.isLoading || rulesQuery.isLoading;
   const failed = configsQuery.isError || rulesQuery.isError;
 
@@ -273,14 +279,20 @@ export default function ModelsSettingsPage() {
     }
   };
 
-  const handleTestConfig = async (id: string) => {
-    setTestingId(id);
+  const handleTestConfig = async (config: ModelConfig) => {
+    setTestingId(config.id);
     try {
-      const result = await testConfig.mutateAsync(id);
-      if (result.success) {
-        toast.success(t("toast.testSuccess", { ms: result.latency_ms }));
+      const result = await testConfig.mutateAsync({
+        provider: config.provider,
+        model_id: config.model_id,
+        api_key_env: config.api_key_env,
+        region: config.region,
+        base_url: config.base_url,
+      });
+      if (result.ok) {
+        toast.success(t("toast.testSuccess", { message: result.message }));
       } else {
-        toast.error(t("toast.testFailed", { error: result.error ?? "" }));
+        toast.error(t("toast.testFailed", { error: result.message }));
       }
     } catch {
       toast.error(t("toast.testError"));
@@ -484,7 +496,7 @@ export default function ModelsSettingsPage() {
                   <div className="flex items-center justify-end gap-1">
                     <button
                       type="button"
-                      onClick={() => handleTestConfig(c.id)}
+                      onClick={() => handleTestConfig(c)}
                       disabled={testingId === c.id}
                       className="rounded px-2 py-1 text-xs text-info-foreground hover:bg-info-surface disabled:opacity-50"
                     >
@@ -546,6 +558,7 @@ export default function ModelsSettingsPage() {
           form={ruleForm}
           setForm={setRuleForm}
           configs={configs}
+          operations={operations}
           isEditing={!!editingRuleId}
           saving={savingRule}
           onSubmit={handleSubmitRule}
@@ -977,6 +990,7 @@ function RuleForm({
   form,
   setForm,
   configs,
+  operations,
   isEditing,
   saving,
   onSubmit,
@@ -985,6 +999,7 @@ function RuleForm({
   form: RuleFormValues;
   setForm: React.Dispatch<React.SetStateAction<RuleFormValues>>;
   configs: ModelConfig[];
+  operations: string[];
   isEditing: boolean;
   saving: boolean;
   onSubmit: (e: React.FormEvent) => void;
@@ -1015,18 +1030,23 @@ function RuleForm({
 
       <div className="grid grid-cols-2 gap-3">
         <Field label={t("operation")}>
-          <SettingsSelect
-            label={t("operation")}
-            hideLabel
+          <FormInput
+            aria-label={t("operation")}
+            list="model-routing-operations"
+            pattern="\*|[a-z][a-z0-9_.:-]{0,127}"
+            required
             value={form.operation}
             onChange={(e) => update({ operation: e.target.value })}
-          >
-            {OPERATIONS.map((o) => (
+            density="settings"
+            className="mt-0.5 font-mono"
+          />
+          <datalist id="model-routing-operations">
+            {operations.map((o) => (
               <option key={o} value={o}>
                 {o}
               </option>
             ))}
-          </SettingsSelect>
+          </datalist>
         </Field>
 
         <Field label={t("modelConfig")}>

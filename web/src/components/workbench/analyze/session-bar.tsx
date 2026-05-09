@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useAppStore, type ToolCall, type ChatMessage } from "@/lib/store";
+import { useAppStore } from "@/lib/store";
+import { restoreChatMessages } from "@/lib/session-messages";
 import type { AgentSession as AgentSessionType } from "@/types/api";
 import { listAgentSessions, fetchSessionMessages } from "@/lib/api";
 
@@ -79,21 +80,7 @@ export function SessionBar() {
                 onClick={async () => {
                   try {
                     const { messages } = await fetchSessionMessages(s.id);
-                    const chatMessages: ChatMessage[] = messages.map((m, i) => ({
-                      id: `restored-${i}`,
-                      role: m.role,
-                      content: m.content,
-                      thinking: m.thinking,
-                      toolCalls: m.tool_calls?.map((tc) => ({
-                        id: tc.id,
-                        name: tc.name,
-                        input: tc.input,
-                        output: tc.output,
-                        status: tc.status as ToolCall["status"],
-                        durationMs: tc.duration_ms,
-                      })),
-                    }));
-                    useAppStore.getState().restoreMessages(chatMessages);
+                    useAppStore.getState().restoreMessages(restoreChatMessages(messages));
                     useAppStore.getState().setSessionId(s.id);
                   } catch {
                     // silent fail

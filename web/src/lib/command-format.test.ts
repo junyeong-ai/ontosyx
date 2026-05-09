@@ -57,6 +57,24 @@ description: { default: "" },
   };
 }
 
+function linkMapping(id: string) {
+  return {
+    id,
+    edge_type_id: "edge-worksat-uuid",
+    kind: { kind: "computed" as const, predicate: "people.company_id = companies.id" },
+    source_endpoint: {
+      source_id: "pg-main",
+      relation: "people",
+      key_columns: ["id"],
+    },
+    target_endpoint: {
+      source_id: "pg-main",
+      relation: "companies",
+      key_columns: ["id"],
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // formatCommand — label resolution against the ontology
 // ---------------------------------------------------------------------------
@@ -88,7 +106,7 @@ describe("formatCommand — label resolution", () => {
   it("resolves a property name on update_property", () => {
     const cmd: OntologyCommand = {
       op: "update_property",
-      owner_id: "node-person-uuid",
+      owner: { kind: "node", type_id: "node-person-uuid" },
       property_id: "prop-email-uuid",
       patch: { nullable: true },
     };
@@ -140,6 +158,18 @@ describe("formatCommand — per-op rendering", () => {
     });
   });
 
+  it("renders full node and edge restore commands without losing labels", () => {
+    expect(formatCommand({ op: "create_node_type", node: person() })).toEqual({
+      key: "createNodeType",
+      params: { label: "Person" },
+    });
+
+    expect(formatCommand({ op: "create_edge_type", edge: worksAt() }, ontology())).toEqual({
+      key: "createEdgeType",
+      params: { label: "WORKS_AT", source: "Person", target: "Company" },
+    });
+  });
+
   it("renders rename_node with both labels", () => {
     const cmd: OntologyCommand = {
       op: "rename_node",
@@ -179,12 +209,45 @@ description: { default: "" },
     };
     const cmd: OntologyCommand = {
       op: "add_property",
-      owner_id: "node-person-uuid",
+      owner: { kind: "node", type_id: "node-person-uuid" },
       property: prop,
     };
     expect(formatCommand(cmd, ontology())).toEqual({
       key: "addProperty",
       params: { name: "phone", owner: "Person" },
+    });
+  });
+
+  it("renders link mapping commands by stable mapping id", () => {
+    expect(
+      formatCommand({
+        op: "create_link_mapping",
+        mapping: linkMapping("lm-works-at"),
+      }),
+    ).toEqual({
+      key: "createLinkMapping",
+      params: { id: "lm-works-at" },
+    });
+
+    expect(
+      formatCommand({
+        op: "update_link_mapping",
+        id: "00000000-aaaa-bbbb-cccc-deadbeef1234",
+        mapping: linkMapping("00000000-aaaa-bbbb-cccc-deadbeef1234"),
+      }),
+    ).toEqual({
+      key: "updateLinkMapping",
+      params: { id: "00000000…" },
+    });
+
+    expect(
+      formatCommand({
+        op: "delete_link_mapping",
+        id: "lm-works-at",
+      }),
+    ).toEqual({
+      key: "deleteLinkMapping",
+      params: { id: "lm-works-at" },
     });
   });
 });
@@ -197,6 +260,7 @@ describe("commandOpBadge", () => {
   it("groups additions as green ADD", () => {
     for (const op of [
       { op: "add_node", id: "x", label: "X" } as const,
+      { op: "create_node_type", node: person() } as const,
       {
         op: "add_edge",
         id: "x",
@@ -205,11 +269,16 @@ describe("commandOpBadge", () => {
         target_node_id: "b",
         cardinality: "one_to_one",
       } as const,
+      { op: "create_edge_type", edge: worksAt() } as const,
       {
         op: "add_property",
-        owner_id: "a",
+        owner: { kind: "node", type_id: "a" },
         property: { id: "p", name: "x",
 description: { default: "" }, property_type: { type: "string" } },
+      } as const,
+      {
+        op: "create_link_mapping",
+        mapping: linkMapping("lm-a"),
       } as const,
     ]) {
       const badge = commandOpBadge(op as OntologyCommand);
@@ -221,9 +290,10 @@ description: { default: "" }, property_type: { type: "string" } },
     for (const op of [
       { op: "delete_node", node_id: "n" } as const,
       { op: "delete_edge", edge_id: "e" } as const,
-      { op: "delete_property", owner_id: "o", property_id: "p" } as const,
+      { op: "delete_property", owner: { kind: "node", type_id: "o" }, property_id: "p" } as const,
       { op: "remove_constraint", node_id: "n", constraint_id: "c" } as const,
       { op: "remove_index", index_id: "i" } as const,
+      { op: "delete_link_mapping", id: "lm-a" } as const,
     ]) {
       expect(commandOpBadge(op as OntologyCommand)).toEqual({
         label: "DEL",

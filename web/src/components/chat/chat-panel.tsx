@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAppStore, type ChatMessage, type ToolStep } from "@/lib/store";
 import { useWorkspaceMode } from "@/hooks/use-workspace-mode";
-import { chatStream, fetchSessionMessages, listAgentSessions, rawQuery, suggestInsights, type InsightHint } from "@/lib/api";
+import { chatStream, fetchSessionMessages, listAgentSessions, rawQuery, suggestInsights } from "@/lib/api";
+import type { InsightHint } from "@/types/api";
+import { restoreChatMessages } from "@/lib/session-messages";
 import type { AgentSession } from "@/types/api";
 import { toast } from "@/components/ui/toast";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -37,7 +39,6 @@ export function ChatPanel() {
     setIsLoading,
     sessionId,
     setSessionId,
-    ontologyId,
   } = useAppStore();
   const workspaceMode = useWorkspaceMode();
 
@@ -108,21 +109,7 @@ export function ChatPanel() {
     async (session: AgentSession) => {
       try {
         const { messages: prev } = await fetchSessionMessages(session.id);
-        const restored: ChatMessage[] = prev.map((m) => ({
-          id: crypto.randomUUID(),
-          role: m.role,
-          content: m.content,
-          thinking: m.thinking,
-          toolCalls: m.tool_calls?.map((tc) => ({
-            id: tc.id,
-            name: tc.name,
-            input: tc.input,
-            output: tc.output,
-            status: tc.status === "error" ? ("error" as const) : ("done" as const),
-            durationMs: tc.duration_ms,
-          })),
-        }));
-        useAppStore.getState().restoreMessages(restored);
+        useAppStore.getState().restoreMessages(restoreChatMessages(prev));
         setSessionId(session.id);
         toast.success(t("sessionResumed"));
       } catch {
@@ -214,9 +201,6 @@ export function ChatPanel() {
           {
             message: text,
             ontology,
-            ontology_id: isDesignMode
-              ? (activeOntologyDraft?.ontology_id ?? undefined)
-              : (ontologyId ?? undefined),
             ontology_draft_id: isDesignMode ? activeOntologyDraft?.id : undefined,
             ontology_draft_revision: isDesignMode ? activeOntologyDraft?.revision : undefined,
             session_id: sessionId ?? undefined,
@@ -326,20 +310,7 @@ export function ChatPanel() {
                 .then(({ messages: prev }) => {
                   if (prev.length === 0) return;
                   const state = getState();
-                  const restored: ChatMessage[] = prev.map((m) => ({
-                    id: crypto.randomUUID(),
-                    role: m.role,
-                    content: m.content,
-                    thinking: m.thinking,
-                    toolCalls: m.tool_calls?.map((tc) => ({
-                      id: tc.id,
-                      name: tc.name,
-                      input: tc.input,
-                      output: tc.output,
-                      status: tc.status === "error" ? "error" as const : "done" as const,
-                      durationMs: tc.duration_ms,
-                    })),
-                  }));
+                  const restored = restoreChatMessages(prev);
                   // Prepend restored messages before the current user message
                   // which is already in the store.
                   state.restoreMessages([...restored, ...state.messages]);
@@ -386,8 +357,7 @@ export function ChatPanel() {
       addMessage, 
       updateMessage, 
       setIsLoading, 
-      ontologyId, 
-      sessionId, 
+      sessionId,
       setSessionId, 
       workspaceMode, 
       t

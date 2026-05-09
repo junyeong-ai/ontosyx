@@ -15,6 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import { parseFilterValue } from "@/lib/filter-value";
+import type { components } from "@/types/api.generated";
 
 // ---------------------------------------------------------------------------
 // Visual pattern types (internal to query builder)
@@ -86,36 +87,49 @@ export interface VisualPattern {
 // Builder
 // ---------------------------------------------------------------------------
 
-/**
- * Builder-facing union for the subset of `GraphPattern` variants the
- * canvas emits. `ir-builder` discriminates on `kind` while assembling
- * QueryIR JSON — typing the array with this union (instead of
- * `unknown[]`) removes the need for `as any` narrowing.
- */
-type NodePatternBuilder = {
-  kind: "node";
-  variable: string;
-  label: string;
-  property_filters: unknown[];
-};
+type QueryIR = components["schemas"]["QueryIR"];
+type Expr = components["schemas"]["Expr"];
+type Projection = components["schemas"]["Projection"];
+type PropertyValue = components["schemas"]["PropertyValue"];
+type ComparisonOp = components["schemas"]["ComparisonOp"];
+type QueryOp = components["schemas"]["QueryOp"];
+type OrderClause = components["schemas"]["OrderClause"];
+type GraphPattern = components["schemas"]["GraphPattern"];
 
-type RelationshipPatternBuilder = {
-  kind: "relationship";
-  variable: string;
-  label: string;
-  source: string;
-  target: string;
-  direction: "outgoing" | "incoming" | "both";
-  property_filters: unknown[];
-  /** Optional variable-length hop spec ({ min, max }). `null` when
-   * the edge is a single direct hop — which is the canvas default. */
-  var_length: null | { min: number | null; max: number | null };
-};
+export function toPropertyValue(value: unknown): PropertyValue {
+  if (value === null || value === undefined) return { type: "null" };
+  if (typeof value === "boolean") return { type: "bool", value };
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? { type: "int", value } : { type: "float", value };
+  }
+  return { type: "string", value: String(value) };
+}
 
-type GraphPatternBuilder = NodePatternBuilder | RelationshipPatternBuilder;
+export function toComparisonOp(operator: FilterOperator): ComparisonOp {
+  switch (operator) {
+    case "=":
+      return "eq";
+    case "!=":
+      return "neq";
+    case ">":
+      return "gt";
+    case "<":
+      return "lt";
+    case ">=":
+      return "gte";
+    case "<=":
+      return "lte";
+    default:
+      return "eq";
+  }
+}
 
-function buildGraphPatterns(nodes: PatternNode[], edges: PatternEdge[]): GraphPatternBuilder[] {
-  const patterns: GraphPatternBuilder[] = [];
+export function toStringOp(operator: Extract<FilterOperator, "CONTAINS" | "STARTS WITH">): "contains" | "starts_with" {
+  return operator === "CONTAINS" ? "contains" : "starts_with";
+}
+
+function buildGraphPatterns(nodes: PatternNode[], edges: PatternEdge[]): GraphPattern[] {
+  const patterns: GraphPattern[] = [];
 
   // Standalone nodes (not part of any edge)
   const connectedNodeIds = new Set<string>();
@@ -173,36 +187,41 @@ function buildGraphPatterns(nodes: PatternNode[], edges: PatternEdge[]): GraphPa
   return patterns;
 }
 
-function buildFilter(nodes: PatternNode[], edges: PatternEdge[]): unknown | null {
-  const conditions: unknown[] = [];
+function buildFilter(nodes: PatternNode[], edges: PatternEdge[]): Expr | null {
+  const conditions: Expr[] = [];
 
   for (const node of nodes) {
     for (const f of node.filters) {
-      conditions.push({
-        kind: "comparison",
-        operator: f.operator,
-        left: { kind: "property", variable: node.alias, field: f.property },
-        right: { kind: "literal", value: parseFilterValue(f.value) },
-      });
+      const left: Expr = { expr_type: "property", variable: node.alias, field: f.property };
+      const right: Expr = { expr_type: "literal", value: toPropertyValue(parseFilterValue(f.value)) };
+      conditions.push(
+        f.operator === "CONTAINS" || f.operator === "STARTS WITH"
+          ? { expr_type: "string_op", left, op: toStringOp(f.operator), right }
+          : { expr_type: "comparison", left, op: toComparisonOp(f.operator), right },
+      );
     }
   }
   for (const edge of edges) {
     for (const f of edge.filters) {
-      conditions.push({
-        kind: "comparison",
-        operator: f.operator,
-        left: { kind: "property", variable: edge.alias, field: f.property },
-        right: { kind: "literal", value: parseFilterValue(f.value) },
-      });
+      const left: Expr = { expr_type: "property", variable: edge.alias, field: f.property };
+      const right: Expr = { expr_type: "literal", value: toPropertyValue(parseFilterValue(f.value)) };
+      conditions.push(
+        f.operator === "CONTAINS" || f.operator === "STARTS WITH"
+          ? { expr_type: "string_op", left, op: toStringOp(f.operator), right }
+          : { expr_type: "comparison", left, op: toComparisonOp(f.operator), right },
+      );
     }
   }
 
   if (conditions.length === 0) return null;
   if (conditions.length === 1) return conditions[0];
-  return { kind: "and", operands: conditions };
+  return conditions.slice(1).reduce<Expr>(
+    (left, right) => ({ expr_type: "logical", left, op: "and", right }),
+    conditions[0],
+  );
 }
 
-function buildProjections(returnFields: PatternReturnField[]): unknown[] {
+function buildProjections(returnFields: PatternReturnField[]): Projection[] {
   return returnFields.map((f) => {
     if (f.property === "*") {
       return {
@@ -234,12 +253,12 @@ function buildProjections(returnFields: PatternReturnField[]): unknown[] {
   });
 }
 
-export function buildQueryIR(pattern: VisualPattern): unknown {
+export function buildQueryIR(pattern: VisualPattern): QueryIR {
   const patterns = buildGraphPatterns(pattern.nodes, pattern.edges);
   const filter = buildFilter(pattern.nodes, pattern.edges);
   const projections = buildProjections(pattern.returnFields);
 
-  const operation = {
+  const operation: QueryOp = {
     op: "match",
     patterns,
     filter,
@@ -248,7 +267,7 @@ export function buildQueryIR(pattern: VisualPattern): unknown {
     group_by: [],
   };
 
-  const order_by = pattern.orderBy.map((ob) => ({
+  const order_by: OrderClause[] = pattern.orderBy.map((ob) => ({
     projection: {
       kind: "field",
       variable: ob.alias,
@@ -293,9 +312,7 @@ export interface PatternIssue {
   /** Canvas element the issue is anchored to. `null` means the whole
    *  pattern / return clause. */
   elementId: string | null;
-  /** Short, user-facing message. Kept locale-neutral for now — Phase
-   *  2-3 scope was the global shell; panel copy gets i18n'd alongside
-   *  the rest of the query builder in a follow-up. */
+  /** Short, user-facing message emitted by the builder. */
   message: string;
   /** Stable code so downstream UI can change copy without breaking
    *  callers that key on the reason. */

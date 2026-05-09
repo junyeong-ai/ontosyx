@@ -83,8 +83,8 @@ export function WorkflowActions({
 
   const form = useWorkflowFormState(
     project.id,
-    project.title,
-    project.source_config.schema_name,
+    project.title ?? null,
+    project.source_config.schema_name ?? undefined,
   );
   const isCompleted = project.status === "completed";
   const isDesigned = project.status === "designed";
@@ -453,7 +453,7 @@ export function WorkflowActions({
             </Eyebrow>
           </div>
           <p className="text-xs text-brand-foreground">
-            {project.ontology_id ? t("savedDescription") : t("completedDescription")}
+            {project.committed_version_id ? t("savedDescription") : t("completedDescription")}
           </p>
         </div>
       )}

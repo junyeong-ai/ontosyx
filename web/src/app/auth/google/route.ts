@@ -5,16 +5,16 @@
  * to prevent CSRF attacks on the callback.
  */
 import { NextResponse } from "next/server";
+import { apiErrorResponse } from "@/lib/server/api-error";
 
 export async function GET() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 
   if (!clientId) {
-    return NextResponse.json(
-      { error: { type: "not_configured", message: "Google OAuth is not configured" } },
-      { status: 503 },
-    );
+    return apiErrorResponse(503, "feature_not_configured", "server_error", {
+      feature: "google_oauth",
+    });
   }
 
   const state = crypto.randomUUID();

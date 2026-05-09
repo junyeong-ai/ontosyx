@@ -18,7 +18,7 @@ import { BookOpen } from "lucide-react";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { GlossaryForm } from "@/components/vocabulary/glossary-form";
 import { ResolutionModal } from "@/components/ambiguity/resolution-modal";
-import { GlossaryBindingPanel } from "@/components/glossary/glossary-binding-panel";
+import { ConceptBindingPanel } from "@/components/glossary/concept-binding-panel";
 import { useWorkspaceOntology } from "@/hooks/api/use-workspace-ontology";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import {
@@ -75,22 +75,38 @@ function buildHref(
 
 function computeAnchorCounts(ontology: OntologyIR): TermAnchorCounts {
   const byTermId = new Map<string, number>();
+  const conceptTerms = new Map<string, string[]>();
+  for (const concept of arr(ontology.concepts)) {
+    conceptTerms.set(concept.id, [
+      concept.canonical_term_id,
+      ...arr(concept.alias_term_ids),
+    ]);
+  }
   const bump = (id: string) => {
     byTermId.set(id, (byTermId.get(id) ?? 0) + 1);
   };
+  const bumpConcept = (id: string) => {
+    for (const termId of conceptTerms.get(id) ?? []) bump(termId);
+  };
   for (const node of arr(ontology.node_types)) {
-    for (const anchor of arr(node.glossary_anchors)) bump(anchor);
+    if (node.concept_id) bumpConcept(node.concept_id);
+    for (const realization of arr(node.concept_realizations)) {
+      bumpConcept(realization.concept_id);
+    }
     for (const property of arr(node.properties)) {
       for (const binding of arr(property.bindings)) {
-        if (binding.kind === "glossary") bump(binding.id);
+        if (binding.kind === "concept") bumpConcept(binding.id);
       }
     }
   }
   for (const edge of arr(ontology.edge_types)) {
-    for (const anchor of arr(edge.glossary_anchors)) bump(anchor);
+    if (edge.concept_id) bumpConcept(edge.concept_id);
+    for (const realization of arr(edge.concept_realizations)) {
+      bumpConcept(realization.concept_id);
+    }
     for (const property of arr(edge.properties)) {
       for (const binding of arr(property.bindings)) {
-        if (binding.kind === "glossary") bump(binding.id);
+        if (binding.kind === "concept") bumpConcept(binding.id);
       }
     }
   }
@@ -370,6 +386,7 @@ function RightPane({
   const termContext = useMemo(
     () => ({
       term_id: term.id,
+      concept_id: term.concept_id,
       term: term.term,
       aliases: arr(term.aliases),
       description: term.description,
@@ -407,7 +424,7 @@ function RightPane({
           <UsageMap ontology={ontology} termId={term.id} />
         ) : (
           <div className="h-full overflow-hidden p-3">
-            <GlossaryBindingPanel
+            <ConceptBindingPanel
               ontologyId={ontologyId}
               expectedVersion={expectedVersion}
               term={termContext}

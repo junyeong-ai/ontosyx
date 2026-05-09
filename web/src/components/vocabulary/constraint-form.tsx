@@ -11,6 +11,7 @@ import {
   CONSTRAINT_KINDS,
   CONSTRAINT_REGISTRY,
   constraintSpec,
+  defaultConstraint,
   type ConstraintFormField,
 } from "./constraint-registry";
 
@@ -126,6 +127,7 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
     case "value_set_id":
     case "notation_pattern_id":
     case "node_type_id":
+    case "property_id":
     case "edge_label":
       return (
         <SettingsInput
@@ -145,6 +147,24 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
           onChange={(e) => {
             const n = Number(e.target.value);
             onChange(Number.isFinite(n) ? n : 0);
+          }}
+          placeholder={field.placeholder}
+          required={field.required}
+        />
+      );
+    case "optional_number":
+      return (
+        <SettingsInput
+          label={label}
+          type="number"
+          value={value === undefined || value === null ? "" : String(value)}
+          onChange={(e) => {
+            if (e.target.value === "") {
+              onChange(undefined);
+              return;
+            }
+            const n = Number(e.target.value);
+            onChange(Number.isFinite(n) ? n : undefined);
           }}
           placeholder={field.placeholder}
           required={field.required}
@@ -186,7 +206,6 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
         />
       );
     case "constraint_target":
-    case "constraint_target_pair":
       return (
         <ConstraintTargetField
           label={label}
@@ -194,6 +213,56 @@ function FieldRenderer({ field, value, onChange }: FieldRendererProps) {
           onChange={onChange}
         />
       );
+    case "constraint":
+      return (
+        <div className="flex flex-col gap-2 rounded border border-divider p-2">
+          <span className="text-2xs font-medium uppercase tracking-wide text-foreground-muted">
+            {label}
+          </span>
+          <ConstraintForm
+            value={(value as ShaclConstraint | undefined) ?? defaultConstraint()}
+            onChange={(next) => onChange(next)}
+            onRemove={() => onChange(defaultConstraint())}
+          />
+        </div>
+      );
+    case "constraint_list": {
+      const constraints = Array.isArray(value)
+        ? value.filter(
+            (item): item is ShaclConstraint =>
+              item !== null && typeof item === "object" && "kind" in item,
+          )
+        : [];
+      return (
+        <div className="flex flex-col gap-2 rounded border border-divider p-2">
+          <span className="text-2xs font-medium uppercase tracking-wide text-foreground-muted">
+            {label}
+          </span>
+          {constraints.length === 0 && (
+            <p className="text-2xs text-foreground-muted">
+              {t("emptyBranches")}
+            </p>
+          )}
+          {constraints.map((constraint, index) => (
+            <ConstraintForm
+              key={`${constraint.kind}-${index}`}
+              value={constraint}
+              onChange={(next) => {
+                const copy = [...constraints];
+                copy[index] = next;
+                onChange(copy);
+              }}
+              onRemove={() => {
+                onChange(constraints.filter((_, i) => i !== index));
+              }}
+            />
+          ))}
+          <AddConstraintMenu
+            onAdd={(constraint) => onChange([...constraints, constraint])}
+          />
+        </div>
+      );
+    }
   }
 }
 

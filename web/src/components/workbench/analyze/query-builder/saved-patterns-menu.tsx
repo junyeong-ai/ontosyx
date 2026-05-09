@@ -30,9 +30,8 @@ import {
 // to the backend id after the first save.
 
 export interface SavedPatternsMenuProps {
-  /** Ontology the active pattern was authored against. Required — every
-   *  saved pattern is tied to an ontology id so a reopen against the
-   *  wrong schema is impossible. */
+  /** Current workspace ontology identity. Used only as a UI readiness
+   *  signal; the API resolves the workspace singleton server-side. */
   ontologyId: string | null;
   /** `null` when the canvas hasn't been saved yet. After a successful
    *  save/load the builder threads back the backend id so "Save" can
@@ -41,7 +40,7 @@ export interface SavedPatternsMenuProps {
   /** Snapshot builder that returns the PatternIR JSON for the current
    *  canvas. Called only when the user clicks Save / Save As so the
    *  builder doesn't have to send a stale payload on every render. */
-  getSnapshot: () => { pattern_ir: unknown; fallbackName?: string };
+  getSnapshot: () => { pattern_ir: SavedPattern["pattern_ir"]; fallbackName?: string };
   /** Replace canvas state with a loaded pattern. */
   onLoad: (pattern: SavedPattern) => void;
   /** `null`s the current pattern id — triggered when the user deletes
@@ -85,7 +84,7 @@ export function SavedPatternsMenu({
   const { data, isFetching, isError, error } = useSavedPatterns(
     ontologyId,
     { limit: 50 },
-    { enabled: isOpen && !!ontologyId },
+    { enabled: isOpen },
   );
   // Stable reference across renders — otherwise the `?? []` fallback
   // allocates a fresh empty array each render, invalidating every
@@ -102,11 +101,10 @@ export function SavedPatternsMenu({
   }, [isError, error, t]);
 
   const refresh = useCallback(() => {
-    if (!ontologyId) return;
     qc.invalidateQueries({
-      queryKey: savedPatternsKeys.list(ontologyId, { limit: 50 }),
+      queryKey: savedPatternsKeys.list({ limit: 50 }),
     });
-  }, [qc, ontologyId]);
+  }, [qc]);
 
   const handleSave = useCallback(async () => {
     if (!ontologyId) {
@@ -150,7 +148,6 @@ export function SavedPatternsMenu({
     try {
       const saved = await createSavedPattern({
         name: name.trim(),
-        ontology_lineage_id: ontologyId,
         pattern_ir,
       });
       toast.success(t("saveSuccess", { name: saved.name }));
@@ -179,7 +176,6 @@ export function SavedPatternsMenu({
     try {
       const saved = await createSavedPattern({
         name: name.trim(),
-        ontology_lineage_id: ontologyId,
         pattern_ir,
       });
       toast.success(t("saveSuccess", { name: saved.name }));

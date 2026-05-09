@@ -5,15 +5,40 @@
 
 import { z } from "zod";
 
-// PropertyType is recursive: { type: string; element?: PropertyType }
-import type { PropertyType } from "@/types/ontology";
+// Recursive ontology scalar contracts mirror the backend tagged enums.
+import type { OntologyIR, PropertyType, PropertyValue } from "@/types/ontology";
 
 export const PropertyTypeSchema: z.ZodType<PropertyType> =
   z.lazy(() =>
-    z.object({
-      type: z.string(),
-      element: PropertyTypeSchema.optional(),
-    }),
+    z.discriminatedUnion("type", [
+      z.object({ type: z.literal("bool") }).strict(),
+      z.object({ type: z.literal("int") }).strict(),
+      z.object({ type: z.literal("float") }).strict(),
+      z.object({ type: z.literal("string") }).strict(),
+      z.object({ type: z.literal("date") }).strict(),
+      z.object({ type: z.literal("date_time") }).strict(),
+      z.object({ type: z.literal("duration") }).strict(),
+      z.object({ type: z.literal("bytes") }).strict(),
+      z.object({ type: z.literal("list"), element: PropertyTypeSchema }).strict(),
+      z.object({ type: z.literal("map") }).strict(),
+    ]),
+  );
+
+export const PropertyValueSchema: z.ZodType<PropertyValue> =
+  z.lazy(() =>
+    z.discriminatedUnion("type", [
+      z.object({ type: z.literal("null") }).strict(),
+      z.object({ type: z.literal("bool"), value: z.boolean() }).strict(),
+      z.object({ type: z.literal("int"), value: z.number() }).strict(),
+      z.object({ type: z.literal("float"), value: z.number() }).strict(),
+      z.object({ type: z.literal("string"), value: z.string() }).strict(),
+      z.object({ type: z.literal("date"), value: z.string() }).strict(),
+      z.object({ type: z.literal("date_time"), value: z.string() }).strict(),
+      z.object({ type: z.literal("duration"), value: z.string() }).strict(),
+      z.object({ type: z.literal("bytes"), value: z.array(z.number()) }).strict(),
+      z.object({ type: z.literal("list"), value: z.array(PropertyValueSchema) }).strict(),
+      z.object({ type: z.literal("map"), value: z.record(z.string(), PropertyValueSchema) }).strict(),
+    ]),
   );
 
 export const LocalizedTextSchema = z.object({
@@ -32,7 +57,7 @@ export const PropertyDefSchema = z.object({
   name: z.string(),
   property_type: PropertyTypeSchema,
   nullable: z.boolean().optional(),
-  default_value: z.unknown().optional(),
+  default_value: PropertyValueSchema.optional(),
   description: LocalizedTextSchema,
   source_column: z.string().optional(),
 });
@@ -88,15 +113,18 @@ export const OntologyVersionSchema = z.object({
   commit_message: z.string().optional(),
 });
 
-export const OntologyIRSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: LocalizedTextSchema,
-  version: OntologyVersionSchema,
-  node_types: z.array(NodeTypeDefSchema),
-  edge_types: z.array(EdgeTypeDefSchema),
-  indexes: z.array(IndexDefSchema).optional(),
-});
+export const OntologyIRSchema: z.ZodType<OntologyIR> = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    display_name: LocalizedTextSchema.optional(),
+    description: LocalizedTextSchema,
+    version: OntologyVersionSchema,
+    node_types: z.array(NodeTypeDefSchema),
+    edge_types: z.array(EdgeTypeDefSchema),
+    indexes: z.array(IndexDefSchema).optional(),
+  })
+  .passthrough();
 
 export const CurrentVersionSummarySchema = z.object({
   version_id: z.string(),
@@ -127,7 +155,7 @@ export const OntologyDetailSchema = z.object({
   ontology_ir: OntologyIRSchema.optional(),
 });
 
-export const CursorPageSchema = <T extends z.ZodType>(itemSchema: T) =>
+export const ClientPageSchema = <T extends z.ZodType>(itemSchema: T) =>
   z.object({
     items: z.array(itemSchema),
     next_cursor: z.string().optional(),

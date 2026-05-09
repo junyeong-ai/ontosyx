@@ -106,7 +106,7 @@ function VerificationBadge({
 // EntityHeader — shared chrome for EntityDetail + EdgeDetail. Owns
 // label / description editing, deletion, and the verification
 // badge. The same shape works for both kinds because the wire
-// fields are aligned (label, description, glossary_anchors).
+// fields are aligned (label, description, concept_id).
 // ---------------------------------------------------------------------------
 
 function EntityHeader({

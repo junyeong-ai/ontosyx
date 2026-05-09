@@ -4,13 +4,11 @@ import React from "react";
 import ReactGridLayout from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import { WidgetCard } from "./widget-card";
-import type { DashboardWidget } from "@/types/api";
+import type { DashboardLayoutItem, DashboardWidget } from "@/types/api";
 
-// `LayoutItem` mirrors the `Layout` interface from
-// @types/react-grid-layout — the package's namespaced export pattern
-// (`export = ReactGridLayout`) makes the named type imports awkward,
-// so re-stating the small shape here is the cleanest way to keep
-// the prop bag typed end-to-end.
+// `LayoutItem` mirrors the runtime shape emitted by react-grid-layout.
+// Keeping the local type narrow makes the dashboard contract independent
+// from upstream prop-type details while preserving end-to-end typing.
 //
 // `GridLayoutProps` augments react-grid-layout's CoreProps with
 // `cols` — typed for the Responsive variant only in the upstream
@@ -55,7 +53,7 @@ export interface WidgetGridProps {
   selectedWidgetId: string | null;
   refreshKey?: number;
   onSelect: (id: string) => void;
-  onLayoutChange: (layout: unknown[]) => void;
+  onLayoutChange: (layout: DashboardLayoutItem[]) => void;
 }
 
 export function WidgetGrid({
@@ -100,7 +98,7 @@ export function WidgetGrid({
           const items = Array.isArray(newLayout) ? newLayout : [newLayout];
           onLayoutChange(
             items.map((item: { i: string; x: number; y: number; w: number; h: number }) => ({
-              i: item.i,
+              widget_id: item.i,
               x: item.x,
               y: item.y,
               w: item.w,

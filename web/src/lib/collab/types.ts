@@ -4,9 +4,11 @@
 // reach into the generated bundle directly.
 
 import type { components } from "@/types/api.generated";
+import type { WireOntologyCommand } from "@/lib/ontology-command-normalize";
 
 export type ClientMessage = components["schemas"]["ClientMessage"];
 export type ServerMessage = components["schemas"]["ServerMessage"];
+export type { WireOntologyCommand };
 export type ErrorCode = components["schemas"]["ErrorCode"];
 export type PresenceInfo = components["schemas"]["PresenceInfo"];
 export type CursorPosition = components["schemas"]["CursorPosition"];

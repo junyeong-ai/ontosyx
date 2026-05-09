@@ -16,9 +16,7 @@ export function CodeSystemsTab() {
   return (
     <MasterDetailEntityPage<CodeSystemDef>
       schema={codeSystemSchema}
-      selectItems={(ir) =>
-        ((ir as unknown as { code_systems?: CodeSystemDef[] }).code_systems ?? [])
-      }
+      selectItems={(ir) => ir.code_systems ?? []}
       itemId={(cs) => cs.id}
       buildCreateOp={(def) => ({ op: "create_code_system", def })}
       buildUpdateOp={(id, def) => ({ op: "update_code_system", id, def })}

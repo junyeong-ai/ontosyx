@@ -22,6 +22,7 @@
 // before calling `toPatternIR` and restore it after `fromPatternIR`.
 
 import { parseFilterValue, stringifyFilterValue } from "@/lib/filter-value";
+import type { components } from "@/types/api.generated";
 import type {
   PatternNode,
   PatternEdge,
@@ -32,91 +33,20 @@ import type {
   Aggregation,
   VisualPattern,
 } from "./ir-builder";
+import { toComparisonOp, toPropertyValue, toStringOp } from "./ir-builder";
 
 // ---------------------------------------------------------------------------
 // Backend wire shapes (match ox_core::pattern_ir serde output)
 // ---------------------------------------------------------------------------
 
-interface WirePosition {
-  x: number;
-  y: number;
-}
-
-interface WireLayoutHints {
-  zoom?: number;
-  pan_x?: number;
-  pan_y?: number;
-}
-
-interface WirePatternNode {
-  id: string;
-  variable: string;
-  label?: string;
-  property_filters?: unknown[];
-  position?: WirePosition;
-}
-
-interface WirePatternEdge {
-  id: string;
-  variable?: string;
-  label?: string;
-  source_node_id: string;
-  target_node_id: string;
-  direction: "outgoing" | "incoming" | "both";
-  property_filters?: unknown[];
-  var_length?: unknown;
-}
-
-interface WireComparisonExpr {
-  kind: "comparison";
-  operator: FilterOperator;
-  left: { kind: "property"; variable: string; field: string };
-  right: { kind: "literal"; value: unknown };
-}
-
-interface WirePatternFilter {
-  id: string;
-  expr: WireComparisonExpr;
-}
-
-interface WireProjectionField {
-  kind: "field";
-  variable: string;
-  field: string;
-  alias?: string;
-}
-
-interface WireProjectionVariable {
-  kind: "variable";
-  variable: string;
-  alias?: string;
-}
-
-interface WireProjectionAggregation {
-  kind: "aggregation";
-  function: Aggregation;
-  argument: { kind: "property"; variable: string; field: string };
-  alias?: string;
-}
-
-type WireProjection =
-  | WireProjectionField
-  | WireProjectionVariable
-  | WireProjectionAggregation;
-
-interface WirePatternProjection {
-  id: string;
-  projection: WireProjection;
-}
-
-/** QueryIR's `OrderClause` wire shape. `projection` wraps any
- *  `Projection` variant; the UI only emits `field` so that's what we
- *  serialize, but decoding accepts any shape and falls back to the
- *  first variable when the shape is unknown. */
-interface WireOrderClause {
-  projection: WireProjection;
-  direction: "asc" | "desc";
-}
+type WireLayoutHints = components["schemas"]["LayoutHints"];
+type WirePatternNode = components["schemas"]["PatternNode"];
+type WirePatternEdge = components["schemas"]["PatternEdge"];
+type WirePatternFilter = components["schemas"]["PatternFilter"];
+type WirePatternProjection = components["schemas"]["PatternProjection"];
+type WireOrderClause = components["schemas"]["OrderClause"];
+type WireExpr = components["schemas"]["Expr"];
+type WirePropertyValue = components["schemas"]["PropertyValue"];
 
 /** On-wire shape version — mirrors the Rust `PATTERN_IR_SCHEMA_VERSION`
  *  constant. The backend rejects a higher value during deserialisation,
@@ -139,45 +69,58 @@ export interface WireReadOnlyReason {
   original_op: string;
 }
 
-export interface WirePatternIR {
-  schema_version?: number;
-  nodes?: WirePatternNode[];
-  edges?: WirePatternEdge[];
-  filters?: WirePatternFilter[];
-  projections?: WirePatternProjection[];
-  layout_hints?: WireLayoutHints;
-  limit?: number;
-  skip?: number;
-  order_by?: WireOrderClause[];
-  /** Present only when the server decompiled a non-`Match` QueryIR.
-   *  The UI must gate edit actions on its absence — an empty
-   *  `nodes` array no longer implies "blank canvas" on its own. */
-  read_only_reason?: WireReadOnlyReason;
-}
+export type WirePatternIR = components["schemas"]["PatternIR"];
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const FILTER_OPERATORS: readonly FilterOperator[] = [
-  "=",
-  "!=",
-  ">",
-  "<",
-  ">=",
-  "<=",
-  "CONTAINS",
-  "STARTS WITH",
-] as const;
-
-function isFilterOperator(value: unknown): value is FilterOperator {
-  return typeof value === "string" && (FILTER_OPERATORS as readonly string[]).includes(value);
-}
-
 const AGGREGATIONS: readonly Aggregation[] = ["count", "sum", "avg", "min", "max"] as const;
 
 function isAggregation(value: unknown): value is Aggregation {
   return typeof value === "string" && (AGGREGATIONS as readonly string[]).includes(value);
+}
+
+function stringifyPropertyValue(value: WirePropertyValue | undefined): string {
+  if (!value || value.type === "null") return "";
+  if ("value" in value) return stringifyFilterValue(value.value);
+  return "";
+}
+
+function comparisonOperator(op: components["schemas"]["ComparisonOp"]): FilterOperator {
+  switch (op) {
+    case "eq":
+      return "=";
+    case "neq":
+      return "!=";
+    case "gt":
+      return ">";
+    case "lt":
+      return "<";
+    case "gte":
+      return ">=";
+    case "lte":
+      return "<=";
+  }
+}
+
+function stringOperator(op: components["schemas"]["StringOp"]): Extract<FilterOperator, "CONTAINS" | "STARTS WITH"> | null {
+  if (op === "contains") return "CONTAINS";
+  if (op === "starts_with") return "STARTS WITH";
+  return null;
+}
+
+function localFilterFromExpr(id: string, expr: WireExpr): PatternFilter | null {
+  if (expr.expr_type !== "comparison" && expr.expr_type !== "string_op") return null;
+  if (expr.left.expr_type !== "property" || expr.right.expr_type !== "literal") return null;
+  const operator = expr.expr_type === "comparison" ? comparisonOperator(expr.op) : stringOperator(expr.op);
+  if (!operator || !expr.left.field) return null;
+  return {
+    id: id || freshFilterId(),
+    property: expr.left.field,
+    operator,
+    value: stringifyPropertyValue(expr.right.value),
+  };
 }
 
 // Collision-free ids, same module-global across tabs. `crypto.randomUUID`
@@ -207,6 +150,7 @@ export function toPatternIR(
     id: n.id,
     variable: n.alias,
     label: n.label,
+    property_filters: [],
     position: n.position ? { x: n.position.x, y: n.position.y } : undefined,
   }));
 
@@ -219,19 +163,21 @@ export function toPatternIR(
     // The local canvas always stores an outgoing relationship; the
     // builder doesn't surface direction as a first-class toggle.
     direction: "outgoing" as const,
+    property_filters: [],
+    var_length: null,
   }));
 
   const filters: WirePatternFilter[] = [];
   const pushFilters = (variable: string, fs: PatternFilter[]) => {
     for (const f of fs) {
+      const left: WireExpr = { expr_type: "property", variable, field: f.property };
+      const right: WireExpr = { expr_type: "literal", value: toPropertyValue(parseFilterValue(f.value)) };
       filters.push({
         id: f.id,
-        expr: {
-          kind: "comparison",
-          operator: f.operator,
-          left: { kind: "property", variable, field: f.property },
-          right: { kind: "literal", value: parseFilterValue(f.value) },
-        },
+        expr:
+          f.operator === "CONTAINS" || f.operator === "STARTS WITH"
+            ? { expr_type: "string_op", left, op: toStringOp(f.operator), right }
+            : { expr_type: "comparison", left, op: toComparisonOp(f.operator), right },
       });
     }
   };
@@ -245,8 +191,9 @@ export function toPatternIR(
         projection: {
           kind: "aggregation",
           function: rf.aggregation,
-          argument: { kind: "property", variable: rf.alias, field: rf.property },
-          alias: rf.outputAlias,
+          argument: { kind: "field", variable: rf.alias, field: rf.property, alias: null },
+          alias: rf.outputAlias || `${rf.aggregation}_${rf.alias}_${rf.property}`,
+          distinct: false,
         },
       };
     }
@@ -276,6 +223,7 @@ export function toPatternIR(
       kind: "field",
       variable: o.alias,
       field: o.property,
+      alias: null,
     },
     direction: o.direction,
   }));
@@ -288,6 +236,7 @@ export function toPatternIR(
     projections,
     layout_hints: options.layoutHints ?? {},
     limit: visual.limit ?? undefined,
+    skip: null,
     order_by,
   };
 }
@@ -330,16 +279,14 @@ export function fromPatternIR(wire: WirePatternIR): FromPatternIRResult {
   const nodeByVariable = new Map(nodes.map((n) => [n.alias, n]));
   const edgeByVariable = new Map(edges.map((e) => [e.alias, e]));
   for (const f of wire.filters ?? []) {
-    if (!f.expr || f.expr.kind !== "comparison") continue;
-    if (!isFilterOperator(f.expr.operator)) continue;
-    const { variable, field } = f.expr.left;
-    const value = stringifyFilterValue(f.expr.right?.value);
-    const local: PatternFilter = {
-      id: f.id || freshFilterId(),
-      property: field,
-      operator: f.expr.operator,
-      value,
-    };
+    const expr = f.expr;
+    const local = localFilterFromExpr(f.id, expr);
+    if (!local) continue;
+    const variable =
+      (expr.expr_type === "comparison" || expr.expr_type === "string_op") &&
+      expr.left.expr_type === "property"
+        ? expr.left.variable
+        : "";
     const host = nodeByVariable.get(variable) ?? edgeByVariable.get(variable);
     if (host) host.filters.push(local);
   }
@@ -350,25 +297,27 @@ export function fromPatternIR(wire: WirePatternIR): FromPatternIRResult {
     const p = proj.projection;
     if (!p) continue;
     if (p.kind === "aggregation" && isAggregation(p.function)) {
+      const argument = p.argument;
+      if (!argument || argument.kind !== "field") continue;
       returnFields.push({
-        alias: p.argument?.variable ?? "",
-        property: p.argument?.field ?? "",
+        alias: argument.variable,
+        property: argument.field,
         aggregation: p.function,
-        outputAlias: p.alias,
+        outputAlias: p.alias ?? undefined,
       });
     } else if (p.kind === "variable") {
       returnFields.push({
         alias: p.variable,
         property: "*",
         aggregation: null,
-        outputAlias: p.alias,
+        outputAlias: p.alias ?? undefined,
       });
     } else if (p.kind === "field") {
       returnFields.push({
         alias: p.variable,
         property: p.field,
         aggregation: null,
-        outputAlias: p.alias,
+        outputAlias: p.alias ?? undefined,
       });
     }
   }
@@ -399,6 +348,6 @@ export function fromPatternIR(wire: WirePatternIR): FromPatternIRResult {
       limit: wire.limit ?? null,
     },
     layoutHints: wire.layout_hints ?? {},
-    readOnlyReason: wire.read_only_reason,
+    readOnlyReason: wire.read_only_reason ?? undefined,
   };
 }

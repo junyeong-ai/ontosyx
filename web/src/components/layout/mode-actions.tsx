@@ -41,7 +41,6 @@ function DesignActions() {
   const tSelector = useTranslations("chrome.contextSelector");
   const ontology = useAppStore((s) => s.ontology);
   const loadStandaloneOntology = useAppStore((s) => s.loadStandaloneOntology);
-  const activeOntologyDraft = useAppStore((s) => s.activeOntologyDraft);
   const guardPendingEdits = useGuardPendingEdits();
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -50,8 +49,7 @@ function DesignActions() {
   const [auditing, setAuditing] = useState(false);
 
   const handleAudit = async () => {
-    const ontologyId = activeOntologyDraft?.ontology_id;
-    if (!ontologyId) {
+    if (!ontology) {
       toast.error(t("saveOntologyFirst"));
       return;
     }
@@ -160,7 +158,7 @@ function DesignActions() {
             variant="ghost"
             size="icon-sm"
             onClick={handleAudit}
-            disabled={auditing || !activeOntologyDraft?.ontology_id}
+            disabled={auditing || !ontology}
             aria-label={t("auditAria")}
           >
             {auditing ? (

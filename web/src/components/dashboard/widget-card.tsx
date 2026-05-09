@@ -19,7 +19,7 @@ export interface WidgetCardProps {
 
 // Stable reference so Zustand's strict-equality skip-render still
 // fires when the dashboard carries no hidden types.
-const EMPTY_HIDDEN: readonly string[] = Object.freeze([]) as unknown as readonly string[];
+const EMPTY_HIDDEN: readonly string[] = Object.freeze([]);
 
 export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCardProps) {
   const t = useTranslations("workbench.dashboard.widget");

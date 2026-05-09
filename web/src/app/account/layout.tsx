@@ -40,12 +40,14 @@ export default function AccountLayout({
 
   return (
     <AuthGuard>
-      <a
-        href="#sidebar"
-        className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-skip-link focus:rounded-md focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground-onbrand focus:outline-none focus:ring-2 focus:ring-brand-foreground/40 focus:ring-offset-2"
-      >
-        {tSkip("toSidebar")}
-      </a>
+      <nav aria-label={tSkip("label")} className="contents">
+        <a
+          href="#sidebar"
+          className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-skip-link focus:rounded-md focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground-onbrand focus:outline-none focus:ring-2 focus:ring-brand-foreground/40 focus:ring-offset-2"
+        >
+          {tSkip("toSidebar")}
+        </a>
+      </nav>
       <div className="flex h-screen bg-surface-raised">
         <AccountSidebar />
         <SessionExpiredOverlay />

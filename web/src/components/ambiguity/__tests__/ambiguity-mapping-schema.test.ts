@@ -85,26 +85,26 @@ describe("AmbiguityMappingFormSchema — code_system_ref", () => {
   });
 });
 
-describe("AmbiguityMappingFormSchema — glossary_ref", () => {
-  it("requires non-empty term_id", () => {
+describe("AmbiguityMappingFormSchema — concept_ref", () => {
+  it("requires non-empty concept_id", () => {
     const result = AmbiguityMappingFormSchema.safeParse({
-      kind: "glossary_ref",
-      term_id: "",
+      kind: "concept_ref",
+      concept_id: "",
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0].message).toBe("errors.termRequired");
+      expect(result.error.issues[0].message).toBe("errors.conceptRequired");
     }
   });
 
   it("trims and round-trips to wire shape", () => {
     const ok = AmbiguityMappingFormSchema.parse({
-      kind: "glossary_ref",
-      term_id: "  g-vip  ",
+      kind: "concept_ref",
+      concept_id: "  c-vip  ",
     });
     expect(toAmbiguityMapping(ok)).toEqual({
-      kind: "glossary_ref",
-      term_id: "g-vip",
+      kind: "concept_ref",
+      concept_id: "c-vip",
     });
   });
 });

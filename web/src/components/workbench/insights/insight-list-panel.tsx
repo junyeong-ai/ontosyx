@@ -8,11 +8,9 @@
 // "Save Insight" creation flow lives on the Analyze surface where
 // the answer + provenance are already in scope.
 //
-// Filter strip surfaces the `concept_anchors` axis the BE supports
-// — typed `GlossaryTermId` pills derived from the visible insights,
-// click to scope the list to that anchor. Mirrors the 1-pager's
-// "용어 사전이 다리" promise: the same business-concept handle that
-// lives in the glossary lets users navigate insights by concept.
+// Filter strip surfaces the `concept_anchors` axis the BE supports:
+// stable ConceptId pills derived from visible insights. Clicking a
+// pill scopes the list to that business concept.
 // ---------------------------------------------------------------------------
 
 import { useMemo, useState } from "react";

@@ -62,6 +62,7 @@ function sampleRecipe(overrides: Partial<AnalysisRecipe> = {}): AnalysisRecipe {
     version: 1,
     status: "approved",
     parent_id: null,
+    workspace_id: "11111111-1111-4111-8111-111111111111",
     ...overrides,
   };
 }

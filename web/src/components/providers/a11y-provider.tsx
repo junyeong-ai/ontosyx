@@ -25,7 +25,14 @@ export function A11yProvider() {
       import("react"),
     ])
       .then(([axe, ReactDOM, React]) => {
-        axe.default(React.default, ReactDOM.default, 1000);
+        axe.default(React.default, ReactDOM.default, 1000, undefined, {
+          include: [["body"]],
+          exclude: [
+            ["nextjs-portal"],
+            ["#nextjs-portal"],
+            ["[data-nextjs-dialog-overlay]"],
+          ],
+        });
       })
       .catch((err) => {
         console.warn("[a11y] axe-core init failed:", err);

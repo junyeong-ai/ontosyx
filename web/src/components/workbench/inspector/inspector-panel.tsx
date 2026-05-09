@@ -13,7 +13,8 @@ import { toast } from "@/components/ui/toast";
 import { Tooltip } from "@/components/ui/tooltip";
 import { MergeBanner } from "@/components/collab/merge-banner";
 import { CommandStackDiffDialog } from "@/components/collab/command-stack-diff-dialog";
-import type { OntologyCommand, QualityGap } from "@/types/api";
+import type { QualityGap } from "@/types/api";
+import type { WireOntologyCommand } from "@/lib/collab/types";
 import { EntityDetail, EdgeDetail } from "./entity-detail";
 import { arr } from "@/lib/ir-collections";
 import { gapTouchesEntity } from "@/lib/quality-utils";
@@ -68,7 +69,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
     /** Remote commands between `baseRevision` → `remoteRevision`,
      *  oldest first. Populated when an `EntityUpdated` WS event has
      *  delivered the inventory; absent until BE ships the event. */
-    remoteCommands?: readonly OntologyCommand[];
+    remoteCommands?: readonly WireOntologyCommand[];
   } | null>(null);
   const [diffDialogOpen, setDiffDialogOpen] = useState(false);
   // Pull the current presence list to attribute the conflict —

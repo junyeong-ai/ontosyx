@@ -39,8 +39,7 @@ export type FieldKind =
 // ---------------------------------------------------------------------------
 
 interface FieldBase<T, V> {
-  /** Path into `T`. Top-level keys for now; nested paths land when
-   *  the renderer needs them. */
+  /** Path into `T`. Entity forms currently use top-level fields. */
   key: keyof T & string;
   /** i18n key suffix the renderer joins under the entity's namespace
    *  to render the label. */
@@ -249,6 +248,10 @@ export function validateRecord<T>(
       const variant = tag ? field.variants[tag] : undefined;
       if (variant) {
         errors.push(...validateRecord(variant, value));
+      }
+    } else if (field.kind === "list" && Array.isArray(value)) {
+      for (const item of value) {
+        errors.push(...validateRecord(field.itemSchema, item));
       }
     }
   }

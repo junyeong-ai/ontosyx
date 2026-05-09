@@ -61,7 +61,7 @@ export interface UseQualityAlertsResult {
  * sessionStorage lazily through `useState(() => ...)`.
  */
 export function useQualityAlerts(
-  window: MetricWindow = "7d",
+  window: MetricWindow = "last7d",
 ): UseQualityAlertsResult {
   const query = useQualityMetrics(window);
   // Pulled in parallel with the metrics fetch — the baseline query

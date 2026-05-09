@@ -43,7 +43,7 @@ function report(overrides: Partial<QualityMetricsReport> = {}): QualityMetricsRe
   };
   return {
     anchor_match_rate: healthy,
-    glossary_hit_rate: healthy,
+    concept_hit_rate: healthy,
     clarification_success_rate: healthy,
     query_reproducibility: healthy,
     shacl_pass_rate: healthy,

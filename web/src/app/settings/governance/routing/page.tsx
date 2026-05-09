@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/components/ui/toast";
+import { CHANGE_TYPE_RANK } from "@/lib/change-types";
 
 import { Button } from "@/components/ui/button";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
@@ -63,7 +64,11 @@ export default function GovernanceRoutingPage() {
     for (const list of m.values()) {
       list.sort((a, b) => Number(b.workspace_scoped) - Number(a.workspace_scoped));
     }
-    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b));
+    return [...m.entries()].sort(([a], [b]) => {
+      const aRank = CHANGE_TYPE_RANK.get(a) ?? Number.MAX_SAFE_INTEGER;
+      const bRank = CHANGE_TYPE_RANK.get(b) ?? Number.MAX_SAFE_INTEGER;
+      return aRank === bRank ? a.localeCompare(b) : aRank - bRank;
+    });
   }, [rulesQuery.data]);
 
   const upsert = useMutation({
@@ -152,8 +157,8 @@ export default function GovernanceRoutingPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-sm font-medium text-foreground-strong">
-                        {changeType}
+                      <span className="text-sm font-medium text-foreground-strong">
+                        {t(`changeTypes.${changeType}`)}
                       </span>
                       {hasOverride && (
                         <span className="rounded bg-concept-surface px-2 py-0.5 text-2xs font-medium uppercase tracking-wider text-concept-foreground">
@@ -166,6 +171,9 @@ export default function GovernanceRoutingPage() {
                         {effective.risk_level}
                       </span>
                     </div>
+                    <p className="mt-1 font-mono text-2xs text-foreground-muted">
+                      {changeType}
+                    </p>
                     <p className="mt-1 text-2xs text-foreground-muted">
                       {t("currentLabel")}:{" "}
                       <span className="font-mono text-2xs">

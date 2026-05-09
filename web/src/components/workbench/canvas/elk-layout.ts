@@ -17,8 +17,8 @@ import { ELK_OPTIONS, buildElkOptions } from "./elk-options";
 //   - "layered" (default): ontology editor — hierarchical, ports enabled.
 //                          Spacing / direction / edge-routing are tunable
 //                          via `options.uiConfig` (server-supplied).
-//   - "stress": explore surface — force-like placement, no ports (ports
-//               would fight the spring model). Static options for now.
+//   - "stress": explore surface — force-like placement, no ports because
+//               ports would fight the spring model.
 //   - "mrtree": top-down tree layout (root-to-leaves). Best for taxonomy
 //               or pure hierarchies where every node has a single parent.
 //   - "radial": radial-tree placement around a focused root. Good for

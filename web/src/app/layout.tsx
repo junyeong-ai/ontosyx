@@ -91,12 +91,14 @@ export default async function RootLayout({
             owning layout so axe doesn't flag a missing target on routes
             where they don't exist (e.g. login / not-found / loading
             have no sidebar at all). */}
-        <a
-          href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-skip-link focus:rounded-md focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground-onbrand focus:outline-none focus:ring-2 focus:ring-brand-foreground/40 focus:ring-offset-2"
-        >
-          {tSkip("toMain")}
-        </a>
+        <nav aria-label={tSkip("label")} className="contents">
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-skip-link focus:rounded-md focus:bg-brand-solid focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground-onbrand focus:outline-none focus:ring-2 focus:ring-brand-foreground/40 focus:ring-offset-2"
+          >
+            {tSkip("toMain")}
+          </a>
+        </nav>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <QueryProvider>
             <I18nBridgeProvider>

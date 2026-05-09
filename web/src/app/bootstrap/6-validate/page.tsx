@@ -111,7 +111,7 @@ export default function ValidateStep() {
   /**
    * Persist the glossary draft as a bootstrap ontology. Each parsed
    * row becomes a `CreateGlossaryTerm` op; the whole batch commits
-   * atomically as v1 via the unified `POST /api/ontologies`
+   * atomically as v1 via the unified `POST /api/ontology`
    * endpoint. A failure surfaces as a toast but never rolls back
    * the downstream project creation — the drafts stay in
    * localStorage so the user can retry.

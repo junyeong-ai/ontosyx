@@ -79,7 +79,7 @@ const STALE = {
     id: "r-2",
     context_id: "ctx-stale",
     context_source_hash: "sha256:old",
-    mapping: { kind: "glossary_ref" as const, term_id: "g-cat" },
+    mapping: { kind: "concept_ref" as const, concept_id: "c-category" },
     resolved_at: "2026-04-22T00:00:00Z",
   },
 };

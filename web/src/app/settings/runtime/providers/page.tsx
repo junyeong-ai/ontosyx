@@ -2,8 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 
-import { getHealth, type HealthResponse } from "@/lib/api";
+import { getHealth } from "@/lib/api";
+import type { HealthResponse } from "@/types/api";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
@@ -92,6 +94,10 @@ function ProvidersBody({
         </div>
         <div className="divide-y divide-divider-soft">
           <ProviderRow
+            label={t("llm.status")}
+            value={<LlmStatusPill status={health.components.llm.status} />}
+          />
+          <ProviderRow
             label={t("llm.provider")}
             value={health.components.llm.provider}
           />
@@ -163,15 +169,38 @@ function ComponentStatusPill({ status }: { status: string }) {
   );
 }
 
-function ProviderRow({ label, value }: { label: string; value: string }) {
+function LlmStatusPill({ status }: { status: string }) {
+  const t = useTranslations("settings.runtime.providers.status");
+  const tone: StatusTone =
+    status === "configured" ? "warning" : status === "ok" ? "success" : "danger";
+  const label = status === "configured" ? t("configured") : status;
+  return (
+    <StatusBadge tone={tone} size="md" className="gap-1.5">
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label}
+    </StatusBadge>
+  );
+}
+
+function ProviderRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | ReactNode;
+}) {
   return (
     <div className="flex items-center justify-between px-6 py-3">
       <span className="text-sm text-foreground-muted">
         {label}
       </span>
-      <span className="max-w-[320px] truncate text-end font-mono text-sm text-foreground-strong">
-        {value}
-      </span>
+      {typeof value === "string" ? (
+        <span className="max-w-[320px] truncate text-end font-mono text-sm text-foreground-strong">
+          {value}
+        </span>
+      ) : (
+        value
+      )}
     </div>
   );
 }

@@ -16,6 +16,7 @@ import { Network } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import { arr } from "@/lib/ir-collections";
+import { formatModelIdentity } from "@/lib/model-identity";
 
 /**
  * Resolve the ontology IR for a past execution. Draft executions carry
@@ -159,7 +160,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
           <p className="text-xs text-foreground-muted">
             {t("meta", {
               date: fmt.date(execution.created_at),
-              model: execution.model,
+              model: formatModelIdentity(execution.model_provider, execution.model),
               duration: execution.execution_time_ms,
             })}
           </p>
@@ -205,7 +206,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
           <Section title={t("sectionResultsTitle", { count: execution.results.rows.length })}>
             <div className="space-y-3">
               <WidgetToolbar
-                spec={(execution.widget as Record<string, unknown>) ?? { widget: "auto" }}
+                spec={execution.widget ? { widget_type: execution.widget.widget_type } : { widget_type: "auto" }}
                 data={execution.results}
               />
               <ResponseBasis provenance={execution.results.metadata?.provenance} warnings={execution.results.metadata?.warnings} />

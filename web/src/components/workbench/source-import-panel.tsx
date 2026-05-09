@@ -165,7 +165,7 @@ export function SourceImportPanel({ source, value, onChange }: Props) {
                     </span>
                     <span className="ms-auto flex items-center gap-2 text-2xs text-foreground-subtle">
                       <span>{t("columnCount", { count: row.column_count })}</span>
-                      {row.estimated_row_count !== null && (
+                      {row.estimated_row_count != null && (
                         <span>
                           {t("rowCount", {
                             count: row.estimated_row_count,

@@ -35,6 +35,26 @@ const DEV_CREDS_PATH = "/tmp/ontosyx-dev-creds";
 
 let devCredsCache: { apiKey: string | undefined; mtimeMs: number } | null = null;
 
+type ApiErrorClass = "client_error" | "server_error";
+
+function apiError(
+  status: number,
+  code: string,
+  errorClass: ApiErrorClass,
+  params: Record<string, unknown> = {},
+): Response {
+  return Response.json(
+    {
+      error: {
+        code,
+        class: errorClass,
+        params,
+      },
+    },
+    { status },
+  );
+}
+
 function readDevApiKey(): string | undefined {
   let mtimeMs: number;
   try {
@@ -111,18 +131,12 @@ export async function forwardRequest(
     } else {
       const apiKey = getApiKey();
       if (!apiKey) {
-        return Response.json(
-          {
-            error: {
-              type: "service_unavailable",
-              message:
-                process.env.NODE_ENV === "production"
-                  ? "API key not configured. Set OX_API_KEY."
-                  : "Dev credentials missing. Run `./scripts/dev.sh seed`.",
-            },
-          },
-          { status: 503 },
-        );
+        return apiError(503, "service_unavailable", "server_error", {
+          detail:
+            process.env.NODE_ENV === "production"
+              ? "API key not configured. Set OX_API_KEY."
+              : "Dev credentials missing. Run `./scripts/dev.sh seed`.",
+        });
       }
       headers.set("x-api-key", apiKey);
       const principalId = request.headers.get("x-principal-id");
@@ -162,12 +176,9 @@ export async function forwardRequest(
     } as RequestInit & { duplex?: "half" });
   } catch (error) {
     console.error("[api-proxy] backend fetch failed:", error);
-    return Response.json(
-      {
-        error: { type: "bad_gateway", message: "Backend unreachable." },
-      },
-      { status: 502 },
-    );
+    return apiError(502, "service_unavailable", "server_error", {
+      detail: "Backend unreachable.",
+    });
   }
 
   if (upstream.status === 204) {

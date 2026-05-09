@@ -4,10 +4,6 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
 import type {
-  DiffAddedEdge,
-  DiffAddedNode,
-  DiffModifiedEdge,
-  DiffModifiedNode,
   OntologyDiffSummary,
 } from "@/types/ontology-branches";
 
@@ -82,10 +78,7 @@ const STATUS_COLOR: Record<NodeStatus, { fill: string; stroke: string; text: str
  */
 function layoutNodes(diff: OntologyDiffSummary): NodeNode[] {
   const out: NodeNode[] = [];
-  const removed = (diff.removed_nodes ?? []) as DiffAddedNode[];
-  const modified = (diff.modified_nodes ?? []) as DiffModifiedNode[];
-  const added = (diff.added_nodes ?? []) as DiffAddedNode[];
-  removed.forEach((n, idx) => {
+  diff.removed_nodes.forEach((n, idx) => {
     out.push({
       id: n.id,
       label: n.label || n.id,
@@ -94,7 +87,7 @@ function layoutNodes(diff: OntologyDiffSummary): NodeNode[] {
       row: idx,
     });
   });
-  modified.forEach((n, idx) => {
+  diff.modified_nodes.forEach((n, idx) => {
     out.push({
       id: n.node_id,
       label: n.label || n.node_id,
@@ -103,7 +96,7 @@ function layoutNodes(diff: OntologyDiffSummary): NodeNode[] {
       row: idx,
     });
   });
-  added.forEach((n, idx) => {
+  diff.added_nodes.forEach((n, idx) => {
     out.push({
       id: n.id,
       label: n.label || n.id,
@@ -117,18 +110,16 @@ function layoutNodes(diff: OntologyDiffSummary): NodeNode[] {
 
 function layoutEdges(diff: OntologyDiffSummary): NodeEdge[] {
   const out: NodeEdge[] = [];
-  for (const e of (diff.removed_edges ?? []) as DiffAddedEdge[]) {
-    const src = (e.source_node_id as string | undefined) ?? "";
-    const tgt = (e.target_node_id as string | undefined) ?? "";
+  for (const e of diff.removed_edges) {
     out.push({
       id: e.id,
       label: e.label || e.id,
       status: "removed",
-      source_id: src,
-      target_id: tgt,
+      source_id: e.source_node_id,
+      target_id: e.target_node_id,
     });
   }
-  for (const e of (diff.modified_edges ?? []) as DiffModifiedEdge[]) {
+  for (const e of diff.modified_edges) {
     out.push({
       id: e.edge_id,
       label: e.label || e.edge_id,
@@ -137,15 +128,13 @@ function layoutEdges(diff: OntologyDiffSummary): NodeEdge[] {
       target_id: "",
     });
   }
-  for (const e of (diff.added_edges ?? []) as DiffAddedEdge[]) {
-    const src = (e.source_node_id as string | undefined) ?? "";
-    const tgt = (e.target_node_id as string | undefined) ?? "";
+  for (const e of diff.added_edges) {
     out.push({
       id: e.id,
       label: e.label || e.id,
       status: "added",
-      source_id: src,
-      target_id: tgt,
+      source_id: e.source_node_id,
+      target_id: e.target_node_id,
     });
   }
   return out;

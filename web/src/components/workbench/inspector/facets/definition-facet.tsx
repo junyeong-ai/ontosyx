@@ -6,22 +6,20 @@ import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { defaultText } from "@/lib/locale/localize";
 import { arr } from "@/lib/ir-collections";
-import { GlossaryAnchorPicker } from "@/components/ontology/glossary-anchor-picker";
 import type {
   EdgeTypeDef,
   NodeTypeDef,
   OntologyIR,
 } from "@/types/api";
-import type { GlossaryTermDef } from "@/lib/api/edit-ops";
 
 import { InlineEdit } from "../inline-edit";
 import { AiAssistButton, AiSuggestionList, useAiEdit } from "../ai-suggestions";
 
 // ---------------------------------------------------------------------------
-// DefinitionFacet — description + glossary anchors. Both NodeType
+// DefinitionFacet — description + concept realisation. Both NodeType
 // and EdgeType variants share this surface; the difference is the
-// op shape applyCommand sends, which we resolve via a single
-// `kind` discriminator.
+// op shape applyCommand sends, which we resolve via a single `kind`
+// discriminator.
 // ---------------------------------------------------------------------------
 
 interface DefinitionFacetProps {
@@ -44,8 +42,10 @@ export function DefinitionFacet({
   const applyCommand = useAppStore((s) => s.applyCommand);
   const ai = useAiEdit();
 
-  const glossary: readonly GlossaryTermDef[] = arr(ontology.glossary);
-  const anchors = arr(entity.glossary_anchors);
+  const concept = arr(ontology.concepts).find((c) => c.id === entity.concept_id);
+  const conceptTerm = concept
+    ? arr(ontology.glossary).find((term) => term.id === concept.canonical_term_id)
+    : undefined;
 
   const handleUpdateDescription = useCallback(
     (desc: string) => {
@@ -61,25 +61,6 @@ export function DefinitionFacet({
           op: "update_edge_description",
           edge_id: entity.id,
           description,
-        });
-      }
-    },
-    [applyCommand, entity.id, kind],
-  );
-
-  const handleAnchorsChange = useCallback(
-    (next: string[]) => {
-      if (kind === "node") {
-        applyCommand({
-          op: "set_node_glossary_anchors",
-          node_id: entity.id,
-          anchors: next,
-        });
-      } else {
-        applyCommand({
-          op: "set_edge_glossary_anchors",
-          edge_id: entity.id,
-          anchors: next,
         });
       }
     },
@@ -127,17 +108,15 @@ export function DefinitionFacet({
       </div>
       <div>
         <span className="text-2xs font-semibold uppercase tracking-wider text-foreground-muted">
-          {t("anchorsLabel")}
+          {t("conceptLabel")}
         </span>
         <p className="mt-0.5 text-2xs text-foreground-muted">
-          {t("anchorsHint")}
+          {t("conceptHint")}
         </p>
-        <div className="mt-1.5">
-          <GlossaryAnchorPicker
-            value={anchors}
-            glossary={glossary}
-            onChange={handleAnchorsChange}
-          />
+        <div className="mt-1.5 rounded border border-divider bg-surface-inset px-2 py-1 text-2xs text-foreground-muted">
+          {concept
+            ? (defaultText(conceptTerm?.term) || concept.id)
+            : t("noConcept")}
         </div>
       </div>
     </div>

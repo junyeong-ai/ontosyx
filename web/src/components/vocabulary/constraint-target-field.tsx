@@ -46,7 +46,7 @@ export function ConstraintTargetField({
         onChange({ kind: "node_type", node_type_id: "" });
         break;
       case "edge_label":
-        onChange({ kind: "edge_label", edge_label: "" });
+        onChange({ kind: "edge_label", label: "" });
         break;
     }
   };
@@ -96,9 +96,9 @@ export function ConstraintTargetField({
       {value.kind === "edge_label" && (
         <SettingsInput
           label={t("edgeLabel")}
-          value={value.edge_label}
+          value={value.label}
           onChange={(e) =>
-            onChange({ ...value, edge_label: e.target.value })
+            onChange({ ...value, label: e.target.value })
           }
         />
       )}

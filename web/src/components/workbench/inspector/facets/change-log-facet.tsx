@@ -98,7 +98,7 @@ function projectRecordForEntity(
   entityId: string,
   kind: "node" | "edge",
 ): ChangeRow | null {
-  const prov = record.provenance as ProvenanceDef | undefined;
+  const prov = record.provenance;
   if (!prov) return null;
   const subjectMatches = subjectTouchesEntity(prov, entityId, kind);
   const activityMentions =

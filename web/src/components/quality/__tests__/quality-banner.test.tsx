@@ -115,7 +115,7 @@ describe("QualityBanner", () => {
         threshold: 0.85,
       },
       {
-        metric: "glossary_hit_rate",
+        metric: "concept_hit_rate",
         severity: "warning",
         value: 0.25,
         threshold: 0.3,

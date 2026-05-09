@@ -53,7 +53,19 @@ const TAB_PARAM = "kind";
 const ID_PARAM = "id";
 
 function mappingId(m: ObjectMappingDef | LinkMappingDef): string {
-  return (m as { id?: string }).id ?? "";
+  return m.id;
+}
+
+function isObjectMapping(
+  mapping: ObjectMappingDef | LinkMappingDef | null,
+): mapping is ObjectMappingDef {
+  return Boolean(mapping && "node_type_id" in mapping);
+}
+
+function isLinkMapping(
+  mapping: ObjectMappingDef | LinkMappingDef | null,
+): mapping is LinkMappingDef {
+  return Boolean(mapping && "edge_type_id" in mapping);
 }
 
 export default function MappingsAdminPage() {
@@ -79,14 +91,13 @@ export default function MappingsAdminPage() {
     [router, searchParams],
   );
 
-  const ir = (detail.data?.ontology_ir ?? null) as Record<string, unknown> | null;
   const objectMappings = useMemo<ObjectMappingDef[]>(
-    () => (ir?.object_mappings as ObjectMappingDef[] | undefined) ?? [],
-    [ir],
+    () => ontology?.ontology_ir?.object_mappings ?? [],
+    [ontology?.ontology_ir?.object_mappings],
   );
   const linkMappings = useMemo<LinkMappingDef[]>(
-    () => (ir?.link_mappings as LinkMappingDef[] | undefined) ?? [],
-    [ir],
+    () => ontology?.ontology_ir?.link_mappings ?? [],
+    [ontology?.ontology_ir?.link_mappings],
   );
   const expectedVersion =
     Number(detail.data?.current_version?.version ?? "0") || 0;
@@ -246,7 +257,6 @@ export default function MappingsAdminPage() {
           listPane={
             <ListPane
               items={filtered}
-              tab={tab}
               selectedId={selectedId}
               onSelect={setSelection}
               onCreate={() => setSelection(DRAFT_ID)}
@@ -289,7 +299,6 @@ export default function MappingsAdminPage() {
 
 interface ListPaneProps {
   items: (ObjectMappingDef | LinkMappingDef)[];
-  tab: MappingTab;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
@@ -305,7 +314,6 @@ interface ListPaneProps {
 
 function ListPane({
   items,
-  tab,
   selectedId,
   onSelect,
   onCreate,
@@ -367,10 +375,10 @@ function ListPane({
                       : "text-foreground hover:bg-surface-hover",
                   )}
                 >
-                  {tab === "object" ? (
-                    <ObjectRowBody mapping={m as ObjectMappingDef} />
+                  {isObjectMapping(m) ? (
+                    <ObjectRowBody mapping={m} />
                   ) : (
-                    <LinkRowBody mapping={m as LinkMappingDef} />
+                    <LinkRowBody mapping={m} />
                   )}
                 </button>
               </li>
@@ -383,14 +391,13 @@ function ListPane({
 }
 
 function ObjectRowBody({ mapping }: { mapping: ObjectMappingDef }) {
-  const m = mapping as Record<string, unknown>;
   return (
     <>
-      <span className="font-mono text-2xs font-medium">{String(m.id ?? "?")}</span>
+      <span className="font-mono text-2xs font-medium">{mapping.id}</span>
       <span className="flex flex-wrap items-center gap-1.5 text-2xs text-foreground-muted">
-        <span>→ {String(m.node_type_id ?? "?")}</span>
+        <span>→ {mapping.node_type_id}</span>
         <span className="rounded bg-surface-inset px-1.5 py-0.5 uppercase">
-          {String(m.source_id ?? "?")}
+          {mapping.source_id}
         </span>
       </span>
     </>
@@ -398,15 +405,13 @@ function ObjectRowBody({ mapping }: { mapping: ObjectMappingDef }) {
 }
 
 function LinkRowBody({ mapping }: { mapping: LinkMappingDef }) {
-  const m = mapping as Record<string, unknown>;
-  const kindObj = (m.kind as Record<string, unknown> | undefined) ?? {};
   return (
     <>
-      <span className="font-mono text-2xs font-medium">{String(m.id ?? "?")}</span>
+      <span className="font-mono text-2xs font-medium">{mapping.id}</span>
       <span className="flex flex-wrap items-center gap-1.5 text-2xs text-foreground-muted">
-        <span>→ {String(m.edge_type_id ?? "?")}</span>
+        <span>→ {mapping.edge_type_id}</span>
         <span className="rounded bg-info-surface px-1.5 py-0.5 uppercase text-info-foreground">
-          {String(kindObj.kind ?? "?")}
+          {mapping.kind.kind}
         </span>
       </span>
     </>
@@ -464,6 +469,8 @@ function DetailPane({
     );
   }
   const title = isDraft ? draftTitle : selected ? mappingId(selected) : "";
+  const selectedObject = isObjectMapping(selected) ? selected : undefined;
+  const selectedLink = isLinkMapping(selected) ? selected : undefined;
 
   return (
     <div className="flex h-full min-w-0 flex-col">
@@ -489,9 +496,7 @@ function DetailPane({
         {tab === "object" ? (
           <StructuredEntityEditor<ObjectMappingDef>
             schema={objectMappingSchema}
-            initial={
-              isDraft ? undefined : (selected as ObjectMappingDef) ?? undefined
-            }
+            initial={isDraft ? undefined : selectedObject}
             onSubmit={isDraft ? onCreateObject : onUpdateObject}
             onCancel={isDraft ? onCancelDraft : undefined}
             pending={pending}
@@ -499,9 +504,7 @@ function DetailPane({
         ) : (
           <StructuredEntityEditor<LinkMappingDef>
             schema={linkMappingSchema}
-            initial={
-              isDraft ? undefined : (selected as LinkMappingDef) ?? undefined
-            }
+            initial={isDraft ? undefined : selectedLink}
             onSubmit={isDraft ? onCreateLink : onUpdateLink}
             onCancel={isDraft ? onCancelDraft : undefined}
             pending={pending}

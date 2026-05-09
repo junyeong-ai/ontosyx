@@ -61,7 +61,7 @@ export function OntologyDraftHub() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((p) => {
-      if (statusFilter.size > 0 && !statusFilter.has(p.status as OntologyDraftStatus)) {
+      if (statusFilter.size > 0 && !statusFilter.has(p.status)) {
         return false;
       }
       if (q.length === 0) return true;
@@ -222,7 +222,7 @@ function DraftCard({
       className="flex flex-col items-stretch text-start"
     >
       <div className="flex items-center gap-2">
-        <StatusIcon status={draft.status as OntologyDraftStatus} />
+        <StatusIcon status={draft.status} />
         <span className="truncate text-sm font-semibold text-foreground-strong">
           {draft.title ?? t("untitled")}
         </span>
@@ -234,7 +234,7 @@ function DraftCard({
         })}
       </p>
       <span className="mt-2 inline-flex w-fit items-center rounded-full bg-surface-inset px-2 py-0.5 text-2xs font-medium uppercase tracking-wide text-foreground-muted">
-        {t(`status.${draft.status as OntologyDraftStatus}`)}
+        {t(`status.${draft.status}`)}
       </span>
     </Card>
   );
