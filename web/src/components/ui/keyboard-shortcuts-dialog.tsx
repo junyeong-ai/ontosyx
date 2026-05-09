@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { FocusTrap } from "@/components/ui/focus-trap";
+import { useAppStore } from "@/lib/store";
 
 import { KeyboardShortcut } from "./keyboard-shortcut";
 
@@ -16,7 +17,8 @@ import {
 export function KeyboardShortcutsDialog() {
   const t = useTranslations("keyboardShortcuts");
   const tGroups = useTranslations();
-  const [isOpen, setIsOpen] = useState(false);
+  const isOpen = useAppStore((s) => s.isShortcutsOpen);
+  const setIsOpen = useAppStore((s) => s.setShortcutsOpen);
   const shortcuts = useShortcuts();
 
   // Toggle: `?` (the canonical "what are my shortcuts" key, present in
@@ -31,7 +33,7 @@ export function KeyboardShortcutsDialog() {
     description: "keyboardShortcuts.shortcuts.toggleHelp",
     handler: (e) => {
       e.preventDefault();
-      setIsOpen((v) => !v);
+      setIsOpen(!isOpen);
     },
   });
 

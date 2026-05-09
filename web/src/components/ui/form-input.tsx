@@ -381,7 +381,7 @@ interface LabelledFieldProps {
   hideLabel?: boolean;
 }
 
-function FieldLabelText({
+export function FieldLabelText({
   label,
   hideLabel,
 }: LabelledFieldProps) {

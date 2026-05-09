@@ -55,6 +55,15 @@ export function GlobalCommandSource() {
           s.setState({ isSearchOpen: true });
         },
       },
+      {
+        id: "show-keyboard-shortcuts",
+        label: t("show-keyboard-shortcuts.label"),
+        shortcut: { mac: "?", other: "?" },
+        keywords: ["shortcut", "keyboard", "help", "단축키", "도움말"],
+        execute: ({ store: s }) => {
+          s.getState().setShortcutsOpen(true);
+        },
+      },
       ...NAVIGATION_SHORTCUTS.map((nav): Command => ({
         id: NAV_LABEL_KEY[nav.route],
         label: t(`${NAV_LABEL_KEY[nav.route]}.label`),
