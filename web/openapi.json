@@ -3959,6 +3959,102 @@
         ]
       }
     },
+    "/api/evaluation/settings": {
+      "get": {
+        "tags": [
+          "Evaluation"
+        ],
+        "summary": "`GET /api/evaluation/settings` — read this workspace's\nevaluation settings. Missing settings resolve to platform\ndefaults; the FE renders the same form whether the workspace\nhas overridden or not.",
+        "operationId": "get_evaluation_settings",
+        "responses": {
+          "200": {
+            "description": "Workspace evaluation settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceEvaluationSettings"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Evaluation"
+        ],
+        "summary": "`PUT /api/evaluation/settings` — admin-gated update of this\nworkspace's evaluation settings. Validation runs at the\nroute boundary so an invalid threshold never lands in the\nJSONB. Other settings keys (locale chains, future\nnamespaces) round-trip unchanged.",
+        "operationId": "update_evaluation_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceEvaluationSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceEvaluationSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/governance/audit": {
       "get": {
         "tags": [
@@ -35999,6 +36095,27 @@
           }
         }
       },
+      "RegressionPolicy": {
+        "type": "object",
+        "description": "Regression alarm policy threaded through\n[`crate::EvaluationStore::compare_evaluation_runs`]. Carries\nthe threshold + min-N gate the alarm uses; the route layer\nloads it from the workspace's\n[`WorkspaceEvaluationSettings`] (or platform defaults) and\npasses it through. Keeping this explicit on the trait\nsignature means the store layer never reads workspace\nsettings implicitly — the seam is clean.",
+        "required": [
+          "threshold",
+          "min_paired_case_count"
+        ],
+        "properties": {
+          "min_paired_case_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Minimum paired-case denominator on the candidate run\nbefore the alarm fires.",
+            "minimum": 0
+          },
+          "threshold": {
+            "type": "number",
+            "format": "double",
+            "description": "Negative cut. Alarm fires when\n`lift_delta < threshold`. Must be negative — the\nsignature mirrors the platform default semantics."
+          }
+        }
+      },
       "RelationshipPattern": {
         "type": "object",
         "description": "A relationship pattern in the graph schema.",
@@ -43083,6 +43200,21 @@
           "workspace_id": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "WorkspaceEvaluationSettings": {
+        "type": "object",
+        "description": "Workspace-scoped evaluation settings, persisted on the\n`workspaces.settings` JSONB column under the `evaluation`\nkey. Missing fields fall back to platform defaults at read\ntime — operators only persist the axes they want to override.\n\nWire shape (lives inside `workspaces.settings.evaluation`):\n\n```json\n{\n  \"retrieval_lift_regression_threshold\": -0.10,\n  \"retrieval_lift_regression_min_paired_case_count\": 5\n}\n```\n\nBoth fields ride on `#[serde(default)]` + skip-if-default so\na workspace that only overrides one axis writes a tight\npayload, and a workspace that hasn't touched the setting\n(the default) writes nothing.",
+        "properties": {
+          "retrieval_lift_regression_min_paired_case_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "retrieval_lift_regression_threshold": {
+            "type": "number",
+            "format": "double"
           }
         }
       },

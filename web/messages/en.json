@@ -3013,6 +3013,19 @@
       "adminOnly": "Admin role required",
       "emptyTitle": "No evaluation runs yet",
       "emptyDescription": "Create your first run to start measuring model quality.",
+      "regressionPolicy": {
+        "title": "Hybrid lift regression policy",
+        "description": "Auto-alarm when run-vs-run hybrid lift retreats past a cell threshold. Tune the threshold and minimum paired-case count per workspace.",
+        "thresholdLabel": "Regression threshold",
+        "thresholdHelp": "Negative, in (-1.0, 0.0). Alarm fires when lift_delta drops below this value. Default -0.05.",
+        "minPairedNLabel": "Minimum paired cases",
+        "minPairedNHelp": "Alarm only fires when the candidate run has at least this many paired cases. Default 3.",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Policy saved.",
+        "saveFailed": "Save failed.",
+        "invalidNumber": "Check the number format."
+      },
       "create": {
         "title": "New evaluation run",
         "nameLabel": "Name",

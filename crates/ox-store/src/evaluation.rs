@@ -757,17 +757,134 @@ pub struct RetrievalLiftRegressionAlert {
     pub candidate_paired_case_count: u64,
 }
 
-/// Threshold for the run-vs-run hybrid lift regression alarm.
-/// Negative — the alert fires when `lift_delta < threshold`
-/// (candidate retreated by more than 0.05 lift points). A
-/// future workspace setting will override this default.
+/// Default threshold for the run-vs-run hybrid lift regression
+/// alarm. Negative — the alert fires when
+/// `lift_delta < threshold` (candidate retreated by more than
+/// 0.05 lift points). Workspace settings override this via
+/// [`WorkspaceEvaluationSettings`].
 pub const RETRIEVAL_LIFT_REGRESSION_THRESHOLD: f64 = -0.05;
 
-/// Minimum paired-case count on the candidate run before the
-/// regression alert fires. Suppresses noise from runs with
-/// too few `retrieval_comparison` cases — a single bad-actor
-/// case in a 2-case run shouldn't trigger an alarm.
+/// Default minimum paired-case count on the candidate run
+/// before the regression alert fires. Suppresses noise from
+/// runs with too few `retrieval_comparison` cases — a single
+/// bad-actor case in a 2-case run shouldn't trigger an alarm.
+/// Workspace settings override via
+/// [`WorkspaceEvaluationSettings`].
 pub const RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N: u64 = 3;
+
+/// Regression alarm policy threaded through
+/// [`crate::EvaluationStore::compare_evaluation_runs`]. Carries
+/// the threshold + min-N gate the alarm uses; the route layer
+/// loads it from the workspace's
+/// [`WorkspaceEvaluationSettings`] (or platform defaults) and
+/// passes it through. Keeping this explicit on the trait
+/// signature means the store layer never reads workspace
+/// settings implicitly — the seam is clean.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct RegressionPolicy {
+    /// Negative cut. Alarm fires when
+    /// `lift_delta < threshold`. Must be negative — the
+    /// signature mirrors the platform default semantics.
+    pub threshold: f64,
+    /// Minimum paired-case denominator on the candidate run
+    /// before the alarm fires.
+    pub min_paired_case_count: u64,
+}
+
+impl RegressionPolicy {
+    /// Platform-default policy — used when a workspace hasn't
+    /// customised its settings. Pinned to the
+    /// `RETRIEVAL_LIFT_REGRESSION_*` constants.
+    pub const fn platform_default() -> Self {
+        Self {
+            threshold: RETRIEVAL_LIFT_REGRESSION_THRESHOLD,
+            min_paired_case_count: RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N,
+        }
+    }
+}
+
+impl Default for RegressionPolicy {
+    fn default() -> Self {
+        Self::platform_default()
+    }
+}
+
+/// Workspace-scoped evaluation settings, persisted on the
+/// `workspaces.settings` JSONB column under the `evaluation`
+/// key. Missing fields fall back to platform defaults at read
+/// time — operators only persist the axes they want to override.
+///
+/// Wire shape (lives inside `workspaces.settings.evaluation`):
+///
+/// ```json
+/// {
+///   "retrieval_lift_regression_threshold": -0.10,
+///   "retrieval_lift_regression_min_paired_case_count": 5
+/// }
+/// ```
+///
+/// Both fields ride on `#[serde(default)]` + skip-if-default so
+/// a workspace that only overrides one axis writes a tight
+/// payload, and a workspace that hasn't touched the setting
+/// (the default) writes nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct WorkspaceEvaluationSettings {
+    #[serde(default = "default_lift_regression_threshold")]
+    pub retrieval_lift_regression_threshold: f64,
+    #[serde(default = "default_lift_regression_min_paired_n")]
+    pub retrieval_lift_regression_min_paired_case_count: u64,
+}
+
+const fn default_lift_regression_threshold() -> f64 {
+    RETRIEVAL_LIFT_REGRESSION_THRESHOLD
+}
+
+const fn default_lift_regression_min_paired_n() -> u64 {
+    RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N
+}
+
+impl Default for WorkspaceEvaluationSettings {
+    fn default() -> Self {
+        Self {
+            retrieval_lift_regression_threshold: RETRIEVAL_LIFT_REGRESSION_THRESHOLD,
+            retrieval_lift_regression_min_paired_case_count:
+                RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N,
+        }
+    }
+}
+
+impl WorkspaceEvaluationSettings {
+    /// Compile a policy from these settings. The platform
+    /// constants live on [`RegressionPolicy::platform_default`];
+    /// this is the workspace-overridden variant.
+    pub fn regression_policy(&self) -> RegressionPolicy {
+        RegressionPolicy {
+            threshold: self.retrieval_lift_regression_threshold,
+            min_paired_case_count: self.retrieval_lift_regression_min_paired_case_count,
+        }
+    }
+
+    /// Validation gate — same invariants the platform constants
+    /// satisfy at compile time. Caller surfaces the typed error
+    /// to operators editing the settings via the admin route.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if !(self.retrieval_lift_regression_threshold > -1.0
+            && self.retrieval_lift_regression_threshold < 0.0)
+        {
+            return Err(
+                "retrieval_lift_regression_threshold must lie in (-1.0, 0.0) — \
+                 negative, but bounded so a saturated value can't fire on every cell",
+            );
+        }
+        if self.retrieval_lift_regression_min_paired_case_count < 2 {
+            return Err(
+                "retrieval_lift_regression_min_paired_case_count must be >= 2 — \
+                 single-case runs shouldn't trigger the alarm",
+            );
+        }
+        Ok(())
+    }
+}
 
 // Compile-time invariants on the regression alarm constants.
 // `const _: ()` is the canonical Rust pattern for constant-
@@ -1444,6 +1561,76 @@ mod tests {
         assert_eq!(v["retrieval_comparison_deltas"][0]["lift_delta"], 0.08);
         let back: RunComparisonReport = serde_json::from_value(v).unwrap();
         assert_eq!(back, r);
+    }
+
+    #[test]
+    fn workspace_evaluation_settings_default_matches_platform_constants() {
+        let s = WorkspaceEvaluationSettings::default();
+        assert_eq!(
+            s.retrieval_lift_regression_threshold,
+            RETRIEVAL_LIFT_REGRESSION_THRESHOLD
+        );
+        assert_eq!(
+            s.retrieval_lift_regression_min_paired_case_count,
+            RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N
+        );
+    }
+
+    #[test]
+    fn workspace_evaluation_settings_round_trip_with_overrides() {
+        let s = WorkspaceEvaluationSettings {
+            retrieval_lift_regression_threshold: -0.10,
+            retrieval_lift_regression_min_paired_case_count: 5,
+        };
+        let v = serde_json::to_value(s).unwrap();
+        assert_eq!(v["retrieval_lift_regression_threshold"], -0.10);
+        assert_eq!(v["retrieval_lift_regression_min_paired_case_count"], 5);
+        let back: WorkspaceEvaluationSettings = serde_json::from_value(v).unwrap();
+        assert_eq!(back, s);
+    }
+
+    #[test]
+    fn workspace_evaluation_settings_partial_payload_falls_back_to_defaults() {
+        // Operator only persisted threshold; min-N field absent.
+        // Serde default wires the platform constant in.
+        let v = serde_json::json!({
+            "retrieval_lift_regression_threshold": -0.07,
+        });
+        let s: WorkspaceEvaluationSettings = serde_json::from_value(v).unwrap();
+        assert_eq!(s.retrieval_lift_regression_threshold, -0.07);
+        assert_eq!(
+            s.retrieval_lift_regression_min_paired_case_count,
+            RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N
+        );
+    }
+
+    #[test]
+    fn workspace_evaluation_settings_validate_rejects_positive_threshold() {
+        let s = WorkspaceEvaluationSettings {
+            retrieval_lift_regression_threshold: 0.05,
+            retrieval_lift_regression_min_paired_case_count: 3,
+        };
+        assert!(s.validate().is_err());
+    }
+
+    #[test]
+    fn workspace_evaluation_settings_validate_rejects_min_n_below_two() {
+        let s = WorkspaceEvaluationSettings {
+            retrieval_lift_regression_threshold: -0.05,
+            retrieval_lift_regression_min_paired_case_count: 1,
+        };
+        assert!(s.validate().is_err());
+    }
+
+    #[test]
+    fn workspace_evaluation_settings_regression_policy_threads_overrides() {
+        let s = WorkspaceEvaluationSettings {
+            retrieval_lift_regression_threshold: -0.10,
+            retrieval_lift_regression_min_paired_case_count: 5,
+        };
+        let p = s.regression_policy();
+        assert_eq!(p.threshold, -0.10);
+        assert_eq!(p.min_paired_case_count, 5);
     }
 
     #[test]

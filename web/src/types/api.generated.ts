@@ -964,6 +964,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/evaluation/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/evaluation/settings` — read this workspace's
+         *     evaluation settings. Missing settings resolve to platform
+         *     defaults; the FE renders the same form whether the workspace
+         *     has overridden or not.
+         */
+        get: operations["get_evaluation_settings"];
+        /**
+         * `PUT /api/evaluation/settings` — admin-gated update of this
+         *     workspace's evaluation settings. Validation runs at the
+         *     route boundary so an invalid threshold never lands in the
+         *     JSONB. Other settings keys (locale chains, future
+         *     namespaces) round-trip unchanged.
+         */
+        put: operations["update_evaluation_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/governance/audit": {
         parameters: {
             query?: never;
@@ -12189,6 +12218,31 @@ export interface components {
              */
             replaced: boolean;
         };
+        /**
+         * @description Regression alarm policy threaded through
+         *     [`crate::EvaluationStore::compare_evaluation_runs`]. Carries
+         *     the threshold + min-N gate the alarm uses; the route layer
+         *     loads it from the workspace's
+         *     [`WorkspaceEvaluationSettings`] (or platform defaults) and
+         *     passes it through. Keeping this explicit on the trait
+         *     signature means the store layer never reads workspace
+         *     settings implicitly — the seam is clean.
+         */
+        RegressionPolicy: {
+            /**
+             * Format: int64
+             * @description Minimum paired-case denominator on the candidate run
+             *     before the alarm fires.
+             */
+            min_paired_case_count: number;
+            /**
+             * Format: double
+             * @description Negative cut. Alarm fires when
+             *     `lift_delta < threshold`. Must be negative — the
+             *     signature mirrors the platform default semantics.
+             */
+            threshold: number;
+        };
         /** @description A relationship pattern in the graph schema. */
         RelationshipPattern: {
             /** Format: int64 */
@@ -14906,6 +14960,32 @@ export interface components {
             viewport: components["schemas"]["CanvasViewport"];
             /** Format: uuid */
             workspace_id: string;
+        };
+        /**
+         * @description Workspace-scoped evaluation settings, persisted on the
+         *     `workspaces.settings` JSONB column under the `evaluation`
+         *     key. Missing fields fall back to platform defaults at read
+         *     time — operators only persist the axes they want to override.
+         *
+         *     Wire shape (lives inside `workspaces.settings.evaluation`):
+         *
+         *     ```json
+         *     {
+         *       "retrieval_lift_regression_threshold": -0.10,
+         *       "retrieval_lift_regression_min_paired_case_count": 5
+         *     }
+         *     ```
+         *
+         *     Both fields ride on `#[serde(default)]` + skip-if-default so
+         *     a workspace that only overrides one axis writes a tight
+         *     payload, and a workspace that hasn't touched the setting
+         *     (the default) writes nothing.
+         */
+        WorkspaceEvaluationSettings: {
+            /** Format: int64 */
+            retrieval_lift_regression_min_paired_case_count?: number;
+            /** Format: double */
+            retrieval_lift_regression_threshold?: number;
         };
         /**
          * @description Per-request workspace identity surface for the FE. Carries the
@@ -17658,6 +17738,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunSummary"];
+                };
+            };
+        };
+    };
+    get_evaluation_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workspace evaluation settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceEvaluationSettings"];
+                };
+            };
+        };
+    };
+    update_evaluation_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceEvaluationSettings"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceEvaluationSettings"];
+                };
+            };
+            /** @description Validation failure */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
                 };
             };
         };

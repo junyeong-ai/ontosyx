@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -245,6 +246,23 @@ export default function EvaluationDetailPage({
   const summaryQuery = useEvaluationRunSummary(id);
   const [activeCase, setActiveCase] = useState<EvaluationCase | null>(null);
   const [statusFilter, setStatusFilter] = useState<CaseStatusFilter>(null);
+  // Deep-link entry — `?case=<id>` preselects an inspector
+  // case once the list lands. Drives the outlier panel's
+  // jump-to-case affordance from the diff page; the URL
+  // round-trips on browser back. Match-once-then-clear so an
+  // operator who clicks a different case isn't bounced back
+  // to the URL pin.
+  const searchParams = useSearchParams();
+  const deepLinkCaseId = searchParams.get("case");
+  const [deepLinkConsumed, setDeepLinkConsumed] = useState(false);
+  useEffect(() => {
+    if (deepLinkConsumed || !deepLinkCaseId || !casesQuery.data) return;
+    const match = casesQuery.data.find((c) => c.id === deepLinkCaseId);
+    if (match) {
+      setActiveCase(match);
+      setDeepLinkConsumed(true);
+    }
+  }, [deepLinkCaseId, deepLinkConsumed, casesQuery.data]);
   const metricsQuery = useEvaluationMetrics(activeCase?.id ?? null);
   const execute = useExecuteEvaluationCase(id);
   const judge = useJudgeEvaluationCase();

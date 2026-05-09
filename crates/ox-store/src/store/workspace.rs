@@ -23,6 +23,30 @@ pub trait WorkspaceStore: Send + Sync {
     ) -> OxResult<()>;
     async fn delete_workspace(&self, id: Uuid) -> OxResult<bool>;
 
+    /// Read the workspace's typed evaluation settings — pulls
+    /// the `evaluation` slot off the `workspaces.settings`
+    /// JSONB and deserialises into
+    /// [`crate::evaluation::WorkspaceEvaluationSettings`]. Missing
+    /// slot or malformed payload → platform defaults; the
+    /// caller never has to handle the absence path.
+    async fn get_evaluation_settings(
+        &self,
+        workspace_id: Uuid,
+    ) -> OxResult<crate::evaluation::WorkspaceEvaluationSettings>;
+
+    /// Persist typed evaluation settings into the workspace's
+    /// `settings.evaluation` slot. Other keys on the same JSONB
+    /// (`evaluation` is one of several namespaces) are
+    /// preserved — this is a partial update, not a wholesale
+    /// replace. Validation against
+    /// [`crate::evaluation::WorkspaceEvaluationSettings::validate`]
+    /// is the caller's responsibility (route boundary).
+    async fn update_evaluation_settings(
+        &self,
+        workspace_id: Uuid,
+        settings: &crate::evaluation::WorkspaceEvaluationSettings,
+    ) -> OxResult<()>;
+
     /// Update the workspace's primary locale + both fallback chains.
     /// `primary_locale` must be a BCP 47 tag (ox-core's
     /// `LanguageTag::parse` syntax); both fallback chains must be

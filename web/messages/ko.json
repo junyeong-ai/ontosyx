@@ -3013,6 +3013,19 @@
       "adminOnly": "관리자 권한이 필요합니다",
       "emptyTitle": "평가 실행이 없습니다",
       "emptyDescription": "첫 실행을 생성해 모델 품질 측정을 시작하세요.",
+      "regressionPolicy": {
+        "title": "하이브리드 lift 회귀 정책",
+        "description": "Run-vs-run 비교에서 하이브리드 lift 가 임계값 이상으로 retreat 한 셀을 자동으로 경보합니다. 워크스페이스별로 임계값과 최소 페어 수를 조정할 수 있습니다.",
+        "thresholdLabel": "회귀 임계값",
+        "thresholdHelp": "음수 (-1.0, 0.0). lift_delta 가 이 값보다 낮으면 경보. 기본 -0.05.",
+        "minPairedNLabel": "최소 페어 케이스 수",
+        "minPairedNHelp": "후보 실행의 페어된 케이스가 이 수 이상일 때만 경보 발생. 기본 3.",
+        "save": "저장",
+        "saving": "저장 중…",
+        "saved": "정책이 저장됐습니다.",
+        "saveFailed": "저장에 실패했습니다.",
+        "invalidNumber": "숫자 형식을 확인하세요."
+      },
       "create": {
         "title": "새 평가 실행",
         "nameLabel": "이름",

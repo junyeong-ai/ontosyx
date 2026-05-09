@@ -170,6 +170,8 @@ impl Modify for SecurityAddon {
         evaluation::evaluation_run_summary,
         evaluation::list_run_comparison_outliers,
         evaluation::compare_evaluation_runs,
+        evaluation::get_evaluation_settings,
+        evaluation::update_evaluation_settings,
         // Ontology drafts — lifecycle
         lifecycle::create_ontology_draft,
         lifecycle::list_ontology_drafts,
@@ -538,6 +540,8 @@ impl Modify for SecurityAddon {
             ox_store::evaluation::RetrievalComparisonDelta,
             ox_store::evaluation::RetrievalComparisonOutlier,
             ox_store::evaluation::RetrievalLiftRegressionAlert,
+            ox_store::evaluation::RegressionPolicy,
+            ox_store::evaluation::WorkspaceEvaluationSettings,
             ox_store::evaluation::EvaluationRetrievedAnchor,
             ox_store::evaluation::EvaluationCaseMetadata,
             ox_store::evaluation::EvaluationMetricMetadata,

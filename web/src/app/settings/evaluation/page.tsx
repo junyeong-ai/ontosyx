@@ -11,6 +11,7 @@ import {
   useEvaluationRuns,
 } from "@/hooks/api/use-evaluation";
 import { useConfirm } from "@/components/providers/confirm-provider";
+import { RegressionPolicyForm } from "@/components/settings/evaluation/regression-policy-form";
 import { SettingsPageShell } from "@/components/layout/settings-page-shell";
 import { PageStateView } from "@/components/layout/page-state-view";
 import type { PageState } from "@/components/layout/page-state";
@@ -137,6 +138,8 @@ export default function EvaluationPage() {
 
   return (
     <SettingsPageShell title={t("title")} subtitle={t("description")}>
+      <RegressionPolicyForm />
+
       <section className="mb-6 rounded-xl border border-divider bg-surface-base p-4">
         <Heading level={2} size={5}>
           {t("create.title")}

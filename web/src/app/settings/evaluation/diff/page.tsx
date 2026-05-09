@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 
@@ -282,6 +283,7 @@ function RetrievalLiftDeltaSection({
         <RetrievalOutlierPanel
           isLoading={outliersQuery.isLoading}
           outliers={outliersQuery.data?.outliers ?? []}
+          candidateRunId={candidateRunId}
         />
       ) : null}
     </section>
@@ -297,9 +299,11 @@ function RetrievalLiftDeltaSection({
 function RetrievalOutlierPanel({
   isLoading,
   outliers,
+  candidateRunId,
 }: {
   isLoading: boolean;
   outliers: readonly RetrievalComparisonOutlier[];
+  candidateRunId: string;
 }) {
   const t = useTranslations("settings.evaluation.diff");
   return (
@@ -325,9 +329,14 @@ function RetrievalOutlierPanel({
               key={o.case_id}
               className="grid grid-cols-[1fr_auto_auto_auto_auto] items-baseline gap-3 rounded-md bg-surface-base px-2.5 py-1.5"
             >
-              <span className="truncate font-medium text-foreground-strong">
+              <Link
+                href={`/settings/evaluation/${encodeURIComponent(
+                  candidateRunId,
+                )}?case=${encodeURIComponent(o.case_id)}`}
+                className="truncate font-medium text-foreground-strong underline-offset-2 hover:underline"
+              >
                 {o.case_key}
-              </span>
+              </Link>
               <span className="text-2xs text-foreground-muted">
                 {o.surface} · {o.axis}
               </span>

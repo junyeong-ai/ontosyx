@@ -1783,13 +1783,91 @@ pub struct CompareRunsQuery {
 pub(crate) async fn compare_evaluation_runs(
     State(state): State<AppState>,
     _principal: Principal,
-    _ws: WorkspaceContext,
+    ws: WorkspaceContext,
     Query(q): Query<CompareRunsQuery>,
 ) -> Result<Json<ApiResponse<RunComparisonReport>>, AppError> {
+    // Workspace-customised regression policy (threshold +
+    // min-N) overrides the platform default. Missing /
+    // malformed settings fall back transparently — the store
+    // method handles the absence path.
+    let policy = state
+        .store
+        .get_evaluation_settings(ws.workspace_id)
+        .await
+        .map_err(AppError::from)?
+        .regression_policy();
     let report = state
         .store
-        .compare_evaluation_runs(q.baseline, q.candidate)
+        .compare_evaluation_runs(q.baseline, q.candidate, policy)
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(report))
+}
+
+// ---------------------------------------------------------------------------
+// Workspace evaluation settings — regression alarm threshold + min-N
+// ---------------------------------------------------------------------------
+
+/// `GET /api/evaluation/settings` — read this workspace's
+/// evaluation settings. Missing settings resolve to platform
+/// defaults; the FE renders the same form whether the workspace
+/// has overridden or not.
+#[utoipa::path(
+    get,
+    path = "/api/evaluation/settings",
+    responses(
+        (status = 200, description = "Workspace evaluation settings",
+            body = ox_store::evaluation::WorkspaceEvaluationSettings),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn get_evaluation_settings(
+    State(state): State<AppState>,
+    _principal: Principal,
+    ws: WorkspaceContext,
+) -> Result<Json<ApiResponse<ox_store::evaluation::WorkspaceEvaluationSettings>>, AppError> {
+    let settings = state
+        .store
+        .get_evaluation_settings(ws.workspace_id)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(settings))
+}
+
+/// `PUT /api/evaluation/settings` — admin-gated update of this
+/// workspace's evaluation settings. Validation runs at the
+/// route boundary so an invalid threshold never lands in the
+/// JSONB. Other settings keys (locale chains, future
+/// namespaces) round-trip unchanged.
+#[utoipa::path(
+    put,
+    path = "/api/evaluation/settings",
+    request_body = ox_store::evaluation::WorkspaceEvaluationSettings,
+    responses(
+        (status = 200, description = "Updated", body = ox_store::evaluation::WorkspaceEvaluationSettings),
+        (status = 400, description = "Validation failure",
+            body = inline(crate::openapi::ErrorResponse)),
+        (status = 403, description = "Admin role required",
+            body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Evaluation",
+)]
+pub(crate) async fn update_evaluation_settings(
+    State(state): State<AppState>,
+    principal: Principal,
+    ws: WorkspaceContext,
+    Json(req): Json<ox_store::evaluation::WorkspaceEvaluationSettings>,
+) -> Result<Json<ApiResponse<ox_store::evaluation::WorkspaceEvaluationSettings>>, AppError> {
+    principal.require_admin()?;
+    if let Err(message) = req.validate() {
+        return Err(AppError::validation("evaluation_settings", message));
+    }
+    state
+        .store
+        .update_evaluation_settings(ws.workspace_id, &req)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(req))
 }

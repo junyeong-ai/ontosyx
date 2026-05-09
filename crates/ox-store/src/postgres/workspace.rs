@@ -144,6 +144,60 @@ impl WorkspaceStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
+    async fn get_evaluation_settings(
+        &self,
+        workspace_id: Uuid,
+    ) -> OxResult<crate::evaluation::WorkspaceEvaluationSettings> {
+        // jsonb path extract — `settings -> 'evaluation'` lands
+        // a single sub-object. Missing key → NULL → None.
+        // Malformed payload → caller's serde_json::from_value
+        // returns Err and we fall back to defaults rather than
+        // surfacing the parse error to operators.
+        let raw: Option<serde_json::Value> =
+            sqlx::query_scalar("SELECT settings -> 'evaluation' FROM workspaces WHERE id = $1")
+                .bind(workspace_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(to_ox_error)?
+                .flatten();
+        let settings = raw
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default();
+        Ok(settings)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn update_evaluation_settings(
+        &self,
+        workspace_id: Uuid,
+        settings: &crate::evaluation::WorkspaceEvaluationSettings,
+    ) -> OxResult<()> {
+        let payload = serde_json::to_value(settings).map_err(|e| OxError::Runtime {
+            message: format!("encode evaluation settings failed: {e}"),
+        })?;
+        // `jsonb_set` with create_missing = true installs the
+        // `evaluation` key when absent; siblings on
+        // `workspaces.settings` (locale chains, future
+        // namespaces) round-trip unchanged.
+        let result = sqlx::query(
+            "UPDATE workspaces
+             SET settings = jsonb_set(settings, '{evaluation}', $2::jsonb, true)
+             WHERE id = $1",
+        )
+        .bind(workspace_id)
+        .bind(&payload)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        if result.rows_affected() == 0 {
+            return Err(OxError::NotFound {
+                entity: format!("workspace {workspace_id}"),
+            });
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_workspace(&self, id: Uuid) -> OxResult<bool> {
         super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM workspaces WHERE id = $1")

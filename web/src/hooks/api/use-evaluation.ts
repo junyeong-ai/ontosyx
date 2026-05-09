@@ -22,6 +22,8 @@ import {
   listEvaluationMetrics,
   listEvaluationRuns,
   listRunComparisonOutliers,
+  getEvaluationSettings,
+  updateEvaluationSettings,
   promoteCaseToDataset,
   replaceEvaluationDatasetItems,
   upsertEvaluationDataset,
@@ -71,6 +73,7 @@ export const evaluationKeys = {
     [...evaluationKeys.all, "metrics", caseId] as const,
   diff: (baselineId: string, candidateId: string) =>
     [...evaluationKeys.runs(), "diff", baselineId, candidateId] as const,
+  diffs: () => [...evaluationKeys.runs(), "diff"] as const,
   runSummary: (id: string) =>
     [...evaluationKeys.runs(), "summary", id] as const,
   datasets: () => [...evaluationKeys.all, "datasets"] as const,
@@ -286,6 +289,41 @@ export function useEvaluationRunDiff(
     },
     enabled: !!baselineId && !!candidateId && baselineId !== candidateId,
     staleTime: 30_000,
+  });
+}
+
+/** Read this workspace's evaluation settings. The query
+ *  always succeeds (defaults if absent); the form renders
+ *  the loaded values regardless of override status. */
+export function useEvaluationSettings() {
+  return useQuery<components["schemas"]["WorkspaceEvaluationSettings"]>({
+    queryKey: ["evaluation", "settings"] as const,
+    queryFn: () => getEvaluationSettings(),
+    staleTime: 60_000,
+  });
+}
+
+/** Admin-gated update of this workspace's evaluation settings.
+ *  Optimistic via TanStack: the form re-renders immediately
+ *  with the submitted values; rollback on validation rejection
+ *  surfaces the prior cache. Invalidates the diff query so a
+ *  comparison report read after the threshold change picks
+ *  up the new gate. */
+export function useUpdateEvaluationSettings() {
+  const qc = useQueryClient();
+  return useMutation<
+    components["schemas"]["WorkspaceEvaluationSettings"],
+    Error,
+    components["schemas"]["WorkspaceEvaluationSettings"]
+  >({
+    mutationFn: (body) => updateEvaluationSettings(body),
+    onSuccess: (data) => {
+      qc.setQueryData(["evaluation", "settings"], data);
+      // The threshold influences regression alerts on diff
+      // reports — invalidate so a viewer with a stale report
+      // re-fetches with the new policy.
+      qc.invalidateQueries({ queryKey: evaluationKeys.diffs() });
+    },
   });
 }
 

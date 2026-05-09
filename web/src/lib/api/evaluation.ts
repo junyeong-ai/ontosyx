@@ -200,6 +200,29 @@ export async function listRunComparisonOutliers(
   );
 }
 
+/** Read this workspace's evaluation settings. Missing fields
+ *  resolve to platform defaults server-side; the FE renders
+ *  the same form whether or not the operator has overridden. */
+export async function getEvaluationSettings(): Promise<
+  components["schemas"]["WorkspaceEvaluationSettings"]
+> {
+  return request("/evaluation/settings");
+}
+
+/** Admin-gated update of this workspace's evaluation settings.
+ *  Validation runs server-side; an invalid threshold returns
+ *  a typed `validation` error envelope. Other settings keys on
+ *  `workspaces.settings` round-trip unchanged (jsonb_set
+ *  partial update). */
+export async function updateEvaluationSettings(
+  body: components["schemas"]["WorkspaceEvaluationSettings"],
+): Promise<components["schemas"]["WorkspaceEvaluationSettings"]> {
+  return request("/evaluation/settings", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
 /** Diff two runs over the same dataset. Backend is the
  *  `compare_evaluation_runs` Phoenix/Braintrust-style report —
  *  per-case delta rows + per-axis aggregate (mean delta,

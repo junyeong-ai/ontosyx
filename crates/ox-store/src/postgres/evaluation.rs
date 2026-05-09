@@ -824,6 +824,7 @@ impl EvaluationStore for PostgresStore {
         &self,
         baseline_run_id: Uuid,
         candidate_run_id: Uuid,
+        regression_policy: crate::evaluation::RegressionPolicy,
     ) -> OxResult<crate::evaluation::RunComparisonReport> {
         use crate::evaluation::{RunAxisSummary, RunComparisonReport, RunMetricDelta};
         super::require_workspace_context()?;
@@ -1094,10 +1095,9 @@ impl EvaluationStore for PostgresStore {
             retrieval_comparison_deltas
                 .iter()
                 .filter_map(|d| {
-                    if d.lift_delta
-                        < crate::evaluation::RETRIEVAL_LIFT_REGRESSION_THRESHOLD
+                    if d.lift_delta < regression_policy.threshold
                         && d.candidate_paired_case_count
-                            >= crate::evaluation::RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N
+                            >= regression_policy.min_paired_case_count
                     {
                         Some(crate::evaluation::RetrievalLiftRegressionAlert {
                             surface: d.surface,
@@ -1105,7 +1105,7 @@ impl EvaluationStore for PostgresStore {
                             lift_delta: d.lift_delta,
                             baseline_lift: d.baseline_lift,
                             candidate_lift: d.candidate_lift,
-                            threshold: crate::evaluation::RETRIEVAL_LIFT_REGRESSION_THRESHOLD,
+                            threshold: regression_policy.threshold,
                             candidate_paired_case_count: d.candidate_paired_case_count,
                         })
                     } else {

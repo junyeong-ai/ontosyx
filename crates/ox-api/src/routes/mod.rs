@@ -464,6 +464,14 @@ pub fn router(state: AppState) -> Router {
             "/evaluation/runs/{run_id}/comparison-outliers",
             get(evaluation::list_run_comparison_outliers),
         )
+        .route(
+            "/evaluation/settings",
+            get(evaluation::get_evaluation_settings),
+        )
+        .route(
+            "/evaluation/settings",
+            put(evaluation::update_evaluation_settings),
+        )
         // Evaluation datasets — frozen Q+expected pairs reusable
         // across runs (Phoenix / Braintrust / LangSmith pattern).
         .route(

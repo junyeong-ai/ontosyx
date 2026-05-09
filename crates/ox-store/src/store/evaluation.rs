@@ -210,6 +210,7 @@ pub trait EvaluationStore: Send + Sync {
         &self,
         baseline_run_id: Uuid,
         candidate_run_id: Uuid,
+        regression_policy: crate::evaluation::RegressionPolicy,
     ) -> OxResult<RunComparisonReport>;
 
     /// Worst-first list of case-level retrieval-comparison
