@@ -81,6 +81,13 @@ export function Select({
           sideOffset={4}
         >
           <BaseSelect.Popup
+            // Match the trigger's width so the dropdown reads as
+            // an extension of the form control rather than a
+            // floating menu — `--anchor-width` is the variable
+            // Base UI exposes for exactly this. `minWidth` (not
+            // `width`) so a long option label can still grow the
+            // popup beyond the trigger if it has to.
+            style={{ minWidth: "var(--anchor-width)" }}
             className={cn(
               // Popup container is non-interactive itself — focus is on
               // its `<Item>` children. `outline-none` here just hides
