@@ -863,8 +863,8 @@ impl JsonAdapter {
             .filter(|name| is_underscore_prefix(current, name))
             .max_by_key(|n| n.len())
             .map(|s| s.to_string());
-        let implicit_root = is_underscore_prefix(current, INLINE_TABLE_NAME)
-            .then(|| INLINE_TABLE_NAME.to_string());
+        let implicit_root =
+            is_underscore_prefix(current, INLINE_TABLE_NAME).then(|| INLINE_TABLE_NAME.to_string());
         schema_match.or(implicit_root)
     }
 }
@@ -1073,8 +1073,8 @@ fn scan_csv_into_batch(
         .map(|(idx, name)| (name.trim().to_string(), idx))
         .collect();
 
-    let selected_indices: Vec<usize> = projection
-        .unwrap_or_else(|| (0..table_def.columns.len()).collect());
+    let selected_indices: Vec<usize> =
+        projection.unwrap_or_else(|| (0..table_def.columns.len()).collect());
 
     let projected_schema = if selected_indices.len() == table_def.columns.len() {
         arrow_schema.clone()
@@ -1340,10 +1340,7 @@ mod tests {
             amount.data_type, "float",
             "mixed int+float column must widen to float at analyzer level"
         );
-        let batch = adapter
-            .scan(INLINE_TABLE_NAME, None, None)
-            .await
-            .unwrap();
+        let batch = adapter.scan(INLINE_TABLE_NAME, None, None).await.unwrap();
         assert_eq!(batch.num_rows(), 3);
         let arr = batch
             .column(1)
@@ -1376,10 +1373,7 @@ mod tests {
             amount.data_type, "float",
             "mixed int+float JSON column must widen to float"
         );
-        let batch = adapter
-            .scan(INLINE_TABLE_NAME, None, None)
-            .await
-            .unwrap();
+        let batch = adapter.scan(INLINE_TABLE_NAME, None, None).await.unwrap();
         assert_eq!(batch.num_rows(), 3);
         // Locate the `amount` column by schema ordering.
         let amount_idx = batch

@@ -38,7 +38,11 @@ pub fn describe_to_arrow_schema(source_type: &str, table: &SourceTableDef) -> Sc
 
 /// Translate a single column into an Arrow `Field`.
 pub fn column_to_field(source_type: &str, col: &SourceColumnDef) -> Field {
-    Field::new(&col.name, raw_type_to_arrow(source_type, &col.data_type), col.nullable)
+    Field::new(
+        &col.name,
+        raw_type_to_arrow(source_type, &col.data_type),
+        col.nullable,
+    )
 }
 
 /// Raw-dialect string → Arrow `DataType`. See module docs for the
@@ -122,9 +126,7 @@ fn snowflake_type(lower: &str) -> DataType {
         "boolean" => DataType::Boolean,
         "number" | "decimal" | "numeric" | "int" | "integer" | "bigint" | "smallint"
         | "tinyint" | "byteint" => DataType::Float64,
-        "float" | "float4" | "float8" | "double" | "double precision" | "real" => {
-            DataType::Float64
-        }
+        "float" | "float4" | "float8" | "double" | "double precision" | "real" => DataType::Float64,
         "date" => DataType::Date32,
         "time" => DataType::Time64(TimeUnit::Microsecond),
         "timestamp" | "timestamp_ntz" | "datetime" => {
@@ -176,8 +178,8 @@ fn generic_type(lower: &str) -> DataType {
     let head = strip_paren_modifier(lower);
     match head {
         "bool" | "boolean" => DataType::Boolean,
-        "int" | "integer" | "int2" | "int4" | "int8" | "int16" | "int32" | "int64"
-        | "bigint" | "smallint" | "mediumint" | "tinyint" | "long" => DataType::Int64,
+        "int" | "integer" | "int2" | "int4" | "int8" | "int16" | "int32" | "int64" | "bigint"
+        | "smallint" | "mediumint" | "tinyint" | "long" => DataType::Int64,
         "float" | "float4" | "float8" | "double" | "real" | "numeric" | "decimal" => {
             DataType::Float64
         }
@@ -233,10 +235,7 @@ mod tests {
 
     #[test]
     fn unknown_dialect_falls_through_to_utf8() {
-        assert_eq!(
-            raw_type_to_arrow("cockroach", "whatever"),
-            DataType::Utf8,
-        );
+        assert_eq!(raw_type_to_arrow("cockroach", "whatever"), DataType::Utf8,);
     }
 
     #[test]

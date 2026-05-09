@@ -3,7 +3,7 @@
 //! Implements the atomic primitives in [`crate::DataSourceAdapter`] on top
 //! of the `gcp-bigquery-client` crate. Every primitive issues a BigQuery
 //! Standard SQL query against INFORMATION_SCHEMA (or the `__TABLES__`
-//! metadata table for row counts) and maps the `ResultSet` into
+//! metadata table for row counts) and maps the query response into
 //! `ox_core::source_schema` types.
 //!
 //! ## Project model
@@ -137,6 +137,7 @@ impl BigQueryAdapter {
             .job()
             .query(&self.billing_project_id, QueryRequest::new(sql))
             .await
+            .map(ResultSet::new_from_query_response)
             .map_err(|e| OxError::Runtime {
                 message: format!(
                     "BigQuery query failed: {e} [query: {}]",
@@ -166,7 +167,10 @@ async fn build_client(credential: &AdcCredential) -> OxResult<Client> {
 
 fn path_as_str(path: &Path) -> OxResult<&str> {
     path.to_str().ok_or_else(|| OxError::Runtime {
-        message: format!("BigQuery credential path is not valid UTF-8: {}", path.display()),
+        message: format!(
+            "BigQuery credential path is not valid UTF-8: {}",
+            path.display()
+        ),
     })
 }
 
@@ -539,7 +543,7 @@ impl DataSourceAdapter for BigQueryAdapter {
             min_value,
             max_value,
             pii_redacted: ox_core::source_schema::classify_pii_suspect_by_name(&column.name),
-                })
+        })
     }
 
     async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
@@ -641,9 +645,7 @@ impl DataSourceAdapter for BigQueryAdapter {
             })
             .collect::<Vec<_>>()
             .join(", ");
-        let limit_clause = limit
-            .map(|n| format!(" LIMIT {n}"))
-            .unwrap_or_default();
+        let limit_clause = limit.map(|n| format!(" LIMIT {n}")).unwrap_or_default();
         let sql = format!(
             "SELECT {select_list} FROM `{project}.{dataset}.{table}`{limit}",
             project = self.project_id,
@@ -661,12 +663,9 @@ impl DataSourceAdapter for BigQueryAdapter {
 
         while rs.next_row() {
             for (idx, _col) in projected_columns.iter().enumerate() {
-                let raw: Option<String> =
-                    rs.get_string(idx).map_err(|e| OxError::Runtime {
-                        message: format!(
-                            "bigquery scan: failed to read column at offset {idx}: {e}"
-                        ),
-                    })?;
+                let raw: Option<String> = rs.get_string(idx).map_err(|e| OxError::Runtime {
+                    message: format!("bigquery scan: failed to read column at offset {idx}: {e}"),
+                })?;
                 append_text_cell(
                     "bigquery",
                     builders[idx].as_mut(),
@@ -814,8 +813,7 @@ fn classify_bigquery_error(
     use ox_ontology::source_analysis::WarningClass;
 
     if raw.contains("requires a partition filter")
-        || (raw.contains("without a filter over column")
-            && raw.contains("partition elimination"))
+        || (raw.contains("without a filter over column") && raw.contains("partition elimination"))
     {
         let column = extract_quoted_after(raw, "filter over column(s)")
             .or_else(|| extract_quoted_after(raw, "filter over column"));
@@ -895,10 +893,9 @@ mod tests {
 
     #[test]
     fn parse_uri_with_billing_project() {
-        let parsed = parse_bigquery_uri(
-            "bigquery://oydp-public-dw/dim?billing_project_id=oy-dwusers",
-        )
-        .unwrap();
+        let parsed =
+            parse_bigquery_uri("bigquery://oydp-public-dw/dim?billing_project_id=oy-dwusers")
+                .unwrap();
         assert_eq!(parsed.project_id, "oydp-public-dw");
         assert_eq!(parsed.dataset, "dim");
         assert_eq!(parsed.billing_project_id.as_deref(), Some("oy-dwusers"));
@@ -970,11 +967,11 @@ mod tests {
                    'oydp-public-dw.dim.dcs_mm_oy_mbr_h' without a filter over column(s) \
                    'stdrd_ym' that can be used for partition elimination";
         let (class, params) = classify_bigquery_error(raw, WarningClass::ColumnSampleSkipped);
-        assert!(matches!(class, WarningClass::BigQueryPartitionFilterRequired));
-        assert_eq!(
-            params,
-            vec![("partition_column", "stdrd_ym".to_string())]
-        );
+        assert!(matches!(
+            class,
+            WarningClass::BigQueryPartitionFilterRequired
+        ));
+        assert_eq!(params, vec![("partition_column", "stdrd_ym".to_string())]);
     }
 
     #[test]

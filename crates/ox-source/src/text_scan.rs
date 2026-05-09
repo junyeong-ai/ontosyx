@@ -14,9 +14,7 @@
 //! Arrow types (Decimal, Timestamp) when they arrive; `text_scan`
 //! keeps covering dialects / cell types that have no typed path.
 
-use arrow::array::{
-    ArrayBuilder, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder,
-};
+use arrow::array::{ArrayBuilder, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder};
 use arrow::datatypes::DataType;
 
 use ox_core::error::{OxError, OxResult};
@@ -151,8 +149,7 @@ mod tests {
     fn int_parse_failure_appends_null() {
         let mut b = make_builder(&DataType::Int64);
         append_text_cell("test", b.as_mut(), &DataType::Int64, Some("42")).unwrap();
-        append_text_cell("test", b.as_mut(), &DataType::Int64, Some("not-a-number"))
-            .unwrap();
+        append_text_cell("test", b.as_mut(), &DataType::Int64, Some("not-a-number")).unwrap();
         append_text_cell("test", b.as_mut(), &DataType::Int64, None).unwrap();
 
         let arr = finish(b);
@@ -166,8 +163,7 @@ mod tests {
     fn float_parse_failure_appends_null() {
         let mut b = make_builder(&DataType::Float64);
         append_text_cell("test", b.as_mut(), &DataType::Float64, Some("3.125")).unwrap();
-        append_text_cell("test", b.as_mut(), &DataType::Float64, Some("NaN-ish"))
-            .unwrap();
+        append_text_cell("test", b.as_mut(), &DataType::Float64, Some("NaN-ish")).unwrap();
 
         let arr = finish(b);
         let arr = arr.as_any().downcast_ref::<Float64Array>().unwrap();
@@ -200,6 +196,8 @@ mod tests {
             Some("true"),
         )
         .expect_err("mismatched builder must error");
-        assert!(matches!(err, OxError::Runtime { ref message } if message.contains("postgres") && message.contains("bool")));
+        assert!(
+            matches!(err, OxError::Runtime { ref message } if message.contains("postgres") && message.contains("bool"))
+        );
     }
 }

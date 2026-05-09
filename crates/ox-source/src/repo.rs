@@ -4,10 +4,10 @@ use std::time::Duration;
 
 use ignore::WalkBuilder;
 use ox_core::error::{OxError, OxResult};
-use ox_ontology::repo_insights::{FileContent, OrmRelationType, RepoInsights};
 use ox_core::source_schema::{
     ForeignKeyDef, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef, TableProfile,
 };
+use ox_ontology::repo_insights::{FileContent, OrmRelationType, RepoInsights};
 use tempfile::TempDir;
 
 const MAX_FILE_SIZE_BYTES: u64 = 100_000; // 100 KB per file

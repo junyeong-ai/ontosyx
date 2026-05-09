@@ -307,7 +307,7 @@ impl DataSourceAdapter for MysqlAdapter {
             min_value,
             max_value,
             pii_redacted: ox_core::source_schema::classify_pii_suspect_by_name(&column.name),
-                })
+        })
     }
 
     async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
@@ -393,9 +393,7 @@ impl DataSourceAdapter for MysqlAdapter {
             })
             .collect::<Vec<_>>()
             .join(", ");
-        let limit_clause = limit
-            .map(|n| format!(" LIMIT {n}"))
-            .unwrap_or_default();
+        let limit_clause = limit.map(|n| format!(" LIMIT {n}")).unwrap_or_default();
         let sql = format!(
             "SELECT {select_list} FROM {schema}.{table}{limit}",
             schema = quote_ident(&self.schema_name),
@@ -403,12 +401,13 @@ impl DataSourceAdapter for MysqlAdapter {
             limit = limit_clause,
         );
 
-        let rows: Vec<MySqlRow> = sqlx::query(&sql)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| OxError::Runtime {
-                message: format!("Failed to scan table `{table}`: {e}"),
-            })?;
+        let rows: Vec<MySqlRow> =
+            sqlx::query(&sql)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| OxError::Runtime {
+                    message: format!("Failed to scan table `{table}`: {e}"),
+                })?;
 
         build_record_batch_from_mysql_rows(&rows, &projected_columns, &projected_schema)
     }
@@ -433,14 +432,13 @@ fn build_record_batch_from_mysql_rows(
 
     for row in rows {
         for (idx, col) in columns.iter().enumerate() {
-            let raw: Option<String> =
-                row.try_get(idx).map_err(|e| OxError::Runtime {
-                    message: format!(
-                        "mysql scan: failed to read column `{name}` at row \
+            let raw: Option<String> = row.try_get(idx).map_err(|e| OxError::Runtime {
+                message: format!(
+                    "mysql scan: failed to read column `{name}` at row \
                          offset {idx}: {e}",
-                        name = col.name
-                    ),
-                })?;
+                    name = col.name
+                ),
+            })?;
             append_text_cell(
                 "mysql",
                 builders[idx].as_mut(),
@@ -451,9 +449,7 @@ fn build_record_batch_from_mysql_rows(
     }
 
     let arrays: Vec<ArrayRef> = builders.into_iter().map(|mut b| b.finish()).collect();
-    RecordBatch::try_new(Arc::new(arrow_schema.clone()), arrays).map_err(|e| {
-        OxError::Runtime {
-            message: format!("mysql scan: RecordBatch::try_new failed: {e}"),
-        }
+    RecordBatch::try_new(Arc::new(arrow_schema.clone()), arrays).map_err(|e| OxError::Runtime {
+        message: format!("mysql scan: RecordBatch::try_new failed: {e}"),
     })
 }

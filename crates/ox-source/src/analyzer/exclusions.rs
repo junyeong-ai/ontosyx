@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use ox_ontology::source_analysis::{TableExclusionReason, TableExclusionSuggestion};
 use ox_core::source_schema::{SourceProfile, SourceSchema};
+use ox_ontology::source_analysis::{TableExclusionReason, TableExclusionSuggestion};
 
 const AUDIT_PREFIXES: &[&str] = &["audit_", "log_", "history_"];
 const AUDIT_SUFFIXES: &[&str] = &["_audit", "_log", "_history", "_logs"];

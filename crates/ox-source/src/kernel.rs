@@ -39,11 +39,11 @@ use tokio::sync::Mutex;
 use tracing::warn;
 
 use ox_core::error::{OxError, OxResult};
+use ox_core::source_schema::{SourceProfile, SourceSchema, TableProfile};
 use ox_ontology::source_analysis::{
     AnalysisPhase, AnalysisWarning, LARGE_SCHEMA_GATE_THRESHOLD, WarningClass, WarningLevel,
     WarningScope,
 };
-use ox_core::source_schema::{SourceProfile, SourceSchema, TableProfile};
 
 use crate::{
     AnalysisResult, AnalyzeSelection, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceAdapter,
@@ -313,10 +313,7 @@ impl IntrospectionKernel {
     /// subset never reads from nor writes to the `analyze_all`
     /// cache slot, because the two are different artefacts (one
     /// promises whole-source coverage, the other doesn't).
-    pub async fn analyze_subset(
-        &self,
-        tables: BTreeSet<String>,
-    ) -> OxResult<Arc<AnalysisResult>> {
+    pub async fn analyze_subset(&self, tables: BTreeSet<String>) -> OxResult<Arc<AnalysisResult>> {
         let result = self
             .run_analyze_with_retry(&TableSelection::Subset(tables))
             .await?;
@@ -349,10 +346,9 @@ impl IntrospectionKernel {
                 Some(base) => Ok(Arc::new(reduce_baseline(base, &tables))),
                 None => Err(OxError::Validation {
                     field: "selection".to_string(),
-                    message:
-                        "reduce selection requires a baseline; the project carries no \
+                    message: "reduce selection requires a baseline; the project carries no \
                          stored introspection to drop tables from"
-                            .to_string(),
+                        .to_string(),
                 }),
             },
         }
@@ -378,12 +374,8 @@ impl IntrospectionKernel {
         base: &AnalysisResult,
         additional: BTreeSet<String>,
     ) -> OxResult<Arc<AnalysisResult>> {
-        let baseline_names: BTreeSet<String> = base
-            .schema
-            .tables
-            .iter()
-            .map(|t| t.name.clone())
-            .collect();
+        let baseline_names: BTreeSet<String> =
+            base.schema.tables.iter().map(|t| t.name.clone()).collect();
         let new_tables: BTreeSet<String> =
             additional.difference(&baseline_names).cloned().collect();
 
@@ -630,10 +622,7 @@ impl IntrospectionKernel {
         })
     }
 
-    async fn run_analyze_with_retry(
-        &self,
-        selection: &TableSelection,
-    ) -> OxResult<AnalysisResult> {
+    async fn run_analyze_with_retry(&self, selection: &TableSelection) -> OxResult<AnalysisResult> {
         let mut attempt: u32 = 0;
         let mut backoff = self.retry.initial_backoff;
         loop {
@@ -655,10 +644,7 @@ impl IntrospectionKernel {
         }
     }
 
-    async fn run_full_analysis_once(
-        &self,
-        selection: &TableSelection,
-    ) -> OxResult<AnalysisResult> {
+    async fn run_full_analysis_once(&self, selection: &TableSelection) -> OxResult<AnalysisResult> {
         let (schema, mut warnings) = self.introspect_schema_for(selection).await?;
         let (profile, profile_warnings) = self.collect_stats(&schema).await?;
         warnings.extend(profile_warnings);
@@ -697,8 +683,7 @@ fn reduce_baseline(base: &AnalysisResult, drop_tables: &BTreeSet<String>) -> Ana
         .foreign_keys
         .iter()
         .filter(|fk| {
-            !drop_set.contains(fk.from_table.as_str())
-                && !drop_set.contains(fk.to_table.as_str())
+            !drop_set.contains(fk.from_table.as_str()) && !drop_set.contains(fk.to_table.as_str())
         })
         .cloned()
         .collect();
@@ -1322,8 +1307,12 @@ mod tests {
             .await
             .expect("extension");
 
-        let names: BTreeSet<&str> =
-            extended.schema.tables.iter().map(|t| t.name.as_str()).collect();
+        let names: BTreeSet<&str> = extended
+            .schema
+            .tables
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect();
         assert!(names.contains("users"));
         assert!(names.contains("orders"));
         assert!(!names.contains("products"));
@@ -1343,16 +1332,24 @@ mod tests {
         }
         #[async_trait]
         impl DataSourceAdapter for FkAdapter {
-            fn source_type(&self) -> &str { self.inner.source_type() }
-            fn supports_scan(&self) -> bool { self.inner.supports_scan() }
-            async fn list_tables(&self) -> OxResult<Vec<String>> { self.inner.list_tables().await }
+            fn source_type(&self) -> &str {
+                self.inner.source_type()
+            }
+            fn supports_scan(&self) -> bool {
+                self.inner.supports_scan()
+            }
+            async fn list_tables(&self) -> OxResult<Vec<String>> {
+                self.inner.list_tables().await
+            }
             async fn list_tables_with_summary(&self) -> OxResult<Vec<crate::TableSummary>> {
                 self.inner.list_tables_with_summary().await
             }
             async fn describe_table(&self, t: &str) -> OxResult<SourceTableDef> {
                 self.inner.describe_table(t).await
             }
-            async fn count_rows(&self, t: &str) -> OxResult<u64> { self.inner.count_rows(t).await }
+            async fn count_rows(&self, t: &str) -> OxResult<u64> {
+                self.inner.count_rows(t).await
+            }
             async fn sample_column(
                 &self,
                 t: &str,
@@ -1481,16 +1478,24 @@ mod tests {
         }
         #[async_trait]
         impl DataSourceAdapter for FkAdapter {
-            fn source_type(&self) -> &str { self.inner.source_type() }
-            fn supports_scan(&self) -> bool { self.inner.supports_scan() }
-            async fn list_tables(&self) -> OxResult<Vec<String>> { self.inner.list_tables().await }
+            fn source_type(&self) -> &str {
+                self.inner.source_type()
+            }
+            fn supports_scan(&self) -> bool {
+                self.inner.supports_scan()
+            }
+            async fn list_tables(&self) -> OxResult<Vec<String>> {
+                self.inner.list_tables().await
+            }
             async fn list_tables_with_summary(&self) -> OxResult<Vec<crate::TableSummary>> {
                 self.inner.list_tables_with_summary().await
             }
             async fn describe_table(&self, t: &str) -> OxResult<SourceTableDef> {
                 self.inner.describe_table(t).await
             }
-            async fn count_rows(&self, t: &str) -> OxResult<u64> { self.inner.count_rows(t).await }
+            async fn count_rows(&self, t: &str) -> OxResult<u64> {
+                self.inner.count_rows(t).await
+            }
             async fn sample_column(
                 &self,
                 t: &str,
@@ -1617,7 +1622,12 @@ mod tests {
         );
 
         let merged = merge_analysis_results(&base, &addition);
-        let names: Vec<&str> = merged.schema.tables.iter().map(|t| t.name.as_str()).collect();
+        let names: Vec<&str> = merged
+            .schema
+            .tables
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect();
         assert_eq!(names, vec!["users", "orders", "products"]);
         // Duplicate FK from `addition` is dropped; new FK appended.
         assert_eq!(merged.schema.foreign_keys.len(), 2);

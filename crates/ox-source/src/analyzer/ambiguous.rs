@@ -11,10 +11,10 @@
 
 use std::collections::{HashMap, HashSet};
 
+use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_ontology::ambiguity::{AmbiguityContext, AmbiguityKind};
 use ox_ontology::mapping::refs::{ColumnRef, SourceId};
 use ox_ontology::quality::is_cryptic_short;
-use ox_core::source_schema::{SourceProfile, SourceSchema};
 
 /// Detect ambiguous columns in a profiled schema. Each returned
 /// context is hashed against `source_hash` so a later schema change

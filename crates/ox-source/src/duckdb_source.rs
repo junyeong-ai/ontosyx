@@ -234,7 +234,7 @@ fn sample_column_sync(
         min_value,
         max_value,
         pii_redacted: ox_core::source_schema::classify_pii_suspect_by_name(&column.name),
-            })
+    })
 }
 
 #[async_trait]

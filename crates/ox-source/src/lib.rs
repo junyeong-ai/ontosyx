@@ -9,28 +9,35 @@
 )]
 
 pub mod analyzer;
+#[cfg(feature = "bigquery")]
 pub mod bigquery;
 pub mod config;
 #[cfg(feature = "duckdb")]
 pub mod duckdb_source;
 pub mod fetcher;
+#[cfg(feature = "gcp-auth")]
 pub mod gcp_auth;
+pub mod json_scan;
 pub mod kernel;
+#[cfg(feature = "mongodb")]
 pub mod mongodb;
 pub mod mysql;
 pub mod normalize;
 pub mod postgres;
 pub mod postgres_fetcher;
-pub mod json_scan;
 pub mod registry;
 pub mod repo;
 pub mod sample;
 pub mod scope;
+#[cfg(feature = "snowflake")]
 pub mod snowflake;
 pub mod text_scan;
 
 pub use config::AdapterConfig;
-pub use scope::{AnalysisScope, AnalyzeSelection, DeferredTable, TableSelection};
+pub use scope::{
+    AnalysisScope, AnalyzeSelection, DeferredTable, TableSchemaDrift, TableSchemaDriftKind,
+    TableSelection, table_schema_drift_warnings,
+};
 
 use arrow_array::RecordBatch;
 use async_trait::async_trait;
@@ -41,10 +48,11 @@ use ox_core::source_schema::{
     ColumnStats, ForeignKeyDef, SchemaFingerprint, SourceColumnDef, SourceProfile, SourceSchema,
     SourceTableDef, TableSummary,
 };
-use ox_ontology::source_analysis::{AnalysisPhase, AnalysisWarning, WarningClass, WarningLevel, WarningScope};
+use ox_ontology::source_analysis::{
+    AnalysisPhase, AnalysisWarning, WarningClass, WarningLevel, WarningScope,
+};
 
 pub use kernel::{CacheTtl, IntrospectionKernel, RetryPolicy};
-
 
 /// Default concurrency limit for table introspection orchestration.
 /// The [`IntrospectionKernel`] uses this when a caller doesn't override.
@@ -57,7 +65,7 @@ pub const DEFAULT_INTROSPECTION_CONCURRENCY: usize = 8;
 /// emit this directly — they expose atomic primitives and the kernel
 /// orchestrates them into a full analysis, attaching warnings as
 /// individual primitive calls succeed or fail.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct AnalysisResult {
     pub schema: SourceSchema,
     pub profile: SourceProfile,
@@ -342,7 +350,9 @@ mod tests {
         }
         .validate()
         .unwrap_err();
-        assert!(matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables"));
+        assert!(
+            matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables")
+        );
     }
 
     #[test]
@@ -366,7 +376,9 @@ mod tests {
         }
         .validate()
         .unwrap_err();
-        assert!(matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables"));
+        assert!(
+            matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables")
+        );
     }
 
     #[test]
@@ -376,7 +388,9 @@ mod tests {
         }
         .validate()
         .unwrap_err();
-        assert!(matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables"));
+        assert!(
+            matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables")
+        );
     }
 
     #[test]
@@ -395,7 +409,9 @@ mod tests {
         }
         .validate()
         .unwrap_err();
-        assert!(matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables"));
+        assert!(
+            matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables")
+        );
     }
 
     #[test]
@@ -498,13 +514,7 @@ mod tests {
     #[test]
     fn scope_staged_includes_picks_and_defers_the_rest() {
         let mut scope = AnalysisScope::default();
-        let all = names(&[
-            "customers",
-            "orders",
-            "audit_log",
-            "drafts",
-            "payments",
-        ]);
+        let all = names(&["customers", "orders", "audit_log", "drafts", "payments"]);
         let sel = AnalyzeSelection::Staged {
             tables: names(&["customers", "orders"]),
         };
@@ -600,11 +610,7 @@ mod tests {
             scope.deferred.iter().map(|d| d.table.clone()).collect();
         assert_eq!(deferred_tables, names(&["drafts", "orders", "payments"]));
         // Original deferral reason for `drafts` is preserved.
-        let drafts = scope
-            .deferred
-            .iter()
-            .find(|d| d.table == "drafts")
-            .unwrap();
+        let drafts = scope.deferred.iter().find(|d| d.table == "drafts").unwrap();
         assert_eq!(drafts.reason, "explicit");
     }
 
@@ -622,7 +628,7 @@ mod tests {
         assert_eq!(scope.fingerprints["customers"], "v2");
     }
 
-    // ---------- AnalysisScope::detect_drift ----------
+    // ---------- AnalysisScope::detect_table_schema_drift ----------
 
     fn fp_map<I: IntoIterator<Item = (&'static str, &'static str)>>(
         entries: I,
@@ -638,7 +644,7 @@ mod tests {
         let mut scope = AnalysisScope::default();
         scope.record_fingerprints([("customers".into(), "v1".into())]);
         let fresh = fp_map([("customers", "v1")]);
-        assert!(scope.detect_drift(&fresh).is_empty());
+        assert!(scope.detect_table_schema_drift(&fresh).is_empty());
     }
 
     #[test]
@@ -647,16 +653,10 @@ mod tests {
         scope.record_fingerprints([("customers".into(), "v1".into())]);
         let fresh = fp_map([("customers", "v2")]);
 
-        let drift = scope.detect_drift(&fresh);
+        let drift = scope.detect_table_schema_drift(&fresh);
         assert_eq!(drift.len(), 1);
-        let w = &drift[0];
-        assert_eq!(w.class, WarningClass::TableSchemaDrift);
-        assert_eq!(w.params.get("kind").map(String::as_str), Some("changed"));
-        assert!(matches!(
-            &w.scope,
-            WarningScope::Table { name } if name == "customers"
-        ));
-        assert_eq!(w.group_key, "table_schema_drift:customers");
+        assert_eq!(drift[0].table, "customers");
+        assert_eq!(drift[0].kind, TableSchemaDriftKind::Changed);
     }
 
     #[test]
@@ -668,14 +668,10 @@ mod tests {
         ]);
         let fresh = fp_map([("customers", "v1")]);
 
-        let drift = scope.detect_drift(&fresh);
+        let drift = scope.detect_table_schema_drift(&fresh);
         assert_eq!(drift.len(), 1);
-        let w = &drift[0];
-        assert_eq!(w.params.get("kind").map(String::as_str), Some("removed"));
-        assert!(matches!(
-            &w.scope,
-            WarningScope::Table { name } if name == "orders"
-        ));
+        assert_eq!(drift[0].table, "orders");
+        assert_eq!(drift[0].kind, TableSchemaDriftKind::Removed);
     }
 
     #[test]
@@ -684,7 +680,7 @@ mod tests {
         // ingests them through the normal include path.
         let scope = AnalysisScope::default();
         let fresh = fp_map([("customers", "v1")]);
-        assert!(scope.detect_drift(&fresh).is_empty());
+        assert!(scope.detect_table_schema_drift(&fresh).is_empty());
     }
 
     #[test]
@@ -697,11 +693,11 @@ mod tests {
         ]);
         let fresh = fp_map([("customers", "v2"), ("orders", "v1")]);
 
-        let drift = scope.detect_drift(&fresh);
+        let drift = scope.detect_table_schema_drift(&fresh);
         assert_eq!(drift.len(), 2);
         // Iteration order is BTreeMap-sorted: customers (changed),
         // payments (removed).
-        assert_eq!(drift[0].params.get("kind").map(String::as_str), Some("changed"));
-        assert_eq!(drift[1].params.get("kind").map(String::as_str), Some("removed"));
+        assert_eq!(drift[0].kind, TableSchemaDriftKind::Changed);
+        assert_eq!(drift[1].kind, TableSchemaDriftKind::Removed);
     }
 }

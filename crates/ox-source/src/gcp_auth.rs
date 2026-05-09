@@ -201,10 +201,7 @@ async fn classify_file(path: &Path) -> Result<AdcCredential, GcpAuthError> {
             path: path.to_path_buf(),
             source,
         })?;
-    let kind = json
-        .get("type")
-        .and_then(|v| v.as_str())
-        .map(str::to_owned);
+    let kind = json.get("type").and_then(|v| v.as_str()).map(str::to_owned);
     match kind.as_deref() {
         Some("service_account") => Ok(AdcCredential::ServiceAccountKey(path.to_path_buf())),
         Some("authorized_user") => Ok(AdcCredential::AuthorizedUser(path.to_path_buf())),
@@ -273,12 +270,7 @@ mod tests {
     #[tokio::test]
     async fn override_unsupported_type_rejected() {
         let dir = TempDir::new().unwrap();
-        let path = write_credential(
-            &dir,
-            "bad.json",
-            r#"{"type": "external_account"}"#,
-        )
-        .await;
+        let path = write_credential(&dir, "bad.json", r#"{"type": "external_account"}"#).await;
         let err = detect_adc(Some(&path)).await.unwrap_err();
         assert!(matches!(
             err,

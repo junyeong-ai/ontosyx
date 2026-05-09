@@ -25,10 +25,10 @@ use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
-use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
 use ox_core::source_schema::{
     ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef, TableSummary,
 };
+use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
 
 use crate::DataSourceAdapter;
 use crate::normalize::describe_to_arrow_schema;
@@ -222,10 +222,7 @@ impl DataSourceAdapter for PostgresAdapter {
             .into_iter()
             .map(|r| TableSummary {
                 name: r.table_name,
-                estimated_row_count: r
-                    .n_live_tup
-                    .filter(|&n| n >= 0)
-                    .map(|n| n as u64),
+                estimated_row_count: r.n_live_tup.filter(|&n| n >= 0).map(|n| n as u64),
                 column_count: r.column_count.unwrap_or(0).max(0) as u32,
                 last_modified: r.last_modified,
             })
@@ -412,7 +409,7 @@ impl DataSourceAdapter for PostgresAdapter {
             min_value,
             max_value,
             pii_redacted: ox_core::source_schema::classify_pii_suspect_by_name(&column.name),
-                })
+        })
     }
 
     async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
@@ -494,9 +491,7 @@ impl DataSourceAdapter for PostgresAdapter {
             .map(|c| format!("{}::text AS {}", quote_ident(&c.name), quote_ident(&c.name)))
             .collect::<Vec<_>>()
             .join(", ");
-        let limit_clause = limit
-            .map(|n| format!(" LIMIT {n}"))
-            .unwrap_or_default();
+        let limit_clause = limit.map(|n| format!(" LIMIT {n}")).unwrap_or_default();
         let sql = format!(
             "SELECT {select_list} FROM {schema}.{table}{limit}",
             schema = quote_ident(&self.schema_name),
@@ -504,12 +499,13 @@ impl DataSourceAdapter for PostgresAdapter {
             limit = limit_clause,
         );
 
-        let rows: Vec<PgRow> = sqlx::query(&sql)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| OxError::Runtime {
-                message: format!("Failed to scan table `{table}`: {e}"),
-            })?;
+        let rows: Vec<PgRow> =
+            sqlx::query(&sql)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| OxError::Runtime {
+                    message: format!("Failed to scan table `{table}`: {e}"),
+                })?;
 
         build_record_batch_from_pg_rows(&rows, &projected_columns, &projected_schema)
     }
@@ -536,14 +532,13 @@ fn build_record_batch_from_pg_rows(
             // `try_get::<Option<String>, _>` surfaces that. The
             // column index matches `idx` because the SELECT list
             // was emitted in the same order as `columns`.
-            let raw: Option<String> =
-                row.try_get(idx).map_err(|e| OxError::Runtime {
-                    message: format!(
-                        "postgres scan: failed to read column `{name}` at row \
+            let raw: Option<String> = row.try_get(idx).map_err(|e| OxError::Runtime {
+                message: format!(
+                    "postgres scan: failed to read column `{name}` at row \
                          offset {idx}: {e}",
-                        name = col.name
-                    ),
-                })?;
+                    name = col.name
+                ),
+            })?;
             append_text_cell(
                 "postgres",
                 builders[idx].as_mut(),
@@ -554,9 +549,7 @@ fn build_record_batch_from_pg_rows(
     }
 
     let arrays: Vec<ArrayRef> = builders.into_iter().map(|mut b| b.finish()).collect();
-    RecordBatch::try_new(Arc::new(arrow_schema.clone()), arrays).map_err(|e| {
-        OxError::Runtime {
-            message: format!("postgres scan: RecordBatch::try_new failed: {e}"),
-        }
+    RecordBatch::try_new(Arc::new(arrow_schema.clone()), arrays).map_err(|e| OxError::Runtime {
+        message: format!("postgres scan: RecordBatch::try_new failed: {e}"),
     })
 }

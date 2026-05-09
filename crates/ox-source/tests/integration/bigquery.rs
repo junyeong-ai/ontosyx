@@ -86,9 +86,7 @@ fn resolve_target() -> Option<(String, String)> {
             );
         }
         _ => {
-            eprintln!(
-                "{PROJECT_ENV} / {DATASET_ENV} not set — skipping BigQuery integration test"
-            );
+            eprintln!("{PROJECT_ENV} / {DATASET_ENV} not set — skipping BigQuery integration test");
             None
         }
     }
@@ -148,7 +146,10 @@ async fn describe_table_returns_columns() {
         eprintln!("dataset is empty — skipping describe_table");
         return;
     };
-    let described = adapter.describe_table(&table).await.expect("describe_table");
+    let described = adapter
+        .describe_table(&table)
+        .await
+        .expect("describe_table");
 
     assert_eq!(described.name, table);
     assert!(
@@ -187,7 +188,10 @@ async fn sample_column_returns_stats_for_first_column() {
         eprintln!("dataset is empty — skipping sample_column");
         return;
     };
-    let described = adapter.describe_table(&table).await.expect("describe_table");
+    let described = adapter
+        .describe_table(&table)
+        .await
+        .expect("describe_table");
     let Some(column) = described.columns.first() else {
         eprintln!("table {table} has no columns — skipping sample_column");
         return;
@@ -217,7 +221,10 @@ async fn scan_with_limit_returns_record_batch() {
         "scan(limit=10) returned {} rows",
         batch.num_rows()
     );
-    let described = adapter.describe_table(&table).await.expect("describe_table");
+    let described = adapter
+        .describe_table(&table)
+        .await
+        .expect("describe_table");
     assert_eq!(
         batch.num_columns(),
         described.columns.len(),

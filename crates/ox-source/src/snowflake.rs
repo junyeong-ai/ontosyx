@@ -17,16 +17,18 @@
 
 use std::sync::Arc;
 
-use arrow::array::{Array, Int32Array, Int64Array, StringArray};
-use arrow::datatypes::DataType;
+#[cfg(feature = "snowflake")]
+use arrow_array_snowflake::{Array, Int32Array, Int64Array, StringArray};
+#[cfg(feature = "snowflake")]
+use arrow_schema_snowflake::DataType;
 use async_trait::async_trait;
-use snowflake_api::{QueryResult, SnowflakeApi};
+use snowflake_api::{QueryResult, RecordBatch as SnowflakeRecordBatch, SnowflakeApi};
 
 use ox_core::error::{OxError, OxResult};
-use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
 use ox_core::source_schema::{
     ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef, TableSummary,
 };
+use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
 
 use crate::DataSourceAdapter;
 
@@ -493,7 +495,7 @@ impl DataSourceAdapter for SnowflakeAdapter {
             min_value,
             max_value,
             pii_redacted: ox_core::source_schema::classify_pii_suspect_by_name(&column.name),
-                })
+        })
     }
 
     async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
@@ -550,7 +552,7 @@ impl DataSourceAdapter for SnowflakeAdapter {
 /// Handles the subset of Arrow types that Snowflake actually returns for
 /// INFORMATION_SCHEMA queries (Utf8 / LargeUtf8 / Int / BigInt) plus a
 /// fallback that formats any other array's scalar value via its `Display`.
-fn rows_from_arrow_batches(batches: &[arrow::array::RecordBatch]) -> Vec<Vec<Option<String>>> {
+fn rows_from_arrow_batches(batches: &[SnowflakeRecordBatch]) -> Vec<Vec<Option<String>>> {
     let mut rows: Vec<Vec<Option<String>>> = Vec::new();
     for batch in batches {
         let num_rows = batch.num_rows();

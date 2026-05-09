@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 ox-core = { workspace = true }
@@ -17,12 +18,14 @@ serde_json = { workspace = true }
 schemars = { workspace = true }
 utoipa = { workspace = true }
 csv = { workspace = true }
-mongodb = { workspace = true }
-snowflake-api = { workspace = true }
+mongodb = { workspace = true, optional = true }
+snowflake-api = { workspace = true, optional = true }
 arrow = { workspace = true }
 arrow-array = { workspace = true }
+arrow-array-snowflake = { package = "arrow-array", version = "57", optional = true }
 arrow-schema = { workspace = true }
-gcp-bigquery-client = { workspace = true }
+arrow-schema-snowflake = { package = "arrow-schema", version = "57", optional = true }
+gcp-bigquery-client = { workspace = true, optional = true }
 tracing = { workspace = true }
 ignore = { workspace = true }
 tempfile = { workspace = true }
@@ -31,18 +34,23 @@ chrono = { workspace = true }
 uuid = { workspace = true }
 url = "2.5"
 thiserror = { workspace = true }
-yup-oauth2 = { workspace = true }
-hyper-util = { workspace = true }
+yup-oauth2 = { workspace = true, optional = true }
+hyper-util = { workspace = true, optional = true }
 duckdb = { workspace = true, optional = true }
 
 [features]
+default = []
+bigquery = ["dep:gcp-bigquery-client", "gcp-auth"]
 duckdb = ["dep:duckdb"]
+gcp-auth = ["dep:hyper-util", "dep:yup-oauth2"]
+mongodb = ["dep:mongodb"]
+snowflake = ["dep:snowflake-api", "dep:arrow-array-snowflake", "dep:arrow-schema-snowflake"]
 # Live BigQuery integration tests. Off by default — requires
 # Application Default Credentials and `OXY_BIGQUERY_PROJECT` /
 # `OXY_BIGQUERY_DATASET` env vars at runtime. Set
 # `OXY_REQUIRE_BIGQUERY_TESTS=true` in CI to escalate skip-on-missing-
 # credentials to a hard failure.
-bigquery-integration-tests = []
+bigquery-integration-tests = ["bigquery"]
 
 [lints]
 workspace = true

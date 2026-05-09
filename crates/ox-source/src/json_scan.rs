@@ -26,9 +26,7 @@
 //! fallback paths share the Arrow type policy (Bool / Int64 /
 //! Float64 / Utf8 fallback); only the cell-level decoding differs.
 
-use arrow::array::{
-    ArrayBuilder, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder,
-};
+use arrow::array::{ArrayBuilder, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder};
 use arrow::datatypes::DataType;
 use serde_json::Value;
 
@@ -136,9 +134,7 @@ fn append_int(
             Ok(v) => b.append_value(v),
             Err(_) => b.append_null(),
         },
-        Some(Value::Bool(_))
-        | Some(Value::Array(_))
-        | Some(Value::Object(_)) => b.append_null(),
+        Some(Value::Bool(_)) | Some(Value::Array(_)) | Some(Value::Object(_)) => b.append_null(),
     }
     Ok(())
 }
@@ -162,9 +158,7 @@ fn append_float(
             Ok(f) => b.append_value(f),
             Err(_) => b.append_null(),
         },
-        Some(Value::Bool(_))
-        | Some(Value::Array(_))
-        | Some(Value::Object(_)) => b.append_null(),
+        Some(Value::Bool(_)) | Some(Value::Array(_)) | Some(Value::Object(_)) => b.append_null(),
     }
     Ok(())
 }

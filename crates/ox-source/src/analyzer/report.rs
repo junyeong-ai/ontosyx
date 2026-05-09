@@ -1,3 +1,4 @@
+use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_ontology::ambiguity::RepoHint;
 use ox_ontology::mapping::refs::SourceId;
 use ox_ontology::pii::RegexPiiClassifier;
@@ -7,7 +8,6 @@ use ox_ontology::source_analysis::{
     RepoAnalysisStatus, RepoAnalysisSummary, RepoColumnSuggestion, SchemaStats,
     SourceAnalysisReport,
 };
-use ox_core::source_schema::{SourceProfile, SourceSchema};
 
 use super::ambiguous::detect_ambiguous;
 use super::exclusions::suggest_exclusions;
@@ -94,8 +94,7 @@ pub fn enrich_with_repo(report: &mut SourceAnalysisReport, insights: &RepoInsigh
         let table = &ambiguous.column.relation;
         let column = &ambiguous.column.column;
         let matched = insights.enum_definitions.iter().find(|e| {
-            e.table_name.eq_ignore_ascii_case(table)
-                && e.field.eq_ignore_ascii_case(column)
+            e.table_name.eq_ignore_ascii_case(table) && e.field.eq_ignore_ascii_case(column)
         });
         if let Some(enum_def) = matched {
             let suggested_values = enum_def
@@ -266,12 +265,8 @@ mod tests {
                 }],
             }],
         };
-        let mut report = build_analysis_report(
-            &SourceId::new("src-test"),
-            "sha256:test",
-            &schema,
-            &profile,
-        );
+        let mut report =
+            build_analysis_report(&SourceId::new("src-test"), "sha256:test", &schema, &profile);
         assert_eq!(report.ambiguous_columns.len(), 1);
 
         let insights = RepoInsights {
@@ -336,12 +331,8 @@ mod tests {
                 }],
             }],
         };
-        let mut report = build_analysis_report(
-            &SourceId::new("src-test"),
-            "sha256:test",
-            &schema,
-            &profile,
-        );
+        let mut report =
+            build_analysis_report(&SourceId::new("src-test"), "sha256:test", &schema, &profile);
         assert_eq!(report.ambiguous_columns.len(), 1);
 
         let insights = RepoInsights {
@@ -401,12 +392,8 @@ mod tests {
         let profile = SourceProfile {
             table_profiles: vec![],
         };
-        let mut report = build_analysis_report(
-            &SourceId::new("src-test"),
-            "sha256:test",
-            &schema,
-            &profile,
-        );
+        let mut report =
+            build_analysis_report(&SourceId::new("src-test"), "sha256:test", &schema, &profile);
 
         assert_eq!(report.implied_relationships.len(), 1);
         assert_eq!(report.implied_relationships[0].confidence, 0.85);
@@ -447,12 +434,8 @@ mod tests {
         let profile = SourceProfile {
             table_profiles: vec![],
         };
-        let mut report = build_analysis_report(
-            &SourceId::new("src-test"),
-            "sha256:test",
-            &schema,
-            &profile,
-        );
+        let mut report =
+            build_analysis_report(&SourceId::new("src-test"), "sha256:test", &schema, &profile);
         assert_eq!(report.implied_relationships[0].confidence, 0.85);
 
         let insights = RepoInsights {

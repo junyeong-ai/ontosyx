@@ -116,6 +116,7 @@ impl AdapterRegistry {
         });
 
         // MongoDB: async client setup with document sampling
+        #[cfg(feature = "mongodb")]
         registry.register("mongodb", |input| async move {
             let conn = input.connection_string.as_deref().ok_or_else(|| {
                 ox_core::error::OxError::Validation {
@@ -147,7 +148,8 @@ impl AdapterRegistry {
             Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
 
-        // Snowflake: stub implementation (REST SQL API integration pending)
+        // Snowflake: REST SQL API introspection.
+        #[cfg(feature = "snowflake")]
         registry.register("snowflake", |input| async move {
             let conn = input.connection_string.as_deref().ok_or_else(|| {
                 ox_core::error::OxError::Validation {
@@ -162,7 +164,8 @@ impl AdapterRegistry {
             Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
 
-        // BigQuery: stub implementation (gcp-bigquery-client integration pending)
+        // BigQuery: BigQuery Storage API introspection.
+        #[cfg(feature = "bigquery")]
         registry.register("bigquery", |input| async move {
             let conn = input.connection_string.as_deref().ok_or_else(|| {
                 ox_core::error::OxError::Validation {
@@ -226,11 +229,20 @@ mod tests {
         let registry = AdapterRegistry::with_defaults();
         assert!(registry.supports("postgresql"));
         assert!(registry.supports("mysql"));
-        assert!(registry.supports("mongodb"));
         assert!(registry.supports("csv"));
         assert!(registry.supports("json"));
+        #[cfg(feature = "mongodb")]
+        assert!(registry.supports("mongodb"));
+        #[cfg(not(feature = "mongodb"))]
+        assert!(!registry.supports("mongodb"));
+        #[cfg(feature = "snowflake")]
         assert!(registry.supports("snowflake"));
+        #[cfg(not(feature = "snowflake"))]
+        assert!(!registry.supports("snowflake"));
+        #[cfg(feature = "bigquery")]
         assert!(registry.supports("bigquery"));
+        #[cfg(not(feature = "bigquery"))]
+        assert!(!registry.supports("bigquery"));
         #[cfg(feature = "duckdb")]
         assert!(registry.supports("duckdb"));
         assert!(!registry.supports("text"));
@@ -241,33 +253,17 @@ mod tests {
         let registry = AdapterRegistry::with_defaults();
         let mut types = registry.registered_types();
         types.sort();
+        let mut expected = vec!["csv", "json", "mysql", "postgresql"];
+        #[cfg(feature = "bigquery")]
+        expected.push("bigquery");
         #[cfg(feature = "duckdb")]
-        assert_eq!(
-            types,
-            vec![
-                "bigquery",
-                "csv",
-                "duckdb",
-                "json",
-                "mongodb",
-                "mysql",
-                "postgresql",
-                "snowflake"
-            ]
-        );
-        #[cfg(not(feature = "duckdb"))]
-        assert_eq!(
-            types,
-            vec![
-                "bigquery",
-                "csv",
-                "json",
-                "mongodb",
-                "mysql",
-                "postgresql",
-                "snowflake"
-            ]
-        );
+        expected.push("duckdb");
+        #[cfg(feature = "mongodb")]
+        expected.push("mongodb");
+        #[cfg(feature = "snowflake")]
+        expected.push("snowflake");
+        expected.sort();
+        assert_eq!(types, expected,);
     }
 
     #[tokio::test]

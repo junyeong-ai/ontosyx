@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use ox_ontology::source_analysis::{ImpliedFkPattern, ImpliedRelationship};
 use ox_core::source_schema::SourceSchema;
+use ox_ontology::source_analysis::{ImpliedFkPattern, ImpliedRelationship};
 
 pub(super) fn infer_implied_fks(schema: &SourceSchema) -> Vec<ImpliedRelationship> {
     let declared_fk_set: HashSet<(&str, &str)> = schema
