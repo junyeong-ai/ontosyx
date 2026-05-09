@@ -62,9 +62,9 @@
     "refinement_missing_inputs": "정제(Refinement)를 시작하려면 그래프 데이터, 추가 컨텍스트, 또는 소스 스키마 중 최소 하나가 필요합니다.",
     "refinement_decision_unknown_id": "정제 결정이 알 수 없는 ID '{original_id}'을(를) 참조하고 있습니다. 페이지를 새로고침한 후 다시 시도하세요.",
     "reanalyze_no_modeled_tables": "모델링된 테이블이 없습니다. 보류된 테이블을 먼저 활성화하거나 일반 재분석 엔드포인트를 사용하세요.",
-    "source_type_mismatch": "이 초안는 '{expected}' 소스로 생성되었지만 '{got}' 소스로 재분석을 시도했습니다. 동일한 소스 타입을 사용하세요.",
+    "source_type_mismatch": "이 초안은 '{expected}' 소스로 생성되었지만 '{got}' 소스로 재분석을 시도했습니다. 동일한 소스 타입을 사용하세요.",
     "decision_invalid_schema_refs": "결정 항목이 더 이상 존재하지 않는 스키마 요소를 참조하고 있습니다. 분석 결과를 다시 확인하세요.",
-    "ontology_draft_status_mismatch": "이 작업은 초안가 '{required}' 상태일 때만 가능합니다. (현재: {actual}) 페이지를 새로고침하세요.",
+    "ontology_draft_status_mismatch": "이 작업은 초안이 '{required}' 상태일 때만 가능합니다. (현재: {actual}) 페이지를 새로고침하세요.",
     "source_connection_failed": "{source_type, select, postgresql {PostgreSQL} mysql {MySQL} mongodb {MongoDB} snowflake {Snowflake} bigquery {BigQuery} duckdb {DuckDB} other {{source_type}}} 데이터 소스에 연결하지 못했습니다. {detail}",
     "edit_queued_for_approval": "이 변경은 자동 승인 대상이 아닙니다. 승인 대기열로 이동하여 검토를 요청하세요.",
     "query_ir_invalid": "쿼리 정의(query_ir)가 올바르지 않습니다. {detail}",
@@ -154,7 +154,7 @@
   },
   "errorBoundary": {
     "title": "문제가 발생했습니다",
-    "description": "페이지를 새로 고치거나 다시 시도해 보세요. 계속 발생한다면 초안를 재분석하거나 다른 초안를 열어 보세요.",
+    "description": "페이지를 새로 고치거나 다시 시도해 보세요. 계속 발생한다면 초안을 재분석하거나 다른 초안을 열어 보세요.",
     "retry": "다시 시도"
   },
   "commandPalette": {
@@ -561,7 +561,7 @@
         "rulesLabel": "규칙 라인",
         "notSet": "미설정",
         "count": "{n}",
-        "nextStepHint": "디자인 에이전트가 초안를 생성하고 소스를 인트로스펙션하며 ObjectMapping + LinkMapping을 제안합니다. 워크벤치에서 확정하세요."
+        "nextStepHint": "디자인 에이전트가 초안을 생성하고 소스를 인트로스펙션하며 ObjectMapping + LinkMapping을 제안합니다. 워크벤치에서 확정하세요."
       },
       "restart": "처음부터 다시",
       "toast": {
@@ -641,7 +641,7 @@
       "saveTooltip": "서버에 저장 (⌘S)",
       "changes": "{count, plural, =0 {변경 없음} other {#개 변경}}",
       "unsaveable": "(저장 불가)",
-      "unsaveableHint": "초안가 없어 변경사항이 로컬에만 유지됩니다. 초안를 열어 저장을 활성화하세요."
+      "unsaveableHint": "초안이 없어 변경사항이 로컬에만 유지됩니다. 초안을 열어 저장을 활성화하세요."
     },
     "aiSuggestions": {
       "acceptAll": "모두 수락",
@@ -1010,7 +1010,7 @@
     },
     "contextSelector": {
       "newOntologyDraft": "새 초안",
-      "noOntologyDrafts": "초안가 없습니다",
+      "noOntologyDrafts": "초안이 없습니다",
       "noOntologyDraft": "초안 없음",
       "guardSwitchOntologyDraft": "초안 전환",
       "guardNewOntologyDraft": "새 초안",
@@ -1031,13 +1031,13 @@
       "toast": {
         "forkFailed": "포크에 실패했습니다",
         "unknownError": "알 수 없는 오류",
-        "loadOntologyDraftsFailed": "초안를 불러오지 못했습니다",
-        "loadOntologyDraftFailed": "초안를 불러오지 못했습니다",
+        "loadOntologyDraftsFailed": "초안을 불러오지 못했습니다",
+        "loadOntologyDraftFailed": "초안을 불러오지 못했습니다",
         "loadDashboardsFailed": "대시보드를 불러오지 못했습니다",
         "loadOntologyFailed": "온톨로지를 불러오지 못했습니다",
         "dashboardCreated": "대시보드를 생성했습니다",
         "dashboardCreateFailed": "대시보드를 생성하지 못했습니다",
-        "forked": "초안를 포크했습니다"
+        "forked": "초안을 포크했습니다"
       }
     },
     "modeActions": {
@@ -3118,7 +3118,7 @@
           "emptyLeg": "이 leg 에서 반환된 결과가 없습니다."
         },
         "runComparisonAggregate": {
-          "title": "런 전체 하이브리드 lift",
+          "title": "실행 전체 하이브리드 lift",
           "description": "이 실행의 retrieval_comparison 케이스를 (검색 표면 × 축) 매트릭스로 집계. 셀의 lift 가 양수면 하이브리드 평균 우세.",
           "surfaceHeader": "검색 표면",
           "surface": {
@@ -3365,7 +3365,7 @@
         "level": "레벨 {n}",
         "members": "멤버 {n}",
         "generatedAt": "생성 {ts}",
-        "empty": "아직 커뮤니티가 검출되지 않았습니다. 캐노니컬 커밋과 백그라운드 community-detection sweep 이후 표시됩니다.",
+        "empty": "아직 커뮤니티가 검출되지 않았습니다. 대표 온톨로지 커밋과 백그라운드 커뮤니티 검출 작업 이후에 표시됩니다.",
         "searchEmpty": "검색 결과가 없습니다.",
         "loadFailed": "커뮤니티 목록을 불러오지 못했습니다."
       }
@@ -3999,7 +3999,7 @@
       "detail": {
         "backToCanvas": "캔버스로 돌아가기",
         "validateCompleteness": "완전성 검증",
-        "noOntology": "활성 온톨로지가 없습니다. 디자인 모드로 들어가 초안를 선택하세요.",
+        "noOntology": "활성 온톨로지가 없습니다. 디자인 모드로 들어가 초안을 선택하세요.",
         "nodeNotFound": "ID `{id}` 에 해당하는 노드 타입을 찾을 수 없습니다.",
         "definition": {
           "descriptionLabel": "설명",
@@ -4173,7 +4173,7 @@
         "schemaHint": "스키마 · 노드를 클릭하여 확장"
       },
       "empty": {
-        "description": "초안를 불러오면 그래프 전체의 관계를 발견할 수 있어요.",
+        "description": "초안을 불러오면 그래프 전체의 관계를 발견할 수 있어요.",
         "switchToDesign": "설계로 전환",
         "title": "탐색할 데이터가 없어요"
       },
@@ -4215,7 +4215,7 @@
           "title": "지식이 아직 없어요"
         },
         "footer": "분석 중 자동 저장된 지식",
-        "loadHint": "초안를 불러오면 관련 지식이 보여요"
+        "loadHint": "초안을 불러오면 관련 지식이 보여요"
       },
       "sessionBar": {
         "label": "세션",
@@ -4461,7 +4461,7 @@
         "readyHint": "아래 워크플로 패널에서 분석 결과를 검토한 뒤, <bold>온톨로지 설계</bold>를 눌러 지식 그래프 스키마를 생성하세요.",
         "openWorkflow": "워크플로 패널 열기",
         "startTitle": "설계 시작",
-        "startHint": "데이터 소스에서 초안를 만들거나, 기존 온톨로지를 가져와 지식 그래프 설계를 시작하세요.",
+        "startHint": "데이터 소스에서 초안을 만들거나, 기존 온톨로지를 가져와 지식 그래프 설계를 시작하세요.",
         "createOntologyDraft": "초안 만들기",
         "createOntologyDraftHint": "데이터베이스, CSV, JSON, 코드 저장소",
         "or": "또는",
@@ -4697,7 +4697,7 @@
         "enterFullscreen": "패널 전체화면 (⌘⇧\\)",
         "exitFullscreen": "전체화면 종료 (Esc)",
         "noQualityReport": "품질 보고서가 없습니다",
-        "designFirst": "먼저 초안를 설계하세요."
+        "designFirst": "먼저 초안을 설계하세요."
       },
       "canonicalStatus": {
         "withVersion": "현재 대표 버전: v{version} — 이 초안이 완료되면 다음 대표 버전이 됩니다.",
@@ -4863,7 +4863,7 @@
         },
         "previewTablesButton": "테이블 미리보기",
         "previewTablesDisabledHint": "위 필수 항목을 채워야 미리보기가 가능합니다.",
-        "createDisabledHint": "위 필수 항목을 채워야 초안를 만들 수 있습니다.",
+        "createDisabledHint": "위 필수 항목을 채워야 초안을 만들 수 있습니다.",
         "previewLoading": "테이블 목록 조회 중...",
         "previewSucceeded": "{count}개 테이블 발견",
         "previewFailed": "테이블 미리보기에 실패했습니다",
@@ -4873,7 +4873,7 @@
         "backToConnection": "← 연결 정보로 돌아가기",
         "createButton": "초안 생성",
         "creating": "생성 중...",
-        "createSuccess": "초안를 생성했습니다",
+        "createSuccess": "초안을 생성했습니다",
         "createSuccessDescription": "상태: {status} (rev {revision})",
         "toast": {
           "createFailed": "초안 생성에 실패했습니다",
@@ -4987,11 +4987,11 @@
         "completeDesignedDescription": "노드 {nodeCount}개, 엣지 {edgeCount}개",
         "ontologyDesigned": "온톨로지를 설계했습니다",
         "designFailed": "설계에 실패했습니다",
-        "completeWithDeploy": "초안를 완료하고 온톨로지 저장 및 스키마 배포를 마쳤습니다",
+        "completeWithDeploy": "초안을 완료하고 온톨로지 저장 및 스키마 배포를 마쳤습니다",
         "deployFailedPartial": "초안 완료. 단, 스키마 배포에 실패했습니다: {error}",
-        "completeSuccess": "초안를 완료하고 온톨로지를 저장했습니다",
+        "completeSuccess": "초안을 완료하고 온톨로지를 저장했습니다",
         "qualityGateWarningTitle": "품질 게이트 경고",
-        "qualityGateWarningDescription": "{message}\n\n그래도 초안를 완료하시겠어요?",
+        "qualityGateWarningDescription": "{message}\n\n그래도 초안을 완료하시겠어요?",
         "qualityGateConfirmLabel": "그래도 완료",
         "completeFailed": "완료에 실패했습니다",
         "completeNameRequired": "초안을 완료하려면 이름이 필요합니다",
@@ -5012,11 +5012,11 @@
         "bigqueryExtendUnsupported": "BigQuery 확장은 이 폼에서 지원하지 않습니다",
         "extendFailed": "확장에 실패했습니다",
         "extendSuccess": "소스를 추가했습니다 — 새 테이블의 열 명확화를 검토하세요",
-        "conflictTitle": "충돌: 초안가 다른 곳에서 수정되었습니다",
+        "conflictTitle": "충돌: 초안이 다른 곳에서 수정되었습니다",
         "conflictDescription": "최신 버전을 다시 불러옵니다.",
         "savedHeader": "온톨로지 저장 완료",
         "savedDescription": "온톨로지를 완료하고 저장했습니다. 분석 모드로 질의하거나, 초안 선택기에서 포크해 새 버전을 만들 수 있습니다.",
-        "completedDescription": "초안가 완료되었습니다.",
+        "completedDescription": "초안이 완료되었습니다.",
         "schemaDeployment": "스키마 배포",
         "ddlStatements": "실행할 DDL 문 {count}개:",
         "ddlStatementsPlural": "",
