@@ -8,6 +8,58 @@ import type { AxeMatchers } from "vitest-axe/matchers";
 // interop clean under vitest 4 + node ESM.
 expect.extend(axeMatchers);
 
+// Storage polyfill for vitest 4 + jsdom 29 + Node 22. Node 22's
+// experimental built-in `localStorage` requires `--localstorage-file`
+// to be passed at the runtime level; without it, `window.localStorage`
+// is undefined inside the jsdom environment. Tests that assert against
+// browser storage (auth, workspace cache, command palette state) therefore
+// crash on the first `localStorage.x()` call.
+//
+// The shim below installs an in-memory `Storage` implementation on both
+// `window` and `globalThis` when one is missing. The behavioural surface
+// mirrors the browser contract — `clear`, `getItem`, `setItem`,
+// `removeItem`, `length`, indexed `key()` — so consumer code reads the
+// same way under jsdom as it does in production. Each test gets a fresh
+// shim slate via the `beforeEach` hook below; tests that need a
+// pre-populated storage hydrate explicitly with `setItem`.
+class MemoryStorage implements Storage {
+  private data = new Map<string, string>();
+  get length(): number {
+    return this.data.size;
+  }
+  clear(): void {
+    this.data.clear();
+  }
+  getItem(key: string): string | null {
+    return this.data.has(key) ? (this.data.get(key) as string) : null;
+  }
+  key(index: number): string | null {
+    return Array.from(this.data.keys())[index] ?? null;
+  }
+  removeItem(key: string): void {
+    this.data.delete(key);
+  }
+  setItem(key: string, value: string): void {
+    this.data.set(key, String(value));
+  }
+}
+
+function installStorageShimIfMissing(slot: "localStorage" | "sessionStorage"): void {
+  const target = globalThis as unknown as Record<string, Storage>;
+  if (!target[slot]) {
+    target[slot] = new MemoryStorage();
+  }
+  if (typeof window !== "undefined") {
+    const w = window as unknown as Record<string, Storage>;
+    if (!w[slot]) {
+      w[slot] = target[slot];
+    }
+  }
+}
+
+installStorageShimIfMissing("localStorage");
+installStorageShimIfMissing("sessionStorage");
+
 // `prefers-reduced-motion: reduce` mocked globally. JSDOM ships a stub
 // `requestAnimationFrame` that never flushes — components that animate
 // (NumberTicker, fade-ins, stagger reveals) would otherwise render
