@@ -34,6 +34,6 @@ Or use the project-level dev manager:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ONTOSYX_API_URL` | `http://localhost:3001/api` | Backend API URL |
+| `ONTOSYX_API_URL` | `http://localhost:3101/api` | Backend API URL |
 | `OX_API_KEY` | — | API key for dev mode (injected by proxy) |
 | `PORT` | `3100` | Dev server port |

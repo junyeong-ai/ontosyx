@@ -29,12 +29,12 @@
     "ontology_draft_stale_parent": "이 초안은 v{parent_version} 에서 분기되었지만 대표 온톨로지가 v{current_version} 으로 진행되었습니다. 완료 전 새 head 로 rebase 하세요 — 지금 커밋하면 그동안의 변경 사항이 모르게 덮어쓰여집니다.",
     "ontology_draft_stale_parent_canonical_wiped": "초안이 분기된 대표 온톨로지가 사라졌습니다. 같은 초안을 그대로 커밋할 수 없으며, 현재 대표 온톨로지에서 새 초안을 만들어 작업을 옮겨야 합니다.",
     "ontology_invariant_violation": "온톨로지 무결성 검증 실패. 아래 항목을 해결한 뒤 다시 시도하세요.",
+    "source_contract_mismatch": "매핑 {violation_count}건이 캡처된 소스 컨트랙트에 없는 릴레이션 또는 컬럼을 참조합니다. 소스를 다시 introspect 하거나 매핑을 수정한 뒤 재시도하세요.",
     "edit_operation_rejected": "편집 작업이 거부되었습니다. {detail}",
     "ontology_not_committed": "온톨로지 '{lineage_id}' 가 아직 커밋되지 않았습니다. 먼저 저장한 뒤 다시 시도하세요.",
     "deploy_pending_approval": "스키마 배포가 관리자 승인 대기 중입니다. 검토 후 다시 시도해 주세요.",
     "ontology_draft_missing_source_schema": "초안에 소스 스키마가 없습니다. {detail}",
     "query_text_empty": "검색어를 입력하세요.",
-    "temporal_query_requires_ontology": "시간 여행 쿼리(`as_of`)는 추적할 온톨로지를 지정해야 합니다.",
     "temporal_snapshot_missing": "{lineage_id} 온톨로지의 {as_of} 시점 버전을 찾을 수 없습니다. 가장 오래된 버전이 그 이후에 커밋되었거나 해당 버전이 제거되었습니다.",
     "query_execution_failed": "쿼리 실행 중 오류가 발생했습니다. {detail}",
     "query_compilation_failed": "쿼리 컴파일에 실패했습니다. {detail}",
@@ -75,6 +75,7 @@
     "idempotency_streaming_unsupported": "스트리밍 엔드포인트({path})는 Idempotency-Key를 사용할 수 없습니다. 헤더를 제거하고 클라이언트에서 재시도를 처리하세요.",
     "idempotency_key_reused": "이 Idempotency-Key는 이미 다른 요청 본문으로 사용되었습니다. 새로운 키를 생성한 후 다시 시도하세요.",
     "idempotency_request_body_too_large": "요청 본문이 Idempotency 캐시 한도({limit} 바이트)를 초과합니다. 요청을 분할하세요.",
+    "api_response_invalid": "서버가 올바르지 않은 API 응답을 반환했습니다. 새로고침 후 다시 시도하세요.",
     "role_required": "{role, select, admin {관리자 권한} designer {디자이너 또는 관리자 권한} other {{role} 권한}}이 필요한 작업입니다.",
     "webhook_url_invalid": "{reason, select, parse_failed {Webhook URL 형식이 올바르지 않습니다.} bad_scheme {Webhook URL은 http 또는 https 스킴이어야 합니다.} internal_network {Webhook URL은 내부 네트워크 주소를 사용할 수 없습니다.} other {Webhook URL이 올바르지 않습니다.}}",
     "credential_resolve_failed": "{scheme, select, env {환경변수} file {파일 시크릿} gcp_secret {GCP Secret Manager} other {시크릿}} 해석에 실패했습니다 ({kind}). {detail}",
@@ -240,7 +241,7 @@
       },
       "disabled": {
         "valueRange": "값 범위 바인딩은 값을 분류만 합니다 — 강도는 적용되지 않습니다",
-        "glossary": "용어집 바인딩은 의미 연결만 표현합니다 — 강도는 적용되지 않습니다"
+        "concept": "개념 바인딩은 의미 연결만 표현합니다 — 강도는 적용되지 않습니다"
       }
     }
   },
@@ -340,14 +341,6 @@
           }
         }
       }
-    },
-    "glossaryAnchorPicker": {
-      "addAction": "용어 연결 추가",
-      "searchPlaceholder": "용어 검색…",
-      "noMatches": "일치하는 용어가 없습니다",
-      "emptyReadOnly": "연결된 용어가 없습니다",
-      "removeAria": "용어 연결 해제 ({id})",
-      "missingTooltip": "용어 사전에 존재하지 않는 ID: {id}"
     },
     "integrityIssues": {
       "heading": "참조 정합성 경고 ({count})",
@@ -604,14 +597,14 @@
       }
     },
     "binding": {
-      "linkTooltip": "용어 연결",
-      "linkAria": "이 속성을 용어집 용어에 연결",
+      "linkTooltip": "개념 연결",
+      "linkAria": "이 속성을 개념에 연결",
       "unlinkTooltip": "{term}에 연결됨 — 해제하려면 클릭",
       "unlinkAria": "{term} 연결 해제",
-      "suggestionsLabel": "추천 용어",
+      "suggestionsLabel": "추천 개념",
       "loading": "추천을 불러오는 중…",
       "fetchFailed": "추천을 가져올 수 없습니다",
-      "noSuggestions": "일치하는 용어가 없습니다 — 속성 이름을 조정하거나 용어를 먼저 추가하세요",
+      "noSuggestions": "일치하는 개념이 없습니다 — 속성 이름을 조정하거나 개념 라벨을 먼저 추가하세요",
       "applying": "적용 중…",
       "applyFailed": "연결에 실패했습니다",
       "linkedToast": "{term}에 연결됨",
@@ -772,6 +765,7 @@
       "required": "필수 입력 항목입니다.",
       "idFormat": "ID 는 영문자로 시작해야 하며, 영숫자/콜론/언더스코어/하이픈만 허용됩니다.",
       "validityWindow": "valid_to 는 valid_from 이후여야 합니다.",
+      "rangeOrder": "최댓값은 최솟값보다 크거나 같아야 합니다.",
       "outOfRange": "범위를 벗어났습니다.",
       "invalidDate": "유효한 날짜를 입력하세요."
     },
@@ -929,7 +923,7 @@
     },
     "metric": {
       "anchor_match_rate": "스키마 앵커 매칭률이 {value}(으)로 하락 (임계값 {threshold} 미만).",
-      "glossary_hit_rate": "용어집 히트율이 {value}(으)로 하락 (임계값 {threshold} 미만).",
+      "concept_hit_rate": "개념 히트율이 {value}(으)로 하락 (임계값 {threshold} 미만).",
       "clarification_success_rate": "되묻기 성공률이 {value}(으)로 하락 (임계값 {threshold} 미만).",
       "query_reproducibility": "쿼리 재현성이 {value}(으)로 하락 (임계값 {threshold} 미만).",
       "shacl_pass_rate": "SHACL 통과율이 {value}(으)로 하락 (임계값 {threshold} 미만).",
@@ -1076,6 +1070,7 @@
       }
     },
     "skipLinks": {
+      "label": "건너뛰기 링크",
       "toMain": "본문으로 건너뛰기",
       "toSidebar": "내비게이션으로 건너뛰기",
       "toInspector": "인스펙터로 건너뛰기"
@@ -1433,6 +1428,22 @@
         "badges": {
           "override": "오버라이드"
         },
+        "changeTypes": {
+          "coded_value_create": "코드값 생성",
+          "coded_value_deprecate": "코드값 폐기",
+          "terminology_registry_update": "용어 레지스트리 업데이트",
+          "semantic_binding_update": "시맨틱 바인딩 업데이트",
+          "notation_pattern_create": "표기 패턴 업데이트",
+          "customer_segment_create": "고객 세그먼트 업데이트",
+          "column_rename": "컬럼 이름 변경",
+          "table_merge": "테이블 병합",
+          "data_source_register": "데이터 소스 등록",
+          "stale_concept_deprecate": "오래된 개념 폐기",
+          "ontology_version_rollback": "온톨로지 버전 롤백",
+          "rule_create": "규칙 생성",
+          "rule_modify": "규칙 수정",
+          "rule_delete": "규칙 삭제"
+        },
         "routingKinds": {
           "auto_approve": "자동 승인 (알림 없음)",
           "auto_approve_with_notification": "자동 승인 + 알림",
@@ -1734,9 +1745,8 @@
           "kind": "유형",
           "kindOptions": {
             "internal": "내부 (워크스페이스 정의)",
-            "international": "국제 표준",
-            "standard": "공식 표준",
-            "custom": "사용자 정의"
+            "external": "외부 레지스트리",
+            "sourceRef": "원천 레퍼런스"
           },
           "hierarchical": "계층 구조",
           "hierarchicalDescription": "코드 간 부모-자식 관계가 있는 분류 체계인 경우 활성화하세요.",
@@ -1797,9 +1807,33 @@
           "description": "설명",
           "template": "템플릿",
           "separator": "구분자",
+          "components": "컴포넌트",
+          "componentsAdd": "컴포넌트 추가",
+          "componentsEmptyTitle": "정의된 컴포넌트가 없습니다",
+          "componentsEmptyDescription": "이 표기 패턴을 파싱할 순서형 컴포넌트를 추가하세요.",
           "sections": {
             "identity": "식별 정보",
-            "template": "템플릿"
+            "template": "템플릿",
+            "components": "컴포넌트"
+          },
+          "component": {
+            "name": "이름",
+            "display": "표시 이름",
+            "kind": "종류",
+            "kindOptions": {
+              "code_from_set": "값 집합 코드",
+              "integer_range": "정수 범위",
+              "alphanumeric": "영숫자",
+              "free_text": "자유 텍스트"
+            }
+          },
+          "componentKind": {
+            "valueSetId": "값 집합",
+            "min": "최솟값",
+            "max": "최댓값",
+            "width": "자릿수",
+            "uppercase": "대문자",
+            "maxLen": "최대 길이"
           }
         }
       },
@@ -1844,6 +1878,16 @@
           "compositionAdd": "합성 규칙 추가",
           "compositionEmptyTitle": "정의된 합성 규칙이 없습니다",
           "compositionEmptyDescription": "어떤 코드 시스템의 코드를 포함/제외할지 추가하세요.",
+          "selector": "선택자",
+          "codes": "코드",
+          "codePlaceholder": "ACTIVE",
+          "rootIdPlaceholder": "cv-active",
+          "selectorOptions": {
+            "all": "전체 코드",
+            "explicit": "명시 코드",
+            "descendants_of": "하위 코드",
+            "code_pattern": "코드 패턴"
+          },
           "sections": {
             "identity": "식별 정보",
             "metadata": "메타데이터",
@@ -1892,10 +1936,28 @@
           "version": "버전",
           "sourceSystemId": "원본 코드 시스템",
           "targetSystemId": "대상 코드 시스템",
+          "mappings": "매핑",
+          "mappingsAdd": "매핑 추가",
+          "mappingsEmptyTitle": "정의된 매핑이 없습니다",
+          "mappingsEmptyDescription": "원본 코드에서 대상 코드로의 번역을 추가하세요.",
           "sections": {
             "identity": "식별 정보",
             "metadata": "메타데이터",
-            "systems": "코드 시스템"
+            "systems": "코드 시스템",
+            "mappings": "매핑"
+          },
+          "mapping": {
+            "sourceCode": "원본 코드",
+            "targetCode": "대상 코드",
+            "equivalence": "동등성",
+            "comment": "설명",
+            "equivalenceOptions": {
+              "equivalent": "동등",
+              "narrower_than_target": "대상이 더 좁음",
+              "broader_than_target": "대상이 더 넓음",
+              "related": "관련",
+              "disjoint": "불일치"
+            }
           }
         },
         "rowSummary": "{name} · v{version}"
@@ -2004,7 +2066,14 @@
             "unique_lang": "Unique lang",
             "closed": "Closed shape",
             "disjoint": "Disjoint",
-            "unique_key": "Unique key"
+            "unique_key": "Unique key",
+            "less_than": "Less than",
+            "equals": "Equals",
+            "or": "Or",
+            "and": "And",
+            "not": "Not",
+            "xone": "Exactly one",
+            "qualified_value_shape": "Qualified value shape"
           },
           "fields": {
             "target": "대상",
@@ -2020,7 +2089,14 @@
             "disjointA": "속성 A",
             "disjointB": "속성 B",
             "nodeType": "노드 타입 id",
-            "propertyKeys": "속성 키"
+            "otherProperty": "다른 속성 id",
+            "propertyKeys": "속성 키",
+            "branches": "분기",
+            "inner": "내부 제약",
+            "shape": "Shape",
+            "qualifiedMinCount": "Qualified min count",
+            "qualifiedMaxCount": "Qualified max count",
+            "emptyBranches": "아직 분기 제약이 없습니다."
           },
           "targetKinds": {
             "inherit": "상속 (규칙 자체의 target 사용)",
@@ -2143,23 +2219,23 @@
         }
       }
     },
-    "glossaryBinding": {
-      "pageTitle": "용어 일괄 바인딩",
-      "pageSubtitle": "용어와 별칭을 입력하면 현재 온톨로지의 모든 속성을 점수화합니다. 승인된 매칭은 하나의 /edits 배치로 커밋됩니다.",
+    "conceptBinding": {
+      "pageTitle": "개념 일괄 바인딩",
+      "pageSubtitle": "개념 표기를 선택하면 현재 온톨로지의 모든 속성을 점수화합니다. 승인된 매칭은 하나의 /edits 배치로 커밋됩니다.",
       "noOntology": "대표 온톨로지가 없습니다. 일괄 바인딩 전에 디자인 모드에서 하나를 만들어야 합니다.",
       "embedded": {
-        "targetLabel": "점수 기준 용어",
+        "targetLabel": "점수 기준 개념",
         "rescore": "재점수화"
       },
       "fields": {
         "term": {
-          "label": "용어",
+          "label": "개념 표기",
           "placeholder": "VIP 등급"
         },
         "termId": {
           "label": "용어 ID",
           "placeholder": "g-vip-tier",
-          "hint": "바인딩 저장에 필수 — 저장된 GlossaryTermDef의 ID. 비워두면 점수 미리보기만."
+          "hint": "바인딩 저장에 필수 — 저장된 개념 표기의 ID. 비워두면 점수 미리보기만."
         },
         "aliases": {
           "label": "별칭 (쉼표 구분)",
@@ -2183,7 +2259,7 @@
         "signals": "시그널"
       },
       "rowAria": "{owner}.{property}를 바인딩 대상으로 선택",
-      "empty": "임계값을 넘는 후보가 없습니다. 용어/별칭/설명을 조정하고 다시 점수를 계산하세요.",
+      "empty": "임계값을 넘는 후보가 없습니다. 표기/별칭/설명을 조정하고 다시 점수를 계산하세요.",
       "toast": {
         "applied": "{n}개 바인딩이 커밋됨",
         "failed": "바인딩 커밋 실패"
@@ -2222,6 +2298,7 @@
         "models": "모델",
         "prompts": "프롬프트",
         "quality": "품질",
+        "graphrag": "GraphRAG",
         "evaluation": "평가",
         "runs": "실행",
         "datasets": "데이터셋",
@@ -2573,7 +2650,7 @@
     "knowledge": {
       "federation": {
         "title": "연합 데이터 소스",
-        "description": "VOL 질의에 사용할 CSV/JSON 및 PostgreSQL/MySQL/BigQuery 어댑터를 관리합니다. 등록은 `data_sources` 테이블에 영속화됩니다.",
+        "description": "VOL 질의에 사용할 CSV/JSON 및 PostgreSQL/MySQL 어댑터를 관리합니다. 등록은 `data_sources` 테이블에 영속화됩니다.",
         "adminOnly": "연합 어댑터 관리에는 관리자 권한이 필요합니다.",
         "empty": "등록된 어댑터가 없습니다.",
         "list": {
@@ -2601,11 +2678,10 @@
           "json": "JSON (인라인)",
           "postgres": "PostgreSQL",
           "mysql": "MySQL",
-          "bigquery": "BigQuery",
           "data": "데이터",
           "dataPlaceholder": "인라인 CSV/JSON 페이로드",
           "connectionString": "연결 문자열",
-          "connectionStringPlaceholder": "postgres://user:pass@host/db 또는 bigquery://project/dataset",
+          "connectionStringPlaceholder": "postgres://user:pass@host/db",
           "schemaName": "스키마",
           "schemaNamePlaceholder": "public",
           "useSecretRef": "환경변수 참조 사용",
@@ -2752,6 +2828,7 @@
         "llm": {
           "title": "LLM 제공자",
           "description": "온톨로지 설계, 쿼리 번역, 설명에 사용되는 언어 모델",
+          "status": "상태",
           "provider": "제공자",
           "model": "모델"
         },
@@ -2767,6 +2844,7 @@
           "ok": "정상",
           "degraded": "성능 저하",
           "unavailable": "사용 불가",
+          "configured": "구성됨",
           "connected": "연결됨"
         },
         "toast": {
@@ -2823,7 +2901,7 @@
           "configUpdateFailed": "모델 구성 수정에 실패했습니다",
           "configDeleteFailed": "모델 구성 삭제에 실패했습니다",
           "toggleFailed": "모델 활성 상태 변경에 실패했습니다",
-          "testSuccess": "{ms}ms 만에 응답했습니다",
+          "testSuccess": "{message}",
           "testFailed": "테스트 실패: {error}",
           "testError": "모델 테스트에 실패했습니다",
           "ruleCreated": "라우팅 규칙이 생성되었습니다",
@@ -2941,7 +3019,9 @@
         "submit": "생성",
         "submitting": "생성 중…",
         "successToast": "실행 `{name}` 생성 완료",
-        "errorToast": "생성 실패: {error}"
+        "errorToast": "생성 실패: {error}",
+        "fingerprintGuidance": "모든 실행은 재현성 핑거프린트(데이터셋, 모델, 온톨로지 버전)를 고정합니다. 데이터셋 페이지에서 특정 데이터셋 기반으로 실행을 생성하세요.",
+        "openDatasets": "데이터셋 열기"
       },
       "table": {
         "name": "실행",
@@ -3059,7 +3139,7 @@
           "questionPlaceholder": "이번 분기 가장 많이 판매된 제품을 알려주세요",
           "topKLabel": "Top-K",
           "anchorIdsLabel": "골드 앵커 ID",
-          "anchorIdsPlaceholder": "node_type:Customer, glossary_term:gt-vip",
+          "anchorIdsPlaceholder": "node_type:Customer, concept:c-vip",
           "submit": "실행",
           "submitting": "실행 중…",
           "successToast": "케이스 `{caseKey}` 실행 완료",
@@ -3130,6 +3210,8 @@
             "description": "새 실행이 데이터셋의 모든 아이템을 `item_key` 로 evaluation case 에 복제합니다. 실행 이름만 입력하세요; case-execute 준비 상태(Running) 로 시작합니다.",
             "namePlaceholder": "rag-baseline-v1 실행",
             "noItems": "실행을 만들려면 먼저 데이터셋에 아이템을 추가하세요",
+            "noOntology": "워크스페이스에 대표 온톨로지가 없습니다 — 실행 생성 전 온톨로지를 먼저 커밋하세요.",
+            "noModel": "활성화된 모델 설정이 없습니다 — 설정 → 모델 페이지에서 먼저 모델을 등록하세요.",
             "successToast": "실행 `{name}` 생성 완료 — {count} 개 케이스 준비",
             "errorToast": "실행 생성 실패: {error}"
           }
@@ -3179,6 +3261,22 @@
         }
       }
     },
+    "graphrag": {
+      "title": "GraphRAG 커뮤니티",
+      "subtitle": "Leiden 알고리즘으로 검출된 커뮤니티 클러스터와 LLM 요약 — 검색 단계에서 fan-out 컨텍스트로 활용됩니다.",
+      "search": {
+        "placeholder": "제목·요약에서 검색…",
+        "ariaLabel": "커뮤니티 요약 검색"
+      },
+      "list": {
+        "level": "레벨 {n}",
+        "members": "멤버 {n}",
+        "generatedAt": "생성 {ts}",
+        "empty": "아직 커뮤니티가 검출되지 않았습니다. 캐노니컬 커밋과 백그라운드 community-detection sweep 이후 표시됩니다.",
+        "searchEmpty": "검색 결과가 없습니다.",
+        "loadFailed": "커뮤니티 목록을 불러오지 못했습니다."
+      }
+    },
     "quality": {
       "signals": {
         "title": "온톨로지 품질 — 지표",
@@ -3196,9 +3294,9 @@
             "label": "Anchor 매칭률",
             "description": "질문의 상위 앵커 점수가 0.5 이상인 비율 — 온톨로지 색인이 관련 진입점을 성공적으로 노출한 정도."
           },
-          "glossary_hit_rate": {
-            "label": "Glossary 히트율",
-            "description": "NL→Cypher 번역 과정에서 용어 사전이 실제로 참조된 쿼리의 비율."
+          "concept_hit_rate": {
+            "label": "개념 히트율",
+            "description": "NL→Cypher 번역 과정에서 canonical concept가 하나 이상 사용된 쿼리의 비율."
           },
           "clarification_success_rate": {
             "label": "되묻기 이후 성공률",
@@ -3386,7 +3484,7 @@
           "mode": {
             "value_map": "값 매핑",
             "code_system_ref": "코드 시스템",
-            "glossary_ref": "용어"
+            "concept_ref": "개념"
           },
           "valueHeader": "원시 값",
           "displayHeader": "표시",
@@ -3398,8 +3496,8 @@
           "addRow": "값 추가",
           "codeSystemIdLabel": "코드 시스템 ID",
           "codeSystemHint": "온톨로지에 존재하는 CodeSystemDef를 참조해야 합니다.",
-          "termIdLabel": "용어 ID",
-          "termHint": "온톨로지에 존재하는 GlossaryTermDef를 참조해야 합니다.",
+          "conceptIdLabel": "개념 ID",
+          "conceptHint": "온톨로지에 존재하는 ConceptDef를 참조해야 합니다.",
           "repoHintLabel": "저장소 힌트 — 소스 코드에서 감지됨",
           "cancel": "취소",
           "save": "결정 저장",
@@ -3407,7 +3505,7 @@
           "errors": {
             "valueMapEmpty": "값 → 표시 쌍을 하나 이상 추가하세요",
             "codeSystemRequired": "코드 시스템 ID가 필요합니다",
-            "termRequired": "용어 ID가 필요합니다"
+            "conceptRequired": "개념 ID가 필요합니다"
           }
         }
       },
@@ -3680,7 +3778,7 @@
       },
       "ambiguityBanner": {
         "title": "의미 불명 컬럼 발견",
-        "description": "분석기가 해석하지 못한 컬럼입니다. 값 매핑·코드 시스템·용어집 중 하나로 즉시 매칭하거나, 아래 트리에서 용어를 먼저 정의하세요.",
+        "description": "분석기가 해석하지 못한 컬럼입니다. 값 매핑·코드 시스템·개념 중 하나로 즉시 매칭하거나, 아래 트리에서 개념 표기를 먼저 정의하세요.",
         "columnLabel": "컬럼",
         "contextLabel": "컨텍스트",
         "resolve": "매핑하기…",
@@ -3813,8 +3911,9 @@
         "definition": {
           "descriptionLabel": "설명",
           "descriptionPlaceholder": "이 개념을 한 문장으로 설명하세요…",
-          "anchorsLabel": "용어 사전 연결",
-          "anchorsHint": "이 노드 타입이 표현하는 비즈니스 개념을 용어 사전에서 선택합니다.",
+          "conceptLabel": "개념",
+          "conceptHint": "이 노드 타입이 구현하는 표준 비즈니스 개념입니다.",
+          "noConcept": "지정된 개념 없음",
           "sourceLineageLabel": "원천 테이블"
         },
         "properties": {
@@ -3855,7 +3954,7 @@
           "summary": "준비도 {passed}/{total}",
           "checks": {
             "description": "설명이 작성되었습니다",
-            "anchors": "용어 사전 연결이 있습니다",
+            "concept": "개념이 지정되었습니다",
             "properties": "속성이 정의되었습니다",
             "mapping": "물리 매핑이 있습니다",
             "sourceLineage": "원천 테이블이 연결되었습니다"
@@ -3864,7 +3963,7 @@
         "sections": {
           "definition": {
             "title": "정의",
-            "subtitle": "이 개념의 식별자, 설명, 용어 사전 연결"
+            "subtitle": "이 개념의 식별자, 설명, 표준 개념"
           },
           "properties": {
             "title": "속성",
@@ -3904,8 +4003,9 @@
       "definition": {
         "descriptionLabel": "설명",
         "descriptionPlaceholder": "이 개념을 한 문장으로 설명하세요…",
-        "anchorsLabel": "용어 사전 연결",
-        "anchorsHint": "이 엔티티가 표현하는 비즈니스 개념을 선택하세요.",
+        "conceptLabel": "개념",
+        "conceptHint": "이 엔티티가 구현하는 표준 비즈니스 개념입니다.",
+        "noConcept": "지정된 개념 없음",
         "aiAssistTooltip": "AI로 설명 개선"
       },
       "properties": {
@@ -4041,7 +4141,7 @@
       "deleteFailed": "인사이트 삭제에 실패했습니다",
       "filterByConcept": "개념별:",
       "filterClear": "초기화",
-      "conceptAnchorTooltip": "용어 사전 개념 — 같은 개념의 다른 인사이트를 찾으려면 위 칩을 누르세요",
+      "conceptAnchorTooltip": "개념 — 같은 개념의 다른 인사이트를 찾으려면 위 칩을 누르세요",
       "save": {
         "title": "인사이트로 저장",
         "subtitle": "현재 쿼리와 응답 컨텍스트를 재실행 가능한 인사이트로 보존합니다.",
@@ -4053,8 +4153,8 @@
         "tagsLabel": "태그 (선택, 쉼표로 구분)",
         "tagsPlaceholder": "예: trend, customer, quarterly",
         "conceptAnchorsLabel": "개념 연결 (선택, 쉼표로 구분)",
-        "conceptAnchorsPlaceholder": "예: gt-customer, gt-retention",
-        "conceptAnchorsHint": "용어 사전의 GlossaryTerm ID 를 연결하면 개념 기준으로 인사이트를 검색·필터할 수 있습니다.",
+        "conceptAnchorsPlaceholder": "예: c-customer, c-retention",
+        "conceptAnchorsHint": "ConceptId 값을 연결하면 개념 기준으로 인사이트를 검색·필터할 수 있습니다.",
         "cancel": "취소",
         "save": "저장",
         "saving": "저장 중…",
@@ -4210,8 +4310,8 @@
         "viewInResults": "결과 패널에서 보기",
         "compiledCypherLabel": "실행된 Cypher",
         "ambiguity": {
-          "heading": "{count, plural, =0 {} other {용어 미할당 컬럼 #개 — 용어집에서 매칭하세요}}",
-          "chipTooltip": "{relation}.{column} 매칭을 위해 용어집 열기"
+          "heading": "{count, plural, =0 {} other {개념 미할당 컬럼 #개 — 용어집에서 개념을 매칭하세요}}",
+          "chipTooltip": "{relation}.{column} 개념 매칭을 위해 용어집 열기"
         },
         "hitl": {
           "description": "이 도구는 실행 전 승인이 필요합니다.",
@@ -4396,7 +4496,35 @@
         "selectAll": "모두 선택",
         "deselectAll": "모두 해제",
         "applyAll": "모두 적용",
-        "apply": "{count}개 적용"
+        "apply": "{count}개 적용",
+        "command": {
+          "addNode": "노드 {label} 추가",
+          "createNodeType": "노드 타입 {label} 생성",
+          "deleteNode": "노드 {label} 삭제",
+          "renameNode": "{label}을(를) {newLabel}(으)로 이름 변경",
+          "updateNodeDescription": "{label} 노드 설명 수정",
+          "addEdge": "{source}에서 {target}(으)로 엣지 {label} 추가",
+          "createEdgeType": "{source}에서 {target}(으)로 엣지 타입 {label} 생성",
+          "deleteEdge": "엣지 {label} 삭제",
+          "renameEdge": "{label}을(를) {newLabel}(으)로 이름 변경",
+          "updateEdgeCardinality": "{label} 카디널리티를 {cardinality}(으)로 수정",
+          "updateEdgeDescription": "{label} 엣지 설명 수정",
+          "addProperty": "{owner}에 속성 {name} 추가",
+          "deleteProperty": "{owner}에서 속성 {name} 삭제",
+          "updateProperty": "{owner}의 속성 {name} 수정",
+          "addConstraint": "{label}에 제약 추가",
+          "removeConstraint": "{label}에서 제약 제거",
+          "addIndex": "{label}에 인덱스 추가",
+          "removeIndex": "인덱스 {id} 제거",
+          "createObjectMapping": "{relation} 객체 매핑 생성",
+          "updateObjectMapping": "{relation} 객체 매핑 수정",
+          "deleteObjectMapping": "객체 매핑 {id} 삭제",
+          "createLinkMapping": "링크 매핑 {id} 생성",
+          "updateLinkMapping": "링크 매핑 {id} 수정",
+          "deleteLinkMapping": "링크 매핑 {id} 삭제",
+          "batch": "명령 {count}개 배치",
+          "unknown": "알 수 없는 명령"
+        }
       },
       "neighborhood": {
         "label": "이웃",

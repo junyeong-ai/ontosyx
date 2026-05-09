@@ -29,12 +29,12 @@
     "ontology_draft_stale_parent": "This ontology draft branched from v{parent_version}, but the canonical has advanced to v{current_version}. Rebase onto the new head before completing — committing now would silently overwrite intervening changes.",
     "ontology_draft_stale_parent_canonical_wiped": "The canonical this draft branched from no longer exists. Start a fresh draft from the current canonical and migrate your changes — the original draft cannot be committed safely.",
     "ontology_invariant_violation": "Ontology integrity check failed. Resolve the items below and retry.",
+    "source_contract_mismatch": "{violation_count} mapping(s) reference relations or columns that are not in the captured source contracts. Re-introspect the source or correct the mapping, then retry.",
     "edit_operation_rejected": "An edit operation was rejected. {detail}",
     "ontology_not_committed": "Ontology '{lineage_id}' has no committed version yet. Save it first and retry.",
     "deploy_pending_approval": "Schema deployment is awaiting admin approval. Retry after the review completes.",
     "ontology_draft_missing_source_schema": "The ontology draft has no source schema. {detail}",
     "query_text_empty": "Type something to search.",
-    "temporal_query_requires_ontology": "Temporal queries (`as_of`) need an ontology id so the server can resolve the lineage to walk back through.",
     "temporal_snapshot_missing": "No version was live at {as_of} for lineage '{lineage_id}'. The earliest committed version came after that timestamp, or the version was removed.",
     "query_execution_failed": "Query execution failed. {detail}",
     "query_compilation_failed": "Query compilation failed. {detail}",
@@ -75,6 +75,7 @@
     "idempotency_streaming_unsupported": "Streaming endpoint ({path}) doesn't support Idempotency-Key. Drop the header and handle retries client-side.",
     "idempotency_key_reused": "This Idempotency-Key was previously used with a different request body. Mint a new key and try again.",
     "idempotency_request_body_too_large": "Request body exceeds the idempotency cache limit ({limit} bytes). Split the request.",
+    "api_response_invalid": "The server returned an invalid API response. Refresh and try again.",
     "role_required": "This action requires {role, select, admin {admin privileges} designer {designer or admin privileges} other {{role} privileges}}.",
     "webhook_url_invalid": "{reason, select, parse_failed {The webhook URL is malformed.} bad_scheme {Webhook URL must use http or https.} internal_network {Webhook URL cannot target an internal network address.} other {The webhook URL is invalid.}}",
     "credential_resolve_failed": "Couldn't resolve {scheme, select, env {environment-variable} file {file} gcp_secret {GCP Secret Manager} other {secret}} reference ({kind}). {detail}",
@@ -240,7 +241,7 @@
       },
       "disabled": {
         "valueRange": "Value-range bindings classify values only — strength does not apply",
-        "glossary": "Glossary bindings express semantic links only — strength does not apply"
+        "concept": "Concept bindings express semantic links only — strength does not apply"
       }
     }
   },
@@ -340,14 +341,6 @@
           }
         }
       }
-    },
-    "glossaryAnchorPicker": {
-      "addAction": "Add anchor",
-      "searchPlaceholder": "Search terms…",
-      "noMatches": "No matching terms",
-      "emptyReadOnly": "No anchors set",
-      "removeAria": "Remove anchor ({id})",
-      "missingTooltip": "Term id not found in glossary: {id}"
     },
     "integrityIssues": {
       "heading": "Referential integrity warnings ({count})",
@@ -604,14 +597,14 @@
       }
     },
     "binding": {
-      "linkTooltip": "Link to glossary term",
-      "linkAria": "Link this property to a glossary term",
+      "linkTooltip": "Link to concept",
+      "linkAria": "Link this property to a concept",
       "unlinkTooltip": "Bound to {term} — click to unbind",
       "unlinkAria": "Unbind from {term}",
-      "suggestionsLabel": "Suggested glossary terms",
+      "suggestionsLabel": "Suggested concepts",
       "loading": "Loading suggestions…",
       "fetchFailed": "Could not fetch suggestions",
-      "noSuggestions": "No matching terms — try renaming the property or adding a glossary entry",
+      "noSuggestions": "No matching concepts — try renaming the property or adding a concept label",
       "applying": "Applying…",
       "applyFailed": "Binding failed",
       "linkedToast": "Bound to {term}",
@@ -772,6 +765,7 @@
       "required": "This field is required.",
       "idFormat": "ID must start with a letter; only alphanumerics, colon, underscore, hyphen allowed.",
       "validityWindow": "valid_to must be strictly after valid_from.",
+      "rangeOrder": "Maximum must be greater than or equal to minimum.",
       "outOfRange": "Value out of range.",
       "invalidDate": "Please enter a valid date."
     },
@@ -929,7 +923,7 @@
     },
     "metric": {
       "anchor_match_rate": "Schema anchor match rate dipped to {value} (below {threshold}).",
-      "glossary_hit_rate": "Glossary hit rate dipped to {value} (below {threshold}).",
+      "concept_hit_rate": "Concept hit rate dipped to {value} (below {threshold}).",
       "clarification_success_rate": "Clarification success rate dipped to {value} (below {threshold}).",
       "query_reproducibility": "Query reproducibility dipped to {value} (below {threshold}).",
       "shacl_pass_rate": "SHACL pass rate dipped to {value} (below {threshold}).",
@@ -1076,6 +1070,7 @@
       }
     },
     "skipLinks": {
+      "label": "Skip links",
       "toMain": "Skip to main content",
       "toSidebar": "Skip to navigation",
       "toInspector": "Skip to inspector"
@@ -1433,6 +1428,22 @@
         "badges": {
           "override": "Override"
         },
+        "changeTypes": {
+          "coded_value_create": "Coded value creation",
+          "coded_value_deprecate": "Coded value retirement",
+          "terminology_registry_update": "Terminology registry update",
+          "semantic_binding_update": "Semantic binding update",
+          "notation_pattern_create": "Notation pattern update",
+          "customer_segment_create": "Customer segment update",
+          "column_rename": "Column rename",
+          "table_merge": "Table merge",
+          "data_source_register": "Data source registration",
+          "stale_concept_deprecate": "Stale concept deprecation",
+          "ontology_version_rollback": "Ontology version rollback",
+          "rule_create": "Rule creation",
+          "rule_modify": "Rule modification",
+          "rule_delete": "Rule deletion"
+        },
         "routingKinds": {
           "auto_approve": "Auto-approve (no notification)",
           "auto_approve_with_notification": "Auto-approve + notify",
@@ -1734,9 +1745,8 @@
           "kind": "Kind",
           "kindOptions": {
             "internal": "Internal (workspace-defined)",
-            "international": "International standard",
-            "standard": "Official standard",
-            "custom": "Custom"
+            "external": "External registry",
+            "sourceRef": "Source reference"
           },
           "hierarchical": "Hierarchical",
           "hierarchicalDescription": "Enable when codes have parent-child taxonomy relationships.",
@@ -1797,9 +1807,33 @@
           "description": "Description",
           "template": "Template",
           "separator": "Separator",
+          "components": "Components",
+          "componentsAdd": "Add component",
+          "componentsEmptyTitle": "No components",
+          "componentsEmptyDescription": "Add the ordered components that parse this notation.",
           "sections": {
             "identity": "Identity",
-            "template": "Template"
+            "template": "Template",
+            "components": "Components"
+          },
+          "component": {
+            "name": "Name",
+            "display": "Display",
+            "kind": "Kind",
+            "kindOptions": {
+              "code_from_set": "Code from value set",
+              "integer_range": "Integer range",
+              "alphanumeric": "Alphanumeric",
+              "free_text": "Free text"
+            }
+          },
+          "componentKind": {
+            "valueSetId": "Value set",
+            "min": "Minimum",
+            "max": "Maximum",
+            "width": "Width",
+            "uppercase": "Uppercase",
+            "maxLen": "Maximum length"
           }
         }
       },
@@ -1844,6 +1878,16 @@
           "compositionAdd": "Add composition rule",
           "compositionEmptyTitle": "No composition rules",
           "compositionEmptyDescription": "Add include/exclude rules from existing code systems.",
+          "selector": "Selector",
+          "codes": "Codes",
+          "codePlaceholder": "ACTIVE",
+          "rootIdPlaceholder": "cv-active",
+          "selectorOptions": {
+            "all": "All codes",
+            "explicit": "Explicit codes",
+            "descendants_of": "Descendants of",
+            "code_pattern": "Code pattern"
+          },
           "sections": {
             "identity": "Identity",
             "metadata": "Metadata",
@@ -1892,10 +1936,28 @@
           "version": "Version",
           "sourceSystemId": "Source code system",
           "targetSystemId": "Target code system",
+          "mappings": "Mappings",
+          "mappingsAdd": "Add mapping",
+          "mappingsEmptyTitle": "No mappings",
+          "mappingsEmptyDescription": "Add source-to-target code translations.",
           "sections": {
             "identity": "Identity",
             "metadata": "Metadata",
-            "systems": "Code systems"
+            "systems": "Code systems",
+            "mappings": "Mappings"
+          },
+          "mapping": {
+            "sourceCode": "Source code",
+            "targetCode": "Target code",
+            "equivalence": "Equivalence",
+            "comment": "Comment",
+            "equivalenceOptions": {
+              "equivalent": "Equivalent",
+              "narrower_than_target": "Target is narrower",
+              "broader_than_target": "Target is broader",
+              "related": "Related",
+              "disjoint": "Disjoint"
+            }
           }
         },
         "rowSummary": "{name} · v{version}"
@@ -2004,7 +2066,14 @@
             "unique_lang": "Unique lang",
             "closed": "Closed shape",
             "disjoint": "Disjoint",
-            "unique_key": "Unique key"
+            "unique_key": "Unique key",
+            "less_than": "Less than",
+            "equals": "Equals",
+            "or": "Or",
+            "and": "And",
+            "not": "Not",
+            "xone": "Exactly one",
+            "qualified_value_shape": "Qualified value shape"
           },
           "fields": {
             "target": "Target",
@@ -2020,7 +2089,14 @@
             "disjointA": "Property A",
             "disjointB": "Property B",
             "nodeType": "Node type id",
-            "propertyKeys": "Property keys"
+            "otherProperty": "Other property id",
+            "propertyKeys": "Property keys",
+            "branches": "Branches",
+            "inner": "Inner constraint",
+            "shape": "Shape",
+            "qualifiedMinCount": "Qualified min count",
+            "qualifiedMaxCount": "Qualified max count",
+            "emptyBranches": "No branch constraints yet."
           },
           "targetKinds": {
             "inherit": "Inherit (use rule's own target)",
@@ -2143,23 +2219,23 @@
         }
       }
     },
-    "glossaryBinding": {
-      "pageTitle": "Glossary — Batch bindings",
-      "pageSubtitle": "Enter a glossary term and alias list; the engine scores every property in the current ontology and you commit the accepted matches in one /edits batch.",
+    "conceptBinding": {
+      "pageTitle": "Concept batch bindings",
+      "pageSubtitle": "Select a concept lexicalization; the engine scores every property in the current ontology and commits accepted matches in one /edits batch.",
       "noOntology": "No committed ontology available — create one in Design mode before batch-binding.",
       "embedded": {
-        "targetLabel": "Scoring against",
+        "targetLabel": "Scoring against concept",
         "rescore": "Re-score"
       },
       "fields": {
         "term": {
-          "label": "Term",
+          "label": "Concept label",
           "placeholder": "VIP tier"
         },
         "termId": {
           "label": "Term id",
           "placeholder": "g-vip-tier",
-          "hint": "Required to persist a binding — the id of the saved GlossaryTermDef. Leave blank to preview scores only."
+          "hint": "Required to persist a binding — the id of the saved concept lexicalization. Leave blank to preview scores only."
         },
         "aliases": {
           "label": "Aliases (comma-separated)",
@@ -2183,7 +2259,7 @@
         "signals": "Signals"
       },
       "rowAria": "Select {owner}.{property} for binding",
-      "empty": "No property candidates above the threshold — tweak the term / aliases / description and re-score.",
+      "empty": "No property candidates above the threshold — tweak the label, aliases, or description and re-score.",
       "toast": {
         "applied": "{n} binding(s) committed",
         "failed": "Binding commit failed"
@@ -2222,6 +2298,7 @@
         "models": "Models",
         "prompts": "Prompts",
         "quality": "Quality",
+        "graphrag": "GraphRAG",
         "evaluation": "Evaluation",
         "runs": "Runs",
         "datasets": "Datasets",
@@ -2573,7 +2650,7 @@
     "knowledge": {
       "federation": {
         "title": "Federation Adapters",
-        "description": "Manage CSV/JSON and PostgreSQL/MySQL/BigQuery adapters for VOL queries. Registrations persist to the `data_sources` table.",
+        "description": "Manage CSV/JSON and PostgreSQL/MySQL adapters for VOL queries. Registrations persist to the `data_sources` table.",
         "adminOnly": "Federation adapter management requires admin privileges.",
         "empty": "No adapters registered yet.",
         "list": {
@@ -2601,11 +2678,10 @@
           "json": "JSON (inline)",
           "postgres": "PostgreSQL",
           "mysql": "MySQL",
-          "bigquery": "BigQuery",
           "data": "Data",
           "dataPlaceholder": "Inline CSV/JSON payload",
           "connectionString": "Connection string",
-          "connectionStringPlaceholder": "postgres://user:pass@host/db or bigquery://project/dataset",
+          "connectionStringPlaceholder": "postgres://user:pass@host/db",
           "schemaName": "Schema",
           "schemaNamePlaceholder": "public",
           "useSecretRef": "Use env-var secret reference",
@@ -2752,6 +2828,7 @@
         "llm": {
           "title": "LLM Provider",
           "description": "Language model used for ontology design, query translation, and explanations",
+          "status": "Status",
           "provider": "Provider",
           "model": "Model"
         },
@@ -2767,6 +2844,7 @@
           "ok": "Healthy",
           "degraded": "Degraded",
           "unavailable": "Unavailable",
+          "configured": "Configured",
           "connected": "Connected"
         },
         "toast": {
@@ -2823,7 +2901,7 @@
           "configUpdateFailed": "Failed to update config",
           "configDeleteFailed": "Failed to delete config",
           "toggleFailed": "Failed to toggle model",
-          "testSuccess": "Model responded in {ms}ms",
+          "testSuccess": "{message}",
           "testFailed": "Test failed: {error}",
           "testError": "Failed to test model",
           "ruleCreated": "Routing rule created",
@@ -2941,7 +3019,9 @@
         "submit": "Create",
         "submitting": "Creating…",
         "successToast": "Run `{name}` created",
-        "errorToast": "Create failed: {error}"
+        "errorToast": "Create failed: {error}",
+        "fingerprintGuidance": "Every run pins a reproducibility fingerprint (dataset, model, ontology version). Open the Datasets page and create a run from a specific dataset there.",
+        "openDatasets": "Open datasets"
       },
       "table": {
         "name": "Run",
@@ -3059,7 +3139,7 @@
           "questionPlaceholder": "List the most popular products this quarter",
           "topKLabel": "Top-K",
           "anchorIdsLabel": "Gold anchor ids",
-          "anchorIdsPlaceholder": "node_type:Customer, glossary_term:gt-vip",
+          "anchorIdsPlaceholder": "node_type:Customer, concept:c-vip",
           "submit": "Run",
           "submitting": "Running…",
           "successToast": "Case `{caseKey}` executed",
@@ -3130,6 +3210,8 @@
             "description": "The new run clones every dataset item into an EvaluationCase keyed on `item_key`. Pin the run name; it lands in `Running` state ready for case-execute.",
             "namePlaceholder": "rag-baseline-v1 run",
             "noItems": "Add items to this dataset before materialising a run",
+            "noOntology": "Workspace has no canonical ontology yet — commit an ontology before materialising a run.",
+            "noModel": "No enabled model config found — register a model under Settings → Models before materialising a run.",
             "successToast": "Run `{name}` materialised — {count} cases ready",
             "errorToast": "Materialise failed: {error}"
           }
@@ -3179,6 +3261,22 @@
         }
       }
     },
+    "graphrag": {
+      "title": "GraphRAG Communities",
+      "subtitle": "Community clusters detected by Leiden + their LLM summaries — fanned into retrieval as context blends.",
+      "search": {
+        "placeholder": "Search title or summary…",
+        "ariaLabel": "Search community summaries"
+      },
+      "list": {
+        "level": "Level {n}",
+        "members": "{n} members",
+        "generatedAt": "Generated {ts}",
+        "empty": "No communities detected yet. They appear after a canonical commit + the background community-detection sweep runs.",
+        "searchEmpty": "No matches.",
+        "loadFailed": "Failed to load community summaries."
+      }
+    },
     "quality": {
       "signals": {
         "title": "Ontology Quality — Signals",
@@ -3196,9 +3294,9 @@
             "label": "Anchor match rate",
             "description": "Fraction of queries where the top anchor score ≥ 0.5 — the ontology index surfaced a relevant entry point."
           },
-          "glossary_hit_rate": {
-            "label": "Glossary hit rate",
-            "description": "Fraction of queries that consulted a glossary term during NL→Cypher translation."
+          "concept_hit_rate": {
+            "label": "Concept hit rate",
+            "description": "Fraction of queries that used at least one canonical concept during NL→Cypher translation."
           },
           "clarification_success_rate": {
             "label": "Clarification success rate",
@@ -3386,7 +3484,7 @@
           "mode": {
             "value_map": "Value map",
             "code_system_ref": "Code system",
-            "glossary_ref": "Glossary term"
+            "concept_ref": "Concept"
           },
           "valueHeader": "Raw value",
           "displayHeader": "Display",
@@ -3398,8 +3496,8 @@
           "addRow": "Add value",
           "codeSystemIdLabel": "Code system id",
           "codeSystemHint": "Must reference an existing CodeSystemDef in the ontology.",
-          "termIdLabel": "Glossary term id",
-          "termHint": "Must reference an existing GlossaryTermDef in the ontology.",
+          "conceptIdLabel": "Concept id",
+          "conceptHint": "Must reference an existing ConceptDef in the ontology.",
           "repoHintLabel": "Repo hint — detected in source",
           "cancel": "Cancel",
           "save": "Save resolution",
@@ -3407,7 +3505,7 @@
           "errors": {
             "valueMapEmpty": "Add at least one value → display pair",
             "codeSystemRequired": "Code system id is required",
-            "termRequired": "Glossary term id is required"
+            "conceptRequired": "Concept id is required"
           }
         }
       },
@@ -3680,7 +3778,7 @@
       },
       "ambiguityBanner": {
         "title": "Ambiguous column flagged",
-        "description": "A query touched a column the analyzer can't interpret. Resolve it inline by binding a value-map, code system, or glossary term — or pick a term in the tree below and define it first.",
+        "description": "A query touched a column the analyzer can't interpret. Resolve it inline by binding a value-map, code system, or concept — or pick a concept label in the tree below and define it first.",
         "columnLabel": "Column",
         "contextLabel": "Context",
         "resolve": "Resolve…",
@@ -3813,8 +3911,9 @@
         "definition": {
           "descriptionLabel": "Description",
           "descriptionPlaceholder": "Describe this concept in one sentence…",
-          "anchorsLabel": "Glossary anchors",
-          "anchorsHint": "Pick the business concepts this node type represents.",
+          "conceptLabel": "Concept",
+          "conceptHint": "Canonical business concept this node type realises.",
+          "noConcept": "No concept assigned",
           "sourceLineageLabel": "Source table"
         },
         "properties": {
@@ -3855,7 +3954,7 @@
           "summary": "Readiness {passed}/{total}",
           "checks": {
             "description": "Description is filled in",
-            "anchors": "Has glossary anchors",
+            "concept": "Has a concept",
             "properties": "Has properties",
             "mapping": "Has a physical mapping",
             "sourceLineage": "Source table is bound"
@@ -3864,7 +3963,7 @@
         "sections": {
           "definition": {
             "title": "Definition",
-            "subtitle": "Identifier, description, and glossary anchors for this concept"
+            "subtitle": "Identifier, description, and canonical concept"
           },
           "properties": {
             "title": "Properties",
@@ -3904,8 +4003,9 @@
       "definition": {
         "descriptionLabel": "Description",
         "descriptionPlaceholder": "Describe this concept in one sentence…",
-        "anchorsLabel": "Glossary anchors",
-        "anchorsHint": "Pick the business concepts this entity represents.",
+        "conceptLabel": "Concept",
+        "conceptHint": "Canonical business concept this entity realises.",
+        "noConcept": "No concept assigned",
         "aiAssistTooltip": "Improve description with AI"
       },
       "properties": {
@@ -4041,7 +4141,7 @@
       "deleteFailed": "Insight delete failed",
       "filterByConcept": "By concept:",
       "filterClear": "Clear",
-      "conceptAnchorTooltip": "Glossary concept — click a chip above to find other insights tied to the same concept",
+      "conceptAnchorTooltip": "Concept — click a chip above to find other insights tied to the same concept",
       "save": {
         "title": "Save as Insight",
         "subtitle": "Persist the current query + response context as a re-runnable insight.",
@@ -4053,8 +4153,8 @@
         "tagsLabel": "Tags (optional, comma-separated)",
         "tagsPlaceholder": "e.g. trend, customer, quarterly",
         "conceptAnchorsLabel": "Concept anchors (optional, comma-separated)",
-        "conceptAnchorsPlaceholder": "e.g. gt-customer, gt-retention",
-        "conceptAnchorsHint": "Link GlossaryTerm IDs so the insight stays searchable by concept across teams.",
+        "conceptAnchorsPlaceholder": "e.g. c-customer, c-retention",
+        "conceptAnchorsHint": "Link ConceptId values so the insight stays searchable by concept across teams.",
         "cancel": "Cancel",
         "save": "Save",
         "saving": "Saving…",
@@ -4210,8 +4310,8 @@
         "viewInResults": "View in Results panel",
         "compiledCypherLabel": "Cypher executed",
         "ambiguity": {
-          "heading": "{count, plural, one {Unresolved column — pick a glossary term to bind} other {{count} unresolved columns — pick a glossary term to bind each}}",
-          "chipTooltip": "Open Glossary to bind {relation}.{column}"
+          "heading": "{count, plural, one {Unresolved column — pick a concept to bind} other {{count} unresolved columns — pick a concept to bind each}}",
+          "chipTooltip": "Open Glossary to bind {relation}.{column} to a concept"
         },
         "hitl": {
           "description": "This tool requires your approval before execution.",
@@ -4396,7 +4496,35 @@
         "selectAll": "Select All",
         "deselectAll": "Deselect All",
         "applyAll": "Apply All",
-        "apply": "Apply {count}"
+        "apply": "Apply {count}",
+        "command": {
+          "addNode": "Add node {label}",
+          "createNodeType": "Create node type {label}",
+          "deleteNode": "Delete node {label}",
+          "renameNode": "Rename {label} to {newLabel}",
+          "updateNodeDescription": "Update node description for {label}",
+          "addEdge": "Add edge {label} from {source} to {target}",
+          "createEdgeType": "Create edge type {label} from {source} to {target}",
+          "deleteEdge": "Delete edge {label}",
+          "renameEdge": "Rename {label} to {newLabel}",
+          "updateEdgeCardinality": "Update cardinality for {label} to {cardinality}",
+          "updateEdgeDescription": "Update edge description for {label}",
+          "addProperty": "Add property {name} to {owner}",
+          "deleteProperty": "Delete property {name} from {owner}",
+          "updateProperty": "Update property {name} on {owner}",
+          "addConstraint": "Add constraint on {label}",
+          "removeConstraint": "Remove constraint from {label}",
+          "addIndex": "Add index on {label}",
+          "removeIndex": "Remove index {id}",
+          "createObjectMapping": "Create object mapping for {relation}",
+          "updateObjectMapping": "Update object mapping for {relation}",
+          "deleteObjectMapping": "Delete object mapping {id}",
+          "createLinkMapping": "Create link mapping {id}",
+          "updateLinkMapping": "Update link mapping {id}",
+          "deleteLinkMapping": "Delete link mapping {id}",
+          "batch": "Batch of {count, plural, one {# command} other {# commands}}",
+          "unknown": "Unknown command"
+        }
       },
       "neighborhood": {
         "label": "Neighborhood",
