@@ -70,7 +70,7 @@ export const SETTINGS_TABLE = {
 /**
  * Focus ring token. Used via `className="focus-visible:ring-2
  * focus-visible:ring-[token]"`. Centralising it means a theme-wide
- * change (e.g. contrast audit bumps the ring to `emerald-600`)
+ * change (contrast audit bumps the ring lightness, brand hue swap)
  * stays a one-line edit.
  */
 export const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-white950";
