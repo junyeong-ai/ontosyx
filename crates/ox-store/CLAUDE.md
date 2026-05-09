@@ -10,11 +10,11 @@ PostgreSQL persistence with Row-Level Security.
    `postgres/ontology_version.rs`, `postgres/ambiguity.rs`, etc.
 4. Re-export from `lib.rs`.
 
-## Migration Conventions
+## Schema Baseline
 
-- File: `migrations/NNNN_description.sql` (sequential numbering).
+- `migrations/0001_schema.sql` is the canonical development schema baseline.
 - Use `DOUBLE PRECISION` for monetary fields (not `NUMERIC` — sqlx maps NUMERIC to Decimal, not f64).
-- Migrations auto-run on server start via `pg_store.migrate()`.
+- The schema auto-runs on server start via `pg_store.migrate()`.
 
 ## RLS Policy Pattern (required for all workspace-scoped tables)
 
@@ -40,7 +40,7 @@ Two task-locals carry per-request state into store calls:
 
 - `WORKSPACE_ID: Uuid` — set by the HTTP middleware (`workspace_context`).
   The pool's `before_acquire` reads it and runs `SET app.workspace_id`
-  on the connection, which the RLS policies in `0004_rls.sql` read.
+  on the connection, which workspace RLS policies read.
 - `SYSTEM_BYPASS: bool` — scheduled tasks and cross-workspace admin
   paths set this to `true`. Policies whitelist `current_setting(...)
   = 'true'` so bypass reads every row.
@@ -52,43 +52,6 @@ crosses both layers keeps the postgres and graph contexts distinct in
 the same tokio task scope. Reusing the same bare names across layers
 would require `ox-store::WORKSPACE_ID::sync_scope(id, ws_id, ...)`
 disambiguation on every single call.
-
-## Migrations are append-only and hash-pinned
-
-`migrations/NNNN_*.sql` files are immutable once committed.
-sqlx-migrate records the SHA-256 of every applied migration in
-`_sqlx_migrations.checksum`; editing a historical file fails the
-checksum check on the next deploy. Schema evolution lands as a
-fresh `NNNN_<focus>.sql` (N == max(existing) + 1).
-
-The `migration_immutability` test pins every historical file's
-hash through `tests/migration_baseline.json` — a git-tracked map
-of `<filename>.sql → sha256(hex)`. Editing a sealed file fails the
-test with the expected vs. actual hash printed for diagnosis.
-Adding a new migration is a one-liner:
-
-```
-OX_UPDATE_MIGRATION_BASELINE=1 cargo test --test migration_immutability
-```
-
-The baseline regenerates from the current state of `migrations/`,
-the test passes, and the resulting `migration_baseline.json` diff
-gets committed alongside the new SQL file. No hand-copying hex
-hashes, but the deliberate registration is still visible in the
-PR diff.
-
-Same self-bootstrapping baseline pattern as
-`web/scripts/heading-primitive-audit.mjs` — one mental model for
-"ratcheted invariant + JSON baseline" across the repo.
-
-The `migrations_directory_has_no_strays` test rejects anything that
-doesn't match `^\d{4}_[a-z0-9_]+\.sql$` — catches editor backups
-(`*.sql.bak`) and rename leftovers before they confuse sqlx-migrate.
-
-Don't try to "split" the historical `0001_schema.sql` monolith.
-The split would mutate every historical hash and break every
-existing deployment on the next migration sync. The sealed monolith
-documents the v0 baseline; new domains land as fresh files.
 
 ## Workspace-scoped tables must carry full RLS protection
 
@@ -106,13 +69,13 @@ clauses (the canonical "RLS Policy Pattern" in this file):
    tasks
 
 `tests/rls_invariants.rs::workspace_scoped_tables_have_full_rls_protection`
-is a catalog scan that fails when a new migration introduces a
+is a catalog scan that fails when the schema baseline introduces a
 `workspace_id` column without the four clauses. Runs against a
 live PostgreSQL behind `OX_TEST_DATABASE_URL` (CI's `rls` job).
 
 ## Workspace × Ontology is 1:1 — singleton invariant
 
-`ontologies(workspace_id)` carries `UNIQUE` (migration `0006`).
+`ontologies(workspace_id)` carries `UNIQUE`.
 A workspace owns exactly one canonical ontology — the workspace
 IS the ontology context. Reach the singleton via the dedicated
 accessor:
@@ -122,20 +85,17 @@ let ontology = state.store.get_workspace_ontology().await?;
 ```
 
 Don't add new code paths that look up by ontology id when the id
-is workspace-determined. The legacy lookups (`get_ontology(id)`,
-`list_ontologies`, `find_ontology_by_lineage`,
-`find_ontology_by_name`) survive transitionally — Phase 3 of the
-ontology workbench restructure folds them away alongside the URL
-path migration that drops `/{id}/` segments.
+is workspace-determined. Product routes and workbench flows should
+resolve the ontology from the workspace context.
 
 ## Ontology drafts pin a `parent_version_id`
 
-`ontology_drafts.parent_version_id` (migration `0005`) records
+`ontology_drafts.parent_version_id` records
 which canonical version a draft's in-flight `ontology` JSONB
 was branched from. `complete_ontology_draft` compares this
 against the canonical's current head and refuses commits whose
 parent has been superseded — the lost-update guard against
-concurrent admin direct edits via `/api/ontologies/{id}/edits`.
+concurrent admin direct edits via `/api/ontology/edits`.
 
 Capture happens at `create_ontology_draft`: read
 `get_workspace_ontology()` + `find_current_version()` and stamp the
