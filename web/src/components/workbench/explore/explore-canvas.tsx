@@ -72,6 +72,14 @@ export interface ExploreCanvasProps {
   focusedNode: FocusedNode | null;
   neighbors: ExpandNeighbor[];
   schemaOverview: GraphOverview | null;
+  /**
+   * `true` while the schema-overview fetch is in flight. The empty
+   * canvas branches three ways on this — without it the "no data
+   * yet" state and the "data loading" state collapse into one
+   * message and operators on a fresh workspace see a spinner that
+   * never resolves.
+   */
+  overviewLoading: boolean;
   onNodeClick: (nodeId: string, modifiers?: NodeClickModifiers) => void;
 }
 
@@ -282,7 +290,13 @@ function buildSchemaGraph(overview: GraphOverview, fmt: Formatters): BuiltGraph 
 // ExploreCanvas
 // ---------------------------------------------------------------------------
 
-function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClick }: ExploreCanvasProps) {
+function ExploreCanvasInner({
+  focusedNode,
+  neighbors,
+  schemaOverview,
+  overviewLoading,
+  onNodeClick,
+}: ExploreCanvasProps) {
   const t = useTranslations("workbench.explore.canvas");
   const isDark = useIsDarkMode();
   const fmt = useFormatters();
@@ -399,12 +413,20 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
   const bg = isDark ? "#09090b" : "#fafafa";
 
   if (built.nodes.length === 0) {
+    // Three states collapse here — pick the message that matches
+    // the actual cause so the operator isn't told a fresh workspace
+    // is "loading" forever.
+    const message = focusedNode
+      ? t("noNeighbors")
+      : overviewLoading
+        ? t("loadingSchema")
+        : t("emptyWorkspace");
     return (
       <div
         className="flex h-full items-center justify-center text-sm text-foreground-muted"
         style={{ backgroundColor: bg }}
       >
-        {focusedNode ? t("noNeighbors") : t("loadingSchema")}
+        {message}
       </div>
     );
   }

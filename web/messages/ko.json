@@ -4167,6 +4167,7 @@
       },
       "backToOverview": "개요로 돌아가기",
       "canvas": {
+        "emptyWorkspace": "아직 그래프 데이터가 없어요 — 대표 온톨로지를 커밋하면 탐색을 시작할 수 있어요",
         "layingOut": "레이아웃 계산 중…",
         "loadingSchema": "스키마 로딩 중…",
         "noNeighbors": "이웃 노드가 없어요",

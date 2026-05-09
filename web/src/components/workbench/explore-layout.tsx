@@ -563,6 +563,7 @@ export function ExploreLayout() {
             focusedNode={focusedNode}
             neighbors={neighbors}
             schemaOverview={overview}
+            overviewLoading={overviewLoading}
             onNodeClick={handleGraphNodeClick}
           />
           {/* Stats bar */}

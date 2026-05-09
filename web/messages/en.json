@@ -4167,6 +4167,7 @@
       },
       "backToOverview": "Back to overview",
       "canvas": {
+        "emptyWorkspace": "No graph data yet — commit an ontology to begin exploring",
         "layingOut": "Laying out…",
         "loadingSchema": "Loading schema…",
         "noNeighbors": "No neighboring nodes",
