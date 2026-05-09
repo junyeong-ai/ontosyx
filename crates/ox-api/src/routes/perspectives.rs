@@ -4,7 +4,7 @@ use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use ox_store::WorkbenchPerspective;
+use ox_store::{CanvasPosition, CanvasViewport, WorkbenchPerspective};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -23,17 +23,23 @@ pub struct UpsertPerspectiveRequest {
     pub ontology_draft_id: Option<Uuid>,
     pub name: String,
     /// Node positions JSON.
-    pub positions: serde_json::Value,
+    pub positions: std::collections::BTreeMap<String, CanvasPosition>,
     /// Viewport state JSON.
-    pub viewport: serde_json::Value,
+    pub viewport: CanvasViewport,
     /// Filter settings JSON.
     #[serde(default)]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub filters: serde_json::Value,
     /// Collapsed group settings JSON.
     #[serde(default)]
-    pub collapsed_groups: serde_json::Value,
+    pub collapsed_groups: Vec<String>,
     #[serde(default)]
     pub is_default: bool,
+    /// Optional retrieval profile pin (Φ10.5). `None` falls back
+    /// to the workspace `default` profile auto-seeded on
+    /// workspace creation.
+    #[serde(default)]
+    pub retrieval_profile_id: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -45,7 +51,7 @@ pub struct UpsertPerspectiveRequest {
     path = "/api/perspectives",
     request_body = UpsertPerspectiveRequest,
     responses(
-        (status = 200, description = "Perspective saved", body = Object),
+        (status = 200, description = "Perspective saved", body = WorkbenchPerspective),
     ),
     tag = "Perspectives",
 )]
@@ -68,6 +74,9 @@ pub(crate) async fn save_perspective(
         filters: req.filters,
         collapsed_groups: req.collapsed_groups,
         is_default: req.is_default,
+        retrieval_profile_id: req
+            .retrieval_profile_id
+            .map(ox_ontology::RetrievalProfileId::new),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -99,7 +108,7 @@ pub(crate) async fn save_perspective(
         ("lineage_id" = String, Path, description = "Lineage ID"),
     ),
     responses(
-        (status = 200, description = "List of perspectives for this lineage", body = Object),
+        (status = 200, description = "List of perspectives for this lineage", body = Vec<WorkbenchPerspective>),
     ),
     tag = "Perspectives",
 )]
@@ -128,7 +137,7 @@ pub(crate) async fn list_perspectives(
         ("lineage_id" = String, Path, description = "Lineage ID"),
     ),
     responses(
-        (status = 200, description = "Default perspective (null if none set)", body = Object),
+        (status = 200, description = "Default perspective (null if none set)", body = Option<WorkbenchPerspective>),
     ),
     tag = "Perspectives",
 )]
@@ -159,7 +168,7 @@ pub(crate) async fn find_default_perspective(
         ("topology_signature" = String, Query, description = "Topology hash for fallback matching"),
     ),
     responses(
-        (status = 200, description = "Best matching perspective (null if none)", body = Object),
+        (status = 200, description = "Best matching perspective (null if none)", body = Option<WorkbenchPerspective>),
     ),
     tag = "Perspectives",
 )]
@@ -193,7 +202,7 @@ pub struct PerspectiveFindParams {
         ("id" = Uuid, Path, description = "Perspective ID"),
     ),
     responses(
-        (status = 200, description = "Perspective deleted", body = Object),
+        (status = 200, description = "Perspective deleted", body = DeletePerspectiveResponse),
         (status = 404, description = "Perspective not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     tag = "Perspectives",
@@ -202,7 +211,7 @@ pub(crate) async fn delete_perspective(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<DeletePerspectiveResponse>>, AppError> {
     let deleted = state
         .store
         .delete_perspective(&principal.id, id)
@@ -213,5 +222,10 @@ pub(crate) async fn delete_perspective(
         return Err(AppError::perspective_not_found());
     }
 
-    Ok(ApiResponse::of(serde_json::json!({ "deleted": true })))
+    Ok(ApiResponse::of(DeletePerspectiveResponse { deleted: true }))
+}
+
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct DeletePerspectiveResponse {
+    pub deleted: bool,
 }

@@ -93,9 +93,7 @@ pub async fn idempotency_layer(
         .get::<AuthClaims>()
         .cloned()
         .ok_or_else(|| {
-            AppError::unauthorized(
-                "Idempotency-Key requires an authenticated principal",
-            )
+            AppError::unauthorized("Idempotency-Key requires an authenticated principal")
         })?;
     let workspace = req
         .extensions()
@@ -118,20 +116,12 @@ pub async fn idempotency_layer(
     let (parts, body) = req.into_parts();
     let body_bytes = to_bytes(body, MAX_BUFFERED_REQUEST_BYTES)
         .await
-        .map_err(|_| {
-            AppError::idempotency_request_body_too_large(MAX_BUFFERED_REQUEST_BYTES)
-        })?;
+        .map_err(|_| AppError::idempotency_request_body_too_large(MAX_BUFFERED_REQUEST_BYTES))?;
     let request_hash = sha256(&body_bytes);
 
     if let Some(existing) = state
         .store
-        .find_idempotency_record(
-            workspace.workspace_id,
-            user_id,
-            &method,
-            &path,
-            &key,
-        )
+        .find_idempotency_record(workspace.workspace_id, user_id, &method, &path, &key)
         .await
         .map_err(AppError::from)?
     {
@@ -163,18 +153,17 @@ pub async fn idempotency_layer(
     }
 
     let (parts, body) = response.into_parts();
-    let response_bytes =
-        match to_bytes(body, MAX_BUFFERED_RESPONSE_BYTES).await {
-            Ok(b) => b,
-            Err(_) => {
-                tracing::warn!(
-                    method = %method,
-                    path = %path,
-                    "Idempotency: response exceeded buffer cap; not cached"
-                );
-                return Ok(Response::from_parts(parts, Body::empty()));
-            }
-        };
+    let response_bytes = match to_bytes(body, MAX_BUFFERED_RESPONSE_BYTES).await {
+        Ok(b) => b,
+        Err(_) => {
+            tracing::warn!(
+                method = %method,
+                path = %path,
+                "Idempotency: response exceeded buffer cap; not cached"
+            );
+            return Ok(Response::from_parts(parts, Body::empty()));
+        }
+    };
 
     let content_type = parts
         .headers
@@ -185,7 +174,8 @@ pub async fn idempotency_layer(
     // `from_std` only fails for durations > i64::MAX seconds; the
     // 24-hour constant is a build-time literal and the compiler
     // cannot reach the error branch without a code change here.
-    let ttl = chrono::Duration::from_std(REPLAY_TTL).unwrap_or_else(|_| chrono::Duration::hours(24));
+    let ttl =
+        chrono::Duration::from_std(REPLAY_TTL).unwrap_or_else(|_| chrono::Duration::hours(24));
     let expires_at = now + ttl;
     let record = IdempotencyRecord {
         workspace_id: workspace.workspace_id,
@@ -277,8 +267,7 @@ mod tests {
     fn extract_key_rejects_overlong_values() {
         let mut headers = HeaderMap::new();
         let too_long: String = std::iter::repeat_n('a', 256).collect();
-        headers
-            .insert(HEADER, HeaderValue::from_str(&too_long).unwrap());
+        headers.insert(HEADER, HeaderValue::from_str(&too_long).unwrap());
         assert!(extract_key(&headers).is_none());
     }
 
@@ -295,8 +284,10 @@ mod tests {
     #[test]
     fn is_streaming_rejects_application_json() {
         let mut headers = HeaderMap::new();
-        headers
-            .insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
         assert!(!is_streaming(&headers));
     }
 

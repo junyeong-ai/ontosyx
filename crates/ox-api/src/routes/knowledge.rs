@@ -5,13 +5,14 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use ox_store::KnowledgeEntry;
 use ox_store::store::CursorParams;
+use ox_store::{KnowledgeEntry, KnowledgeKind, KnowledgeStatus};
 
 use crate::error::AppError;
 use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
+use crate::workspace::WorkspaceContext;
 
 // ---------------------------------------------------------------------------
 // POST /api/knowledge — create a knowledge entry
@@ -20,7 +21,7 @@ use crate::state::AppState;
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateKnowledgeEntryRequest {
     pub ontology_name: String,
-    pub kind: String,
+    pub kind: KnowledgeKind,
     pub title: String,
     pub content: String,
     #[serde(default)]
@@ -36,15 +37,12 @@ pub struct KnowledgeBulkReviewResponse {
     pub reviewed: u64,
 }
 
-const VALID_KINDS: &[&str] = &["correction", "hint"];
-const VALID_STATUSES: &[&str] = &["draft", "approved", "stale", "deprecated"];
-
 #[utoipa::path(
     post,
     path = "/api/knowledge",
     request_body = CreateKnowledgeEntryRequest,
     responses(
-        (status = 200, description = "Entry created", body = Object),
+        (status = 200, description = "Entry created", body = KnowledgeEntry),
         (status = 400, description = "Validation failure"),
     ),
     security(("api_key" = [])),
@@ -53,16 +51,10 @@ const VALID_STATUSES: &[&str] = &["draft", "approved", "stale", "deprecated"];
 pub(crate) async fn create_knowledge(
     State(state): State<AppState>,
     principal: Principal,
+    ws: WorkspaceContext,
     Json(req): Json<CreateKnowledgeEntryRequest>,
 ) -> Result<Json<ApiResponse<KnowledgeEntry>>, AppError> {
     principal.require_designer()?;
-    if !VALID_KINDS.contains(&req.kind.as_str()) {
-        return Err(AppError::invalid_enum_value(
-            "kind",
-            req.kind.clone(),
-            VALID_KINDS,
-        ));
-    }
     if req.title.trim().is_empty() || req.title.len() > 500 {
         return Err(AppError::text_length_out_of_range("title", 1, 500));
     }
@@ -76,14 +68,21 @@ pub(crate) async fn create_knowledge(
     // Server-side content_hash computation (never trust client)
     let hash = ox_brain::knowledge_util::content_hash(&req.ontology_name, &req.content);
 
+    let tokens = crate::tokenizer_publish::tokenize_for_workspace(
+        &state,
+        ws.workspace_id,
+        &format!("{}\n{}", req.title, req.content),
+    )
+    .await;
+
     let entry = KnowledgeEntry {
         id: Uuid::new_v4(),
-        workspace_id: Uuid::nil(), // RLS default
+        workspace_id: ws.workspace_id,
         ontology_name: req.ontology_name,
         ontology_version_min: req.ontology_version_min.unwrap_or(1),
         ontology_version_max: None,
         kind: req.kind,
-        status: "draft".to_string(),
+        status: KnowledgeStatus::Draft,
         confidence: 1.0, // admin-created
         title: req.title,
         content: req.content,
@@ -103,6 +102,8 @@ pub(crate) async fn create_knowledge(
         last_used_at: None,
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        tokenized_text: tokens.tokenized_text,
+        tokenizer_dict_fingerprint: tokens.tokenizer_dict_fingerprint,
     };
 
     state.store.create_knowledge_entry(&entry).await?;
@@ -116,8 +117,8 @@ pub(crate) async fn create_knowledge(
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct KnowledgeListQuery {
     pub ontology_name: Option<String>,
-    pub kind: Option<String>,
-    pub status: Option<String>,
+    pub kind: Option<KnowledgeKind>,
+    pub status: Option<KnowledgeStatus>,
     pub limit: Option<u32>,
     pub cursor: Option<String>,
 }
@@ -126,7 +127,7 @@ pub struct KnowledgeListQuery {
     get,
     path = "/api/knowledge",
     params(KnowledgeListQuery),
-    responses((status = 200, description = "Knowledge entries", body = Vec<Object>)),
+    responses((status = 200, description = "Knowledge entries", body = crate::openapi::KnowledgeEntryPage)),
     security(("api_key" = [])),
     tag = "Knowledge",
 )]
@@ -143,8 +144,8 @@ pub(crate) async fn list_knowledge(
         .store
         .list_knowledge_entries(
             q.ontology_name.as_deref(),
-            q.kind.as_deref(),
-            q.status.as_deref(),
+            q.kind.map(KnowledgeKind::as_str),
+            q.status.map(KnowledgeStatus::as_str),
             &pagination,
         )
         .await?;
@@ -160,7 +161,7 @@ pub(crate) async fn list_knowledge(
     path = "/api/knowledge/{id}",
     params(("id" = Uuid, Path, description = "Knowledge entry ID")),
     responses(
-        (status = 200, description = "Knowledge entry", body = Object),
+        (status = 200, description = "Knowledge entry", body = KnowledgeEntry),
         (status = 404, description = "Entry not found"),
     ),
     security(("api_key" = [])),
@@ -208,10 +209,17 @@ pub struct UpdateKnowledgeEntryRequest {
 pub(crate) async fn update_knowledge(
     State(state): State<AppState>,
     principal: Principal,
+    ws: WorkspaceContext,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateKnowledgeEntryRequest>,
 ) -> Result<StatusCode, AppError> {
     principal.require_designer()?;
+    let tokens = crate::tokenizer_publish::tokenize_for_workspace(
+        &state,
+        ws.workspace_id,
+        &format!("{}\n{}", req.title, req.content),
+    )
+    .await;
     state
         .store
         .update_knowledge_entry(
@@ -221,6 +229,8 @@ pub(crate) async fn update_knowledge(
             &req.structured_data,
             &req.affected_labels,
             &req.affected_properties.unwrap_or_default(),
+            &tokens.tokenized_text,
+            &tokens.tokenizer_dict_fingerprint,
         )
         .await?;
     Ok(StatusCode::NO_CONTENT)
@@ -261,7 +271,7 @@ pub(crate) async fn delete_knowledge(
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateKnowledgeStatusRequest {
-    pub status: String,
+    pub status: KnowledgeStatus,
     pub review_notes: Option<String>,
 }
 
@@ -284,18 +294,11 @@ pub(crate) async fn update_status(
     Json(req): Json<UpdateKnowledgeStatusRequest>,
 ) -> Result<StatusCode, AppError> {
     principal.require_admin()?;
-    if !VALID_STATUSES.contains(&req.status.as_str()) {
-        return Err(AppError::invalid_enum_value(
-            "status",
-            req.status.clone(),
-            VALID_STATUSES,
-        ));
-    }
     state
         .store
         .update_knowledge_status(
             id,
-            &req.status,
+            req.status,
             principal.user_uuid().ok(),
             req.review_notes.as_deref(),
         )
@@ -310,7 +313,7 @@ pub(crate) async fn update_status(
 #[utoipa::path(
     get,
     path = "/api/knowledge/stale",
-    responses((status = 200, description = "Stale entries awaiting review", body = Vec<Object>)),
+    responses((status = 200, description = "Stale entries awaiting review", body = crate::openapi::KnowledgeEntryPage)),
     security(("api_key" = [])),
     tag = "Knowledge",
 )]
@@ -324,7 +327,7 @@ pub(crate) async fn list_stale(
         .list_knowledge_entries(
             None,
             None,
-            Some("stale"),
+            Some(KnowledgeStatus::Stale.as_str()),
             &CursorParams {
                 cursor: None,
                 limit: 100,
@@ -382,7 +385,7 @@ pub(crate) async fn knowledge_stats(
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct BulkReviewApprovalsRequest {
     pub ids: Vec<Uuid>,
-    pub status: String,
+    pub status: KnowledgeStatus,
     pub review_notes: Option<String>,
 }
 
@@ -403,13 +406,6 @@ pub(crate) async fn bulk_review(
     Json(req): Json<BulkReviewApprovalsRequest>,
 ) -> Result<Json<ApiResponse<KnowledgeBulkReviewResponse>>, AppError> {
     principal.require_admin()?;
-    if !VALID_STATUSES.contains(&req.status.as_str()) {
-        return Err(AppError::invalid_enum_value(
-            "status",
-            req.status.clone(),
-            VALID_STATUSES,
-        ));
-    }
     if req.ids.len() > 100 {
         return Err(AppError::bulk_limit_exceeded(100));
     }
@@ -418,12 +414,14 @@ pub(crate) async fn bulk_review(
     for id in &req.ids {
         if state
             .store
-            .update_knowledge_status(*id, &req.status, reviewer_id, req.review_notes.as_deref())
+            .update_knowledge_status(*id, req.status, reviewer_id, req.review_notes.as_deref())
             .await
             .is_ok()
         {
             count += 1;
         }
     }
-    Ok(ApiResponse::of(KnowledgeBulkReviewResponse { reviewed: count }))
+    Ok(ApiResponse::of(KnowledgeBulkReviewResponse {
+        reviewed: count,
+    }))
 }

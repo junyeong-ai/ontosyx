@@ -8,13 +8,16 @@ use uuid::Uuid;
 
 use ox_ontology::ir::OntologyIR;
 
+use ox_brain::model_resolver::operation;
+
 use crate::error::AppError;
 use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::helpers::{
-    assess_quality_from_ontology_draft, get_design_options, load_mutable_ontology_draft, reload_ontology_draft,
+    assess_quality_from_ontology_draft, get_design_options, load_mutable_ontology_draft,
+    reload_ontology_draft,
 };
 use super::types::{EditOntologyDraftRequest, EditOntologyDraftResponse, OntologyDraftView};
 
@@ -97,21 +100,24 @@ pub(crate) async fn edit_ontology_draft(
     {
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
+        let meter_provider = edit_output.provider.clone();
+        let meter_model = edit_output.model.clone();
         crate::spawn_scoped::spawn_scoped(async move {
             if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
                     "llm",
-                    Some("anthropic"),
-                    None,
-                    Some("edit"),
+                    Some(&meter_provider),
+                    Some(&meter_model),
+                    Some(operation::EDIT_ONTOLOGY),
                     0,
                     0,
                     edit_duration_ms,
                     0.0,
                     serde_json::json!({}),
                 )
-                .await {
+                .await
+            {
                 tracing::warn!(?error, "telemetry record failed");
             }
         });
@@ -151,12 +157,7 @@ pub(crate) async fn edit_ontology_draft(
     if let Some(ont) = &project.ontology
         && let Err(e) = state
             .store
-            .create_ontology_snapshot(
-                id,
-                project.revision,
-                ont,
-                project.quality_report.as_ref(),
-            )
+            .create_ontology_snapshot(id, project.revision, ont, project.quality_report.as_ref())
             .await
     {
         warn!(ontology_draft_id = %id, error = %e, "Failed to save ontology snapshot");
@@ -176,12 +177,7 @@ pub(crate) async fn edit_ontology_draft(
 
     state
         .store
-        .update_design_result(
-            id,
-            &ontology_json,
-            Some(&qr_json),
-            req.revision,
-        )
+        .update_design_result(id, &ontology_json, Some(&qr_json), req.revision)
         .await
         .map_err(AppError::from)?;
 

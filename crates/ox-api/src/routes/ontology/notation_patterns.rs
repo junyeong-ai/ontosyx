@@ -15,7 +15,7 @@ use uuid::Uuid;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_ontology::{
     NotationInferencePolicy, NotationInferenceRejection, NotationInferenceReport,
-    NotationProposal, NotationSkip, propose_notation_patterns,
+    NotationPatternDef, NotationProposal, NotationSkip, propose_notation_patterns,
 };
 
 use crate::error::AppError;
@@ -23,7 +23,7 @@ use crate::principal::Principal;
 use crate::response::ApiResponse;
 
 // ---------------------------------------------------------------------------
-// POST /api/ontologies/{id}/notation-patterns/propose
+// POST /api/ontology/notation-patterns/propose
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -31,11 +31,9 @@ pub struct ProposeNotationPatternsRequest {
     /// Source schema snapshot — usually the `project.source_schema`
     /// column of a design project. Wire-shape is defined by
     /// `ox_core::source_schema::SourceSchema`.
-    #[schema(value_type = Object)]
     pub schema: SourceSchema,
     /// Profile snapshot (row counts + column stats). Wire-shape is
     /// defined by `ox_core::source_schema::SourceProfile`.
-    #[schema(value_type = Object)]
     pub profile: SourceProfile,
     /// Optional policy knobs. Defaults are tuned for high-precision
     /// pattern detection (`min_samples = 3`, full agreement required).
@@ -79,7 +77,7 @@ pub struct NotationProposalBody {
     pub confidence: f64,
     /// Full `NotationPatternDef` JSON — kept flat so the admin UI can
     /// post it verbatim to `/edits` without re-deriving the id.
-    pub pattern_json: serde_json::Value,
+    pub pattern_json: NotationPatternDef,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -138,16 +136,15 @@ fn shape_proposal(p: NotationProposal) -> NotationProposalBody {
         examples,
         confidence,
     } = p;
-    let pattern_json = serde_json::to_value(&pattern).unwrap_or(serde_json::Value::Null);
     NotationProposalBody {
         relation: column_ref.relation,
         column: column_ref.column,
         pattern_id: pattern.id.to_string(),
-        template: pattern.template,
-        separator: pattern.separator,
+        template: pattern.template.clone(),
+        separator: pattern.separator.clone(),
         examples,
         confidence,
-        pattern_json,
+        pattern_json: pattern,
     }
 }
 
@@ -161,7 +158,10 @@ fn shape_skip(skip: NotationSkip) -> NotationSkipBody {
 
 fn reason_label(reason: &NotationInferenceRejection) -> String {
     match reason {
-        NotationInferenceRejection::InsufficientSamples { available, required } => {
+        NotationInferenceRejection::InsufficientSamples {
+            available,
+            required,
+        } => {
             format!("insufficient_samples ({available}/{required})")
         }
         NotationInferenceRejection::TokenCountMismatch { observed_counts } => {
@@ -169,7 +169,10 @@ fn reason_label(reason: &NotationInferenceRejection) -> String {
             format!("token_count_mismatch ({})", counts.join(","))
         }
         NotationInferenceRejection::ClassDisagreement { position, observed } => {
-            format!("class_disagreement at pos {position} ({})", observed.join("|"))
+            format!(
+                "class_disagreement at pos {position} ({})",
+                observed.join("|")
+            )
         }
         NotationInferenceRejection::SeparatorDisagreement { observed } => {
             format!("separator_disagreement ({})", observed.join("|"))

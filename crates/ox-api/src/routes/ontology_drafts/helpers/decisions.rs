@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
+use ox_core::source_schema::SourceSchema;
 use ox_ontology::design_gate::{
     DesignGate, GateStatus, evaluate_design_gates, unmet_blocking_gates,
 };
 use ox_ontology::source_analysis::{DesignOptions, SourceAnalysisReport};
-use ox_core::source_schema::SourceSchema;
 
 use crate::error::AppError;
 

@@ -19,7 +19,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use serde::Serialize;
 
-use ox_ontology::{OntologyEditPreCheck, OntologyEditReceipt, EditOntologyRequest};
+use ox_ontology::{EditOntologyRequest, OntologyEditPreCheck, OntologyEditReceipt};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -35,7 +35,7 @@ use crate::state::AppState;
 /// OpenAPI exposes this as a free-form object; callers should
 /// discriminate on the presence of `new_version_id` (commit) vs.
 /// `classified_changes` (pre-check).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(untagged)]
 pub enum EditOntologyResponse {
     Receipt(OntologyEditReceipt),
@@ -45,10 +45,10 @@ pub enum EditOntologyResponse {
 #[utoipa::path(
     post,
     path = "/api/ontology/edits",
-    request_body = Object,
+    request_body = EditOntologyRequest,
     responses(
-        (status = 201, description = "Edit applied — returns new version receipt"),
-        (status = 202, description = "Edit queued for approval — returns original version"),
+        (status = 200, description = "Dry-run pre-check report", body = EditOntologyResponse),
+        (status = 201, description = "Edit applied — returns new version receipt", body = EditOntologyResponse),
         (status = 404, description = "Workspace has no ontology, or ontology has no committed version yet"),
         (status = 409, description = "Version conflict — refetch and retry"),
         (status = 422, description = "Edit produced an invalid IR (SHACL / referential integrity)"),
@@ -128,7 +128,13 @@ pub(crate) async fn apply_ontology_edits(
 
         let validation = if failed_index.is_none() {
             let known_sources = load_known_source_ids(&state).await?;
-            ir.validate_with_sources(&known_sources)
+            let mut diags = ir.validate_with_sources(&known_sources);
+            // Φ12 — source-contract gate runs in pre-check too, so
+            // the FE surfaces "this commit would fail the contract
+            // gate" without round-tripping the actual commit.
+            let contracts = state.store.list_source_contracts().await?;
+            diags.extend(ir.validate_against_source_contracts(&contracts));
+            diags
         } else {
             Vec::new()
         };
@@ -186,6 +192,19 @@ pub(crate) async fn apply_ontology_edits(
         return Err(AppError::ontology_invariant_violation(validation));
     }
 
+    // Φ12 — source-contract gate. Walks every mapping against the
+    // captured `(source_id, relation, columns)` bank; soft-skips
+    // sources that have not been introspected yet (ADR-0036).
+    let source_contracts = state
+        .store
+        .list_source_contracts()
+        .await
+        .map_err(AppError::from)?;
+    let contract_violations = ir.validate_against_source_contracts(&source_contracts);
+    if !contract_violations.is_empty() {
+        return Err(AppError::source_contract_mismatch(contract_violations));
+    }
+
     // ---- 6. Commit new version ---------------------------------
     //
     // Version strings are monotonically-increasing integers here —
@@ -201,6 +220,18 @@ pub(crate) async fn apply_ontology_edits(
         .as_deref()
         .unwrap_or("ontology edit via admin API");
 
+    let capture = ox_ontology::ProvenanceCapture::ontology_edit(
+        ox_ontology::AgentRef::User {
+            user_id: committed_by.clone(),
+        },
+        commit_message,
+    )
+    .with_derived_from(parent_version_id.into_iter().map(|id| {
+        ox_ontology::EntityRef::Arbitrary {
+            label: format!("ontology_version_snapshot:{id}"),
+        }
+    }));
+
     let snapshot = state
         .store
         .commit_version(
@@ -210,9 +241,23 @@ pub(crate) async fn apply_ontology_edits(
             parent_version_id,
             &committed_by,
             commit_message,
+            capture,
+            ox_text::glossary_tokenizer_fingerprint(&ir).as_str(),
         )
         .await
         .map_err(AppError::from)?;
+
+    // Republish the workspace tokenizer if the edit shifted
+    // the glossary; backfill stale tokenized rows in the
+    // background.
+    crate::tokenizer_publish::publish_workspace_tokenizer_after_commit(
+        &state,
+        identity.workspace_id,
+        parent_version_id,
+        &ir,
+    )
+    .await
+    .map_err(AppError::from)?;
 
     Ok((
         StatusCode::CREATED,
@@ -242,5 +287,3 @@ async fn load_known_source_ids(
         .map(|src| ox_ontology::mapping::SourceId::from(src.source_id))
         .collect())
 }
-
-

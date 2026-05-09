@@ -118,10 +118,7 @@ where
 /// so it sees the active scope. Each subsequent `next()` on the
 /// returned stream re-enters that scope, making per-poll store
 /// access work transparently.
-pub fn scope_stream<S>(
-    scope: WsScope,
-    inner: S,
-) -> impl futures_core::Stream<Item = S::Item> + Send
+pub fn scope_stream<S>(scope: WsScope, inner: S) -> impl futures_core::Stream<Item = S::Item> + Send
 where
     S: futures_core::Stream + Send + 'static,
     S::Item: Send,

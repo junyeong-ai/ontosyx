@@ -117,7 +117,11 @@ async fn run_scan(store: &dyn Store) -> ox_core::error::OxResult<()> {
         }
     }
 
-    info!(workspaces = touched, window = BASELINE_WINDOW.as_str(), "quality-baseline scan complete");
+    info!(
+        workspaces = touched,
+        window = BASELINE_WINDOW.as_str(),
+        "quality-baseline scan complete"
+    );
     Ok(())
 }
 
@@ -151,8 +155,8 @@ fn derive_thresholds(report: &QualityMetricsReport) -> serde_json::Value {
         threshold_higher_is_better(&report.anchor_match_rate),
     );
     out.insert(
-        "glossary_hit_rate".into(),
-        threshold_higher_is_better(&report.glossary_hit_rate),
+        "concept_hit_rate".into(),
+        threshold_higher_is_better(&report.concept_hit_rate),
     );
     out.insert(
         "clarification_success_rate".into(),

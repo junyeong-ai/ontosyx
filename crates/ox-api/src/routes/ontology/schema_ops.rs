@@ -96,7 +96,7 @@ pub struct ReindexResponse {
     post,
     path = "/api/ontology/audit",
     responses(
-        (status = 200, description = "Audit report comparing ontology vs graph", body = Object),
+        (status = 200, description = "Audit report comparing ontology vs graph", body = ox_ontology::audit::GraphAuditReport),
         (status = 404, description = "Workspace has no ontology"),
         (status = 503, description = "Graph database not connected"),
     ),
@@ -131,9 +131,9 @@ pub(crate) async fn graph_audit_report(
 #[utoipa::path(
     post,
     path = "/api/ontology/adopt-graph",
-    request_body(content = AdoptGraphRequest, description = "Name for the adopted ontology"),
+    request_body = AdoptGraphRequest,
     responses(
-        (status = 200, description = "Ontology created from graph schema", body = Object),
+        (status = 200, description = "Ontology created from graph schema", body = OntologyIR),
         (status = 503, description = "Graph database not connected"),
     ),
     security(("api_key" = [])),
@@ -174,7 +174,12 @@ pub(crate) async fn adopt_graph(
         let lineage_seed = ontology.id.clone();
         let identity = state
             .store
-            .create_ontology(&name, &display_name_json, &description_json, Some(&lineage_seed))
+            .create_ontology(
+                &name,
+                &display_name_json,
+                &description_json,
+                Some(&lineage_seed),
+            )
             .await
             .map_err(AppError::from)?;
         state
@@ -186,9 +191,28 @@ pub(crate) async fn adopt_graph(
                 None,
                 &principal.id,
                 "Adopted from live graph",
+                ox_ontology::ProvenanceCapture::ontology_edit(
+                    ox_ontology::AgentRef::User {
+                        user_id: principal.id.clone(),
+                    },
+                    "Adopted from live graph",
+                ),
+                ox_text::glossary_tokenizer_fingerprint(&ontology).as_str(),
             )
             .await
             .map_err(AppError::from)?;
+
+        // First-version adopt → no parent. Tokenizer publish
+        // builds the user dict from the freshly-adopted
+        // glossary if any.
+        crate::tokenizer_publish::publish_workspace_tokenizer_after_commit(
+            &state,
+            identity.workspace_id,
+            None,
+            &ontology,
+        )
+        .await
+        .map_err(AppError::from)?;
 
         // Re-index schema embeddings for the committed ontology. Must use
         // `spawn_with_ws` so the spawned task inherits the workspace-scoped
@@ -199,8 +223,12 @@ pub(crate) async fn adopt_graph(
             let identity_id = identity.id;
             let ws_scope = crate::spawn_scoped::WsScope::capture();
             crate::spawn_scoped::spawn_with_ws(ws_scope, async move {
-                ox_brain::schema_rag::index_ontology_schema(&memory, &ont, &identity_id.to_string())
-                    .await;
+                ox_brain::schema_rag::index_ontology_schema(
+                    &memory,
+                    &ont,
+                    &identity_id.to_string(),
+                )
+                .await;
             });
         }
 
@@ -225,15 +253,15 @@ pub struct AdoptGraphRequest {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ontologies/suggestions — proactive insight suggestions
+// POST /api/ontology/suggestions — proactive insight suggestions
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/suggestions",
-    request_body(content = Object, description = "OntologyIR to generate suggestions for"),
+    path = "/api/ontology/suggestions",
+    request_body = OntologyIR,
     responses(
-        (status = 200, description = "List of insight suggestions", body = Vec<Object>),
+        (status = 200, description = "List of insight suggestions", body = Vec<ox_ontology::InsightHint>),
     ),
     security(("api_key" = [])),
     tag = "Ontology",
@@ -338,9 +366,31 @@ pub(crate) async fn enrich_ontology(
                 Some(current_version.id),
                 &principal.id,
                 &commit_message,
+                ox_ontology::ProvenanceCapture::ontology_edit(
+                    ox_ontology::AgentRef::User {
+                        user_id: principal.id.clone(),
+                    },
+                    &commit_message,
+                )
+                .with_derived_from(std::iter::once(ox_ontology::EntityRef::Arbitrary {
+                    label: format!("ontology_version_snapshot:{}", current_version.id),
+                })),
+                ox_text::glossary_tokenizer_fingerprint(&result.ontology).as_str(),
             )
             .await
             .map_err(AppError::from)?;
+
+        // Enrichment commit → diff against current_version's
+        // fingerprint. Description-only enrichments collapse
+        // to no-op via the helper's same-fingerprint check.
+        crate::tokenizer_publish::publish_workspace_tokenizer_after_commit(
+            &state,
+            identity.workspace_id,
+            Some(current_version.id),
+            &result.ontology,
+        )
+        .await
+        .map_err(AppError::from)?;
 
         if let Some(memory) = &state.memory {
             let memory = std::sync::Arc::clone(memory);

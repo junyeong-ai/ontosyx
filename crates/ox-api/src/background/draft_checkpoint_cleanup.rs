@@ -56,7 +56,11 @@ pub fn spawn_draft_checkpoint_cleanup(
     pool: ox_store::PgPool,
     cancel: CancellationToken,
 ) {
-    spawn_cron(Arc::new(DraftCheckpointCleanup { store }), Some(pool), cancel);
+    spawn_cron(
+        Arc::new(DraftCheckpointCleanup { store }),
+        Some(pool),
+        cancel,
+    );
 }
 
 async fn run_sweep(store: &dyn Store) -> ox_core::error::OxResult<()> {

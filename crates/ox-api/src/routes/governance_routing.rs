@@ -23,9 +23,7 @@ use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use ox_ontology::change_routing::{
-    ApprovalRouting, ChangeRoutingRule, ChangeType, RiskLevel,
-};
+use ox_ontology::change_routing::{ApprovalRouting, ChangeRoutingRule, ChangeType, RiskLevel};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -33,35 +31,29 @@ use crate::response::ApiResponse;
 use crate::state::AppState;
 
 /// Wire shape returned by the list / upsert endpoints. The
-/// `change_type` round-trips through serde so the wire string
-/// matches the storage format exactly (snake_case discriminator).
-/// `routing` and `risk_level` come straight off the IR types —
-/// no parallel schema, the FE consumes them through the
-/// `OntologyEditOp` TS union alongside the rest of the matrix.
+/// `change_type`, `routing`, and `risk_level` come straight off the
+/// IR types — no parallel schema, the FE consumes the generated
+/// `ChangeType` union alongside the rest of the matrix.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ChangeRoutingRuleResponse {
     /// `false` for global defaults, `true` for workspace overrides.
     /// The UI uses this to badge override vs default rows.
     pub workspace_scoped: bool,
-    /// `ChangeType` discriminator as a snake_case string.
-    #[schema(value_type = String)]
-    pub change_type: serde_json::Value,
+    pub change_type: ChangeType,
     pub routing: ApprovalRouting,
     pub risk_level: RiskLevel,
     pub priority: i32,
 }
 
 impl ChangeRoutingRuleResponse {
-    fn from_rule(r: ChangeRoutingRule) -> Result<Self, AppError> {
-        let change_type = serde_json::to_value(r.change_type)
-            .map_err(|e| AppError::internal(format!("change_type serialise failed: {e}")))?;
-        Ok(Self {
+    fn from_rule(r: ChangeRoutingRule) -> Self {
+        Self {
             workspace_scoped: r.workspace_id.is_some(),
-            change_type,
+            change_type: r.change_type,
             routing: r.routing,
             risk_level: r.risk_level,
             priority: r.priority,
-        })
+        }
     }
 }
 
@@ -87,7 +79,7 @@ pub(crate) async fn list_routing_rules(
         .map_err(AppError::from)?;
     let mut out = Vec::with_capacity(rules.len());
     for r in rules {
-        out.push(ChangeRoutingRuleResponse::from_rule(r)?);
+        out.push(ChangeRoutingRuleResponse::from_rule(r));
     }
     Ok(ApiResponse::of(out))
 }
@@ -119,7 +111,7 @@ fn default_workspace_priority() -> i32 {
     put,
     path = "/api/admin/governance/routing/{change_type}",
     tag = "Admin",
-    params(("change_type" = String, Path, description = "Snake-case ChangeType discriminator (e.g. `glossary_term_create`).")),
+    params(("change_type" = String, Path, description = "Snake-case ChangeType discriminator (e.g. `terminology_registry_update`).")),
     request_body = UpsertRoutingRuleRequest,
     responses(
         (status = 200, description = "Override upserted at workspace scope.", body = ChangeRoutingRuleResponse),
@@ -158,7 +150,7 @@ pub(crate) async fn upsert_routing_rule(
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(ChangeRoutingRuleResponse::from_rule(
         upserted,
-    )?))
+    )))
 }
 
 #[utoipa::path(

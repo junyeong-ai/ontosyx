@@ -29,14 +29,25 @@ use rand::RngExt;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-use ox_store::evaluation::{EvaluationCase, EvaluationRun, EvaluationRunStatus};
+use ox_ontology::{EvaluationFingerprint, ModelId};
 use ox_store::Store;
+use ox_store::evaluation::{
+    EvaluationActual, EvaluationCase, EvaluationCaseInput, EvaluationCaseMetadata, EvaluationDataset,
+    EvaluationRun, EvaluationRunStatus,
+};
 
-/// Canonical run name for the per-workspace live-sample stream.
-/// Operator-driven runs are admin-named; this one is system-
-/// reserved and the FE renders it specially (auto-imported,
-/// not editable).
-pub const LIVE_CHAT_SAMPLES_RUN_NAME: &str = "live_chat_samples";
+/// Canonical name root for the per-workspace live-sample stream.
+/// Each `(workspace, model_id)` pair gets its own run named
+/// `live_chat_samples:<model_id>` so the run-level fingerprint
+/// pins one model coherently — multi-model traffic fans out into
+/// distinct runs rather than mixing scores under an inconsistent
+/// pin. The FE renders these specially (auto-imported, not
+/// editable).
+pub const LIVE_CHAT_SAMPLES_RUN_PREFIX: &str = "live_chat_samples";
+/// Canonical name for the per-workspace live-sample dataset that
+/// every live run materialises cases against. Auto-upserted on
+/// first sample.
+pub const LIVE_CHAT_SAMPLES_DATASET_NAME: &str = "live_chat_samples";
 
 /// Bounded sampling rate in `[0.0, 1.0]`. `0.0` disables the
 /// sampler entirely (no store reads, no RNG draws). Values above
@@ -93,7 +104,7 @@ fn passes_gate(config: SamplingConfig) -> bool {
 }
 
 /// Sample shape persisted into the evaluation surface. Mirrors
-/// the `ExecuteEvaluationCaseRequest::Explain` envelope so the
+/// the `EvaluationCaseInput::Explain` envelope so the
 /// async judge worker can pick it up without a per-shape branch.
 #[derive(Debug, Clone)]
 pub struct ChatSampleInput {
@@ -124,39 +135,72 @@ pub async fn try_record_chat_sample(
     let workspace_id = sample.workspace_id;
     ox_store::WORKSPACE_ID
         .scope(workspace_id, async move {
-            let run = ensure_live_samples_run(store.as_ref(), workspace_id).await?;
-            land_sample_case(store.as_ref(), &run, sample).await
+            match ensure_live_samples_run(store.as_ref(), workspace_id, &sample).await? {
+                Some(run) => land_sample_case(store.as_ref(), &run, sample).await,
+                None => Ok(()),
+            }
         })
         .await?;
     Ok(true)
 }
 
-/// Lookup-or-create the per-workspace `live_chat_samples` run.
-/// First sample for a workspace pays the create round-trip;
-/// every subsequent sample pays just the lookup. A future
-/// `OnceCell<Uuid>` cache would amortise that, but the volume
-/// is bounded by `rate * traffic` and the lookup is single-row
-/// indexed.
+/// Lookup-or-create the per-(workspace, model) `live_chat_samples`
+/// run. Returns `None` when the workspace has no committed
+/// canonical ontology version yet — sampling without a
+/// reproducibility pin is not supported, so the sampler skips
+/// quietly during greenfield until the first commit lands.
+///
+/// First sample for a (workspace, model) pair pays the
+/// create round-trip; every subsequent sample pays just the
+/// lookup. Volume is bounded by `rate * traffic` and the lookup
+/// is single-row indexed.
 async fn ensure_live_samples_run(
     store: &dyn Store,
     workspace_id: Uuid,
-) -> ox_core::error::OxResult<EvaluationRun> {
-    if let Some(existing) = store
-        .find_evaluation_run_by_name(LIVE_CHAT_SAMPLES_RUN_NAME)
-        .await?
-    {
-        return Ok(existing);
+    sample: &ChatSampleInput,
+) -> ox_core::error::OxResult<Option<EvaluationRun>> {
+    let run_name = format!(
+        "{LIVE_CHAT_SAMPLES_RUN_PREFIX}:{}",
+        sample.model_id
+    );
+    if let Some(existing) = store.find_evaluation_run_by_name(&run_name).await? {
+        return Ok(Some(existing));
     }
-    // First sample for this workspace — materialise the run.
-    // Status stays `Running` so the operator UI surfaces it as
-    // an active stream. `metadata.kind = 'online_sample'` lets
-    // the FE render a "live sample" pill on the row.
+
+    // Resolve the workspace's current canonical ontology version.
+    // Greenfield workspaces (no canonical) skip the sampler — the
+    // run cannot pin an ontology snapshot, and an unpinned run is
+    // not a supported shape under `EvaluationFingerprint`.
+    let Some(ontology) = store.get_workspace_ontology().await? else {
+        return Ok(None);
+    };
+    let Some(current) = store.find_current_version(ontology.id).await? else {
+        return Ok(None);
+    };
+
+    // Auto-upsert the per-workspace `live_chat_samples` dataset.
+    // Every sample run shares this dataset so case_key
+    // correspondence works across runs (per-model live-sample
+    // diffing).
+    let dataset = ensure_live_samples_dataset(store, workspace_id).await?;
+
+    let fingerprint = EvaluationFingerprint {
+        ontology_version_id: current.id,
+        dataset_id: dataset.id,
+        model_id: ModelId::new(sample.model_id.clone()),
+        prompt_template_id: None,
+        prompt_template_version: None,
+        decoding_config_hash: None,
+        retrieval_profile_id: None,
+    };
+    let fingerprint_digest = fingerprint.digest()?;
+
     let run = EvaluationRun {
         id: Uuid::now_v7(),
         workspace_id,
-        ontology_version_id: None,
-        dataset_id: None,
-        name: LIVE_CHAT_SAMPLES_RUN_NAME.to_string(),
+        fingerprint,
+        fingerprint_digest,
+        name: run_name,
         description: "Auto-captured chat samples for the production metric loop. \
             Cases land here at the configured sampling rate; the async judge \
             worker scores them in the background."
@@ -168,7 +212,30 @@ async fn ensure_live_samples_run(
             "kind": "online_sample",
         }),
     };
-    store.create_evaluation_run(&run).await
+    store.create_evaluation_run(&run).await.map(Some)
+}
+
+/// Lookup-or-create the per-workspace `live_chat_samples`
+/// dataset. The upsert path is idempotent on
+/// `(workspace_id, name)` — re-import preserves the existing id
+/// and `created_at` and only refreshes the description, so
+/// concurrent samplers converge on the same row without a race
+/// window.
+async fn ensure_live_samples_dataset(
+    store: &dyn Store,
+    workspace_id: Uuid,
+) -> ox_core::error::OxResult<EvaluationDataset> {
+    let dataset = EvaluationDataset {
+        id: Uuid::now_v7(),
+        workspace_id,
+        name: LIVE_CHAT_SAMPLES_DATASET_NAME.to_string(),
+        description: "Auto-managed dataset that backs every `live_chat_samples:*` \
+            run for this workspace. Cases land here as production traffic is \
+            sampled."
+            .to_string(),
+        created_at: chrono::Utc::now(),
+    };
+    store.upsert_evaluation_dataset(&dataset).await
 }
 
 async fn land_sample_case(
@@ -178,17 +245,17 @@ async fn land_sample_case(
 ) -> ox_core::error::OxResult<()> {
     let case_id = Uuid::now_v7();
     let case_key = format!("sample-{}", case_id.simple());
-    // Mirror `ExecuteEvaluationCaseRequest::Explain` exactly so
+    // Mirror `EvaluationCaseInput::Explain` exactly so
     // the async judge worker dispatches without a per-source
     // branch. `actual` ships the captured chat answer + model.
-    let input = serde_json::json!({
-        "kind": "explain",
-        "question": sample.question,
-    });
-    let actual = serde_json::json!({
-        "content": sample.answer,
-        "model": sample.model_id,
-    });
+    let input = EvaluationCaseInput::Explain {
+        question: sample.question,
+        expected_answer: None,
+    };
+    let actual = EvaluationActual::Explanation {
+        content: sample.answer,
+        model: sample.model_id,
+    };
     let case = EvaluationCase {
         id: case_id,
         run_id: run.id,
@@ -199,9 +266,7 @@ async fn land_sample_case(
         actual: Some(actual),
         error: None,
         latency_ms: None,
-        metadata: serde_json::json!({
-            "source": "online_sampler",
-        }),
+        metadata: EvaluationCaseMetadata::OnlineSampler,
         created_at: chrono::Utc::now(),
     };
     store.upsert_evaluation_case(&case).await.map(|_| ())
@@ -276,7 +341,7 @@ mod tests {
                 hits += 1;
             }
         }
-        assert!(hits >= 900 && hits <= 1100, "hits={hits}");
+        assert!((900..=1100).contains(&hits), "hits={hits}");
     }
 
     #[test]

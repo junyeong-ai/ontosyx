@@ -12,13 +12,14 @@ pub mod approvals;
 pub mod audit;
 pub mod auth;
 pub mod chat;
+pub mod community_summaries;
 pub mod config;
 pub mod dashboards;
+pub mod evaluation;
 pub mod federation_admin;
 pub mod governance_audit;
 pub mod governance_routing;
 pub mod health;
-pub mod evaluation;
 pub mod insights;
 pub mod knowledge;
 pub mod lineage;
@@ -26,9 +27,9 @@ pub mod load;
 pub mod models;
 pub mod notifications;
 pub mod ontology;
+pub mod ontology_drafts;
 pub mod perspectives;
 pub mod pins;
-pub mod ontology_drafts;
 pub mod prompts_admin;
 pub mod quality;
 pub mod query;
@@ -39,6 +40,7 @@ pub mod sessions;
 pub mod sources;
 pub mod usage;
 pub mod users;
+pub mod verified_queries;
 pub mod workspaces;
 mod ws;
 
@@ -68,19 +70,34 @@ pub fn router(state: AppState) -> Router {
         // Auth: revoke caller's current JWT
         .route("/auth/logout", post(auth::logout))
         // Design projects — ontology design lifecycle
-        .route("/ontology-drafts", post(ontology_drafts::create_ontology_draft))
-        .route("/ontology-drafts", get(ontology_drafts::list_ontology_drafts))
+        .route(
+            "/ontology-drafts",
+            post(ontology_drafts::create_ontology_draft),
+        )
+        .route(
+            "/ontology-drafts",
+            get(ontology_drafts::list_ontology_drafts),
+        )
         .route(
             "/ontology-drafts/source-preview",
             post(ontology_drafts::preview_source),
         )
-        .route("/ontology-drafts/{id}", get(ontology_drafts::get_ontology_draft))
-        .route("/ontology-drafts/{id}", delete(ontology_drafts::delete_ontology_draft))
+        .route(
+            "/ontology-drafts/{id}",
+            get(ontology_drafts::get_ontology_draft),
+        )
+        .route(
+            "/ontology-drafts/{id}",
+            delete(ontology_drafts::delete_ontology_draft),
+        )
         .route(
             "/ontology-drafts/{id}/decisions",
             patch(ontology_drafts::update_decisions),
         )
-        .route("/ontology-drafts/{id}/design", post(ontology_drafts::design_ontology_draft))
+        .route(
+            "/ontology-drafts/{id}/design",
+            post(ontology_drafts::design_ontology_draft),
+        )
         .route(
             "/ontology-drafts/{id}/design/stream",
             post(ontology_drafts::design_ontology_draft_stream),
@@ -101,7 +118,10 @@ pub fn router(state: AppState) -> Router {
             "/ontology-drafts/{id}/scope/defer",
             post(ontology_drafts::defer_scope_tables),
         )
-        .route("/ontology-drafts/{id}/refine", post(ontology_drafts::refine_ontology_draft))
+        .route(
+            "/ontology-drafts/{id}/refine",
+            post(ontology_drafts::refine_ontology_draft),
+        )
         .route(
             "/ontology-drafts/{id}/refine/stream",
             post(ontology_drafts::refine_ontology_draft_stream),
@@ -110,9 +130,18 @@ pub fn router(state: AppState) -> Router {
             "/ontology-drafts/{id}/apply-reconcile",
             post(ontology_drafts::apply_reconcile),
         )
-        .route("/ontology-drafts/{id}/edit", post(ontology_drafts::edit_ontology_draft))
-        .route("/ontology-drafts/{id}/extend", post(ontology_drafts::extend_ontology_draft))
-        .route("/ontology-drafts/{id}/complete", post(ontology_drafts::complete_ontology_draft))
+        .route(
+            "/ontology-drafts/{id}/edit",
+            post(ontology_drafts::edit_ontology_draft),
+        )
+        .route(
+            "/ontology-drafts/{id}/extend",
+            post(ontology_drafts::extend_ontology_draft),
+        )
+        .route(
+            "/ontology-drafts/{id}/complete",
+            post(ontology_drafts::complete_ontology_draft),
+        )
         .route(
             "/ontology-drafts/{id}/deploy-schema",
             post(ontology_drafts::deploy_schema),
@@ -121,7 +150,10 @@ pub fn router(state: AppState) -> Router {
             "/ontology-drafts/{id}/load-plan",
             post(ontology_drafts::generate_load_plan),
         )
-        .route("/ontology-drafts/{id}/load/compile", post(ontology_drafts::compile_load))
+        .route(
+            "/ontology-drafts/{id}/load/compile",
+            post(ontology_drafts::compile_load),
+        )
         .route(
             "/ontology-drafts/{id}/load/execute",
             post(ontology_drafts::execute_load_from_source),
@@ -131,7 +163,10 @@ pub fn router(state: AppState) -> Router {
             patch(ontology::apply_ontology_commands),
         )
         // Ontology revision history
-        .route("/ontology-drafts/{id}/revisions", get(ontology_drafts::list_revisions))
+        .route(
+            "/ontology-drafts/{id}/revisions",
+            get(ontology_drafts::list_revisions),
+        )
         .route(
             "/ontology-drafts/{id}/revisions/{rev}",
             get(ontology_drafts::get_revision),
@@ -145,10 +180,22 @@ pub fn router(state: AppState) -> Router {
             "/ontology-drafts/{id}/revisions/{rev1}/diff/{rev2}",
             get(ontology_drafts::diff_revisions),
         )
-        .route("/ontology-drafts/{id}/diff/current", get(ontology_drafts::diff_current))
-        .route("/ontology-drafts/{id}/diff/canonical", get(ontology_drafts::diff_canonical))
-        .route("/ontology-drafts/{id}/rebase/preview", get(ontology_drafts::rebase_preview))
-        .route("/ontology-drafts/{id}/rebase", post(ontology_drafts::rebase_draft))
+        .route(
+            "/ontology-drafts/{id}/diff/current",
+            get(ontology_drafts::diff_current),
+        )
+        .route(
+            "/ontology-drafts/{id}/diff/canonical",
+            get(ontology_drafts::diff_canonical),
+        )
+        .route(
+            "/ontology-drafts/{id}/rebase/preview",
+            get(ontology_drafts::rebase_preview),
+        )
+        .route(
+            "/ontology-drafts/{id}/rebase",
+            post(ontology_drafts::rebase_draft),
+        )
         .route(
             "/ontology-drafts/{id}/revisions/{rev}/migrate",
             post(ontology_drafts::migrate_schema),
@@ -162,10 +209,7 @@ pub fn router(state: AppState) -> Router {
             "/ontology",
             get(ontology::get_workspace_ontology_detail).post(ontology::create_ontology),
         )
-        .route(
-            "/ontology/versions",
-            get(ontology::list_canonical_versions),
-        )
+        .route("/ontology/versions", get(ontology::list_canonical_versions))
         .route(
             "/ontology/type-candidates",
             get(ontology::list_type_candidates),
@@ -174,6 +218,19 @@ pub fn router(state: AppState) -> Router {
         .route("/ontology/map-summary", get(ontology::map_summary))
         .route("/ontology/axis-items", get(ontology::list_axis_items))
         .route("/ontology/cross-refs", get(ontology::list_cross_refs))
+        .route(
+            "/ontology/communities",
+            get(community_summaries::list_community_summaries)
+                .post(community_summaries::upsert_community_summary),
+        )
+        .route(
+            "/ontology/communities/search",
+            get(community_summaries::search_community_summaries),
+        )
+        .route(
+            "/ontology/communities/{id}",
+            delete(community_summaries::delete_community_summary),
+        )
         .route(
             "/ontology/dependencies",
             get(ontology::get_ontology_dependencies),
@@ -189,12 +246,12 @@ pub fn router(state: AppState) -> Router {
             post(ontology::propose_ontology_notation_patterns),
         )
         .route(
-            "/ontology/glossary/suggest-bindings",
-            post(ontology::suggest_glossary_bindings),
+            "/ontology/concepts/suggest-property-bindings",
+            post(ontology::suggest_concept_property_bindings),
         )
         .route(
-            "/ontology/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms",
-            post(ontology::suggest_glossary_terms_for_property),
+            "/ontology/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-concepts",
+            post(ontology::suggest_concepts_for_property),
         )
         // Ontology import/export (stateless transforms)
         .route("/ontology/normalize", post(ontology::normalize_ontology))
@@ -217,7 +274,10 @@ pub fn router(state: AppState) -> Router {
         .route("/load", post(load::plan_load))
         .route("/load/execute", post(load::execute_load))
         .route("/load/checkpoints", get(load::list_load_checkpoints))
-        .route("/load/checkpoints/{id}", delete(load::delete_load_checkpoint))
+        .route(
+            "/load/checkpoints/{id}",
+            delete(load::delete_load_checkpoint),
+        )
         // System
         .route("/prompts", get(load::list_prompts))
         // Config management
@@ -228,7 +288,10 @@ pub fn router(state: AppState) -> Router {
         // Query execution history
         .route("/query/history", get(query::list_executions))
         .route("/query/history/{id}", get(query::get_execution))
-        .route("/query/history/{id}/feedback", patch(query::update_feedback))
+        .route(
+            "/query/history/{id}/feedback",
+            patch(query::update_feedback),
+        )
         // Raw query
         .route("/query/raw", post(query::raw_query))
         // QueryIR-based query (visual query builder)
@@ -286,6 +349,21 @@ pub fn router(state: AppState) -> Router {
         .route("/knowledge/{id}", patch(knowledge::update_knowledge))
         .route("/knowledge/{id}", delete(knowledge::delete_knowledge))
         .route("/knowledge/{id}/status", patch(knowledge::update_status))
+        // Verified query bank (Φ11)
+        .route(
+            "/verified-queries",
+            post(verified_queries::promote_verified_query)
+                .get(verified_queries::list_verified_queries),
+        )
+        .route(
+            "/verified-queries/{id}",
+            get(verified_queries::get_verified_query)
+                .delete(verified_queries::delete_verified_query),
+        )
+        .route(
+            "/verified-queries/{id}/transition-status",
+            post(verified_queries::transition_verified_query_status),
+        )
         // Scheduled tasks
         .route("/scheduled-tasks", get(schedules::list_schedules))
         .route("/scheduled-tasks/{id}", get(schedules::get_schedule))
@@ -324,13 +402,19 @@ pub fn router(state: AppState) -> Router {
         .route("/insights", post(insights::create_insight))
         .route("/insights", get(insights::list_insights))
         .route("/insights/{id}", get(insights::get_insight))
-        .route("/insights/{id}", axum::routing::put(insights::update_insight))
+        .route(
+            "/insights/{id}",
+            axum::routing::put(insights::update_insight),
+        )
         .route("/insights/{id}", delete(insights::delete_insight))
         // Evaluation surface — RAGAS-style metric loop.
         .route("/evaluation/runs", post(evaluation::create_evaluation_run))
         .route("/evaluation/runs", get(evaluation::list_evaluation_runs))
         .route("/evaluation/runs/{id}", get(evaluation::get_evaluation_run))
-        .route("/evaluation/runs/{id}", delete(evaluation::delete_evaluation_run))
+        .route(
+            "/evaluation/runs/{id}",
+            delete(evaluation::delete_evaluation_run),
+        )
         .route(
             "/evaluation/runs/{id}/complete",
             post(evaluation::complete_evaluation_run),
@@ -527,7 +611,10 @@ pub fn router(state: AppState) -> Router {
         .route("/approvals", get(approvals::list_approvals))
         .route("/approvals/{id}", get(approvals::get_approval))
         .route("/approvals/{id}/review", post(approvals::review_approval))
-        .route("/approvals/bulk-review", post(approvals::bulk_review_approvals))
+        .route(
+            "/approvals/bulk-review",
+            post(approvals::bulk_review_approvals),
+        )
         .route(
             "/approvals/{id}/comments",
             get(approvals::list_approval_comments).post(approvals::create_approval_comment),
@@ -604,6 +691,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/notifications/log", get(notifications::list_logs))
         // Model configs
+        .route("/models/operations", get(models::list_model_operations))
         .route("/models/configs", get(models::list_model_configs))
         .route("/models/configs", post(models::create_model_config))
         .route(

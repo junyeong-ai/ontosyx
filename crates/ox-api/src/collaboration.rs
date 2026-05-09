@@ -62,20 +62,13 @@ use uuid::Uuid;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMessage {
     /// Bind this connection to a JWT principal + workspace.
-    Authenticate {
-        token: String,
-        workspace_id: Uuid,
-    },
+    Authenticate { token: String, workspace_id: Uuid },
     /// Join a project room. The server responds with
     /// [`ServerMessage::Presence`] (unicast snapshot) and broadcasts
     /// [`ServerMessage::UserJoined`] to existing members.
-    Join {
-        ontology_draft_id: Uuid,
-    },
+    Join { ontology_draft_id: Uuid },
     /// Leave a room — releases every lock the caller holds in it.
-    Leave {
-        ontology_draft_id: Uuid,
-    },
+    Leave { ontology_draft_id: Uuid },
     /// Update cursor position. Throttled per
     /// `collaboration.cursor_throttle_ms`; events inside the window
     /// are silently dropped.
@@ -106,10 +99,7 @@ pub enum ClientMessage {
 pub enum ServerMessage {
     /// Auth ACK — sent once after a successful
     /// [`ClientMessage::Authenticate`].
-    Authenticated {
-        user_id: String,
-        user_name: String,
-    },
+    Authenticated { user_id: String, user_name: String },
     /// Atomic snapshot of the room — unicast to a freshly joined
     /// client so it can render presence and current locks without
     /// waiting for the next broadcast frame. Existing members
@@ -178,11 +168,7 @@ pub enum ServerMessage {
         author_user_name: String,
         base_revision: i32,
         new_revision: i32,
-        /// `OntologyCommand` is internally tagged JSON; utoipa can't
-        /// derive a static schema for the runtime variant set, so the
-        /// wire shape surfaces as `Vec<Object>` in OpenAPI and the FE
-        /// reads it through the typed `OntologyCommand` union.
-        #[schema(value_type = Vec<Object>)]
+        /// Ordered ontology mutation commands applied by the author.
         commands: Vec<OntologyCommand>,
     },
     /// Structured error. The frontend renders the message via i18n
@@ -282,7 +268,7 @@ struct LockEntry {
 
 struct Room {
     members: HashMap<String, RoomMember>, // user_id → member
-    locks: HashMap<String, LockEntry>, // entity_id → lock
+    locks: HashMap<String, LockEntry>,    // entity_id → lock
     broadcast: broadcast::Sender<ServerMessage>,
 }
 
@@ -407,12 +393,7 @@ pub trait CollaborationHub: Send + Sync {
     /// members; returns a fresh receiver plus a unicast snapshot
     /// (presence + active locks) the WS handler forwards to the
     /// joining socket.
-    async fn join(
-        &self,
-        ontology_draft_id: Uuid,
-        user_id: &str,
-        user_name: &str,
-    ) -> JoinOutcome;
+    async fn join(&self, ontology_draft_id: Uuid, user_id: &str, user_name: &str) -> JoinOutcome;
 
     /// Leave a project room. Releases every lock held by `user_id`
     /// and broadcasts `UserLeft` plus per-lock `LockReleased`.
@@ -484,10 +465,7 @@ pub trait CollaborationHub: Send + Sync {
 /// method because it has to capture an owned `Arc<dyn ...>` for
 /// the guard's `Drop` impl — trait methods can't return guards
 /// that outlive the reference they were called through.
-pub async fn open_session(
-    hub: Arc<dyn CollaborationHub>,
-    user_id: &str,
-) -> Option<SessionHandle> {
+pub async fn open_session(hub: Arc<dyn CollaborationHub>, user_id: &str) -> Option<SessionHandle> {
     if !hub.try_reserve_session(user_id).await {
         return None;
     }
@@ -553,12 +531,7 @@ impl CollaborationHub for InProcessCollaborationHub {
         }
     }
 
-    async fn join(
-        &self,
-        ontology_draft_id: Uuid,
-        user_id: &str,
-        user_name: &str,
-    ) -> JoinOutcome {
+    async fn join(&self, ontology_draft_id: Uuid, user_id: &str, user_name: &str) -> JoinOutcome {
         let room_arc = self.room(ontology_draft_id).await;
         let mut room = room_arc.lock().await;
 
@@ -727,7 +700,8 @@ impl CollaborationHub for InProcessCollaborationHub {
         }
 
         let now = Utc::now();
-        let ttl = chrono::Duration::from_std(self.limits.lock_ttl).unwrap_or(chrono::Duration::seconds(300));
+        let ttl = chrono::Duration::from_std(self.limits.lock_ttl)
+            .unwrap_or(chrono::Duration::seconds(300));
         let expires_at = now + ttl;
 
         // Evaluate existing entry first; pull the bits we need so
@@ -943,11 +917,10 @@ mod tests {
                     selected_element,
                     ..
                 } = msg
+                    && user_id == "u1"
                 {
-                    if user_id == "u1" {
-                        found = selected_element;
-                        break;
-                    }
+                    found = selected_element;
+                    break;
                 }
             } else {
                 tokio::task::yield_now().await;
@@ -985,12 +958,8 @@ mod tests {
         let g2 = hub.acquire_lock(project, "u1", "ent-1").await;
         match (g1, g2) {
             (
-                ServerMessage::LockGranted {
-                    held_by: h1, ..
-                },
-                ServerMessage::LockGranted {
-                    held_by: h2, ..
-                },
+                ServerMessage::LockGranted { held_by: h1, .. },
+                ServerMessage::LockGranted { held_by: h2, .. },
             ) => {
                 assert_eq!(h1, "u1");
                 assert_eq!(h2, "u1");

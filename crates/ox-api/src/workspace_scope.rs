@@ -43,7 +43,10 @@ impl ContextScope for WorkspaceContextScope {
                 let ws_id = *workspace_id;
                 Box::pin(async move {
                     ox_store::WORKSPACE_ID
-                        .scope(ws_id, ox_graph_runtime::GRAPH_WORKSPACE_ID.scope(ws_id, fut))
+                        .scope(
+                            ws_id,
+                            ox_graph_runtime::GRAPH_WORKSPACE_ID.scope(ws_id, fut),
+                        )
                         .await
                 })
             }

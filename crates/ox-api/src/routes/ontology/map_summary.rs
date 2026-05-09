@@ -15,7 +15,7 @@ use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct MapSummaryResponse {
     pub ontology_id: Uuid,
     pub version: Option<String>,
@@ -40,18 +40,18 @@ pub struct MapSummaryResponse {
     pub danglers: Vec<DanglerEntry>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AxisCounts {
     pub entries: Vec<AxisEntry>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AxisEntry {
     pub kind: &'static str,
     pub count: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct DanglerEntry {
     pub kind: String,
     pub source_path: String,
@@ -62,7 +62,7 @@ pub struct DanglerEntry {
     get,
     path = "/api/ontology/map-summary",
     responses(
-        (status = 200, description = "Six-axis summary + dangling references", body = Object),
+        (status = 200, description = "Six-axis summary + dangling references", body = MapSummaryResponse),
         (status = 404, description = "Workspace has no ontology, or ontology has no committed version"),
     ),
     security(("api_key" = [])),

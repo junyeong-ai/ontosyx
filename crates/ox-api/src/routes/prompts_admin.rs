@@ -79,8 +79,9 @@ pub struct CreatePromptRequest {
     pub version: String,
     pub content: String,
     #[serde(default)]
-    pub variables: serde_json::Value,
+    pub variables: Vec<String>,
     #[serde(default)]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub metadata: serde_json::Value,
     /// When set, the prompt is a workspace-scoped override of the
     /// global template. When `None`, it's a new global version.
@@ -148,7 +149,7 @@ pub(crate) async fn create_prompt_template(
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdatePromptRequest {
     pub content: Option<String>,
-    pub variables: Option<serde_json::Value>,
+    pub variables: Option<Vec<String>>,
     pub is_active: Option<bool>,
 }
 
@@ -180,13 +181,14 @@ pub(crate) async fn update_prompt_template(
         .ok_or_else(|| AppError::not_found("Prompt template"))?;
 
     let new_active = req.is_active.unwrap_or(existing.is_active);
+    let variables = req.variables.unwrap_or_else(|| existing.variables.clone());
 
     state
         .store
         .update_prompt_template(
             id,
             req.content.as_deref().unwrap_or(&existing.content),
-            req.variables.as_ref().unwrap_or(&existing.variables),
+            &variables,
             new_active,
         )
         .await

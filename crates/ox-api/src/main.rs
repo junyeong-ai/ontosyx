@@ -13,6 +13,7 @@
 #![allow(clippy::let_underscore_must_use)]
 
 use std::net::SocketAddr;
+#[cfg(feature = "embedding-onnx")]
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -32,15 +33,21 @@ use ox_source::registry::AdapterRegistry;
 // as `ontosyx`-bin-local `crate::*`).
 use ox_api::config::OxConfig;
 use ox_api::middleware::RateLimiter;
+use ox_api::spawn_scoped::spawn_system;
 use ox_api::state::{AppState, Timeouts};
 use ox_api::{
     collaboration, mcp, middleware, model_router, openapi, routes, schedule, sso, state,
     system_config,
 };
-use ox_api::spawn_scoped::spawn_system;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Local developer ergonomics: `.env` mirrors the documented
+    // environment override surface and is loaded before `OxConfig`.
+    // Production should still inject real environment variables through
+    // the process manager / orchestrator; missing `.env` is expected.
+    dotenvy::dotenv().ok();
+
     let config = OxConfig::load()?;
     config.validate()?;
 
@@ -133,16 +140,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Create shared LLM client pool + model resolver
     let client_pool = Arc::new(ox_brain::client_pool::ClientPool::new());
-    // Pre-warm the primary client
-    client_pool.get_or_create(&config.llm).await?;
-    if let Some(ref fast_cfg) = config.fast_llm {
-        client_pool.get_or_create(fast_cfg).await?;
-        tracing::info!(
-            provider = %fast_cfg.provider,
-            model = %fast_cfg.model,
-            "Fast LLM client pre-warmed in pool"
-        );
-    }
+    tracing::info!("LLM clients will be created lazily on first use");
     let model_resolver: Arc<dyn ox_brain::model_resolver::ModelResolver> =
         Arc::new(ox_brain::model_resolver::StaticModelResolver::from_configs(
             &config.llm,
@@ -180,12 +178,10 @@ async fn main() -> anyhow::Result<()> {
     // the `/metrics` endpoint and the ontology-save hook that needs to
     // invalidate the cache after a schema change.
     let raw_compiler = graph_backend.compiler;
-    let plan_cache_arc = std::sync::Arc::new(ox_compiler::PlanCache::with_default_capacity(
-        raw_compiler,
-    ));
+    let plan_cache_arc =
+        std::sync::Arc::new(ox_compiler::PlanCache::with_default_capacity(raw_compiler));
     let compiler: std::sync::Arc<dyn ox_compiler::GraphCompiler> = plan_cache_arc.clone();
-    let plan_cache: Option<std::sync::Arc<dyn ox_compiler::PlanCacheHandle>> =
-        Some(plan_cache_arc);
+    let plan_cache: Option<std::sync::Arc<dyn ox_compiler::PlanCacheHandle>> = Some(plan_cache_arc);
     let runtime = graph_backend.runtime;
 
     // Optional read-only runtime — used by MCP `execute_cypher` so a
@@ -268,9 +264,12 @@ async fn main() -> anyhow::Result<()> {
     // `EvaluationCapture` because the capture surface targets
     // observability hooks, not the persistence supertrait.
     let pg_store_arc = Arc::new(pg_store);
-    let evaluation_capture =
-        Arc::clone(&pg_store_arc) as Arc<dyn ox_store::EvaluationCapture>;
+    let evaluation_capture = Arc::clone(&pg_store_arc) as Arc<dyn ox_store::EvaluationCapture>;
     let store = pg_store_arc as Arc<dyn ox_store::Store>;
+    let db_model_router = Arc::new(model_router::DbModelRouter::with_fallback(
+        Arc::clone(&store),
+        Arc::clone(&model_resolver),
+    ));
 
     // Load prompt templates from DB (seeds from TOML on first run).
     // Uses SYSTEM_BYPASS to skip RLS during startup seeding.
@@ -299,7 +298,8 @@ async fn main() -> anyhow::Result<()> {
     // Brain is created here but memory is attached later (after embedding init)
     let brain_base = DefaultBrain::new(
         Arc::clone(&client_pool),
-        Arc::clone(&model_resolver),
+        std::iter::once(config.llm.clone()).chain(config.fast_llm.clone()),
+        Arc::clone(&db_model_router) as Arc<dyn ox_brain::model_resolver::ModelResolver>,
         prompts,
         ox_brain::ProviderInfo {
             name: config.llm.provider.clone(),
@@ -465,7 +465,6 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-
     // Rate limiter (optional, controlled by config)
     let rate_limiter = if config.rate_limit.enabled {
         let rl = Arc::new(RateLimiter::new(&config.rate_limit));
@@ -481,26 +480,31 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
-    // Build branchforge Auth from LLM config (used for Agent chat)
-    // Uses shared resolve_auth() to stay consistent with Brain client creation.
-    let agent_auth = client_pool.resolved_auth(&config.llm).await?;
-
     // Initialize semantic memory (embedding + pgvector)
     let memory = {
         let ec = &config.embedding;
         let embedder: Arc<dyn ox_memory::EmbeddingProvider> = match ec.provider.as_str() {
             "onnx" => {
-                let model_dir = expand_tilde(&ec.model);
-                if !model_dir.exists() {
+                #[cfg(feature = "embedding-onnx")]
+                {
+                    let model_dir = expand_tilde(&ec.model);
+                    if !model_dir.exists() {
+                        anyhow::bail!(
+                            "ONNX model directory not found: {} (from config: '{}')",
+                            model_dir.display(),
+                            ec.model,
+                        );
+                    }
+                    tracing::info!(path = %model_dir.display(), "Loading ONNX embedding model…");
+                    let provider = ox_memory::OnnxEmbeddingProvider::load(&model_dir)?;
+                    Arc::new(provider)
+                }
+                #[cfg(not(feature = "embedding-onnx"))]
+                {
                     anyhow::bail!(
-                        "ONNX model directory not found: {} (from config: '{}')",
-                        model_dir.display(),
-                        ec.model,
+                        "embedding.provider = 'onnx' requires the ox-api `embedding-onnx` feature"
                     );
                 }
-                tracing::info!(path = %model_dir.display(), "Loading ONNX embedding model…");
-                let provider = ox_memory::OnnxEmbeddingProvider::load(&model_dir)?;
-                Arc::new(provider)
             }
             _ => {
                 if ec.provider != "noop" {
@@ -526,6 +530,19 @@ async fn main() -> anyhow::Result<()> {
         Some(Arc::new(ox_memory::MemoryStore::new(embedder, vectors)))
     };
 
+    // Workspace tokenizer registry — system mecab-ko-dic shared
+    // across the process; per-workspace user dictionaries land
+    // here when `commit_version` detects a glossary fingerprint
+    // shift. LRU cap default 256 — every workspace from a
+    // hundreds-of-tenants deployment fits, and a 10k-tenant
+    // build evicts cold workspaces transparently.
+    let tokenizer_registry = Arc::new(
+        ox_text::WorkspaceTokenizerRegistry::new(
+            ox_text::RegistryConfig::default(),
+        )
+        .expect("ox-text registry init"),
+    );
+
     // Attach memory store (schema RAG) + knowledge store (failure-driven
     // corrections) + evaluation capture (RAGAS metric loop) to brain.
     // The capture handle was minted alongside `store` from the same
@@ -533,18 +550,41 @@ async fn main() -> anyhow::Result<()> {
     // `EvaluationContext` scope flows latency metrics into
     // `evaluation_metrics` automatically.
     let kb_store = Arc::clone(&store) as Arc<dyn ox_store::KnowledgeStore>;
+    // Inference-session store handle — same concrete `PostgresStore` Arc
+    // the rest of the platform shares. Brain records one
+    // `InferenceAttempt` per `translate_query` call when the calling
+    // task has bound an `InferenceContext` via
+    // `run_in_inference_session` (Φ9.3).
+    let inference_session_store =
+        Arc::clone(&store) as Arc<dyn ox_store::InferenceSessionStore>;
+    // Φ11.2: verified-query bank — cache-hit short-circuit on
+    // exact question hash skips the LLM round-trip entirely.
+    let verified_query_store =
+        Arc::clone(&store) as Arc<dyn ox_store::VerifiedQueryStore>;
     let brain: Arc<dyn ox_brain::Brain> = if let Some(ref mem) = memory {
+        // Φ11.5 — share the embedder Arc across MemoryStore +
+        // Brain so the verified-query NN path uses exactly the
+        // model whose dimension the schema (`vector(1024)`) is
+        // pinned to.
+        let shared_embedder = Arc::clone(mem.embedder());
         Arc::new(
             brain_base
                 .with_memory(Arc::clone(mem), None)
                 .with_knowledge(kb_store)
-                .with_evaluation_capture(evaluation_capture),
+                .with_evaluation_capture(evaluation_capture)
+                .with_inference_session_store(inference_session_store)
+                .with_verified_query_store(verified_query_store)
+                .with_embedder(shared_embedder)
+                .with_tokenizer_registry(Arc::clone(&tokenizer_registry)),
         )
     } else {
         Arc::new(
             brain_base
                 .with_knowledge(kb_store)
-                .with_evaluation_capture(evaluation_capture),
+                .with_evaluation_capture(evaluation_capture)
+                .with_inference_session_store(inference_session_store)
+                .with_verified_query_store(verified_query_store)
+                .with_tokenizer_registry(Arc::clone(&tokenizer_registry)),
         )
     };
 
@@ -563,6 +603,33 @@ async fn main() -> anyhow::Result<()> {
         cancel_token.clone(),
     );
 
+    // Φ11.3: verified-query freshness sweep — flips
+    // `verified_queries.status = 'stale'` for rows whose
+    // persisted IR references labels the active canonical
+    // ontology no longer declares. Singleton-locked; one
+    // replica per pool runs the hourly tick.
+    ox_api::background::spawn_verified_query_freshness_sweep(
+        Arc::clone(&store),
+        shared_pg_pool.clone(),
+        cancel_token.clone(),
+    );
+
+    // Φ10.4: community detection cron — runs Leiden over the
+    // canonical ontology graph, summarises each emitted
+    // community via the Brain's CommunitySummariser, and
+    // upserts community_summaries for the GraphRAG retrieval
+    // path. Singleton-locked, 6-hour cadence; per-community
+    // membership-fingerprint check skips the LLM call when
+    // structure hasn't drifted.
+    ox_api::background::spawn_community_detection_sweep(
+        Arc::clone(&store),
+        Arc::clone(&brain),
+        Arc::clone(&tokenizer_registry),
+        memory.as_ref().map(|m| Arc::clone(m.embedder())),
+        shared_pg_pool.clone(),
+        cancel_token.clone(),
+    );
+
     // Initialize OIDC providers (auto-discovers from issuer URLs)
     let oidc_providers = {
         let provider_configs = config.auth.providers.clone();
@@ -577,17 +644,14 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let db_model_router = Arc::new(model_router::DbModelRouter::new(Arc::clone(&store)));
-
     // Process-wide clarification tracker — fed by ResolveAmbiguityTool
     // and read by QueryGraphTool so the `clarification_success_rate`
     // signal flips when a query lands shortly after an ambiguity
     // resolution in the same agent session. Shared with the
     // background evict loop so stale session entries don't
     // accumulate forever.
-    let clarification_tracker: Arc<
-        ox_agent::clarification_tracker::ClarificationTracker,
-    > = Arc::new(ox_agent::clarification_tracker::ClarificationTracker::new());
+    let clarification_tracker: Arc<ox_agent::clarification_tracker::ClarificationTracker> =
+        Arc::new(ox_agent::clarification_tracker::ClarificationTracker::new());
 
     let state = AppState {
         brain,
@@ -618,9 +682,9 @@ async fn main() -> anyhow::Result<()> {
         system_config,
         rate_limiter,
         memory,
+        tokenizer_registry,
         client_pool,
         model_router: db_model_router,
-        agent_auth,
         oidc_providers,
         tool_review_channels: Some(Arc::new(dashmap::DashMap::new())),
         collaboration: Arc::new(collaboration::InProcessCollaborationHub::new(
@@ -633,8 +697,7 @@ async fn main() -> anyhow::Result<()> {
             config.agent.max_concurrent_streams_per_user,
         )),
         clarification_tracker: Arc::clone(&clarification_tracker),
-        jwt_revocation_cache:
-            ox_api::jwt_revocation_cache::JwtRevocationCache::with_default_ttl(),
+        jwt_revocation_cache: ox_api::jwt_revocation_cache::JwtRevocationCache::with_default_ttl(),
     };
 
     // Spawn the clarification-tracker evict loop. Runs every 30
@@ -1257,9 +1320,7 @@ async fn shutdown_signal(cancel_token: tokio_util::sync::CancellationToken) {
 /// workspace owner via `find_workspace_by_slug("default")` to stand
 /// in as the acting user — so without this seed, every machine-auth
 /// request 500s with "Default workspace not found".
-async fn seed_default_workspace_if_missing(
-    store: &Arc<dyn ox_store::Store>,
-) -> anyhow::Result<()> {
+async fn seed_default_workspace_if_missing(store: &Arc<dyn ox_store::Store>) -> anyhow::Result<()> {
     use ox_store::models::{User, Workspace};
 
     const DEFAULT_SLUG: &str = "default";
@@ -1295,8 +1356,14 @@ async fn seed_default_workspace_if_missing(
         settings: serde_json::json!({}),
         created_at: chrono::Utc::now(),
         primary_locale: ox_core::PRIMARY_LOCALE_DEFAULT.to_string(),
-        admin_locale_fallback: serde_json::json!(ox_core::ADMIN_LOCALE_FALLBACK_DEFAULT),
-        llm_locale_fallback: serde_json::json!(ox_core::LLM_LOCALE_FALLBACK_DEFAULT),
+        admin_locale_fallback: ox_core::ADMIN_LOCALE_FALLBACK_DEFAULT
+            .iter()
+            .map(|tag| (*tag).to_string())
+            .collect(),
+        llm_locale_fallback: ox_core::LLM_LOCALE_FALLBACK_DEFAULT
+            .iter()
+            .map(|tag| (*tag).to_string())
+            .collect(),
     };
     store.create_workspace(&workspace).await?;
 
@@ -1316,6 +1383,7 @@ async fn seed_default_workspace_if_missing(
 }
 
 /// Expand `~/...` to the user's home directory.
+#[cfg(feature = "embedding-onnx")]
 fn expand_tilde(path: &str) -> PathBuf {
     if let Some(rest) = path.strip_prefix("~/")
         && let Some(home) = std::env::var_os("HOME")

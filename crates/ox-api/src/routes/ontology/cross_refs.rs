@@ -1,4 +1,4 @@
-//! `GET /api/ontologies/{id}/cross-refs` — enumerate every pointer
+//! `GET /api/ontology/cross-refs` — enumerate every pointer
 //! field in the current-version IR that crosses from one axis to
 //! another (or within the same axis, when the link is semantically
 //! interesting — e.g. `NodeType.parent`).
@@ -28,7 +28,7 @@ use crate::state::AppState;
 /// enum rather than being removed; `#[allow(dead_code)]` is what
 /// keeps that public surface honest without a linter nag.
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Axis {
     Topology,
@@ -39,7 +39,7 @@ pub enum Axis {
     Governance,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CrossRefEdge {
     /// Axis that owns `source_id`. Drives node placement on the
     /// FE grouped layout.
@@ -65,7 +65,7 @@ pub struct CrossRefEdge {
     get,
     path = "/api/ontology/cross-refs",
     responses(
-        (status = 200, description = "Cross-axis reference edges", body = Object),
+        (status = 200, description = "Cross-axis reference edges", body = Vec<CrossRefEdge>),
         (status = 404, description = "Workspace has no ontology, or ontology has no committed version"),
     ),
     security(("api_key" = [])),
@@ -118,15 +118,17 @@ fn emit_edges(ir: &ox_ontology::OntologyIR, out: &mut Vec<CrossRefEdge>) {
                 target_id: replaced_by.as_str().into(),
             });
         }
+        emit_type_concept_edges(
+            "node_type",
+            node.id.as_str(),
+            node.concept_id.as_ref(),
+            &node.concept_realizations,
+            out,
+        );
         // PropertyDef pointers — property is nested under a node,
         // so source_id encodes the owner so the FE can group.
         for prop in &node.properties {
-            emit_property_edges(
-                "node",
-                node.id.as_str(),
-                prop,
-                out,
-            );
+            emit_property_edges("node", node.id.as_str(), prop, out);
         }
     }
 
@@ -150,13 +152,15 @@ fn emit_edges(ir: &ox_ontology::OntologyIR, out: &mut Vec<CrossRefEdge>) {
             target_kind: "node_type".into(),
             target_id: edge.target_node_id.as_str().into(),
         });
+        emit_type_concept_edges(
+            "edge_type",
+            edge.id.as_str(),
+            edge.concept_id.as_ref(),
+            &edge.concept_realizations,
+            out,
+        );
         for prop in &edge.properties {
-            emit_property_edges(
-                "edge",
-                edge.id.as_str(),
-                prop,
-                out,
-            );
+            emit_property_edges("edge", edge.id.as_str(), prop, out);
         }
     }
 
@@ -430,8 +434,11 @@ fn emit_edges(ir: &ox_ontology::OntologyIR, out: &mut Vec<CrossRefEdge>) {
     // perspective; the source_kind distinguishes edge vs. property.
     for f in ir.functions() {
         for dep in &f.property_dependencies {
-            let source_id =
-                format!("node:{}/{}", dep.node_type_id.as_str(), dep.property_id.as_str());
+            let source_id = format!(
+                "node:{}/{}",
+                dep.node_type_id.as_str(),
+                dep.property_id.as_str()
+            );
             out.push(CrossRefEdge {
                 source_axis: Axis::Strategy,
                 source_kind: "function".into(),
@@ -580,14 +587,14 @@ fn emit_property_edges(
     // PropertyBinding variant only adds one match arm.
     for binding in &prop.bindings {
         match binding {
-            ox_ontology::PropertyBinding::Glossary { id, .. } => {
+            ox_ontology::PropertyBinding::Concept { id, .. } => {
                 out.push(CrossRefEdge {
                     source_axis: Axis::Topology,
                     source_kind: "property".into(),
                     source_id: source_id.clone(),
-                    edge_kind: "binds_to".into(),
+                    edge_kind: "realises".into(),
                     target_axis: Axis::Vocabulary,
-                    target_kind: "glossary_term".into(),
+                    target_kind: "concept".into(),
                     target_id: id.as_str().into(),
                 });
             }
@@ -639,6 +646,37 @@ fn emit_property_edges(
     }
 }
 
+fn emit_type_concept_edges(
+    source_kind: &str,
+    source_id: &str,
+    primary: Option<&ox_ontology::concept::ConceptId>,
+    realizations: &[ox_ontology::ir::ConceptRealization],
+    out: &mut Vec<CrossRefEdge>,
+) {
+    if let Some(concept_id) = primary {
+        out.push(CrossRefEdge {
+            source_axis: Axis::Topology,
+            source_kind: source_kind.into(),
+            source_id: source_id.into(),
+            edge_kind: "realises".into(),
+            target_axis: Axis::Vocabulary,
+            target_kind: "concept".into(),
+            target_id: concept_id.as_str().into(),
+        });
+    }
+    for realization in realizations {
+        out.push(CrossRefEdge {
+            source_axis: Axis::Topology,
+            source_kind: source_kind.into(),
+            source_id: source_id.into(),
+            edge_kind: "realises".into(),
+            target_axis: Axis::Vocabulary,
+            target_kind: "concept".into(),
+            target_id: realization.concept_id.as_str().into(),
+        });
+    }
+}
+
 /// Best-effort collector for "which node/edge types does this rule
 /// reach into?". Matches the current `RuleKind` variants — a new
 /// variant that introduces a scope the match doesn't handle
@@ -648,7 +686,9 @@ fn rule_scope_summary(rule: &ox_ontology::RuleDef) -> ScopeSummary {
     use ox_ontology::rule::RuleKind;
     let mut out = ScopeSummary::default();
     match &rule.kind {
-        RuleKind::NodeShape { target_node_type_id } => {
+        RuleKind::NodeShape {
+            target_node_type_id,
+        } => {
             out.node_type_ids.push(target_node_type_id.as_str().into());
         }
         RuleKind::PropertyShape {
@@ -657,7 +697,9 @@ fn rule_scope_summary(rule: &ox_ontology::RuleDef) -> ScopeSummary {
         } => {
             out.node_type_ids.push(target_node_type_id.as_str().into());
         }
-        RuleKind::EdgeShape { target_edge_type_id } => {
+        RuleKind::EdgeShape {
+            target_edge_type_id,
+        } => {
             out.edge_type_ids.push(target_edge_type_id.as_str().into());
         }
         RuleKind::StateMachine {
@@ -684,9 +726,11 @@ struct ScopeSummary {
 mod tests {
     use super::*;
     use ox_core::{GraphLabel, PropertyKey};
+    use ox_ontology::concept::{ConceptDef, ConceptGovernance, ConceptId};
     use ox_ontology::glossary::{GlossaryTermDef, GlossaryTermId};
     use ox_ontology::ir::{
-        EdgeTypeDef, EdgeTypeId, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId,
+        ConceptRealization, EdgeTypeDef, EdgeTypeId, NodeTypeDef, NodeTypeId, OntologyIR,
+        PropertyDef, PropertyId,
     };
     use ox_ontology::value_set::ValueSetId;
 
@@ -729,26 +773,10 @@ mod tests {
         )
     }
 
-    #[test]
-    fn property_glossary_binding_emits_binds_to() {
-        let mut ir = empty_ir();
-        let prop = PropertyDef {
-            id: PropertyId::new("tier"),
-            name: pk("tier"),
-            property_type: ox_core::types::PropertyType::String,
-            bindings: vec![ox_ontology::PropertyBinding::glossary(GlossaryTermId::new("g-tier"),)],
-            ..Default::default()
-        };
-        let node = NodeTypeDef {
-            id: NodeTypeId::new("Customer"),
-            label: gl("Customer"),
-            properties: vec![prop],
-            ..Default::default()
-        };
-        ir.add_node_type(node).unwrap();
+    fn add_term_concept(ir: &mut OntologyIR, term_id: &str, concept_id: &str, label: &str) {
         ir.add_glossary_term(GlossaryTermDef {
-            id: GlossaryTermId::new("g-tier"),
-            term: ox_core::i18n::LocalizedText::new("Tier"),
+            id: GlossaryTermId::new(term_id),
+            term: ox_core::i18n::LocalizedText::new(label),
             display_name: Default::default(),
             description: Default::default(),
             examples: Vec::new(),
@@ -759,16 +787,115 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: ox_ontology::glossary::TermLifecycle::default(),
-        concept_id: None,
+            concept_id: Some(ConceptId::new(concept_id)),
+            term_pos: Default::default(),
         })
         .unwrap();
+        ir.add_concept(ConceptDef {
+            id: ConceptId::new(concept_id),
+            canonical_term_id: GlossaryTermId::new(term_id),
+            alias_term_ids: Vec::new(),
+            broader: None,
+            description: Default::default(),
+            examples: Vec::new(),
+            category: None,
+            realisation: None,
+            lifecycle: ox_ontology::glossary::TermLifecycle::default(),
+            replaced_by: None,
+            valid_from: None,
+            valid_to: None,
+            governance: ConceptGovernance::default(),
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn property_concept_binding_emits_realises() {
+        let mut ir = empty_ir();
+        let prop = PropertyDef {
+            id: PropertyId::new("tier"),
+            name: pk("tier"),
+            property_type: ox_core::types::PropertyType::String,
+            bindings: vec![ox_ontology::PropertyBinding::concept(ConceptId::new(
+                "c-tier",
+            ))],
+            ..Default::default()
+        };
+        let node = NodeTypeDef {
+            id: NodeTypeId::new("Customer"),
+            label: gl("Customer"),
+            properties: vec![prop],
+            ..Default::default()
+        };
+        ir.add_node_type(node).unwrap();
+        add_term_concept(&mut ir, "g-tier", "c-tier", "Tier");
 
         let mut edges = Vec::new();
         emit_edges(&ir, &mut edges);
-        assert_eq!(
-            count_where(&edges, "property", "binds_to", "glossary_term"),
-            1,
+        assert_eq!(count_where(&edges, "property", "realises", "concept"), 1,);
+    }
+
+    #[test]
+    fn node_type_concept_realizations_emit_realises_edges() {
+        let mut ir = empty_ir();
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Customer"),
+            label: gl("Customer"),
+            concept_id: Some(ConceptId::new("c-customer")),
+            concept_realizations: vec![ConceptRealization {
+                concept_id: ConceptId::new("c-party"),
+                role: Default::default(),
+            }],
+            ..Default::default()
+        })
+        .unwrap();
+        add_term_concept(&mut ir, "g-customer", "c-customer", "Customer");
+        add_term_concept(&mut ir, "g-party", "c-party", "Party");
+
+        let mut edges = Vec::new();
+        emit_edges(&ir, &mut edges);
+        assert_eq!(count_where(&edges, "node_type", "realises", "concept"), 2,);
+    }
+
+    #[test]
+    fn edge_type_concept_realizations_emit_realises_edges() {
+        let mut ir = empty_ir();
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Customer"),
+            label: gl("Customer"),
+            ..Default::default()
+        })
+        .unwrap();
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Order"),
+            label: gl("Order"),
+            ..Default::default()
+        })
+        .unwrap();
+        ir.add_edge_type(EdgeTypeDef {
+            id: EdgeTypeId::new("PLACED"),
+            label: gl("PLACED"),
+            source_node_id: NodeTypeId::new("Customer"),
+            target_node_id: NodeTypeId::new("Order"),
+            concept_id: Some(ConceptId::new("c-placed")),
+            concept_realizations: vec![ConceptRealization {
+                concept_id: ConceptId::new("c-commercial-event"),
+                role: Default::default(),
+            }],
+            ..Default::default()
+        })
+        .unwrap();
+        add_term_concept(&mut ir, "g-placed", "c-placed", "Placed");
+        add_term_concept(
+            &mut ir,
+            "g-commercial-event",
+            "c-commercial-event",
+            "Commercial event",
         );
+
+        let mut edges = Vec::new();
+        emit_edges(&ir, &mut edges);
+        assert_eq!(count_where(&edges, "edge_type", "realises", "concept"), 2,);
     }
 
     #[test]
@@ -778,7 +905,9 @@ mod tests {
             id: PropertyId::new("country"),
             name: pk("country"),
             property_type: ox_core::types::PropertyType::String,
-            bindings: vec![ox_ontology::PropertyBinding::value_set(ValueSetId::new("v-iso"),)],
+            bindings: vec![ox_ontology::PropertyBinding::value_set(ValueSetId::new(
+                "v-iso",
+            ))],
             ..Default::default()
         };
         let node = NodeTypeDef {
@@ -791,10 +920,7 @@ mod tests {
 
         let mut edges = Vec::new();
         emit_edges(&ir, &mut edges);
-        assert_eq!(
-            count_where(&edges, "property", "values_in", "value_set"),
-            1,
-        );
+        assert_eq!(count_where(&edges, "property", "values_in", "value_set"), 1,);
     }
 
     #[test]
@@ -885,28 +1011,20 @@ mod tests {
                 target: ConstraintTarget::Inherit,
                 value_set_id: ValueSetId::new("v-iso"),
             }],
-                    valid_from: None,
+            valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         })
         .unwrap();
 
         let mut edges = Vec::new();
         emit_edges(&ir, &mut edges);
         assert_eq!(
-            count_where(
-                &edges,
-                "rule",
-                "references_value_set",
-                "value_set",
-            ),
+            count_where(&edges, "rule", "references_value_set", "value_set",),
             1,
         );
         // The kind-level `constrains` edge still fires too.
-        assert_eq!(
-            count_where(&edges, "rule", "constrains", "node_type"),
-            1,
-        );
+        assert_eq!(count_where(&edges, "rule", "constrains", "node_type"), 1,);
     }
 
     #[test]
@@ -937,21 +1055,16 @@ mod tests {
                 target: ConstraintTarget::Inherit,
                 notation_pattern_id: NotationPatternId::new("p-email"),
             }],
-                    valid_from: None,
+            valid_from: None,
             valid_to: None,
-                    sh_message: None,
+            sh_message: None,
         })
         .unwrap();
 
         let mut edges = Vec::new();
         emit_edges(&ir, &mut edges);
         assert_eq!(
-            count_where(
-                &edges,
-                "rule",
-                "references_pattern",
-                "notation_pattern",
-            ),
+            count_where(&edges, "rule", "references_pattern", "notation_pattern",),
             1,
         );
     }
@@ -963,7 +1076,9 @@ mod tests {
             id: PropertyId::new("name"),
             name: pk("name"),
             property_type: ox_core::types::PropertyType::String,
-            bindings: vec![ox_ontology::PropertyBinding::glossary(GlossaryTermId::new("g-name"),)],
+            bindings: vec![ox_ontology::PropertyBinding::concept(ConceptId::new(
+                "c-name",
+            ))],
             ..Default::default()
         };
         // Same property id on a node and on an edge — the compound
@@ -991,35 +1106,18 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
-        ir.add_glossary_term(GlossaryTermDef {
-            id: GlossaryTermId::new("g-name"),
-            term: ox_core::i18n::LocalizedText::new("Name"),
-            display_name: Default::default(),
-            description: Default::default(),
-            examples: Vec::new(),
-            category: None,
-            aliases: Vec::new(),
-            related_terms: Vec::new(),
-            governance: ox_ontology::glossary::TermGovernance::default(),
-            valid_from: None,
-            valid_to: None,
-            lifecycle: ox_ontology::glossary::TermLifecycle::default(),
-        concept_id: None,
-        })
-        .unwrap();
+        add_term_concept(&mut ir, "g-name", "c-name", "Name");
 
         let mut edges = Vec::new();
         emit_edges(&ir, &mut edges);
-        let prop_edges: Vec<&CrossRefEdge> = edges
-            .iter()
-            .filter(|e| e.edge_kind == "binds_to")
-            .collect();
+        let prop_edges: Vec<&CrossRefEdge> =
+            edges.iter().filter(|e| e.edge_kind == "realises").collect();
         assert_eq!(prop_edges.len(), 2);
-        assert!(prop_edges
-            .iter()
-            .any(|e| e.source_id == "node:Customer/name"));
-        assert!(prop_edges
-            .iter()
-            .any(|e| e.source_id == "edge:PLACED/name"));
+        assert!(
+            prop_edges
+                .iter()
+                .any(|e| e.source_id == "node:Customer/name")
+        );
+        assert!(prop_edges.iter().any(|e| e.source_id == "edge:PLACED/name"));
     }
 }

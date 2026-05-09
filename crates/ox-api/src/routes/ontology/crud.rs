@@ -13,7 +13,8 @@ use crate::error::AppError;
 use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::routes::ontology_drafts::helpers::{
-    assess_quality_from_ontology_draft, get_design_options, load_mutable_ontology_draft, reload_ontology_draft,
+    assess_quality_from_ontology_draft, get_design_options, load_mutable_ontology_draft,
+    reload_ontology_draft,
 };
 use crate::routes::ontology_drafts::types::OntologyDraftView;
 use crate::state::AppState;
@@ -86,7 +87,9 @@ pub(crate) async fn get_workspace_ontology_detail(
         .await
         .map_err(AppError::from)?
     else {
-        return Ok(ApiResponse::of(WorkspaceOntologyResponse { ontology: None }));
+        return Ok(ApiResponse::of(WorkspaceOntologyResponse {
+            ontology: None,
+        }));
     };
     let version = state
         .store
@@ -214,7 +217,6 @@ pub(crate) async fn list_canonical_versions(
 pub struct ApplyOntologyCommandsRequest {
     pub revision: i32,
     /// List of ontology mutation commands.
-    #[schema(value_type = Vec<Object>)]
     pub commands: Vec<OntologyCommand>,
 }
 
@@ -256,12 +258,7 @@ pub(crate) async fn apply_ontology_commands(
     if let Some(ont) = &project.ontology
         && let Err(e) = state
             .store
-            .create_ontology_snapshot(
-                id,
-                project.revision,
-                ont,
-                project.quality_report.as_ref(),
-            )
+            .create_ontology_snapshot(id, project.revision, ont, project.quality_report.as_ref())
             .await
     {
         warn!(ontology_draft_id = %id, error = %e, "Failed to save ontology snapshot");
@@ -277,7 +274,9 @@ pub(crate) async fn apply_ontology_commands(
     let mut changed_element_ids: Vec<String> = Vec::new();
     for cmd in &req.commands {
         changed_element_ids.extend(cmd.affected_element_ids());
-        let result = cmd.execute(&ontology).map_err(AppError::edit_operation_rejected)?;
+        let result = cmd
+            .execute(&ontology)
+            .map_err(AppError::edit_operation_rejected)?;
         ontology = result.new_ontology;
     }
 
@@ -310,12 +309,7 @@ pub(crate) async fn apply_ontology_commands(
 
     state
         .store
-        .update_design_result(
-            id,
-            &ontology_json,
-            Some(&qr_json),
-            req.revision,
-        )
+        .update_design_result(id, &ontology_json, Some(&qr_json), req.revision)
         .await
         .map_err(AppError::from)?;
 

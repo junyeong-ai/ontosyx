@@ -21,18 +21,7 @@ use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
 
-// ---------------------------------------------------------------------------
-// Shared wire shape
-//
-// `AmbiguityContext` / `AmbiguityResolution` come from `ox-ontology`,
-// which does not carry a `utoipa` dependency (the crate graph keeps
-// schema-generation deps out of the IR layer). We therefore skip the
-// `ToSchema` derives here and declare `body = Object` on the utoipa
-// paths — the handwritten openapi.json stays accurate via the return
-// type, but utoipa only sees a free-form object.
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AmbiguitySummary {
     pub context: AmbiguityContext,
     /// The currently-active resolution, if any. Admins treat an
@@ -40,7 +29,7 @@ pub struct AmbiguitySummary {
     pub active_resolution: Option<AmbiguityResolution>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AmbiguityListResponse {
     pub items: Vec<AmbiguitySummary>,
 }
@@ -53,7 +42,7 @@ pub struct AmbiguityListResponse {
     get,
     path = "/api/ambiguities",
     responses(
-        (status = 200, description = "All contexts + their active resolution", body = Object),
+        (status = 200, description = "All contexts + their active resolution", body = AmbiguityListResponse),
     ),
     security(("api_key" = [])),
     tag = "Ambiguity",
@@ -88,7 +77,7 @@ pub(crate) async fn list_ambiguities(
 // GET /api/ambiguities/{id}  — context + full resolution history
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AmbiguityDetailResponse {
     pub context: AmbiguityContext,
     /// Resolution chain, newest first. The first row whose
@@ -102,7 +91,7 @@ pub struct AmbiguityDetailResponse {
     path = "/api/ambiguities/{id}",
     params(("id" = Uuid, Path, description = "AmbiguityContext id")),
     responses(
-        (status = 200, description = "Context + resolution history", body = Object),
+        (status = 200, description = "Context + resolution history", body = AmbiguityDetailResponse),
         (status = 404, description = "Not found"),
     ),
     security(("api_key" = [])),
@@ -140,7 +129,7 @@ pub(crate) async fn get_ambiguity(
 // (the `AmbiguityMapping`).
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ResolveAmbiguityRequest {
     pub mapping: AmbiguityMapping,
 }
@@ -149,9 +138,9 @@ pub struct ResolveAmbiguityRequest {
     post,
     path = "/api/ambiguities/{id}/resolve",
     params(("id" = Uuid, Path, description = "AmbiguityContext id")),
-    request_body = Object,
+    request_body = ResolveAmbiguityRequest,
     responses(
-        (status = 201, description = "Resolution recorded", body = Object),
+        (status = 201, description = "Resolution recorded", body = AmbiguityResolution),
         (status = 404, description = "Context not found"),
     ),
     security(("api_key" = [])),
@@ -173,8 +162,7 @@ pub(crate) async fn resolve_ambiguity(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("ambiguity context"))?;
 
-    let mut resolution =
-        AmbiguityResolution::new(ctx_id, ctx.detection_source_hash, req.mapping);
+    let mut resolution = AmbiguityResolution::new(ctx_id, ctx.detection_source_hash, req.mapping);
     resolution.resolved_by_user_id = principal.user_uuid().ok();
 
     let written = state
@@ -190,7 +178,7 @@ pub(crate) async fn resolve_ambiguity(
 // POST /api/ambiguities/{id}/revoke  — revoke without replacement
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct RevokeAmbiguityResponse {
     pub revoked: bool,
 }
@@ -200,7 +188,7 @@ pub struct RevokeAmbiguityResponse {
     path = "/api/ambiguities/{id}/revoke",
     params(("id" = Uuid, Path, description = "AmbiguityContext id")),
     responses(
-        (status = 200, description = "Revoked (or noop if no active)", body = Object),
+        (status = 200, description = "Revoked (or noop if no active)", body = RevokeAmbiguityResponse),
     ),
     security(("api_key" = [])),
     tag = "Ambiguity",
@@ -224,7 +212,7 @@ pub(crate) async fn revoke_ambiguity(
 // POST /api/ambiguities/bulk-revoke  — revoke many active resolutions
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct BulkRevokeAmbiguitiesRequest {
     /// Context ids to revoke. Capped at 100 per call by the
     /// `bulk_limit_exceeded` typed gate; clients split into
@@ -232,7 +220,7 @@ pub struct BulkRevokeAmbiguitiesRequest {
     pub ids: Vec<Uuid>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct BulkRevokeAmbiguitiesResponse {
     /// Count of contexts that actually transitioned. Contexts
     /// without an active resolution are silently skipped (matches
@@ -245,9 +233,9 @@ pub struct BulkRevokeAmbiguitiesResponse {
 #[utoipa::path(
     post,
     path = "/api/ambiguities/bulk-revoke",
-    request_body = Object,
+    request_body = BulkRevokeAmbiguitiesRequest,
     responses(
-        (status = 200, description = "Bulk revoke recorded", body = Object),
+        (status = 200, description = "Bulk revoke recorded", body = BulkRevokeAmbiguitiesResponse),
         (status = 400, description = "Empty or oversized ids list", body = crate::openapi::ErrorResponse),
         (status = 403, description = "Designer required", body = crate::openapi::ErrorResponse),
     ),

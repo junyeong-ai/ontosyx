@@ -2,10 +2,9 @@ use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use uuid::Uuid;
 
-use ox_store::{AgentEvent, AgentSession, CursorParams, ToolApproval};
+use ox_store::{AgentEvent, AgentEventPayload, AgentSession, CursorParams, ToolApproval};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -46,7 +45,7 @@ impl From<SessionsCursorQuery> for CursorParams {
     get,
     path = "/api/sessions",
     params(SessionsCursorQuery),
-    responses((status = 200, description = "Caller's agent sessions", body = Vec<Object>)),
+    responses((status = 200, description = "Caller's agent sessions", body = crate::openapi::AgentSessionPage)),
     security(("api_key" = [])),
     tag = "Sessions",
 )]
@@ -96,7 +95,7 @@ async fn load_owned_session(
     path = "/api/sessions/{id}",
     params(("id" = Uuid, Path, description = "Agent session ID")),
     responses(
-        (status = 200, description = "Agent session", body = Object),
+        (status = 200, description = "Agent session", body = AgentSession),
         (status = 404, description = "Session not found"),
     ),
     security(("api_key" = [])),
@@ -120,7 +119,7 @@ pub(crate) async fn get_session(
     path = "/api/sessions/{id}/events",
     params(("id" = Uuid, Path, description = "Agent session ID")),
     responses(
-        (status = 200, description = "Session events", body = Vec<Object>),
+        (status = 200, description = "Session events", body = Vec<AgentEvent>),
         (status = 404, description = "Session not found"),
     ),
     security(("api_key" = [])),
@@ -149,7 +148,7 @@ pub(crate) async fn list_session_events(
     path = "/api/sessions/{id}/messages",
     params(("id" = Uuid, Path, description = "Agent session ID")),
     responses(
-        (status = 200, description = "Reconstructed chat messages", body = Object),
+        (status = 200, description = "Reconstructed chat messages", body = SessionMessagesResponse),
         (status = 404, description = "Session not found"),
     ),
     security(("api_key" = [])),
@@ -159,7 +158,7 @@ pub(crate) async fn get_session_messages(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<SessionMessagesResponse>>, AppError> {
     let session = load_owned_session(&state, &principal, id).await?;
 
     let events = state
@@ -169,131 +168,188 @@ pub(crate) async fn get_session_messages(
         .map_err(AppError::from)?;
 
     let messages = events_to_messages(&session, &events);
-    Ok(ApiResponse::of(json!({ "messages": messages })))
+    Ok(ApiResponse::of(SessionMessagesResponse { messages }))
 }
 
 // ---------------------------------------------------------------------------
 // Event → ChatMessage conversion
 // ---------------------------------------------------------------------------
 
-fn events_to_messages(session: &AgentSession, events: &[AgentEvent]) -> Vec<serde_json::Value> {
-    let mut messages: Vec<serde_json::Value> = Vec::new();
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct SessionMessagesResponse {
+    pub messages: Vec<SessionChatMessage>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionMessageRole {
+    User,
+    Assistant,
+}
+
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct SessionChatMessage {
+    pub role: SessionMessageRole,
+    pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_calls: Vec<SessionToolCall>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<SessionUsage>,
+}
+
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct SessionToolCall {
+    pub id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<std::collections::HashMap<String, Object>>, additional_properties)]
+    pub input: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_error: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    pub status: SessionToolCallStatus,
+}
+
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct SessionUsage {
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionToolCallStatus {
+    Running,
+    Done,
+    Error,
+    Review,
+}
+
+fn events_to_messages(session: &AgentSession, events: &[AgentEvent]) -> Vec<SessionChatMessage> {
+    let mut messages: Vec<SessionChatMessage> = Vec::new();
 
     // First message: the user's original message
-    messages.push(json!({
-        "role": "user",
-        "content": session.user_message,
-    }));
+    messages.push(SessionChatMessage {
+        role: SessionMessageRole::User,
+        content: session.user_message.clone(),
+        thinking: None,
+        tool_calls: Vec::new(),
+        usage: None,
+    });
 
     // Build the assistant message from events
     let mut content = String::new();
     let mut thinking = String::new();
-    let mut tool_calls: Vec<serde_json::Value> = Vec::new();
+    let mut tool_calls: Vec<SessionToolCall> = Vec::new();
     let mut input_tokens: i64 = 0;
     let mut output_tokens: i64 = 0;
 
     for event in events {
-        match event.event_type.as_str() {
-            "text" => {
-                if let Some(delta) = event.payload.get("delta").and_then(|v| v.as_str()) {
-                    content.push_str(delta);
+        match &event.payload {
+            AgentEventPayload::Text { delta } => {
+                content.push_str(delta);
+            }
+            AgentEventPayload::Thinking { content: text } => {
+                if !thinking.is_empty() {
+                    thinking.push('\n');
+                }
+                thinking.push_str(text);
+            }
+            AgentEventPayload::ToolStart { id, name, input } => {
+                tool_calls.push(SessionToolCall {
+                    id: id.clone(),
+                    name: name.clone(),
+                    input: Some(input.clone()),
+                    output: None,
+                    is_error: None,
+                    duration_ms: None,
+                    reason: None,
+                    status: SessionToolCallStatus::Running,
+                });
+            }
+            AgentEventPayload::ToolComplete {
+                id,
+                output,
+                is_error,
+                duration_ms,
+                ..
+            } => {
+                if let Some(tc) = tool_calls.iter_mut().rev().find(|tc| tc.id == *id) {
+                    tc.output = Some(
+                        output
+                            .as_str()
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| output.to_string()),
+                    );
+                    tc.is_error = Some(*is_error);
+                    tc.duration_ms = *duration_ms;
+                    tc.status = if *is_error {
+                        SessionToolCallStatus::Error
+                    } else {
+                        SessionToolCallStatus::Done
+                    };
                 }
             }
-            "thinking" => {
-                if let Some(text) = event.payload.get("content").and_then(|v| v.as_str()) {
-                    if !thinking.is_empty() {
-                        thinking.push('\n');
-                    }
-                    thinking.push_str(text);
-                }
+            AgentEventPayload::ToolReview { id, name, input } => {
+                tool_calls.push(SessionToolCall {
+                    id: id.clone(),
+                    name: name.clone(),
+                    input: Some(input.clone()),
+                    output: None,
+                    is_error: None,
+                    duration_ms: None,
+                    reason: None,
+                    status: SessionToolCallStatus::Review,
+                });
             }
-            "tool_start" => {
-                tool_calls.push(json!({
-                    "id": event.payload.get("id"),
-                    "name": event.payload.get("name"),
-                    "input": event.payload.get("input"),
-                    "status": "running",
-                }));
+            AgentEventPayload::ToolBlocked { id, name, reason } => {
+                tool_calls.push(SessionToolCall {
+                    id: id.clone(),
+                    name: name.clone(),
+                    input: None,
+                    output: None,
+                    is_error: None,
+                    duration_ms: None,
+                    reason: Some(reason.clone()),
+                    status: SessionToolCallStatus::Error,
+                });
             }
-            "tool_complete" => {
-                let tool_id = event.payload.get("id");
-                if let Some(tc) = tool_calls
-                    .iter_mut()
-                    .rev()
-                    .find(|tc| tc.get("id") == tool_id)
-                {
-                    tc["output"] = event.payload.get("output").cloned().unwrap_or(json!(null));
-                    tc["is_error"] = event
-                        .payload
-                        .get("is_error")
-                        .cloned()
-                        .unwrap_or(json!(false));
-                    tc["duration_ms"] = event
-                        .payload
-                        .get("duration_ms")
-                        .cloned()
-                        .unwrap_or(json!(null));
-                    tc["status"] = json!("complete");
-                }
+            AgentEventPayload::TurnUsage {
+                input_tokens: input,
+                output_tokens: output,
+            } => {
+                input_tokens += input;
+                output_tokens += output;
             }
-            "tool_review" => {
-                tool_calls.push(json!({
-                    "id": event.payload.get("id"),
-                    "name": event.payload.get("name"),
-                    "input": event.payload.get("input"),
-                    "status": "review",
-                }));
-            }
-            "tool_blocked" => {
-                tool_calls.push(json!({
-                    "id": event.payload.get("id"),
-                    "name": event.payload.get("name"),
-                    "reason": event.payload.get("reason"),
-                    "status": "blocked",
-                }));
-            }
-            "turn_usage" => {
-                if let Some(n) = event.payload.get("input_tokens").and_then(|v| v.as_i64()) {
-                    input_tokens += n;
-                }
-                if let Some(n) = event.payload.get("output_tokens").and_then(|v| v.as_i64()) {
-                    output_tokens += n;
-                }
-            }
-            "complete" => {
+            AgentEventPayload::Complete { text, .. } => {
                 // The complete event's text is the final accumulated text;
                 // we already built content from text deltas, so we use that.
                 // If content is empty but complete has text, use it as fallback.
-                if content.is_empty()
-                    && let Some(text) = event.payload.get("text").and_then(|v| v.as_str())
-                {
+                if content.is_empty() {
                     content.push_str(text);
                 }
             }
-            _ => {}
+            AgentEventPayload::ToolProgress { .. } => {}
         }
     }
 
-    // Build the assistant message
-    let mut assistant = json!({
-        "role": "assistant",
-        "content": content,
+    messages.push(SessionChatMessage {
+        role: SessionMessageRole::Assistant,
+        content,
+        thinking: (!thinking.is_empty()).then_some(thinking),
+        tool_calls,
+        usage: (input_tokens > 0 || output_tokens > 0).then_some(SessionUsage {
+            input_tokens,
+            output_tokens,
+        }),
     });
-
-    if !thinking.is_empty() {
-        assistant["thinking"] = json!(thinking);
-    }
-    if !tool_calls.is_empty() {
-        assistant["tool_calls"] = json!(tool_calls);
-    }
-    if input_tokens > 0 || output_tokens > 0 {
-        assistant["usage"] = json!({
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-        });
-    }
-
-    messages.push(assistant);
     messages
 }
 
@@ -337,7 +393,7 @@ pub(crate) async fn delete_session(
 pub struct ToolRespondRequest {
     pub approved: bool,
     pub reason: Option<String>,
-    #[schema(value_type = Option<Object>)]
+    #[schema(value_type = Option<std::collections::HashMap<String, Object>>, additional_properties)]
     pub modified_input: Option<serde_json::Value>,
 }
 
@@ -348,9 +404,9 @@ pub struct ToolRespondResponse {
 
 #[utoipa::path(
     post,
-    path = "/api/sessions/{id}/tools/{tool_id}/respond",
+    path = "/api/sessions/{session_id}/tools/{tool_id}/respond",
     params(
-        ("id" = Uuid, Path, description = "Agent session ID"),
+        ("session_id" = Uuid, Path, description = "Agent session ID"),
         ("tool_id" = String, Path, description = "Tool call ID awaiting approval"),
     ),
     request_body = ToolRespondRequest,

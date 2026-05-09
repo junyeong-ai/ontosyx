@@ -41,11 +41,7 @@ pub(crate) async fn persist_design_artifact<S>(
     S: SourceMappingArtifactStore + ?Sized,
 {
     let artifact = SourceMappingArtifact::derive_from_design(
-        ontology,
-        source_id,
-        schema,
-        provenance,
-        created_by,
+        ontology, source_id, schema, provenance, created_by,
     );
     let artifact_id = artifact.id.clone();
     let schema_hash = artifact.schema_snapshot_hash.clone();

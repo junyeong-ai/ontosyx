@@ -27,7 +27,7 @@ use crate::state::AppState;
 #[utoipa::path(
     get,
     path = "/api/lineage",
-    responses((status = 200, description = "Lineage summary per label", body = Vec<Object>)),
+    responses((status = 200, description = "Lineage summary per label", body = Vec<LineageSummary>)),
     security(("api_key" = [])),
     tag = "Lineage",
 )]
@@ -52,7 +52,7 @@ pub(crate) async fn get_lineage_summary(
     get,
     path = "/api/lineage/label/{label}",
     params(("label" = String, Path, description = "Graph node label")),
-    responses((status = 200, description = "Lineage entries for the label", body = Vec<Object>)),
+    responses((status = 200, description = "Lineage entries for the label", body = Vec<LineageEntry>)),
     security(("api_key" = [])),
     tag = "Lineage",
 )]
@@ -78,7 +78,7 @@ pub(crate) async fn list_lineage_for_label(
     get,
     path = "/api/lineage/project/{id}",
     params(("id" = Uuid, Path, description = "Ontology draft ID")),
-    responses((status = 200, description = "Lineage entries for the project", body = Vec<Object>)),
+    responses((status = 200, description = "Lineage entries for the project", body = Vec<LineageEntry>)),
     security(("api_key" = [])),
     tag = "Lineage",
 )]

@@ -1,4 +1,4 @@
-//! `GET /api/ontologies/type-candidates?logical_id=...&kind=node|edge`
+//! `GET /api/ontology/type-candidates?logical_id=...&kind=node|edge`
 //!
 //! Given the stable logical id of a node or edge type, return every
 //! ontology in the current workspace whose latest committed version
@@ -10,7 +10,7 @@
 //!
 //! Ambiguity is intentional output, not an error — a forked ontology
 //! may carry the same logical id in multiple lineages. The UI picks
-//! one (or asks the user) and calls `/ontologies/{id}/edits` itself.
+//! one (or asks the user) and calls `/ontology/edits` itself.
 //!
 //! Workspace-scoped because the canonical ontology lookup is
 //! RLS-scoped to the caller's workspace.

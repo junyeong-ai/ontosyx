@@ -8,10 +8,10 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use ox_ontology::mapping::SourceId;
 use ox_ontology::ontology_draft::{
     OntologyDraftStatus, SourceConfig, SourceHistoryEntry, SourceTypeKind,
 };
-use ox_ontology::mapping::SourceId;
 use ox_ontology::quality::OntologyQualityReport;
 use ox_ontology::source_analysis::DesignOptions;
 use ox_store::store::CursorParams;
@@ -30,7 +30,8 @@ use super::helpers::{
     run_repo_enrichment, skipped_repo_summary,
 };
 use super::types::{
-    CompleteOntologyDraftRequest, CreateOntologyDraftRequest, OntologyDraftOrigin, DataSourceSpec, OntologyDraftView,
+    CompleteOntologyDraftRequest, CreateOntologyDraftRequest, DataSourceSpec, OntologyDraftOrigin,
+    OntologyDraftView,
 };
 
 // ---------------------------------------------------------------------------
@@ -42,7 +43,7 @@ use super::types::{
     path = "/api/ontology-drafts",
     request_body = CreateOntologyDraftRequest,
     responses(
-        (status = 201, description = "Ontology draft created", body = Object),
+        (status = 201, description = "Ontology draft created", body = OntologyDraftView),
         (status = 400, description = "Invalid input", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Base ontology not found", body = inline(crate::openapi::ErrorResponse)),
     ),
@@ -96,9 +97,7 @@ pub(crate) async fn create_ontology_draft(
                 .find_current_version(identity.id)
                 .await
                 .map_err(AppError::from)?
-                .ok_or_else(|| {
-                    AppError::ontology_not_committed(identity.lineage_id.clone())
-                })?;
+                .ok_or_else(|| AppError::ontology_not_committed(identity.lineage_id.clone()))?;
             let ir = state
                 .store
                 .get_ontology_ir(version.id)
@@ -191,7 +190,7 @@ pub(crate) async fn create_ontology_draft(
                     ontology: None,
                     quality_report: None,
                     parent_version_id: workspace_parent_version,
-                committed_version_id: None,
+                    committed_version_id: None,
                     source_history: AppError::to_json(&vec![history_entry])?,
                     created_at: now,
                     updated_at: now,
@@ -223,16 +222,22 @@ pub(crate) async fn create_ontology_draft(
                                 Some(&audit_project_id),
                                 serde_json::json!({"source_type": "code_repository"}),
                             )
-                            .await {
+                            .await
+                        {
                             tracing::warn!(?error, "telemetry record failed");
                         }
                     });
                 }
 
-                return Ok((StatusCode::CREATED, ApiResponse::of(OntologyDraftView::from_ontology_draft(project))));
+                return Ok((
+                    StatusCode::CREATED,
+                    ApiResponse::of(OntologyDraftView::from_ontology_draft(project)),
+                ));
             }
 
-            let analyzed = analyze_source(source, &state.adapter_registry, selection.clone(), None).await?;
+            let analyzed =
+                analyze_source(source, &state.adapter_registry, selection.clone(), None).await?;
+            super::helpers::capture_source_contracts(&state, &analyzed).await?;
             let analyzed_at = analyzed.schema.as_ref().map(|_| now);
             let source_config = analyzed.config;
             let source_data = analyzed.raw_data;
@@ -286,10 +291,7 @@ pub(crate) async fn create_ontology_draft(
                     scope.record_selection(&selection, &all_tables, now);
                     if let Some(schema) = source_schema.as_ref() {
                         scope.record_fingerprints(schema.tables.iter().map(|t| {
-                            (
-                                t.name.clone(),
-                                ox_core::source_schema::table_fingerprint(t),
-                            )
+                            (t.name.clone(), ox_core::source_schema::table_fingerprint(t))
                         }));
                     }
                     scope
@@ -336,13 +338,17 @@ pub(crate) async fn create_ontology_draft(
                     Some(&audit_project_id),
                     serde_json::json!({"source_type": audit_source_type}),
                 )
-                .await {
+                .await
+            {
                 tracing::warn!(?error, "telemetry record failed");
             }
         });
     }
 
-    Ok((StatusCode::CREATED, ApiResponse::of(OntologyDraftView::from_ontology_draft(project))))
+    Ok((
+        StatusCode::CREATED,
+        ApiResponse::of(OntologyDraftView::from_ontology_draft(project)),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -357,7 +363,7 @@ pub(crate) async fn create_ontology_draft(
         ("cursor" = Option<String>, Query, description = "Opaque cursor from a previous response"),
     ),
     responses(
-        (status = 200, description = "Paginated project list", body = Object),
+        (status = 200, description = "Paginated project list", body = crate::openapi::OntologyDraftSummaryPage),
     ),
     security(("api_key" = [])),
     tag = "Ontology Drafts",
@@ -383,7 +389,7 @@ pub(crate) async fn list_ontology_drafts(
     path = "/api/ontology-drafts/{id}",
     params(("id" = Uuid, Path, description = "Ontology draft ID")),
     responses(
-        (status = 200, description = "Ontology draft details", body = Object),
+        (status = 200, description = "Ontology draft details", body = OntologyDraftView),
         (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
@@ -394,7 +400,9 @@ pub(crate) async fn get_ontology_draft(
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<OntologyDraftView>>, AppError> {
     let project = reload_ontology_draft(&state, id).await?;
-    Ok(ApiResponse::of(OntologyDraftView::from_ontology_draft(project)))
+    Ok(ApiResponse::of(OntologyDraftView::from_ontology_draft(
+        project,
+    )))
 }
 
 // ---------------------------------------------------------------------------
@@ -449,7 +457,8 @@ pub(crate) async fn delete_ontology_draft(
                         Some(&audit_project_id),
                         serde_json::json!({}),
                     )
-                    .await {
+                    .await
+                {
                     tracing::warn!(?error, "telemetry record failed");
                 }
             });
@@ -491,7 +500,7 @@ pub(crate) async fn delete_ontology_draft(
     params(("id" = Uuid, Path, description = "Ontology draft ID")),
     request_body = CompleteOntologyDraftRequest,
     responses(
-        (status = 200, description = "Ontology draft completed, ontology saved", body = Object),
+        (status = 200, description = "Ontology draft completed, ontology saved", body = OntologyDraftView),
         (status = 400, description = "Ontology draft has no ontology", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Quality gate failed", body = inline(crate::openapi::ErrorResponse)),
@@ -513,7 +522,10 @@ pub(crate) async fn complete_ontology_draft(
     if !req.acknowledge_quality_risks
         && let Some(qr) = &project.quality_report
         && let Ok(report) = serde_json::from_value::<OntologyQualityReport>(qr.clone())
-        && !matches!(report.confidence, ox_ontology::quality::QualityConfidence::High)
+        && !matches!(
+            report.confidence,
+            ox_ontology::quality::QualityConfidence::High
+        )
     {
         return Err(AppError::quality_gate(format!(
             "Quality confidence is '{}'. Resolve gaps via refine, \
@@ -533,6 +545,22 @@ pub(crate) async fn complete_ontology_draft(
         .clone();
     let ontology: ox_ontology::OntologyIR = serde_json::from_value(ontology_json)
         .map_err(|e| AppError::internal(format!("Failed to parse project ontology: {e}")))?;
+
+    // Φ12 — pre-commit gate: every mapping must reference a relation
+    // and column that exists on the captured source-contract bank
+    // for its source. Soft-skips per source until that source has at
+    // least one captured contract — bootstrap-path exemption (see
+    // ADR-0036). Once introspection has run for the source, the gate
+    // becomes enforcing.
+    let source_contracts = state
+        .store
+        .list_source_contracts()
+        .await
+        .map_err(AppError::from)?;
+    let contract_violations = ontology.validate_against_source_contracts(&source_contracts);
+    if !contract_violations.is_empty() {
+        return Err(AppError::source_contract_mismatch(contract_violations));
+    }
 
     // Identity resolution: workspace × ontology is 1:1, so the
     // commit either lands on the workspace's canonical (existing
@@ -573,7 +601,10 @@ pub(crate) async fn complete_ontology_draft(
                         .as_ref()
                         .map(|v| v.version.clone())
                         .unwrap_or_else(|| "?".to_string());
-                    return Err(AppError::ontology_draft_stale_parent(&parent_tag, &head_tag));
+                    return Err(AppError::ontology_draft_stale_parent(
+                        &parent_tag,
+                        &head_tag,
+                    ));
                 }
                 (Some(_), None) => {
                     return Err(AppError::ontology_draft_stale_parent_canonical_wiped());
@@ -598,10 +629,9 @@ pub(crate) async fn complete_ontology_draft(
         } else {
             let display_name_json = AppError::to_json(&ontology.display_name)?;
             let description_json = AppError::to_json(&req.description)?;
-            // Seed the new identity's lineage id from the ontology's own id —
-            // external references (quality rules, saved queries) already point
-            // at that string under the legacy schema, so keeping it anchors
-            // them across the Λ cutover.
+            // Seed the new identity's lineage id from the ontology's own id so
+            // external references such as quality rules and saved queries keep
+            // a stable, user-visible anchor.
             let lineage_seed = if ontology.id.is_empty() {
                 None
             } else {
@@ -609,7 +639,12 @@ pub(crate) async fn complete_ontology_draft(
             };
             let identity = state
                 .store
-                .create_ontology(&req.name, &display_name_json, &description_json, lineage_seed)
+                .create_ontology(
+                    &req.name,
+                    &display_name_json,
+                    &description_json,
+                    lineage_seed,
+                )
                 .await
                 .map_err(AppError::from)?;
             (identity, None, "1".to_string(), None)
@@ -632,6 +667,21 @@ pub(crate) async fn complete_ontology_draft(
             parent_version,
             &principal.id,
             &commit_message,
+            ox_ontology::ProvenanceCapture::ontology_edit(
+                ox_ontology::AgentRef::User {
+                    user_id: principal.id.clone(),
+                },
+                &commit_message,
+            )
+            .with_derived_from(parent_version.into_iter().map(|pv| {
+                ox_ontology::EntityRef::Arbitrary {
+                    label: format!("ontology_version_snapshot:{pv}"),
+                }
+            }))
+            .with_used(std::iter::once(ox_ontology::EntityRef::Arbitrary {
+                label: format!("ontology_draft:{id}"),
+            })),
+            ox_text::glossary_tokenizer_fingerprint(&ontology).as_str(),
         )
         .await
         .map_err(AppError::from)?;
@@ -641,6 +691,18 @@ pub(crate) async fn complete_ontology_draft(
         .complete_ontology_draft(id, snapshot.id, req.revision)
         .await
         .map_err(AppError::from)?;
+
+    // Republish the workspace tokenizer if the glossary
+    // shifted; backfill stale tokenized_text rows in the
+    // background.
+    crate::tokenizer_publish::publish_workspace_tokenizer_after_commit(
+        &state,
+        identity.workspace_id,
+        parent_version,
+        &ontology,
+    )
+    .await
+    .map_err(AppError::from)?;
 
     let updated = reload_ontology_draft(&state, id).await?;
 
@@ -712,7 +774,9 @@ pub(crate) async fn complete_ontology_draft(
         });
     }
 
-    Ok(ApiResponse::of(OntologyDraftView::from_ontology_draft(updated)))
+    Ok(ApiResponse::of(OntologyDraftView::from_ontology_draft(
+        updated,
+    )))
 }
 
 // ---------------------------------------------------------------------------
@@ -848,7 +912,8 @@ pub(crate) async fn deploy_schema(
                     Some(&audit_project_id),
                     serde_json::json!({"statements_count": stmt_count}),
                 )
-                .await {
+                .await
+            {
                 tracing::warn!(?error, "telemetry record failed");
             }
         });
@@ -867,7 +932,6 @@ pub(crate) async fn deploy_schema(
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct GenerateOntologyDraftLoadPlanResponse {
     /// The generated load plan
-    #[schema(value_type = Object)]
     pub plan: ox_ontology::load_plan::LoadPlan,
 }
 
@@ -904,14 +968,11 @@ pub(crate) async fn generate_load_plan(
     let ontology: ox_ontology::ir::OntologyIR = serde_json::from_value(ontology_json.clone())
         .map_err(|e| AppError::internal(format!("Failed to parse ontology: {e}")))?;
 
-    let source_schema_json = project
-        .source_schema
-        .as_ref()
-        .ok_or_else(|| {
-            AppError::ontology_draft_missing_source_schema(
-                "Run analyze + introspect first to populate the source schema.",
-            )
-        })?;
+    let source_schema_json = project.source_schema.as_ref().ok_or_else(|| {
+        AppError::ontology_draft_missing_source_schema(
+            "Run analyze + introspect first to populate the source schema.",
+        )
+    })?;
     let source_schema: ox_core::SourceSchema =
         serde_json::from_value(source_schema_json.clone())
             .map_err(|e| AppError::internal(format!("Failed to parse source schema: {e}")))?;
@@ -928,7 +989,9 @@ pub(crate) async fn generate_load_plan(
         "Load plan generated"
     );
 
-    Ok(ApiResponse::of(GenerateOntologyDraftLoadPlanResponse { plan }))
+    Ok(ApiResponse::of(GenerateOntologyDraftLoadPlanResponse {
+        plan,
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -943,7 +1006,6 @@ pub(crate) async fn generate_load_plan(
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct CompileOntologyDraftLoadPlanRequest {
     /// The load plan to compile
-    #[schema(value_type = Object)]
     pub plan: ox_ontology::load_plan::LoadPlan,
 }
 
@@ -994,7 +1056,9 @@ pub(crate) async fn compile_load(
         "Load plan compiled"
     );
 
-    Ok(ApiResponse::of(CompileOntologyDraftLoadPlanResponse { statements }))
+    Ok(ApiResponse::of(CompileOntologyDraftLoadPlanResponse {
+        statements,
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -1007,7 +1071,6 @@ pub(crate) async fn compile_load(
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExecuteOntologyDraftLoadRequest {
     /// Pre-computed load plan (from generate_load_plan or manual)
-    #[schema(value_type = Object)]
     pub plan: ox_ontology::load_plan::LoadPlan,
     /// Source database connection string (required for fetching data)
     pub connection_string: String,
@@ -1025,10 +1088,49 @@ pub struct ExecuteOntologyDraftLoadResponse {
     /// Total rows fetched from source
     pub rows_fetched: u64,
     /// Load execution result
-    #[schema(value_type = Object)]
-    pub result: ox_graph_runtime::LoadResult,
+    pub result: LoadResultResponse,
     /// Number of load steps executed
     pub steps_executed: usize,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct LoadResultResponse {
+    pub nodes_created: usize,
+    pub nodes_updated: usize,
+    pub edges_created: usize,
+    pub edges_updated: usize,
+    pub batches_processed: usize,
+    pub batches_failed: usize,
+    pub errors: Vec<LoadErrorResponse>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct LoadErrorResponse {
+    pub batch_index: usize,
+    pub message: String,
+}
+
+impl From<ox_graph_runtime::LoadResult> for LoadResultResponse {
+    fn from(result: ox_graph_runtime::LoadResult) -> Self {
+        Self {
+            nodes_created: result.nodes_created,
+            nodes_updated: result.nodes_updated,
+            edges_created: result.edges_created,
+            edges_updated: result.edges_updated,
+            batches_processed: result.batches_processed,
+            batches_failed: result.batches_failed,
+            errors: result.errors.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<ox_graph_runtime::LoadError> for LoadErrorResponse {
+    fn from(error: ox_graph_runtime::LoadError) -> Self {
+        Self {
+            batch_index: error.batch_index,
+            message: error.message,
+        }
+    }
 }
 
 #[utoipa::path(
@@ -1239,7 +1341,8 @@ pub(crate) async fn execute_load_from_source(
 
                 let values: Vec<serde_json::Value> =
                     rows.into_iter().map(serde_json::Value::Object).collect();
-                let batch = ox_graph_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
+                let batch =
+                    ox_graph_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
 
                 let result = runtime
                     .execute_load(cypher, batch)
@@ -1310,7 +1413,8 @@ pub(crate) async fn execute_load_from_source(
 
                 let values: Vec<serde_json::Value> =
                     rows.into_iter().map(serde_json::Value::Object).collect();
-                let batch = ox_graph_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
+                let batch =
+                    ox_graph_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
 
                 let result = runtime
                     .execute_load(cypher, batch)
@@ -1389,10 +1493,12 @@ pub(crate) async fn execute_load_from_source(
             let Ok(Some(ontology)) = store.get_ontology_ir(current_version.id).await else {
                 return;
             };
-            let config =
-                ox_graph_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types().len());
+            let config = ox_graph_runtime::profiler::ProfileConfig::for_ontology_size(
+                ontology.node_types().len(),
+            );
             let Ok(profile) =
-                ox_graph_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config).await
+                ox_graph_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config)
+                    .await
             else {
                 return;
             };
@@ -1400,8 +1506,9 @@ pub(crate) async fn execute_load_from_source(
             if result.changes.is_empty() {
                 return;
             }
-            let next_tag =
-                crate::routes::ontology_drafts::helpers::next_ontology_version_tag(&current_version.version);
+            let next_tag = crate::routes::ontology_drafts::helpers::next_ontology_version_tag(
+                &current_version.version,
+            );
             let message = format!(
                 "Auto-enrichment after data load: {} property description(s) updated",
                 result.changes.len()
@@ -1414,6 +1521,16 @@ pub(crate) async fn execute_load_from_source(
                     Some(current_version.id),
                     &committer,
                     &message,
+                    ox_ontology::ProvenanceCapture::ontology_edit(
+                        ox_ontology::AgentRef::Service {
+                            service_id: "auto_enrichment".into(),
+                        },
+                        &message,
+                    )
+                    .with_derived_from(std::iter::once(ox_ontology::EntityRef::Arbitrary {
+                        label: format!("ontology_version_snapshot:{}", current_version.id),
+                    })),
+                    ox_text::glossary_tokenizer_fingerprint(&result.ontology).as_str(),
                 )
                 .await
             {
@@ -1456,7 +1573,8 @@ pub(crate) async fn execute_load_from_source(
                         "steps": steps,
                     }),
                 )
-                .await {
+                .await
+            {
                 tracing::warn!(?error, "telemetry record failed");
             }
         });
@@ -1464,7 +1582,7 @@ pub(crate) async fn execute_load_from_source(
 
     Ok(ApiResponse::of(ExecuteOntologyDraftLoadResponse {
         rows_fetched: total_rows_fetched,
-        result: combined_result,
+        result: combined_result.into(),
         steps_executed: req.plan.steps.len(),
     }))
 }

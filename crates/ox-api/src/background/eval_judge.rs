@@ -31,11 +31,14 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use ox_brain::Brain;
-use ox_store::evaluation::{EvaluationCase, EvaluationContext, scope_evaluation_context};
+use ox_store::evaluation::{
+    EvaluationCase, EvaluationContext, EvaluationJudgeSource, EvaluationMetricMetadata,
+    scope_evaluation_context,
+};
 use ox_store::{EvaluationMetric, Store};
 
 use super::cron::{CronTask, spawn_cron};
-use crate::routes::evaluation::ExecuteEvaluationCaseRequest;
+use crate::error::AppError;
 
 /// How often the worker drains the queue. Short enough that a
 /// streaming dataset shows metrics within a minute of execute,
@@ -145,30 +148,28 @@ async fn judge_one_ragas(
     brain: &dyn Brain,
     case: &EvaluationCase,
 ) -> ox_core::error::OxResult<()> {
-    // Pull the question off the discriminated input envelope.
     // `list_unjudged_cases` already filters out retrieve_anchors,
     // so the only judgeable shapes here are translate_query +
-    // explain — both expose `question`. A serde failure means
-    // the input shape drifted out from under us; log and skip
-    // (the case stays unjudged, surfaces in the dashboard's
-    // "schema mismatch" pane).
-    let parsed: ExecuteEvaluationCaseRequest = match serde_json::from_value(case.input.clone()) {
-        Ok(p) => p,
-        Err(e) => {
-            warn!(
-                case_id = %case.id,
-                error = %e,
-                "eval-judge worker: case input does not match a known shape; skipping",
-            );
-            return Ok(());
-        }
-    };
-    let question = parsed.question().to_string();
-    let actual = case.actual.as_ref().ok_or_else(|| {
-        ox_core::error::OxError::Runtime {
+    // explain — both expose `question`.
+    let question = case.input.question().to_string();
+    let actual = case
+        .actual
+        .as_ref()
+        .ok_or_else(|| ox_core::error::OxError::Runtime {
             message: "list_unjudged_cases returned a case without `actual`".into(),
-        }
-    })?;
+        })?;
+    let expected_json = case
+        .expected
+        .as_ref()
+        .map(AppError::to_json)
+        .transpose()
+        .map_err(|err| ox_core::error::OxError::Runtime {
+            message: format!("{err:?}"),
+        })?;
+    let actual_json =
+        AppError::to_json(actual).map_err(|err| ox_core::error::OxError::Runtime {
+            message: format!("{err:?}"),
+        })?;
 
     // Bind the evaluation scope so capture-side latency / token
     // metrics for the judge call land alongside the rubric axes.
@@ -178,9 +179,9 @@ async fn judge_one_ragas(
         case_key: case.case_key.clone(),
         case_id: case.id,
     };
-    let judgement = scope_evaluation_context(ctx, async {
+    let (judgement, prov) = scope_evaluation_context(ctx, async {
         brain
-            .judge_evaluation_case(&question, case.expected.as_ref(), actual)
+            .judge_evaluation_case(&question, expected_json.as_ref(), &actual_json)
             .await
     })
     .await?;
@@ -189,10 +190,13 @@ async fn judge_one_ragas(
     // shape exactly so the dashboard / diff surfaces don't need
     // to distinguish "judged sync" vs "judged async". Workspace
     // scope wraps the writes so RLS stays in force on this
-    // SYSTEM_BYPASS path.
+    // SYSTEM_BYPASS path. Provenance row stamps inside the same
+    // workspace scope so the audit DAG attaches to the correct
+    // tenant.
     let now = Utc::now();
     ox_store::WORKSPACE_ID
         .scope(case.workspace_id, async {
+            let provenance_id = stamp_judge_provenance(store, case, &prov).await?;
             for (name, score, reasoning) in judgement.axes() {
                 let metric = EvaluationMetric {
                     id: Uuid::now_v7(),
@@ -201,12 +205,12 @@ async fn judge_one_ragas(
                     name: name.to_string(),
                     score,
                     reasoning: Some(reasoning.to_string()),
-                    metadata: serde_json::json!({
-                        "kind": "judge",
-                        "run_id": case.run_id,
-                        "case_key": case.case_key,
-                        "source": "async_worker",
-                    }),
+                    metadata: EvaluationMetricMetadata::Judge {
+                        run_id: case.run_id,
+                        case_key: case.case_key.clone(),
+                        source: Some(EvaluationJudgeSource::AsyncWorker),
+                    },
+                    provenance_id: Some(provenance_id),
                     created_at: now,
                 };
                 store.upsert_evaluation_metric(&metric).await?;
@@ -215,6 +219,39 @@ async fn judge_one_ragas(
         })
         .await?;
     Ok(())
+}
+
+/// Stamp a PROV-O activity row for one judge invocation against
+/// `case`. Subject names the case the judge scored. Returns the
+/// `provenance_id` for the metric rows to FK against.
+async fn stamp_judge_provenance(
+    store: &dyn Store,
+    case: &EvaluationCase,
+    prov: &ox_brain::CallProvenance,
+) -> ox_core::error::OxResult<Uuid> {
+    let plan = ox_ontology::ProvenancePlan {
+        template_id: prov.prompt_id.clone(),
+        template_version: prov.prompt_version.clone(),
+        prompt_render_hash: prov.prompt_render_hash.clone(),
+    };
+    let capture = ox_ontology::ProvenanceCapture::draft_proposal(plan, prov.model_id.clone())
+        .with_used(std::iter::once(ox_ontology::EntityRef::Arbitrary {
+            label: format!("evaluation_run:{}", case.run_id),
+        }));
+    let id_str = store
+        .record_activity(
+            capture,
+            ox_ontology::EntityRef::Arbitrary {
+                label: format!("evaluation_case:{}", case.id),
+            },
+        )
+        .await?;
+    Uuid::parse_str(id_str.as_str()).map_err(|e| ox_core::error::OxError::Runtime {
+        message: format!(
+            "ProvenanceStore::record_activity returned non-UUID id `{}`: {e}",
+            id_str.as_str()
+        ),
+    })
 }
 
 /// Drains a single case through the safety judge. Mirrors the
@@ -226,37 +263,34 @@ async fn judge_one_safety(
     brain: &dyn Brain,
     case: &EvaluationCase,
 ) -> ox_core::error::OxResult<()> {
-    let parsed: ExecuteEvaluationCaseRequest = match serde_json::from_value(case.input.clone()) {
-        Ok(p) => p,
-        Err(e) => {
-            warn!(
-                case_id = %case.id,
-                error = %e,
-                "eval-judge worker (safety): case input does not match a known shape; skipping",
-            );
-            return Ok(());
-        }
-    };
-    let question = parsed.question().to_string();
-    let actual = case.actual.as_ref().ok_or_else(|| {
-        ox_core::error::OxError::Runtime {
+    let question = case.input.question().to_string();
+    let actual = case
+        .actual
+        .as_ref()
+        .ok_or_else(|| ox_core::error::OxError::Runtime {
             message: "list_unjudged_cases returned a case without `actual`".into(),
-        }
-    })?;
+        })?;
+    let actual_json =
+        AppError::to_json(actual).map_err(|err| ox_core::error::OxError::Runtime {
+            message: format!("{err:?}"),
+        })?;
 
     let ctx = EvaluationContext {
         run_id: case.run_id,
         case_key: case.case_key.clone(),
         case_id: case.id,
     };
-    let judgement = scope_evaluation_context(ctx, async {
-        brain.judge_safety_evaluation_case(&question, actual).await
+    let (judgement, prov) = scope_evaluation_context(ctx, async {
+        brain
+            .judge_safety_evaluation_case(&question, &actual_json)
+            .await
     })
     .await?;
 
     let now = Utc::now();
     ox_store::WORKSPACE_ID
         .scope(case.workspace_id, async {
+            let provenance_id = stamp_judge_provenance(store, case, &prov).await?;
             for (name, score, reasoning) in judgement.axes() {
                 let metric = EvaluationMetric {
                     id: Uuid::now_v7(),
@@ -265,12 +299,12 @@ async fn judge_one_safety(
                     name: name.to_string(),
                     score,
                     reasoning: Some(reasoning.to_string()),
-                    metadata: serde_json::json!({
-                        "kind": "safety_judge",
-                        "run_id": case.run_id,
-                        "case_key": case.case_key,
-                        "source": "async_worker",
-                    }),
+                    metadata: EvaluationMetricMetadata::SafetyJudge {
+                        run_id: case.run_id,
+                        case_key: case.case_key.clone(),
+                        source: Some(EvaluationJudgeSource::AsyncWorker),
+                    },
+                    provenance_id: Some(provenance_id),
                     created_at: now,
                 };
                 store.upsert_evaluation_metric(&metric).await?;

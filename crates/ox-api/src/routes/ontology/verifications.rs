@@ -96,7 +96,7 @@ pub(crate) async fn verify_element(
 #[utoipa::path(
     get,
     path = "/api/ontology/verifications",
-    responses((status = 200, description = "Active verifications", body = Vec<Object>)),
+    responses((status = 200, description = "Active verifications", body = Vec<ElementVerification>)),
     security(("api_key" = [])),
     tag = "Ontology",
 )]

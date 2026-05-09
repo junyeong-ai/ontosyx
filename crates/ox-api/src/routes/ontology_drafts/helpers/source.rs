@@ -3,8 +3,8 @@ use std::sync::Arc;
 use tracing::info;
 
 use ox_core::source_schema::{SourceProfile, SourceSchema};
-use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
 use ox_ontology::mapping::refs::SourceId;
+use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
 use ox_ontology::source_analysis::SourceAnalysisReport;
 use ox_source::analyzer::build_analysis_report;
 use ox_source::registry::{AdapterRegistry, SourceInput};
@@ -56,7 +56,10 @@ fn ambiguity_source_handle(kind: &SourceTypeKind, fingerprint: &str) -> (SourceI
         schema_name: None,
         source_fingerprint: Some(fingerprint.to_string()),
     };
-    (SourceId::from_source_config(&config), fingerprint.to_string())
+    (
+        SourceId::from_source_config(&config),
+        fingerprint.to_string(),
+    )
 }
 
 /// Build a live adapter for a `DataSourceSpec` without performing any
@@ -384,8 +387,7 @@ pub(crate) async fn analyze_source(
         .clone()
         .unwrap_or_else(|| schema_fingerprint(&analysis.schema));
 
-    let (src_id, src_hash) =
-        ambiguity_source_handle(&prepared.config.source_type, &fingerprint);
+    let (src_id, src_hash) = ambiguity_source_handle(&prepared.config.source_type, &fingerprint);
     let report = build_analysis_report(&src_id, &src_hash, &analysis.schema, &analysis.profile)
         .with_analysis_warnings(analysis.warnings.clone());
 
@@ -407,4 +409,48 @@ pub(crate) async fn analyze_source(
         profile: Some(analysis.profile.clone()),
         report: Some(report),
     })
+}
+
+/// Φ12.4 — persist a [`SourceContractDef`] row per introspected
+/// table so the commit-path validator
+/// (`OntologyIR::validate_against_source_contracts`) has the
+/// authoritative `(source_id, relation, columns, primary_key)`
+/// shape to check mappings against.
+///
+/// No-op on `Text` / `CodeRepository` sources (no `schema` to
+/// promote). The store call is workspace-scoped via the calling
+/// task's `WORKSPACE_ID` task-local — the route handler that owns
+/// the request context is the only valid caller.
+///
+/// Errors propagate so that introspection success without contract
+/// capture cannot silently leave the bank stale. The store layer
+/// recomputes the fingerprint server-side, so the inbound
+/// `SourceContractDef::new` is canonical by construction.
+pub(crate) async fn capture_source_contracts(
+    state: &crate::state::AppState,
+    analyzed: &AnalyzedSource,
+) -> Result<(), AppError> {
+    let Some(schema) = analyzed.schema.as_ref() else {
+        return Ok(());
+    };
+    let source_id = SourceId::from_source_config(&analyzed.config);
+    for table in &schema.tables {
+        let columns: Vec<ox_ontology::ColumnSpec> = table
+            .columns
+            .iter()
+            .map(|c| ox_ontology::ColumnSpec::new(&c.name, &c.data_type, c.nullable))
+            .collect();
+        let contract = ox_ontology::SourceContractDef::new(
+            source_id.clone(),
+            &table.name,
+            columns,
+            table.primary_key.clone(),
+        );
+        state
+            .store
+            .upsert_source_contract(&contract)
+            .await
+            .map_err(AppError::from)?;
+    }
+    Ok(())
 }

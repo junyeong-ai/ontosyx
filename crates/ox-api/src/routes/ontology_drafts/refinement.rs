@@ -11,22 +11,23 @@ use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::validation::validate_ontology_input;
-use ox_ontology::ontology_draft::{OntologyDraftStatus, SourceConfig};
-use ox_ontology::ir::OntologyIR;
-use ox_ontology::source_analysis::DesignOptions;
+use ox_brain::model_resolver::{ModelResolver, operation};
 use ox_graph_runtime::profiler;
+use ox_ontology::ir::OntologyIR;
+use ox_ontology::ontology_draft::{OntologyDraftStatus, SourceConfig};
+use ox_ontology::source_analysis::DesignOptions;
 use ox_source::analyzer::build_design_context;
 
 use super::helpers::artifact::persist_design_artifact;
 use super::helpers::{
-    LlmInputContext, assess_quality_from_ontology_draft, assess_quality_from_ontology_draft_with_mapping,
-    build_llm_input, build_refinement_context, build_source_schema_summary, enforce_design_gates,
-    get_design_options, load_analysis_report, load_mutable_ontology_draft, load_ontology_draft_in_status,
-    reload_ontology_draft,
+    LlmInputContext, assess_quality_from_ontology_draft,
+    assess_quality_from_ontology_draft_with_mapping, build_llm_input, build_refinement_context,
+    build_source_schema_summary, enforce_design_gates, get_design_options, load_analysis_report,
+    load_mutable_ontology_draft, load_ontology_draft_in_status, reload_ontology_draft,
 };
 use super::types::{
-    DesignOntologyDraftRequest, DesignOntologyDraftResponse, OntologyDraftView, ReconcileOntologyDraftRequest,
-    RefineOntologyDraftRequest, RefineOntologyDraftResponse,
+    DesignOntologyDraftRequest, DesignOntologyDraftResponse, OntologyDraftView,
+    ReconcileOntologyDraftRequest, RefineOntologyDraftRequest, RefineOntologyDraftResponse,
 };
 
 // ---------------------------------------------------------------------------
@@ -103,11 +104,13 @@ pub(crate) async fn design_ontology_draft(
     let source_id = ox_ontology::mapping::SourceId::new(project.source_id.clone());
     let design_output = tokio::time::timeout(
         timeout,
-        state.brain.design_ontology(&ox_brain::DesignOntologyInput::bare(
-            &sample_data,
-            &effective_context,
-            &source_id,
-        )),
+        state
+            .brain
+            .design_ontology(&ox_brain::DesignOntologyInput::bare(
+                &sample_data,
+                &effective_context,
+                &source_id,
+            )),
     )
     .await
     .map_err(|_| {
@@ -124,7 +127,16 @@ pub(crate) async fn design_ontology_draft(
     })?
     .map_err(AppError::from)?;
 
-    let ox_brain::DesignOntologyOutput { ontology, provenance } = design_output;
+    let ox_brain::DesignOntologyOutput {
+        ontology,
+        provenance,
+    } = design_output;
+    let meter_provider = provenance
+        .params
+        .get("provider")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    let meter_model = Some(provenance.model_id.clone());
 
     let design_duration_ms = design_started.elapsed().as_millis() as i64;
     info!(
@@ -155,21 +167,24 @@ pub(crate) async fn design_ontology_draft(
     {
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
+        let meter_provider = meter_provider.clone();
+        let meter_model = meter_model.clone();
         crate::spawn_scoped::spawn_scoped(async move {
             if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
                     "llm",
-                    Some("anthropic"),
-                    None,
-                    Some("design"),
+                    meter_provider.as_deref(),
+                    meter_model.as_deref(),
+                    Some(operation::DESIGN_ONTOLOGY),
                     0,
                     0,
                     design_duration_ms,
                     0.0,
                     serde_json::json!({}),
                 )
-                .await {
+                .await
+            {
                 tracing::warn!(?error, "telemetry record failed");
             }
         });
@@ -373,26 +388,34 @@ pub(crate) async fn refine_ontology_draft(
         llm_ms = refine_duration_ms,
         "LLM refinement completed"
     );
+    let refined_model = state
+        .model_router
+        .resolve(operation::REFINE_ONTOLOGY)
+        .await
+        .map_err(AppError::from)?;
 
     // Record metering (fire-and-forget)
     {
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
+        let meter_provider = refined_model.provider.clone();
+        let meter_model = refined_model.model_id.clone();
         crate::spawn_scoped::spawn_scoped(async move {
             if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
                     "llm",
-                    Some("anthropic"),
-                    None,
-                    Some("refine"),
+                    Some(&meter_provider),
+                    Some(&meter_model),
+                    Some(operation::REFINE_ONTOLOGY),
                     0,
                     0,
                     refine_duration_ms,
                     0.0,
                     serde_json::json!({}),
                 )
-                .await {
+                .await
+            {
                 tracing::warn!(?error, "telemetry record failed");
             }
         });
@@ -431,8 +454,10 @@ pub(crate) async fn refine_ontology_draft(
             .await
             {
                 Ok(profile) => {
-                    let enriched =
-                        ox_graph_runtime::enrichment::enrich_descriptions(&reconciled.ontology, &profile);
+                    let enriched = ox_graph_runtime::enrichment::enrich_descriptions(
+                        &reconciled.ontology,
+                        &profile,
+                    );
                     if !enriched.changes.is_empty() {
                         info!(
                             ontology_draft_id = %id,

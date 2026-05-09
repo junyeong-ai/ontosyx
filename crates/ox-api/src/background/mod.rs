@@ -10,18 +10,22 @@
 
 pub mod clarification_evict;
 pub mod collab_idle_reap;
+pub mod community_detection;
 pub mod cron;
 pub mod draft_checkpoint_cleanup;
 pub mod eval_judge;
 pub mod quality_baseline;
 pub mod soft_delete_compaction;
 pub mod stale_concepts;
+pub mod verified_query_freshness;
 
 pub use clarification_evict::spawn_clarification_evict;
 pub use collab_idle_reap::spawn_collab_idle_reap;
+pub use community_detection::spawn_community_detection_sweep;
 pub use cron::{CronTask, spawn_cron};
 pub use draft_checkpoint_cleanup::spawn_draft_checkpoint_cleanup;
 pub use eval_judge::spawn_eval_judge_worker;
 pub use quality_baseline::spawn_quality_baseline_scan;
 pub use soft_delete_compaction::spawn_soft_delete_compaction;
 pub use stale_concepts::spawn_stale_concept_scan;
+pub use verified_query_freshness::spawn_verified_query_freshness_sweep;

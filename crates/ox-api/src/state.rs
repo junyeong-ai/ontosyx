@@ -5,7 +5,6 @@ use axum::extract::FromRef;
 use dashmap::DashMap;
 use tokio::sync::{OnceCell, RwLock};
 
-use branchforge::Auth;
 use ox_brain::Brain;
 use ox_brain::client_pool::ClientPool;
 use ox_compiler::{GraphCompiler, PlanCacheHandle};
@@ -63,9 +62,16 @@ pub struct AppState {
     pub system_config: Arc<RwLock<SystemConfig>>,
     pub rate_limiter: Option<Arc<RateLimiter>>,
     pub memory: Option<Arc<ox_memory::MemoryStore>>,
+    /// Per-workspace morphological tokenizer registry. Glossary
+    /// commits publish a fresh `LinderaTokenizer` (system
+    /// `mecab-ko-dic` + workspace user dict from glossary
+    /// surfaces) into this registry; index-time and query-time
+    /// retrieval paths hot-look the resolved tokenizer per
+    /// workspace from a single `Arc` — recall consistency
+    /// guaranteed by construction.
+    pub tokenizer_registry: Arc<ox_text::WorkspaceTokenizerRegistry>,
     pub client_pool: Arc<ClientPool>,
     pub model_router: Arc<DbModelRouter>,
-    pub agent_auth: Auth,
     /// Generic OIDC provider registry (Google, Microsoft, Okta, etc.)
     pub oidc_providers: Arc<OidcProviderRegistry>,
     /// HITL: maps "session_id:tool_call_id" → oneshot sender for tool approval
@@ -204,7 +210,10 @@ impl WorkspaceResolverSlot {
 
     /// Access the hydrated resolver, initialising it exactly once
     /// through `init`. Concurrent callers see the same future.
-    pub async fn get_or_init<F, Fut, E>(&self, init: F) -> Result<&RwLock<InMemoryAdapterResolver>, E>
+    pub async fn get_or_init<F, Fut, E>(
+        &self,
+        init: F,
+    ) -> Result<&RwLock<InMemoryAdapterResolver>, E>
     where
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = Result<InMemoryAdapterResolver, E>>,

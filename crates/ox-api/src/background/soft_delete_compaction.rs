@@ -67,10 +67,7 @@ impl CronTask for SoftDeleteCompaction {
     async fn run_once(&self) -> OxResult<()> {
         let cutoff_ms = current_cutoff_ms(self.retention_days);
         let mut params = HashMap::new();
-        params.insert(
-            "cutoff_ms".to_string(),
-            PropertyValue::Int(cutoff_ms),
-        );
+        params.insert("cutoff_ms".to_string(), PropertyValue::Int(cutoff_ms));
 
         match self.runtime.execute_query(COMPACTION_CYPHER, &params).await {
             Ok(result) => {

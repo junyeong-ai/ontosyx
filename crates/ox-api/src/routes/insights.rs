@@ -16,6 +16,7 @@ use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 
 use ox_query_ir::insight::{InsightDef, InsightId};
+use ox_query_ir::query::{QueryIR, QueryProvenance};
 use ox_store::store::{CreateInsightInput, UpdateInsightInput};
 use ox_store::{CursorPage, CursorParams};
 
@@ -27,53 +28,43 @@ use crate::workspace::WorkspaceContext;
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateInsightRequest {
-    #[schema(value_type = Object)]
     pub question: ox_core::i18n::LocalizedText,
     /// Required on the wire — clients always send a `LocalizedText`
     /// payload (`{default: ""}` is acceptable). Mirrors the canonical
     /// `InsightDef.description: LocalizedText` shape; not making the
     /// request DTO optional avoids producer/consumer asymmetry where
     /// the response always carries the field.
-    #[schema(value_type = Object)]
     pub description: ox_core::i18n::LocalizedText,
     #[serde(default)]
     pub tags: Vec<String>,
-    /// `GlossaryTermId` strings — the typed concept anchors per the
-    /// 1-pager's "용어 사전이 다리" axis. Distinct from `tags`
-    /// (freeform shorthand) so cross-team filtering by concept stays
-    /// stable as tag wording drifts. Empty when no glossary terms
-    /// apply.
+    /// `ConceptId` strings. Distinct from `tags` (freeform
+    /// shorthand) so cross-team filtering by concept stays stable as
+    /// glossary wording and tag wording drift.
     #[serde(default)]
     pub concept_anchors: Vec<String>,
     /// Logical query the insight executes. Validated as
     /// `QueryIR` on submit so a malformed IR is rejected up-front.
-    #[schema(value_type = Object)]
-    pub query_ir: serde_json::Value,
+    pub query_ir: QueryIR,
     /// Provenance the insight was originally computed against —
     /// the platform's response basis at save time.
     #[serde(default)]
-    #[schema(value_type = Option<Object>)]
-    pub original_provenance: Option<serde_json::Value>,
+    pub original_provenance: Option<QueryProvenance>,
     #[serde(default)]
     pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdateInsightRequest {
-    #[schema(value_type = Object)]
     pub question: ox_core::i18n::LocalizedText,
     /// Required on the wire (see `CreateInsightRequest::description`).
-    #[schema(value_type = Object)]
     pub description: ox_core::i18n::LocalizedText,
     #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default)]
     pub concept_anchors: Vec<String>,
-    #[schema(value_type = Object)]
-    pub query_ir: serde_json::Value,
+    pub query_ir: QueryIR,
     #[serde(default)]
-    #[schema(value_type = Option<Object>)]
-    pub original_provenance: Option<serde_json::Value>,
+    pub original_provenance: Option<QueryProvenance>,
     #[serde(default)]
     pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
     /// Optimistic-concurrency handle: must match the row's current
@@ -84,7 +75,6 @@ pub struct UpdateInsightRequest {
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct InsightResponse {
-    #[schema(value_type = Object)]
     pub insight: InsightDef,
 }
 
@@ -94,8 +84,8 @@ pub struct ListInsightsQuery {
     /// caller. The admin-mode "all insights" view passes `me=false`.
     #[serde(default = "default_me")]
     pub me: bool,
-    /// Filter by typed concept anchors (`GlossaryTermId` strings).
-    /// Multi-value: `?concept_anchor=gt-x&concept_anchor=gt-y` returns
+    /// Filter by typed concept anchors (`ConceptId` strings).
+    /// Multi-value: `?concept_anchor=c-x&concept_anchor=c-y` returns
     /// any insight that carries at least one of those anchors.
     #[serde(default, rename = "concept_anchor")]
     pub concept_anchors: Vec<String>,
@@ -111,16 +101,6 @@ pub struct ListInsightsQuery {
 
 fn default_me() -> bool {
     true
-}
-
-/// Reject the request when `query_ir` does not deserialise into
-/// the canonical `QueryIR` shape. Catches a malformed payload at
-/// the edge so every reader can trust the stored row decodes
-/// without falling through to a runtime panic.
-fn validate_query_ir(value: &serde_json::Value) -> Result<(), AppError> {
-    serde_json::from_value::<ox_query_ir::query::QueryIR>(value.clone())
-        .map(|_| ())
-        .map_err(|e| AppError::query_ir_invalid(e.to_string()))
 }
 
 #[utoipa::path(
@@ -145,8 +125,15 @@ pub(crate) async fn create_insight(
     Json(req): Json<CreateInsightRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<InsightResponse>>), AppError> {
     principal.require_designer()?;
-    validate_query_ir(&req.query_ir)?;
     let author_id = principal.user_uuid()?;
+    let query_ir = serde_json::to_value(&req.query_ir)
+        .map_err(|e| AppError::query_ir_invalid(e.to_string()))?;
+    let original_provenance = req
+        .original_provenance
+        .map(|provenance| {
+            serde_json::to_value(provenance).map_err(|e| AppError::query_ir_invalid(e.to_string()))
+        })
+        .transpose()?;
 
     let insight = state
         .store
@@ -156,14 +143,19 @@ pub(crate) async fn create_insight(
             description: req.description,
             tags: req.tags,
             concept_anchors: req.concept_anchors,
-            query_ir: req.query_ir,
-            original_provenance: req.original_provenance,
+            query_ir,
+            original_provenance,
             expires_at: req.expires_at,
         })
         .await
         .map_err(AppError::from)?;
 
-    record_insight_audit(&state, principal.user_uuid().ok(), "insight.create", &insight.id);
+    record_insight_audit(
+        &state,
+        principal.user_uuid().ok(),
+        "insight.create",
+        &insight.id,
+    );
 
     Ok((
         StatusCode::CREATED,
@@ -195,8 +187,15 @@ pub(crate) async fn update_insight(
     Json(req): Json<UpdateInsightRequest>,
 ) -> Result<Json<ApiResponse<InsightResponse>>, AppError> {
     principal.require_designer()?;
-    validate_query_ir(&req.query_ir)?;
     let id = InsightId::new(id);
+    let query_ir = serde_json::to_value(&req.query_ir)
+        .map_err(|e| AppError::query_ir_invalid(e.to_string()))?;
+    let original_provenance = req
+        .original_provenance
+        .map(|provenance| {
+            serde_json::to_value(provenance).map_err(|e| AppError::query_ir_invalid(e.to_string()))
+        })
+        .transpose()?;
 
     let insight = state
         .store
@@ -207,8 +206,8 @@ pub(crate) async fn update_insight(
                 description: req.description,
                 tags: req.tags,
                 concept_anchors: req.concept_anchors,
-                query_ir: req.query_ir,
-                original_provenance: req.original_provenance,
+                query_ir,
+                original_provenance,
                 expires_at: req.expires_at,
                 expected_updated_at: req.expected_updated_at,
             },
@@ -216,7 +215,12 @@ pub(crate) async fn update_insight(
         .await
         .map_err(AppError::from)?;
 
-    record_insight_audit(&state, principal.user_uuid().ok(), "insight.update", &insight.id);
+    record_insight_audit(
+        &state,
+        principal.user_uuid().ok(),
+        "insight.update",
+        &insight.id,
+    );
 
     Ok(ApiResponse::of(InsightResponse { insight }))
 }
@@ -255,7 +259,7 @@ pub(crate) async fn get_insight(
     params(ListInsightsQuery),
     responses(
         (status = 200, description = "Paginated insight list",
-            body = Object),
+            body = CursorPage<InsightDef>),
     ),
     security(("api_key" = [])),
     tag = "Insights",
@@ -318,7 +322,12 @@ pub(crate) async fn delete_insight(
     if !removed {
         return Err(AppError::not_found("Insight"));
     }
-    record_insight_audit(&state, principal.user_uuid().ok(), "insight.delete", &insight_id);
+    record_insight_audit(
+        &state,
+        principal.user_uuid().ok(),
+        "insight.delete",
+        &insight_id,
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -335,7 +344,13 @@ fn record_insight_audit(
     let target_id = insight_id.as_str().to_string();
     crate::spawn_scoped::spawn_scoped(async move {
         if let Err(e) = store
-            .record_audit(user_id, action, "insight", Some(&target_id), serde_json::json!({}))
+            .record_audit(
+                user_id,
+                action,
+                "insight",
+                Some(&target_id),
+                serde_json::json!({}),
+            )
             .await
         {
             tracing::warn!(?e, action, target = %target_id, "insight audit record failed");

@@ -16,8 +16,9 @@ use uuid::Uuid;
 
 use branchforge::{AgentEvent, ExecutionMode};
 use ox_agent::{BuildAgentResult, DomainContext, OntosyxAgentConfig, build_agent};
+use ox_brain::model_resolver::{ModelResolver, operation};
 use ox_ontology::ir::OntologyIR;
-use ox_store::AgentSession;
+use ox_store::{AgentEventPayload, AgentExecutionMode, AgentSession, AgentSessionModelConfig};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -31,7 +32,6 @@ use crate::validation;
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ChatStreamRequest {
     pub message: String,
-    #[schema(value_type = Object)]
     pub ontology: OntologyIR,
     #[serde(default)]
     pub ontology_id: Option<Uuid>,
@@ -42,7 +42,7 @@ pub struct ChatStreamRequest {
     #[serde(default)]
     pub session_id: Option<String>,
     #[serde(default)]
-    pub execution_mode: Option<String>,
+    pub execution_mode: Option<AgentExecutionMode>,
     /// Override the LLM model for this request (e.g., "claude-opus-4-6").
     #[serde(default)]
     pub model_override: Option<String>,
@@ -111,32 +111,67 @@ pub(crate) async fn chat_stream(
     // because the stream runs AFTER the middleware scope ends.
     let ws_scope = crate::spawn_scoped::WsScope::capture();
     let ws_id = ws.workspace_id;
-    let model_id = state.brain.default_model_info().model.clone();
+    let resolved_chat_model = state
+        .model_router
+        .resolve(operation::CHAT)
+        .await
+        .map_err(AppError::from)?;
+    let model_id = req
+        .model_override
+        .clone()
+        .unwrap_or_else(|| resolved_chat_model.model_id.clone());
+    let model_provider = resolved_chat_model.provider.clone();
+    let agent_auth = resolved_chat_model
+        .provider_config
+        .as_ref()
+        .ok_or_else(|| {
+            AppError::service_unavailable(
+                "LLM provider unavailable. Run `./scripts/dev.sh health` or POST /api/models/test for the provider diagnostic.",
+            )
+        })?
+        .resolve_auth()
+        .map_err(|error| {
+            tracing::warn!(%error, provider = %model_provider, "Agent auth resolution failed");
+            AppError::service_unavailable(
+                "LLM provider unavailable. Run `./scripts/dev.sh health` or POST /api/models/test for the provider diagnostic.",
+            )
+        })?;
+    let resolved_ontology_id = if req.ontology_id.is_some() || req.ontology_draft_id.is_some() {
+        req.ontology_id
+    } else {
+        state
+            .store
+            .get_workspace_ontology()
+            .await
+            .map_err(AppError::from)?
+            .map(|identity| identity.id)
+    };
 
     // Load source schema + repo insights from project (deserialize JSONB → typed structs)
-    let (source_schema, source_profile, repo_insights) = if let Some(ontology_draft_id) = req.ontology_draft_id {
-        match state.store.get_ontology_draft(ontology_draft_id).await {
-            Ok(Some(project)) => {
-                let schema = project
-                    .source_schema
-                    .as_ref()
-                    .and_then(|v| serde_json::from_value(v.clone()).ok());
-                let profile = project
-                    .source_profile
-                    .as_ref()
-                    .and_then(|v| serde_json::from_value(v.clone()).ok());
-                let insights = project
-                    .analysis_report
-                    .as_ref()
-                    .and_then(|r| r.get("repo_summary"))
-                    .and_then(|v| serde_json::from_value(v.clone()).ok());
-                (schema, profile, insights)
+    let (source_schema, source_profile, repo_insights) =
+        if let Some(ontology_draft_id) = req.ontology_draft_id {
+            match state.store.get_ontology_draft(ontology_draft_id).await {
+                Ok(Some(project)) => {
+                    let schema = project
+                        .source_schema
+                        .as_ref()
+                        .and_then(|v| serde_json::from_value(v.clone()).ok());
+                    let profile = project
+                        .source_profile
+                        .as_ref()
+                        .and_then(|v| serde_json::from_value(v.clone()).ok());
+                    let insights = project
+                        .analysis_report
+                        .as_ref()
+                        .and_then(|r| r.get("repo_summary"))
+                        .and_then(|v| serde_json::from_value(v.clone()).ok());
+                    (schema, profile, insights)
+                }
+                _ => (None, None, None),
             }
-            _ => (None, None, None),
-        }
-    } else {
-        (None, None, None)
-    };
+        } else {
+            (None, None, None)
+        };
 
     // Build domain context
     let domain = Arc::new(DomainContext {
@@ -146,7 +181,7 @@ pub(crate) async fn chat_stream(
         ontology: Some(arc_swap::ArcSwap::from_pointee(ontology)),
         user_id: user_id.clone(),
         workspace_id: ws.workspace_id,
-        ontology_id: req.ontology_id,
+        ontology_id: resolved_ontology_id,
         ontology_draft_id: req.ontology_draft_id,
         ontology_draft_revision: req.ontology_draft_revision,
         source_schema,
@@ -156,13 +191,13 @@ pub(crate) async fn chat_stream(
         ambiguity_store: Some(Arc::clone(&state.store) as Arc<dyn ox_store::AmbiguityStore>),
         clarification_tracker: Arc::clone(&state.clarification_tracker),
         user_question: Some(user_message.clone()),
+        tokenizer_registry: Some(Arc::clone(&state.tokenizer_registry)),
+        embedder: state.memory.as_ref().map(|m| Arc::clone(m.embedder())),
     });
 
     // Parse execution mode from request
-    let execution_mode = match req.execution_mode.as_deref() {
-        Some("supervised") => ExecutionMode::Supervised,
-        _ => ExecutionMode::Auto,
-    };
+    let platform_execution_mode = req.execution_mode.unwrap_or(AgentExecutionMode::Auto);
+    let execution_mode = branchforge_execution_mode(platform_execution_mode);
 
     // Build agent
     let requested_session_id = req.session_id.clone();
@@ -170,7 +205,7 @@ pub(crate) async fn chat_stream(
         agent,
         session_resumed,
     } = build_agent(OntosyxAgentConfig {
-        auth: state.agent_auth.clone(),
+        auth: agent_auth,
         model: model_id.clone(),
         execution_mode,
         domain: Arc::clone(&domain),
@@ -183,7 +218,12 @@ pub(crate) async fn chat_stream(
         reject_high_cost: state.agent.reject_high_cost,
     })
     .await
-    .map_err(|e| AppError::internal(format!("Agent initialization failed: {e}")))?;
+    .map_err(|e| {
+        tracing::warn!(error = %e, "Agent initialization failed");
+        AppError::service_unavailable(
+            "LLM provider unavailable. Run `./scripts/dev.sh health` or POST /api/models/test for the provider diagnostic.",
+        )
+    })?;
 
     // Propagate workspace context into agent tool execution futures.
     // This ensures task-locals (WORKSPACE_ID, SYSTEM_BYPASS) are available
@@ -215,7 +255,9 @@ pub(crate) async fn chat_stream(
         prompt_hash,
         tool_schema_hash,
         model_id: model_id.clone(),
-        model_config: serde_json::json!({"execution_mode": req.execution_mode.as_deref().unwrap_or("auto")}),
+        model_config: AgentSessionModelConfig {
+            execution_mode: platform_execution_mode,
+        },
         user_message: user_message.clone(),
         final_text: None,
         created_at: Utc::now(),
@@ -252,11 +294,12 @@ pub(crate) async fn chat_stream(
     );
 
     // Capture ontology_id for embedding scoping in the stream closure
-    let ontology_id_for_stream = req.ontology_id.map(|id| id.to_string());
+    let ontology_id_for_stream = resolved_ontology_id.map(|id| id.to_string());
 
     // Capture values for metering inside the stream closure
     let principal_user_uuid = principal.user_uuid().ok();
     let model_id_for_stream = model_id.clone();
+    let model_provider_for_stream = model_provider.clone();
     // Online-sampling capture — moved into the stream so the
     // post-completion sample includes the original user
     // question without re-borrowing `req`.
@@ -287,10 +330,7 @@ pub(crate) async fn chat_stream(
             ));
         }
 
-        let mut rc = branchforge::RunConfig::new();
-        if let Some(model) = &req.model_override {
-            rc = rc.model(model);
-        }
+        let rc = branchforge::RunConfig::new();
         let execute_result = agent.execute_stream_with(&user_message, rc).await;
 
         match execute_result {
@@ -332,14 +372,14 @@ pub(crate) async fn chat_stream(
                         Ok(ref agent_event) => {
                             // Record event for audit (fire-and-forget)
                             event_sequence += 1;
-                            if let Some(sse_event) = agent_event_to_sse(agent_event) {
+                            if let Some(payload) = agent_event_payload(agent_event) {
                                 let audit_event = ox_store::AgentEvent {
                                     id: Uuid::new_v4(),
                                     session_id: audit_session_id,
                                     workspace_id: ws_id,
                                     sequence: event_sequence,
-                                    event_type: agent_event.event_type().to_string(),
-                                    payload: serde_json::to_value(agent_event).unwrap_or_default(),
+                                    event_type: payload.event_type().to_string(),
+                                    payload: payload.clone(),
                                     created_at: Utc::now(),
                                 };
                                 let store = Arc::clone(&store_for_events);
@@ -349,7 +389,7 @@ pub(crate) async fn chat_stream(
                                     }
                                 });
 
-                                yield Ok(sse_event);
+                                yield Ok(agent_payload_to_sse(&payload));
                             }
 
                             // Record usage metering for cost tracking (fire-and-forget)
@@ -357,15 +397,16 @@ pub(crate) async fn chat_stream(
                                 let meter_store = Arc::clone(&store_for_events);
                                 let meter_user_id = principal_user_uuid;
                                 let meter_model = model_id_for_stream.clone();
+                                let meter_provider = model_provider_for_stream.clone();
                                 let in_tok = input_tokens.get() as i64;
                                 let out_tok = output_tokens.get() as i64;
                                 crate::spawn_scoped::spawn_with_ws(ws_scope.clone(), async move {
                                     let fut = meter_store.record_usage(
                                         meter_user_id,
                                         "llm",
-                                        Some("anthropic"),
+                                        Some(&meter_provider),
                                         Some(&meter_model),
-                                        Some("chat"),
+                                        Some(operation::CHAT),
                                         in_tok,
                                         out_tok,
                                         0, // duration not available per-turn
@@ -522,7 +563,10 @@ pub(crate) async fn chat_stream(
     // re-enter `WORKSPACE_ID` / `SYSTEM_BYPASS` task-locals (axum
     // drives the Stream after the request middleware's scope has
     // already exited).
-    Ok(Sse::new(crate::spawn_scoped::scope_stream(outer_ws_scope, stream)))
+    Ok(Sse::new(crate::spawn_scoped::scope_stream(
+        outer_ws_scope,
+        stream,
+    )))
 }
 
 // ---------------------------------------------------------------------------
@@ -532,7 +576,7 @@ pub(crate) async fn chat_stream(
 fn sha256_hex(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.finalize())
 }
 
 fn compute_tool_schema_hash(agent: &branchforge::Agent) -> String {
@@ -552,20 +596,100 @@ fn compute_tool_schema_hash(agent: &branchforge::Agent) -> String {
     )
 }
 
-/// Convert branchforge AgentEvent to Axum SSE Event.
-///
-/// SSE uses the event type as the SSE `event` field and a lightweight
-/// JSON payload as `data`. For Complete events, only summary fields are
-/// sent to avoid streaming full messages/metrics to the client.
-fn agent_event_to_sse(event: &AgentEvent) -> Option<Event> {
-    let (event_name, data) = match event {
-        AgentEvent::Text { delta } => ("text", serde_json::json!({ "delta": delta })),
-        AgentEvent::Thinking { content } => ("thinking", serde_json::json!({ "content": content })),
-        AgentEvent::ToolStart { id, name, input } => (
+fn branchforge_execution_mode(mode: AgentExecutionMode) -> ExecutionMode {
+    match mode {
+        AgentExecutionMode::Auto => ExecutionMode::Auto,
+        AgentExecutionMode::Plan => ExecutionMode::Plan,
+        AgentExecutionMode::Supervised => ExecutionMode::Supervised,
+    }
+}
+
+/// Convert branchforge AgentEvent to the platform-owned persisted
+/// payload. Events without a client-facing representation are not
+/// persisted in the session timeline.
+fn agent_event_payload(event: &AgentEvent) -> Option<AgentEventPayload> {
+    Some(match event {
+        AgentEvent::Text { delta } => AgentEventPayload::Text {
+            delta: delta.clone(),
+        },
+        AgentEvent::Thinking { content } => AgentEventPayload::Thinking {
+            content: content.clone(),
+        },
+        AgentEvent::ToolStart { id, name, input } => AgentEventPayload::ToolStart {
+            id: id.clone(),
+            name: name.clone(),
+            input: input.clone(),
+        },
+        AgentEvent::ToolComplete {
+            id,
+            name,
+            output,
+            is_error,
+            duration_ms,
+        } => AgentEventPayload::ToolComplete {
+            id: id.clone(),
+            name: name.clone(),
+            output: serde_json::Value::String(output.clone()),
+            is_error: *is_error,
+            duration_ms: Some(*duration_ms as i64),
+        },
+        AgentEvent::ToolProgress {
+            id,
+            name: _,
+            step,
+            status,
+            timestamp: _,
+            duration_ms,
+            metadata,
+        } => AgentEventPayload::ToolProgress {
+            tool_call_id: id.clone(),
+            step: step.clone(),
+            status: format!("{status:?}"),
+            duration_ms: duration_ms.map(|ms| ms as i64),
+            metadata: metadata.clone().unwrap_or(serde_json::Value::Null),
+        },
+        AgentEvent::ToolBlocked { id, name, reason } => AgentEventPayload::ToolBlocked {
+            id: id.clone(),
+            name: name.clone(),
+            reason: reason.clone(),
+        },
+        AgentEvent::ToolReview { id, name, input } => AgentEventPayload::ToolReview {
+            id: id.clone(),
+            name: name.clone(),
+            input: input.clone(),
+        },
+        AgentEvent::TurnUsage {
+            input_tokens,
+            output_tokens,
+            ..
+        } => AgentEventPayload::TurnUsage {
+            input_tokens: input_tokens.get() as i64,
+            output_tokens: output_tokens.get() as i64,
+        },
+        AgentEvent::Complete(result) => AgentEventPayload::Complete {
+            session_id: result.session_id.clone(),
+            text: result.text.clone(),
+            tool_calls: serde_json::to_value(result.tool_calls).unwrap_or_default(),
+            iterations: result.iterations as u32,
+        },
+        _ => return None,
+    })
+}
+
+/// Convert the persisted payload to Axum SSE. SSE uses the historic
+/// `usage` event name for token usage while the stored timeline keeps
+/// the canonical `turn_usage` type.
+fn agent_payload_to_sse(payload: &AgentEventPayload) -> Event {
+    let (event_name, data) = match payload {
+        AgentEventPayload::Text { delta } => ("text", serde_json::json!({ "delta": delta })),
+        AgentEventPayload::Thinking { content } => {
+            ("thinking", serde_json::json!({ "content": content }))
+        }
+        AgentEventPayload::ToolStart { id, name, input } => (
             "tool_start",
             serde_json::json!({ "id": id, "name": name, "input": input }),
         ),
-        AgentEvent::ToolComplete {
+        AgentEventPayload::ToolComplete {
             id,
             name,
             output,
@@ -575,53 +699,52 @@ fn agent_event_to_sse(event: &AgentEvent) -> Option<Event> {
             "tool_complete",
             serde_json::json!({ "id": id, "name": name, "output": output, "is_error": is_error, "duration_ms": duration_ms }),
         ),
-        AgentEvent::ToolProgress {
-            id,
-            name: _,
+        AgentEventPayload::ToolProgress {
+            tool_call_id,
             step,
             status,
-            timestamp: _,
             duration_ms,
             metadata,
         } => (
             "tool_progress",
             serde_json::json!({
-                "tool_call_id": id,
+                "tool_call_id": tool_call_id,
                 "step": step,
                 "status": status,
                 "duration_ms": duration_ms,
                 "metadata": metadata,
             }),
         ),
-        AgentEvent::ToolBlocked { id, name, reason } => (
+        AgentEventPayload::ToolBlocked { id, name, reason } => (
             "tool_blocked",
             serde_json::json!({ "id": id, "name": name, "reason": reason }),
         ),
-        AgentEvent::ToolReview { id, name, input } => (
+        AgentEventPayload::ToolReview { id, name, input } => (
             "tool_review",
             serde_json::json!({ "id": id, "name": name, "input": input }),
         ),
-        AgentEvent::TurnUsage {
+        AgentEventPayload::TurnUsage {
             input_tokens,
             output_tokens,
-            ..
         } => (
             "usage",
             serde_json::json!({ "input_tokens": input_tokens, "output_tokens": output_tokens }),
         ),
-        AgentEvent::Complete(result) => (
+        AgentEventPayload::Complete {
+            session_id,
+            text,
+            tool_calls,
+            iterations,
+        } => (
             "complete",
             serde_json::json!({
-                "session_id": result.session_id,
-                "text": result.text,
-                "tool_calls": result.tool_calls,
-                "iterations": result.iterations,
+                "session_id": session_id,
+                "text": text,
+                "tool_calls": tool_calls,
+                "iterations": iterations,
             }),
         ),
-        // Ignore events that don't have a client-facing SSE representation
-        // (e.g. Init, new variants added in future branchforge versions).
-        _ => return None,
     };
 
-    Some(Event::default().event(event_name).data(data.to_string()))
+    Event::default().event(event_name).data(data.to_string())
 }

@@ -45,7 +45,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use base64::Engine as _;
-use ox_source::gcp_auth::{self, GcpAuthenticator};
+use ox_source::gcp_auth::{GcpAuthenticator, build_authenticator, detect_adc};
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
@@ -95,11 +95,19 @@ impl GcpSecretManagerResolver {
     /// `GOOGLE_CLOUD_PROJECT` / `GCLOUD_PROJECT` (env-var subset of
     /// gcloud's project resolution).
     pub async fn from_adc() -> Result<Self, AppError> {
-        let credential = auth::detect_adc(None).await.map_err(|e| {
-            AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("ADC dispatch failed: {e}"))
+        let credential = detect_adc(None).await.map_err(|e| {
+            AppError::credential_resolve_failed(
+                "gcp_secret",
+                "provider_error",
+                format!("ADC dispatch failed: {e}"),
+            )
         })?;
-        let auth = auth::build_authenticator(credential).await.map_err(|e| {
-            AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("authenticator construction failed: {e}"))
+        let auth = build_authenticator(credential).await.map_err(|e| {
+            AppError::credential_resolve_failed(
+                "gcp_secret",
+                "provider_error",
+                format!("authenticator construction failed: {e}"),
+            )
         })?;
         let cache = read_cache_ttl_from_env()?.map(|ttl| CacheState {
             ttl,
@@ -111,7 +119,13 @@ impl GcpSecretManagerResolver {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(15))
             .build()
-            .map_err(|e| AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("HTTP client build failed: {e}")))?;
+            .map_err(|e| {
+                AppError::credential_resolve_failed(
+                    "gcp_secret",
+                    "provider_error",
+                    format!("HTTP client build failed: {e}"),
+                )
+            })?;
         Ok(Self {
             auth,
             http,
@@ -138,13 +152,19 @@ impl SecretResolver for GcpSecretManagerResolver {
             guard.retain(|_, e| e.expires_at > now);
         }
 
-        let token = self
-            .auth
-            .token(&[SCOPE])
-            .await
-            .map_err(|e| AppError::credential_resolve_failed("gcp_secret", "unauthorized", format!("gcp-sm:{resource}: token mint failed: {e}")))?;
+        let token = self.auth.token(&[SCOPE]).await.map_err(|e| {
+            AppError::credential_resolve_failed(
+                "gcp_secret",
+                "unauthorized",
+                format!("gcp-sm:{resource}: token mint failed: {e}"),
+            )
+        })?;
         let bearer = token.token().ok_or_else(|| {
-            AppError::credential_resolve_failed("gcp_secret", "unauthorized", format!("gcp-sm:{resource}: empty ADC token"))
+            AppError::credential_resolve_failed(
+                "gcp_secret",
+                "unauthorized",
+                format!("gcp-sm:{resource}: empty ADC token"),
+            )
         })?;
 
         let url = format!("{SECRET_MANAGER_ENDPOINT}/{resource}:access");
@@ -154,12 +174,22 @@ impl SecretResolver for GcpSecretManagerResolver {
             .bearer_auth(bearer)
             .send()
             .await
-            .map_err(|e| AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("gcp-sm:{resource}: request failed: {e}")))?;
+            .map_err(|e| {
+                AppError::credential_resolve_failed(
+                    "gcp_secret",
+                    "provider_error",
+                    format!("gcp-sm:{resource}: request failed: {e}"),
+                )
+            })?;
 
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            return Err(secret_manager_status_error(&resource, status.as_u16(), &body));
+            return Err(secret_manager_status_error(
+                &resource,
+                status.as_u16(),
+                &body,
+            ));
         }
 
         #[derive(Deserialize)]
@@ -172,15 +202,27 @@ impl SecretResolver for GcpSecretManagerResolver {
         }
 
         let body: AccessResponse = resp.json().await.map_err(|e| {
-            AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("gcp-sm:{resource}: malformed response: {e}"))
+            AppError::credential_resolve_failed(
+                "gcp_secret",
+                "provider_error",
+                format!("gcp-sm:{resource}: malformed response: {e}"),
+            )
         })?;
         let raw = base64::engine::general_purpose::STANDARD
             .decode(body.payload.data.as_bytes())
             .map_err(|e| {
-                AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("gcp-sm:{resource}: base64 decode failed: {e}"))
+                AppError::credential_resolve_failed(
+                    "gcp_secret",
+                    "provider_error",
+                    format!("gcp-sm:{resource}: base64 decode failed: {e}"),
+                )
             })?;
         let text = String::from_utf8(raw).map_err(|e| {
-            AppError::credential_resolve_failed("gcp_secret", "provider_error", format!("gcp-sm:{resource}: payload not valid UTF-8: {e}"))
+            AppError::credential_resolve_failed(
+                "gcp_secret",
+                "provider_error",
+                format!("gcp-sm:{resource}: payload not valid UTF-8: {e}"),
+            )
         })?;
         let value: Arc<str> = Arc::from(text);
 
@@ -328,7 +370,8 @@ fn parse_gcp_sm_reference(
 fn is_valid_secret_id(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 255
-        && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
 }
 
 // ---------------------------------------------------------------------------
@@ -342,6 +385,14 @@ fn is_valid_secret_id(s: &str) -> bool {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::error::ApiErrorCode;
+    use serde_json::Value;
+
+    fn param_str<'a>(err: &'a AppError, key: &str) -> &'a str {
+        err.param(key)
+            .and_then(Value::as_str)
+            .expect("string error param")
+    }
 
     #[test]
     fn parse_long_form_round_trips() {
@@ -376,38 +427,32 @@ mod tests {
     #[test]
     fn parse_rejects_missing_scheme() {
         let err = parse_gcp_sm_reference("env:foo", None).unwrap_err();
-        assert!(format!("{err:?}").contains("gcp-sm scheme expected"));
+        assert_eq!(err.code(), ApiErrorCode::CredentialResolveFailed);
+        assert_eq!(param_str(&err, "kind"), "invalid_reference");
+        assert!(param_str(&err, "detail").contains("missing gcp-sm: scheme"));
     }
 
     #[test]
     fn parse_rejects_empty_body() {
         let err = parse_gcp_sm_reference("gcp-sm:", None).unwrap_err();
-        assert!(format!("{err:?}").contains("missing the secret reference"));
+        assert_eq!(err.code(), ApiErrorCode::CredentialResolveFailed);
+        assert_eq!(param_str(&err, "kind"), "invalid_reference");
+        assert!(param_str(&err, "detail").contains("missing secret reference"));
     }
 
     #[test]
     fn parse_rejects_malformed_long_form() {
         // Wrong segment count.
-        let err = parse_gcp_sm_reference(
-            "gcp-sm:projects/p/secrets/s",
-            None,
-        )
-        .unwrap_err();
-        assert!(format!("{err:?}").contains("invalid resource path"));
+        let err = parse_gcp_sm_reference("gcp-sm:projects/p/secrets/s", None).unwrap_err();
+        assert!(param_str(&err, "detail").contains("expected projects/PROJECT"));
         // Wrong literal ("buckets" not "secrets").
-        let err = parse_gcp_sm_reference(
-            "gcp-sm:projects/p/buckets/s/versions/1",
-            None,
-        )
-        .unwrap_err();
-        assert!(format!("{err:?}").contains("invalid resource path"));
+        let err =
+            parse_gcp_sm_reference("gcp-sm:projects/p/buckets/s/versions/1", None).unwrap_err();
+        assert!(param_str(&err, "detail").contains("expected projects/PROJECT"));
         // Empty segment.
-        let err = parse_gcp_sm_reference(
-            "gcp-sm:projects/p/secrets//versions/1",
-            None,
-        )
-        .unwrap_err();
-        assert!(format!("{err:?}").contains("invalid resource path"));
+        let err =
+            parse_gcp_sm_reference("gcp-sm:projects/p/secrets//versions/1", None).unwrap_err();
+        assert!(param_str(&err, "detail").contains("expected projects/PROJECT"));
     }
 
     #[test]
@@ -415,10 +460,10 @@ mod tests {
         // Short form goes through the secret-id whitelist (a `/` in
         // a short id would be ambiguous with the long form).
         let err = parse_gcp_sm_reference("gcp-sm:bad/id", Some("p")).unwrap_err();
-        assert!(format!("{err:?}").contains("invalid resource path"));
+        assert!(param_str(&err, "detail").contains("expected projects/PROJECT"));
         // Other unsupported chars.
         let err = parse_gcp_sm_reference("gcp-sm:has space", Some("p")).unwrap_err();
-        assert!(format!("{err:?}").contains("invalid secret id"));
+        assert!(param_str(&err, "detail").contains("invalid secret id"));
     }
 
     #[test]
@@ -452,16 +497,16 @@ mod tests {
             403,
             "{\"error\":\"...\"}",
         );
-        assert!(format!("{err:?}").contains("permission denied"));
+        assert_eq!(param_str(&err, "kind"), "unauthorized");
+        assert!(
+            param_str(&err, "detail").contains("roles/secretmanager.secretAccessor"),
+            "403 diagnostic should name the missing IAM role"
+        );
     }
 
     #[test]
     fn status_error_404_distinguishes_not_found() {
-        let err = secret_manager_status_error(
-            "projects/p/secrets/missing/versions/1",
-            404,
-            "{}",
-        );
+        let err = secret_manager_status_error("projects/p/secrets/missing/versions/1", 404, "{}");
         let msg = format!("{err:?}");
         assert!(msg.contains("not found"));
     }

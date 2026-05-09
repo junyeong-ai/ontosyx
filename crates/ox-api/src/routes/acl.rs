@@ -55,7 +55,7 @@ pub struct ListPoliciesParams {
     post,
     path = "/api/acl/policies",
     request_body = CreatePolicyRequest,
-    responses((status = 201, description = "Policy created", body = Object)),
+    responses((status = 201, description = "Policy created", body = AclPolicy)),
     security(("api_key" = [])),
     tag = "ACL",
 )]
@@ -103,7 +103,7 @@ pub(crate) async fn create_policy(
     get,
     path = "/api/acl/policies",
     params(ListPoliciesParams),
-    responses((status = 200, description = "ACL policies", body = Vec<Object>)),
+    responses((status = 200, description = "ACL policies", body = Vec<AclPolicy>)),
     security(("api_key" = [])),
     tag = "ACL",
 )]
@@ -135,7 +135,7 @@ pub(crate) async fn list_policies(
     path = "/api/acl/policies/{id}",
     params(("id" = Uuid, Path, description = "ACL policy ID")),
     responses(
-        (status = 200, description = "ACL policy", body = Object),
+        (status = 200, description = "ACL policy", body = AclPolicy),
         (status = 404, description = "Policy not found"),
     ),
     security(("api_key" = [])),
@@ -168,7 +168,7 @@ pub(crate) async fn get_policy(
     params(("id" = Uuid, Path, description = "ACL policy ID")),
     request_body = UpdatePolicyRequest,
     responses(
-        (status = 200, description = "Updated policy", body = Object),
+        (status = 200, description = "Updated policy", body = AclPolicy),
         (status = 404, description = "Policy not found"),
     ),
     security(("api_key" = [])),
@@ -274,7 +274,7 @@ pub(crate) async fn delete_policy(
 #[utoipa::path(
     get,
     path = "/api/acl/effective",
-    responses((status = 200, description = "Effective ACL policies for the caller", body = Vec<Object>)),
+    responses((status = 200, description = "Effective ACL policies for the caller", body = Vec<AclPolicy>)),
     security(("api_key" = [])),
     tag = "ACL",
 )]

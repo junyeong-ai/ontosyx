@@ -21,7 +21,7 @@ use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct AxisItemsParams {
     /// One of the kind strings the `/map-summary` endpoint emits —
     /// `"node_types" | "edge_types" | "indexes" | "glossary_terms" |
@@ -33,7 +33,7 @@ pub struct AxisItemsParams {
     pub kind: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AxisItem {
     /// Stable id string for the entity.
     pub id: String,
@@ -49,11 +49,9 @@ pub struct AxisItem {
 #[utoipa::path(
     get,
     path = "/api/ontology/axis-items",
-    params(
-        ("kind" = String, Query, description = "Axis kind string from /map-summary"),
-    ),
+    params(AxisItemsParams),
     responses(
-        (status = 200, description = "Axis items list", body = Object),
+        (status = 200, description = "Axis items list", body = Vec<AxisItem>),
         (status = 400, description = "Unknown kind string"),
         (status = 404, description = "Workspace has no ontology, or ontology has no committed version"),
     ),
@@ -148,9 +146,7 @@ fn collect_axis_items(ir: &ox_ontology::OntologyIR, kind: &str) -> Option<Vec<Ax
                     IndexDef::Single { id, .. }
                     | IndexDef::Composite { id, .. }
                     | IndexDef::Vector { id, .. } => (id.clone(), id.clone()),
-                    IndexDef::FullText { id, name, .. } => {
-                        (id.clone(), name.as_str().to_string())
-                    }
+                    IndexDef::FullText { id, name, .. } => (id.clone(), name.as_str().to_string()),
                 };
                 AxisItem {
                     id,

@@ -31,7 +31,7 @@ pub struct CreateScheduleRequest {
     params(("id" = Uuid, Path, description = "Recipe ID")),
     request_body = CreateScheduleRequest,
     responses(
-        (status = 201, description = "Schedule created", body = Object),
+        (status = 201, description = "Schedule created", body = ScheduledTask),
         (status = 400, description = "Invalid cron expression"),
         (status = 404, description = "Recipe not found"),
     ),
@@ -95,7 +95,7 @@ pub struct ScheduleListParams {
     get,
     path = "/api/scheduled-tasks",
     params(ScheduleListParams),
-    responses((status = 200, description = "Scheduled tasks", body = Vec<Object>)),
+    responses((status = 200, description = "Scheduled tasks", body = Vec<ScheduledTask>)),
     security(("api_key" = [])),
     tag = "Schedules",
 )]
@@ -121,7 +121,7 @@ pub(crate) async fn list_schedules(
     path = "/api/scheduled-tasks/{id}",
     params(("id" = Uuid, Path, description = "Scheduled task ID")),
     responses(
-        (status = 200, description = "Scheduled task", body = Object),
+        (status = 200, description = "Scheduled task", body = ScheduledTask),
         (status = 404, description = "Task not found"),
     ),
     security(("api_key" = [])),

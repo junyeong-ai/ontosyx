@@ -10,12 +10,16 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 use uuid::Uuid;
 
+use ox_core::types::PropertyValue;
+use ox_graph_runtime::cypher::{strict_advisory_diagnostics, strict_blocking_gate};
 use ox_ontology::ir::OntologyIR;
 use ox_query_ir::pattern::PatternIR;
 use ox_query_ir::query::{QueryIR, QueryResult};
-use ox_core::types::PropertyValue;
-use ox_graph_runtime::cypher::{strict_advisory_diagnostics, strict_blocking_gate};
-use ox_store::{CursorParams, QueryExecution, QueryExecutionSummary, SavedQueryPattern};
+use ox_query_ir::widget::WidgetHint;
+use ox_store::{
+    CursorParams, OntologyRow, OntologyVersionSnapshot, QueryExecution, QueryExecutionSummary,
+    SavedQueryPattern,
+};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -27,67 +31,107 @@ use crate::workspace::WorkspaceContext;
 // Shared helpers — ontology injection for raw / IR paths
 //
 // `GRAPH_ONTOLOGY` drives the runtime's OntologyValidator. The agent path
-// sets it from `DomainContext.ontology` automatically; raw HTTP paths
-// opt in with a `ontology_id` so a power user who submits raw
-// Cypher against a known ontology gets label-conformance checking for
-// free. When no id is supplied, validation falls back to safety +
-// workspace-scope only.
+// sets it from `DomainContext.ontology` automatically. Structured HTTP
+// paths resolve the workspace singleton ontology by default; raw Cypher
+// keeps an opt-in `ontology_id` because some power-user diagnostics need
+// to run before a committed ontology exists.
 //
-// `ontology_id` on the wire is interpreted as
-// `ontologies.id` (Level 1 identity row). Each load walks identity →
-// current version → hydrated IR through `OntologyVersionStore`.
+// `ontology_id` on the wire is interpreted as `ontologies.id`
+// (the workspace-canonical Level 1 identity row). Each load verifies
+// the requested id against the singleton identity, then walks identity
+// → current version → hydrated IR through `OntologyVersionStore`.
 // ---------------------------------------------------------------------------
 
-/// Hydrate the current-version `OntologyIR` of the identity referenced by
-/// `ontology_id`. Returns `None` iff `ontology_id` is `None`.
-/// A present-but-unknown id yields 404; a present id whose lineage has no
-/// committed version yields 422 — both expose the concrete failure to the
-/// caller instead of silently falling back to unvalidated execution.
-async fn load_ontology_current(
+struct LoadedCurrentOntology {
+    identity: OntologyRow,
+    version: OntologyVersionSnapshot,
+    ir: Arc<OntologyIR>,
+}
+
+async fn load_workspace_ontology_identity(
     state: &AppState,
     requested: Option<Uuid>,
-) -> Result<Option<Arc<OntologyIR>>, AppError> {
-    if requested.is_none() {
-        return Ok(None);
-    }
-    // Workspace × ontology is 1:1; the caller's `ontology_id` is
-    // the workspace's canonical by construction. We ignore the
-    // bare value and resolve via the singleton accessor so the
-    // request shape stays compatible without re-encoding the
-    // implicit selection in the URL.
+) -> Result<OntologyRow, AppError> {
     let identity = state
         .store
         .get_workspace_ontology()
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Ontology"))?;
+    if let Some(requested) = requested
+        && identity.id != requested
+    {
+        return Err(AppError::not_found("Ontology"));
+    }
+    Ok(identity)
+}
+
+/// Hydrate the current-version `OntologyIR` of the identity referenced by
+/// `ontology_id`. Returns `None` iff `ontology_id` is `None`.
+/// A present-but-unknown id yields 404; a present id whose lineage has no
+/// committed version yields 422 — both expose the concrete failure to the
+/// caller instead of silently falling back to a different workspace ontology.
+async fn load_ontology_current(
+    state: &AppState,
+    requested: Option<Uuid>,
+) -> Result<Option<LoadedCurrentOntology>, AppError> {
+    let Some(requested) = requested else {
+        return Ok(None);
+    };
+    let identity = load_workspace_ontology_identity(state, Some(requested)).await?;
     let version = state
         .store
         .find_current_version(identity.id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(|| {
-            AppError::ontology_not_committed(identity.lineage_id.clone())
-        })?;
+        .ok_or_else(|| AppError::ontology_not_committed(identity.lineage_id.clone()))?;
     let ir = state
         .store
         .get_ontology_ir(version.id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Ontology version"))?;
-    Ok(Some(Arc::new(ir)))
+    Ok(Some(LoadedCurrentOntology {
+        identity,
+        version,
+        ir: Arc::new(ir),
+    }))
+}
+
+/// Hydrate the workspace singleton ontology's current-version IR.
+/// A supplied `ontology_id` is accepted only when it matches the
+/// workspace identity; omitted ids use the singleton directly.
+async fn load_workspace_ontology_current(
+    state: &AppState,
+    requested: Option<Uuid>,
+) -> Result<LoadedCurrentOntology, AppError> {
+    let identity = load_workspace_ontology_identity(state, requested).await?;
+    let version = state
+        .store
+        .find_current_version(identity.id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::ontology_not_committed(identity.lineage_id.clone()))?;
+    let ir = state
+        .store
+        .get_ontology_ir(version.id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology version"))?;
+    Ok(LoadedCurrentOntology {
+        identity,
+        version,
+        ir: Arc::new(ir),
+    })
 }
 
 /// Resolve `query_ir.as_of` against stored ontology versions and
 /// rewrite the query to the snapshot's label space. Leaves the
 /// request untouched when no temporal pivot is present.
 ///
-/// Requires `ontology_id` — the request must identify which
-/// lineage to walk back through. Anonymous raw-IR queries (no saved
-/// ontology) can't pivot because there's no version history to
-/// consult; we reject with a clear 400 rather than silently compile
-/// against an ontology that has nothing to do with the query's
-/// actual schema.
+/// Uses the workspace singleton ontology when `ontology_id` is omitted.
+/// A supplied id is still validated against the singleton so stale
+/// clients cannot pivot against another workspace identity.
 async fn resolve_temporal(
     state: &AppState,
     mut req: ExecuteFromIrRequest,
@@ -96,16 +140,7 @@ async fn resolve_temporal(
         return Ok(req);
     };
 
-    if req.ontology_id.is_none() {
-        return Err(AppError::temporal_query_requires_ontology());
-    }
-
-    let identity = state
-        .store
-        .get_workspace_ontology()
-        .await
-        .map_err(AppError::from)?
-        .ok_or_else(|| AppError::not_found("Ontology"))?;
+    let identity = load_workspace_ontology_identity(state, req.ontology_id).await?;
     let lineage_id = identity.lineage_id.clone();
 
     // Current version — the label space the caller's QueryIR is authored in.
@@ -129,10 +164,7 @@ async fn resolve_temporal(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {
-            AppError::temporal_snapshot_missing(
-                as_of.to_string(),
-                lineage_id.clone(),
-            )
+            AppError::temporal_snapshot_missing(as_of.to_string(), lineage_id.clone())
         })?;
     let snapshot = state
         .store
@@ -140,15 +172,11 @@ async fn resolve_temporal(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {
-            AppError::temporal_snapshot_missing(
-                as_of.to_string(),
-                lineage_id.clone(),
-            )
+            AppError::temporal_snapshot_missing(as_of.to_string(), lineage_id.clone())
         })?;
 
-    let rewritten =
-        ox_compiler::rewrite_temporal_with_renames(req.query_ir, &snapshot, &current)
-            .map_err(|e| AppError::query_compilation_failed(e.to_string()))?;
+    let rewritten = ox_compiler::rewrite_temporal_with_renames(req.query_ir, &snapshot, &current)
+        .map_err(|e| AppError::query_compilation_failed(e.to_string()))?;
     req.query_ir = rewritten;
     Ok(req)
 }
@@ -218,16 +246,13 @@ pub(crate) async fn search_graph(
     let timeout = state.timeouts.raw_query;
     let labels = req.labels.as_deref();
 
-    let results = tokio::time::timeout(
-        timeout,
-        runtime.search_nodes(&search_term, limit, labels),
-    )
-    .await
-    .map_err(|_| AppError::timeout(format!("Search timed out after {}s", timeout.as_secs())))?
-    .map_err(|e| {
-        error!("Graph search failed: {e}");
-        AppError::query_execution_failed(e.to_string())
-    })?;
+    let results = tokio::time::timeout(timeout, runtime.search_nodes(&search_term, limit, labels))
+        .await
+        .map_err(|_| AppError::timeout(format!("Search timed out after {}s", timeout.as_secs())))?
+        .map_err(|e| {
+            error!("Graph search failed: {e}");
+            AppError::query_execution_failed(e.to_string())
+        })?;
 
     Ok(ApiResponse::of(results))
 }
@@ -260,7 +285,6 @@ pub struct ExecuteRawQueryResponse {
     pub target: String,
     /// Query result rows and metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = Option<Object>)]
     pub results: Option<QueryResult>,
 }
 
@@ -305,8 +329,7 @@ pub(crate) async fn raw_query(
     // existing safety pipeline catches outright forbidden tokens;
     // this catches the smaller set of patterns that are syntactically
     // valid but semantically dangerous.
-    strict_blocking_gate(&req.query, &ws.workspace_id.to_string())
-        .map_err(AppError::from)?;
+    strict_blocking_gate(&req.query, &ws.workspace_id.to_string()).map_err(AppError::from)?;
 
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
@@ -320,16 +343,7 @@ pub(crate) async fn raw_query(
     // `filter_summary` — the identity + version pair is still useful
     // for response attribution, so we capture those before execution
     // and stamp them onto the result metadata below.
-    let ontology_version = if let Some(id) = req.ontology_id {
-        state
-            .store
-            .find_current_version(id)
-            .await
-            .map_err(AppError::from)?
-            .map(|v| v.version)
-    } else {
-        None
-    };
+    let ontology_version = ontology.as_ref().map(|o| o.version.version.clone());
 
     let timeout = state.timeouts.raw_query;
     let empty_params: HashMap<String, PropertyValue> = HashMap::new();
@@ -337,7 +351,7 @@ pub(crate) async fn raw_query(
     let exec_fut = runtime.execute_query(&req.query, &empty_params);
     let mut results = tokio::time::timeout(
         timeout,
-        scope_with_ontology(ontology.clone(), exec_fut),
+        scope_with_ontology(ontology.as_ref().map(|o| Arc::clone(&o.ir)), exec_fut),
     )
     .await
     .map_err(|_| {
@@ -360,9 +374,9 @@ pub(crate) async fn raw_query(
     // LLM/admin UI cannot trust as structured provenance. The
     // identity + version pair (when supplied) is still the right
     // handle for "which schema did this run against".
-    if req.ontology_id.is_some() {
+    if let Some(ontology) = ontology.as_ref() {
         results.metadata.provenance = Some(ox_query_ir::query::QueryProvenance {
-            ontology_id: req.ontology_id.map(|id| id.to_string()),
+            ontology_id: Some(ontology.identity.id.to_string()),
             ontology_version,
             as_of: None,
             source_ids: Vec::new(),
@@ -377,7 +391,8 @@ pub(crate) async fn raw_query(
     // Advisory diagnostics — strict-mode revalidation of the executed
     // Cypher. The runtime's permissive pass let the query through; this
     // pass captures the warnings the user should see.
-    results.metadata.warnings = strict_advisory_diagnostics(&req.query, &ws.workspace_id.to_string());
+    results.metadata.warnings =
+        strict_advisory_diagnostics(&req.query, &ws.workspace_id.to_string());
 
     // Record metering (fire-and-forget)
     let execution_time_ms = start.elapsed().as_millis() as i64;
@@ -399,7 +414,8 @@ pub(crate) async fn raw_query(
                     0.0,
                     serde_json::json!({"rows": row_count}),
                 )
-                .await {
+                .await
+            {
                 tracing::warn!(?error, "telemetry record failed");
             }
         });
@@ -424,7 +440,7 @@ pub(crate) async fn raw_query(
         ("cursor" = Option<String>, Query, description = "Opaque cursor from a previous response"),
     ),
     responses(
-        (status = 200, description = "Paginated query execution history", body = Object),
+        (status = 200, description = "Paginated query execution history", body = crate::openapi::QueryExecutionSummaryPage),
     ),
     tag = "Query",
 )]
@@ -451,7 +467,7 @@ pub(crate) async fn list_executions(
         ("id" = Uuid, Path, description = "Query execution ID"),
     ),
     responses(
-        (status = 200, description = "Query execution details", body = Object),
+        (status = 200, description = "Query execution details", body = QueryExecution),
         (status = 404, description = "Execution not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     tag = "Query",
@@ -473,13 +489,27 @@ pub(crate) async fn get_execution(
 // PATCH /api/query/history/:id/feedback — submit accuracy feedback
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize, utoipa::ToSchema)]
-pub struct SubmitQueryFeedbackRequest {
-    /// "positive", "negative", or null to clear feedback
-    pub feedback: Option<String>,
+#[derive(Debug, Clone, Copy, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryFeedbackValue {
+    Positive,
+    Negative,
 }
 
-const VALID_FEEDBACK: &[&str] = &["positive", "negative"];
+impl QueryFeedbackValue {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Positive => "positive",
+            Self::Negative => "negative",
+        }
+    }
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct SubmitQueryFeedbackRequest {
+    /// Accuracy feedback, or null to clear feedback.
+    pub feedback: Option<QueryFeedbackValue>,
+}
 
 #[utoipa::path(
     patch,
@@ -500,19 +530,13 @@ pub(crate) async fn update_feedback(
     Path(id): Path<Uuid>,
     Json(req): Json<SubmitQueryFeedbackRequest>,
 ) -> Result<StatusCode, AppError> {
-    if let Some(ref fb) = req.feedback
-        && !VALID_FEEDBACK.contains(&fb.as_str())
-    {
-        return Err(AppError::invalid_enum_value(
-            "feedback",
-            fb.clone(),
-            VALID_FEEDBACK,
-        ));
-    }
-
     let updated = state
         .store
-        .update_query_feedback(id, &principal.id, req.feedback.as_deref())
+        .update_query_feedback(
+            id,
+            &principal.id,
+            req.feedback.map(QueryFeedbackValue::as_str),
+        )
         .await
         .map_err(AppError::from)?;
 
@@ -533,7 +557,6 @@ pub(crate) async fn update_feedback(
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExecuteFromIrRequest {
     /// The QueryIR to compile and execute.
-    #[schema(value_type = Object)]
     pub query_ir: QueryIR,
     /// Optional saved-ontology id. When present, the OntologyValidator
     /// gates the compiled Cypher against this ontology so a canvas built
@@ -550,11 +573,10 @@ pub struct ExecuteFromIrResponse {
     /// The compilation target (e.g. "cypher").
     pub compiled_target: String,
     /// Query result rows and metadata.
-    #[schema(value_type = Object)]
     pub result: QueryResult,
     /// Widget hint for optimal result visualization.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub widget_hint: Option<serde_json::Value>,
+    pub widget_hint: Option<WidgetHint>,
 }
 
 #[utoipa::path(
@@ -591,46 +613,32 @@ pub(crate) async fn execute_from_ir(
     // rewrite any renamed labels current→snapshot, and hand the
     // compiler a QueryIR with as_of cleared.
     //
-    // Surfaces three distinct failure modes so the UI can present them
-    // individually: (a) no ontology_id supplied, (b) the lineage
-    // predates the requested timestamp, (c) window / rename
-    // inconsistency from the rewriter itself.
+    // Surfaces distinct failure modes so the UI can present them
+    // individually: (a) the lineage predates the requested timestamp,
+    // (b) window / rename inconsistency from the rewriter itself.
     let mut req = resolve_temporal(&state, req).await?;
 
-    // Step 0.5: Auto-DISTINCT pass. When the caller supplied an
-    // ontology id we load it here and rewrite any aggregation that
-    // crosses a OneToMany / ManyToMany link so every AggregationExpr
-    // carries `distinct: true`. Without this pass a query like
+    // Step 0.5: Auto-DISTINCT pass. The workspace ontology is loaded
+    // here and rewrites any aggregation that crosses a OneToMany /
+    // ManyToMany link so every AggregationExpr carries `distinct: true`.
+    // Without this pass a query like
     // `MATCH (a)-[:HAS_MANY]->(b) RETURN sum(b.value)` silently
     // double-counts when the physical mapping is a fan-out join.
     // (Π-2.) Idempotent — re-running on an already-rewritten IR is
     // a no-op, which matters because a client that pre-set
     // `distinct: true` stays unchanged.
-    let ontology = load_ontology_current(&state, req.ontology_id).await?;
-    if let Some(ont) = ontology.as_ref() {
-        req.query_ir = ox_compiler::rewrite_auto_distinct(req.query_ir, ont);
-    }
+    let ontology = load_workspace_ontology_current(&state, req.ontology_id).await?;
+    req.query_ir = ox_compiler::rewrite_auto_distinct(req.query_ir, ontology.ir.as_ref());
 
     // Fetch the committed version tag for Π-3 provenance. Cheap — hits
-    // the partial `ontology_version_snapshots_current_idx`. `None` when
-    // no ontology_id is supplied.
-    let ontology_version = if let Some(id) = req.ontology_id {
-        state
-            .store
-            .find_current_version(id)
-            .await
-            .map_err(AppError::from)?
-            .map(|v| v.version)
-    } else {
-        None
-    };
+    // the partial `ontology_version_snapshots_current_idx`.
+    let ontology_version = Some(ontology.version.version.clone());
 
     // Step 1: Compile QueryIR → target language. The compiler applies
-    // ConceptMap rewrite internally when an ontology is supplied;
-    // raw-QueryIR callers (no `ontology_id`) opt out by passing None.
+    // ConceptMap rewrite internally from the workspace ontology.
     let compiled = state
         .compiler
-        .compile_query(&req.query_ir, ontology.as_deref())
+        .compile_query(&req.query_ir, Some(ontology.ir.as_ref()))
         .map_err(|e| {
             error!("QueryIR compilation failed: {e}");
             AppError::query_compilation_failed(e.to_string())
@@ -651,7 +659,7 @@ pub(crate) async fn execute_from_ir(
     let exec_fut = runtime.execute_query(&compiled.statement, &compiled.params);
     let mut results = tokio::time::timeout(
         timeout,
-        scope_with_ontology(ontology.clone(), exec_fut),
+        scope_with_ontology(Some(Arc::clone(&ontology.ir)), exec_fut),
     )
     .await
     .map_err(|_| {
@@ -673,7 +681,7 @@ pub(crate) async fn execute_from_ir(
         let sample = serde_json::to_string(&results.rows.iter().take(5).collect::<Vec<_>>())
             .unwrap_or_default();
         match state.brain.select_widget(&req.query_ir, &sample).await {
-            Ok(hint) => serde_json::to_value(&hint).ok(),
+            Ok(hint) => Some(hint),
             Err(e) => {
                 tracing::warn!("Widget hint selection failed: {e}");
                 None
@@ -698,11 +706,11 @@ pub(crate) async fn execute_from_ir(
     results.metadata.provenance = Some(ox_compiler::build_provenance(
         &req.query_ir,
         &ox_compiler::ProvenanceContext {
-            ontology_id: req.ontology_id.map(|id| id.to_string()),
+            ontology_id: Some(ontology.identity.id.to_string()),
             ontology_version,
             as_of: original_as_of,
             source_ids: Vec::new(),
-            ontology: ontology.as_deref(),
+            ontology: Some(ontology.ir.as_ref()),
         },
     ));
 
@@ -726,7 +734,8 @@ pub(crate) async fn execute_from_ir(
                     0.0,
                     serde_json::json!({"rows": row_count}),
                 )
-                .await {
+                .await
+            {
                 tracing::warn!(?error, "telemetry record failed");
             }
         });
@@ -745,17 +754,15 @@ pub(crate) async fn execute_from_ir(
 // virtual-ontology-layer (VOL) federation engine instead of the
 // Cypher / Neo4j path.
 //
-// The planner walks the OntologyIR referenced by `ontology_id`,
+// The planner walks the workspace singleton OntologyIR,
 // resolves every `ObjectMappingDef.source_id` through the per-request
 // `AppState::federation_resolver`, and emits a DataFusion LogicalPlan
 // that scans the registered adapters directly. Results are projected
 // from Arrow RecordBatches into the standard `QueryResult` shape so
 // downstream tooling (widget selector, ACL pass) works unchanged.
 //
-// `ontology_id` is required on this path — unlike the Cypher
-// handler (where an unknown label can at worst surface as a driver
-// error), the federation planner has no fallback when it cannot map
-// a label to a node type.
+// A supplied `ontology_id` is accepted only as a guard that it matches
+// the workspace singleton; omitted ids use the singleton directly.
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
@@ -770,7 +777,7 @@ pub(crate) async fn execute_from_ir(
         ),
         (
             status = 400,
-            description = "Missing ontology_id or invalid QueryIR",
+            description = "Invalid QueryIR",
             body = inline(crate::openapi::ErrorResponse)
         ),
         (
@@ -791,10 +798,6 @@ pub(crate) async fn execute_from_ir_federation(
 ) -> Result<Json<ApiResponse<ExecuteFromIrResponse>>, AppError> {
     info!(user_id = %principal.id, "federation QueryIR execution submitted");
 
-    let ontology_id = req
-        .ontology_id
-        .ok_or_else(|| AppError::required_field_empty("ontology_id"))?;
-
     // Capture as_of before temporal rewrite consumes it (Π-3).
     let original_as_of = req.query_ir.as_of;
 
@@ -803,9 +806,7 @@ pub(crate) async fn execute_from_ir_federation(
     // sees the snapshot's label space.
     let mut req = resolve_temporal(&state, req).await?;
 
-    let ontology = load_ontology_current(&state, Some(ontology_id))
-        .await?
-        .ok_or_else(|| AppError::not_found("Ontology"))?;
+    let ontology = load_workspace_ontology_current(&state, req.ontology_id).await?;
 
     // Π-2 auto-DISTINCT. The federation planner (DataFusion-backed)
     // inherits the same fan-out risk as the Cypher compiler when an
@@ -813,15 +814,10 @@ pub(crate) async fn execute_from_ir_federation(
     // same pre-pass runs on this path. Idempotent — a client can
     // always override by setting `distinct: false` after this rewrite
     // lands, but the default now matches schema semantics.
-    req.query_ir = ox_compiler::rewrite_auto_distinct(req.query_ir, ontology.as_ref());
+    req.query_ir = ox_compiler::rewrite_auto_distinct(req.query_ir, ontology.ir.as_ref());
 
     // Π-3 provenance pre-fetch — same pattern as the Cypher path.
-    let ontology_version = state
-        .store
-        .find_current_version(ontology_id)
-        .await
-        .map_err(AppError::from)?
-        .map(|v| v.version);
+    let ontology_version = Some(ontology.version.version.clone());
 
     let start = std::time::Instant::now();
 
@@ -836,7 +832,7 @@ pub(crate) async fn execute_from_ir_federation(
         crate::federation_resolver::ensure_workspace_resolver(&federation_state, ws.workspace_id)
             .await?;
     let plan = ox_federation::build_query_ir_scoped(
-        &ontology,
+        ontology.ir.as_ref(),
         &req.query_ir,
         &ws.workspace_id.to_string(),
         &resolver,
@@ -854,9 +850,9 @@ pub(crate) async fn execute_from_ir_federation(
     // — useful for debugging and for showing the user *what ran*.
     let compiled_display = format!("{plan}");
 
-    let ctx = ox_federation::FederationContext::new(
-        ox_federation::context::WorkspaceRef::new(ws.workspace_id.to_string()),
-    );
+    let ctx = ox_federation::FederationContext::new(ox_federation::context::WorkspaceRef::new(
+        ws.workspace_id.to_string(),
+    ));
     let batches = ctx.execute_plan(plan).await.map_err(|e| {
         crate::metrics::record_query("error", start.elapsed());
         error!("Federation execution failed: {e}");
@@ -895,11 +891,11 @@ pub(crate) async fn execute_from_ir_federation(
     results.metadata.provenance = Some(ox_compiler::build_provenance(
         &req.query_ir,
         &ox_compiler::ProvenanceContext {
-            ontology_id: Some(ontology_id.to_string()),
+            ontology_id: Some(ontology.identity.id.to_string()),
             ontology_version,
             as_of: original_as_of,
             source_ids: Vec::new(),
-            ontology: Some(ontology.as_ref()),
+            ontology: Some(ontology.ir.as_ref()),
         },
     ));
 
@@ -922,7 +918,8 @@ pub(crate) async fn execute_from_ir_federation(
                     0.0,
                     serde_json::json!({"rows": row_count}),
                 )
-                .await {
+                .await
+            {
                 tracing::warn!(?error, "telemetry record failed");
             }
         });
@@ -947,14 +944,12 @@ pub(crate) async fn execute_from_ir_federation(
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct CompilePatternRequest {
     /// The canvas PatternIR to lower.
-    #[schema(value_type = Object)]
     pub pattern_ir: PatternIR,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct CompilePatternResponse {
     /// The lowered QueryIR, ready to execute via `/api/query/from-ir`.
-    #[schema(value_type = Object)]
     pub query_ir: QueryIR,
 }
 
@@ -989,7 +984,6 @@ pub(crate) async fn compile_pattern(
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct DecompilePatternRequest {
     /// The QueryIR to reconstruct onto the canvas.
-    #[schema(value_type = Object)]
     pub query_ir: QueryIR,
 }
 
@@ -997,7 +991,6 @@ pub struct DecompilePatternRequest {
 pub struct DecompilePatternResponse {
     /// The reconstructed PatternIR. Positions are always `None` — the
     /// UI runs its own layout pass before rendering.
-    #[schema(value_type = Object)]
     pub pattern_ir: PatternIR,
     /// `true` iff the source QueryIR was a `Match` operation and
     /// therefore fully representable on the canvas. `false` for
@@ -1048,14 +1041,9 @@ pub struct CreateSavedPatternRequest {
     /// Optional free-form note.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// Ontology the pattern was built against. The saved pattern is tied
-    /// to an ontology; reopening against a different ontology requires
-    /// the caller to decide how to reconcile unknown labels.
-    pub ontology_lineage_id: String,
     /// The full PatternIR — nodes with positions, edges, filters, and
     /// layout hints (zoom + pan). QueryIR is computed on demand from
     /// `pattern_ir.compile()` and does not need to be stored.
-    #[schema(value_type = Object)]
     pub pattern_ir: PatternIR,
 }
 
@@ -1064,7 +1052,6 @@ pub struct UpdateSavedPatternRequest {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[schema(value_type = Object)]
     pub pattern_ir: PatternIR,
 }
 
@@ -1075,7 +1062,6 @@ pub struct SavedPatternResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub ontology_lineage_id: String,
-    #[schema(value_type = Object)]
     pub pattern_ir: PatternIR,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
@@ -1114,13 +1100,14 @@ pub(crate) async fn create_saved_pattern(
     _ws: WorkspaceContext,
     Json(req): Json<CreateSavedPatternRequest>,
 ) -> Result<Json<ApiResponse<SavedPatternResponse>>, AppError> {
+    let identity = load_workspace_ontology_identity(&state, None).await?;
     let pattern_ir_json = serde_json::to_value(&req.pattern_ir)
         .map_err(|e| AppError::internal(format!("serialize pattern_ir: {e}")))?;
     let now = chrono::Utc::now();
     let row = SavedQueryPattern {
         id: Uuid::new_v4(),
         user_id: principal.id.clone(),
-        ontology_lineage_id: req.ontology_lineage_id,
+        ontology_lineage_id: identity.lineage_id,
         name: req.name,
         description: req.description,
         pattern_ir: pattern_ir_json,
@@ -1137,7 +1124,6 @@ pub(crate) async fn create_saved_pattern(
 
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct ListSavedPatternsParams {
-    pub ontology_lineage_id: String,
     pub limit: Option<u32>,
     pub cursor: Option<String>,
 }
@@ -1147,7 +1133,7 @@ pub struct ListSavedPatternsParams {
     path = "/api/query/pattern/saved",
     params(ListSavedPatternsParams),
     responses(
-        (status = 200, description = "Paginated saved patterns", body = Object),
+        (status = 200, description = "Paginated saved patterns", body = crate::openapi::SavedPatternResponsePage),
     ),
     security(("api_key" = [])),
     tag = "Query",
@@ -1158,13 +1144,14 @@ pub(crate) async fn list_saved_patterns(
     _ws: WorkspaceContext,
     Query(params): Query<ListSavedPatternsParams>,
 ) -> Result<Json<ApiResponse<Vec<SavedPatternResponse>>>, AppError> {
+    let identity = load_workspace_ontology_identity(&state, None).await?;
     let pagination = CursorParams {
         limit: params.limit.unwrap_or(50),
         cursor: params.cursor,
     };
     let page = state
         .store
-        .list_patterns(&principal.id, &params.ontology_lineage_id, &pagination)
+        .list_patterns(&principal.id, &identity.lineage_id, &pagination)
         .await
         .map_err(AppError::from)?;
     let items = page

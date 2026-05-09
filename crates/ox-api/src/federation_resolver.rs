@@ -203,11 +203,13 @@ async fn hydrate_workspace(
     workspace_id: Uuid,
 ) -> Result<InMemoryAdapterResolver, AppError> {
     let store = Arc::clone(&state.store);
-    let rows = PostgresStore::with_workspace(workspace_id, || async move {
-        store.list_data_sources().await
-    })
-    .await
-    .map_err(AppError::from)?;
+    let rows =
+        PostgresStore::with_workspace(
+            workspace_id,
+            || async move { store.list_data_sources().await },
+        )
+        .await
+        .map_err(AppError::from)?;
 
     let mut resolver = InMemoryAdapterResolver::new();
     for row in rows {

@@ -12,11 +12,9 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use ox_query_ir::query::QueryResult;
 use ox_core::types::PropertyValue;
-use ox_graph_runtime::cypher::{
-    AclAction, AclPolicySpec, AclSnapshot, RequestPrincipal,
-};
+use ox_graph_runtime::cypher::{AclAction, AclPolicySpec, AclSnapshot, RequestPrincipal};
+use ox_query_ir::query::QueryResult;
 use ox_store::{AclPolicy, AclStore};
 
 use crate::error::AppError;
@@ -34,11 +32,7 @@ pub async fn load_acl_snapshot(
 ) -> Result<Arc<AclSnapshot>, AppError> {
     let user_id = principal.user_uuid().ok();
     let policies = store
-        .list_effective_policies(
-            principal.role.as_str(),
-            ws.workspace_role.as_str(),
-            user_id,
-        )
+        .list_effective_policies(principal.role.as_str(), ws.workspace_role.as_str(), user_id)
         .await
         .map_err(AppError::from)?;
     Ok(Arc::new(snapshot_from_policies(&policies)))
@@ -98,10 +92,7 @@ pub fn enforce_acl_on_result(result: &mut QueryResult, snapshot: &AclSnapshot) {
                 }
             }
             AclAction::Mask => {
-                let pattern = spec
-                    .mask_pattern
-                    .as_deref()
-                    .unwrap_or("***");
+                let pattern = spec.mask_pattern.as_deref().unwrap_or("***");
                 for p in props {
                     if !deny.contains(p.as_str()) {
                         mask.insert(p.as_str(), pattern);

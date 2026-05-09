@@ -35,6 +35,11 @@ pub struct HealthComponents {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct HealthLlm {
+    /// Configuration-level status. This is intentionally not a live provider
+    /// probe: liveness/readiness endpoints must not spend LLM tokens or depend
+    /// on an external model vendor. Use `/api/models/test` for an explicit
+    /// connectivity probe.
+    pub status: &'static str,
     pub provider: String,
     pub model: String,
 }
@@ -96,6 +101,7 @@ async fn collect_health(state: &AppState) -> HealthResponse {
             graph: if graph_ok { "ok" } else { "unavailable" },
             graph_backend: graph_runtime_name,
             llm: HealthLlm {
+                status: "configured",
                 provider: provider.name.to_string(),
                 model: provider.model.to_string(),
             },
@@ -111,7 +117,9 @@ async fn collect_health(state: &AppState) -> HealthResponse {
     ),
     tag = "Health",
 )]
-pub(crate) async fn health_check(State(state): State<AppState>) -> Json<ApiResponse<HealthResponse>> {
+pub(crate) async fn health_check(
+    State(state): State<AppState>,
+) -> Json<ApiResponse<HealthResponse>> {
     let body = collect_health(&state).await;
     ApiResponse::of(body)
 }

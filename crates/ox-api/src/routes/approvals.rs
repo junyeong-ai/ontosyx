@@ -435,9 +435,7 @@ mod tests {
         store
             .expect_review_approval()
             .withf(move |id, _reviewer, approved, note| {
-                *id == approval_id
-                    && *approved
-                    && note.as_deref() == Some("looks good")
+                *id == approval_id && *approved && note.as_deref() == Some("looks good")
             })
             .times(1)
             .returning(|_, _, _, _| Ok(None));

@@ -579,8 +579,7 @@ pub async fn workspace_context(
         let id_str = header
             .to_str()
             .map_err(|_| AppError::workspace_header_invalid("parse_failed"))?;
-        Uuid::parse_str(id_str)
-            .map_err(|_| AppError::workspace_header_invalid("not_uuid"))?
+        Uuid::parse_str(id_str).map_err(|_| AppError::workspace_header_invalid("not_uuid"))?
     } else {
         // Fall back to default workspace
         let ws = state
@@ -690,12 +689,9 @@ where
         .scope(workspace_id, async move {
             GRAPH_WORKSPACE_ID
                 .scope(workspace_id, async move {
-                    let snapshot = crate::acl_enforcement::load_acl_snapshot(
-                        store.as_ref(),
-                        &principal,
-                        &ws,
-                    )
-                    .await?;
+                    let snapshot =
+                        crate::acl_enforcement::load_acl_snapshot(store.as_ref(), &principal, &ws)
+                            .await?;
                     let result = GRAPH_ACL_SNAPSHOT
                         .scope(snapshot, async move {
                             match request_principal {
@@ -748,12 +744,10 @@ mod tests {
     use crate::workspace::{WorkspaceContext, WorkspaceRole};
 
     fn resolve_test_db_url() -> Option<String> {
-        for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
-            if let Ok(v) = std::env::var(key)
-                && !v.is_empty()
-            {
-                return Some(v);
-            }
+        if let Ok(v) = std::env::var("OX_TEST_DATABASE_URL")
+            && !v.is_empty()
+        {
+            return Some(v);
         }
         None
     }
@@ -847,17 +841,11 @@ mod tests {
             workspace_role: WorkspaceRole::Owner,
         };
 
-        let snapshot = super::scope_request(
-            store_arc,
-            principal,
-            ws,
-            workspace_id,
-            async {
-                ox_graph_runtime::GRAPH_ACL_SNAPSHOT
-                    .try_with(Arc::clone)
-                    .expect("snapshot must be set inside the scoped future")
-            },
-        )
+        let snapshot = super::scope_request(store_arc, principal, ws, workspace_id, async {
+            ox_graph_runtime::GRAPH_ACL_SNAPSHOT
+                .try_with(Arc::clone)
+                .expect("snapshot must be set inside the scoped future")
+        })
         .await
         .expect("scope_request must succeed");
 

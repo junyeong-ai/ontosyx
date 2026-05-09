@@ -22,6 +22,7 @@ use crate::state::AppState;
 pub struct CreatePinRequest {
     pub query_execution_id: Uuid,
     /// Widget specification JSON.
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub widget_spec: serde_json::Value,
     pub title: Option<String>,
 }
@@ -31,7 +32,7 @@ pub struct CreatePinRequest {
     path = "/api/pins",
     request_body = CreatePinRequest,
     responses(
-        (status = 201, description = "Pin created", body = Object),
+        (status = 201, description = "Pin created", body = PinboardItem),
     ),
     tag = "Pins",
 )]
@@ -65,7 +66,7 @@ pub(crate) async fn create_pin(
         ("cursor" = Option<String>, Query, description = "Opaque cursor from a previous response"),
     ),
     responses(
-        (status = 200, description = "Paginated pin list", body = Object),
+        (status = 200, description = "Paginated pin list", body = crate::openapi::PinboardItemPage),
     ),
     tag = "Pins",
 )]

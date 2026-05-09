@@ -28,7 +28,7 @@ pub struct CreateWorkspaceRequest {
 pub struct UpdateWorkspaceRequest {
     pub name: String,
     #[serde(default)]
-    #[schema(value_type = Object)]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub settings: serde_json::Value,
 }
 
@@ -72,13 +72,11 @@ pub struct WorkspaceResponse {
     pub name: String,
     pub slug: String,
     pub owner_id: Uuid,
-    #[schema(value_type = Object)]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub settings: serde_json::Value,
     pub primary_locale: String,
-    #[schema(value_type = Vec<String>)]
-    pub admin_locale_fallback: serde_json::Value,
-    #[schema(value_type = Vec<String>)]
-    pub llm_locale_fallback: serde_json::Value,
+    pub admin_locale_fallback: Vec<String>,
+    pub llm_locale_fallback: Vec<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -148,6 +146,16 @@ impl From<WorkspaceMember> for MemberResponse {
             picture: m.picture,
         }
     }
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct DeleteWorkspaceResponse {
+    pub deleted: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct RemoveMemberResponse {
+    pub removed: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -221,8 +229,14 @@ pub(crate) async fn create_workspace(
         // ADMIN_LOCALE_FALLBACK_DEFAULT, LLM_LOCALE_FALLBACK_DEFAULT}`.
         // Tunable at runtime via `PUT /api/workspaces/{id}/locale`.
         primary_locale: ox_core::PRIMARY_LOCALE_DEFAULT.to_string(),
-        admin_locale_fallback: serde_json::json!(ox_core::ADMIN_LOCALE_FALLBACK_DEFAULT),
-        llm_locale_fallback: serde_json::json!(ox_core::LLM_LOCALE_FALLBACK_DEFAULT),
+        admin_locale_fallback: ox_core::ADMIN_LOCALE_FALLBACK_DEFAULT
+            .iter()
+            .map(|tag| (*tag).to_string())
+            .collect(),
+        llm_locale_fallback: ox_core::LLM_LOCALE_FALLBACK_DEFAULT
+            .iter()
+            .map(|tag| (*tag).to_string())
+            .collect(),
     };
 
     state
@@ -333,7 +347,7 @@ pub struct WorkspaceMeResponse {
 /// round-trip.
 #[utoipa::path(
     get,
-    path = "/workspaces/me",
+    path = "/api/workspaces/me",
     responses(
         (status = 200, description = "Active workspace context", body = WorkspaceMeResponse),
         (status = 404, description = "Workspace row missing", body = inline(crate::openapi::ErrorResponse)),
@@ -352,29 +366,14 @@ pub(crate) async fn workspace_me(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Workspace"))?;
 
-    let admin_locale_fallback: Vec<String> =
-        serde_json::from_value(workspace.admin_locale_fallback.clone()).map_err(|e| {
-            AppError::internal(format!(
-                "workspaces.admin_locale_fallback for {} is not a JSON string array: {e}",
-                ws_ctx.workspace_id
-            ))
-        })?;
-    let llm_locale_fallback: Vec<String> =
-        serde_json::from_value(workspace.llm_locale_fallback.clone()).map_err(|e| {
-            AppError::internal(format!(
-                "workspaces.llm_locale_fallback for {} is not a JSON string array: {e}",
-                ws_ctx.workspace_id
-            ))
-        })?;
-
     Ok(ApiResponse::of(WorkspaceMeResponse {
         id: workspace.id,
         name: workspace.name,
         slug: workspace.slug,
         role: ws_ctx.workspace_role.as_str().to_string(),
         primary_locale: workspace.primary_locale,
-        admin_locale_fallback,
-        llm_locale_fallback,
+        admin_locale_fallback: workspace.admin_locale_fallback,
+        llm_locale_fallback: workspace.llm_locale_fallback,
     }))
 }
 
@@ -450,9 +449,8 @@ pub(crate) async fn update_workspace_locale(
 ) -> Result<Json<ApiResponse<WorkspaceResponse>>, AppError> {
     ws_ctx.require_admin()?;
 
-    let primary = ox_core::LanguageTag::parse(&req.primary_locale).map_err(|_| {
-        AppError::locale_tag_invalid("primary_locale", req.primary_locale.clone())
-    })?;
+    let primary = ox_core::LanguageTag::parse(&req.primary_locale)
+        .map_err(|_| AppError::locale_tag_invalid("primary_locale", req.primary_locale.clone()))?;
 
     let admin_chain = parse_chain(&req.admin_locale_fallback, "admin_locale_fallback")?;
     let llm_chain = parse_chain(&req.llm_locale_fallback, "llm_locale_fallback")?;
@@ -478,7 +476,7 @@ pub(crate) async fn update_workspace_locale(
 /// BCP 47 tag — into the canonical lowercase JSON array shape the
 /// store expects. Reports the offending field via `chain_name` so a
 /// failed admin / llm chain is unambiguous in the error.
-fn parse_chain(input: &[String], chain_name: &str) -> Result<serde_json::Value, AppError> {
+fn parse_chain(input: &[String], chain_name: &str) -> Result<Vec<String>, AppError> {
     if input.is_empty() {
         return Err(AppError::locale_chain_empty(chain_name));
     }
@@ -489,9 +487,7 @@ fn parse_chain(input: &[String], chain_name: &str) -> Result<serde_json::Value, 
         })?;
         canonical.push(parsed.to_string());
     }
-    Ok(serde_json::Value::Array(
-        canonical.into_iter().map(serde_json::Value::String).collect(),
-    ))
+    Ok(canonical)
 }
 
 /// DELETE /workspaces/:id — delete a workspace (owner only).
@@ -500,7 +496,7 @@ fn parse_chain(input: &[String], chain_name: &str) -> Result<serde_json::Value, 
     path = "/api/workspaces/{id}",
     params(("id" = Uuid, Path, description = "Workspace ID")),
     responses(
-        (status = 200, description = "Workspace deleted"),
+        (status = 200, description = "Workspace deleted", body = DeleteWorkspaceResponse),
         (status = 400, description = "Cannot delete the default workspace"),
         (status = 403, description = "Only the workspace owner can delete it"),
         (status = 404, description = "Workspace not found"),
@@ -512,7 +508,7 @@ pub(crate) async fn delete_workspace(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<DeleteWorkspaceResponse>>, AppError> {
     if ws_ctx.workspace_role != WorkspaceRole::Owner {
         return Err(AppError::forbidden(
             "Only the workspace owner can delete it",
@@ -538,7 +534,7 @@ pub(crate) async fn delete_workspace(
         .map_err(AppError::from)?;
 
     tracing::info!(workspace_id = %id, "Workspace deleted");
-    Ok(ApiResponse::of(serde_json::json!({"deleted": true})))
+    Ok(ApiResponse::of(DeleteWorkspaceResponse { deleted: true }))
 }
 
 // ---------------------------------------------------------------------------
@@ -594,7 +590,7 @@ pub(crate) async fn add_member(
         ("uid" = Uuid, Path, description = "User ID to remove"),
     ),
     responses(
-        (status = 200, description = "Member removed"),
+        (status = 200, description = "Member removed", body = RemoveMemberResponse),
         (status = 400, description = "Cannot remove the workspace owner"),
         (status = 403, description = "Admin role required (or self-removal)"),
         (status = 404, description = "Workspace or member not found"),
@@ -607,7 +603,7 @@ pub(crate) async fn remove_member(
     ws_ctx: WorkspaceContext,
     Path((id, uid)): Path<(Uuid, Uuid)>,
     principal: Principal,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<RemoveMemberResponse>>, AppError> {
     let caller_id = Uuid::parse_str(&principal.id)
         .map_err(|_| AppError::auth_token_claim_invalid("user_id"))?;
 
@@ -638,7 +634,7 @@ pub(crate) async fn remove_member(
         return Err(AppError::not_found("Member"));
     }
 
-    Ok(ApiResponse::of(serde_json::json!({"removed": true})))
+    Ok(ApiResponse::of(RemoveMemberResponse { removed: true }))
 }
 
 /// PATCH /workspaces/:id/members/:uid — update member role.

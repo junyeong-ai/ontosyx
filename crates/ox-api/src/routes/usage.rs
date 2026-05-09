@@ -24,7 +24,7 @@ pub struct UsageQuery {
     get,
     path = "/api/usage",
     params(UsageQuery),
-    responses((status = 200, description = "Per-day usage summary", body = Vec<Object>)),
+    responses((status = 200, description = "Per-day usage summary", body = Vec<UsageSummary>)),
     security(("api_key" = [])),
     tag = "Admin",
 )]

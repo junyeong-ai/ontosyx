@@ -14,8 +14,8 @@ use uuid::Uuid;
 
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_ontology::{
-    ValueSetInferencePolicy, ValueSetInferenceReport, ValueSetProposal, ValueSetRejection,
-    ValueSetSkip, propose_value_sets,
+    CodeSystemDef, ValueSetDef, ValueSetInferencePolicy, ValueSetInferenceReport, ValueSetProposal,
+    ValueSetRejection, ValueSetSkip, propose_value_sets,
 };
 
 use crate::error::AppError;
@@ -23,7 +23,7 @@ use crate::principal::Principal;
 use crate::response::ApiResponse;
 
 // ---------------------------------------------------------------------------
-// POST /api/ontologies/{id}/value-sets/propose
+// POST /api/ontology/value-sets/propose
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -32,11 +32,9 @@ pub struct ProposeValueSetsRequest {
     /// column of a design project, but any snapshot produced by the
     /// introspection kernel is acceptable. Wire-shape is defined by
     /// `ox_core::source_schema::SourceSchema`.
-    #[schema(value_type = Object)]
     pub schema: SourceSchema,
     /// Profile snapshot (row counts + column stats). Wire-shape is
     /// defined by `ox_core::source_schema::SourceProfile`.
-    #[schema(value_type = Object)]
     pub profile: SourceProfile,
     /// Optional policy knobs. Defaults are tuned for high-precision
     /// enum detection.
@@ -84,11 +82,11 @@ pub struct ProposalBody {
     pub suggested_codes: Vec<String>,
     pub confidence: f32,
     pub evidence: EvidenceBody,
-    /// The full `CodeSystemDef` / `ValueSetDef` JSON — kept flat so
+    /// The full `CodeSystemDef` / `ValueSetDef` payload — kept flat so
     /// the admin UI can post them verbatim to `/edits` without
     /// re-deriving ids.
-    pub code_system_json: serde_json::Value,
-    pub value_set_json: serde_json::Value,
+    pub code_system_json: CodeSystemDef,
+    pub value_set_json: ValueSetDef,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -154,8 +152,6 @@ fn shape_proposal(p: ValueSetProposal) -> ProposalBody {
         evidence,
         confidence,
     } = p;
-    let code_system_json = serde_json::to_value(&code_system).unwrap_or(serde_json::Value::Null);
-    let value_set_json = serde_json::to_value(&value_set).unwrap_or(serde_json::Value::Null);
     ProposalBody {
         relation: column_ref.relation,
         column: column_ref.column,
@@ -170,8 +166,8 @@ fn shape_proposal(p: ValueSetProposal) -> ProposalBody {
             null_ratio: evidence.null_ratio,
             observed_codes: evidence.observed_codes,
         },
-        code_system_json,
-        value_set_json,
+        code_system_json: code_system,
+        value_set_json: value_set,
     }
 }
 

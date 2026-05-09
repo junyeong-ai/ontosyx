@@ -6,7 +6,10 @@ use async_trait::async_trait;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use ox_brain::model_resolver::{ModelResolver, ResolvedModel};
+use ox_brain::{
+    auth::LlmProviderConfig,
+    model_resolver::{ModelResolver, ResolvedModel},
+};
 use ox_core::error::{OxError, OxResult};
 use ox_store::{Store, WORKSPACE_ID};
 
@@ -25,6 +28,7 @@ use ox_store::{Store, WORKSPACE_ID};
 /// Within each level, higher `priority` wins.
 pub struct DbModelRouter {
     store: Arc<dyn Store>,
+    fallback: Option<Arc<dyn ModelResolver>>,
     cache: Arc<RwLock<RouterCache>>,
     ttl: Duration,
 }
@@ -35,8 +39,16 @@ struct RouterCache {
 
 impl DbModelRouter {
     pub fn new(store: Arc<dyn Store>) -> Self {
+        Self::with_fallback(store, Option::<Arc<dyn ModelResolver>>::None)
+    }
+
+    pub fn with_fallback(
+        store: Arc<dyn Store>,
+        fallback: impl Into<Option<Arc<dyn ModelResolver>>>,
+    ) -> Self {
         Self {
             store,
+            fallback: fallback.into(),
             cache: Arc::new(RwLock::new(RouterCache {
                 entries: HashMap::new(),
             })),
@@ -75,18 +87,34 @@ impl ModelResolver for DbModelRouter {
         })
         .await?;
 
-        let config = config.ok_or_else(|| OxError::Runtime {
-            message: format!(
-                "No model configured for operation '{operation}'. \
-                 Add a model config with a '*' routing rule as fallback."
-            ),
-        })?;
+        let Some(config) = config else {
+            if let Some(fallback) = &self.fallback {
+                return fallback.resolve(operation).await;
+            }
+            return Err(OxError::Runtime {
+                message: format!(
+                    "No model configured for operation '{operation}'. \
+                     Add a model config with a '*' routing rule as fallback."
+                ),
+            });
+        };
 
         let resolved = ResolvedModel {
-            provider: config.provider,
-            model_id: config.model_id,
+            provider: config.provider.clone(),
+            model_id: config.model_id.clone(),
             max_tokens: Some(config.max_tokens as u32),
             temperature: config.temperature,
+            provider_config: Some(LlmProviderConfig {
+                provider: config.provider,
+                model: config.model_id,
+                api_key: config
+                    .api_key_env
+                    .as_deref()
+                    .and_then(|name| std::env::var(name).ok()),
+                region: config.region,
+                base_url: config.base_url,
+                timeout_secs: Some(config.timeout_secs.max(1) as u64),
+            }),
         };
 
         // Update cache

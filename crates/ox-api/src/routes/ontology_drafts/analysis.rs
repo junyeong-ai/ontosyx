@@ -4,8 +4,8 @@ use serde::Deserialize;
 use tracing::warn;
 use uuid::Uuid;
 
-use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
 use ox_ontology::mapping::SourceId;
+use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
 use ox_source::AnalyzeSelection;
 use ox_store::store::AnalysisSnapshot;
 
@@ -18,7 +18,10 @@ use super::helpers::{
     analyze_code_repository, analyze_source, get_design_options, load_mutable_ontology_draft,
     prune_decisions, reload_ontology_draft, run_repo_enrichment, skipped_repo_summary,
 };
-use super::types::{DataSourceSpec, OntologyDraftView, ReanalyzeOntologyDraftRequest, ReanalyzeOntologyDraftResponse};
+use super::types::{
+    DataSourceSpec, OntologyDraftView, ReanalyzeOntologyDraftRequest,
+    ReanalyzeOntologyDraftResponse,
+};
 
 // ---------------------------------------------------------------------------
 // POST /api/ontology-drafts/:id/reanalyze
@@ -67,7 +70,6 @@ pub struct ReanalyzeModeledOntologyDraftRequest {
     pub revision: i32,
     /// Optional repository source for enrichment.
     #[serde(default)]
-    #[schema(value_type = Option<Object>)]
     pub repo_source: Option<ox_ontology::repo_insights::RepoSource>,
 }
 
@@ -159,8 +161,14 @@ async fn run_reanalyze(
             let (config, schema, profile, report) = analyze_code_repository(state, &url).await?;
             (config, None, Some(schema), Some(profile), Some(report))
         } else {
-            let analyzed =
-                analyze_source(inputs.source, &state.adapter_registry, inputs.selection.clone(), None).await?;
+            let analyzed = analyze_source(
+                inputs.source,
+                &state.adapter_registry,
+                inputs.selection.clone(),
+                None,
+            )
+            .await?;
+            super::helpers::capture_source_contracts(state, &analyzed).await?;
             let mut report = analyzed.report;
 
             // Optional repo enrichment (non-fatal — failures recorded in repo_summary)
@@ -239,12 +247,7 @@ async fn run_reanalyze(
         .map(|s| {
             s.tables
                 .iter()
-                .map(|t| {
-                    (
-                        t.name.clone(),
-                        ox_core::source_schema::table_fingerprint(t),
-                    )
-                })
+                .map(|t| (t.name.clone(), ox_core::source_schema::table_fingerprint(t)))
                 .collect()
         })
         .unwrap_or_default();
@@ -263,7 +266,8 @@ async fn run_reanalyze(
     {
         let prior_scope: ox_source::AnalysisScope =
             serde_json::from_value(project.analysis_scope.clone()).unwrap_or_default();
-        let drift_warnings = prior_scope.detect_drift(&fresh_fingerprints);
+        let drift_warnings =
+            ox_source::table_schema_drift_warnings(&prior_scope, &fresh_fingerprints);
         if !drift_warnings.is_empty() {
             warn!(
                 ontology_draft_id = %id,

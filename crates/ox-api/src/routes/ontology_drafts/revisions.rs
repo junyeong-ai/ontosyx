@@ -4,7 +4,7 @@ use serde::Serialize;
 use tracing::warn;
 use uuid::Uuid;
 
-use ox_ontology::rebase::{analyze_rebase, RebaseAnalysis};
+use ox_ontology::rebase::{RebaseAnalysis, analyze_rebase};
 use ox_ontology::{OntologyDiff, OntologyIR, compute_diff};
 use ox_store::{OntologySnapshot, OntologySnapshotSummary};
 
@@ -23,7 +23,7 @@ use crate::state::AppState;
     path = "/api/ontology-drafts/{id}/revisions",
     params(("id" = Uuid, Path, description = "Ontology draft ID")),
     responses(
-        (status = 200, description = "List of ontology revision snapshots", body = Object),
+        (status = 200, description = "List of ontology revision snapshots", body = Vec<OntologySnapshotSummary>),
         (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
@@ -62,7 +62,7 @@ pub(crate) async fn list_revisions(
         ("rev" = i32, Path, description = "Revision number"),
     ),
     responses(
-        (status = 200, description = "Ontology revision snapshot", body = Object),
+        (status = 200, description = "Ontology revision snapshot", body = OntologySnapshot),
         (status = 404, description = "Revision not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
@@ -88,7 +88,6 @@ pub(crate) async fn get_revision(
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct RestoreOntologyDraftRevisionResponse {
-    #[schema(value_type = Object)]
     pub project: super::types::OntologyDraftView,
 }
 
@@ -118,12 +117,7 @@ pub(crate) async fn restore_revision(
     if let Some(ont) = &project.ontology
         && let Err(e) = state
             .store
-            .create_ontology_snapshot(
-                id,
-                project.revision,
-                ont,
-                project.quality_report.as_ref(),
-            )
+            .create_ontology_snapshot(id, project.revision, ont, project.quality_report.as_ref())
             .await
     {
         warn!(ontology_draft_id = %id, error = %e, "Failed to save ontology snapshot before restore");
@@ -167,7 +161,7 @@ pub(crate) async fn restore_revision(
         ("rev2" = i32, Path, description = "Target revision number"),
     ),
     responses(
-        (status = 200, description = "Ontology diff between two revisions", body = Object),
+        (status = 200, description = "Ontology diff between two revisions", body = OntologyDiff),
         (status = 404, description = "Revision not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
@@ -210,7 +204,7 @@ pub(crate) async fn diff_revisions(
     path = "/api/ontology-drafts/{id}/diff/current",
     params(("id" = Uuid, Path, description = "Ontology draft ID")),
     responses(
-        (status = 200, description = "Diff between current ontology and latest snapshot", body = Object),
+        (status = 200, description = "Diff between current ontology and latest snapshot", body = OntologyDiff),
         (status = 400, description = "Ontology draft has no ontology", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Ontology draft not found or no snapshots", body = inline(crate::openapi::ErrorResponse)),
     ),
@@ -274,7 +268,7 @@ pub(crate) async fn diff_current(
     path = "/api/ontology-drafts/{id}/diff/canonical",
     params(("id" = Uuid, Path, description = "Draft ID")),
     responses(
-        (status = 200, description = "Diff between draft ontology and workspace canonical head", body = Object),
+        (status = 200, description = "Diff between draft ontology and workspace canonical head", body = OntologyDiff),
         (status = 400, description = "Draft has no ontology", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Draft not found", body = inline(crate::openapi::ErrorResponse)),
     ),
@@ -352,7 +346,6 @@ pub struct RebasePreviewResponse {
     pub already_at_head: bool,
     /// Full rebase analysis — `base_to_head`, `base_to_draft`,
     /// `conflicts`. Wire shape mirrors `ox_ontology::rebase::RebaseAnalysis`.
-    #[schema(value_type = Object)]
     pub analysis: RebaseAnalysis,
     /// Canonical head id at the time of analysis. The rebase
     /// confirm call must echo this back so a sibling commit
@@ -388,7 +381,11 @@ pub(crate) async fn rebase_preview(
         .map_err(|e| AppError::internal(format!("Failed to parse draft ontology: {e}")))?;
 
     // Resolve canonical head + parent IRs.
-    let identity = state.store.get_workspace_ontology().await.map_err(AppError::from)?;
+    let identity = state
+        .store
+        .get_workspace_ontology()
+        .await
+        .map_err(AppError::from)?;
     let head = match identity {
         Some(ref id) => state
             .store
@@ -533,43 +530,45 @@ pub(crate) async fn rebase_draft(
     // Conflict-aware gate. Run the same analysis the preview
     // endpoint emits and refuse the pin when conflicts exist
     // unless the operator explicitly acknowledged.
-    if !body.acknowledge_conflicts {
-        if let Some(draft_json) = project.ontology.clone() {
-            let draft_ir: OntologyIR = serde_json::from_value(draft_json).map_err(|e| {
-                AppError::internal(format!("Failed to parse draft ontology: {e}"))
-            })?;
-            let head_ir = state
+    if !body.acknowledge_conflicts
+        && let Some(draft_json) = project.ontology.clone()
+    {
+        let draft_ir: OntologyIR = serde_json::from_value(draft_json)
+            .map_err(|e| AppError::internal(format!("Failed to parse draft ontology: {e}")))?;
+        let head_ir = state
+            .store
+            .get_ontology_ir(head.id)
+            .await
+            .map_err(AppError::from)?;
+        let parent_ir = match project.parent_version_id {
+            Some(parent_id) => state
                 .store
-                .get_ontology_ir(head.id)
+                .get_ontology_ir(parent_id)
                 .await
-                .map_err(AppError::from)?;
-            let parent_ir = match project.parent_version_id {
-                Some(parent_id) => state
-                    .store
-                    .get_ontology_ir(parent_id)
-                    .await
-                    .map_err(AppError::from)?,
-                None => None,
-            };
-            let empty = || {
-                OntologyIR::new(
-                    String::new(),
-                    String::new(),
-                    ox_core::i18n::LocalizedText::default(),
-                    1u32,
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                )
-            };
-            let analysis =
-                analyze_rebase(&parent_ir.unwrap_or_else(empty), &head_ir.unwrap_or_else(empty), &draft_ir);
-            if !analysis.is_clean() {
-                return Err(AppError::conflict(format!(
-                    "rebase has {} conflict(s) — preview first then resubmit with `acknowledge_conflicts: true`",
-                    analysis.conflicts.len()
-                )));
-            }
+                .map_err(AppError::from)?,
+            None => None,
+        };
+        let empty = || {
+            OntologyIR::new(
+                String::new(),
+                String::new(),
+                ox_core::i18n::LocalizedText::default(),
+                1u32,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
+        };
+        let analysis = analyze_rebase(
+            &parent_ir.unwrap_or_else(empty),
+            &head_ir.unwrap_or_else(empty),
+            &draft_ir,
+        );
+        if !analysis.is_clean() {
+            return Err(AppError::conflict(format!(
+                "rebase has {} conflict(s) — preview first then resubmit with `acknowledge_conflicts: true`",
+                analysis.conflicts.len()
+            )));
         }
     }
 
@@ -579,8 +578,8 @@ pub(crate) async fn rebase_draft(
         .await
         .map_err(AppError::from)?;
 
-    let refreshed = crate::routes::ontology_drafts::helpers::reload_ontology_draft(&state, project.id)
-        .await?;
+    let refreshed =
+        crate::routes::ontology_drafts::helpers::reload_ontology_draft(&state, project.id).await?;
     let project_view =
         crate::routes::ontology_drafts::types::OntologyDraftView::from_ontology_draft(refreshed);
     Ok(ApiResponse::of(RebaseOntologyDraftResponse {

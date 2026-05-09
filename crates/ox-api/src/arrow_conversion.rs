@@ -38,10 +38,10 @@ use arrow::array::{
     TimestampNanosecondArray, TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array,
     UInt64Array,
 };
-use arrow::datatypes::{
-    Int16Type, Int32Type, Int64Type, Int8Type, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
-};
 use arrow::datatypes::{DataType, TimeUnit};
+use arrow::datatypes::{
+    Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
+};
 use arrow::record_batch::RecordBatch;
 use chrono::{DateTime, Duration as ChronoDuration, NaiveDate};
 
@@ -85,15 +85,13 @@ pub fn record_batches_to_query_result(
             rows_returned,
             nodes_affected: None,
             edges_affected: None,
-            provenance: None, warnings: Vec::new(),
+            provenance: None,
+            warnings: Vec::new(),
         },
     })
 }
 
-fn append_batch_rows(
-    batch: &RecordBatch,
-    out: &mut Vec<Vec<PropertyValue>>,
-) -> Result<(), String> {
+fn append_batch_rows(batch: &RecordBatch, out: &mut Vec<Vec<PropertyValue>>) -> Result<(), String> {
     let num_rows = batch.num_rows();
     let num_cols = batch.num_columns();
     for row_idx in 0..num_rows {
@@ -242,7 +240,9 @@ fn cell_to_property(array: &dyn Array, row: usize) -> Result<PropertyValue, Stri
                      String-based variant that has not been added yet"
                 )
             })?;
-            Ok(PropertyValue::Float(as_i128 as f64 / 10f64.powi(*scale as i32)))
+            Ok(PropertyValue::Float(
+                as_i128 as f64 / 10f64.powi(*scale as i32),
+            ))
         }
         // Dictionary encoding: pick the row's key, then recurse
         // into the underlying `values()` array at that index.
@@ -394,7 +394,9 @@ fn timestamp_to_property(
     };
     match dt {
         Some(d) => Ok(PropertyValue::DateTime(d.naive_utc())),
-        None => Err(format!("federation result: Timestamp value out of range (unit={unit:?})")),
+        None => Err(format!(
+            "federation result: Timestamp value out of range (unit={unit:?})"
+        )),
     }
 }
 
@@ -515,11 +517,8 @@ mod tests {
         let target = NaiveDate::from_ymd_opt(2026, 4, 21).unwrap();
         let days = (target - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()).num_days();
         let millis = days * 86_400_000i64;
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![Arc::new(Date64Array::from(vec![millis]))],
-        )
-        .unwrap();
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(Date64Array::from(vec![millis]))]).unwrap();
         let result = record_batches_to_query_result(&[batch], 0).unwrap();
         assert_eq!(result.rows[0][0], PropertyValue::Date(target));
     }
@@ -547,10 +546,7 @@ mod tests {
 
     #[test]
     fn timestamp_second_rounds_trip_as_naive_datetime() {
-        let schema = schema(vec![(
-            "ts",
-            DataType::Timestamp(TimeUnit::Second, None),
-        )]);
+        let schema = schema(vec![("ts", DataType::Timestamp(TimeUnit::Second, None))]);
         let target = NaiveDate::from_ymd_opt(2026, 4, 21)
             .unwrap()
             .and_hms_opt(9, 15, 30)
@@ -639,18 +635,12 @@ mod tests {
             vec![b"abc".as_slice(), b"xyz".as_slice()].into_iter(),
         )
         .unwrap();
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![Arc::new(var), Arc::new(big), Arc::new(fix)],
-        )
-        .unwrap();
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(var), Arc::new(big), Arc::new(fix)])
+            .unwrap();
 
         let result = record_batches_to_query_result(&[batch], 0).unwrap();
         assert_eq!(result.metadata.rows_returned, 2);
-        assert_eq!(
-            result.rows[0][0],
-            PropertyValue::Bytes(b"hello".to_vec())
-        );
+        assert_eq!(result.rows[0][0], PropertyValue::Bytes(b"hello".to_vec()));
         assert_eq!(result.rows[0][1], PropertyValue::Bytes(b"world".to_vec()));
         assert_eq!(result.rows[0][2], PropertyValue::Bytes(b"abc".to_vec()));
         // Empty Binary cells are still `Bytes`, not `Null` — the
@@ -771,10 +761,7 @@ mod tests {
         assert_eq!(
             result.rows[0][0],
             PropertyValue::List(vec![
-                PropertyValue::List(vec![
-                    PropertyValue::Int(1),
-                    PropertyValue::Int(2),
-                ]),
+                PropertyValue::List(vec![PropertyValue::Int(1), PropertyValue::Int(2),]),
                 PropertyValue::List(vec![PropertyValue::Int(3)]),
             ])
         );
@@ -789,8 +776,7 @@ mod tests {
         // Build a Map<Utf8, Int64> with two rows:
         //   row 0: {"a": 1, "b": 2}
         //   row 1: {} (empty map — still a Map, not Null)
-        let mut builder =
-            MapBuilder::new(None, StringBuilder::new(), Int64Builder::new());
+        let mut builder = MapBuilder::new(None, StringBuilder::new(), Int64Builder::new());
         // Row 0
         builder.keys().append_value("a");
         builder.values().append_value(1);
@@ -1031,11 +1017,8 @@ mod tests {
         // UInt64 values > i64::MAX. Silently wrapping would corrupt
         // integer ids / counts, so the branch must Err.
         let schema = schema(vec![("huge", DataType::UInt64)]);
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![Arc::new(UInt64Array::from(vec![u64::MAX]))],
-        )
-        .unwrap();
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(UInt64Array::from(vec![u64::MAX]))])
+            .unwrap();
         let err = record_batches_to_query_result(&[batch], 0)
             .expect_err("UInt64 > i64::MAX must not silently wrap");
         assert!(

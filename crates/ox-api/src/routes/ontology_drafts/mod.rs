@@ -17,8 +17,9 @@ pub(crate) use decisions::update_decisions;
 pub(crate) use edit::edit_ontology_draft;
 pub(crate) use extend::extend_ontology_draft;
 pub(crate) use lifecycle::{
-    compile_load, complete_ontology_draft, create_ontology_draft, delete_ontology_draft, deploy_schema,
-    execute_load_from_source, generate_load_plan, get_ontology_draft, list_ontology_drafts,
+    compile_load, complete_ontology_draft, create_ontology_draft, delete_ontology_draft,
+    deploy_schema, execute_load_from_source, generate_load_plan, get_ontology_draft,
+    list_ontology_drafts,
 };
 pub(crate) use preview::preview_source;
 pub(crate) use refinement::{apply_reconcile, design_ontology_draft, refine_ontology_draft};

@@ -4,8 +4,10 @@ use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use ox_store::Dashboard;
 use ox_store::store::CursorParams;
+use ox_store::{
+    Dashboard, DashboardLayoutItem, DashboardWidgetPosition, DashboardWidgetThresholds,
+};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -28,7 +30,7 @@ pub struct CreateDashboardRequest {
     post,
     path = "/api/dashboards",
     request_body = CreateDashboardRequest,
-    responses((status = 200, description = "Dashboard created", body = Object)),
+    responses((status = 200, description = "Dashboard created", body = Dashboard)),
     security(("api_key" = [])),
     tag = "Dashboards",
 )]
@@ -50,7 +52,7 @@ pub(crate) async fn create_dashboard(
         share_token: None,
         shared_at: None,
         share_expires_at: None,
-        layout: serde_json::json!([]),
+        layout: Vec::new(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -75,7 +77,7 @@ pub(crate) async fn create_dashboard(
         ("limit" = Option<u32>, Query, description = "Max items"),
         ("cursor" = Option<String>, Query, description = "Pagination cursor"),
     ),
-    responses((status = 200, description = "Caller's dashboards", body = Vec<Object>)),
+    responses((status = 200, description = "Caller's dashboards", body = crate::openapi::DashboardPage)),
     security(("api_key" = [])),
     tag = "Dashboards",
 )]
@@ -102,7 +104,7 @@ pub(crate) async fn list_dashboards(
     path = "/api/dashboards/{id}",
     params(("id" = Uuid, Path, description = "Dashboard ID")),
     responses(
-        (status = 200, description = "Dashboard", body = Object),
+        (status = 200, description = "Dashboard", body = Dashboard),
         (status = 404, description = "Not found or not accessible"),
     ),
     security(("api_key" = [])),
@@ -136,8 +138,7 @@ pub(crate) async fn get_dashboard(
 pub struct UpdateDashboardRequest {
     pub name: Option<String>,
     pub description: Option<String>,
-    #[schema(value_type = Option<Object>)]
-    pub layout: Option<serde_json::Value>,
+    pub layout: Option<Vec<DashboardLayoutItem>>,
     pub is_public: Option<bool>,
 }
 
@@ -147,7 +148,7 @@ pub struct UpdateDashboardRequest {
     params(("id" = Uuid, Path, description = "Dashboard ID")),
     request_body = UpdateDashboardRequest,
     responses(
-        (status = 200, description = "Dashboard updated", body = Object),
+        (status = 200, description = "Dashboard updated", body = Dashboard),
         (status = 403, description = "Not the dashboard owner"),
         (status = 404, description = "Dashboard not found"),
     ),
@@ -254,16 +255,21 @@ pub struct CreateWidgetRequest {
     pub widget_type: String,
     pub query: Option<String>,
     #[serde(default)]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub widget_spec: serde_json::Value,
     #[serde(default = "default_position")]
-    pub position: serde_json::Value,
+    pub position: DashboardWidgetPosition,
     pub refresh_interval_secs: Option<i32>,
-    #[schema(value_type = Option<Object>)]
-    pub thresholds: Option<serde_json::Value>,
+    pub thresholds: Option<DashboardWidgetThresholds>,
 }
 
-fn default_position() -> serde_json::Value {
-    serde_json::json!({"x": 0, "y": 0, "w": 6, "h": 4})
+fn default_position() -> DashboardWidgetPosition {
+    DashboardWidgetPosition {
+        x: 0,
+        y: 0,
+        w: 6,
+        h: 4,
+    }
 }
 
 #[utoipa::path(
@@ -272,7 +278,7 @@ fn default_position() -> serde_json::Value {
     params(("id" = Uuid, Path, description = "Dashboard ID")),
     request_body = CreateWidgetRequest,
     responses(
-        (status = 200, description = "Widget added", body = Object),
+        (status = 200, description = "Widget added", body = ox_store::DashboardWidget),
         (status = 403, description = "Not the dashboard owner"),
         (status = 404, description = "Dashboard not found"),
     ),
@@ -329,7 +335,7 @@ pub(crate) async fn add_widget(
     get,
     path = "/api/dashboards/{id}/widgets",
     params(("id" = Uuid, Path, description = "Dashboard ID")),
-    responses((status = 200, description = "Widgets on the dashboard", body = Vec<Object>)),
+    responses((status = 200, description = "Widgets on the dashboard", body = Vec<ox_store::DashboardWidget>)),
     security(("api_key" = [])),
     tag = "Dashboards",
 )]
@@ -356,8 +362,7 @@ pub struct WidgetUpdateRequest {
     pub widget_type: Option<String>,
     pub query: Option<String>,
     pub refresh_interval_secs: Option<i32>,
-    #[schema(value_type = Option<Object>)]
-    pub thresholds: Option<serde_json::Value>,
+    pub thresholds: Option<DashboardWidgetThresholds>,
 }
 
 #[utoipa::path(
@@ -646,8 +651,7 @@ pub struct SharedDashboardResponse {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
-    #[schema(value_type = Object)]
-    pub layout: serde_json::Value,
+    pub layout: Vec<DashboardLayoutItem>,
     pub widgets: Vec<SharedWidgetResponse>,
 }
 
@@ -657,13 +661,11 @@ pub struct SharedWidgetResponse {
     pub id: Uuid,
     pub title: String,
     pub widget_type: String,
-    #[schema(value_type = Object)]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub widget_spec: serde_json::Value,
-    #[schema(value_type = Object)]
-    pub position: serde_json::Value,
-    #[schema(value_type = Option<Object>)]
+    pub position: DashboardWidgetPosition,
+    #[schema(value_type = Option<std::collections::HashMap<String, Object>>, additional_properties)]
     pub last_result: Option<serde_json::Value>,
     pub last_refreshed: Option<chrono::DateTime<chrono::Utc>>,
-    #[schema(value_type = Option<Object>)]
-    pub thresholds: Option<serde_json::Value>,
+    pub thresholds: Option<DashboardWidgetThresholds>,
 }

@@ -60,9 +60,7 @@ impl OntologyDraftView {
     }
 }
 
-fn derive_gate_state(
-    project: &OntologyDraft,
-) -> (Vec<DesignGate>, AnalysisReportStatus) {
+fn derive_gate_state(project: &OntologyDraft) -> (Vec<DesignGate>, AnalysisReportStatus) {
     let Some(value) = project.analysis_report.as_ref() else {
         return (Vec::new(), AnalysisReportStatus::Missing);
     };
@@ -88,7 +86,6 @@ pub struct CreateOntologyDraftRequest {
     pub title: Option<String>,
     /// Ontology draft origin: source analysis or base ontology.
     #[serde(flatten)]
-    #[schema(value_type = Object)]
     pub origin: OntologyDraftOrigin,
 }
 
@@ -101,12 +98,10 @@ pub enum OntologyDraftOrigin {
     Source {
         source: DataSourceSpec,
         #[serde(default)]
-        #[schema(value_type = Option<Object>)]
         repo_source: Option<ox_ontology::repo_insights::RepoSource>,
         /// Which tables of the source to introspect. The caller picks
         /// `{"kind": "all"}` deliberately or names a `subset` /
         /// `extend` list — there is no implicit full-warehouse sweep.
-        #[schema(value_type = Object)]
         selection: AnalyzeSelection,
     },
     /// Seed the project from the workspace's canonical ontology.
@@ -117,6 +112,7 @@ pub enum OntologyDraftOrigin {
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[schema(as = OntologyDraftDataSourceSpec)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DataSourceSpec {
     Text {
@@ -203,7 +199,6 @@ fn default_snowflake_schema() -> String {
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateOntologyDraftDecisionsRequest {
     /// User design decisions.
-    #[schema(value_type = Object)]
     pub design_options: DesignOptions,
     pub revision: i32,
 }
@@ -218,7 +213,6 @@ pub struct DesignOntologyDraftRequest {
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct DesignOntologyDraftResponse {
-    #[schema(value_type = Object)]
     pub project: OntologyDraftView,
 }
 
@@ -229,18 +223,15 @@ pub struct ReanalyzeOntologyDraftRequest {
     pub revision: i32,
     /// Optional repository source for enrichment.
     #[serde(default)]
-    #[schema(value_type = Option<Object>)]
     pub repo_source: Option<ox_ontology::repo_insights::RepoSource>,
     /// Which tables of the source to introspect on this re-analysis.
     /// Required and explicit — `kind: "all"` for a full sweep,
     /// `kind: "subset"` to narrow.
-    #[schema(value_type = Object)]
     pub selection: AnalyzeSelection,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ReanalyzeOntologyDraftResponse {
-    #[schema(value_type = Object)]
     pub project: OntologyDraftView,
     /// Design decisions that were invalidated by the schema change.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -256,12 +247,10 @@ pub struct RefineOntologyDraftRequest {
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct RefineOntologyDraftResponse {
-    #[schema(value_type = Object)]
     pub project: OntologyDraftView,
     /// Summary of graph profiling results.
     pub profile_summary: String,
     /// Report on ID reconciliation between original and refined ontology.
-    #[schema(value_type = Object)]
     pub reconcile_report: ox_ontology::ReconcileReport,
 }
 
@@ -269,13 +258,10 @@ pub struct RefineOntologyDraftResponse {
 pub struct ReconcileOntologyDraftRequest {
     pub revision: i32,
     /// Reconciled ontology with user decisions applied.
-    #[schema(value_type = Object)]
     pub reconciled_ontology: OntologyIR,
     /// User accept/reject decisions for uncertain matches.
-    #[schema(value_type = Vec<Object>)]
     pub decisions: Vec<ox_ontology::MatchDecision>,
     /// The uncertain matches being decided upon.
-    #[schema(value_type = Vec<Object>)]
     pub uncertain_matches: Vec<ox_ontology::UncertainMatch>,
 }
 
@@ -288,16 +274,13 @@ pub struct ExtendOntologyDraftRequest {
     /// `kind: "all"` to take everything advertised, `kind: "subset"`
     /// for a curated list, `kind: "extend"` to grow the existing
     /// baseline with the named tables.
-    #[schema(value_type = Object)]
     pub selection: AnalyzeSelection,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ExtendOntologyDraftResponse {
-    #[schema(value_type = Object)]
     pub project: OntologyDraftView,
     /// Report on ID reconciliation between existing and new ontology entities.
-    #[schema(value_type = Object)]
     pub reconcile_report: ox_ontology::ReconcileReport,
 }
 
@@ -328,10 +311,8 @@ pub struct EditOntologyDraftRequest {
 pub struct EditOntologyDraftResponse {
     /// Updated project (null in dry_run mode).
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = Option<Object>)]
     pub project: Option<OntologyDraftView>,
     /// Generated ontology mutation commands.
-    #[schema(value_type = Vec<Object>)]
     pub commands: Vec<OntologyCommand>,
     /// LLM explanation of what was changed and why.
     pub explanation: String,

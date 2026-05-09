@@ -13,7 +13,7 @@ use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
-// POST /auth/token — exchange OIDC info for platform JWT
+// POST /api/auth/token — exchange OIDC info for platform JWT
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -41,7 +41,7 @@ pub struct UserInfo {
 
 #[utoipa::path(
     post,
-    path = "/auth/token",
+    path = "/api/auth/token",
     request_body = CreateAuthTokenRequest,
     responses(
         (status = 200, description = "Token created", body = CreateAuthTokenResponse),
@@ -102,11 +102,7 @@ pub(crate) async fn create_token(
                 .map_err(AppError::from)?;
 
             // Auto-promote first user to admin
-            let user_count = state
-                .store
-                .count_users()
-                .await
-                .map_err(AppError::from)?;
+            let user_count = state.store.count_users().await.map_err(AppError::from)?;
             if user_count == 1 && user.role != "admin" {
                 let should_promote = match &state.auth_config.first_admin_email {
                     Some(admin_email) => user.email == *admin_email,
@@ -199,7 +195,7 @@ pub struct AuthMeResponse {
 
 #[utoipa::path(
     get,
-    path = "/auth/me",
+    path = "/api/auth/me",
     responses(
         (status = 200, description = "Current user info", body = AuthMeResponse),
         (status = 401, description = "Not authenticated", body = inline(crate::openapi::ErrorResponse)),
@@ -226,9 +222,8 @@ pub(crate) async fn me(
         }));
     }
 
-    let user_id =
-        Uuid::parse_str(&principal.id)
-            .map_err(|_| AppError::auth_token_claim_invalid("user_id"))?;
+    let user_id = Uuid::parse_str(&principal.id)
+        .map_err(|_| AppError::auth_token_claim_invalid("user_id"))?;
 
     let user = state
         .store
@@ -270,7 +265,7 @@ const WS_TOKEN_TTL_SECS: i64 = 120;
 
 #[utoipa::path(
     get,
-    path = "/auth/ws-token",
+    path = "/api/auth/ws-token",
     responses(
         (status = 200, description = "Short-lived WS auth token", body = WebSocketTokenResponse),
         (status = 401, description = "Not authenticated", body = inline(crate::openapi::ErrorResponse)),
@@ -311,7 +306,10 @@ pub(crate) async fn ws_token(
     };
 
     let token = create_jwt(&ws_claims, secret)?;
-    Ok(ApiResponse::of(WebSocketTokenResponse { token, expires_at }))
+    Ok(ApiResponse::of(WebSocketTokenResponse {
+        token,
+        expires_at,
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -338,7 +336,7 @@ pub struct LogoutResponse {
 /// can route them to the admin "delete API key" path instead.
 #[utoipa::path(
     post,
-    path = "/auth/logout",
+    path = "/api/auth/logout",
     responses(
         (status = 200, description = "JWT revoked", body = LogoutResponse),
         (status = 400, description = "API key principals cannot self-logout", body = inline(crate::openapi::ErrorResponse)),

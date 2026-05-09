@@ -68,7 +68,7 @@ pub struct LimitParam {
     post,
     path = "/api/quality/rules",
     request_body = CreateRuleRequest,
-    responses((status = 201, description = "Quality rule created", body = Object)),
+    responses((status = 201, description = "Quality rule created", body = QualityRule)),
     security(("api_key" = [])),
     tag = "Quality",
 )]
@@ -115,7 +115,7 @@ pub(crate) async fn create_rule(
     get,
     path = "/api/quality/rules",
     params(ListRulesParams),
-    responses((status = 200, description = "Quality rules", body = Vec<Object>)),
+    responses((status = 200, description = "Quality rules", body = Vec<QualityRule>)),
     security(("api_key" = [])),
     tag = "Quality",
 )]
@@ -144,7 +144,7 @@ pub(crate) async fn list_rules(
     path = "/api/quality/rules/{id}",
     params(("id" = Uuid, Path, description = "Quality rule ID")),
     responses(
-        (status = 200, description = "Quality rule", body = Object),
+        (status = 200, description = "Quality rule", body = QualityRule),
         (status = 404, description = "Rule not found"),
     ),
     security(("api_key" = [])),
@@ -174,7 +174,7 @@ pub(crate) async fn get_rule(
     params(("id" = Uuid, Path, description = "Quality rule ID")),
     request_body = UpdateRuleRequest,
     responses(
-        (status = 200, description = "Updated quality rule", body = Object),
+        (status = 200, description = "Updated quality rule", body = QualityRule),
         (status = 404, description = "Rule not found"),
     ),
     security(("api_key" = [])),
@@ -259,7 +259,7 @@ pub(crate) async fn delete_rule(
 #[utoipa::path(
     get,
     path = "/api/quality/dashboard",
-    responses((status = 200, description = "Per-rule dashboard entries", body = Vec<Object>)),
+    responses((status = 200, description = "Per-rule dashboard entries", body = Vec<QualityDashboardEntry>)),
     security(("api_key" = [])),
     tag = "Quality",
 )]
@@ -286,7 +286,7 @@ pub(crate) async fn quality_dashboard(
         ("id" = Uuid, Path, description = "Quality rule ID"),
         LimitParam,
     ),
-    responses((status = 200, description = "Recent results for the rule", body = Vec<Object>)),
+    responses((status = 200, description = "Recent results for the rule", body = Vec<QualityResult>)),
     security(("api_key" = [])),
     tag = "Quality",
 )]
@@ -315,7 +315,7 @@ pub(crate) async fn rule_results(
     path = "/api/quality/rules/{id}/execute",
     params(("id" = Uuid, Path, description = "Quality rule ID")),
     responses(
-        (status = 200, description = "Execution result", body = Object),
+        (status = 200, description = "Execution result", body = QualityResult),
         (status = 404, description = "Rule not found"),
         (status = 503, description = "Graph runtime not configured"),
     ),
@@ -382,7 +382,7 @@ pub(crate) async fn execute_rule(
     post,
     path = "/api/quality/execute-all",
     responses(
-        (status = 200, description = "Per-rule execution results", body = Vec<Object>),
+        (status = 200, description = "Per-rule execution results", body = Vec<QualityResult>),
         (status = 503, description = "Graph runtime not configured"),
     ),
     security(("api_key" = [])),
@@ -580,7 +580,13 @@ fn build_quality_cypher(rule: &QualityRule) -> Result<String, AppError> {
         other => Err(AppError::invalid_enum_value(
             "rule_type",
             other.to_string(),
-            &["completeness", "uniqueness", "freshness", "consistency", "custom"],
+            &[
+                "completeness",
+                "uniqueness",
+                "freshness",
+                "consistency",
+                "custom",
+            ],
         )),
     }
 }
@@ -638,9 +644,10 @@ async fn execute_single_rule(
     let cypher = build_quality_cypher(rule)?;
 
     let params: HashMap<String, PropertyValue> = HashMap::new();
-    let query_result = runtime.execute_query(&cypher, &params).await.map_err(|e| {
-        AppError::quality_rule_query_failed(rule.name.clone(), e.to_string())
-    })?;
+    let query_result = runtime
+        .execute_query(&cypher, &params)
+        .await
+        .map_err(|e| AppError::quality_rule_query_failed(rule.name.clone(), e.to_string()))?;
 
     let (violations, total) = parse_violations(&query_result);
 
@@ -693,7 +700,7 @@ pub struct MetricsParams {
     get,
     path = "/api/quality/metrics",
     params(MetricsParams),
-    responses((status = 200, description = "Aggregated metrics report", body = Object)),
+    responses((status = 200, description = "Aggregated metrics report", body = QualityMetricsReport)),
     security(("api_key" = [])),
     tag = "Quality",
 )]
@@ -716,7 +723,7 @@ pub(crate) async fn get_quality_metrics(
     get,
     path = "/api/quality/shacl-failures",
     params(MetricsParams),
-    responses((status = 200, description = "Failure-kind histogram", body = Vec<Object>)),
+    responses((status = 200, description = "Failure-kind histogram", body = Vec<ShaclFailureCount>)),
     security(("api_key" = [])),
     tag = "Quality",
 )]
@@ -749,7 +756,7 @@ pub(crate) async fn list_shacl_failures(
 #[utoipa::path(
     get,
     path = "/api/quality/baseline",
-    responses((status = 200, description = "Adaptive threshold snapshot or null", body = Option<Object>)),
+    responses((status = 200, description = "Adaptive threshold snapshot or null", body = Option<WorkspaceQualityBaseline>)),
     security(("api_key" = [])),
     tag = "Quality",
 )]
@@ -781,7 +788,7 @@ pub struct StaleTypesParams {
     get,
     path = "/api/quality/stale-types",
     params(StaleTypesParams),
-    responses((status = 200, description = "Stale types past the cutoff", body = Vec<Object>)),
+    responses((status = 200, description = "Stale types past the cutoff", body = Vec<StaleTypeEntry>)),
     security(("api_key" = [])),
     tag = "Quality",
 )]
@@ -813,7 +820,7 @@ pub struct StaleProposalsParams {
     get,
     path = "/api/quality/stale-proposals",
     params(StaleProposalsParams),
-    responses((status = 200, description = "Stale concept proposals", body = Vec<Object>)),
+    responses((status = 200, description = "Stale concept proposals", body = Vec<StaleConceptProposal>)),
     security(("api_key" = [])),
     tag = "Quality",
 )]
@@ -851,7 +858,7 @@ pub struct DecideStaleProposalRequest {
     params(("id" = Uuid, Path, description = "Stale concept proposal ID")),
     request_body = DecideStaleProposalRequest,
     responses(
-        (status = 200, description = "Updated proposal row", body = Object),
+        (status = 200, description = "Updated proposal row", body = StaleConceptProposal),
         (status = 400, description = "Invalid decision value"),
     ),
     security(("api_key" = [])),
@@ -952,13 +959,10 @@ pub(crate) async fn bulk_decide_stale_proposals(
     };
     let decided = state
         .store
-        .record_stale_proposal_decisions(
-            &req.ids,
-            decision,
-            principal.user_uuid().ok(),
-            req.reason,
-        )
+        .record_stale_proposal_decisions(&req.ids, decision, principal.user_uuid().ok(), req.reason)
         .await
         .map_err(AppError::from)?;
-    Ok(ApiResponse::of(BulkDecideStaleProposalsResponse { decided }))
+    Ok(ApiResponse::of(BulkDecideStaleProposalsResponse {
+        decided,
+    }))
 }

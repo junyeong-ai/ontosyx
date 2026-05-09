@@ -28,7 +28,7 @@ pub(crate) use self::quality::{
     assess_quality_from_ontology_draft, assess_quality_from_ontology_draft_with_mapping,
 };
 pub(crate) use self::repo::{analyze_code_repository, run_repo_enrichment, skipped_repo_summary};
-pub(crate) use self::source::{analyze_source, build_adapter};
+pub(crate) use self::source::{analyze_source, build_adapter, capture_source_contracts};
 
 /// Extract `DesignOptions` from a project's JSON field, falling back to defaults.
 pub(crate) fn get_design_options(
@@ -98,7 +98,10 @@ pub(crate) async fn load_ontology_draft_in_status(
 }
 
 /// Reload a project from the store (typically after a mutation).
-pub(crate) async fn reload_ontology_draft(state: &AppState, id: Uuid) -> Result<OntologyDraft, AppError> {
+pub(crate) async fn reload_ontology_draft(
+    state: &AppState,
+    id: Uuid,
+) -> Result<OntologyDraft, AppError> {
     state
         .store
         .get_ontology_draft(id)

@@ -1,7 +1,7 @@
 //! Shared routing helpers for the ontology edit surface.
 //!
-//! Both the creation endpoint (`POST /api/ontologies`) and the
-//! follow-up edit endpoint (`POST /api/ontologies/{id}/edits`) run
+//! Both the creation endpoint (`POST /api/ontology`) and the
+//! follow-up edit endpoint (`POST /api/ontology/edits`) run
 //! each operation through the Phase-6 approval-routing matrix. The
 //! matrix decides per-op whether the change applies immediately or
 //! queues for review.

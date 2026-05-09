@@ -100,10 +100,7 @@ impl TestApp {
         Self { router }
     }
 
-    pub async fn call_json<T: DeserializeOwned>(
-        &self,
-        req: Request<Body>,
-    ) -> (StatusCode, T) {
+    pub async fn call_json<T: DeserializeOwned>(&self, req: Request<Body>) -> (StatusCode, T) {
         let resp = self.router.clone().oneshot(req).await.unwrap();
         let status = resp.status();
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
@@ -145,4 +142,3 @@ pub fn workspace_context_layer(
         workspace_role: role,
     })
 }
-

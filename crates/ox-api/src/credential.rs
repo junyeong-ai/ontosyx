@@ -72,10 +72,7 @@ impl Credential {
     /// Resolve the credential to its concrete value. `Inline`
     /// returns an `Arc` clone of the stored value (refcount bump,
     /// no copy); `SecretRef` delegates to the supplied resolver.
-    pub async fn resolve(
-        &self,
-        resolver: &dyn SecretResolver,
-    ) -> Result<Arc<str>, AppError> {
+    pub async fn resolve(&self, resolver: &dyn SecretResolver) -> Result<Arc<str>, AppError> {
         match self {
             Credential::Inline { value } => Ok(Arc::clone(value)),
             Credential::SecretRef { value } => resolver.resolve(value).await,
@@ -138,11 +135,7 @@ impl SecretResolver for EnvSecretResolver {
             ));
         }
         let value = std::env::var(var_name).map_err(|_| {
-            AppError::credential_resolve_failed(
-                "env",
-                "not_found",
-                format!("env:{var_name}"),
-            )
+            AppError::credential_resolve_failed("env", "not_found", format!("env:{var_name}"))
         })?;
         // `Arc::from(String)` reuses the String's allocation, so
         // this is a zero-extra-copy conversion.
@@ -171,8 +164,7 @@ pub struct CompositeSecretResolver {
 
 impl std::fmt::Debug for CompositeSecretResolver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let schemes: Vec<&str> =
-            self.resolvers.iter().map(|(s, _)| s.as_str()).collect();
+        let schemes: Vec<&str> = self.resolvers.iter().map(|(s, _)| s.as_str()).collect();
         f.debug_struct("CompositeSecretResolver")
             .field("schemes", &schemes)
             .finish_non_exhaustive()
@@ -205,8 +197,7 @@ impl SecretResolver for CompositeSecretResolver {
                 return resolver.resolve(reference).await;
             }
         }
-        let supported: Vec<&str> =
-            self.resolvers.iter().map(|(s, _)| s.as_str()).collect();
+        let supported: Vec<&str> = self.resolvers.iter().map(|(s, _)| s.as_str()).collect();
         Err(AppError::credential_resolve_failed(
             "unknown",
             "invalid_reference",
@@ -367,18 +358,19 @@ impl SecretResolver for FileSecretResolver {
         // Canonicalise once, read from the canonical path — closes the
         // TOCTOU window where a symlink could be swapped between the
         // sandbox check and the actual read.
-        let allowed_path =
-            self.canonicalise_within_roots(std::path::Path::new(path))?;
+        let allowed_path = self.canonicalise_within_roots(std::path::Path::new(path))?;
         // `tokio::fs::read_to_string` keeps the read off the tokio
         // reactor's main thread — important for the resolve-secret
         // path that runs on every adapter build.
-        let contents = tokio::fs::read_to_string(&allowed_path).await.map_err(|e| {
-            AppError::credential_resolve_failed(
-                "file",
-                "resolve_failed",
-                format!("file:{path} read error: {e}"),
-            )
-        })?;
+        let contents = tokio::fs::read_to_string(&allowed_path)
+            .await
+            .map_err(|e| {
+                AppError::credential_resolve_failed(
+                    "file",
+                    "resolve_failed",
+                    format!("file:{path} read error: {e}"),
+                )
+            })?;
         let trimmed = contents.trim_end_matches(['\n', '\r', ' ', '\t']);
         if trimmed.is_empty() {
             return Err(AppError::credential_resolve_failed(
@@ -514,8 +506,7 @@ mod tests {
 
     #[test]
     fn deserializer_rejects_missing_kind_discriminator() {
-        let err =
-            serde_json::from_value::<Credential>(json!({"value": "anything"})).unwrap_err();
+        let err = serde_json::from_value::<Credential>(json!({"value": "anything"})).unwrap_err();
         assert!(
             err.to_string().contains("kind"),
             "error should point at the missing tag: {err}"
@@ -524,10 +515,8 @@ mod tests {
 
     #[test]
     fn deserializer_rejects_unknown_kind_variant() {
-        let err = serde_json::from_value::<Credential>(
-            json!({"kind": "vault_ref", "value": "x"}),
-        )
-        .unwrap_err();
+        let err = serde_json::from_value::<Credential>(json!({"kind": "vault_ref", "value": "x"}))
+            .unwrap_err();
         assert!(
             err.to_string().contains("unknown variant"),
             "error should list accepted variants: {err}"
@@ -746,10 +735,7 @@ mod tests {
         std::fs::write(tmp.path(), "\n\n  \t\n").expect("write");
         let path = tmp.path().to_str().expect("utf-8 path");
         let resolver = FileSecretResolver::new();
-        let err = resolver
-            .resolve(&format!("file:{path}"))
-            .await
-            .unwrap_err();
+        let err = resolver.resolve(&format!("file:{path}")).await.unwrap_err();
         let msg = format!("{err:?}");
         assert!(msg.contains("empty"), "{msg}");
     }
@@ -759,8 +745,7 @@ mod tests {
         let tmp_dir = tempfile::tempdir().expect("tempdir");
         let nested = tmp_dir.path().join("secret.txt");
         std::fs::write(&nested, "in-root\n").expect("write");
-        let resolver =
-            FileSecretResolver::new().with_allowed_roots([tmp_dir.path().to_path_buf()]);
+        let resolver = FileSecretResolver::new().with_allowed_roots([tmp_dir.path().to_path_buf()]);
         let got = resolver
             .resolve(&format!("file:{}", nested.display()))
             .await
@@ -773,8 +758,7 @@ mod tests {
         let tmp_dir = tempfile::tempdir().expect("tempdir");
         let outside = tempfile::NamedTempFile::new().expect("outside temp");
         std::fs::write(outside.path(), "outside-value").expect("write");
-        let resolver =
-            FileSecretResolver::new().with_allowed_roots([tmp_dir.path().to_path_buf()]);
+        let resolver = FileSecretResolver::new().with_allowed_roots([tmp_dir.path().to_path_buf()]);
         let err = resolver
             .resolve(&format!("file:{}", outside.path().display()))
             .await
@@ -795,18 +779,19 @@ mod tests {
         let tmp_dir = tempfile::tempdir().expect("tempdir");
         let outside = tempfile::NamedTempFile::new().expect("outside");
         std::fs::write(outside.path(), "outside-value").expect("write");
-        let escape =
-            format!("{}/../{}", tmp_dir.path().display(), outside.path().display());
-        let resolver =
-            FileSecretResolver::new().with_allowed_roots([tmp_dir.path().to_path_buf()]);
+        let escape = format!(
+            "{}/../{}",
+            tmp_dir.path().display(),
+            outside.path().display()
+        );
+        let resolver = FileSecretResolver::new().with_allowed_roots([tmp_dir.path().to_path_buf()]);
         let err = resolver
             .resolve(&format!("file:{escape}"))
             .await
             .unwrap_err();
         let msg = format!("{err:?}");
         assert!(
-            msg.contains("not under any allowed")
-                || msg.contains("not_found"),
+            msg.contains("not under any allowed") || msg.contains("not_found"),
             "dot-dot escape must reject at the sandbox layer: {msg}"
         );
     }
@@ -833,8 +818,7 @@ mod tests {
         // file" error instead of a clear "not under allowed root"
         // signal — the new behaviour is strictly more auditable.
         let tmp_dir = tempfile::tempdir().expect("tempdir");
-        let resolver =
-            FileSecretResolver::new().with_allowed_roots([tmp_dir.path().to_path_buf()]);
+        let resolver = FileSecretResolver::new().with_allowed_roots([tmp_dir.path().to_path_buf()]);
         let err = resolver
             .resolve("file:/definitely/does/not/exist/secret")
             .await
@@ -865,10 +849,8 @@ mod tests {
         let real_path = tmp_dir.path().join("real-secret");
         std::fs::write(&real_path, "real-value\n").expect("write real");
         let symlink_path = tmp_dir.path().join("alias");
-        std::os::unix::fs::symlink(&real_path, &symlink_path)
-            .expect("create symlink");
-        let resolver =
-            FileSecretResolver::new().with_allowed_roots([tmp_dir.path().to_path_buf()]);
+        std::os::unix::fs::symlink(&real_path, &symlink_path).expect("create symlink");
+        let resolver = FileSecretResolver::new().with_allowed_roots([tmp_dir.path().to_path_buf()]);
         let got = resolver
             .resolve(&format!("file:{}", symlink_path.display()))
             .await

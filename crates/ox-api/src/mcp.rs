@@ -8,9 +8,9 @@ use tracing::{info, warn};
 use ox_brain::Brain;
 use ox_compiler::GraphCompiler;
 use ox_core::LocalizedText;
-use ox_ontology::ir::OntologyIR;
 use ox_core::types::PropertyValue;
 use ox_graph_runtime::GraphRuntime;
+use ox_ontology::ir::OntologyIR;
 use ox_store::Store;
 
 use rmcp::{
@@ -311,9 +311,7 @@ async fn load_ontology(store: &dyn Store) -> Result<OntologyIR, McpError> {
         .get_workspace_ontology()
         .await
         .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?
-        .ok_or_else(|| {
-            McpError::invalid_params("Workspace has no canonical ontology yet", None)
-        })?;
+        .ok_or_else(|| McpError::invalid_params("Workspace has no canonical ontology yet", None))?;
     let version = store
         .find_current_version(identity.id)
         .await
@@ -330,7 +328,10 @@ async fn load_ontology(store: &dyn Store) -> Result<OntologyIR, McpError> {
         .map_err(|e| McpError::internal_error(format!("Hydrate error: {e}"), None))?
         .ok_or_else(|| {
             McpError::invalid_params(
-                format!("Ontology '{}' snapshot is no longer available", identity.name),
+                format!(
+                    "Ontology '{}' snapshot is no longer available",
+                    identity.name
+                ),
                 None,
             )
         })
@@ -528,23 +529,29 @@ impl OntosyxMcpServer {
         // Load ontology
         let ontology = load_ontology(self.store.as_ref()).await?;
 
-        // Translate NL -> QueryIR. Standalone MCP server doesn't
-        // walk the OntologyNavigationStore (no DomainContext); the
-        // schema RAG path on the Brain side carries the prompt.
-        // The CallProvenance handle is dropped — MCP doesn't
-        // persist execution rows.
-        let (query_ir, _provenance) = self
-            .brain
-            .translate_query(
-                &params.question,
-                &ontology,
-                None,
-                &branchforge::ExecutionContext::empty(),
-            )
-            .await
-            .map_err(|e| {
-                McpError::internal_error(format!("Query translation failed: {e}"), None)
-            })?;
+        // Translate NL -> QueryIR inside an `InferenceSession`
+        // scope. Φ9 PipelineStage state machine attributes the
+        // attempt chain to the session; `run_in_inference_session`
+        // opens / scopes / finalises the session around the call.
+        let (query_ir, _provenance) = ox_store::run_in_inference_session(
+            self.store.as_ref(),
+            &params.question,
+            ox_ontology::AgentRef::Service {
+                service_id: "mcp_server".into(),
+            },
+            || async {
+                self.brain
+                    .translate_query(
+                        &params.question,
+                        &ontology,
+                        None,
+                        &branchforge::ExecutionContext::empty(),
+                    )
+                    .await
+            },
+        )
+        .await
+        .map_err(|e| McpError::internal_error(format!("Query translation failed: {e}"), None))?;
 
         // Pre-execute cost gating: reject High-risk shapes before they hit
         // the driver. Mirrors the check in `QueryGraphTool` so the MCP

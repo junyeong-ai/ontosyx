@@ -151,6 +151,9 @@ mod tests {
         );
         assert_eq!(extract_resource_type("/api/quality/rules"), "quality.rule");
         assert_eq!(extract_resource_type("/api/acl/policies"), "acl.policy");
-        assert_eq!(extract_resource_type("/api/ontology-drafts"), "ontology_draft");
+        assert_eq!(
+            extract_resource_type("/api/ontology-drafts"),
+            "ontology_draft"
+        );
     }
 }

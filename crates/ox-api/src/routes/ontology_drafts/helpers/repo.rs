@@ -1,12 +1,12 @@
 use tracing::{info, warn};
 
-use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
+use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_ontology::mapping::refs::SourceId;
+use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
 use ox_ontology::repo_insights::{RepoSource, ValidatedRepoSource};
 use ox_ontology::source_analysis::{
     RepoAnalysisStatus, RepoAnalysisSummary, RepoFailureKind, SourceAnalysisReport,
 };
-use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_source::analyzer::{build_analysis_report, enrich_with_repo};
 use ox_source::repo::{RepoIntrospector, clone_repo, repo_insights_to_schema};
 
@@ -35,9 +35,8 @@ pub(crate) async fn run_repo_enrichment(
             Ok(i) => (i, None, None),
             Err(e) => {
                 warn!(path, error = %e, "Cannot open repo — skipping enrichment");
-                report.repo_summary = Some(skipped_repo_summary(
-                    RepoFailureKind::LocalRepoUnreadable,
-                ));
+                report.repo_summary =
+                    Some(skipped_repo_summary(RepoFailureKind::LocalRepoUnreadable));
                 return;
             }
         },
@@ -50,9 +49,8 @@ pub(crate) async fn run_repo_enrichment(
                 }
                 Err(e) => {
                     warn!(url, error = %e, "Git clone failed — skipping enrichment");
-                    report.repo_summary = Some(skipped_repo_summary(
-                        RepoFailureKind::GitCloneFailed,
-                    ));
+                    report.repo_summary =
+                        Some(skipped_repo_summary(RepoFailureKind::GitCloneFailed));
                     return;
                 }
             }

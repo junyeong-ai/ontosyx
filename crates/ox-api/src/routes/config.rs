@@ -25,14 +25,14 @@ pub struct ConfigEntry {
     get,
     path = "/api/config",
     responses(
-        (status = 200, description = "Configuration grouped by category", body = Object),
+        (status = 200, description = "Configuration grouped by category", body = ConfigResponse),
     ),
     security(("api_key" = [])),
     tag = "Config",
 )]
 pub(crate) async fn get_config(
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<BTreeMap<String, Vec<ConfigEntry>>>>, AppError> {
+) -> Result<Json<ApiResponse<ConfigResponse>>, AppError> {
     let rows = state.store.list_config().await.map_err(AppError::from)?;
 
     let mut grouped: BTreeMap<String, Vec<ConfigEntry>> = BTreeMap::new();
@@ -45,7 +45,14 @@ pub(crate) async fn get_config(
         });
     }
 
-    Ok(ApiResponse::of(grouped))
+    Ok(ApiResponse::of(ConfigResponse {
+        categories: grouped,
+    }))
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct ConfigResponse {
+    pub categories: BTreeMap<String, Vec<ConfigEntry>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -98,12 +105,17 @@ pub struct UpdateConfigRequest {
     pub updates: Vec<ConfigUpdate>,
 }
 
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct ConfigUpdateResponse {
+    pub updated: usize,
+}
+
 #[utoipa::path(
     patch,
     path = "/api/config",
     request_body = UpdateConfigRequest,
     responses(
-        (status = 200, description = "Config updated", body = Object),
+        (status = 200, description = "Config updated", body = ConfigUpdateResponse),
         (status = 400, description = "No updates provided", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
@@ -113,7 +125,7 @@ pub(crate) async fn update_config(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<UpdateConfigRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<ConfigUpdateResponse>>, AppError> {
     principal.require_admin()?;
     if req.updates.is_empty() {
         return Err(AppError::required_field_empty("updates"));
@@ -134,7 +146,7 @@ pub(crate) async fn update_config(
     let new_config = crate::system_config::load_system_config(state.store.as_ref()).await;
     *state.system_config.write().await = new_config;
 
-    Ok(ApiResponse::of(
-        serde_json::json!({ "updated": req.updates.len() }),
-    ))
+    Ok(ApiResponse::of(ConfigUpdateResponse {
+        updated: req.updates.len(),
+    }))
 }

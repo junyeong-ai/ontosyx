@@ -7,10 +7,10 @@ use serde::Deserialize;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use ox_query_ir::query::QueryResult;
 use ox_core::types::PropertyValue;
-use ox_store::SavedReport;
+use ox_query_ir::query::QueryResult;
 use ox_store::store::CursorParams;
+use ox_store::{SavedReport, SavedReportParameter};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -21,14 +21,6 @@ use crate::state::AppState;
 // POST /api/reports — create a new saved report
 // ---------------------------------------------------------------------------
 
-#[derive(serde::Serialize, Deserialize, utoipa::ToSchema)]
-pub struct ReportParameter {
-    pub name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = Option<Object>)]
-    pub default: Option<serde_json::Value>,
-}
-
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateReportRequest {
     pub ontology_lineage_id: String,
@@ -36,7 +28,7 @@ pub struct CreateReportRequest {
     pub description: Option<String>,
     pub query_template: String,
     #[serde(default)]
-    pub parameters: Vec<ReportParameter>,
+    pub parameters: Vec<SavedReportParameter>,
     pub widget_type: Option<String>,
     #[serde(default)]
     pub is_public: bool,
@@ -65,7 +57,7 @@ async fn resolve_lineage_current_ir(
     path = "/api/reports",
     request_body = CreateReportRequest,
     responses(
-        (status = 200, description = "Report created", body = Object),
+        (status = 200, description = "Report created", body = SavedReport),
         (status = 400, description = "Validation failure"),
     ),
     security(("api_key" = [])),
@@ -124,7 +116,7 @@ pub struct ReportListParams {
     get,
     path = "/api/reports",
     params(ReportListParams),
-    responses((status = 200, description = "Reports for the lineage", body = Vec<Object>)),
+    responses((status = 200, description = "Reports for the lineage", body = crate::openapi::SavedReportPage)),
     security(("api_key" = [])),
     tag = "Reports",
 )]
@@ -154,7 +146,7 @@ pub(crate) async fn list_reports(
     path = "/api/reports/{id}",
     params(("id" = Uuid, Path, description = "Report ID")),
     responses(
-        (status = 200, description = "Report", body = Object),
+        (status = 200, description = "Report", body = SavedReport),
         (status = 404, description = "Report not found"),
     ),
     security(("api_key" = [])),
@@ -183,7 +175,7 @@ pub struct UpdateReportRequest {
     pub title: Option<String>,
     pub description: Option<String>,
     pub query_template: Option<String>,
-    pub parameters: Option<Vec<ReportParameter>>,
+    pub parameters: Option<Vec<SavedReportParameter>>,
     pub widget_type: Option<String>,
     pub is_public: Option<bool>,
 }
@@ -194,7 +186,7 @@ pub struct UpdateReportRequest {
     params(("id" = Uuid, Path, description = "Report ID")),
     request_body = UpdateReportRequest,
     responses(
-        (status = 200, description = "Updated report", body = Object),
+        (status = 200, description = "Updated report", body = SavedReport),
         (status = 403, description = "Caller does not own the report"),
         (status = 404, description = "Report not found"),
     ),
@@ -224,9 +216,10 @@ pub(crate) async fn update_report(
         .query_template
         .as_deref()
         .unwrap_or(&existing.query_template);
-    let req_parameters = req.parameters.as_ref().map(|p| {
-        serde_json::to_value(p).unwrap_or_else(|_| serde_json::Value::Array(Vec::new()))
-    });
+    let req_parameters = req
+        .parameters
+        .as_ref()
+        .map(|p| serde_json::to_value(p).unwrap_or_else(|_| serde_json::Value::Array(Vec::new())));
     let parameters = req_parameters.as_ref().unwrap_or(&existing.parameters);
     let widget_type = match &req.widget_type {
         Some(wt) => Some(wt.as_str()),
@@ -309,9 +302,9 @@ pub(crate) async fn delete_report(
     post,
     path = "/api/reports/{id}/execute",
     params(("id" = Uuid, Path, description = "Report ID")),
-    request_body = Object,
+    request_body = ExecuteReportRequest,
     responses(
-        (status = 200, description = "Query result", body = Object),
+        (status = 200, description = "Query result", body = QueryResult),
         (status = 404, description = "Report not found"),
         (status = 504, description = "Execution timeout"),
     ),
@@ -322,7 +315,7 @@ pub(crate) async fn execute_report(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(params): Json<HashMap<String, serde_json::Value>>,
+    Json(params): Json<ExecuteReportRequest>,
 ) -> Result<Json<ApiResponse<QueryResult>>, AppError> {
     let report = state
         .store
@@ -333,7 +326,7 @@ pub(crate) async fn execute_report(
 
     // Render template: replace {{param}} with values
     let mut query = report.query_template.clone();
-    for (key, value) in &params {
+    for (key, value) in &params.parameters {
         let placeholder = format!("{{{{{}}}}}", key);
         let val_str = match value {
             serde_json::Value::String(s) => s.clone(),
@@ -379,4 +372,10 @@ pub(crate) async fn execute_report(
         })?;
 
     Ok(ApiResponse::of(result))
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ExecuteReportRequest {
+    #[schema(value_type = HashMap<String, Object>, additional_properties)]
+    pub parameters: HashMap<String, serde_json::Value>,
 }

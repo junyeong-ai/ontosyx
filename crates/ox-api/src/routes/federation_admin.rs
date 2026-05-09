@@ -14,8 +14,7 @@
 //!   live resolver from the persistent store (for out-of-band edits).
 //! - `GET  /api/admin/federation/health` — drift snapshot.
 //!
-//! Registrations are persisted in `data_sources` (see
-//! `0011_data_sources.sql`). A restart does not lose them — the first
+//! Registrations are persisted in `data_sources`. A restart does not lose them — the first
 //! federation query per workspace lazily rehydrates that workspace's
 //! resolver from the store via
 //! [`crate::federation_resolver::ensure_workspace_resolver`].
@@ -45,16 +44,26 @@ use crate::response::ApiResponse;
 use crate::state::FederationState;
 use crate::workspace::WorkspaceContext;
 
+use ox_source::AnalyzeSelection;
 use ox_source::DataSourceAdapter;
+#[cfg(feature = "source-bigquery")]
 use ox_source::bigquery::BigQueryAdapter;
 use ox_source::mysql::MysqlAdapter;
 use ox_source::postgres::PostgresAdapter;
 use ox_source::sample::{CsvAdapter, JsonAdapter};
-use ox_source::AnalyzeSelection;
 
 // ---------------------------------------------------------------------------
 // Wire / stored types
 // ---------------------------------------------------------------------------
+
+const REGISTER_ADAPTER_KIND_TAGS: &[&str] = &[
+    "csv",
+    "json",
+    "postgres",
+    "mysql",
+    #[cfg(feature = "source-bigquery")]
+    "bigquery",
+];
 
 /// Request body for `POST /api/admin/federation/adapters`.
 ///
@@ -116,6 +125,7 @@ pub enum RegisterAdapterKind {
     /// Register a BigQuery adapter. The connection string's own
     /// `?credentials_path=...` carries BigQuery's auth path; no
     /// `schema_name` because the dataset is already in the URI.
+    #[cfg(feature = "source-bigquery")]
     Bigquery { credential: Credential },
 }
 
@@ -166,6 +176,7 @@ impl RegisterAdapterKind {
             Self::Json { .. } => "json",
             Self::Postgres { .. } => "postgres",
             Self::Mysql { .. } => "mysql",
+            #[cfg(feature = "source-bigquery")]
             Self::Bigquery { .. } => "bigquery",
         }
     }
@@ -188,11 +199,11 @@ impl RegisterAdapterKind {
     /// field vs explicit `null`).
     pub fn to_stored_config(&self) -> serde_json::Value {
         match self {
-            Self::Csv { credential }
-            | Self::Json { credential }
-            | Self::Bigquery { credential } => {
+            Self::Csv { credential } | Self::Json { credential } => {
                 serde_json::json!({ "credential": credential })
             }
+            #[cfg(feature = "source-bigquery")]
+            Self::Bigquery { credential } => serde_json::json!({ "credential": credential }),
             Self::Postgres {
                 credential,
                 schema_name: Some(schema_name),
@@ -273,6 +284,7 @@ impl RegisterAdapterKind {
                     schema_name,
                 })
             }
+            #[cfg(feature = "source-bigquery")]
             "bigquery" => {
                 let StoredCredOnlyBody { credential } = decode("bigquery", config)?;
                 Ok(Self::Bigquery { credential })
@@ -280,7 +292,7 @@ impl RegisterAdapterKind {
             other => Err(AppError::invalid_enum_value(
                 "kind",
                 other.to_string(),
-                &["csv", "json", "postgres", "mysql", "bigquery"],
+                REGISTER_ADAPTER_KIND_TAGS,
             )),
         }
     }
@@ -334,6 +346,7 @@ impl RegisterAdapterKind {
                     .map_err(AppError::from)?;
                 Ok(Arc::new(adapter))
             }
+            #[cfg(feature = "source-bigquery")]
             Self::Bigquery { credential } => {
                 let connection_string = credential.resolve(resolver).await?;
                 let adapter = BigQueryAdapter::connect(&connection_string)
@@ -408,7 +421,10 @@ pub(crate) async fn register_adapter(
     // limit deep in a planner failure at query time. The probe runs
     // a single connect-and-`supports_scan()` call; the connection
     // is dropped immediately afterwards.
-    let probe_adapter = req.kind.build_adapter(state.secret_resolver.as_ref()).await?;
+    let probe_adapter = req
+        .kind
+        .build_adapter(state.secret_resolver.as_ref())
+        .await?;
     let supports_scan = probe_adapter.supports_scan();
     drop(probe_adapter);
 
@@ -484,15 +500,15 @@ pub(crate) async fn preview_adapter(
     principal.require_admin()?;
 
     let source_type = req.kind.kind_tag().to_string();
-    let adapter = req.kind.build_adapter(state.secret_resolver.as_ref()).await?;
+    let adapter = req
+        .kind
+        .build_adapter(state.secret_resolver.as_ref())
+        .await?;
 
     let table_names = adapter.list_tables().await.map_err(AppError::from)?;
     let mut tables = Vec::with_capacity(table_names.len());
     for name in &table_names {
-        let def = adapter
-            .describe_table(name)
-            .await
-            .map_err(AppError::from)?;
+        let def = adapter.describe_table(name).await.map_err(AppError::from)?;
         tables.push(PreviewTable {
             name: def.name,
             columns: def
@@ -536,7 +552,11 @@ pub(crate) async fn list_adapters(
     _ws: WorkspaceContext,
 ) -> Result<Json<ApiResponse<Vec<AdapterSummary>>>, AppError> {
     principal.require_admin()?;
-    let rows = state.store.list_data_sources().await.map_err(AppError::from)?;
+    let rows = state
+        .store
+        .list_data_sources()
+        .await
+        .map_err(AppError::from)?;
     let summaries = rows
         .into_iter()
         .map(|row| AdapterSummary {
@@ -562,7 +582,15 @@ pub(crate) async fn list_adapters(
 /// `register_adapter_reports_supports_scan_consistently_across_backends`
 /// (federation_admin tests) cross-checks every registered kind.
 fn source_type_supports_scan(kind: &str) -> bool {
-    matches!(kind, "postgresql" | "mysql" | "bigquery" | "csv" | "json")
+    const SCAN_SOURCE_TYPES: &[&str] = &[
+        "postgresql",
+        "mysql",
+        "csv",
+        "json",
+        #[cfg(feature = "source-bigquery")]
+        "bigquery",
+    ];
+    SCAN_SOURCE_TYPES.contains(&kind)
 }
 
 // ---------------------------------------------------------------------------
@@ -589,12 +617,13 @@ pub struct AdapterDetail {
 /// Per-kind detail body. Mirrors [`RegisterAdapterKind`] with
 /// [`CredentialSource`] in place of [`Credential`].
 ///
-/// `schema_name` appears on the variants that actually use it —
+/// `schema_name` appears on the variants that actually use it:
 /// `Option<String>` on `Postgres` (defaults to `"public"` at build
-/// time), required `String` on `Mysql`, absent on the other three.
+/// time), required `String` on `Mysql`, absent on file-backed
+/// adapters and feature-gated adapters that do not expose schemas.
 /// The old flat `Option<String>` field on `AdapterDetail` is gone;
-/// csv / json / bigquery detail responses no longer carry a
-/// nullable `schema_name: null` that meant nothing.
+/// schema-less detail responses no longer carry a nullable
+/// `schema_name: null` that meant nothing.
 ///
 /// Adding a new adapter kind updates both this enum and
 /// `RegisterAdapterKind`. The `From<&RegisterAdapterKind>`
@@ -604,8 +633,12 @@ pub struct AdapterDetail {
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AdapterDetailKind {
-    Csv { credential: CredentialSource },
-    Json { credential: CredentialSource },
+    Csv {
+        credential: CredentialSource,
+    },
+    Json {
+        credential: CredentialSource,
+    },
     Postgres {
         credential: CredentialSource,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -615,7 +648,10 @@ pub enum AdapterDetailKind {
         credential: CredentialSource,
         schema_name: String,
     },
-    Bigquery { credential: CredentialSource },
+    #[cfg(feature = "source-bigquery")]
+    Bigquery {
+        credential: CredentialSource,
+    },
 }
 
 impl From<&RegisterAdapterKind> for AdapterDetailKind {
@@ -641,6 +677,7 @@ impl From<&RegisterAdapterKind> for AdapterDetailKind {
                 credential: credential.into(),
                 schema_name: schema_name.clone(),
             },
+            #[cfg(feature = "source-bigquery")]
             RegisterAdapterKind::Bigquery { credential } => Self::Bigquery {
                 credential: credential.into(),
             },
@@ -713,9 +750,7 @@ pub(crate) async fn get_adapter(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {
-            AppError::not_found(&format!(
-                "federation adapter for source_id '{source_id}'"
-            ))
+            AppError::not_found(&format!("federation adapter for source_id '{source_id}'"))
         })?;
 
     // Round-trip the stored config through `RegisterAdapterKind`
@@ -968,9 +1003,7 @@ pub(crate) async fn list_adapter_tables(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {
-            AppError::not_found(&format!(
-                "federation adapter for source_id '{source_id}'"
-            ))
+            AppError::not_found(&format!("federation adapter for source_id '{source_id}'"))
         })?;
 
     let kind = RegisterAdapterKind::from_stored(&row.kind, &row.config).map_err(|e| {
@@ -1054,9 +1087,7 @@ pub(crate) async fn analyze_adapter(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {
-            AppError::not_found(&format!(
-                "federation adapter for source_id '{source_id}'"
-            ))
+            AppError::not_found(&format!("federation adapter for source_id '{source_id}'"))
         })?;
 
     let kind = RegisterAdapterKind::from_stored(&row.kind, &row.config).map_err(|e| {
@@ -1080,12 +1111,11 @@ pub(crate) async fn analyze_adapter(
             .last_analysis_snapshot
             .clone()
             .ok_or_else(AppError::analysis_baseline_required)?;
-        let parsed: ox_source::AnalysisResult =
-            serde_json::from_value(snapshot).map_err(|e| {
-                AppError::internal(format!(
-                    "stored analysis snapshot is not a valid RecipeExecutionResult: {e}"
-                ))
-            })?;
+        let parsed: ox_source::AnalysisResult = serde_json::from_value(snapshot).map_err(|e| {
+            AppError::internal(format!(
+                "stored analysis snapshot is not a valid RecipeExecutionResult: {e}"
+            ))
+        })?;
         Some(parsed)
     } else {
         None
@@ -1106,30 +1136,19 @@ pub(crate) async fn analyze_adapter(
     // row. Fingerprints compute via the kernel's default impl —
     // adapters that override it with a backend-native fingerprint
     // serve here transparently.
-    let mut fingerprints = serde_json::Map::new();
+    let mut fingerprints = std::collections::BTreeMap::new();
     for table in &analysis.schema.tables {
         let fp = adapter
             .schema_fingerprint(&table.name)
             .await
             .map_err(AppError::from)?;
-        fingerprints.insert(
-            table.name.clone(),
-            serde_json::to_value(&fp).map_err(|e| AppError::internal(format!(
-                "fingerprint for table '{}' failed to serialise: {e}",
-                table.name
-            )))?,
-        );
+        fingerprints.insert(table.name.clone(), fp);
     }
-    let snapshot_value = serde_json::to_value(analysis.as_ref()).map_err(|e| {
-        AppError::internal(format!("analysis result failed to serialise: {e}"))
-    })?;
+    let snapshot_value = serde_json::to_value(analysis.as_ref())
+        .map_err(|e| AppError::internal(format!("analysis result failed to serialise: {e}")))?;
     let updated = state
         .store
-        .update_data_source_analysis(
-            &source_id,
-            &snapshot_value,
-            &serde_json::Value::Object(fingerprints),
-        )
+        .update_data_source_analysis(&source_id, &snapshot_value, &fingerprints)
         .await
         .map_err(AppError::from)?;
 
@@ -1158,6 +1177,7 @@ pub struct AdapterAnalysisResponse {
     pub last_analyzed_at: Option<chrono::DateTime<chrono::Utc>>,
     /// Cached `ox_source::AnalysisResult` shape verbatim — the UI can
     /// render schema + profile + warnings without a second round-trip.
+    #[schema(value_type = Option<ox_source::AnalysisResult>)]
     pub snapshot: Option<serde_json::Value>,
     /// Per-table drift between the stored fingerprint map and the
     /// adapter's live fingerprint. Empty when there is nothing to
@@ -1195,13 +1215,8 @@ pub(crate) async fn get_adapter_analysis(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {
-            AppError::not_found(&format!(
-                "federation adapter for source_id '{source_id}'"
-            ))
+            AppError::not_found(&format!("federation adapter for source_id '{source_id}'"))
         })?;
-
-    let stored_fingerprints: std::collections::BTreeMap<String, serde_json::Value> =
-        serde_json::from_value(row.schema_fingerprints.clone()).unwrap_or_default();
 
     // Compute live drift only when we have a cached snapshot to
     // compare against. A source that has never been analysed
@@ -1221,16 +1236,12 @@ pub(crate) async fn get_adapter_analysis(
                 .schema_fingerprint(&table)
                 .await
                 .map_err(AppError::from)?;
-            match stored_fingerprints.get(&table) {
+            match row.schema_fingerprints.get(&table) {
                 Some(stored) => {
-                    let stored_hash = stored
-                        .get("hash")
-                        .and_then(|v| v.as_str())
-                        .map(str::to_string);
-                    if stored_hash.as_deref() != Some(live.hash.as_str()) {
+                    if stored.hash != live.hash {
                         drift.push(AdapterAnalysisDriftEntry {
                             table,
-                            stored_hash,
+                            stored_hash: Some(stored.hash.clone()),
                             live_hash: live.hash,
                             kind: "changed",
                         });
@@ -1254,13 +1265,12 @@ pub(crate) async fn get_adapter_analysis(
             .map_err(AppError::from)?
             .into_iter()
             .collect();
-        for stored_name in stored_fingerprints.keys() {
+        for stored_name in row.schema_fingerprints.keys() {
             if !live_names.contains(stored_name) {
-                let stored_hash = stored_fingerprints
+                let stored_hash = row
+                    .schema_fingerprints
                     .get(stored_name)
-                    .and_then(|v| v.get("hash"))
-                    .and_then(|v| v.as_str())
-                    .map(str::to_string);
+                    .map(|fingerprint| fingerprint.hash.clone());
                 drift.push(AdapterAnalysisDriftEntry {
                     table: stored_name.clone(),
                     stored_hash,
@@ -1426,13 +1436,19 @@ mod tests {
 
     #[test]
     fn from_stored_rejects_unknown_kind() {
-        let err = RegisterAdapterKind::from_stored("duckdb", &json!({"credential": {"kind": "inline", "value": "x"}}))
-            .unwrap_err();
+        let err = RegisterAdapterKind::from_stored(
+            "duckdb",
+            &json!({"credential": {"kind": "inline", "value": "x"}}),
+        )
+        .unwrap_err();
         let msg = format!("{err:?}");
         // Typed wire: ApiErrorCode::InvalidEnumValue with params
         // {field: "kind", value: "duckdb", allowed: "csv, json, ..."}.
         // The Debug impl prints the params map verbatim.
-        assert!(msg.contains("InvalidEnumValue") && msg.contains("duckdb"), "{msg}");
+        assert!(
+            msg.contains("InvalidEnumValue") && msg.contains("duckdb"),
+            "{msg}"
+        );
     }
 
     #[test]
@@ -1582,24 +1598,26 @@ mod tests {
             })
         );
 
-        // Bigquery — no schema_name field at all.
-        let bq = RegisterAdapterKind::Bigquery {
-            credential: Credential::Inline {
-                value: "bigquery://proj/ds".into(),
-            },
-        };
-        let detail = AdapterDetail {
-            source_id: "bq-main".into(),
-            kind: (&bq).into(),
-        };
-        let wire = serde_json::to_value(&detail).unwrap();
-        assert_eq!(
-            wire,
-            json!({
-                "source_id": "bq-main",
-                "kind": "bigquery",
-                "credential": {"kind": "inline"},
-            })
-        );
+        #[cfg(feature = "source-bigquery")]
+        {
+            let bq = RegisterAdapterKind::Bigquery {
+                credential: Credential::Inline {
+                    value: "bigquery://proj/ds".into(),
+                },
+            };
+            let detail = AdapterDetail {
+                source_id: "bq-main".into(),
+                kind: (&bq).into(),
+            };
+            let wire = serde_json::to_value(&detail).unwrap();
+            assert_eq!(
+                wire,
+                json!({
+                    "source_id": "bq-main",
+                    "kind": "bigquery",
+                    "credential": {"kind": "inline"},
+                })
+            );
+        }
     }
 }

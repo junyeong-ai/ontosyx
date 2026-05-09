@@ -22,7 +22,7 @@ use super::types::{OntologyDraftView, UpdateOntologyDraftDecisionsRequest};
     params(("id" = Uuid, Path, description = "Ontology draft ID")),
     request_body = UpdateOntologyDraftDecisionsRequest,
     responses(
-        (status = 200, description = "Decisions updated", body = Object),
+        (status = 200, description = "Decisions updated", body = OntologyDraftView),
         (status = 404, description = "Ontology draft not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 409, description = "Revision conflict", body = inline(crate::openapi::ErrorResponse)),
     ),
@@ -66,5 +66,7 @@ pub(crate) async fn update_decisions(
         .map_err(AppError::from)?
         .ok_or_else(AppError::ontology_draft_not_found)?;
 
-    Ok(ApiResponse::of(OntologyDraftView::from_ontology_draft(project)))
+    Ok(ApiResponse::of(OntologyDraftView::from_ontology_draft(
+        project,
+    )))
 }

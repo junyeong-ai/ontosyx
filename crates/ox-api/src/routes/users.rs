@@ -24,7 +24,7 @@ use super::auth::UserInfo;
         ("cursor" = Option<String>, Query, description = "Pagination cursor"),
     ),
     responses(
-        (status = 200, description = "User list", body = Vec<UserInfo>),
+        (status = 200, description = "User list", body = crate::openapi::UserInfoPage),
         (status = 401, description = "Not authenticated"),
     ),
     security(("api_key" = [])),

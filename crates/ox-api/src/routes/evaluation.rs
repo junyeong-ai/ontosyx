@@ -22,12 +22,15 @@ use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use ox_ontology::EvaluationFingerprintInput;
+use ox_store::CursorParams;
 use ox_store::evaluation::{
-    scope_evaluation_context, EvaluationCase, EvaluationContext, EvaluationDataset,
-    EvaluationDatasetItem, EvaluationDatasetSummary, EvaluationMetric, EvaluationRun,
-    EvaluationRunStatus, RunComparisonReport, RunSummary,
+    EvaluationActual, EvaluationCase, EvaluationCaseInput, EvaluationCaseMetadata,
+    EvaluationContext, EvaluationDataset, EvaluationDatasetItem, EvaluationDatasetSummary,
+    EvaluationExpected, EvaluationMetric, EvaluationMetricMetadata, EvaluationRetrievedAnchor,
+    EvaluationRun, EvaluationRunStatus, RunComparisonReport, RunSummary,
+    scope_evaluation_context,
 };
-use ox_store::{CursorPage, CursorParams};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -44,14 +47,16 @@ pub struct CreateEvaluationRunRequest {
     pub name: String,
     #[serde(default)]
     pub description: String,
-    /// Optional pin to a committed ontology version. Absent for
-    /// pre-canonical / draft-stage evaluations.
+    /// Reproducibility pins for the run — committed ontology
+    /// version, dataset, model, prompt template, decoding config.
+    /// Required: a run that cannot answer "which configuration
+    /// produced these scores?" is uninterpretable, and the
+    /// platform refuses to author one.
+    pub fingerprint: EvaluationFingerprintInput,
+    /// Free-form audit envelope (operator notes, run labels).
+    /// Reproducibility components live on `fingerprint`.
     #[serde(default)]
-    pub ontology_version_id: Option<Uuid>,
-    /// Run-level configuration envelope. See
-    /// `ox_store::evaluation::EvaluationRun.metadata`.
-    #[serde(default)]
-    #[schema(value_type = Object)]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub metadata: serde_json::Value,
 }
 
@@ -69,14 +74,11 @@ pub struct UpsertEvaluationCaseRequest {
     /// Stable per-run identifier. Required so the natural-key
     /// UPSERT replaces the same case on re-runs.
     pub case_key: String,
-    #[schema(value_type = Object)]
-    pub input: serde_json::Value,
+    pub input: EvaluationCaseInput,
     #[serde(default)]
-    #[schema(value_type = Option<Object>)]
-    pub expected: Option<serde_json::Value>,
+    pub expected: Option<EvaluationExpected>,
     #[serde(default)]
-    #[schema(value_type = Option<Object>)]
-    pub actual: Option<serde_json::Value>,
+    pub actual: Option<EvaluationActual>,
     #[serde(default)]
     pub error: Option<String>,
     #[serde(default)]
@@ -97,25 +99,21 @@ pub struct RecordEvaluationMetricRequest {
     #[serde(default)]
     pub reasoning: Option<String>,
     #[serde(default)]
-    #[schema(value_type = Object)]
-    pub metadata: serde_json::Value,
+    pub metadata: EvaluationMetricMetadata,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct EvaluationRunResponse {
-    #[schema(value_type = Object)]
     pub run: EvaluationRun,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct EvaluationCaseResponse {
-    #[schema(value_type = Object)]
     pub case: EvaluationCase,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct EvaluationMetricResponse {
-    #[schema(value_type = Object)]
     pub metric: EvaluationMetric,
 }
 
@@ -149,15 +147,15 @@ pub(crate) async fn create_evaluation_run(
     Json(req): Json<CreateEvaluationRunRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<EvaluationRunResponse>>), AppError> {
     principal.require_admin()?;
+    let fingerprint = req.fingerprint.into_fingerprint();
+    let fingerprint_digest = fingerprint
+        .digest()
+        .map_err(AppError::from)?;
     let run = EvaluationRun {
         id: Uuid::now_v7(),
         workspace_id: ws.workspace_id,
-        ontology_version_id: req.ontology_version_id,
-        // Ad-hoc runs created via this admin endpoint have no
-        // dataset lineage. Operators that want diff / regression
-        // hit the `POST /api/evaluation/runs/from-dataset` path
-        // instead.
-        dataset_id: None,
+        fingerprint,
+        fingerprint_digest,
         name: req.name,
         description: req.description,
         status: EvaluationRunStatus::Running,
@@ -209,7 +207,7 @@ pub(crate) async fn get_evaluation_run(
     path = "/api/evaluation/runs",
     params(ListEvaluationRunsQuery),
     responses(
-        (status = 200, description = "Paginated run list", body = Object),
+        (status = 200, description = "Paginated run list", body = crate::openapi::EvaluationRunPage),
     ),
     security(("api_key" = [])),
     tag = "Evaluation",
@@ -220,7 +218,7 @@ pub(crate) async fn list_evaluation_runs(
     _principal: Principal,
     _ws: WorkspaceContext,
     Query(params): Query<ListEvaluationRunsQuery>,
-) -> Result<Json<ApiResponse<CursorPage<EvaluationRun>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<EvaluationRun>>>, AppError> {
     let cursor = CursorParams {
         cursor: params.cursor,
         limit: params.limit.unwrap_or(50),
@@ -230,7 +228,7 @@ pub(crate) async fn list_evaluation_runs(
         .list_evaluation_runs(&cursor)
         .await
         .map_err(AppError::from)?;
-    Ok(ApiResponse::of(page))
+    Ok(ApiResponse::page(page))
 }
 
 #[utoipa::path(
@@ -342,7 +340,7 @@ pub(crate) async fn upsert_evaluation_case(
         actual: req.actual,
         error: req.error,
         latency_ms: req.latency_ms,
-        metadata: serde_json::Value::Object(Default::default()),
+        metadata: EvaluationCaseMetadata::default(),
         created_at: chrono::Utc::now(),
     };
     let saved = state
@@ -358,7 +356,7 @@ pub(crate) async fn upsert_evaluation_case(
     path = "/api/evaluation/runs/{run_id}/cases",
     params(("run_id" = Uuid, Path, description = "Run id")),
     responses(
-        (status = 200, description = "Cases for the run", body = Object),
+        (status = 200, description = "Cases for the run", body = Vec<EvaluationCase>),
     ),
     security(("api_key" = [])),
     tag = "Evaluation",
@@ -410,6 +408,12 @@ pub(crate) async fn upsert_evaluation_metric(
         score: req.score,
         reasoning: req.reasoning,
         metadata: req.metadata,
+        // Manual API-driven metric — caller-asserted score with
+        // no LLM call behind it, so no provenance row to attach.
+        // LLM-judged metrics flow through `judge_evaluation_case`
+        // / `judge_safety_evaluation_case` which stamp the
+        // provenance internally.
+        provenance_id: None,
         created_at: chrono::Utc::now(),
     };
     let saved = state
@@ -435,11 +439,9 @@ pub(crate) async fn upsert_evaluation_metric(
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct BulkUpsertEvaluationCaseEntry {
     pub case_key: String,
-    #[schema(value_type = Object)]
-    pub input: serde_json::Value,
+    pub input: EvaluationCaseInput,
     #[serde(default)]
-    #[schema(value_type = Option<Object>)]
-    pub expected: Option<serde_json::Value>,
+    pub expected: Option<EvaluationExpected>,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -498,7 +500,7 @@ pub(crate) async fn bulk_upsert_evaluation_cases(
             actual: None,
             error: None,
             latency_ms: None,
-            metadata: serde_json::Value::Object(Default::default()),
+            metadata: EvaluationCaseMetadata::default(),
             created_at: now,
         };
         match state.store.upsert_evaluation_case(&case).await {
@@ -529,110 +531,13 @@ pub(crate) async fn bulk_upsert_evaluation_cases(
 // `latency_ms.<operation>` automatically and persisting the
 // `actual` output / error onto the case row.
 //
-// Today only `translate_query` is wired. Adding a new kind is
-// "extend the request enum + dispatch arm + brain call" — the
-// scope wrapper, latency capture, error handling, and case
-// upsert stay shared.
+// Adding a new kind is "extend `EvaluationCaseInput` + dispatch
+// arm + brain call" — the scope wrapper, latency capture, error
+// handling, and case upsert stay shared.
 // ---------------------------------------------------------------------------
-
-#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum ExecuteEvaluationCaseRequest {
-    /// Translate a natural-language question into `QueryIR` against
-    /// the workspace's canonical ontology. Requires the workspace
-    /// to have a committed canonical version.
-    TranslateQuery {
-        question: String,
-        /// Golden / reference `QueryIR` for downstream judge
-        /// comparison. Stored on `evaluation_cases.expected` so
-        /// the dataset survives re-runs.
-        #[serde(default)]
-        #[schema(value_type = Option<Object>)]
-        expected_query_ir: Option<serde_json::Value>,
-    },
-    /// Free-form natural-language explanation. Does not require
-    /// a canonical ontology — useful for evaluating chat-style
-    /// answer quality independent of the schema.
-    Explain {
-        question: String,
-        /// Optional reference answer for downstream comparison.
-        #[serde(default)]
-        expected_answer: Option<String>,
-    },
-    /// Retrieval evaluation against the workspace's
-    /// `OntologyNavigationStore`. Walks
-    /// `search_entry_points{ query, limit: top_k }` and scores
-    /// the resulting anchor set against `expected_anchor_ids`
-    /// using deterministic IR metrics: precision@k, recall@k,
-    /// MRR (mean reciprocal rank), and NDCG@k. No LLM judge —
-    /// the metrics land directly via `record_metric` so the
-    /// case is "complete" the moment execution returns.
-    ///
-    /// `expected_anchor_ids` carries the gold-standard logical
-    /// ids (kind-prefixed: `node_type:Customer`, `glossary_term:gt-vip`,
-    /// etc.) the operator authored as the right answer for this
-    /// question. The retrieval set is matched against this list
-    /// by exact equality.
-    ///
-    /// Requires the workspace to have a committed canonical
-    /// ontology (the navigation store is version-keyed).
-    RetrieveAnchors {
-        question: String,
-        /// Top-K cap on the retrieval set. Mirrors
-        /// `EntryPointSearchOptions.limit`. Capped to `100` by
-        /// the implementation to bound the score computation.
-        top_k: u32,
-        /// Gold-standard anchor logical ids — the set the
-        /// retrieval should rank highly. Stored on
-        /// `evaluation_cases.expected` so the dataset round-trips
-        /// across re-runs.
-        #[serde(default)]
-        expected_anchor_ids: Vec<String>,
-    },
-}
-
-impl ExecuteEvaluationCaseRequest {
-    /// True when the dispatch needs the workspace's canonical
-    /// ontology + IR loaded. Drives the up-front load in stage 1
-    /// of the handler — operations that don't need an ontology
-    /// (chat explain, generic LLM probes) skip the load and run
-    /// during the greenfield phase.
-    fn requires_canonical_ontology(&self) -> bool {
-        matches!(
-            self,
-            Self::TranslateQuery { .. } | Self::RetrieveAnchors { .. }
-        )
-    }
-
-    pub fn question(&self) -> &str {
-        match self {
-            Self::TranslateQuery { question, .. } => question,
-            Self::Explain { question, .. } => question,
-            Self::RetrieveAnchors { question, .. } => question,
-        }
-    }
-
-    fn expected_value(&self) -> Option<serde_json::Value> {
-        match self {
-            Self::TranslateQuery {
-                expected_query_ir, ..
-            } => expected_query_ir.clone(),
-            Self::Explain {
-                expected_answer, ..
-            } => expected_answer.clone().map(serde_json::Value::String),
-            Self::RetrieveAnchors {
-                expected_anchor_ids,
-                ..
-            } => Some(serde_json::json!({
-                "anchor_ids": expected_anchor_ids,
-            })),
-        }
-    }
-}
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ExecuteEvaluationCaseResponse {
-    #[schema(value_type = Object)]
     pub case: EvaluationCase,
 }
 
@@ -643,7 +548,7 @@ pub struct ExecuteEvaluationCaseResponse {
         ("run_id" = Uuid, Path, description = "Run id"),
         ("case_key" = String, Path, description = "Stable per-run case identifier"),
     ),
-    request_body = ExecuteEvaluationCaseRequest,
+    request_body = EvaluationCaseInput,
     responses(
         (status = 200, description = "Case executed and persisted", body = ExecuteEvaluationCaseResponse),
         (status = 400, description = "Workspace has no canonical ontology yet",
@@ -658,7 +563,7 @@ pub(crate) async fn execute_evaluation_case(
     principal: Principal,
     ws: WorkspaceContext,
     Path((run_id, case_key)): Path<(Uuid, String)>,
-    Json(req): Json<ExecuteEvaluationCaseRequest>,
+    Json(req): Json<EvaluationCaseInput>,
 ) -> Result<Json<ApiResponse<ExecuteEvaluationCaseResponse>>, AppError> {
     principal.require_admin()?;
 
@@ -698,7 +603,7 @@ pub(crate) async fn execute_evaluation_case(
                     "workspace ontology has no committed version".to_string(),
                 )
             })?;
-        let ir = if matches!(req, ExecuteEvaluationCaseRequest::TranslateQuery { .. }) {
+        let ir = if matches!(req, EvaluationCaseInput::TranslateQuery { .. }) {
             Some(
                 state
                     .store
@@ -719,10 +624,8 @@ pub(crate) async fn execute_evaluation_case(
         (None, None)
     };
 
-    let input_value = serde_json::to_value(&req).map_err(|e| {
-        AppError::query_ir_invalid(format!("failed to serialize case input: {e}"))
-    })?;
-    let expected_value = req.expected_value();
+    let input_value = req.clone();
+    let expected_value = req.expected();
 
     // Stage 1 — UPSERT the case (input + expected). `actual` /
     // `latency_ms` / `error` are populated in stage 3 after the
@@ -737,7 +640,7 @@ pub(crate) async fn execute_evaluation_case(
         actual: None,
         error: None,
         latency_ms: None,
-        metadata: serde_json::Value::Object(Default::default()),
+        metadata: EvaluationCaseMetadata::default(),
         created_at: chrono::Utc::now(),
     };
     let case = state
@@ -762,45 +665,63 @@ pub(crate) async fn execute_evaluation_case(
     // case-update path stamps provenance onto `case.metadata` so
     // eval-failure drill-down resolves to the exact prompt +
     // model + render hash.
-    let outcome: Result<(serde_json::Value, Option<ox_brain::CallProvenance>), String> =
+    let outcome: Result<(EvaluationActual, Option<ox_brain::CallProvenance>), String> =
         scope_evaluation_context(ctx, async move {
             match req {
-                ExecuteEvaluationCaseRequest::TranslateQuery { question, .. } => {
+                EvaluationCaseInput::TranslateQuery { question, .. } => {
                     let Some(ir) = ir else {
                         return Err(
-                            "internal: ontology IR not loaded for translate_query case"
-                                .to_string(),
+                            "internal: ontology IR not loaded for translate_query case".to_string()
                         );
                     };
                     // Evaluation case-execute runs against the dataset's
                     // frozen ontology IR — no DomainContext / navigation
                     // store reachable here. Pass `None` so the schema RAG
                     // path on the Brain side drives the prompt context.
-                    let (query_ir, provenance) = brain
-                        .translate_query(
-                            &question,
-                            &ir,
-                            None,
-                            &branchforge::ExecutionContext::empty(),
-                        )
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    let payload = serde_json::to_value(&query_ir).map_err(|e| {
-                        format!("failed to serialize translate_query output: {e}")
-                    })?;
-                    Ok((payload, Some(provenance)))
+                    //
+                    // The translate flow runs inside its own
+                    // `InferenceSession` scope so attempts are
+                    // recorded against the audit DAG even from the
+                    // evaluation surface. The eval-case + judge
+                    // metric layers stack on top: case → inference
+                    // session → attempts → judge provenance.
+                    let (query_ir, provenance) = ox_store::run_in_inference_session(
+                        nav_store.as_ref(),
+                        &question,
+                        ox_ontology::AgentRef::Service {
+                            service_id: "evaluation_case_execute".into(),
+                        },
+                        || async {
+                            brain
+                                .translate_query(
+                                    &question,
+                                    &ir,
+                                    None,
+                                    &branchforge::ExecutionContext::empty(),
+                                )
+                                .await
+                        },
+                    )
+                    .await
+                    .map_err(|e| e.to_string())?;
+                    Ok((
+                        EvaluationActual::QueryIr {
+                            query_ir: Box::new(query_ir),
+                        },
+                        Some(provenance),
+                    ))
                 }
-                ExecuteEvaluationCaseRequest::Explain { question, .. } => {
+                EvaluationCaseInput::Explain { question, .. } => {
                     let output = brain.explain(&question).await.map_err(|e| e.to_string())?;
                     Ok((
-                        serde_json::json!({
-                            "content": output.content,
-                            "model": output.model,
-                        }),
+                        EvaluationActual::Explanation {
+                            content: output.content,
+                            model: output.model,
+                        },
                         None,
                     ))
                 }
-                ExecuteEvaluationCaseRequest::RetrieveAnchors {
+                EvaluationCaseInput::RetrieveAnchors {
                     question,
                     top_k,
                     expected_anchor_ids,
@@ -838,16 +759,19 @@ pub(crate) async fn execute_evaluation_case(
                         &expected_anchor_ids,
                         k as usize,
                     );
-                    let payload = serde_json::json!({
-                        "anchor_ids": actual_ids,
-                        "hits": hits.iter().map(|h| serde_json::json!({
-                            "entity_kind": h.entity_kind,
-                            "logical_id": h.logical_id,
-                            "doc": h.doc,
-                            "score": h.score,
-                        })).collect::<Vec<_>>(),
-                        "metrics": metrics,
-                    });
+                    let payload = EvaluationActual::RetrievedAnchors {
+                        anchor_ids: actual_ids,
+                        hits: hits
+                            .into_iter()
+                            .map(|h| EvaluationRetrievedAnchor {
+                                entity_kind: h.entity_kind,
+                                logical_id: h.logical_id,
+                                doc: h.doc,
+                                score: h.score as f64,
+                            })
+                            .collect(),
+                        metrics,
+                    };
                     Ok((payload, None))
                 }
             }
@@ -861,26 +785,22 @@ pub(crate) async fn execute_evaluation_case(
     // `case.id` (latency / token / cost capture) survive because
     // the case_id is preserved.
     //
-    // `metadata.call_provenance` carries the prompt + model the
-    // outcome resolved through. Eval-failure drill-down resolves to
-    // the exact LLM call (prompt id + version + render hash + model
-    // id + max_tokens + temperature) without re-running.
+    // `metadata.call.prompt_render_hash` carries the per-case
+    // rendered-prompt fingerprint. Run-level pins (prompt id +
+    // template version + model id + decoding config) live on the
+    // `EvaluationRun.fingerprint` because they're invariant across
+    // every case in the run; per-case Call metadata only carries
+    // the render hash because that's the dimension that varies
+    // case to case.
     let (actual, error_msg, provenance) = match outcome {
         Ok((value, prov)) => (Some(value), None, prov),
         Err(msg) => (None, Some(msg), None),
     };
-    let metadata = match provenance.as_ref() {
-        Some(prov) => serde_json::json!({
-            "call_provenance": {
-                "prompt_id": prov.prompt_id,
-                "prompt_version": prov.prompt_version.to_string(),
-                "model_id": prov.model_id,
-                "max_tokens": prov.max_tokens,
-                "temperature": prov.temperature,
-                "prompt_render_hash": prov.prompt_render_hash,
-            },
-        }),
-        None => serde_json::Value::Object(Default::default()),
+    let metadata = match provenance {
+        Some(prov) => EvaluationCaseMetadata::Call {
+            prompt_render_hash: prov.prompt_render_hash,
+        },
+        None => EvaluationCaseMetadata::default(),
     };
     let updated = EvaluationCase {
         id: case.id,
@@ -909,23 +829,18 @@ pub(crate) async fn execute_evaluation_case(
     // needed). Skip silently when the brain call failed —
     // `case.actual` will be None and the FE renders the error
     // path instead.
-    if let Some(actual) = case.actual.as_ref()
-        && let Some(metrics_json) = actual.get("metrics")
-        && let Ok(metrics) = serde_json::from_value::<
-            ox_store::evaluation::RetrievalMetrics,
-        >(metrics_json.clone())
-    {
+    if let Some(EvaluationActual::RetrievedAnchors { metrics, .. }) = case.actual.as_ref() {
         let axes: [(&str, f64); 4] = [
             ("retrieval.precision_at_k", metrics.precision_at_k),
             ("retrieval.recall_at_k", metrics.recall_at_k),
             ("retrieval.mrr", metrics.mrr),
             ("retrieval.ndcg_at_k", metrics.ndcg_at_k),
         ];
-        let metric_metadata = serde_json::json!({
-            "k": metrics.k,
-            "topk_hit_count": metrics.topk_hit_count,
-            "expected_count": metrics.expected_count,
-        });
+        let metric_metadata = EvaluationMetricMetadata::Retrieval {
+            k: metrics.k,
+            topk_hit_count: metrics.topk_hit_count,
+            expected_count: metrics.expected_count,
+        };
         for (name, score) in axes {
             let row = EvaluationMetric {
                 id: Uuid::now_v7(),
@@ -935,6 +850,10 @@ pub(crate) async fn execute_evaluation_case(
                 score,
                 reasoning: None,
                 metadata: metric_metadata.clone(),
+                // Deterministic IR metric (no LLM call) — the
+                // case-level provenance carries the activity that
+                // produced the underlying retrieval anchors.
+                provenance_id: None,
                 created_at: chrono::Utc::now(),
             };
             state
@@ -964,7 +883,6 @@ pub struct JudgeEvaluationCaseResponse {
     /// order (faithfulness → answer_relevance → context_precision
     /// → context_recall) so the FE can render a stable column
     /// ordering without re-sorting.
-    #[schema(value_type = Vec<Object>)]
     pub metrics: Vec<EvaluationMetric>,
 }
 
@@ -1004,36 +922,35 @@ pub(crate) async fn judge_evaluation_case(
         )
     })?;
 
-    // The case input envelope is the discriminated
-    // `ExecuteEvaluationCaseRequest`. Pull the question off
-    // whichever variant landed; today only `translate_query` is
-    // judgeable, but the dispatch matches the execute side so
+    // The case input envelope is already the typed
+    // `EvaluationCaseInput`. Pull the question off whichever
+    // variant landed; the dispatch matches the execute side so
     // adding a new operation extends both arms together.
-    let parsed: ExecuteEvaluationCaseRequest = serde_json::from_value(case.input.clone())
-        .map_err(|e| {
-            AppError::query_ir_invalid(format!(
-                "case input does not match a known executable shape: {e}"
-            ))
-        })?;
     // Retrieval cases land their metrics deterministically at
     // execute time — there's nothing for the LLM judge to score
     // (the IR axes don't benefit from a rubric). Reject early
     // rather than silently re-judging on top of the deterministic
     // axes.
-    if matches!(parsed, ExecuteEvaluationCaseRequest::RetrieveAnchors { .. }) {
+    if matches!(&case.input, EvaluationCaseInput::RetrieveAnchors { .. }) {
         return Err(AppError::query_ir_invalid(
             "retrieve_anchors cases score deterministically at execute \
              time and are not LLM-judgeable"
                 .to_string(),
         ));
     }
-    let question = parsed.question().to_string();
+    let question = case.input.question().to_string();
+    let expected_json = case.expected.as_ref().map(AppError::to_json).transpose()?;
+    let actual_json = AppError::to_json(actual)?;
 
-    let judgement = state
+    let (judgement, prov) = state
         .brain
-        .judge_evaluation_case(&question, case.expected.as_ref(), actual)
+        .judge_evaluation_case(&question, expected_json.as_ref(), &actual_json)
         .await
         .map_err(AppError::from)?;
+
+    let provenance_id =
+        record_judge_provenance(&state, &case, &prov)
+            .await?;
 
     let mut metrics = Vec::with_capacity(4);
     let now = chrono::Utc::now();
@@ -1045,11 +962,12 @@ pub(crate) async fn judge_evaluation_case(
             name: name.to_string(),
             score,
             reasoning: Some(reasoning.to_string()),
-            metadata: serde_json::json!({
-                "kind": "judge",
-                "run_id": case.run_id,
-                "case_key": case.case_key,
-            }),
+            metadata: EvaluationMetricMetadata::Judge {
+                run_id: case.run_id,
+                case_key: case.case_key.clone(),
+                source: None,
+            },
+            provenance_id: Some(provenance_id),
             created_at: now,
         };
         let saved = state
@@ -1061,6 +979,45 @@ pub(crate) async fn judge_evaluation_case(
     }
 
     Ok(ApiResponse::of(JudgeEvaluationCaseResponse { metrics }))
+}
+
+/// Stamp a PROV-O activity row for a judge invocation against
+/// `case`, returning the `provenance_id` that the judge's metric
+/// rows attach to. Subject is the synthetic
+/// `evaluation_case:<case_id>` label (the audit row attaches to
+/// the case, not to any one metric — the case is what the judge
+/// scored). Plan + agent come straight from the LLM's
+/// `CallProvenance`.
+async fn record_judge_provenance(
+    state: &AppState,
+    case: &EvaluationCase,
+    prov: &ox_brain::CallProvenance,
+) -> Result<Uuid, AppError> {
+    let plan = ox_ontology::ProvenancePlan {
+        template_id: prov.prompt_id.clone(),
+        template_version: prov.prompt_version.clone(),
+        prompt_render_hash: prov.prompt_render_hash.clone(),
+    };
+    let capture = ox_ontology::ProvenanceCapture::draft_proposal(plan, prov.model_id.clone())
+        .with_used(std::iter::once(ox_ontology::EntityRef::Arbitrary {
+            label: format!("evaluation_run:{}", case.run_id),
+        }));
+    let id_str = state
+        .store
+        .record_activity(
+            capture,
+            ox_ontology::EntityRef::Arbitrary {
+                label: format!("evaluation_case:{}", case.id),
+            },
+        )
+        .await
+        .map_err(AppError::from)?;
+    Uuid::parse_str(id_str.as_str()).map_err(|e| {
+        AppError::internal(format!(
+            "ProvenanceStore::record_activity returned non-UUID id `{}`: {e}",
+            id_str.as_str()
+        ))
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -1112,30 +1069,27 @@ pub(crate) async fn judge_safety_evaluation_case(
         )
     })?;
 
-    let parsed: ExecuteEvaluationCaseRequest = serde_json::from_value(case.input.clone())
-        .map_err(|e| {
-            AppError::query_ir_invalid(format!(
-                "case input does not match a known executable shape: {e}"
-            ))
-        })?;
     // Retrieval cases skip the safety judge for the same reason
     // they skip the RAGAS judge — there's no LLM-produced answer
     // to score, just deterministic IR axes that landed at execute
     // time.
-    if matches!(parsed, ExecuteEvaluationCaseRequest::RetrieveAnchors { .. }) {
+    if matches!(&case.input, EvaluationCaseInput::RetrieveAnchors { .. }) {
         return Err(AppError::query_ir_invalid(
             "retrieve_anchors cases score deterministically at execute time \
              and are not LLM-judgeable on the safety axes either"
                 .to_string(),
         ));
     }
-    let question = parsed.question().to_string();
+    let question = case.input.question().to_string();
+    let actual_json = AppError::to_json(actual)?;
 
-    let judgement = state
+    let (judgement, prov) = state
         .brain
-        .judge_safety_evaluation_case(&question, actual)
+        .judge_safety_evaluation_case(&question, &actual_json)
         .await
         .map_err(AppError::from)?;
+
+    let provenance_id = record_judge_provenance(&state, &case, &prov).await?;
 
     let mut metrics = Vec::with_capacity(4);
     let now = chrono::Utc::now();
@@ -1147,11 +1101,12 @@ pub(crate) async fn judge_safety_evaluation_case(
             name: name.to_string(),
             score,
             reasoning: Some(reasoning.to_string()),
-            metadata: serde_json::json!({
-                "kind": "safety_judge",
-                "run_id": case.run_id,
-                "case_key": case.case_key,
-            }),
+            metadata: EvaluationMetricMetadata::SafetyJudge {
+                run_id: case.run_id,
+                case_key: case.case_key.clone(),
+                source: None,
+            },
+            provenance_id: Some(provenance_id),
             created_at: now,
         };
         let saved = state
@@ -1170,7 +1125,7 @@ pub(crate) async fn judge_safety_evaluation_case(
     path = "/api/evaluation/cases/{case_id}/metrics",
     params(("case_id" = Uuid, Path, description = "Case id")),
     responses(
-        (status = 200, description = "Metrics for the case", body = Object),
+        (status = 200, description = "Metrics for the case", body = Vec<EvaluationMetric>),
     ),
     security(("api_key" = [])),
     tag = "Evaluation",
@@ -1204,10 +1159,11 @@ pub struct UpsertEvaluationDatasetRequest {
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpsertEvaluationDatasetItemEntry {
     pub item_key: String,
-    pub input: serde_json::Value,
+    pub input: EvaluationCaseInput,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub expected: Option<serde_json::Value>,
+    pub expected: Option<EvaluationExpected>,
     #[serde(default)]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub metadata: serde_json::Value,
 }
 
@@ -1218,7 +1174,6 @@ pub struct ReplaceEvaluationDatasetItemsRequest {
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct EvaluationDatasetResponse {
-    #[schema(value_type = Object)]
     pub dataset: EvaluationDataset,
 }
 
@@ -1230,19 +1185,19 @@ pub struct ReplaceEvaluationDatasetItemsResponse {
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateRunFromDatasetRequest {
-    pub dataset_id: Uuid,
     pub name: String,
     #[serde(default)]
     pub description: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ontology_version_id: Option<Uuid>,
+    /// Reproducibility pins. `fingerprint.dataset_id` names the
+    /// dataset whose items are materialised into cases.
+    pub fingerprint: EvaluationFingerprintInput,
     #[serde(default)]
+    #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
     pub metadata: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CreateRunFromDatasetResponse {
-    #[schema(value_type = Object)]
     pub run: EvaluationRun,
     /// Number of dataset items materialised into cases. Allows
     /// the FE to surface "12 cases ready to execute" without a
@@ -1284,7 +1239,9 @@ pub(crate) async fn upsert_evaluation_dataset(
         .upsert_evaluation_dataset(&dataset)
         .await
         .map_err(AppError::from)?;
-    Ok(ApiResponse::of(EvaluationDatasetResponse { dataset: saved }))
+    Ok(ApiResponse::of(EvaluationDatasetResponse {
+        dataset: saved,
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -1325,7 +1282,6 @@ pub struct PromoteCaseToDatasetRequest {
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PromoteCaseToDatasetResponse {
-    #[schema(value_type = Object)]
     pub item: ox_store::evaluation::EvaluationDatasetItem,
 }
 
@@ -1375,7 +1331,7 @@ pub(crate) async fn promote_case_to_dataset(
         .clone()
         .unwrap_or_else(|| format!("sample-{}", case.case_key));
     let expected = if req.use_actual_as_expected {
-        case.actual.clone()
+        case.actual.as_ref().map(EvaluationExpected::from_actual)
     } else {
         None
     };
@@ -1398,7 +1354,9 @@ pub(crate) async fn promote_case_to_dataset(
         .upsert_evaluation_dataset_item(&item)
         .await
         .map_err(AppError::from)?;
-    Ok(ApiResponse::of(PromoteCaseToDatasetResponse { item: saved }))
+    Ok(ApiResponse::of(PromoteCaseToDatasetResponse {
+        item: saved,
+    }))
 }
 
 /// `GET /api/evaluation/datasets` — list datasets in the active
@@ -1411,7 +1369,7 @@ pub(crate) async fn promote_case_to_dataset(
         ("cursor" = Option<String>, Query, description = "Opaque cursor"),
     ),
     responses(
-        (status = 200, description = "Dataset page", body = inline(serde_json::Value)),
+        (status = 200, description = "Dataset page", body = crate::openapi::EvaluationDatasetSummaryPage),
     ),
     security(("api_key" = [])),
     tag = "Evaluation",
@@ -1421,13 +1379,13 @@ pub(crate) async fn list_evaluation_datasets(
     _principal: Principal,
     _ws: WorkspaceContext,
     Query(pagination): Query<CursorParams>,
-) -> Result<Json<ApiResponse<CursorPage<EvaluationDatasetSummary>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<EvaluationDatasetSummary>>>, AppError> {
     let page = state
         .store
         .list_evaluation_datasets(&pagination)
         .await
         .map_err(AppError::from)?;
-    Ok(ApiResponse::of(page))
+    Ok(ApiResponse::page(page))
 }
 
 /// `GET /api/evaluation/datasets/{id}` — fetch a single dataset
@@ -1501,7 +1459,7 @@ pub(crate) async fn delete_evaluation_dataset(
     path = "/api/evaluation/datasets/{id}/items",
     params(("id" = Uuid, Path)),
     responses(
-        (status = 200, description = "Items", body = inline(serde_json::Value)),
+        (status = 200, description = "Items", body = Vec<EvaluationDatasetItem>),
     ),
     security(("api_key" = [])),
     tag = "Evaluation",
@@ -1592,23 +1550,15 @@ pub(crate) async fn create_run_from_dataset(
     Json(req): Json<CreateRunFromDatasetRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<CreateRunFromDatasetResponse>>), AppError> {
     principal.require_admin()?;
+    let fingerprint = req.fingerprint.into_fingerprint();
     let (run, case_count) = state
         .store
-        .create_run_from_dataset(
-            req.dataset_id,
-            &req.name,
-            &req.description,
-            req.ontology_version_id,
-            req.metadata,
-        )
+        .create_run_from_dataset(&req.name, &req.description, fingerprint, req.metadata)
         .await
         .map_err(AppError::from)?;
     Ok((
         StatusCode::CREATED,
-        ApiResponse::of(CreateRunFromDatasetResponse {
-            run,
-            case_count,
-        }),
+        ApiResponse::of(CreateRunFromDatasetResponse { run, case_count }),
     ))
 }
 
@@ -1628,7 +1578,7 @@ pub(crate) async fn create_run_from_dataset(
     path = "/api/evaluation/runs/{run_id}/summary",
     params(("run_id" = Uuid, Path, description = "Run id")),
     responses(
-        (status = 200, description = "Run summary", body = inline(serde_json::Value)),
+        (status = 200, description = "Run summary", body = RunSummary),
     ),
     security(("api_key" = [])),
     tag = "Evaluation",
@@ -1670,7 +1620,7 @@ pub struct CompareRunsQuery {
         ("candidate" = Uuid, Query, description = "Candidate run id"),
     ),
     responses(
-        (status = 200, description = "Diff", body = inline(serde_json::Value)),
+        (status = 200, description = "Diff", body = RunComparisonReport),
         (status = 400, description = "Runs don't share a dataset",
             body = inline(crate::openapi::ErrorResponse)),
     ),

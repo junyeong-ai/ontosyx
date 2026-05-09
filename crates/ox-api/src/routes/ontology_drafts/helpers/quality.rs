@@ -1,7 +1,7 @@
+use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::quality::{OntologyQualityReport, assess_quality};
 use ox_ontology::source_analysis::ColumnClarification;
-use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_store::OntologyDraft;
 
 use crate::error::AppError;

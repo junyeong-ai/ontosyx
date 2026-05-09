@@ -65,5 +65,9 @@ pub fn spawn_collab_idle_reap(
     pool: ox_store::PgPool,
     cancel: CancellationToken,
 ) {
-    spawn_cron(Arc::new(CollabIdleReap { hub, interval }), Some(pool), cancel);
+    spawn_cron(
+        Arc::new(CollabIdleReap { hub, interval }),
+        Some(pool),
+        cancel,
+    );
 }

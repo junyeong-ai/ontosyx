@@ -6,7 +6,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use ox_store::store::CursorParams;
-use ox_store::{AnalysisRecipe, RecipeExecutionResult};
+use ox_store::{AnalysisRecipe, RecipeExecutionResult, RecipeStatus};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -43,7 +43,7 @@ pub struct CreateRecipeRequest {
     path = "/api/recipes",
     request_body = CreateRecipeRequest,
     responses(
-        (status = 200, description = "Recipe created", body = Object),
+        (status = 200, description = "Recipe created", body = AnalysisRecipe),
         (status = 400, description = "Validation failure"),
     ),
     security(("api_key" = [])),
@@ -73,7 +73,7 @@ pub(crate) async fn create_recipe(
         created_by: principal.id,
         created_at: Utc::now(),
         version: 1,
-        status: "draft".to_string(),
+        status: RecipeStatus::Draft,
         parent_id: None,
     };
 
@@ -114,7 +114,7 @@ impl From<RecipesCursorQuery> for CursorParams {
     get,
     path = "/api/recipes",
     params(RecipesCursorQuery),
-    responses((status = 200, description = "Analysis recipes", body = Vec<Object>)),
+    responses((status = 200, description = "Analysis recipes", body = crate::openapi::AnalysisRecipePage)),
     security(("api_key" = [])),
     tag = "Recipes",
 )]
@@ -141,7 +141,7 @@ pub(crate) async fn list_recipes(
     path = "/api/recipes/{id}",
     params(("id" = Uuid, Path, description = "Recipe ID")),
     responses(
-        (status = 200, description = "Recipe", body = Object),
+        (status = 200, description = "Recipe", body = AnalysisRecipe),
         (status = 404, description = "Recipe not found"),
     ),
     security(("api_key" = [])),
@@ -213,7 +213,7 @@ pub(crate) async fn delete_recipe(
     get,
     path = "/api/recipes/{id}/results",
     params(("id" = Uuid, Path, description = "Recipe ID")),
-    responses((status = 200, description = "Recent analysis results", body = Vec<Object>)),
+    responses((status = 200, description = "Recent analysis results", body = Vec<RecipeExecutionResult>)),
     security(("api_key" = [])),
     tag = "Recipes",
 )]
@@ -236,7 +236,7 @@ pub(crate) async fn list_recipe_results(
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct RecipeStatusUpdateRequest {
-    pub status: String,
+    pub status: RecipeStatus,
 }
 
 #[utoipa::path(
@@ -260,15 +260,6 @@ pub(crate) async fn update_recipe_status(
 ) -> Result<StatusCode, AppError> {
     principal.require_admin()?;
 
-    const VALID_STATUSES: &[&str] = &["draft", "approved", "deprecated"];
-    if !VALID_STATUSES.contains(&req.status.as_str()) {
-        return Err(AppError::invalid_enum_value(
-            "status",
-            req.status.clone(),
-            VALID_STATUSES,
-        ));
-    }
-
     // Verify recipe exists
     state
         .store
@@ -279,7 +270,7 @@ pub(crate) async fn update_recipe_status(
 
     state
         .store
-        .update_recipe_status(id, &req.status)
+        .update_recipe_status(id, req.status)
         .await
         .map_err(AppError::from)?;
 
@@ -296,7 +287,7 @@ pub(crate) async fn update_recipe_status(
     params(("id" = Uuid, Path, description = "Parent recipe ID")),
     request_body = CreateRecipeRequest,
     responses(
-        (status = 200, description = "New recipe version created", body = Object),
+        (status = 200, description = "New recipe version created", body = AnalysisRecipe),
         (status = 404, description = "Parent recipe not found"),
     ),
     security(("api_key" = [])),
@@ -335,7 +326,7 @@ pub(crate) async fn create_recipe_version(
         created_by: principal.id,
         created_at: Utc::now(),
         version: parent.version + 1,
-        status: "draft".to_string(),
+        status: RecipeStatus::Draft,
         parent_id: Some(parent_id),
     };
 
@@ -356,7 +347,7 @@ pub(crate) async fn create_recipe_version(
     get,
     path = "/api/recipes/{id}/versions",
     params(("id" = Uuid, Path, description = "Recipe ID")),
-    responses((status = 200, description = "Recipe versions", body = Vec<Object>)),
+    responses((status = 200, description = "Recipe versions", body = Vec<AnalysisRecipe>)),
     security(("api_key" = [])),
     tag = "Recipes",
 )]

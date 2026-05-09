@@ -3,9 +3,9 @@ use axum::extract::State;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use ox_ontology::load_plan::LoadPlan;
+use ox_graph_runtime::LoadBatch;
 use ox_ontology::ir::OntologyIR;
-use ox_graph_runtime::{LoadBatch, LoadResult};
+use ox_ontology::load_plan::LoadPlan;
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -20,7 +20,6 @@ use crate::validation::validate_ontology_input;
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct GenerateLoadPlanRequest {
     /// OntologyIR for the target graph schema.
-    #[schema(value_type = Object)]
     pub ontology: OntologyIR,
     /// Description of the data source for the LLM.
     pub source_description: String,
@@ -29,7 +28,6 @@ pub struct GenerateLoadPlanRequest {
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct GenerateLoadPlanResponse {
     /// Generated load plan.
-    #[schema(value_type = Object)]
     pub plan: LoadPlan,
     /// Compiled statements in the target language.
     pub compiled_statements: Vec<String>,
@@ -98,29 +96,64 @@ pub(crate) async fn plan_load(
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExecuteLoadRequest {
     /// OntologyIR for the target graph schema.
-    #[schema(value_type = Object)]
     pub ontology: OntologyIR,
     /// Description of the data source.
     pub source_description: String,
     /// Optional pre-computed load plan. If omitted, the plan is generated via LLM.
-    #[schema(value_type = Option<Object>)]
     pub plan: Option<LoadPlan>,
     /// Data batches to load. Each element is a JSON object representing one record.
+    #[schema(value_type = Vec<std::collections::HashMap<String, Object>>, additional_properties)]
     pub data: Vec<serde_json::Value>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct LoadExecutionError {
+    pub batch_index: usize,
+    pub message: String,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct LoadExecutionResult {
+    pub nodes_created: usize,
+    pub nodes_updated: usize,
+    pub edges_created: usize,
+    pub edges_updated: usize,
+    pub batches_processed: usize,
+    pub batches_failed: usize,
+    pub errors: Vec<LoadExecutionError>,
+}
+
+impl From<ox_graph_runtime::LoadResult> for LoadExecutionResult {
+    fn from(result: ox_graph_runtime::LoadResult) -> Self {
+        Self {
+            nodes_created: result.nodes_created,
+            nodes_updated: result.nodes_updated,
+            edges_created: result.edges_created,
+            edges_updated: result.edges_updated,
+            batches_processed: result.batches_processed,
+            batches_failed: result.batches_failed,
+            errors: result
+                .errors
+                .into_iter()
+                .map(|error| LoadExecutionError {
+                    batch_index: error.batch_index,
+                    message: error.message,
+                })
+                .collect(),
+        }
+    }
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ExecuteLoadResponse {
     /// Load plan used.
-    #[schema(value_type = Object)]
     pub plan: LoadPlan,
     /// Compiled statements executed.
     pub compiled_statements: Vec<String>,
     /// Compiler target language.
     pub target: String,
     /// Execution results.
-    #[schema(value_type = Object)]
-    pub result: LoadResult,
+    pub result: LoadExecutionResult,
 }
 
 #[utoipa::path(
@@ -195,7 +228,7 @@ pub(crate) async fn execute_load(
     );
 
     let timeout = state.timeouts.design_operation;
-    let mut combined_result = LoadResult {
+    let mut combined_result = ox_graph_runtime::LoadResult {
         nodes_created: 0,
         nodes_updated: 0,
         edges_created: 0,
@@ -243,7 +276,7 @@ pub(crate) async fn execute_load(
         plan,
         compiled_statements,
         target: state.compiler.name().to_string(),
-        result: combined_result,
+        result: combined_result.into(),
     }))
 }
 
@@ -262,7 +295,7 @@ pub struct CheckpointListQuery {
     path = "/api/load/checkpoints",
     params(CheckpointListQuery),
     responses(
-        (status = 200, description = "List of load checkpoints", body = Vec<Object>),
+        (status = 200, description = "List of load checkpoints", body = Vec<ox_store::LoadCheckpoint>),
     ),
     security(("api_key" = [])),
     tag = "Load",

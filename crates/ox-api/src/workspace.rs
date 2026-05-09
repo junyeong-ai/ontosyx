@@ -10,10 +10,10 @@ use crate::error::AppError;
 // Constants
 // ---------------------------------------------------------------------------
 
-/// The slug reserved for the default workspace created during migration.
+/// The slug reserved for the default workspace created by the schema baseline.
 pub const DEFAULT_WORKSPACE_SLUG: &str = "default";
 
-/// Valid workspace role values (synced with DB CHECK constraint in migration 0004).
+/// Valid workspace role values (synced with the DB CHECK constraint).
 /// Used for input validation when processing role values from external sources.
 #[allow(dead_code)]
 pub const VALID_WORKSPACE_ROLES: &[&str] = &["owner", "admin", "member", "viewer"];

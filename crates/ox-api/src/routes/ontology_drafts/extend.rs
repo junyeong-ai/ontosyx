@@ -5,10 +5,10 @@ use tokio::time::Instant;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use ox_ontology::ontology_draft::{OntologyDraftStatus, SourceHistoryEntry};
+use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::mapping::SourceId;
-use ox_core::source_schema::{SourceProfile, SourceSchema};
+use ox_ontology::ontology_draft::{OntologyDraftStatus, SourceHistoryEntry};
 use ox_source::AnalysisResult;
 use ox_source::analyzer::build_design_context;
 
@@ -23,7 +23,9 @@ use super::helpers::{
     LlmInputContext, analyze_code_repository, analyze_source, build_llm_input, get_design_options,
     load_ontology_draft_in_status, reload_ontology_draft,
 };
-use super::types::{ExtendOntologyDraftRequest, ExtendOntologyDraftResponse, DataSourceSpec, OntologyDraftView};
+use super::types::{
+    DataSourceSpec, ExtendOntologyDraftRequest, ExtendOntologyDraftResponse, OntologyDraftView,
+};
 
 // ---------------------------------------------------------------------------
 // POST /api/ontology-drafts/:id/extend
@@ -57,12 +59,7 @@ pub(crate) async fn extend_ontology_draft(
     if let Some(ont) = &project.ontology
         && let Err(e) = state
             .store
-            .create_ontology_snapshot(
-                id,
-                project.revision,
-                ont,
-                project.quality_report.as_ref(),
-            )
+            .create_ontology_snapshot(id, project.revision, ont, project.quality_report.as_ref())
             .await
     {
         warn!(ontology_draft_id = %id, error = %e, "Failed to save ontology snapshot");
@@ -102,6 +99,7 @@ pub(crate) async fn extend_ontology_draft(
                 baseline.as_ref(),
             )
             .await?;
+            super::helpers::capture_source_contracts(&state, &analyzed).await?;
             (
                 analyzed.config,
                 analyzed.raw_data,
@@ -118,8 +116,7 @@ pub(crate) async fn extend_ontology_draft(
     // warning so the operator reviews the binding before the next
     // deploy.
     if let (Some(profile), Some(report)) = (&new_source_profile, new_report.as_mut()) {
-        let drift_warnings =
-            ox_ontology::detect_value_set_drift(&existing_ontology, profile);
+        let drift_warnings = ox_ontology::detect_value_set_drift(&existing_ontology, profile);
         if !drift_warnings.is_empty() {
             warn!(
                 ontology_draft_id = %id,
@@ -213,26 +210,26 @@ pub(crate) async fn extend_ontology_draft(
         ambiguity_hints: &[],
         existing_ontology: Some(&existing_ontology),
     };
-    let design_output = tokio::time::timeout(
-        timeout,
-        state.brain.design_ontology(&design_input),
-    )
-    .await
-    .map_err(|_| {
-        warn!(
-            ontology_draft_id = %id,
-            elapsed_ms = design_started.elapsed().as_millis() as u64,
-            timeout_secs = timeout.as_secs(),
-            "Extend LLM call timed out"
-        );
-        AppError::timeout(format!(
-            "Ontology extension timed out after {}s",
-            timeout.as_secs()
-        ))
-    })?
-    .map_err(AppError::from)?;
+    let design_output = tokio::time::timeout(timeout, state.brain.design_ontology(&design_input))
+        .await
+        .map_err(|_| {
+            warn!(
+                ontology_draft_id = %id,
+                elapsed_ms = design_started.elapsed().as_millis() as u64,
+                timeout_secs = timeout.as_secs(),
+                "Extend LLM call timed out"
+            );
+            AppError::timeout(format!(
+                "Ontology extension timed out after {}s",
+                timeout.as_secs()
+            ))
+        })?
+        .map_err(AppError::from)?;
 
-    let ox_brain::DesignOntologyOutput { ontology: new_ontology, provenance } = design_output;
+    let ox_brain::DesignOntologyOutput {
+        ontology: new_ontology,
+        provenance,
+    } = design_output;
 
     info!(
         ontology_draft_id = %id,
@@ -356,12 +353,12 @@ pub(crate) async fn extend_ontology_draft(
             .map(|t| t.name.clone())
             .collect();
         scope.record_selection(&req.selection, &all_tables, now);
-        scope.record_fingerprints(merged_schema.tables.iter().map(|t| {
-            (
-                t.name.clone(),
-                ox_core::source_schema::table_fingerprint(t),
-            )
-        }));
+        scope.record_fingerprints(
+            merged_schema
+                .tables
+                .iter()
+                .map(|t| (t.name.clone(), ox_core::source_schema::table_fingerprint(t))),
+        );
         AppError::to_json(&scope)?
     };
 
@@ -474,11 +471,8 @@ mod tests {
 
     #[test]
     fn baseline_round_trips_when_project_has_schema_and_profile() {
-        let baseline = build_extend_baseline(&project(
-            Some(schema_value()),
-            Some(profile_value()),
-        ))
-        .expect("baseline rebuilds when both rows present");
+        let baseline = build_extend_baseline(&project(Some(schema_value()), Some(profile_value())))
+            .expect("baseline rebuilds when both rows present");
         assert_eq!(baseline.schema.tables.len(), 1);
         assert_eq!(baseline.schema.tables[0].name, "users");
     }

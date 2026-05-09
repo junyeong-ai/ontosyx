@@ -48,7 +48,7 @@ impl From<AuditCursorQuery> for CursorParams {
     get,
     path = "/api/audit",
     params(AuditCursorQuery),
-    responses((status = 200, description = "Audit log entries", body = Vec<Object>)),
+    responses((status = 200, description = "Audit log entries", body = crate::openapi::AuditEntryPage)),
     security(("api_key" = [])),
     tag = "Audit",
 )]

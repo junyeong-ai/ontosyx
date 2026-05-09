@@ -27,7 +27,6 @@ pub struct PreviewSourceRequest {
     /// Connection details for the source — same shape used by
     /// `CreateOntologyDraftRequest::origin::Source { source }`.
     #[serde(flatten)]
-    #[schema(value_type = Object)]
     pub source: DataSourceSpec,
 }
 

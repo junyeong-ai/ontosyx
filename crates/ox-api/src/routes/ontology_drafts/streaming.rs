@@ -52,27 +52,29 @@ use crate::principal::Principal;
 use crate::state::AppState;
 use crate::validation::validate_ontology_input;
 use ox_brain::DesignOntologyOutput;
-use ox_ontology::source_mapping::ArtifactProvenance;
-use ox_ontology::ontology_draft::{OntologyDraftStatus, SourceConfig};
-use ox_ontology::ir::OntologyIR;
-use ox_ontology::source_analysis::DesignOptions;
+use ox_brain::model_resolver::operation;
 use ox_graph_runtime::profiler;
+use ox_ontology::ir::OntologyIR;
+use ox_ontology::ontology_draft::{OntologyDraftStatus, SourceConfig};
+use ox_ontology::source_analysis::DesignOptions;
+use ox_ontology::source_mapping::ArtifactProvenance;
 use ox_source::analyzer::build_design_context;
 
-use crate::spawn_scoped::{WsScope, scope_stream};
 use super::helpers::artifact::persist_design_artifact;
 use super::helpers::{
-    LlmInputContext, assess_quality_from_ontology_draft, assess_quality_from_ontology_draft_with_mapping,
-    build_batch_llm_input, build_llm_input, build_refinement_context, build_source_schema_summary,
-    enforce_design_gates, find_uncovered_cross_fks, format_cross_fks,
-    format_existing_edges_for_resolution, format_existing_nodes, format_node_labels_for_resolution,
-    format_uncovered_fks, get_design_options, load_analysis_report, load_mutable_ontology_draft,
+    LlmInputContext, assess_quality_from_ontology_draft,
+    assess_quality_from_ontology_draft_with_mapping, build_batch_llm_input, build_llm_input,
+    build_refinement_context, build_source_schema_summary, enforce_design_gates,
+    find_uncovered_cross_fks, format_cross_fks, format_existing_edges_for_resolution,
+    format_existing_nodes, format_node_labels_for_resolution, format_uncovered_fks,
+    get_design_options, load_analysis_report, load_mutable_ontology_draft,
     load_ontology_draft_in_status, merge_input_irs, reload_ontology_draft,
 };
 use super::types::{
-    DesignOntologyDraftRequest, DesignOntologyDraftResponse, OntologyDraftView, RefineOntologyDraftRequest,
-    RefineOntologyDraftResponse,
+    DesignOntologyDraftRequest, DesignOntologyDraftResponse, OntologyDraftView,
+    RefineOntologyDraftRequest, RefineOntologyDraftResponse,
 };
+use crate::spawn_scoped::{WsScope, scope_stream};
 
 // ---------------------------------------------------------------------------
 // SSE event helpers
@@ -98,7 +100,10 @@ fn sse_error(code: crate::error::ApiErrorCode, message: &str) -> String {
 
 fn sse_result<T: Serialize>(data: &T) -> String {
     serde_json::to_string(data).unwrap_or_else(|e| {
-        sse_error(crate::error::ApiErrorCode::SerializationError, &e.to_string())
+        sse_error(
+            crate::error::ApiErrorCode::SerializationError,
+            &e.to_string(),
+        )
     })
 }
 
@@ -289,7 +294,7 @@ pub(crate) async fn design_ontology_draft_stream(
                 .brain
                 .resolve_design_provenance(
                     "design_ontology_batch",
-                    "design_ontology",
+                    operation::DESIGN_ONTOLOGY,
                 )
                 .await
             {

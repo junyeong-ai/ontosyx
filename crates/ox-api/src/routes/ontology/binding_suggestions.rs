@@ -1,8 +1,8 @@
-//! Glossary ↔ property binding-suggestion endpoints.
+//! Concept ↔ property binding-suggestion endpoints.
 //!
-//! Given a glossary term (either saved or drafted) and an ontology
-//! id, return the ranked list of properties most likely to realise
-//! that term. The inverse direction — "which terms match this
+//! Given a concept label (either saved as a concept lexicalization or drafted)
+//! and an ontology id, return the ranked list of properties most likely to
+//! realise that concept. The inverse direction — "which concepts match this
 //! property?" — shares the same scorer and is exposed alongside.
 
 use axum::Json;
@@ -12,9 +12,9 @@ use uuid::Uuid;
 
 use ox_core::i18n::LocalizedText;
 use ox_ontology::{
-    BindingSignal, BindingSuggestionPolicy, GlossaryTermDef, GlossaryTermId, PropertyBindingCandidate,
-    PropertyOwnerRef, TermBindingCandidate, suggest_property_bindings_by_term,
-    suggest_terms_by_property,
+    BindingSignal, BindingSuggestionPolicy, ConceptBindingCandidate, GlossaryTermDef,
+    GlossaryTermId, PropertyBindingCandidate, PropertyOwnerRef, suggest_concepts_by_property,
+    suggest_property_bindings_by_term,
 };
 
 use crate::error::AppError;
@@ -58,7 +58,7 @@ impl BindingPolicy {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ontologies/{id}/glossary/suggest-bindings
+// POST /api/ontology/concepts/suggest-property-bindings
 //
 // Accepts a draft term in the body so the admin UI can score a
 // "term-in-progress" without saving it first.
@@ -69,13 +69,10 @@ pub struct SuggestBindingsRequest {
     /// Canonical term name. `LocalizedText` so a draft term carries
     /// the same multi-locale shape as a saved one — the scorer matches
     /// against every locale variant.
-    #[schema(value_type = Object)]
     pub term: LocalizedText,
     #[serde(default)]
-    #[schema(value_type = Vec<Object>)]
     pub aliases: Vec<LocalizedText>,
     #[serde(default)]
-    #[schema(value_type = Object)]
     pub description: Option<LocalizedText>,
     /// Pre-existing term id if the term is already saved. When
     /// provided, the endpoint confirms it refers to the saved
@@ -105,7 +102,7 @@ pub struct PropertyCandidate {
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/glossary/suggest-bindings",
+    path = "/api/ontology/concepts/suggest-property-bindings",
     request_body = SuggestBindingsRequest,
     responses(
         (status = 200, description = "Candidate property bindings", body = SuggestBindingsResponse),
@@ -113,7 +110,7 @@ pub struct PropertyCandidate {
     security(("api_key" = [])),
     tag = "Ontology",
 )]
-pub(crate) async fn suggest_glossary_bindings(
+pub(crate) async fn suggest_concept_property_bindings(
     axum::extract::State(state): axum::extract::State<AppState>,
     _principal: Principal,
     Json(req): Json<SuggestBindingsRequest>,
@@ -138,6 +135,7 @@ pub(crate) async fn suggest_glossary_bindings(
         valid_to: None,
         lifecycle: ox_ontology::glossary::TermLifecycle::default(),
         concept_id: None,
+        term_pos: Default::default(),
     };
 
     let candidates = suggest_property_bindings_by_term(&ir, &term, policy);
@@ -148,29 +146,29 @@ pub(crate) async fn suggest_glossary_bindings(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ontologies/{id}/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms
+// POST /api/ontology/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-concepts
 //
-// The inverse direction — edit a property, see which existing terms
+// The inverse direction — edit a property, see which existing concepts
 // are nearby matches. Useful as an auto-suggest in the PropertyDef
-// editor's glossary-term dropdown.
+// editor's concept dropdown.
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
-pub struct SuggestTermsRequest {
+pub struct SuggestConceptsRequest {
     #[serde(default)]
     pub policy: Option<BindingPolicy>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct SuggestTermsResponse {
+pub struct SuggestConceptsResponse {
     pub ontology_id: Uuid,
-    pub candidates: Vec<TermCandidate>,
+    pub candidates: Vec<ConceptCandidate>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct TermCandidate {
+pub struct ConceptCandidate {
     pub term_id: String,
-    #[schema(value_type = Object)]
+    pub concept_id: String,
     pub term: LocalizedText,
     pub score: f32,
     pub signals: Vec<BindingSignal>,
@@ -178,25 +176,25 @@ pub struct TermCandidate {
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms",
+    path = "/api/ontology/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-concepts",
     params(
         ("owner_kind" = String, Path, description = "node | edge"),
         ("owner_type_id" = String, Path, description = "NodeTypeId or EdgeTypeId"),
         ("property_id" = String, Path, description = "PropertyId"),
     ),
-    request_body = SuggestTermsRequest,
+    request_body = SuggestConceptsRequest,
     responses(
-        (status = 200, description = "Candidate glossary terms", body = SuggestTermsResponse),
+        (status = 200, description = "Candidate concepts", body = SuggestConceptsResponse),
     ),
     security(("api_key" = [])),
     tag = "Ontology",
 )]
-pub(crate) async fn suggest_glossary_terms_for_property(
+pub(crate) async fn suggest_concepts_for_property(
     axum::extract::State(state): axum::extract::State<AppState>,
     _principal: Principal,
     Path((owner_kind, owner_type_id, property_id)): Path<(String, String, String)>,
-    Json(req): Json<SuggestTermsRequest>,
-) -> Result<Json<ApiResponse<SuggestTermsResponse>>, AppError> {
+    Json(req): Json<SuggestConceptsRequest>,
+) -> Result<Json<ApiResponse<SuggestConceptsResponse>>, AppError> {
     let (ontology_id, ir) = load_current_ir(&state).await?;
     let policy = req
         .policy
@@ -222,10 +220,13 @@ pub(crate) async fn suggest_glossary_terms_for_property(
     };
 
     let property_id_owned = property_id.into();
-    let candidates = suggest_terms_by_property(&ir, &owner, &property_id_owned, policy);
-    Ok(ApiResponse::of(SuggestTermsResponse {
+    let candidates = suggest_concepts_by_property(&ir, &owner, &property_id_owned, policy);
+    Ok(ApiResponse::of(SuggestConceptsResponse {
         ontology_id,
-        candidates: candidates.into_iter().map(shape_term_candidate).collect(),
+        candidates: candidates
+            .into_iter()
+            .map(shape_concept_candidate)
+            .collect(),
     }))
 }
 
@@ -277,9 +278,10 @@ fn shape_candidate(c: PropertyBindingCandidate) -> PropertyCandidate {
     }
 }
 
-fn shape_term_candidate(c: TermBindingCandidate) -> TermCandidate {
-    TermCandidate {
+fn shape_concept_candidate(c: ConceptBindingCandidate) -> ConceptCandidate {
+    ConceptCandidate {
         term_id: c.term_id.to_string(),
+        concept_id: c.concept_id.to_string(),
         term: c.term,
         score: c.score,
         signals: c.signals,

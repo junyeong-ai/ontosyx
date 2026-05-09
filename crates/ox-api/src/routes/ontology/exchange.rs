@@ -2,10 +2,10 @@ use axum::Json;
 
 use ox_compiler::export;
 use ox_compiler::import;
-use ox_ontology::input::{InputOntologyDef, normalize, to_exchange_format};
+use ox_ontology::input::{InputOntologyDef, NormalizeWarning, normalize, to_exchange_format};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::mapping::SourceId;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -29,21 +29,27 @@ use crate::response::ApiResponse;
 // Normalize — InputOntologyDef → OntologyIR
 // ---------------------------------------------------------------------------
 
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct NormalizeOntologyResponse {
+    pub ontology: OntologyIR,
+    pub warnings: Vec<NormalizeWarning>,
+}
+
 #[utoipa::path(
     post,
-    path = "/api/ontologies/normalize",
-    request_body(content = Object, description = "InputOntologyDef to normalize"),
+    path = "/api/ontology/normalize",
+    request_body = InputOntologyDef,
     responses(
-        (status = 200, description = "Normalized OntologyIR", body = Object),
+        (status = 200, description = "Normalized OntologyIR", body = NormalizeOntologyResponse),
         (status = 400, description = "Validation errors", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn normalize_ontology(
     principal: Principal,
     Json(input): Json<InputOntologyDef>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<NormalizeOntologyResponse>>, AppError> {
     principal.require_designer()?;
     // Ad-hoc normalize — no project / data source attached. The
     // returned IR is for validation / inspection only and carries
@@ -52,12 +58,11 @@ pub(crate) async fn normalize_ontology(
     // keeps any emitted mappings identifiable as having come through
     // this path.
     let source_id = SourceId::new("adhoc:normalize-endpoint");
-    let result =
-        normalize(input, &source_id).map_err(AppError::ontology_invariant_violation)?;
-    Ok(ApiResponse::of(serde_json::json!({
-        "ontology": result.ontology,
-        "warnings": result.warnings,
-    })))
+    let result = normalize(input, &source_id).map_err(AppError::ontology_invariant_violation)?;
+    Ok(ApiResponse::of(NormalizeOntologyResponse {
+        ontology: result.ontology,
+        warnings: result.warnings,
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -66,13 +71,13 @@ pub(crate) async fn normalize_ontology(
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/export",
-    request_body(content = Object, description = "OntologyIR to export"),
+    path = "/api/ontology/export",
+    request_body = OntologyIR,
     responses(
-        (status = 200, description = "InputOntologyDef exchange format", body = Object),
+        (status = 200, description = "InputOntologyDef exchange format", body = InputOntologyDef),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn export_ontology(
     principal: Principal,
@@ -89,13 +94,13 @@ pub(crate) async fn export_ontology(
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/export/cypher",
-    request_body(content = Object, description = "OntologyIR"),
+    path = "/api/ontology/export/cypher",
+    request_body = OntologyIR,
     responses(
         (status = 200, description = "Cypher DDL statements", content_type = "text/plain"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn export_cypher(
     principal: Principal,
@@ -107,13 +112,13 @@ pub(crate) async fn export_cypher(
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/export/mermaid",
-    request_body(content = Object, description = "OntologyIR"),
+    path = "/api/ontology/export/mermaid",
+    request_body = OntologyIR,
     responses(
         (status = 200, description = "Mermaid ER diagram", content_type = "text/plain"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn export_mermaid(
     principal: Principal,
@@ -125,13 +130,13 @@ pub(crate) async fn export_mermaid(
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/export/graphql",
-    request_body(content = Object, description = "OntologyIR"),
+    path = "/api/ontology/export/graphql",
+    request_body = OntologyIR,
     responses(
         (status = 200, description = "GraphQL schema", content_type = "text/plain"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn export_graphql(
     principal: Principal,
@@ -143,13 +148,13 @@ pub(crate) async fn export_graphql(
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/export/owl",
-    request_body(content = Object, description = "OntologyIR"),
+    path = "/api/ontology/export/owl",
+    request_body = OntologyIR,
     responses(
         (status = 200, description = "OWL/Turtle ontology", content_type = "text/plain"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn export_owl(
     principal: Principal,
@@ -161,13 +166,13 @@ pub(crate) async fn export_owl(
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/export/shacl",
-    request_body(content = Object, description = "OntologyIR"),
+    path = "/api/ontology/export/shacl",
+    request_body = OntologyIR,
     responses(
         (status = 200, description = "SHACL shapes in Turtle format", content_type = "text/plain"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn export_shacl(
     principal: Principal,
@@ -179,13 +184,13 @@ pub(crate) async fn export_shacl(
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/export/typescript",
-    request_body(content = Object, description = "OntologyIR"),
+    path = "/api/ontology/export/typescript",
+    request_body = OntologyIR,
     responses(
         (status = 200, description = "TypeScript interface definitions", content_type = "text/plain"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn export_typescript(
     principal: Principal,
@@ -197,13 +202,13 @@ pub(crate) async fn export_typescript(
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/export/python",
-    request_body(content = Object, description = "OntologyIR"),
+    path = "/api/ontology/export/python",
+    request_body = OntologyIR,
     responses(
         (status = 200, description = "Python dataclass definitions", content_type = "text/plain"),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn export_python(
     principal: Principal,
@@ -225,14 +230,14 @@ pub struct ImportOntologyRequest {
 
 #[utoipa::path(
     post,
-    path = "/api/ontologies/import/owl",
+    path = "/api/ontology/import/owl",
     request_body = ImportOntologyRequest,
     responses(
-        (status = 200, description = "Parsed OntologyIR", body = Object),
+        (status = 200, description = "Parsed OntologyIR", body = OntologyIR),
         (status = 400, description = "Parse or validation errors", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
-    tag = "Ontologies",
+    tag = "Ontology",
 )]
 pub(crate) async fn import_owl(
     principal: Principal,

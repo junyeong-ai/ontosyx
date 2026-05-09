@@ -5,10 +5,12 @@ use serde::Deserialize;
 use tracing::warn;
 use uuid::Uuid;
 
-use ox_store::{NotificationChannel, NotificationLog};
+use ox_store::{
+    NotificationChannel, NotificationChannelType, NotificationLog, WebhookNotificationConfig,
+};
 
 use crate::error::AppError;
-use crate::notifications::{send_webhook, validate_channel_type, validate_webhook_url};
+use crate::notifications::{send_webhook, validate_webhook_url};
 use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
@@ -19,17 +21,10 @@ use crate::workspace::WorkspaceContext;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct WebhookChannelConfig {
-    /// Webhook endpoint URL. HTTP(S) only; private network ranges are
-    /// blocked at validation time.
-    pub url: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
 pub struct CreateChannelRequest {
     pub name: String,
-    pub channel_type: String,
-    pub config: WebhookChannelConfig,
+    pub channel_type: NotificationChannelType,
+    pub config: WebhookNotificationConfig,
     #[serde(default)]
     pub events: Vec<String>,
 }
@@ -38,7 +33,7 @@ pub struct CreateChannelRequest {
     post,
     path = "/api/notifications/channels",
     request_body = CreateChannelRequest,
-    responses((status = 200, description = "Channel created", body = Object)),
+    responses((status = 200, description = "Channel created", body = NotificationChannel)),
     security(("api_key" = [])),
     tag = "Notifications",
 )]
@@ -50,7 +45,6 @@ pub(crate) async fn create_channel(
 ) -> Result<Json<ApiResponse<NotificationChannel>>, AppError> {
     principal.require_admin()?;
 
-    validate_channel_type(&req.channel_type)?;
     validate_webhook_url(&req.config.url)?;
 
     let channel = NotificationChannel {
@@ -58,7 +52,7 @@ pub(crate) async fn create_channel(
         workspace_id: ws.workspace_id,
         name: req.name,
         channel_type: req.channel_type,
-        config: serde_json::json!({ "url": req.config.url }),
+        config: req.config,
         events: req.events,
         enabled: true,
         created_at: Utc::now(),
@@ -81,7 +75,7 @@ pub(crate) async fn create_channel(
 #[utoipa::path(
     get,
     path = "/api/notifications/channels",
-    responses((status = 200, description = "Channel list", body = Vec<Object>)),
+    responses((status = 200, description = "Channel list", body = Vec<NotificationChannel>)),
     security(("api_key" = [])),
     tag = "Notifications",
 )]
@@ -106,7 +100,7 @@ pub(crate) async fn list_channels(
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateChannelRequest {
     pub name: Option<String>,
-    pub config: Option<WebhookChannelConfig>,
+    pub config: Option<WebhookNotificationConfig>,
     pub events: Option<Vec<String>>,
     pub enabled: Option<bool>,
 }
@@ -132,16 +126,12 @@ pub(crate) async fn update_channel(
         validate_webhook_url(&config.url)?;
     }
 
-    let config_value = req
-        .config
-        .as_ref()
-        .map(|c| serde_json::json!({ "url": c.url }));
     state
         .store
         .update_notification_channel(
             id,
             req.name.as_deref(),
-            config_value.as_ref(),
+            req.config.as_ref(),
             req.events.as_deref(),
             req.enabled,
         )
@@ -277,7 +267,7 @@ fn default_log_limit() -> i64 {
     get,
     path = "/api/notifications/log",
     params(LogQuery),
-    responses((status = 200, description = "Delivery log entries", body = Vec<Object>)),
+    responses((status = 200, description = "Delivery log entries", body = Vec<NotificationLog>)),
     security(("api_key" = [])),
     tag = "Notifications",
 )]

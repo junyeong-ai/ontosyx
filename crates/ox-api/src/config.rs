@@ -371,10 +371,7 @@ impl CollaborationConfig {
             return Err("collaboration.reap_interval_secs must be ≥ 1".into());
         }
         if self.reap_interval_secs >= self.idle_timeout_secs {
-            return Err(
-                "collaboration.reap_interval_secs must be < idle_timeout_secs"
-                    .into(),
-            );
+            return Err("collaboration.reap_interval_secs must be < idle_timeout_secs".into());
         }
         Ok(())
     }
@@ -722,7 +719,7 @@ impl OxConfig {
         let config = Config::builder()
             // Defaults
             .set_default("server.host", "0.0.0.0")?
-            .set_default("server.port", 3001_i64)?
+            .set_default("server.port", 3101_i64)?
             .set_default("server.cors_origins", Vec::<String>::new())?
             .set_default(
                 "server.allowed_git_hosts",

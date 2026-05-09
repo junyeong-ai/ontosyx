@@ -9,7 +9,7 @@ use chrono::Utc;
 use tracing::warn;
 use uuid::Uuid;
 
-use ox_store::{NotificationChannel, NotificationLog};
+use ox_store::{NotificationChannel, NotificationChannelType, NotificationLog};
 
 use crate::error::AppError;
 
@@ -31,17 +31,6 @@ static WEBHOOK_CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLoc
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
-
-pub(crate) fn validate_channel_type(ct: &str) -> Result<(), AppError> {
-    match ct {
-        "slack_webhook" | "generic_webhook" => Ok(()),
-        _ => Err(AppError::invalid_enum_value(
-            "channel_type",
-            ct.to_string(),
-            &["slack_webhook", "generic_webhook"],
-        )),
-    }
-}
 
 pub(crate) fn validate_webhook_url(url: &str) -> Result<(), AppError> {
     let parsed =
@@ -84,14 +73,10 @@ pub(crate) async fn send_webhook(
     subject: &str,
     body: &str,
 ) -> Result<(), String> {
-    let url = channel
-        .config
-        .get("url")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Missing 'url' in channel config".to_string())?;
+    let url = &channel.config.url;
 
-    let payload = match channel.channel_type.as_str() {
-        "slack_webhook" => {
+    let payload = match channel.channel_type {
+        NotificationChannelType::SlackWebhook => {
             let text = format!("*{subject}*\n{body}");
             // Slack limits messages to ~4000 chars; truncate safely at char boundary
             let truncated = if text.len() > 3500 {
@@ -102,7 +87,7 @@ pub(crate) async fn send_webhook(
             };
             serde_json::json!({ "text": truncated })
         }
-        _ => serde_json::json!({
+        NotificationChannelType::GenericWebhook => serde_json::json!({
             "subject": subject,
             "body": body,
             "channel": channel.name,
@@ -112,12 +97,8 @@ pub(crate) async fn send_webhook(
     let mut request = WEBHOOK_CLIENT.post(url).json(&payload);
 
     // Apply custom headers from config (e.g. Authorization)
-    if let Some(headers) = channel.config.get("headers").and_then(|v| v.as_object()) {
-        for (key, val) in headers {
-            if let Some(str_val) = val.as_str() {
-                request = request.header(key, str_val);
-            }
-        }
+    for (key, value) in &channel.config.headers {
+        request = request.header(key, value);
     }
 
     let response = request

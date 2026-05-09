@@ -28,7 +28,7 @@ use crate::state::AppState;
     get,
     path = "/api/ontology/dependencies",
     responses(
-        (status = 200, description = "Schema dependency graph", body = Object),
+        (status = 200, description = "Schema dependency graph", body = SchemaDependencyGraph),
         (status = 404, description = "Workspace has no ontology, or ontology has no committed version"),
     ),
     security(("api_key" = [])),

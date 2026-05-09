@@ -1,9 +1,9 @@
-//! Unified ontology-creation endpoint — `POST /api/ontologies`.
+//! Unified ontology-creation endpoint — `POST /api/ontology`.
 //!
 //! Creates an empty ontology and applies an optional batch of
 //! [`OntologyEditOp`]s as the first committed version. Reuses the
 //! same Phase-6 approval routing + validation pipeline as
-//! `POST /api/ontologies/{id}/edits`, so *every* ontology content
+//! `POST /api/ontology/edits`, so *every* ontology content
 //! change — creation or subsequent edit — flows through one
 //! auditable machinery.
 //!
@@ -33,7 +33,7 @@ use crate::routes::ontology::routing::verify_ops_apply;
 const MAX_NAME_LEN: usize = 256;
 use crate::state::AppState;
 
-/// Request body for `POST /api/ontologies`.
+/// Request body for `POST /api/ontology`.
 ///
 /// `initial_operations` is optional — callers that only need the
 /// shell (empty ontology with a pilot name) can omit it. When
@@ -60,12 +60,7 @@ pub struct CreateOntologyRequest {
     /// Must contain at least one op — the handler rejects empty
     /// batches with 400 so the endpoint stays symmetric with
     /// `/edits`, which never accepts an empty operations list.
-    /// OpenAPI surfaces this as a free-form array — clients
-    /// discriminate on the internal `op` tag
-    /// (`create_glossary_term`, etc.) from [`OntologyEditOp`]'s
-    /// serde representation.
     #[serde(default)]
-    #[schema(value_type = Vec<Object>)]
     pub initial_operations: Vec<OntologyEditOp>,
     /// Free-form commit message — surfaces in the version log next
     /// to the first snapshot.
@@ -186,7 +181,12 @@ pub(crate) async fn create_ontology(
 
     let identity = state
         .store
-        .create_ontology(name, &display_name_json, &description_json, Some(&lineage_seed))
+        .create_ontology(
+            name,
+            &display_name_json,
+            &description_json,
+            Some(&lineage_seed),
+        )
         .await
         .map_err(AppError::from)?;
 
@@ -199,11 +199,40 @@ pub(crate) async fn create_ontology(
         .as_deref()
         .unwrap_or("ontology created via admin API");
 
+    let capture = ox_ontology::ProvenanceCapture::ontology_edit(
+        ox_ontology::AgentRef::User {
+            user_id: committed_by.clone(),
+        },
+        commit_message,
+    );
+
     let snapshot = state
         .store
-        .commit_version(identity.id, &ir, "1", None, &committed_by, commit_message)
+        .commit_version(
+            identity.id,
+            &ir,
+            "1",
+            None,
+            &committed_by,
+            commit_message,
+            capture,
+            ox_text::glossary_tokenizer_fingerprint(&ir).as_str(),
+        )
         .await
         .map_err(AppError::from)?;
+
+    // Build the workspace tokenizer + backfill any retrieval
+    // surfaces seeded by the bootstrap. First-version commit
+    // → no parent → publish-on-mismatch always fires when the
+    // ontology already carries glossary terms.
+    crate::tokenizer_publish::publish_workspace_tokenizer_after_commit(
+        &state,
+        identity.workspace_id,
+        None,
+        &ir,
+    )
+    .await
+    .map_err(AppError::from)?;
 
     Ok((
         StatusCode::CREATED,

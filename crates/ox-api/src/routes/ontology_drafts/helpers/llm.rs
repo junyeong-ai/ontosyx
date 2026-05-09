@@ -1,12 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
-use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
+use ox_core::source_schema::{ForeignKeyDef, SourceProfile, SourceSchema};
 use ox_ontology::input::InputOntologyDef;
+use ox_ontology::ontology_draft::{SourceConfig, SourceTypeKind};
 use ox_ontology::pii::{PiiAnnotation, redact_column_stats};
 use ox_ontology::source_analysis::{
     AnalysisWarning, DesignOptions, ENUM_CARDINALITY_THRESHOLD, SourceAnalysisReport,
 };
-use ox_core::source_schema::{ForeignKeyDef, SourceProfile, SourceSchema};
 use ox_ontology::table_clustering::TableCluster;
 use ox_store::OntologyDraft;
 
@@ -198,7 +198,8 @@ fn reduce_schema_for_llm(
         });
         for tp in &mut profile.table_profiles {
             if let Some(cols) = by_table.get(tp.table_name.as_str()) {
-                tp.column_stats.retain(|cs| !cols.contains(cs.column_name.as_str()));
+                tp.column_stats
+                    .retain(|cs| !cols.contains(cs.column_name.as_str()));
             }
         }
     }
@@ -366,10 +367,7 @@ fn build_dropped_table_summary(
 /// sample values + min / max in place. Counts (`null_count`,
 /// `distinct_count`) are preserved — counts are not PII and the
 /// LLM relies on the distribution shape.
-fn apply_pii_annotations_to_profile(
-    profile: &mut SourceProfile,
-    annotations: &[PiiAnnotation],
-) {
+fn apply_pii_annotations_to_profile(profile: &mut SourceProfile, annotations: &[PiiAnnotation]) {
     if annotations.is_empty() {
         return;
     }
@@ -379,9 +377,7 @@ fn apply_pii_annotations_to_profile(
     }
     for tp in &mut profile.table_profiles {
         for cs in &mut tp.column_stats {
-            if let Some(kind) =
-                by_target.get(&(tp.table_name.as_str(), cs.column_name.as_str()))
-            {
+            if let Some(kind) = by_target.get(&(tp.table_name.as_str(), cs.column_name.as_str())) {
                 redact_column_stats(cs, kind);
             }
         }

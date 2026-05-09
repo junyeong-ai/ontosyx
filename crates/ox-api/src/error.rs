@@ -69,7 +69,7 @@ pub enum ApiErrorCode {
     ReconcileError,
     /// Streaming-only — refine pipeline failed mid-stream.
     RefineError,
-    /// `POST /ontologies/{id}/edits` with an empty operations array.
+    /// `POST /ontology/edits` with an empty operations array.
     /// Distinct from `bad_request` so the FE renders "select at
     /// least one change" rather than a generic "invalid request".
     EditOperationsEmpty,
@@ -101,6 +101,17 @@ pub enum ApiErrorCode {
     /// diagnostics so the FE can render them as a list rather than
     /// concatenating into one paragraph.
     OntologyInvariantViolation,
+    /// Φ12 — `OntologyIR::validate_against_source_contracts` rejected
+    /// the commit because at least one mapping references a relation
+    /// or column that is not present in the captured source-contract
+    /// bank. `params.violations` is an array of
+    /// `{ code, params }` objects mirroring the diagnostics emitted
+    /// by the validator — the FE renders one row per violation with
+    /// i18n keys at `errors.ontology.validate.<sub_code>`.
+    /// Operator recovery: re-introspect the source so the contract
+    /// bank picks up the relation, or update the mapping to point at
+    /// an existing relation/column.
+    SourceContractMismatch,
     /// One of the queued edit operations rejected during dry-run or
     /// apply — `params.detail` is the per-op message from
     /// `OntologyEditOp::apply_to`.
@@ -123,10 +134,6 @@ pub enum ApiErrorCode {
     /// renders an inline form-validation hint pointing at the
     /// search box.
     QueryTextEmpty,
-    /// Temporal `as_of` query without a resolvable `ontology_id`.
-    /// The pivot needs the lineage to walk back through; raw-IR
-    /// queries (anonymous) can't pivot.
-    TemporalQueryRequiresOntology,
     /// Temporal `as_of` resolved to no committed version — the
     /// lineage's oldest version was committed *after* the
     /// timestamp. `params.as_of` + `params.lineage_id` give the
@@ -146,10 +153,10 @@ pub enum ApiErrorCode {
     /// reformulate to add an indexed filter / bound the
     /// `var_length` depth / break the Cartesian. `params.risk_level`
     /// + `params.detail` carry the cost-estimator's primary
-    /// rejection reason; `params.estimated_wallclock_ms` /
-    /// `params.estimated_expansions` surface the quantitative
-    /// projections so the FE inline error can render an actionable
-    /// "we expect this query to take ~Ns / touch ~M rows" copy.
+    ///   rejection reason; `params.estimated_wallclock_ms` /
+    ///   `params.estimated_expansions` surface the quantitative
+    ///   projections so the FE inline error can render an actionable
+    ///   "we expect this query to take ~Ns / touch ~M rows" copy.
     QueryCostBudgetExceeded,
     /// Knowledge entry payload had a `kind` / `status` value not in
     /// the typed enum allowlist. `params.field` names which slot,
@@ -372,6 +379,7 @@ pub enum ApiErrorCode {
     ServiceUnavailable,
     Timeout,
     MissingContext,
+    ApiResponseInvalid,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -388,8 +396,10 @@ impl ApiErrorCode {
         use ApiErrorCode::*;
         match self {
             InternalError | NotImplemented | Unsupported | ServiceUnavailable | Timeout
-            | MissingContext | AgentError | DesignError | QualityError | PersistError
-            | ReconcileError | RefineError => ApiErrorClass::ServerError,
+            | MissingContext | ApiResponseInvalid | FeatureNotConfigured | AgentError
+            | DesignError | QualityError | PersistError | ReconcileError | RefineError => {
+                ApiErrorClass::ServerError
+            }
             _ => ApiErrorClass::ClientError,
         }
     }
@@ -429,12 +439,12 @@ impl ApiErrorCode {
             OntologyDraftStaleParent => "ontology_draft_stale_parent",
             OntologyDraftStaleParentCanonicalWiped => "ontology_draft_stale_parent_canonical_wiped",
             OntologyInvariantViolation => "ontology_invariant_violation",
+            SourceContractMismatch => "source_contract_mismatch",
             EditOperationRejected => "edit_operation_rejected",
             OntologyNotCommitted => "ontology_not_committed",
             DeployPendingApproval => "deploy_pending_approval",
             OntologyDraftMissingSourceSchema => "ontology_draft_missing_source_schema",
             QueryTextEmpty => "query_text_empty",
-            TemporalQueryRequiresOntology => "temporal_query_requires_ontology",
             TemporalSnapshotMissing => "temporal_snapshot_missing",
             QueryExecutionFailed => "query_execution_failed",
             QueryCompilationFailed => "query_compilation_failed",
@@ -484,6 +494,7 @@ impl ApiErrorCode {
             ServiceUnavailable => "service_unavailable",
             Timeout => "timeout",
             MissingContext => "missing_context",
+            ApiResponseInvalid => "api_response_invalid",
         }
     }
 }
@@ -519,11 +530,7 @@ impl AppError {
 
     /// Attach an interpolation parameter from anything `Serialize`.
     /// Used for structured details (objects, arrays).
-    pub fn with_param_json(
-        mut self,
-        key: impl Into<String>,
-        value: impl Serialize,
-    ) -> Self {
+    pub fn with_param_json(mut self, key: impl Into<String>, value: impl Serialize) -> Self {
         if let Ok(v) = serde_json::to_value(value) {
             self.params.insert(key.into(), v);
         }
@@ -545,13 +552,15 @@ impl AppError {
     // -----------------------------------------------------------------------
 
     pub fn not_found(entity: &str) -> Self {
-        Self::new(StatusCode::NOT_FOUND, ApiErrorCode::NotFound)
-            .with_param("entity", entity)
+        Self::new(StatusCode::NOT_FOUND, ApiErrorCode::NotFound).with_param("entity", entity)
     }
 
     pub fn service_unavailable(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::SERVICE_UNAVAILABLE, ApiErrorCode::ServiceUnavailable)
-            .with_param("detail", message.into())
+        Self::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            ApiErrorCode::ServiceUnavailable,
+        )
+        .with_param("detail", message.into())
     }
 
     /// 410 Gone — resource existed but is no longer available (e.g., a
@@ -559,13 +568,15 @@ impl AppError {
     /// `not_found` so clients can render a "this link expired" message
     /// instead of a generic 404.
     pub fn gone(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::GONE, ApiErrorCode::Gone)
-            .with_param("detail", message.into())
+        Self::new(StatusCode::GONE, ApiErrorCode::Gone).with_param("detail", message.into())
     }
 
     pub fn unprocessable(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::UNPROCESSABLE_ENTITY, ApiErrorCode::Unprocessable)
-            .with_param("detail", message.into())
+        Self::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            ApiErrorCode::Unprocessable,
+        )
+        .with_param("detail", message.into())
     }
 
     pub fn unprocessable_with_details(
@@ -618,13 +629,15 @@ impl AppError {
     }
 
     pub fn conflict(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::CONFLICT, ApiErrorCode::Conflict)
-            .with_param("detail", message.into())
+        Self::new(StatusCode::CONFLICT, ApiErrorCode::Conflict).with_param("detail", message.into())
     }
 
     pub fn internal(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::INTERNAL_SERVER_ERROR, ApiErrorCode::InternalError)
-            .with_param("detail", message.into())
+        Self::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ApiErrorCode::InternalError,
+        )
+        .with_param("detail", message.into())
     }
 
     /// Serialize a value to JSON, converting serialization failures to AppError.
@@ -680,7 +693,7 @@ impl AppError {
             .with_param("detail", message)
     }
 
-    /// `POST /ontologies/{id}/edits` with empty `operations`. The
+    /// `POST /ontology/edits` with empty `operations`. The
     /// response body carries no `params` — the FE catalog renders a
     /// fixed "select at least one change" copy, no English fragment
     /// to interpolate.
@@ -736,6 +749,24 @@ impl AppError {
         .with_param_json("errors", errors)
     }
 
+    /// Φ12 — `OntologyIR::validate_against_source_contracts` rejected
+    /// the commit. `violations` is the structured diagnostic vector
+    /// emitted by the validator; each entry has the same `code` +
+    /// `params` shape as `ontology_invariant_violation`. The FE
+    /// renders one row per violation with locale-specific copy keyed
+    /// on the diagnostic code.
+    pub fn source_contract_mismatch(
+        violations: Vec<ox_core::diagnostic::DiagnosticMessage>,
+    ) -> Self {
+        let count = violations.len();
+        Self::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            ApiErrorCode::SourceContractMismatch,
+        )
+        .with_param("violation_count", count as i64)
+        .with_param_json("violations", violations)
+    }
+
     /// One of the queued edit operations rejected. `detail` is the
     /// per-op message; the FE catalog template renders it verbatim
     /// (these come from the IR's own validation paths so are
@@ -782,16 +813,6 @@ impl AppError {
     /// catalog renders a fixed "type something to search" copy.
     pub fn query_text_empty() -> Self {
         Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::QueryTextEmpty)
-    }
-
-    /// Temporal `as_of` query without an ontology_id. No params —
-    /// the FE catalog renders a fixed "select an ontology to walk
-    /// back through" copy.
-    pub fn temporal_query_requires_ontology() -> Self {
-        Self::new(
-            StatusCode::BAD_REQUEST,
-            ApiErrorCode::TemporalQueryRequiresOntology,
-        )
     }
 
     /// Temporal snapshot missing — no version was live at
@@ -868,11 +889,7 @@ impl AppError {
 
     /// Text field length outside the configured window.
     /// `min` and `max` are inclusive character bounds.
-    pub fn text_length_out_of_range(
-        field: impl Into<String>,
-        min: usize,
-        max: usize,
-    ) -> Self {
+    pub fn text_length_out_of_range(field: impl Into<String>, min: usize, max: usize) -> Self {
         Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::TextLengthOutOfRange)
             .with_param("field", field.into())
             .with_param("min", min)
@@ -1036,10 +1053,7 @@ impl AppError {
     /// `operation` ∈ `clone` / `tree` / `read` / `empty_selection`
     /// / `empty_content`. `detail` is the driver error (empty
     /// string for purely structural failures).
-    pub fn repo_analysis_failed(
-        operation: impl Into<String>,
-        detail: impl Into<String>,
-    ) -> Self {
+    pub fn repo_analysis_failed(operation: impl Into<String>, detail: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::RepoAnalysisFailed)
             .with_param("operation", operation.into())
             .with_param("detail", detail.into())
@@ -1087,10 +1101,7 @@ impl AppError {
     }
 
     /// Reanalyze source kind doesn't match the project's stored kind.
-    pub fn source_type_mismatch(
-        expected: impl Into<String>,
-        got: impl Into<String>,
-    ) -> Self {
+    pub fn source_type_mismatch(expected: impl Into<String>, got: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::SourceTypeMismatch)
             .with_param("expected", expected.into())
             .with_param("got", got.into())
@@ -1112,9 +1123,12 @@ impl AppError {
         required: impl Into<String>,
         actual: impl Into<String>,
     ) -> Self {
-        Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::OntologyDraftStatusMismatch)
-            .with_param("required", required.into())
-            .with_param("actual", actual.into())
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            ApiErrorCode::OntologyDraftStatusMismatch,
+        )
+        .with_param("required", required.into())
+        .with_param("actual", actual.into())
     }
 
     /// Live connection to a data source failed.
@@ -1157,11 +1171,8 @@ impl AppError {
 
     /// A cron expression failed to parse.
     pub fn cron_expression_invalid(value: impl Into<String>) -> Self {
-        Self::new(
-            StatusCode::BAD_REQUEST,
-            ApiErrorCode::CronExpressionInvalid,
-        )
-        .with_param("value", value.into())
+        Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::CronExpressionInvalid)
+            .with_param("value", value.into())
     }
 
     /// Resource is owned by another principal.
@@ -1217,16 +1228,13 @@ impl AppError {
     /// Platform role gate rejected the caller.
     /// `role` ∈ `admin` / `designer`.
     pub fn role_required(role: impl Into<String>) -> Self {
-        Self::new(StatusCode::FORBIDDEN, ApiErrorCode::RoleRequired)
-            .with_param("role", role.into())
+        Self::new(StatusCode::FORBIDDEN, ApiErrorCode::RoleRequired).with_param("role", role.into())
     }
 
     /// Ontology input failed schema validation. `errors` is the
     /// structured diagnostic list — the FE catalog renders each by
     /// `id` + interpolated params, no English prose interpolation.
-    pub fn invalid_ontology(
-        errors: Vec<ox_core::diagnostic::DiagnosticMessage>,
-    ) -> Self {
+    pub fn invalid_ontology(errors: Vec<ox_core::diagnostic::DiagnosticMessage>) -> Self {
         Self::new(
             StatusCode::UNPROCESSABLE_ENTITY,
             ApiErrorCode::InvalidOntology,
@@ -1283,24 +1291,26 @@ fn ox_error_status(err: &OxError) -> (StatusCode, ApiErrorCode) {
         OxError::Parse { .. } => (StatusCode::BAD_REQUEST, ApiErrorCode::ParseError),
         OxError::NotFound { .. } => (StatusCode::NOT_FOUND, ApiErrorCode::NotFound),
         OxError::Conflict { .. } => (StatusCode::CONFLICT, ApiErrorCode::Conflict),
-        OxError::Ontology { .. } => {
-            (StatusCode::UNPROCESSABLE_ENTITY, ApiErrorCode::OntologyError)
-        }
-        OxError::Compilation { .. } => {
-            (StatusCode::UNPROCESSABLE_ENTITY, ApiErrorCode::CompilationError)
-        }
+        OxError::Ontology { .. } => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            ApiErrorCode::OntologyError,
+        ),
+        OxError::Compilation { .. } => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            ApiErrorCode::CompilationError,
+        ),
         OxError::UnsupportedOperation { .. } => {
             (StatusCode::NOT_IMPLEMENTED, ApiErrorCode::Unsupported)
         }
-        OxError::Serialization(_) => {
-            (StatusCode::BAD_REQUEST, ApiErrorCode::SerializationError)
-        }
-        OxError::MissingContext { .. } => {
-            (StatusCode::INTERNAL_SERVER_ERROR, ApiErrorCode::MissingContext)
-        }
-        OxError::Runtime { .. } | OxError::Contextual { .. } => {
-            (StatusCode::INTERNAL_SERVER_ERROR, ApiErrorCode::InternalError)
-        }
+        OxError::Serialization(_) => (StatusCode::BAD_REQUEST, ApiErrorCode::SerializationError),
+        OxError::MissingContext { .. } => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ApiErrorCode::MissingContext,
+        ),
+        OxError::Runtime { .. } | OxError::Contextual { .. } => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ApiErrorCode::InternalError,
+        ),
     }
 }
 
@@ -1423,16 +1433,16 @@ mod redaction_tests {
         assert_eq!(app_err.code, ApiErrorCode::ValidationError);
         // 4xx is the user's fault — keep the precise message so the
         // FE catalog can render the localised guidance.
-        assert_eq!(
-            app_err.params.get("field"),
-            Some(&Value::from("email")),
-        );
+        assert_eq!(app_err.params.get("field"), Some(&Value::from("email")),);
         let detail = app_err
             .params
             .get("detail")
             .and_then(|v| v.as_str())
             .unwrap_or_default();
-        assert!(detail.contains('@'), "detail should preserve user text: {detail}");
+        assert!(
+            detail.contains('@'),
+            "detail should preserve user text: {detail}"
+        );
     }
 
     #[test]
@@ -1454,15 +1464,15 @@ mod redaction_tests {
     fn not_found_carries_entity_param() {
         let err = AppError::not_found("OntologyDraft");
         assert_eq!(err.code, ApiErrorCode::NotFound);
-        assert_eq!(err.params.get("entity"), Some(&Value::from("OntologyDraft")));
+        assert_eq!(
+            err.params.get("entity"),
+            Some(&Value::from("OntologyDraft"))
+        );
     }
 
     #[test]
     fn class_partition_aligns_with_status() {
-        assert_eq!(
-            ApiErrorCode::NotFound.class(),
-            ApiErrorClass::ClientError
-        );
+        assert_eq!(ApiErrorCode::NotFound.class(), ApiErrorClass::ClientError);
         assert_eq!(
             ApiErrorCode::InternalError.class(),
             ApiErrorClass::ServerError
@@ -1473,6 +1483,10 @@ mod redaction_tests {
         );
         assert_eq!(
             ApiErrorCode::Unsupported.class(),
+            ApiErrorClass::ServerError
+        );
+        assert_eq!(
+            ApiErrorCode::FeatureNotConfigured.class(),
             ApiErrorClass::ServerError
         );
     }
@@ -1513,6 +1527,7 @@ mod redaction_tests {
             ServiceUnavailable,
             Timeout,
             MissingContext,
+            ApiResponseInvalid,
             AgentError,
             DesignError,
             QualityError,
@@ -1524,12 +1539,12 @@ mod redaction_tests {
             OntologyDraftStaleParent,
             OntologyDraftStaleParentCanonicalWiped,
             OntologyInvariantViolation,
+            SourceContractMismatch,
             EditOperationRejected,
             OntologyNotCommitted,
             DeployPendingApproval,
             OntologyDraftMissingSourceSchema,
             QueryTextEmpty,
-            TemporalQueryRequiresOntology,
             TemporalSnapshotMissing,
             QueryExecutionFailed,
             QueryCompilationFailed,
@@ -1575,10 +1590,7 @@ mod redaction_tests {
             CredentialResolveFailed,
         ];
         for code in all {
-            assert!(
-                !code.as_str().is_empty(),
-                "{code:?} has empty wire string"
-            );
+            assert!(!code.as_str().is_empty(), "{code:?} has empty wire string");
             // class() is a total function via match, so we only
             // assert it returns one of the two partitions — the
             // compiler already enforces exhaustiveness.

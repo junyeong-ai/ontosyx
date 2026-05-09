@@ -85,7 +85,10 @@ async fn run_scan(store: &dyn Store, stale_after_days: i64) -> ox_core::error::O
     // `workspace_id`, so per-workspace grouping happens in-process.
     let rows = store.list_stale_types(stale_after_days).await?;
     if rows.is_empty() {
-        info!(days = stale_after_days, "stale-concept scan: nothing to propose");
+        info!(
+            days = stale_after_days,
+            "stale-concept scan: nothing to propose"
+        );
         return Ok(());
     }
 

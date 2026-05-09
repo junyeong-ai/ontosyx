@@ -36,9 +36,7 @@ use tokio::sync::{Mutex, broadcast};
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::collaboration::{
-    ClientMessage, ErrorCode, ServerMessage, SessionHandle, open_session,
-};
+use crate::collaboration::{ClientMessage, ErrorCode, ServerMessage, SessionHandle, open_session};
 use crate::error::AppError;
 use crate::middleware::{AuthClaims, check_jwt_revocation, validate_jwt};
 use crate::state::AppState;
@@ -123,10 +121,8 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
     ox_store::WORKSPACE_ID
         .scope(
             workspace_id,
-            ox_graph_runtime::GRAPH_WORKSPACE_ID.scope(
-                workspace_id,
-                serve_collab(state, socket, outcome, session),
-            ),
+            ox_graph_runtime::GRAPH_WORKSPACE_ID
+                .scope(workspace_id, serve_collab(state, socket, outcome, session)),
         )
         .await;
 }
@@ -171,7 +167,11 @@ async fn authenticate(state: &AppState, socket: &mut WebSocket) -> Result<AuthOu
         return Err(());
     };
 
-    let ClientMessage::Authenticate { token, workspace_id } = parsed else {
+    let ClientMessage::Authenticate {
+        token,
+        workspace_id,
+    } = parsed
+    else {
         let _ = send_one(socket, &server_error(ErrorCode::AuthRequired)).await;
         close_socket(socket, close_code::POLICY, "auth required").await;
         return Err(());
@@ -201,7 +201,9 @@ async fn authenticate(state: &AppState, socket: &mut WebSocket) -> Result<AuthOu
     // duplicate the membership predicate here.
     let store = Arc::clone(&state.store);
     let membership = ox_store::WORKSPACE_ID
-        .scope(workspace_id, async move { store.get_workspace(workspace_id).await })
+        .scope(workspace_id, async move {
+            store.get_workspace(workspace_id).await
+        })
         .await;
     match membership {
         Ok(Some(_)) => {}
@@ -427,10 +429,7 @@ async fn verify_ontology_draft(
 /// dropping. Any send failure on either branch terminates the
 /// task — once the socket is dead, further publishes can't reach
 /// it.
-async fn forward_broadcast(
-    mut rx: broadcast::Receiver<ServerMessage>,
-    sender: WsSender,
-) {
+async fn forward_broadcast(mut rx: broadcast::Receiver<ServerMessage>, sender: WsSender) {
     loop {
         match rx.recv().await {
             Ok(msg) => {
@@ -465,7 +464,10 @@ fn server_error(code: ErrorCode) -> ServerMessage {
 
 async fn send_one(socket: &mut WebSocket, msg: &ServerMessage) -> Result<(), ()> {
     let json = serde_json::to_string(msg).map_err(|_| ())?;
-    socket.send(Message::Text(json.into())).await.map_err(|_| ())
+    socket
+        .send(Message::Text(json.into()))
+        .await
+        .map_err(|_| ())
 }
 
 async fn send_via(sender: &WsSender, msg: &ServerMessage) -> Result<(), ()> {
