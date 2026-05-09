@@ -33,9 +33,7 @@ use serde::{Deserialize, Serialize};
 
 use ox_core::i18n::LocalizedText;
 use ox_core::types::PropertyType;
-use ox_ontology::input::{
-    InputEdgeTypeDef, InputNodeTypeDef, InputOntologyDef, InputPropertyDef,
-};
+use ox_ontology::input::{InputEdgeTypeDef, InputNodeTypeDef, InputOntologyDef, InputPropertyDef};
 use ox_ontology::ir::Cardinality;
 
 /// Hard ceiling on the JSON Schema produced from any LLM output
@@ -118,7 +116,11 @@ fn node_into_input(node: LlmNodeType) -> InputNodeTypeDef {
         label: node.label,
         description: LocalizedText::new(&node.description),
         source_table: node.source_table,
-        properties: node.properties.into_iter().map(property_into_input).collect(),
+        properties: node
+            .properties
+            .into_iter()
+            .map(property_into_input)
+            .collect(),
         constraints: Vec::new(),
     }
 }
@@ -130,7 +132,11 @@ fn edge_into_input(edge: LlmEdgeType) -> InputEdgeTypeDef {
         description: LocalizedText::new(&edge.description),
         source_type: edge.source_type,
         target_type: edge.target_type,
-        properties: edge.properties.into_iter().map(property_into_input).collect(),
+        properties: edge
+            .properties
+            .into_iter()
+            .map(property_into_input)
+            .collect(),
         cardinality: edge.cardinality,
         // The narrow LLM schema doesn't carry edge classification; the
         // operator promotes plain Associations to Composition /

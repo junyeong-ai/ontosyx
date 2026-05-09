@@ -11,9 +11,9 @@
 
 use std::collections::HashSet;
 
-use ox_ontology::ir::OntologyIR;
 use ox_memory::store::{MemoryEntry, MemoryMetadata, MemorySource, MemoryStore};
 use ox_memory::vector::MemoryFilter;
+use ox_ontology::ir::OntologyIR;
 use tracing::{info, warn};
 
 /// Maximum schema nodes to include in compact schema for query translation.
@@ -287,7 +287,7 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
             // Rank by total informative payload (description + enrichment)
             // so enrichment-rich terminology props aren't starved out by
             // long-described free-text ones.
-            described_props.sort_by(|a, b| (b.1.len() + b.2.len()).cmp(&(a.1.len() + a.2.len())));
+            described_props.sort_by_key(|item| std::cmp::Reverse(item.1.len() + item.2.len()));
             let total = described_props.len();
             let pruned = &described_props[..total.min(MAX_DESCRIBED_PROPS_PER_NODE)];
 
@@ -300,10 +300,7 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
                     if desc.is_empty() {
                         output.push_str(&format!("  {label}.{}:{enrichment}\n", prop.name));
                     } else {
-                        output.push_str(&format!(
-                            "  {label}.{}: {desc}{enrichment}\n",
-                            prop.name
-                        ));
+                        output.push_str(&format!("  {label}.{}: {desc}{enrichment}\n", prop.name));
                     }
                 }
                 if total > MAX_DESCRIBED_PROPS_PER_NODE {
@@ -341,9 +338,12 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
                     }
                 })
                 .collect();
-            described.sort_by(|a, b| (b.1.len() + b.2.len()).cmp(&(a.1.len() + a.2.len())));
+            described.sort_by_key(|item| std::cmp::Reverse(item.1.len() + item.2.len()));
             let total = described.len();
-            let pruned: Vec<_> = described.into_iter().take(MAX_DESCRIBED_PROPS_PER_EDGE).collect();
+            let pruned: Vec<_> = described
+                .into_iter()
+                .take(MAX_DESCRIBED_PROPS_PER_EDGE)
+                .collect();
             if !pruned.is_empty() {
                 if !has_details {
                     output.push_str("\nProperty details:\n");
@@ -426,7 +426,10 @@ pub(crate) fn format_property_enrichment(
     if let Some(vs_id) = prop.value_set_id()
         && let Some(vs) = ontology.value_set_by_id(vs_id)
     {
-        out.push_str(&format!(" [values: {}]", format_value_set_summary(ontology, vs)));
+        out.push_str(&format!(
+            " [values: {}]",
+            format_value_set_summary(ontology, vs)
+        ));
     }
 
     if let Some(np_id) = prop.notation_pattern_id()
@@ -710,7 +713,9 @@ mod tests {
     /// `expand_value_set` is stable when the selector is `All`.
     #[test]
     fn enrichment_value_set_inlines_codes_with_tail() {
-        let codes: Vec<CodedValue> = (0..12).map(|i| coded(&format!("cv_{i}"), &format!("C{i}"))).collect();
+        let codes: Vec<CodedValue> = (0..12)
+            .map(|i| coded(&format!("cv_{i}"), &format!("C{i}")))
+            .collect();
         let system = system_with_codes("sys", codes);
 
         let vs = ValueSetDef {
@@ -734,12 +739,17 @@ mod tests {
             property_type: PropertyType::String,
             description: LocalizedText::default(),
             nullable: false,
-            bindings: vec![ox_ontology::PropertyBinding::value_set(ValueSetId::new("vs_status"),)],
+            bindings: vec![ox_ontology::PropertyBinding::value_set(ValueSetId::new(
+                "vs_status",
+            ))],
             ..Default::default()
         };
 
         let enriched = format_property_enrichment(&ontology, &prop);
-        assert!(enriched.contains("[values:"), "enrichment present: {enriched}");
+        assert!(
+            enriched.contains("[values:"),
+            "enrichment present: {enriched}"
+        );
         assert!(enriched.contains("C0"), "first code visible");
         assert!(
             enriched.contains("+2 more"),
@@ -777,14 +787,19 @@ mod tests {
             property_type: PropertyType::String,
             description: LocalizedText::default(),
             nullable: false,
-            bindings: vec![ox_ontology::PropertyBinding::notation_pattern(NotationPatternId::new("np_spring"),)],
+            bindings: vec![ox_ontology::PropertyBinding::notation_pattern(
+                NotationPatternId::new("np_spring"),
+            )],
             ..Default::default()
         };
 
         let enriched = format_property_enrichment(&ontology, &prop);
         assert!(enriched.contains("[format:"), "notation tag: {enriched}");
         assert!(enriched.contains("SPRING_{NNN}"), "template visible");
-        assert!(enriched.contains("e.g. SPRING_001"), "first example visible");
+        assert!(
+            enriched.contains("e.g. SPRING_001"),
+            "first example visible"
+        );
     }
 
     /// Value-range enrichment renders each band as `[lo..hi]=Label`.
@@ -833,23 +848,25 @@ mod tests {
             property_type: PropertyType::Int,
             description: LocalizedText::default(),
             nullable: false,
-            bindings: vec![ox_ontology::PropertyBinding::value_range(ValueRangeSetId::new("rs_bp"),)],
+            bindings: vec![ox_ontology::PropertyBinding::value_range(
+                ValueRangeSetId::new("rs_bp"),
+            )],
             ..Default::default()
         };
 
         let enriched = format_property_enrichment(&ontology, &prop);
         assert!(enriched.contains("-∞..90)=Low"), "low band: {enriched}");
-        assert!(enriched.contains("[90..120)=Normal"), "normal band: {enriched}");
+        assert!(
+            enriched.contains("[90..120)=Normal"),
+            "normal band: {enriched}"
+        );
         assert!(enriched.contains("[120..+∞=High"), "high band: {enriched}");
     }
 
     /// Unit enrichment surfaces the coded-value `code` (e.g. `kg`).
     #[test]
     fn enrichment_unit_shows_coded_value_code() {
-        let system = system_with_codes(
-            "ucum",
-            vec![coded("ucum.kg", "kg"), coded("ucum.m", "m")],
-        );
+        let system = system_with_codes("ucum", vec![coded("ucum.kg", "kg"), coded("ucum.m", "m")]);
         let ontology = minimal_ontology(vec![system], vec![], vec![], vec![]);
 
         let prop = PropertyDef {

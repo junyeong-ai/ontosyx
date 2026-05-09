@@ -1,6 +1,5 @@
 //! `LlmMetadata` impl for [`DefaultBrain`].
 
-
 use async_trait::async_trait;
 
 use ox_core::error::OxResult;

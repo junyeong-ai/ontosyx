@@ -9,8 +9,9 @@ use ox_core::error::{OxError, OxResult};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::mapping::SourceId;
 
-use crate::*;
+use crate::model_resolver::operation;
 use crate::provider::structured_completion;
+use crate::*;
 
 #[async_trait]
 impl OntologyDesigner for DefaultBrain {
@@ -23,8 +24,7 @@ impl OntologyDesigner for DefaultBrain {
         // collapses without conditional template syntax — no
         // leftover headers in the rendered prompt.
         let glossary_section = design::render_glossary_section(input.glossary_terms);
-        let code_systems_section =
-            design::render_code_systems_section(input.code_systems);
+        let code_systems_section = design::render_code_systems_section(input.code_systems);
         let ambiguity_section = design::render_ambiguity_section(input.ambiguity_hints);
         let existing_ontology_section =
             design::render_existing_ontology_section(input.existing_ontology);
@@ -35,7 +35,10 @@ impl OntologyDesigner for DefaultBrain {
         vars.insert("glossary_section", glossary_section.as_str());
         vars.insert("code_systems_section", code_systems_section.as_str());
         vars.insert("ambiguity_section", ambiguity_section.as_str());
-        vars.insert("existing_ontology_section", existing_ontology_section.as_str());
+        vars.insert(
+            "existing_ontology_section",
+            existing_ontology_section.as_str(),
+        );
 
         info!(
             has_domain_context = input.has_domain_context(),
@@ -53,9 +56,9 @@ impl OntologyDesigner for DefaultBrain {
         // into the artifact-side envelope.
         let (llm_output, call): (design::LlmDesignOutput, _) = self
             .call_structured_traced(
-                "design_ontology",
+                operation::DESIGN_ONTOLOGY,
                 Some("1.0.0"),
-                "design_ontology",
+                operation::DESIGN_ONTOLOGY,
                 &vars,
                 "Designing ontology from sample data",
             )
@@ -87,7 +90,10 @@ impl OntologyDesigner for DefaultBrain {
             });
         }
 
-        Ok(DesignOntologyOutput { ontology, provenance })
+        Ok(DesignOntologyOutput {
+            ontology,
+            provenance,
+        })
     }
 
     async fn resolve_design_provenance(
@@ -108,6 +114,7 @@ impl OntologyDesigner for DefaultBrain {
         Ok(CallProvenance {
             prompt_id: prompt_name.to_string(),
             prompt_version: tmpl.version.clone(),
+            provider: resolved.provider,
             model_id: resolved.model_id,
             max_tokens,
             temperature,
@@ -123,7 +130,7 @@ impl OntologyDesigner for DefaultBrain {
         existing_nodes: &str,
         cross_fks: &str,
     ) -> OxResult<ox_ontology::input::InputOntologyDef> {
-        let base_prompt = self.prompts.get("design_ontology")?;
+        let base_prompt = self.prompts.get(operation::DESIGN_ONTOLOGY)?;
         let batch_tmpl = self.prompts.checked_for("design_ontology_batch", "1.0.0")?;
 
         // Inject full base instructions — token budget is safe after profile compression
@@ -138,7 +145,9 @@ impl OntologyDesigner for DefaultBrain {
         vars.insert("context", context);
         let user_prompt = batch_tmpl.render_user(&vars);
 
-        let (client, resolved) = self.resolve_for_operation("design_ontology").await?;
+        let (client, resolved) = self
+            .resolve_for_operation(operation::DESIGN_ONTOLOGY)
+            .await?;
         info!(
             model = %resolved.model_id,
             prompt_version = %batch_tmpl.version,
@@ -169,9 +178,9 @@ impl OntologyDesigner for DefaultBrain {
         vars.insert("uncovered_fks", uncovered_fks);
 
         self.call_structured(
-            "resolve_cross_edges",
+            operation::RESOLVE_CROSS_EDGES,
             Some("1.0.0"),
-            "resolve_cross_edges",
+            operation::RESOLVE_CROSS_EDGES,
             &vars,
             "Resolving cross-domain edges",
         )
@@ -195,9 +204,9 @@ impl OntologyDesigner for DefaultBrain {
 
         let llm_output: design::LlmDesignOutput = self
             .call_structured(
-                "refine_ontology",
+                operation::REFINE_ONTOLOGY,
                 Some("1.0.0"),
-                "refine_ontology",
+                operation::REFINE_ONTOLOGY,
                 &vars,
                 "Refining ontology metadata",
             )

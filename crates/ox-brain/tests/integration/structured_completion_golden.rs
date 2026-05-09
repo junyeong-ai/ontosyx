@@ -16,9 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use ox_brain::provider::{SchemaComplexityThresholds, structured_completion_with_thresholds};
-use ox_brain::test_support::{
-    MockLlmCall, make_text_response, make_truncated_response,
-};
+use ox_brain::test_support::{MockLlmCall, make_text_response, make_truncated_response};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -64,7 +62,13 @@ async fn schema_enforced_path_returns_typed_struct_and_caches_system_prompt() {
     .await
     .expect("happy-path schema enforcement parses the canned response");
 
-    assert_eq!(answer, Answer { label: "alpha".into(), score: 1 });
+    assert_eq!(
+        answer,
+        Answer {
+            label: "alpha".into(),
+            score: 1
+        }
+    );
     assert!(mock.is_drained(), "exactly one response consumed");
 
     // Pre-flight assertion on the request shape — the system prompt
@@ -103,7 +107,13 @@ async fn json_only_fallback_strips_code_fence_wrapper() {
     .await
     .expect("code-fence-wrapped JSON parses through the fallback");
 
-    assert_eq!(answer, Answer { label: "beta".into(), score: 7 });
+    assert_eq!(
+        answer,
+        Answer {
+            label: "beta".into(),
+            score: 7
+        }
+    );
 }
 
 #[tokio::test]
@@ -130,7 +140,13 @@ async fn json_only_fallback_strips_reasoning_prefix() {
     .await
     .expect("reasoning-prefix JSON parses through the fallback");
 
-    assert_eq!(answer, Answer { label: "gamma".into(), score: 3 });
+    assert_eq!(
+        answer,
+        Answer {
+            label: "gamma".into(),
+            score: 3
+        }
+    );
 }
 
 #[tokio::test]
@@ -161,7 +177,13 @@ async fn json_only_fallback_recovers_self_corrected_last_object() {
     .await
     .expect("self-correction recovery returns the trailing object");
 
-    assert_eq!(answer, Answer { label: "final".into(), score: 42 });
+    assert_eq!(
+        answer,
+        Answer {
+            label: "final".into(),
+            score: 42
+        }
+    );
 }
 
 #[tokio::test]
@@ -254,7 +276,13 @@ async fn content_filter_kind_triggers_json_only_retry_with_strict_directive() {
     .await
     .expect("content-filter fallback recovers with JSON-only retry");
 
-    assert_eq!(answer, Answer { label: "after-retry".into(), score: 9 });
+    assert_eq!(
+        answer,
+        Answer {
+            label: "after-retry".into(),
+            score: 9
+        }
+    );
 
     // The two requests differ exactly where the recovery contract
     // requires: the first attaches a JSON Schema response_format,
@@ -296,9 +324,8 @@ async fn content_filter_substring_in_message_no_longer_misclassifies() {
     )
     .await;
 
-    let err = result.expect_err(
-        "Config error with the phrase 'content filter' must NOT trigger the retry",
-    );
+    let err = result
+        .expect_err("Config error with the phrase 'content filter' must NOT trigger the retry");
     assert!(
         err.to_string().contains("client misconfigured"),
         "the Config error must surface verbatim, not be silently retried; got: {err}",

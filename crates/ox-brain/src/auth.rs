@@ -30,18 +30,28 @@ impl LlmProviderConfig {
     /// Resolve branchforge Auth from provider configuration.
     pub fn resolve_auth(&self) -> OxResult<branchforge::Auth> {
         match self.provider.as_str() {
-            "anthropic" => {
-                let key = self.api_key.as_deref().ok_or_else(|| OxError::Runtime {
-                    message: "Anthropic provider requires api_key".to_string(),
-                })?;
-                Ok(branchforge::Auth::api_key(key))
+            "anthropic" => Ok(self
+                .api_key
+                .as_deref()
+                .map(branchforge::Auth::api_key)
+                .unwrap_or_else(branchforge::Auth::from_env)),
+            "bedrock" => {
+                #[cfg(feature = "llm-aws")]
+                {
+                    Ok(branchforge::Auth::Bedrock {
+                        region: self
+                            .region
+                            .clone()
+                            .unwrap_or_else(|| "us-east-1".to_string()),
+                    })
+                }
+                #[cfg(not(feature = "llm-aws"))]
+                {
+                    Err(OxError::Runtime {
+                        message: "Bedrock provider requires the `llm-aws` feature".to_string(),
+                    })
+                }
             }
-            "bedrock" => Ok(branchforge::Auth::Bedrock {
-                region: self
-                    .region
-                    .clone()
-                    .unwrap_or_else(|| "us-east-1".to_string()),
-            }),
             "claude-code" => Ok(branchforge::Auth::ClaudeCli),
             other => {
                 if let Some(ref key) = self.api_key {
@@ -49,7 +59,7 @@ impl LlmProviderConfig {
                 } else {
                     Err(OxError::Runtime {
                         message: format!(
-                            "Unsupported LLM provider: '{other}'. Supported: anthropic, bedrock, claude-code"
+                            "Unsupported LLM provider: '{other}'. Supported: anthropic, claude-code"
                         ),
                     })
                 }
@@ -57,6 +67,7 @@ impl LlmProviderConfig {
         }
     }
 
+    #[cfg(feature = "llm-aws")]
     pub fn bedrock(region: impl Into<String>, model: impl Into<String>) -> Self {
         Self {
             provider: "bedrock".to_string(),
@@ -90,5 +101,40 @@ impl fmt::Debug for LlmProviderConfig {
             .field("region", &self.region)
             .field("timeout_secs", &self.timeout_secs)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn anthropic_without_inline_key_uses_environment_auth() {
+        let config = LlmProviderConfig {
+            provider: "anthropic".to_string(),
+            model: "claude-sonnet-4-6".to_string(),
+            api_key: None,
+            base_url: None,
+            region: None,
+            timeout_secs: None,
+        };
+
+        let auth = config.resolve_auth().expect("auth should resolve lazily");
+        assert!(matches!(auth, branchforge::Auth::FromEnv));
+    }
+
+    #[test]
+    fn anthropic_with_inline_key_uses_explicit_api_key() {
+        let config = LlmProviderConfig {
+            provider: "anthropic".to_string(),
+            model: "claude-sonnet-4-6".to_string(),
+            api_key: Some("sk-test".to_string()),
+            base_url: None,
+            region: None,
+            timeout_secs: None,
+        };
+
+        let auth = config.resolve_auth().expect("auth should resolve");
+        assert!(matches!(auth, branchforge::Auth::ApiKey(_)));
     }
 }

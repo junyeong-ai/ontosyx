@@ -108,15 +108,11 @@ impl MockLlmCall {
 impl LlmCall for MockLlmCall {
     async fn send(&self, request: &ModelRequest) -> branchforge::Result<ModelResponse> {
         self.requests.lock().unwrap().push(request.clone());
-        self.queued
-            .lock()
-            .unwrap()
-            .pop_front()
-            .unwrap_or_else(|| {
-                Err(branchforge::Error::Config(
-                    "MockLlmCall queue empty — enqueue a response before calling send()".into(),
-                ))
-            })
+        self.queued.lock().unwrap().pop_front().unwrap_or_else(|| {
+            Err(branchforge::Error::Config(
+                "MockLlmCall queue empty — enqueue a response before calling send()".into(),
+            ))
+        })
     }
 
     async fn send_stream(
@@ -126,18 +122,13 @@ impl LlmCall for MockLlmCall {
     ) -> branchforge::Result<ChunkStream> {
         self.requests.lock().unwrap().push(request.clone());
 
-        let chunks = self
-            .streams
-            .lock()
-            .unwrap()
-            .pop_front()
-            .ok_or_else(|| {
-                branchforge::Error::Config(
-                    "MockLlmCall stream queue empty — enqueue_stream(...) before \
+        let chunks = self.streams.lock().unwrap().pop_front().ok_or_else(|| {
+            branchforge::Error::Config(
+                "MockLlmCall stream queue empty — enqueue_stream(...) before \
                      calling send_stream()"
-                        .into(),
-                )
-            })?;
+                    .into(),
+            )
+        })?;
 
         // Yield `Ok(chunk)` for every chunk in the pre-built vec, but
         // honour cancellation between chunks so cancellation-aware
@@ -209,9 +200,7 @@ pub fn make_text_stream(text: impl Into<String>) -> Vec<ModelStreamChunk> {
 /// `&str` becomes one `TextDelta` chunk. Tests verify chunk
 /// reassembly by passing multi-segment input and asserting the
 /// concatenated text on the consumer side.
-pub fn make_chunked_stream<'a>(
-    chunks: impl IntoIterator<Item = &'a str>,
-) -> Vec<ModelStreamChunk> {
+pub fn make_chunked_stream<'a>(chunks: impl IntoIterator<Item = &'a str>) -> Vec<ModelStreamChunk> {
     let mut out = vec![ModelStreamChunk::MessageStart {
         id: "mock-response-1".into(),
         model: "mock-model".into(),

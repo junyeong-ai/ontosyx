@@ -234,15 +234,14 @@ impl PromptRegistry {
                 file.prompt.system, file.prompt.user_template
             );
 
-            let parsed_version = PromptVersion::parse(&file.prompt.version).map_err(|e| {
-                OxError::Runtime {
+            let parsed_version =
+                PromptVersion::parse(&file.prompt.version).map_err(|e| OxError::Runtime {
                     message: format!(
                         "Prompt TOML {} version '{}' isn't valid semver: {e}",
                         path.display(),
                         file.prompt.version
                     ),
-                }
-            })?;
+                })?;
 
             let existing = store
                 .find_prompt_template_by_name_version(&name, &parsed_version)
@@ -256,7 +255,7 @@ impl PromptRegistry {
                         name: name.clone(),
                         version: parsed_version,
                         content: combined,
-                        variables: serde_json::json!([]),
+                        variables: Vec::new(),
                         metadata: serde_json::json!({
                             "description": file.prompt.description,
                             "max_tokens": file.prompt.max_tokens,
@@ -463,7 +462,7 @@ mod tests {
             name: "p".to_string(),
             version: PromptVersion::parse("1.0.0").unwrap(),
             content: content.to_string(),
-            variables: serde_json::json!([]),
+            variables: Vec::new(),
             metadata: serde_json::json!({}),
             created_by: created_by.to_string(),
             created_at: chrono::Utc::now(),
@@ -512,7 +511,7 @@ mod tests {
             name: name.to_string(),
             version: PromptVersion::parse(version).unwrap(),
             content: format!("[system]\n{body}\n\n[user_template]\n"),
-            variables: serde_json::json!([]),
+            variables: Vec::new(),
             metadata: serde_json::json!({}),
             created_by: SYSTEM_CREATOR.to_string(),
             created_at: chrono::Utc::now(),

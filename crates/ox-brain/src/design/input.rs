@@ -72,11 +72,7 @@ impl<'a> DesignOntologyInput<'a> {
     /// Convenience constructor for the "no domain context yet" case
     /// — every workspace starts here. Equivalent to building the
     /// struct with empty domain slices.
-    pub fn bare(
-        sample_data: &'a str,
-        context: &'a str,
-        source_id: &'a SourceId,
-    ) -> Self {
+    pub fn bare(sample_data: &'a str, context: &'a str, source_id: &'a SourceId) -> Self {
         Self {
             sample_data,
             context,

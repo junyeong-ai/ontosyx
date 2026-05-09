@@ -1,14 +1,14 @@
 //! `Explainer` impl for [`DefaultBrain`].
 
-
 use async_trait::async_trait;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
 use ox_ontology::ir::OntologyIR;
 
-use crate::*;
+use crate::model_resolver::operation;
 use crate::provider::{StreamChunk, TokenUsage, structured_completion};
+use crate::*;
 
 #[async_trait]
 impl Explainer for DefaultBrain {
@@ -22,7 +22,7 @@ impl Explainer for DefaultBrain {
                 "You are Ontosyx, a knowledge graph assistant.".to_string()
             });
 
-        let (client, resolved) = self.resolve_for_operation("explain").await?;
+        let (client, resolved) = self.resolve_for_operation(operation::EXPLAIN).await?;
 
         let request = branchforge::ModelRequest::new(
             &resolved.model_id,
@@ -58,7 +58,7 @@ impl Explainer for DefaultBrain {
                 "You are Ontosyx, a knowledge graph assistant.".to_string()
             });
 
-        let (client, resolved) = self.resolve_for_operation("explain").await?;
+        let (client, resolved) = self.resolve_for_operation(operation::EXPLAIN).await?;
 
         let request = branchforge::ModelRequest::new(
             &resolved.model_id,
@@ -177,7 +177,9 @@ impl Explainer for DefaultBrain {
         );
 
         let system = "You are a data analyst assistant. Generate insightful questions about knowledge graphs. Return only valid JSON.";
-        let (client, resolved) = self.resolve_for_operation("suggest_insights").await?;
+        let (client, resolved) = self
+            .resolve_for_operation(operation::SUGGEST_INSIGHTS)
+            .await?;
 
         info!(
             model = %resolved.model_id,

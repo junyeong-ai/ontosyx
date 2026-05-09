@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 ox-core = { workspace = true }
@@ -13,7 +14,8 @@ ox-query-ir = { workspace = true }
 ox-compiler = { workspace = true }
 ox-memory = { workspace = true }
 ox-store = { workspace = true }
-branchforge = { workspace = true, features = ["aws", "cli-auth"] }
+ox-text = { workspace = true }
+branchforge = { workspace = true, features = ["cli-auth"] }
 dashmap = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -25,11 +27,12 @@ metrics = { workspace = true }
 futures-core = { workspace = true }
 tokio-stream = { workspace = true }
 async-stream = { workspace = true }
-toml = "0.9"
+toml = "1"
 schemars = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 sha2 = { workspace = true }
+hex = { workspace = true }
 
 [dev-dependencies]
 futures-util = "0.3"
@@ -41,6 +44,7 @@ futures-util = "0.3"
 # `ox-api/test-helpers` pattern. Off by default so production
 # builds never link the helpers.
 test-helpers = []
+llm-aws = ["branchforge/aws"]
 
 [lints]
 workspace = true

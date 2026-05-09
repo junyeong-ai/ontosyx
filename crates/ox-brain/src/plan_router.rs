@@ -118,7 +118,7 @@ impl RouteDecision {
 pub enum HybridStage {
     /// A graph-runtime sub-query whose result rows feed the next
     /// stage's bound input.
-    Graph { ir: QueryIR },
+    Graph { ir: Box<QueryIR> },
     /// A DataFusion sub-plan whose result rows feed the next
     /// stage's bound input.
     Federation { plan: serde_json::Value },
@@ -156,10 +156,7 @@ pub struct CostBudget {
 ///
 /// Internal use only — `OxError::Validation` carries the wire
 /// shape; the api crate maps `[budget]` prefix to the typed code.
-fn reject_with_budget(
-    cost: &QueryCost,
-    detail: impl Into<String>,
-) -> OxError {
+fn reject_with_budget(cost: &QueryCost, detail: impl Into<String>) -> OxError {
     // The cost estimator's RiskLevel + extrapolation lands in the
     // detail message + structured-error params via ox-api. Encode
     // the params inline so `AppError::query_cost_budget_exceeded`
@@ -179,7 +176,7 @@ fn reject_with_budget(
     }
 }
 
-/// Heuristic `PlanRouter` — production dispatch for the platform.
+/// Query execution `PlanRouter` — production dispatch for the platform.
 ///
 /// Decision tree:
 ///   1. Compute `QueryCost` via `ox_compiler::cost::estimate_cost`.
@@ -193,25 +190,23 @@ fn reject_with_budget(
 ///   5. Detect cross-source traversal via
 ///      `LinkMappingDef::crosses_sources()` on every relationship
 ///      label the IR touches. When any edge crosses sources →
-///      `RouteDecision::Federation` (today `plan` is rendered as
-///      `null`; a future `ox-federation::build_match_plan` call
-///      site populates the plan). Until that wiring lands,
-///      cross-source detection still fires and surfaces in the
-///      attribution string.
+///      `RouteDecision::Federation`. Callers that cannot execute
+///      DataFusion plans must fail this route explicitly instead of
+///      falling through to graph execution.
 ///   6. Otherwise → `RouteDecision::Graph`.
 ///
 /// Stateless. One instance per process is sufficient.
 #[derive(Debug, Default, Clone, Copy)]
-pub struct HeuristicPlanRouter;
+pub struct QueryExecutionRouter;
 
-impl HeuristicPlanRouter {
+impl QueryExecutionRouter {
     pub fn new() -> Self {
         Self
     }
 }
 
 #[async_trait]
-impl PlanRouter for HeuristicPlanRouter {
+impl PlanRouter for QueryExecutionRouter {
     async fn route(
         &self,
         ir: &QueryIR,
@@ -234,8 +229,7 @@ impl PlanRouter for HeuristicPlanRouter {
         }
 
         // 3. Wallclock gate.
-        if let (Some(b), Some(estimated_ms)) =
-            (budget, cost.estimated_wallclock_ms)
+        if let (Some(b), Some(estimated_ms)) = (budget, cost.estimated_wallclock_ms)
             && let Some(cap_ms) = b.max_wallclock_ms
             && estimated_ms > cap_ms
             && !b.allow_high_cost
@@ -256,9 +250,7 @@ impl PlanRouter for HeuristicPlanRouter {
         {
             return Err(reject_with_budget(
                 &cost,
-                format!(
-                    "estimated {estimated_rows} rows exceeds workspace row cap of {cap_rows}"
-                ),
+                format!("estimated {estimated_rows} rows exceeds workspace row cap of {cap_rows}"),
             ));
         }
 
@@ -419,8 +411,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn heuristic_router_emits_graph_for_low_risk_single_source() {
-        let router = HeuristicPlanRouter::new();
+    async fn query_execution_router_emits_graph_for_low_risk_single_source() {
+        let router = QueryExecutionRouter::new();
         let (ir, ontology) = empty_inputs();
 
         let decision = router.route(&ir, &ontology, None).await.expect("route");
@@ -435,12 +427,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn heuristic_router_rejects_high_risk_without_allow() {
+    async fn query_execution_router_rejects_high_risk_without_allow() {
         // Synthesize a high-risk IR — unbounded var-length path
         // (Cypher `*`) is the canonical RiskLevel::High shape.
         use ox_core::graph_label::GraphLabel;
-        use ox_core::variable_name::VariableName;
         use ox_core::types::Direction;
+        use ox_core::variable_name::VariableName;
         use ox_query_ir::query::{GraphPattern as Gp, QueryOp, VarLength};
 
         let ir = QueryIR {
@@ -490,7 +482,7 @@ mod tests {
             Vec::new(),
         );
 
-        let router = HeuristicPlanRouter::new();
+        let router = QueryExecutionRouter::new();
         // Default budget refuses High.
         let err = router
             .route(&ir, &ontology, None)
@@ -501,7 +493,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn heuristic_router_passes_high_risk_when_explicitly_allowed() {
+    async fn query_execution_router_passes_high_risk_when_explicitly_allowed() {
         use ox_core::graph_label::GraphLabel;
         use ox_core::variable_name::VariableName;
         use ox_query_ir::query::{GraphPattern as Gp, QueryOp};
@@ -542,7 +534,7 @@ mod tests {
             Vec::new(),
         );
 
-        let router = HeuristicPlanRouter::new();
+        let router = QueryExecutionRouter::new();
         let budget = CostBudget {
             allow_high_cost: true,
             ..Default::default()

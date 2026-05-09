@@ -50,9 +50,7 @@ async fn chunked_stream_reassembles_in_order() {
     // both deliver text in arrival order, so no resort is needed —
     // the test pins that property.
     let mock = MockLlmCall::new();
-    mock.enqueue_stream(make_chunked_stream([
-        "The ", "answer ", "is ", "42.",
-    ]));
+    mock.enqueue_stream(make_chunked_stream(["The ", "answer ", "is ", "42."]));
 
     let mut stream = mock
         .send_stream(&build_request(), CancellationToken::new())

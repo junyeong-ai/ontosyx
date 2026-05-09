@@ -256,7 +256,11 @@ pub fn render_property_signals(signals: &[PropertySignal]) -> String {
                 target_column,
                 declared,
             } => {
-                let tag = if *declared { "declared FK" } else { "inferred FK" };
+                let tag = if *declared {
+                    "declared FK"
+                } else {
+                    "inferred FK"
+                };
                 out.push_str(&format!(
                     "- {column}: {tag} → {target_table}.{target_column}\n"
                 ));

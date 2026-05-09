@@ -6,6 +6,7 @@ use async_trait::async_trait;
 
 use ox_core::error::OxResult;
 
+use crate::model_resolver::operation;
 use crate::*;
 
 #[async_trait]
@@ -15,7 +16,7 @@ impl EvaluationJudge for DefaultBrain {
         question: &str,
         expected: Option<&serde_json::Value>,
         actual: &serde_json::Value,
-    ) -> OxResult<EvaluationJudgement> {
+    ) -> OxResult<(EvaluationJudgement, CallProvenance)> {
         // The judge prompt receives JSON-rendered values directly.
         // `expected` ships as the literal `null` token when absent
         // so the prompt can branch (`expected != null` → match
@@ -31,10 +32,16 @@ impl EvaluationJudge for DefaultBrain {
         vars.insert("expected", expected_str.as_str());
         vars.insert("actual", actual_str.as_str());
 
-        self.call_structured(
-            "evaluation_judge",
+        // `call_structured_traced` returns the typed judgement +
+        // the per-call `CallProvenance` (prompt id + version +
+        // render hash + model id). The caller stamps a
+        // `ProvenanceCapture` from the latter before persisting
+        // the judge's metric rows; every judged metric ends up
+        // pointing at the audit row that produced it.
+        self.call_structured_traced(
+            operation::EVALUATION_JUDGE,
             None,
-            "evaluation_judge",
+            operation::EVALUATION_JUDGE,
             &vars,
             "Judging evaluation case",
         )

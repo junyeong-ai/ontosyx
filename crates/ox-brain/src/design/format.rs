@@ -95,13 +95,11 @@ fn collect_alias_surface(term: &GlossaryTermDef) -> Vec<String> {
             surface.push(trimmed.to_string());
         }
     };
-    for variant in std::iter::once(&term.term.default)
-        .chain(term.term.translations.values())
-    {
+    for variant in std::iter::once(&term.term.default).chain(term.term.translations.values()) {
         push(variant);
     }
-    for variant in std::iter::once(&term.display_name.default)
-        .chain(term.display_name.translations.values())
+    for variant in
+        std::iter::once(&term.display_name.default).chain(term.display_name.translations.values())
     {
         push(variant);
     }
@@ -232,7 +230,8 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: ox_ontology::glossary::TermLifecycle::default(),
-        concept_id: None,
+            concept_id: None,
+            term_pos: Default::default(),
         }
     }
 
@@ -262,11 +261,8 @@ mod tests {
 
         let mut t = term("customer", &["buyer"], "End user");
         // Add Korean translations so the LLM sees them in the alias surface.
-        t.term = LocalizedText::new("customer")
-            .with_translation(LanguageTag::ko(), "고객");
-        t.aliases = vec![
-            LocalizedText::new("BUYER").with_translation(LanguageTag::ko(), "구매자"),
-        ];
+        t.term = LocalizedText::new("customer").with_translation(LanguageTag::ko(), "고객");
+        t.aliases = vec![LocalizedText::new("BUYER").with_translation(LanguageTag::ko(), "구매자")];
         let s = render_glossary_section(std::slice::from_ref(&t));
         assert!(s.contains("`customer`"));
         assert!(s.contains("고객"));

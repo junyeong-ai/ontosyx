@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use ox_core::error::OxResult;
 use ox_ontology::repo_insights::{FileContent, RepoInsights};
 
+use crate::model_resolver::operation;
 use crate::*;
 
 #[async_trait]
@@ -17,9 +18,9 @@ impl RepoAnalyzer for DefaultBrain {
 
         let selection: ox_ontology::repo_insights::FileSelection = self
             .call_structured(
-                "repo_navigate",
+                operation::REPO_NAVIGATE,
                 None,
-                "repo_navigate",
+                operation::REPO_NAVIGATE,
                 &vars,
                 "Navigating repo file tree",
             )
@@ -40,9 +41,9 @@ impl RepoAnalyzer for DefaultBrain {
         vars.insert("files", files_text.as_str());
 
         self.call_structured(
-            "repo_analyze",
+            operation::REPO_ANALYZE,
             None,
-            "repo_analyze",
+            operation::REPO_ANALYZE,
             &vars,
             "Analyzing repo files for domain insights",
         )

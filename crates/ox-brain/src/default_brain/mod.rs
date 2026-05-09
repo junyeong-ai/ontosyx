@@ -5,6 +5,7 @@
 //! against them via `impl Trait for DefaultBrain` without an orphan-
 //! rule conflict.
 
+mod community_summary;
 mod designer;
 mod editor;
 mod explainer;

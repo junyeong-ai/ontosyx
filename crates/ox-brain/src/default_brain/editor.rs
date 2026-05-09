@@ -11,6 +11,7 @@ use ox_core::error::OxResult;
 use ox_ontology::command::OntologyCommand;
 use ox_ontology::ir::OntologyIR;
 
+use crate::model_resolver::operation;
 use crate::*;
 
 // ---------------------------------------------------------------------------
@@ -45,9 +46,9 @@ impl OntologyEditor for DefaultBrain {
         // a concurrent admin update.
         let (response, call): (EditCommandsResponse, _) = self
             .call_structured_traced(
-                "edit_ontology",
+                operation::EDIT_ONTOLOGY,
                 Some("1.0.0"),
-                "edit_ontology",
+                operation::EDIT_ONTOLOGY,
                 &vars,
                 "Generating ontology edit commands",
             )
@@ -55,6 +56,7 @@ impl OntologyEditor for DefaultBrain {
         Ok(EditCommandsOutput {
             commands: response.commands,
             explanation: response.explanation,
+            provider: call.provider,
             model: call.model_id,
         })
     }

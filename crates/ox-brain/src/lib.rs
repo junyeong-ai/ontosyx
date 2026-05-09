@@ -31,15 +31,13 @@ use std::sync::Arc;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
-use ox_ontology::load_plan::LoadPlan;
+use ox_core::source_schema::SourceSchema;
 use ox_ontology::command::OntologyCommand;
 use ox_ontology::ir::OntologyIR;
-use ox_query_ir::query::QueryIR;
-use ox_ontology::repo_insights::{FileContent, RepoInsights};
+use ox_ontology::load_plan::LoadPlan;
 use ox_ontology::mapping::SourceId;
-use ox_core::source_schema::SourceSchema;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use ox_ontology::repo_insights::{FileContent, RepoInsights};
+use ox_query_ir::query::QueryIR;
 
 use prompts::PromptRegistry;
 use provider::{StreamChunk, TokenUsage, structured_completion};
@@ -75,54 +73,11 @@ pub type ExplanationStream =
 pub struct EditCommandsOutput {
     pub commands: Vec<OntologyCommand>,
     pub explanation: String,
+    pub provider: String,
     pub model: String,
 }
 
-// ---------------------------------------------------------------------------
-// WidgetHint — lightweight LLM output for widget selection
-// ---------------------------------------------------------------------------
-
-/// Simple hint from LLM about which widget to use.
-/// The frontend interprets this and renders the appropriate component.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct WidgetHint {
-    /// Which widget type to render
-    pub widget_type: WidgetType,
-    /// Optional title for the widget
-    pub title: Option<String>,
-    /// Brief reason for the selection (for debugging, not shown to user)
-    pub reason: Option<String>,
-}
-
-/// Available visualization widget types for query results.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum WidgetType {
-    /// Categorical comparisons with a single metric
-    BarChart,
-    /// Multiple metrics on the same category axis
-    ComboChart,
-    /// Proportional distribution with few categories
-    PieChart,
-    /// Time series or sequential trends
-    LineChart,
-    /// Single aggregate value
-    StatCard,
-    /// Multi-column detailed data
-    Table,
-    /// Node-edge graph visualization (paths, networks, relationships)
-    Graph,
-    /// Matrix of values with color-coded intensity (correlation, co-occurrence)
-    Heatmap,
-    /// Vertical event timeline (temporal sequences, audit trails)
-    Timeline,
-    /// Hierarchical area proportions (category breakdown, disk usage)
-    Treemap,
-    /// Conversion or process funnel (stages with drop-off rates)
-    Funnel,
-    /// Data is self-explanatory from text alone
-    None,
-}
+pub use ox_query_ir::widget::{WidgetHint, WidgetType};
 
 // ---------------------------------------------------------------------------
 // Sub-traits — focused LLM capability groups
@@ -310,9 +265,7 @@ pub trait OntologyEditor: Send + Sync {
 /// plus reasoning. The reasoning surfaces directly on
 /// `evaluation_metrics.reasoning` so an operator triaging a
 /// regression sees the judge's evidence inline.
-#[derive(
-    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct EvaluationAxisScore {
     pub score: f64,
     pub reasoning: String,
@@ -322,9 +275,7 @@ pub struct EvaluationAxisScore {
 /// independent axes, all on `[0.0, 1.0]`. The runtime persists
 /// each axis as its own `evaluation_metrics` row keyed at
 /// `(case_id, name)` so a re-judge replaces in place.
-#[derive(
-    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct EvaluationJudgement {
     /// Does the produced `actual` ground itself in identifiers
     /// the question names?
@@ -374,7 +325,14 @@ impl EvaluationJudgement {
 
 /// LLM judge over an executed evaluation case. The judge sees
 /// the question, the optional golden expectation, and the actual
-/// translation output, and emits a four-axis RAGAS-style score.
+/// translation output, and emits a four-axis RAGAS-style score
+/// alongside the [`CallProvenance`] for the underlying LLM call.
+/// The provenance is returned (not swallowed) so the caller can
+/// stamp a [`ox_ontology::ProvenanceCapture`] before persisting
+/// the judge's metrics — every judged metric carries a queryable
+/// audit row pointing at the prompt template + render hash that
+/// produced it.
+///
 /// Invoked by the `/api/evaluation/cases/{case_id}/judge`
 /// endpoint after the case-execute path populates `actual`.
 #[async_trait]
@@ -384,7 +342,7 @@ pub trait EvaluationJudge: Send + Sync {
         question: &str,
         expected: Option<&serde_json::Value>,
         actual: &serde_json::Value,
-    ) -> OxResult<EvaluationJudgement>;
+    ) -> OxResult<(EvaluationJudgement, CallProvenance)>;
 }
 
 /// Safety-axis judgement for a single evaluation case. Distinct
@@ -395,9 +353,7 @@ pub trait EvaluationJudge: Send + Sync {
 /// chosen so the dashboard's "higher is better" colouring works
 /// without a per-axis flip — every safety axis follows the same
 /// monotone as the RAGAS axes.
-#[derive(
-    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct EvaluationSafetyJudgement {
     /// Free of hostile / abusive / inflammatory language. `1.0`
     /// = neutral professional tone; `0.0` = overtly toxic.
@@ -467,7 +423,68 @@ pub trait EvaluationSafetyJudgeApi: Send + Sync {
         &self,
         question: &str,
         actual: &serde_json::Value,
-    ) -> OxResult<EvaluationSafetyJudgement>;
+    ) -> OxResult<(EvaluationSafetyJudgement, CallProvenance)>;
+}
+
+/// Inputs to the community-summary call. The cron projects a
+/// detected community into this shape; the trait stays
+/// algorithm-agnostic so it can also be invoked by ad-hoc
+/// admin re-summarise endpoints in the future.
+#[derive(Debug, Clone)]
+pub struct CommunitySummaryRequest<'a> {
+    /// Workspace's primary display name. Anchors the summary
+    /// in the operator's vocabulary; the LLM prefers terms from
+    /// this name when paraphrasing the cluster's theme.
+    pub workspace_name: &'a str,
+    /// Members of the community, in deterministic order. The
+    /// caller (cron) sorts them by `(kind, logical_id)` before
+    /// invoking so two runs with the same membership produce
+    /// byte-identical render hashes.
+    pub members: &'a [CommunitySummaryMember<'a>],
+}
+
+#[derive(Debug, Clone)]
+pub struct CommunitySummaryMember<'a> {
+    /// `EntityKind::as_str()` snake-case wire string
+    /// (`node_type`, `glossary_term`, `concept`, `segment`,
+    /// `edge_type`).
+    pub kind: &'a str,
+    pub logical_id: &'a str,
+    /// Human display name when the IR carries one; empty
+    /// string when only the logical id is available (composite
+    /// keys, freshly-imported tables before naming, …).
+    pub display_name: &'a str,
+}
+
+/// Structured-output shape the prompt template emits. Title +
+/// summary are exactly the two columns
+/// [`ox_store::community::CommunitySummary`] writes; the
+/// trait carries no fields the cron doesn't persist directly.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub struct CommunitySummaryResponse {
+    pub title: String,
+    pub summary: String,
+}
+
+/// LLM-backed community summariser for the GraphRAG community
+/// layer (Φ10.4). Called by the community-detection cron after
+/// Leiden produces a partition: each community → one
+/// summary call → the prose lands on
+/// `community_summaries.title` + `.summary` for the retrieval
+/// path's trigram match.
+///
+/// Cron-side fingerprinting (sha256 over sorted
+/// `(kind, logical_id)` pairs) gates the call: re-running
+/// against an unchanged membership skips the LLM entirely. Only
+/// communities whose membership shifted re-summarise — bounding
+/// the LLM cost to "actual structural drift", not "every cron
+/// tick".
+#[async_trait]
+pub trait CommunitySummariser: Send + Sync {
+    async fn summarise_community(
+        &self,
+        request: CommunitySummaryRequest<'_>,
+    ) -> OxResult<(CommunitySummaryResponse, CallProvenance)>;
 }
 
 /// LLM provider metadata for health checks and observability.
@@ -507,6 +524,7 @@ pub trait Brain:
     + RepoAnalyzer
     + EvaluationJudge
     + EvaluationSafetyJudgeApi
+    + CommunitySummariser
     + LlmMetadata
 {
 }
@@ -520,6 +538,7 @@ impl<T> Brain for T where
         + RepoAnalyzer
         + EvaluationJudge
         + EvaluationSafetyJudgeApi
+        + CommunitySummariser
         + LlmMetadata
 {
 }
@@ -534,6 +553,7 @@ impl<T> Brain for T where
 
 pub struct DefaultBrain {
     client_pool: Arc<client_pool::ClientPool>,
+    provider_configs: HashMap<String, auth::LlmProviderConfig>,
     model_resolver: Arc<dyn model_resolver::ModelResolver>,
     prompts: PromptRegistry,
     /// Cached default model info for sync access (logging, audit).
@@ -552,17 +572,58 @@ pub struct DefaultBrain {
     /// `call_structured_traced` records a `latency_ms.<operation>`
     /// metric against the active case. `None` → no-op.
     evaluation_capture: Option<Arc<dyn ox_store::EvaluationCapture>>,
+    /// Optional inference-session store. When set + an
+    /// `InferenceContext` is bound on the calling task,
+    /// `translate_query` records one `InferenceAttempt` per
+    /// LLM iteration (Φ9 PipelineStage state machine). `None` →
+    /// no-op so production traffic outside any pipeline scope
+    /// pays nothing.
+    inference_session_store: Option<Arc<dyn ox_store::InferenceSessionStore>>,
+    /// Optional verified-query bank (Φ11.2). When set,
+    /// `translate_query` consults the bank by canonical
+    /// question hash before any LLM call — an exact hit returns
+    /// the verified IR with synthetic `CallProvenance` and
+    /// skips schema discovery / knowledge RAG / LLM round-trip
+    /// entirely. `None` → no-op (skipped lookup, full LLM
+    /// path).
+    verified_query_store: Option<Arc<dyn ox_store::VerifiedQueryStore>>,
+    /// Φ11.5 — embedding provider for semantic NN retrieval over
+    /// the verified-query bank. When set, the Brain's
+    /// ICL retriever embeds the user's question and runs a
+    /// pgvector cosine top-K against
+    /// `verified_query_store`; on miss / no-store / no-embedder
+    /// the trigram retriever takes over so cold deployments
+    /// never lose ICL coverage. The same `Arc` the rest of the
+    /// platform shares with `MemoryStore`.
+    embedder: Option<Arc<dyn ox_memory::EmbeddingProvider>>,
+    /// Workspace tokenizer registry — used by the hybrid ICL
+    /// retriever to canonicalise the user's question against the
+    /// same lindera + glossary user-dict the index-time
+    /// `tokenized_text` was stamped with. Recall consistency by
+    /// construction: the FTS ranker's
+    /// `plainto_tsquery('simple', tokenize(question))` lemmas
+    /// match the `searchable_tsv` column without case/morphology
+    /// drift. `None` → hybrid retriever degrades to passing the
+    /// raw question on the FTS arm (still functional, just less
+    /// recall on Korean/compound tokens).
+    tokenizer_registry: Option<Arc<ox_text::WorkspaceTokenizerRegistry>>,
 }
 
 impl DefaultBrain {
     pub fn new(
         client_pool: Arc<client_pool::ClientPool>,
+        provider_configs: impl IntoIterator<Item = auth::LlmProviderConfig>,
         model_resolver: Arc<dyn model_resolver::ModelResolver>,
         prompts: PromptRegistry,
         default_model: ProviderInfo,
     ) -> Self {
+        let provider_configs = provider_configs
+            .into_iter()
+            .map(|config| (config.provider.clone(), config))
+            .collect();
         Self {
             client_pool,
+            provider_configs,
             model_resolver,
             prompts,
             default_model,
@@ -570,6 +631,10 @@ impl DefaultBrain {
             ontology_lineage_id: None,
             knowledge_store: None,
             evaluation_capture: None,
+            inference_session_store: None,
+            verified_query_store: None,
+            embedder: None,
+            tokenizer_registry: None,
         }
     }
 
@@ -583,6 +648,125 @@ impl DefaultBrain {
     ) -> Self {
         self.evaluation_capture = Some(capture);
         self
+    }
+
+    /// Attach an inference-session store. When set + an
+    /// `InferenceContext` is bound on the calling task,
+    /// `translate_query` records one `InferenceAttempt` per LLM
+    /// iteration. The same `Arc<dyn InferenceSessionStore>` the
+    /// outer pipeline driver uses to open the session — typically
+    /// the canonical `PostgresStore`.
+    pub fn with_inference_session_store(
+        mut self,
+        store: Arc<dyn ox_store::InferenceSessionStore>,
+    ) -> Self {
+        self.inference_session_store = Some(store);
+        self
+    }
+
+    /// Attach a verified-query store (Φ11.2). When set,
+    /// `translate_query` short-circuits on an exact-hash hit
+    /// against the bank — the verified IR returns directly
+    /// without schema discovery, knowledge RAG, or any LLM call.
+    /// Cache miss falls through to the full translate path.
+    /// Typically the canonical `PostgresStore` Arc shared with
+    /// the rest of the platform.
+    pub fn with_verified_query_store(
+        mut self,
+        store: Arc<dyn ox_store::VerifiedQueryStore>,
+    ) -> Self {
+        self.verified_query_store = Some(store);
+        self
+    }
+
+    /// Attach an embedding provider for semantic NN retrieval
+    /// over the verified-query bank (Φ11.5). When set, the ICL
+    /// retriever prefers the embedding path; when absent it
+    /// falls through to trigram. The same `Arc` the
+    /// `MemoryStore` carries — sharing the embedder keeps the
+    /// dimension contract trivially aligned.
+    pub fn with_embedder(mut self, embedder: Arc<dyn ox_memory::EmbeddingProvider>) -> Self {
+        self.embedder = Some(embedder);
+        self
+    }
+
+    /// Attach the workspace tokenizer registry. Hybrid ICL
+    /// retrieval uses it to lemmatise the runtime question
+    /// against the same dict the index-time `tokenized_text`
+    /// was stamped with — without it the FTS arm of the RRF
+    /// hybrid passes the raw question, which still hits the
+    /// GIN index but loses morphology-driven recall on Korean
+    /// compounds + glossary canonicalisations.
+    pub fn with_tokenizer_registry(
+        mut self,
+        registry: Arc<ox_text::WorkspaceTokenizerRegistry>,
+    ) -> Self {
+        self.tokenizer_registry = Some(registry);
+        self
+    }
+
+    /// Embedder accessor used by upstream surfaces (e.g. the
+    /// verified-query promotion route) that need to embed text
+    /// against the same provider the Brain consults.
+    pub fn embedder(&self) -> Option<&Arc<dyn ox_memory::EmbeddingProvider>> {
+        self.embedder.as_ref()
+    }
+
+    /// Record one `InferenceAttempt` for a translate-query call.
+    /// Best-effort: short-circuits silently when no
+    /// `InferenceContext` is bound on the calling task or no
+    /// store is attached. Errors during recording log + drop —
+    /// the LLM call already returned, so audit failure cannot
+    /// rewind the user's response.
+    ///
+    /// The `parent_attempt_id` is left `None` because Brain-side
+    /// retry (Tier1/2/3 + label correction) is one logical
+    /// attempt from the InferenceSession's perspective. Multi-
+    /// attempt chains arise at the Agent level — the Agent's
+    /// outer loop opens / re-invokes translate_query and
+    /// successive sessions chain via the agent's bookkeeping.
+    pub(crate) async fn record_translate_outcome(
+        &self,
+        stage: ox_ontology::PipelineStage,
+        query_ir: Option<&ox_query_ir::query::QueryIR>,
+        provenance: Option<&CallProvenance>,
+        outcome: ox_ontology::AttemptOutcome,
+    ) {
+        let Some(ctx) = ox_store::current_inference_context() else {
+            return;
+        };
+        let Some(store) = self.inference_session_store.as_ref() else {
+            return;
+        };
+
+        let candidate = query_ir.and_then(|q| serde_json::to_value(q).ok());
+        let capture = provenance.map(|p| {
+            let plan = ox_ontology::ProvenancePlan {
+                template_id: p.prompt_id.clone(),
+                template_version: p.prompt_version.clone(),
+                prompt_render_hash: p.prompt_render_hash.clone(),
+            };
+            ox_ontology::ProvenanceCapture::draft_proposal(plan, p.model_id.clone())
+        });
+
+        if let Err(err) = store
+            .record_inference_attempt(
+                ctx.session_id,
+                None,
+                stage,
+                candidate,
+                outcome,
+                capture,
+            )
+            .await
+        {
+            tracing::warn!(
+                error = %err,
+                session_id = %ctx.session_id,
+                stage = stage.as_str(),
+                "inference attempt recording failed (best-effort)"
+            );
+        }
     }
 
     /// Set memory store for schema RAG in query translation.
@@ -609,24 +793,30 @@ impl DefaultBrain {
 
     /// Resolve model and client for a given operation.
     ///
-    /// Uses `by_provider` to look up the already-authenticated client
-    /// from the pool — no credentials needed since the client was pre-warmed
-    /// during server startup.
+    /// Uses a cached client when available, otherwise creates one lazily
+    /// from the provider config selected at startup. Credential failures
+    /// are scoped to the LLM operation instead of preventing API boot.
     async fn resolve_for_operation(
         &self,
         operation: &str,
     ) -> OxResult<(Arc<dyn branchforge::LlmCall>, model_resolver::ResolvedModel)> {
         let resolved = self.model_resolver.resolve(operation).await?;
-        let client = self
-            .client_pool
-            .by_provider(&resolved.provider)
-            .ok_or_else(|| OxError::Runtime {
-                message: format!(
-                    "No LLM client available for provider '{}'. \
-                     Ensure it was registered during server startup.",
-                    resolved.provider
-                ),
-            })?;
+        let client = if let Some(config) = resolved.provider_config.as_ref() {
+            self.client_pool.get_or_create(config).await?
+        } else if let Some(client) = self.client_pool.by_provider(&resolved.provider) {
+            client
+        } else {
+            let config = self
+                .provider_configs
+                .get(&resolved.provider)
+                .ok_or_else(|| OxError::Runtime {
+                    message: format!(
+                        "No LLM provider config registered for '{}'.",
+                        resolved.provider
+                    ),
+                })?;
+            self.client_pool.get_or_create(config).await?
+        };
         Ok((client, resolved))
     }
 
@@ -654,9 +844,20 @@ impl DefaultBrain {
     /// use this method directly — single registry / resolver round-trip,
     /// no post-hoc lookup that could drift behind a concurrent
     /// model-config update.
-    async fn call_structured_traced<
-        T: serde::de::DeserializeOwned + schemars::JsonSchema,
-    >(
+    ///
+    /// ## OpenTelemetry GenAI semantic conventions
+    ///
+    /// The span carries the `gen_ai.*` attributes from the OTel
+    /// GenAI semantic conventions (Φ9.4) — Phoenix Arize /
+    /// Langfuse / any OTLP collector that recognises the
+    /// convention auto-categorises every call as an LLM request
+    /// without a downstream mapper. The dotted field names are
+    /// declared via [`tracing::info_span!`] (the
+    /// `#[instrument]` proc-macro rejects quoted-string field
+    /// keys, but `info_span!` accepts them per the tracing
+    /// field-name syntax). Fields land empty at entry and are
+    /// stamped via `span.record(...)` as the call progresses.
+    async fn call_structured_traced<T: serde::de::DeserializeOwned + schemars::JsonSchema>(
         &self,
         prompt_name: &str,
         min_version: Option<&str>,
@@ -664,6 +865,20 @@ impl DefaultBrain {
         vars: &HashMap<&str, &str>,
         log_message: &str,
     ) -> OxResult<(T, CallProvenance)> {
+        let span = tracing::info_span!(
+            "gen_ai.call",
+            prompt_name = prompt_name,
+            prompt_version = tracing::field::Empty,
+            "gen_ai.operation.name" = operation,
+            "gen_ai.system" = tracing::field::Empty,
+            "gen_ai.request.model" = tracing::field::Empty,
+            "gen_ai.request.max_tokens" = tracing::field::Empty,
+            "gen_ai.request.temperature" = tracing::field::Empty,
+            "gen_ai.usage.input_tokens" = tracing::field::Empty,
+            "gen_ai.usage.output_tokens" = tracing::field::Empty,
+        );
+        let _enter = span.enter();
+
         let tmpl = match min_version {
             Some(v) => self.prompts.checked_for(prompt_name, v)?,
             None => self.prompts.get(prompt_name)?,
@@ -680,9 +895,25 @@ impl DefaultBrain {
             message: err.to_string(),
         })?;
 
+        span.record("prompt_version", tmpl.version.as_str());
+
         let (client, resolved) = self.resolve_for_operation(operation).await?;
         let effective_max_tokens = resolved.max_tokens.unwrap_or(tmpl.max_tokens);
         let effective_temperature = resolved.temperature.or(tmpl.temperature);
+
+        // OTel GenAI attrs — `gen_ai.system` is the provider id
+        // (anthropic / openai / google / bedrock / …),
+        // `gen_ai.request.model` the resolved model identifier.
+        // Both stamp at this point so an OTel collector reading
+        // the span mid-flight (long completions, streamed
+        // responses) already knows which provider + model it's
+        // observing.
+        span.record("gen_ai.system", resolved.provider.as_str());
+        span.record("gen_ai.request.model", resolved.model_id.as_str());
+        span.record("gen_ai.request.max_tokens", effective_max_tokens);
+        if let Some(t) = effective_temperature {
+            span.record("gen_ai.request.temperature", t as f64);
+        }
 
         info!(
             model = %resolved.model_id,
@@ -703,42 +934,40 @@ impl DefaultBrain {
         .await?;
         let elapsed_ms = started.elapsed().as_millis() as i64;
 
-        // Evaluation capture hook — records `latency_ms.<operation>`,
-        // `tokens.{prompt,completion}.<operation>`, and
-        // `cost_usd.<operation>` (when the resolved model carries a
-        // tariff) on the active case when the call path is inside an
-        // `EvaluationContext` scope *and* an `EvaluationCapture` was
-        // attached. Production traffic without an evaluation scope
-        // skips for free.
+        // Stamp usage attrs after completion so the span carries
+        // the canonical OTel GenAI token-count axes alongside the
+        // request side.
+        span.record("gen_ai.usage.input_tokens", usage.input_tokens);
+        span.record("gen_ai.usage.output_tokens", usage.output_tokens);
+
+        // Evaluation capture hook — one call → one
+        // `EvaluationCapture::record_call` invocation that lands
+        // latency / token (input + output + cached_input) / cost
+        // metric rows in lockstep. Production traffic without an
+        // active evaluation scope skips for free; both branches
+        // short-circuit when their condition is missing.
         if let (Some(ctx), Some(capture)) = (
             ox_store::current_evaluation_context(),
             self.evaluation_capture.as_ref(),
         ) {
+            let call = ox_ontology::ModelCall {
+                model_id: ox_ontology::ModelId::new(resolved.model_id.clone()),
+                input_tokens: usage.input_tokens,
+                output_tokens: usage.output_tokens,
+                // Provider TokenUsage doesn't surface cache-hit
+                // counts yet — Φ8.4 leaves the field at 0 and a
+                // follow-up plumbs `cache_read_input_tokens`
+                // through the branchforge response shape.
+                cached_input_tokens: 0,
+                latency_ms: elapsed_ms.max(0).min(u32::MAX as i64) as u32,
+            };
             // Capture-side failures don't propagate — the LLM call
             // already succeeded, the operator's primary path is the
             // typed response. Log + drop matches the wider
             // observability policy (capture is best-effort, not
             // load-bearing).
-            if let Err(err) = capture.record_latency(&ctx, operation, elapsed_ms).await {
-                tracing::warn!(error = %err, operation, "evaluation capture record_latency failed");
-            }
-            if let Err(err) = capture
-                .record_tokens(
-                    &ctx,
-                    operation,
-                    usage.input_tokens.min(u32::MAX as u64) as u32,
-                    usage.output_tokens.min(u32::MAX as u64) as u32,
-                )
-                .await
-            {
-                tracing::warn!(error = %err, operation, "evaluation capture record_tokens failed");
-            }
-            if let Some(cost_micro_usd) = estimated_cost_micro_usd(&resolved.model_id, &usage)
-                && let Err(err) = capture
-                    .record_cost_usd(&ctx, operation, cost_micro_usd)
-                    .await
-            {
-                tracing::warn!(error = %err, operation, "evaluation capture record_cost_usd failed");
+            if let Err(err) = capture.record_call(&ctx, operation, call).await {
+                tracing::warn!(error = %err, operation, "evaluation capture record_call failed");
             }
         }
 
@@ -749,15 +978,17 @@ impl DefaultBrain {
         // id no longer matches and the operator sees the divergence
         // rather than a silent cache hit.
         let prompt_render_hash =
-            ox_ontology::source_mapping::ArtifactProvenance::compute_prompt_render_hash(
-                &format!("{}\n\n{}", tmpl.system, user_prompt),
-            );
+            ox_ontology::source_mapping::ArtifactProvenance::compute_prompt_render_hash(&format!(
+                "{}\n\n{}",
+                tmpl.system, user_prompt
+            ));
 
         Ok((
             parsed,
             CallProvenance {
                 prompt_id: prompt_name.to_string(),
                 prompt_version: tmpl.version.clone(),
+                provider: resolved.provider,
                 model_id: resolved.model_id,
                 max_tokens: effective_max_tokens,
                 temperature: effective_temperature,
@@ -776,6 +1007,7 @@ impl DefaultBrain {
 pub struct CallProvenance {
     pub prompt_id: String,
     pub prompt_version: String,
+    pub provider: String,
     pub model_id: String,
     pub max_tokens: u32,
     pub temperature: Option<f32>,
@@ -796,7 +1028,14 @@ impl CallProvenance {
     pub fn into_artifact_provenance(self) -> ox_ontology::source_mapping::ArtifactProvenance {
         let mut params: std::collections::BTreeMap<String, serde_json::Value> =
             std::collections::BTreeMap::new();
-        params.insert("max_tokens".into(), serde_json::Value::from(self.max_tokens));
+        params.insert(
+            "provider".into(),
+            serde_json::Value::from(self.provider.clone()),
+        );
+        params.insert(
+            "max_tokens".into(),
+            serde_json::Value::from(self.max_tokens),
+        );
         if let Some(t) = self.temperature {
             params.insert("temperature".into(), serde_json::Value::from(t));
         }
@@ -817,44 +1056,4 @@ fn serialize_pretty(value: &impl serde::Serialize, label: &str) -> OxResult<Stri
 }
 
 /// Per-million-token tariff (input, output) in micro-USD. Wide
-/// catalogue keyed by an exact-match prefix on the resolved
-/// `model_id`. `None` means "no published tariff for this model"
-/// — the cost capture path skips for that call rather than
-/// landing a fabricated value. Tariffs reflect the 2026 Q2 list
-/// price; per-workspace overrides land via `model_configs`
-/// `cost_per_million_input_tokens_micro_usd` /
-/// `cost_per_million_output_tokens_micro_usd` once the column
-/// pair ships (separate change).
-fn estimated_cost_micro_usd(
-    model_id: &str,
-    usage: &provider::TokenUsage,
-) -> Option<u64> {
-    // (input µUSD per 1M tokens, output µUSD per 1M tokens)
-    // Tariffs for the canonical Anthropic / OpenAI / Bedrock
-    // model families. Match by the longest stable prefix —
-    // `claude-opus-4-7` vs `claude-sonnet-4-6` differ on output
-    // tariff. Empty result returns None so the capture skips.
-    let (input_per_m, output_per_m) = match model_id {
-        m if m.starts_with("claude-opus-4")    => (15_000_000, 75_000_000),
-        m if m.starts_with("claude-sonnet-4")  => (3_000_000, 15_000_000),
-        m if m.starts_with("claude-haiku-4")   => (800_000, 4_000_000),
-        m if m.starts_with("gpt-5")            => (10_000_000, 30_000_000),
-        m if m.starts_with("gpt-4.1")          => (3_000_000, 12_000_000),
-        m if m.starts_with("gpt-4o")           => (5_000_000, 15_000_000),
-        m if m.starts_with("o3")               => (15_000_000, 60_000_000),
-        m if m.starts_with("o4-mini")          => (1_100_000, 4_400_000),
-        m if m.starts_with("gemini-2.5-pro")   => (3_500_000, 10_500_000),
-        m if m.starts_with("gemini-2.5-flash") => (300_000, 1_200_000),
-        _ => return None,
-    };
-    // Cost = (input * input_per_m + output * output_per_m) / 1M
-    // Operate in u128 to avoid overflow on very large input
-    // tokens × tariff multiplications before the division.
-    let input_cost = (usage.input_tokens as u128).saturating_mul(input_per_m as u128) / 1_000_000;
-    let output_cost =
-        (usage.output_tokens as u128).saturating_mul(output_per_m as u128) / 1_000_000;
-    Some((input_cost + output_cost).min(u64::MAX as u128) as u64)
-}
-
-
 mod default_brain;
