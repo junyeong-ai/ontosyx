@@ -93,7 +93,7 @@ jobs:
   lint:
     name: Lint (Rust)
     needs: changes
-    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -113,8 +113,11 @@ jobs:
 
   test:
     name: Test
-    needs: [changes, lint]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
+    # `lint` is the canonical Rust gate — it already inherits the
+    # changes-output / event-name decision, so test runs iff lint
+    # passed. Skipping or failing lint propagates here naturally.
+    needs: lint
+    if: ${{ needs.lint.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -145,7 +148,7 @@ jobs:
   deny:
     name: cargo-deny (advisories + licenses)
     needs: changes
-    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -170,8 +173,10 @@ jobs:
   # ---------------------------------------------------------------------------
   rls:
     name: RLS Enforcement
-    needs: [changes, lint]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
+    # Same lint-gated semantics as `test` — RLS integration tests
+    # only matter once the Rust pipeline is structurally healthy.
+    needs: lint
+    if: ${{ needs.lint.result == 'success' }}
     runs-on: ubuntu-latest
     services:
       # `pgvector/pgvector:pg16` is the upstream-maintained Postgres
@@ -230,7 +235,7 @@ jobs:
     # false positive doesn't block until the baseline is clean.
     name: cargo-udeps (unused deps, advisory)
     needs: changes
-    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -250,7 +255,7 @@ jobs:
   frontend:
     name: Frontend
     needs: changes
-    if: github.event_name != 'pull_request' || needs.changes.outputs.web == 'true'
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.web == 'true') }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -311,7 +316,7 @@ jobs:
   docker:
     name: Docker Build
     needs: changes
-    if: github.event_name != 'pull_request' || needs.changes.outputs.docker == 'true'
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.docker == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -336,7 +341,7 @@ jobs:
   openapi-drift:
     name: OpenAPI Drift
     needs: changes
-    if: github.event_name != 'pull_request' || needs.changes.outputs.schema == 'true'
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.schema == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
