@@ -37,7 +37,10 @@ web_files="$(printf '%s\n' "$staged" | grep -E '^web/.*\.(ts|tsx|js|jsx|json|css
 if [ -n "$web_files" ]; then
     rel="$(printf '%s\n' "$web_files" | sed 's|^web/||' | tr '\n' ' ')"
     # shellcheck disable=SC2086
-    if ! (cd web && pnpm exec biome check --error-on-warnings $rel >/dev/null 2>&1); then
+    # `--no-errors-on-unmatched` lets staged files that biome.jsonc
+    # legitimately ignores (e.g. `package.json`) exit 0. Without it
+    # any commit touching an ignored path would be falsely blocked.
+    if ! (cd web && pnpm exec biome check --error-on-warnings --no-errors-on-unmatched $rel >/dev/null 2>&1); then
         printf '%s✗%s Biome 실패. 다음으로 fix:\n' "$red" "$reset"
         printf '    cd web && pnpm exec biome check --write %s\n' "$rel"
         exit 1
