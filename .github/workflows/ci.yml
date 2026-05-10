@@ -179,22 +179,28 @@ jobs:
     if: ${{ needs.lint.result == 'success' }}
     runs-on: ubuntu-latest
     services:
-      # `pgvector/pgvector:pg16` is the upstream-maintained Postgres
-      # 16 image with `vector` precompiled in. The base `postgres:16`
-      # ships without the extension binary, so `CREATE EXTENSION
-      # vector` would fail with "control file not found" before any
-      # test runs. `pg_trgm` / `uuid-ossp` / `btree_gin` ride on the
-      # standard contrib bundle that both images carry.
+      # `pgvector/pgvector:pg17` mirrors the local docker-compose
+      # baseline 1:1 — same image, same major. POSTGRES_USER /
+      # POSTGRES_DB / password match `docker-compose.yml`'s postgres
+      # service so CI exercises the exact production parity path.
+      #
+      # Critical: POSTGRES_USER provisions the role as a SUPERUSER,
+      # and PG superusers BYPASS `FORCE ROW LEVEL SECURITY`. Tests
+      # connect as the `ontosyx_app` non-superuser created in
+      # `docker/init-app-user.sql`, applied by the bootstrap step
+      # below. Connecting tests as the superuser would silently
+      # mask every RLS policy and turn the rls_enforcement suite
+      # into vacuous-pass theatre.
       postgres:
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector:pg17
         env:
-          POSTGRES_USER: ontosyx_app
+          POSTGRES_USER: ontosyx
           POSTGRES_PASSWORD: ontosyx-dev
           POSTGRES_DB: ontosyx
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U ontosyx_app"
+          --health-cmd "pg_isready -U ontosyx"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -209,14 +215,16 @@ jobs:
 
       - uses: ./.github/actions/install-onnxruntime
 
-      - name: Install Postgres extensions on the service container
+      - name: Bootstrap PostgreSQL (extensions + non-superuser app role)
+        # GH Actions services don't honour `volumes:` against repo
+        # paths (the container is created before checkout), so the
+        # canonical local `init-app-user.sql` is replayed via
+        # `docker exec` once checkout has materialised it. Single
+        # source of truth — no SQL drift between local and CI.
         run: |
-          docker exec "$(docker ps -q -f ancestor=pgvector/pgvector:pg16)" \
-              psql -U ontosyx_app -d ontosyx -c \
-              "CREATE EXTENSION IF NOT EXISTS vector;
-               CREATE EXTENSION IF NOT EXISTS pg_trgm;
-               CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";
-               CREATE EXTENSION IF NOT EXISTS btree_gin;"
+          cid=$(docker ps -q -f ancestor=pgvector/pgvector:pg17)
+          docker exec -i "$cid" psql -U ontosyx -d ontosyx -v ON_ERROR_STOP=1 \
+              < docker/init-app-user.sql
 
       - name: Run RLS enforcement + temporal + retrieval-golden tests
         # `rls_invariants` is the catalog-scan gate that fails when a
@@ -267,7 +275,7 @@ jobs:
           version: 11.0.3
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 26
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -354,7 +362,7 @@ jobs:
           version: 11.0.3
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 26
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
@@ -418,7 +426,7 @@ jobs:
           version: 11.0.3
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 26
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -449,7 +457,7 @@ jobs:
           version: 11.0.3
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 26
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile

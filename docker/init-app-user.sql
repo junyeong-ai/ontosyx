@@ -10,12 +10,16 @@ END
 $$;
 
 -- Required Postgres extensions used by migrations 0001+:
---   vector  — pgvector (embedding columns on knowledge / memory tables)
---   pg_trgm — trigram indexes for fuzzy search
+--   vector     — pgvector (embedding columns on knowledge / memory tables)
+--   pg_trgm    — trigram indexes for fuzzy search
+--   uuid-ossp  — uuid_generate_v4() defaults across schema
+--   btree_gin  — composite GIN indexes that mix scalar + tsvector
 -- Must be created as the superuser (POSTGRES_USER) before the app user
 -- opens its first connection, since migrations run as `ontosyx_app`.
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS btree_gin;
 
 -- Grant full access to public schema objects
 GRANT ALL ON ALL TABLES IN SCHEMA public TO ontosyx_app;
