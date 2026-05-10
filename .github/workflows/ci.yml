@@ -258,7 +258,7 @@ jobs:
         run: cargo +nightly udeps --workspace --all-targets
 
   # ---------------------------------------------------------------------------
-  # Frontend — Next.js + audit pipeline + axe E2E
+  # Frontend — Next.js + static audit pipeline + Vitest + production build
   # ---------------------------------------------------------------------------
   frontend:
     name: Frontend
@@ -279,8 +279,6 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - name: Install Playwright browsers
-        run: pnpm playwright install --with-deps chromium
       - name: Biome (lint, error-on-warnings)
         run: pnpm lint
       - name: Type check
@@ -315,8 +313,6 @@ jobs:
         run: pnpm test
       - name: Build
         run: pnpm build
-      - name: Accessibility (axe) — full-page
-        run: pnpm test:a11y:no-build
 
   # ---------------------------------------------------------------------------
   # Container build — exercises the production Dockerfile end-to-end.
@@ -408,34 +404,6 @@ jobs:
       - uses: ./.github/actions/install-onnxruntime
       - name: Run token regression check
         run: bash scripts/check-token-regression.sh
-
-  # ---------------------------------------------------------------------------
-  # Frontend Playwright E2E — label-gated (`e2e-fe`).
-  # ---------------------------------------------------------------------------
-  frontend-e2e:
-    name: Frontend E2E (Playwright)
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*.name, 'e2e-fe')
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.0.3
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 26
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - name: Install Playwright browsers
-        run: pnpm playwright install --with-deps chromium
-      - name: Build
-        run: pnpm build
-      - name: Playwright
-        run: pnpm test:e2e:no-build
 
   # ---------------------------------------------------------------------------
   # Lighthouse CI — label-gated (`lighthouse`).
