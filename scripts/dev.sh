@@ -22,6 +22,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 WEB_DIR="$ROOT_DIR/web"
 
+# Wire git pre-commit hooks on first invocation. The script is
+# idempotent — once `core.hooksPath` points at `.githooks/`, this
+# is a silent no-op on every subsequent boot.
+if [ -f "$SCRIPT_DIR/setup-hooks.sh" ]; then
+    bash "$SCRIPT_DIR/setup-hooks.sh"
+fi
+
 # ── Ports ───────────────────────────────────────────────────────
 BE_PORT="${OX_BE_PORT:-3101}"
 FE_PORT="${OX_FE_PORT:-3100}"

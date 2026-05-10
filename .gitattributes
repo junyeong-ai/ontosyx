@@ -1,0 +1,29 @@
+# Normalize line endings to LF for every text file in the repo.
+# Cross-platform clones (Windows + macOS + Linux) all see the same
+# bytes, so cargo fmt / biome don't flag CRLF drift on first checkout.
+* text=auto eol=lf
+
+# Lockfiles and generated artefacts: kept text but never merged
+# manually — let the tooling regenerate.
+Cargo.lock         text linguist-generated
+web/pnpm-lock.yaml text linguist-generated
+web/openapi.json   text linguist-generated
+
+# Binary surfaces.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.svg   text
+*.pdf   binary
+*.zip   binary
+*.tar   binary
+*.tgz   binary
+*.gz    binary
+*.onnx  binary
+
+# Shell scripts must keep LF + executable bit (preserved separately
+# via `git update-index --chmod=+x`).
+*.sh text eol=lf

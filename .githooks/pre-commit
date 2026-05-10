@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Pre-commit gate — blocks fmt drift / Biome warnings before they
+# leave the developer's machine. Only checks files staged for this
+# commit, so the cost stays bounded. `git commit --no-verify`
+# bypasses for hot-fix scenarios (CI still re-checks on the remote).
+#
+# Setup runs automatically the first time `scripts/dev.sh` boots.
+# To wire it up by hand:
+#     git config --local core.hooksPath .githooks
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+staged="$(git diff --name-only --cached --diff-filter=ACM)"
+[ -z "$staged" ] && exit 0
+
+red=$'\033[31m'
+reset=$'\033[0m'
+
+# Rust formatting — staged `.rs` only, so the hook stays sub-second
+# even on a large workspace. `cargo fmt --check` keeps drift from
+# accumulating to the 64-file episodes the CI lint job had to clean.
+rust_files="$(printf '%s\n' "$staged" | grep '\.rs$' || true)"
+if [ -n "$rust_files" ]; then
+    # shellcheck disable=SC2086
+    if ! cargo fmt --check -- $rust_files >/dev/null; then
+        printf '%s✗%s cargo fmt 실패. 다음으로 fix:\n' "$red" "$reset"
+        printf '    cargo fmt --all\n'
+        exit 1
+    fi
+fi
+
+# Frontend Biome — staged web/* sources. `--error-on-warnings`
+# matches the CI lint job exactly so a local pass guarantees the
+# remote pass.
+web_files="$(printf '%s\n' "$staged" | grep -E '^web/.*\.(ts|tsx|js|jsx|json|css)$' || true)"
+if [ -n "$web_files" ]; then
+    rel="$(printf '%s\n' "$web_files" | sed 's|^web/||' | tr '\n' ' ')"
+    # shellcheck disable=SC2086
+    if ! (cd web && pnpm exec biome check --error-on-warnings $rel >/dev/null 2>&1); then
+        printf '%s✗%s Biome 실패. 다음으로 fix:\n' "$red" "$reset"
+        printf '    cd web && pnpm exec biome check --write %s\n' "$rel"
+        exit 1
+    fi
+fi
