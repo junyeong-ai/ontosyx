@@ -163,7 +163,8 @@ fn pinned_hashes_are_lowercase_hex_64_chars() {
             hash.len(),
         );
         assert!(
-            hash.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            hash.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
             "{name}: pinned hash must be lowercase hex (got '{hash}')",
         );
     }
@@ -175,8 +176,8 @@ fn migrations_dir() -> PathBuf {
 
 fn read_migration_hashes(dir: &Path) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
-    let entries = fs::read_dir(dir)
-        .unwrap_or_else(|err| panic!("read_dir({}) failed: {err}", dir.display()));
+    let entries =
+        fs::read_dir(dir).unwrap_or_else(|err| panic!("read_dir({}) failed: {err}", dir.display()));
     for entry in entries {
         let entry = entry.expect("read_dir entry");
         let path = entry.path();
@@ -188,8 +189,8 @@ fn read_migration_hashes(dir: &Path) -> BTreeMap<String, String> {
             .and_then(|s| s.to_str())
             .map(str::to_string)
             .expect("migration filename is utf-8");
-        let bytes = fs::read(&path)
-            .unwrap_or_else(|err| panic!("read({}) failed: {err}", path.display()));
+        let bytes =
+            fs::read(&path).unwrap_or_else(|err| panic!("read({}) failed: {err}", path.display()));
         let mut hasher = Sha256::new();
         hasher.update(&bytes);
         out.insert(name, hex::encode(hasher.finalize()));

@@ -1259,8 +1259,11 @@ impl AppError {
     /// `NotificationEventType::ALL`. The catalog renders the
     /// offending event tag so the admin can correct the request.
     pub fn notification_event_unknown(event: impl Into<String>) -> Self {
-        Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::NotificationEventUnknown)
-            .with_param("event", event.into())
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            ApiErrorCode::NotificationEventUnknown,
+        )
+        .with_param("event", event.into())
     }
 
     /// Credential reference failed to resolve.

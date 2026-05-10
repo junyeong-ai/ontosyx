@@ -132,10 +132,7 @@ impl NotificationStore for StubNotificationStore {
         unimplemented!("create_notification_channel is not exercised by dispatcher tests")
     }
 
-    async fn get_notification_channel(
-        &self,
-        _: Uuid,
-    ) -> OxResult<Option<NotificationChannel>> {
+    async fn get_notification_channel(&self, _: Uuid) -> OxResult<Option<NotificationChannel>> {
         unimplemented!("get_notification_channel is not exercised by dispatcher tests")
     }
 

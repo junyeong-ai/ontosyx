@@ -127,10 +127,7 @@ impl WorkspaceTokenizerRegistry {
     /// Build a registry seeded with a custom default
     /// tokenizer — used in tests + future multi-language
     /// workspaces that want a non-Korean default.
-    pub fn with_default<T: Tokenizer + 'static>(
-        config: RegistryConfig,
-        system_only: T,
-    ) -> Self {
+    pub fn with_default<T: Tokenizer + 'static>(config: RegistryConfig, system_only: T) -> Self {
         let system_only: TokenizerHandle = Arc::new(Box::new(system_only) as BoxedTokenizer);
         Self {
             inner: Arc::new(RegistryInner {
@@ -152,7 +149,9 @@ impl WorkspaceTokenizerRegistry {
     /// gets *something* back.
     pub fn for_workspace(&self, workspace_id: Uuid) -> TokenizerHandle {
         if let Some(entry) = self.inner.entries.get(&workspace_id) {
-            entry.last_touched.store(self.next_tick(), Ordering::Relaxed);
+            entry
+                .last_touched
+                .store(self.next_tick(), Ordering::Relaxed);
             return entry.tokenizer.load_full();
         }
         Arc::clone(&self.inner.system_only)
@@ -163,11 +162,7 @@ impl WorkspaceTokenizerRegistry {
     /// the old tokenizer finish safely; subsequent readers see
     /// the new one. Triggers LRU eviction if the entry count
     /// exceeds [`RegistryConfig::max_resident`].
-    pub fn publish<T: Tokenizer + 'static>(
-        &self,
-        workspace_id: Uuid,
-        tokenizer: T,
-    ) {
+    pub fn publish<T: Tokenizer + 'static>(&self, workspace_id: Uuid, tokenizer: T) {
         let arc_tok: TokenizerHandle = Arc::new(Box::new(tokenizer) as BoxedTokenizer);
         let tick = self.next_tick();
         match self.inner.entries.entry(workspace_id) {

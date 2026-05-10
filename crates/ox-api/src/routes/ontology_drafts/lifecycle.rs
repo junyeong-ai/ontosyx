@@ -1527,9 +1527,11 @@ pub(crate) async fn execute_load_from_source(
                         },
                         &message,
                     )
-                    .with_derived_from(std::iter::once(ox_ontology::EntityRef::Arbitrary {
-                        label: format!("ontology_version_snapshot:{}", current_version.id),
-                    })),
+                    .with_derived_from(std::iter::once(
+                        ox_ontology::EntityRef::Arbitrary {
+                            label: format!("ontology_version_snapshot:{}", current_version.id),
+                        },
+                    )),
                     ox_text::glossary_tokenizer_fingerprint(&result.ontology).as_str(),
                 )
                 .await

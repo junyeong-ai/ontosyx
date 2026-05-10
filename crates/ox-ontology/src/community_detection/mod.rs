@@ -56,6 +56,4 @@ pub mod graph;
 pub mod leiden;
 
 pub use graph::{CommunityGraph, CommunityGraphNode, build_ontology_graph};
-pub use leiden::{
-    DetectedCommunity, DetectionError, DetectionResult, detect_communities,
-};
+pub use leiden::{DetectedCommunity, DetectionError, DetectionResult, detect_communities};

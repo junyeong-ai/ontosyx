@@ -184,7 +184,8 @@ pub fn categorize_data_type(data_type: &str) -> SourceTypeCategory {
     // Integers (incl. unsigned variants).
     if matches!(
         head,
-        "int" | "int2"
+        "int"
+            | "int2"
             | "int4"
             | "int8"
             | "integer"
@@ -253,7 +254,14 @@ pub fn categorize_data_type(data_type: &str) -> SourceTypeCategory {
     // Bytes.
     if matches!(
         head,
-        "bytea" | "blob" | "binary" | "varbinary" | "bytes" | "longblob" | "mediumblob" | "tinyblob"
+        "bytea"
+            | "blob"
+            | "binary"
+            | "varbinary"
+            | "bytes"
+            | "longblob"
+            | "mediumblob"
+            | "tinyblob"
     ) || head.starts_with("varbinary")
         || head.starts_with("binary")
     {
@@ -534,10 +542,16 @@ mod tests {
         assert_eq!(categorize_data_type("FLOAT64"), SourceTypeCategory::Numeric);
         assert_eq!(categorize_data_type("STRING"), SourceTypeCategory::Text);
         assert_eq!(categorize_data_type("BYTES"), SourceTypeCategory::Bytes);
-        assert_eq!(categorize_data_type("ARRAY<INT64>"), SourceTypeCategory::Json);
+        assert_eq!(
+            categorize_data_type("ARRAY<INT64>"),
+            SourceTypeCategory::Json
+        );
         assert_eq!(categorize_data_type("STRUCT<…>"), SourceTypeCategory::Json);
         assert_eq!(categorize_data_type("VARIANT"), SourceTypeCategory::Json);
-        assert_eq!(categorize_data_type("NUMBER(38,9)"), SourceTypeCategory::Numeric);
+        assert_eq!(
+            categorize_data_type("NUMBER(38,9)"),
+            SourceTypeCategory::Numeric
+        );
     }
 
     #[test]

@@ -276,10 +276,8 @@ pub(crate) async fn upsert_community_summary(
         .into_iter()
         .map(|logical_id| logical_id.trim().to_string())
         .collect();
-    let member_fingerprint = CommunitySummary::compute_member_fingerprint(
-        &member_entity_kinds,
-        &member_logical_ids,
-    );
+    let member_fingerprint =
+        CommunitySummary::compute_member_fingerprint(&member_entity_kinds, &member_logical_ids);
     let summary = CommunitySummary {
         id: Uuid::now_v7(),
         workspace_id: ws.workspace_id,

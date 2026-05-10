@@ -55,16 +55,7 @@ use crate::AgentRef;
 /// `#[repr(u8)]` pins the layout so the const-fn equality used by
 /// the assertion compiles.
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    utoipa::ToSchema,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
 )]
 #[serde(rename_all = "snake_case")]
 #[repr(u8)]
@@ -102,16 +93,7 @@ pub enum PipelineStage {
 /// What a stage produced. Closed set so the transition table can
 /// pin every (Stage, Outcome) → next.
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    utoipa::ToSchema,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
 )]
 #[serde(rename_all = "snake_case")]
 #[repr(u8)]
@@ -132,16 +114,7 @@ pub enum StageOutcome {
 /// retry policy at the agent layer (e.g. `OutOfBudget` skips
 /// `Refine` because retry cannot recover budget).
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    utoipa::ToSchema,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorClassification {
@@ -176,30 +149,126 @@ pub enum ErrorClassification {
 /// - **Hard rejects** (SafetyGate/Retrieve/Ground/Select/Compose
 ///   `Fail`): straight to Done.
 pub const TRANSITIONS: &[(PipelineStage, StageOutcome, PipelineStage)] = &[
-    (PipelineStage::SafetyGate, StageOutcome::Pass, PipelineStage::Retrieve),
-    (PipelineStage::SafetyGate, StageOutcome::Fail, PipelineStage::Done),
-    (PipelineStage::SafetyGate, StageOutcome::Skip, PipelineStage::Retrieve),
-    (PipelineStage::Retrieve, StageOutcome::Pass, PipelineStage::Ground),
-    (PipelineStage::Retrieve, StageOutcome::Fail, PipelineStage::Done),
-    (PipelineStage::Retrieve, StageOutcome::Skip, PipelineStage::Ground),
-    (PipelineStage::Ground, StageOutcome::Pass, PipelineStage::Compile),
-    (PipelineStage::Ground, StageOutcome::Fail, PipelineStage::Done),
-    (PipelineStage::Ground, StageOutcome::Skip, PipelineStage::Compile),
-    (PipelineStage::Compile, StageOutcome::Pass, PipelineStage::Validate),
-    (PipelineStage::Compile, StageOutcome::Fail, PipelineStage::Refine),
-    (PipelineStage::Compile, StageOutcome::Skip, PipelineStage::Validate),
-    (PipelineStage::Validate, StageOutcome::Pass, PipelineStage::Select),
-    (PipelineStage::Validate, StageOutcome::Fail, PipelineStage::Refine),
-    (PipelineStage::Validate, StageOutcome::Skip, PipelineStage::Select),
-    (PipelineStage::Refine, StageOutcome::Pass, PipelineStage::Compile),
-    (PipelineStage::Refine, StageOutcome::Fail, PipelineStage::Done),
-    (PipelineStage::Refine, StageOutcome::Skip, PipelineStage::Done),
-    (PipelineStage::Select, StageOutcome::Pass, PipelineStage::Compose),
-    (PipelineStage::Select, StageOutcome::Fail, PipelineStage::Done),
-    (PipelineStage::Select, StageOutcome::Skip, PipelineStage::Compose),
-    (PipelineStage::Compose, StageOutcome::Pass, PipelineStage::Done),
-    (PipelineStage::Compose, StageOutcome::Fail, PipelineStage::Done),
-    (PipelineStage::Compose, StageOutcome::Skip, PipelineStage::Done),
+    (
+        PipelineStage::SafetyGate,
+        StageOutcome::Pass,
+        PipelineStage::Retrieve,
+    ),
+    (
+        PipelineStage::SafetyGate,
+        StageOutcome::Fail,
+        PipelineStage::Done,
+    ),
+    (
+        PipelineStage::SafetyGate,
+        StageOutcome::Skip,
+        PipelineStage::Retrieve,
+    ),
+    (
+        PipelineStage::Retrieve,
+        StageOutcome::Pass,
+        PipelineStage::Ground,
+    ),
+    (
+        PipelineStage::Retrieve,
+        StageOutcome::Fail,
+        PipelineStage::Done,
+    ),
+    (
+        PipelineStage::Retrieve,
+        StageOutcome::Skip,
+        PipelineStage::Ground,
+    ),
+    (
+        PipelineStage::Ground,
+        StageOutcome::Pass,
+        PipelineStage::Compile,
+    ),
+    (
+        PipelineStage::Ground,
+        StageOutcome::Fail,
+        PipelineStage::Done,
+    ),
+    (
+        PipelineStage::Ground,
+        StageOutcome::Skip,
+        PipelineStage::Compile,
+    ),
+    (
+        PipelineStage::Compile,
+        StageOutcome::Pass,
+        PipelineStage::Validate,
+    ),
+    (
+        PipelineStage::Compile,
+        StageOutcome::Fail,
+        PipelineStage::Refine,
+    ),
+    (
+        PipelineStage::Compile,
+        StageOutcome::Skip,
+        PipelineStage::Validate,
+    ),
+    (
+        PipelineStage::Validate,
+        StageOutcome::Pass,
+        PipelineStage::Select,
+    ),
+    (
+        PipelineStage::Validate,
+        StageOutcome::Fail,
+        PipelineStage::Refine,
+    ),
+    (
+        PipelineStage::Validate,
+        StageOutcome::Skip,
+        PipelineStage::Select,
+    ),
+    (
+        PipelineStage::Refine,
+        StageOutcome::Pass,
+        PipelineStage::Compile,
+    ),
+    (
+        PipelineStage::Refine,
+        StageOutcome::Fail,
+        PipelineStage::Done,
+    ),
+    (
+        PipelineStage::Refine,
+        StageOutcome::Skip,
+        PipelineStage::Done,
+    ),
+    (
+        PipelineStage::Select,
+        StageOutcome::Pass,
+        PipelineStage::Compose,
+    ),
+    (
+        PipelineStage::Select,
+        StageOutcome::Fail,
+        PipelineStage::Done,
+    ),
+    (
+        PipelineStage::Select,
+        StageOutcome::Skip,
+        PipelineStage::Compose,
+    ),
+    (
+        PipelineStage::Compose,
+        StageOutcome::Pass,
+        PipelineStage::Done,
+    ),
+    (
+        PipelineStage::Compose,
+        StageOutcome::Fail,
+        PipelineStage::Done,
+    ),
+    (
+        PipelineStage::Compose,
+        StageOutcome::Skip,
+        PipelineStage::Done,
+    ),
 ];
 
 impl PipelineStage {
@@ -279,8 +348,7 @@ const _: () = {
         PipelineStage::Select,
         PipelineStage::Compose,
     ];
-    const OUTCOMES: &[StageOutcome] =
-        &[StageOutcome::Pass, StageOutcome::Fail, StageOutcome::Skip];
+    const OUTCOMES: &[StageOutcome] = &[StageOutcome::Pass, StageOutcome::Fail, StageOutcome::Skip];
 
     let mut s_idx = 0;
     while s_idx < STAGES.len() {

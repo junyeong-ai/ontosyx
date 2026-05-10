@@ -148,9 +148,7 @@ pub(crate) async fn create_evaluation_run(
 ) -> Result<(StatusCode, Json<ApiResponse<EvaluationRunResponse>>), AppError> {
     principal.require_admin()?;
     let fingerprint = req.fingerprint.into_fingerprint();
-    let fingerprint_digest = fingerprint
-        .digest()
-        .map_err(AppError::from)?;
+    let fingerprint_digest = fingerprint.digest().map_err(AppError::from)?;
     let run = EvaluationRun {
         id: Uuid::now_v7(),
         workspace_id: ws.workspace_id,
@@ -1037,9 +1035,7 @@ pub(crate) async fn judge_evaluation_case(
         .await
         .map_err(AppError::from)?;
 
-    let provenance_id =
-        record_judge_provenance(&state, &case, &prov)
-            .await?;
+    let provenance_id = record_judge_provenance(&state, &case, &prov).await?;
 
     let mut metrics = Vec::with_capacity(4);
     let now = chrono::Utc::now();

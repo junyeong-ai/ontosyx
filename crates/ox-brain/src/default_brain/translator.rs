@@ -59,13 +59,8 @@ impl QueryTranslator for DefaultBrain {
                         message: format!("{other:?}").chars().take(500).collect(),
                     },
                 };
-                self.record_translate_outcome(
-                    PipelineStage::Compile,
-                    None,
-                    None,
-                    outcome,
-                )
-                .await;
+                self.record_translate_outcome(PipelineStage::Compile, None, None, outcome)
+                    .await;
             }
         }
 
@@ -594,7 +589,8 @@ impl crate::DefaultBrain {
         let tokenized_question = match (self.tokenizer_registry.as_ref(), workspace_id) {
             (Some(reg), Some(ws)) => {
                 let tok = reg.for_workspace(ws);
-                tok.tokenize(question).unwrap_or_else(|_| question.to_string())
+                tok.tokenize(question)
+                    .unwrap_or_else(|_| question.to_string())
             }
             _ => question.to_string(),
         };

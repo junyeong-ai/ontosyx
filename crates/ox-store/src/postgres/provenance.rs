@@ -40,9 +40,10 @@ struct ProvenanceRow {
 
 impl ProvenanceRow {
     fn into_def(self) -> OxResult<ProvenanceDef> {
-        let subject: EntityRef = serde_json::from_value(self.subject).map_err(|e| OxError::Runtime {
-            message: format!("decode provenance_records.subject failed: {e}"),
-        })?;
+        let subject: EntityRef =
+            serde_json::from_value(self.subject).map_err(|e| OxError::Runtime {
+                message: format!("decode provenance_records.subject failed: {e}"),
+            })?;
         let activity: ProvenanceActivityKind =
             serde_json::from_value(self.activity).map_err(|e| OxError::Runtime {
                 message: format!("decode provenance_records.activity failed: {e}"),
@@ -56,9 +57,10 @@ impl ProvenanceRow {
             })?),
             None => None,
         };
-        let used: Vec<EntityRef> = serde_json::from_value(self.used).map_err(|e| OxError::Runtime {
-            message: format!("decode provenance_records.used failed: {e}"),
-        })?;
+        let used: Vec<EntityRef> =
+            serde_json::from_value(self.used).map_err(|e| OxError::Runtime {
+                message: format!("decode provenance_records.used failed: {e}"),
+            })?;
         let derived_from: Vec<EntityRef> =
             serde_json::from_value(self.derived_from).map_err(|e| OxError::Runtime {
                 message: format!("decode provenance_records.derived_from failed: {e}"),
@@ -99,9 +101,10 @@ impl ProvenanceStore for PostgresStore {
         let subject_json = serde_json::to_value(&subject).map_err(|e| OxError::Runtime {
             message: format!("encode ProvenanceCapture.subject failed: {e}"),
         })?;
-        let activity_json = serde_json::to_value(&capture.activity).map_err(|e| OxError::Runtime {
-            message: format!("encode ProvenanceCapture.activity failed: {e}"),
-        })?;
+        let activity_json =
+            serde_json::to_value(&capture.activity).map_err(|e| OxError::Runtime {
+                message: format!("encode ProvenanceCapture.activity failed: {e}"),
+            })?;
         let agent_json = serde_json::to_value(&capture.agent).map_err(|e| OxError::Runtime {
             message: format!("encode ProvenanceCapture.agent failed: {e}"),
         })?;

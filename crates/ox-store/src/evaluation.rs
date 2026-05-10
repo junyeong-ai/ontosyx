@@ -845,8 +845,7 @@ impl Default for WorkspaceEvaluationSettings {
     fn default() -> Self {
         Self {
             retrieval_lift_regression_threshold: RETRIEVAL_LIFT_REGRESSION_THRESHOLD,
-            retrieval_lift_regression_min_paired_case_count:
-                RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N,
+            retrieval_lift_regression_min_paired_case_count: RETRIEVAL_LIFT_REGRESSION_MIN_PAIRED_N,
         }
     }
 }
@@ -1325,7 +1324,9 @@ mod tests {
         // Default `record_call` is a noop — test pins the contract
         // so a future `EvaluationCapture` extension that forgets to
         // default to noop trips this test.
-        cap.record_call(&ctx, "translate_query", call).await.unwrap();
+        cap.record_call(&ctx, "translate_query", call)
+            .await
+            .unwrap();
     }
 
     #[test]
@@ -1692,7 +1693,6 @@ mod tests {
         let back: RetrievalLiftRegressionAlert = serde_json::from_value(v).unwrap();
         assert_eq!(back, alert);
     }
-
 
     #[test]
     fn retrieval_surface_all_covers_every_variant() {

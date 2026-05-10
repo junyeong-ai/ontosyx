@@ -64,9 +64,5 @@ pub trait SourceContractStore: Send + Sync {
     /// workspace; subsequent `validate_against_source_contracts`
     /// soft-skips that source again until re-introspection.
     /// Returns `Ok(false)` when the row did not exist.
-    async fn delete_source_contract(
-        &self,
-        source_id: &SourceId,
-        relation: &str,
-    ) -> OxResult<bool>;
+    async fn delete_source_contract(&self, source_id: &SourceId, relation: &str) -> OxResult<bool>;
 }

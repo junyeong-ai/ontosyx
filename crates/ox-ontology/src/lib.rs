@@ -223,7 +223,7 @@ pub use value_set_inference::{
     ValueSetRejection, ValueSetSkip, propose_value_sets,
 };
 pub use verified_query::{
-    ComplexityClass, VerifiedQueryDef, VerifiedQueryId, VerifiedQueryStatus,
-    canonicalize_question, question_hash,
+    ComplexityClass, VerifiedQueryDef, VerifiedQueryId, VerifiedQueryStatus, canonicalize_question,
+    question_hash,
 };
 pub use widget_spec::WidgetSpec;

@@ -480,29 +480,28 @@ impl OntologyIR {
             sources_with_any_contract.insert(&c.source_id);
         }
 
-        let column_check =
-            |contract: &crate::source_contract::SourceContractDef,
-             column: &str,
-             diag_code: &'static str,
-             extra: &[(&str, &str)],
-             errors: &mut Vec<DiagnosticMessage>| {
-                if !contract.has_column(column) {
-                    let mut msg = diag(diag_code)
-                        .with("source_id", contract.source_id.as_str())
-                        .with("relation", contract.relation.as_str())
-                        .with("column", column);
-                    for (k, v) in extra {
-                        msg = msg.with(*k, *v);
-                    }
-                    errors.push(msg.message(format!(
-                        "Column '{column}' is not present on source contract \
+        let column_check = |contract: &crate::source_contract::SourceContractDef,
+                            column: &str,
+                            diag_code: &'static str,
+                            extra: &[(&str, &str)],
+                            errors: &mut Vec<DiagnosticMessage>| {
+            if !contract.has_column(column) {
+                let mut msg = diag(diag_code)
+                    .with("source_id", contract.source_id.as_str())
+                    .with("relation", contract.relation.as_str())
+                    .with("column", column);
+                for (k, v) in extra {
+                    msg = msg.with(*k, *v);
+                }
+                errors.push(msg.message(format!(
+                    "Column '{column}' is not present on source contract \
                          '{}.{}' captured at introspection time. Re-introspect \
                          the source or remove the column from the mapping.",
-                        contract.source_id.as_str(),
-                        contract.relation,
-                    )));
-                }
-            };
+                    contract.source_id.as_str(),
+                    contract.relation,
+                )));
+            }
+        };
 
         for mapping in &self.object_mappings {
             // Soft-skip when no contract has been captured for the
@@ -602,16 +601,18 @@ impl OntologyIR {
                         contract,
                         col,
                         "ontology.validate.link_mapping.endpoint_column_not_in_source_contract",
-                        &[
-                            ("mapping_id", mapping.id.as_str()),
-                            ("endpoint_role", role),
-                        ],
+                        &[("mapping_id", mapping.id.as_str()), ("endpoint_role", role)],
                         &mut errors,
                     );
                 }
             }
 
-            self.validate_link_kind_columns(mapping, &by_relation, &sources_with_any_contract, &mut errors);
+            self.validate_link_kind_columns(
+                mapping,
+                &by_relation,
+                &sources_with_any_contract,
+                &mut errors,
+            );
         }
 
         errors
@@ -680,24 +681,22 @@ impl OntologyIR {
             crate::mapping::property::PropertyLocation::JsonPath { root_column, .. } => {
                 if !contract.has_column(root_column) {
                     errors.push(
-                        diag(
-                            "ontology.validate.object_mapping.column_not_in_source_contract",
-                        )
-                        .with("mapping_id", mapping_id)
-                        .with("source_id", contract.source_id.as_str())
-                        .with("relation", contract.relation.as_str())
-                        .with("column", root_column.as_str())
-                        .with("property_key", prop_mapping.property_key.as_str())
-                        .with("location_kind", "json_path")
-                        .message(format!(
-                            "Property '{}' on mapping '{}' anchors a JSON path on column \
+                        diag("ontology.validate.object_mapping.column_not_in_source_contract")
+                            .with("mapping_id", mapping_id)
+                            .with("source_id", contract.source_id.as_str())
+                            .with("relation", contract.relation.as_str())
+                            .with("column", root_column.as_str())
+                            .with("property_key", prop_mapping.property_key.as_str())
+                            .with("location_kind", "json_path")
+                            .message(format!(
+                                "Property '{}' on mapping '{}' anchors a JSON path on column \
                              '{}' which is not present on source contract '{}.{}'.",
-                            prop_mapping.property_key.as_str(),
-                            mapping_id,
-                            root_column,
-                            contract.source_id.as_str(),
-                            contract.relation,
-                        )),
+                                prop_mapping.property_key.as_str(),
+                                mapping_id,
+                                root_column,
+                                contract.source_id.as_str(),
+                                contract.relation,
+                            )),
                     );
                 }
             }
@@ -709,24 +708,22 @@ impl OntologyIR {
             for part in parts {
                 if part.relation == contract.relation && !contract.has_column(&part.column) {
                     errors.push(
-                        diag(
-                            "ontology.validate.object_mapping.column_not_in_source_contract",
-                        )
-                        .with("mapping_id", mapping_id)
-                        .with("source_id", contract.source_id.as_str())
-                        .with("relation", contract.relation.as_str())
-                        .with("column", part.column.as_str())
-                        .with("property_key", prop_mapping.property_key.as_str())
-                        .with("location_kind", "concat_part")
-                        .message(format!(
-                            "Property '{}' on mapping '{}' concat part references column \
+                        diag("ontology.validate.object_mapping.column_not_in_source_contract")
+                            .with("mapping_id", mapping_id)
+                            .with("source_id", contract.source_id.as_str())
+                            .with("relation", contract.relation.as_str())
+                            .with("column", part.column.as_str())
+                            .with("property_key", prop_mapping.property_key.as_str())
+                            .with("location_kind", "concat_part")
+                            .message(format!(
+                                "Property '{}' on mapping '{}' concat part references column \
                              '{}' which is not present on source contract '{}.{}'.",
-                            prop_mapping.property_key.as_str(),
-                            mapping_id,
-                            part.column,
-                            contract.source_id.as_str(),
-                            contract.relation,
-                        )),
+                                prop_mapping.property_key.as_str(),
+                                mapping_id,
+                                part.column,
+                                contract.source_id.as_str(),
+                                contract.relation,
+                            )),
                     );
                 }
             }
@@ -780,7 +777,8 @@ impl OntologyIR {
                 target_join,
                 bridge_workspace_scope,
             } => {
-                let bridge_contract = resolve(&bridge_relation.source_id, &bridge_relation.relation);
+                let bridge_contract =
+                    resolve(&bridge_relation.source_id, &bridge_relation.relation);
                 if sources_with_any_contract.contains(&bridge_relation.source_id)
                     && bridge_contract.is_none()
                 {

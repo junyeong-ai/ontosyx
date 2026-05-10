@@ -2,9 +2,7 @@
 
 use std::sync::Arc;
 
-use lindera::dictionary::{
-    DictionaryKind, UserDictionary, load_embedded_dictionary,
-};
+use lindera::dictionary::{DictionaryKind, UserDictionary, load_embedded_dictionary};
 use lindera::mode::Mode;
 use lindera::segmenter::Segmenter;
 use lindera::tokenizer::Tokenizer as LinderaInner;
@@ -124,7 +122,8 @@ pub struct KoreanEnglishTokenizer {
 
 impl std::fmt::Debug for KoreanEnglishTokenizer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("KoreanEnglishTokenizer").finish_non_exhaustive()
+        f.debug_struct("KoreanEnglishTokenizer")
+            .finish_non_exhaustive()
     }
 }
 
@@ -163,12 +162,8 @@ impl KoreanEnglishTokenizer {
     /// build itself runs synchronously. Callers in async
     /// contexts must wrap in `spawn_blocking` to avoid
     /// stalling the runtime.
-    pub fn from_user_dict_csv_path(
-        csv_path: &std::path::Path,
-    ) -> Result<Self, TokenizeError> {
-        use lindera::dictionary::{
-            load_embedded_dictionary, load_user_dictionary_from_csv,
-        };
+    pub fn from_user_dict_csv_path(csv_path: &std::path::Path) -> Result<Self, TokenizeError> {
+        use lindera::dictionary::{load_embedded_dictionary, load_user_dictionary_from_csv};
         let dict = load_embedded_dictionary(DictionaryKind::KoDic)
             .map_err(|e| TokenizeError::DictionaryLoad(e.to_string()))?;
         let user_dict = load_user_dictionary_from_csv(&dict.metadata, csv_path)
@@ -303,17 +298,15 @@ fn normalise_token(input: &str) -> String {
 /// the [`is_indexable_pos`] filter keeps; emitting a non-keep
 /// tag would cause the dict entry to be silently dropped at
 /// query time.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TermPosTag {
-    Noun,        // NNG
-    ProperNoun,  // NNP
-    Verb,        // VV (lemma 형식)
-    Adjective,   // VA
-    Foreign,     // SL — 외래어 / 영문
-    Compound,    // NNG (compound 처리, lindera 가 internal split 안 함)
+    Noun,       // NNG
+    ProperNoun, // NNP
+    Verb,       // VV (lemma 형식)
+    Adjective,  // VA
+    Foreign,    // SL — 외래어 / 영문
+    Compound,   // NNG (compound 처리, lindera 가 internal split 안 함)
 }
 
 impl TermPosTag {
@@ -364,10 +357,7 @@ mod tests {
     #[test]
     fn passthrough_preserves_korean() {
         let t = PassthroughTokenizer;
-        assert_eq!(
-            t.tokenize("고객 분석 OAuth2").unwrap(),
-            "고객 분석 oauth2"
-        );
+        assert_eq!(t.tokenize("고객 분석 OAuth2").unwrap(), "고객 분석 oauth2");
     }
 
     #[test]
@@ -399,8 +389,14 @@ mod tests {
 
     #[test]
     fn auto_pos_classifies_mixed_compound() {
-        assert_eq!(TermPosTag::auto_from_surface("OAuth2 인증"), TermPosTag::Compound);
-        assert_eq!(TermPosTag::auto_from_surface("고객 생애 가치"), TermPosTag::Compound);
+        assert_eq!(
+            TermPosTag::auto_from_surface("OAuth2 인증"),
+            TermPosTag::Compound
+        );
+        assert_eq!(
+            TermPosTag::auto_from_surface("고객 생애 가치"),
+            TermPosTag::Compound
+        );
         assert_eq!(TermPosTag::auto_from_surface("LTV"), TermPosTag::Foreign);
         assert_eq!(TermPosTag::auto_from_surface("OAuth2"), TermPosTag::Foreign);
         assert_eq!(TermPosTag::auto_from_surface("고객"), TermPosTag::Compound);

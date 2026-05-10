@@ -17,17 +17,11 @@ pub trait VerifiedQueryStore: Send + Sync {
     /// Insert-or-update on `(workspace_id, question_hash)`.
     /// Returns the persisted row so the caller picks up the
     /// server-stamped `updated_at` without re-fetching.
-    async fn upsert_verified_query(
-        &self,
-        query: &VerifiedQueryDef,
-    ) -> OxResult<VerifiedQueryDef>;
+    async fn upsert_verified_query(&self, query: &VerifiedQueryDef) -> OxResult<VerifiedQueryDef>;
 
     /// Lookup by id. RLS-scoped — cross-tenant ids resolve to
     /// `None`.
-    async fn get_verified_query(
-        &self,
-        id: &VerifiedQueryId,
-    ) -> OxResult<Option<VerifiedQueryDef>>;
+    async fn get_verified_query(&self, id: &VerifiedQueryId) -> OxResult<Option<VerifiedQueryDef>>;
 
     /// Lookup by canonical question hash. The fast path the Brain's
     /// translate-query funnel uses to short-circuit on an exact

@@ -81,11 +81,10 @@ impl InferenceAttemptRow {
             serde_json::from_value(self.outcome).map_err(|e| OxError::Runtime {
                 message: format!("decode inference_attempts.outcome failed: {e}"),
             })?;
-        let attempt_index = u32::try_from(self.attempt_index.max(0)).map_err(|e| {
-            OxError::Runtime {
+        let attempt_index =
+            u32::try_from(self.attempt_index.max(0)).map_err(|e| OxError::Runtime {
                 message: format!("inference_attempts.attempt_index overflow: {e}"),
-            }
-        })?;
+            })?;
         Ok(InferenceAttempt {
             id: self.id,
             session_id: self.session_id,
@@ -110,10 +109,9 @@ impl InferenceSessionStore for PostgresStore {
         initiator: AgentRef,
     ) -> OxResult<InferenceSession> {
         let workspace_id = super::bound_workspace_id_for_dml()?;
-        let initiator_json =
-            serde_json::to_value(&initiator).map_err(|e| OxError::Runtime {
-                message: format!("encode initiator failed: {e}"),
-            })?;
+        let initiator_json = serde_json::to_value(&initiator).map_err(|e| OxError::Runtime {
+            message: format!("encode initiator failed: {e}"),
+        })?;
         let id = Uuid::now_v7();
         let row: InferenceSessionRow = sqlx::query_as(
             "INSERT INTO inference_sessions
@@ -174,19 +172,16 @@ impl InferenceSessionStore for PostgresStore {
                 let subject = EntityRef::Arbitrary {
                     label: format!("inference_attempt:{attempt_id}"),
                 };
-                let prov_id_str =
-                    <Self as ProvenanceStore>::record_activity(self, cap, subject)
-                        .await?
-                        .as_str()
-                        .to_string();
-                Some(
-                    Uuid::parse_str(&prov_id_str).map_err(|e| OxError::Runtime {
-                        message: format!(
-                            "ProvenanceStore::record_activity returned non-UUID id \
+                let prov_id_str = <Self as ProvenanceStore>::record_activity(self, cap, subject)
+                    .await?
+                    .as_str()
+                    .to_string();
+                Some(Uuid::parse_str(&prov_id_str).map_err(|e| OxError::Runtime {
+                    message: format!(
+                        "ProvenanceStore::record_activity returned non-UUID id \
                              `{prov_id_str}`: {e}"
-                        ),
-                    })?,
-                )
+                    ),
+                })?)
             }
             None => None,
         };
@@ -243,10 +238,7 @@ impl InferenceSessionStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all, fields(session_id = %session_id))]
-    async fn list_inference_attempts(
-        &self,
-        session_id: Uuid,
-    ) -> OxResult<Vec<InferenceAttempt>> {
+    async fn list_inference_attempts(&self, session_id: Uuid) -> OxResult<Vec<InferenceAttempt>> {
         super::require_workspace_context()?;
         let rows: Vec<InferenceAttemptRow> = sqlx::query_as(
             "SELECT id, session_id, workspace_id, parent_attempt_id,

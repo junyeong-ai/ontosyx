@@ -113,10 +113,10 @@ pub fn build_ontology_graph(ir: &OntologyIR) -> CommunityGraph {
         std::collections::HashMap::new();
 
     let push_node = |nodes: &mut Vec<CommunityGraphNode>,
-                         index: &mut std::collections::HashMap<(EntityKind, String), usize>,
-                         kind: EntityKind,
-                         logical_id: String,
-                         display_name: String|
+                     index: &mut std::collections::HashMap<(EntityKind, String), usize>,
+                     kind: EntityKind,
+                     logical_id: String,
+                     display_name: String|
      -> usize {
         let key = (kind, logical_id.clone());
         if let Some(idx) = index.get(&key) {
@@ -269,11 +269,10 @@ pub fn build_ontology_graph(ir: &OntologyIR) -> CommunityGraph {
 
     // Segment ↔ owning NodeType.
     for seg in ir.segments() {
-        let seg_idx =
-            match index_by_key.get(&(EntityKind::Segment, seg.id.as_str().to_string())) {
-                Some(i) => *i,
-                None => continue,
-            };
+        let seg_idx = match index_by_key.get(&(EntityKind::Segment, seg.id.as_str().to_string())) {
+            Some(i) => *i,
+            None => continue,
+        };
         if let Some(nt_idx) = index_by_key.get(&(
             EntityKind::NodeType,
             seg.target_node_type_id.as_str().to_string(),

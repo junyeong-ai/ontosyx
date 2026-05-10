@@ -431,9 +431,10 @@ impl EvaluationStore for PostgresStore {
         let ontology_version_id = fingerprint.ontology_version_id;
         let model_id_str = fingerprint.model_id.as_str().to_string();
         let fingerprint_digest = fingerprint.digest()?;
-        let fingerprint_json = serde_json::to_value(&fingerprint).map_err(|e| OxError::Runtime {
-            message: format!("EvaluationFingerprint serialise failed: {e}"),
-        })?;
+        let fingerprint_json =
+            serde_json::to_value(&fingerprint).map_err(|e| OxError::Runtime {
+                message: format!("EvaluationFingerprint serialise failed: {e}"),
+            })?;
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 
         // Verify the dataset exists in the active workspace
@@ -1067,8 +1068,7 @@ impl EvaluationStore for PostgresStore {
                         baseline_n,
                         candidate_n,
                     )| {
-                        let surface =
-                            crate::evaluation::RetrievalSurface::from_wire_str(&surface)?;
+                        let surface = crate::evaluation::RetrievalSurface::from_wire_str(&surface)?;
                         let axis = crate::evaluation::RetrievalAxis::from_wire_str(&axis)?;
                         Some(crate::evaluation::RetrievalComparisonDelta {
                             surface,
@@ -1092,8 +1092,7 @@ impl EvaluationStore for PostgresStore {
                 .iter()
                 .filter_map(|d| {
                     if d.lift_delta < regression_policy.threshold
-                        && d.candidate_paired_case_count
-                            >= regression_policy.min_paired_case_count
+                        && d.candidate_paired_case_count >= regression_policy.min_paired_case_count
                     {
                         Some(crate::evaluation::RetrievalLiftRegressionAlert {
                             surface: d.surface,
@@ -1201,8 +1200,7 @@ impl EvaluationStore for PostgresStore {
             .into_iter()
             .filter_map(
                 |(case_id, case_key, surface_str, axis, hybrid_score, trigram_score, case_lift)| {
-                    let surface =
-                        crate::evaluation::RetrievalSurface::from_wire_str(&surface_str)?;
+                    let surface = crate::evaluation::RetrievalSurface::from_wire_str(&surface_str)?;
                     let axis = crate::evaluation::RetrievalAxis::from_wire_str(&axis)?;
                     Some(crate::evaluation::RetrievalComparisonOutlier {
                         case_id,
@@ -1504,10 +1502,7 @@ impl PostgresStore {
     /// rather than synthesising a zero. `model_prices` is platform-
     /// wide reference data (no RLS) so the lookup runs without a
     /// workspace context.
-    async fn fetch_active_model_prices(
-        &self,
-        model_id: &ModelId,
-    ) -> OxResult<Option<ModelPrices>> {
+    async fn fetch_active_model_prices(&self, model_id: &ModelId) -> OxResult<Option<ModelPrices>> {
         #[derive(sqlx::FromRow)]
         struct ModelPricesRow {
             model_id: String,

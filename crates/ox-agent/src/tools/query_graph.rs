@@ -162,12 +162,8 @@ impl SchemaTool for QueryGraphTool {
         let store_for_session = self.domain.store.clone();
         let translate_future = tokio::time::timeout(
             std::time::Duration::from_secs(60),
-            self.brain.translate_query(
-                &question,
-                &ontology,
-                retrieved_subgraph_md.as_deref(),
-                ctx,
-            ),
+            self.brain
+                .translate_query(&question, &ontology, retrieved_subgraph_md.as_deref(), ctx),
         );
         let session_outcome = ox_store::run_in_inference_session(
             store_for_session.as_ref(),
@@ -680,11 +676,7 @@ impl SchemaTool for QueryGraphTool {
 /// hardcoded literals exactly so the fallback is behaviour-
 /// preserving.
 async fn resolve_retrieval_profile(domain: &DomainContext) -> RetrievalProfile {
-    match domain
-        .store
-        .find_retrieval_profile_by_name("default")
-        .await
-    {
+    match domain.store.find_retrieval_profile_by_name("default").await {
         Ok(Some(profile)) => profile,
         Ok(None) => RetrievalProfile::workspace_default(domain.workspace_id),
         Err(err) => {
@@ -761,7 +753,8 @@ async fn try_retrieve_subgraph_md(domain: &DomainContext, question: &str) -> Opt
     let tokenized_question = match domain.tokenizer_registry.as_ref() {
         Some(reg) => {
             let tok = reg.for_workspace(domain.workspace_id);
-            tok.tokenize(question).unwrap_or_else(|_| question.to_string())
+            tok.tokenize(question)
+                .unwrap_or_else(|_| question.to_string())
         }
         None => question.to_string(),
     };
@@ -774,18 +767,23 @@ async fn try_retrieve_subgraph_md(domain: &DomainContext, question: &str) -> Opt
             )
             .await
             .map_err(|err| {
-                tracing::warn!(?err, "community embedding failed; degrading to lexical hybrid");
+                tracing::warn!(
+                    ?err,
+                    "community embedding failed; degrading to lexical hybrid"
+                );
             })
             .ok()
     } else {
         None
     };
     let (anchors_res, communities_res) = tokio::join!(
-        domain.store.search_entry_points(EntryPointSearchOptions::new(
-            version_id,
-            question,
-            profile.limits.anchor_top_k,
-        ),),
+        domain
+            .store
+            .search_entry_points(EntryPointSearchOptions::new(
+                version_id,
+                question,
+                profile.limits.anchor_top_k,
+            ),),
         domain.store.search_community_summaries(
             version_id,
             question,

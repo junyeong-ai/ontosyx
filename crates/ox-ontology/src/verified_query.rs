@@ -136,16 +136,7 @@ pub struct VerifiedQueryDef {
 /// rule on the Brain side. Adding a class is one variant + one
 /// arm in the Brain's exemplar-selection policy.
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    utoipa::ToSchema,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
 )]
 #[serde(rename_all = "snake_case")]
 #[repr(u8)]
@@ -202,16 +193,7 @@ impl ComplexityClass {
 /// states park the row out of the retrieval pool but keep the
 /// audit trail.
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    utoipa::ToSchema,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
 )]
 #[serde(rename_all = "snake_case")]
 #[repr(u8)]
@@ -353,7 +335,10 @@ mod tests {
     fn question_hash_is_64_char_lowercase_hex() {
         let h = question_hash("anything");
         assert_eq!(h.len(), 64);
-        assert!(h.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()));
+        assert!(
+            h.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase())
+        );
     }
 
     #[test]

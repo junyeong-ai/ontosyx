@@ -144,12 +144,9 @@ pub(crate) async fn promote_verified_query(
     // continues to surface the row without it.
     let embedding = embed_question_for_verified_query(&state, &req.question).await;
 
-    let tokens = crate::tokenizer_publish::tokenize_for_workspace(
-        &state,
-        ws.workspace_id,
-        &req.question,
-    )
-    .await;
+    let tokens =
+        crate::tokenizer_publish::tokenize_for_workspace(&state, ws.workspace_id, &req.question)
+            .await;
 
     let vq = VerifiedQueryDef {
         id: VerifiedQueryId::new(id),

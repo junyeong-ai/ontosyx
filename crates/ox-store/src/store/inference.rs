@@ -33,8 +33,8 @@ use uuid::Uuid;
 
 use ox_core::error::OxResult;
 use ox_ontology::{
-    AgentRef, AttemptOutcome, InferenceAttempt, InferenceSession, PipelineStage,
-    ProvenanceCapture, SessionOutcome,
+    AgentRef, AttemptOutcome, InferenceAttempt, InferenceSession, PipelineStage, ProvenanceCapture,
+    SessionOutcome,
 };
 
 #[async_trait]
@@ -74,10 +74,7 @@ pub trait InferenceSessionStore: Send + Sync {
     /// List every attempt under `session_id`, ordered by
     /// `attempt_index` ASC so a `Refine` fold reads them in
     /// chronological order.
-    async fn list_inference_attempts(
-        &self,
-        session_id: Uuid,
-    ) -> OxResult<Vec<InferenceAttempt>>;
+    async fn list_inference_attempts(&self, session_id: Uuid) -> OxResult<Vec<InferenceAttempt>>;
 
     /// Transition a session to its terminal state — sets
     /// `final_outcome` + stamps `ended_at = now()`. Domain verb

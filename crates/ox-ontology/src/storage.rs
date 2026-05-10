@@ -425,7 +425,6 @@ fn extract_collection<T: crate::ir_collection::IrCollection>(
     Ok(())
 }
 
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

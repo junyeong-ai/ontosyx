@@ -26,8 +26,8 @@ impl SourceContractRow {
             serde_json::from_value(self.columns).map_err(|e| OxError::Runtime {
                 message: format!("decode source_contracts.columns failed: {e}"),
             })?;
-        let primary_key: Vec<String> = serde_json::from_value(self.primary_key)
-            .map_err(|e| OxError::Runtime {
+        let primary_key: Vec<String> =
+            serde_json::from_value(self.primary_key).map_err(|e| OxError::Runtime {
                 message: format!("decode source_contracts.primary_key failed: {e}"),
             })?;
         let _ = self.workspace_id; // RLS-bound; carried for parity but not surfaced.
@@ -53,16 +53,14 @@ impl SourceContractStore for PostgresStore {
         contract: &SourceContractDef,
     ) -> OxResult<SourceContractDef> {
         let workspace_id = super::bound_workspace_id_for_dml()?;
-        let columns_json = serde_json::to_value(&contract.columns).map_err(|e| {
-            OxError::Runtime {
+        let columns_json =
+            serde_json::to_value(&contract.columns).map_err(|e| OxError::Runtime {
                 message: format!("encode SourceContractDef.columns failed: {e}"),
-            }
-        })?;
-        let pk_json = serde_json::to_value(&contract.primary_key).map_err(|e| {
-            OxError::Runtime {
+            })?;
+        let pk_json =
+            serde_json::to_value(&contract.primary_key).map_err(|e| OxError::Runtime {
                 message: format!("encode SourceContractDef.primary_key failed: {e}"),
-            }
-        })?;
+            })?;
         // Recompute the fingerprint server-side so the persisted
         // value can never drift from the canonical formula. Clients
         // that submit a stale fingerprint silently get the
@@ -162,20 +160,15 @@ impl SourceContractStore for PostgresStore {
         source_id = %source_id.as_str(),
         relation = %relation,
     ))]
-    async fn delete_source_contract(
-        &self,
-        source_id: &SourceId,
-        relation: &str,
-    ) -> OxResult<bool> {
+    async fn delete_source_contract(&self, source_id: &SourceId, relation: &str) -> OxResult<bool> {
         super::require_workspace_context()?;
-        let result = sqlx::query(
-            "DELETE FROM source_contracts WHERE source_id = $1 AND relation = $2",
-        )
-        .bind(source_id.as_str())
-        .bind(relation)
-        .execute(&self.pool)
-        .await
-        .map_err(to_ox_error)?;
+        let result =
+            sqlx::query("DELETE FROM source_contracts WHERE source_id = $1 AND relation = $2")
+                .bind(source_id.as_str())
+                .bind(relation)
+                .execute(&self.pool)
+                .await
+                .map_err(to_ox_error)?;
         Ok(result.rows_affected() > 0)
     }
 }

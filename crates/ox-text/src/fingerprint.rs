@@ -20,9 +20,9 @@
 
 use std::collections::BTreeMap;
 
+use ox_ontology::OntologyIR;
 use ox_ontology::concept::ConceptId;
 use ox_ontology::glossary::TermLifecycle;
-use ox_ontology::OntologyIR;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -145,9 +145,7 @@ mod tests {
     use super::*;
     use ox_core::i18n::LocalizedText;
     use ox_ontology::concept::{ConceptDef, ConceptGovernance, ConceptId};
-    use ox_ontology::glossary::{
-        GlossaryTermDef, GlossaryTermId, TermGovernance, TermPos,
-    };
+    use ox_ontology::glossary::{GlossaryTermDef, GlossaryTermId, TermGovernance, TermPos};
 
     fn term(id: &str, surface: &str) -> GlossaryTermDef {
         GlossaryTermDef {

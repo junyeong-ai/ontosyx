@@ -3,9 +3,7 @@
 use async_trait::async_trait;
 
 use ox_core::error::{OxError, OxResult};
-use ox_ontology::{
-    RetrievalLimits, RetrievalProfile, RetrievalProfileId, TraversalStrategy,
-};
+use ox_ontology::{RetrievalLimits, RetrievalProfile, RetrievalProfileId, TraversalStrategy};
 
 use crate::store::RetrievalProfileStore;
 
@@ -27,11 +25,10 @@ struct RetrievalProfileRow {
 
 impl RetrievalProfileRow {
     fn into_domain(self) -> OxResult<RetrievalProfile> {
-        let edge_weights = serde_json::from_value(self.edge_weights).map_err(|e| {
-            OxError::Runtime {
+        let edge_weights =
+            serde_json::from_value(self.edge_weights).map_err(|e| OxError::Runtime {
                 message: format!("decode retrieval_profiles.edge_weights failed: {e}"),
-            }
-        })?;
+            })?;
         let traversal: TraversalStrategy =
             serde_json::from_value(self.traversal).map_err(|e| OxError::Runtime {
                 message: format!("decode retrieval_profiles.traversal failed: {e}"),
@@ -63,11 +60,10 @@ impl RetrievalProfileStore for PostgresStore {
         profile: &RetrievalProfile,
     ) -> OxResult<RetrievalProfile> {
         let workspace_id = super::bound_workspace_id_for_dml()?;
-        let edge_weights = serde_json::to_value(&profile.edge_weights).map_err(|e| {
-            OxError::Runtime {
+        let edge_weights =
+            serde_json::to_value(&profile.edge_weights).map_err(|e| OxError::Runtime {
                 message: format!("encode RetrievalProfile.edge_weights failed: {e}"),
-            }
-        })?;
+            })?;
         let traversal = serde_json::to_value(&profile.traversal).map_err(|e| OxError::Runtime {
             message: format!("encode RetrievalProfile.traversal failed: {e}"),
         })?;

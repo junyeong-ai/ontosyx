@@ -93,7 +93,10 @@ pub async fn discover_knowledge(
         {
             Ok(v) => Some(v),
             Err(error) => {
-                warn!(?error, "knowledge question embed failed; degrading to lexical-only hybrid");
+                warn!(
+                    ?error,
+                    "knowledge question embed failed; degrading to lexical-only hybrid"
+                );
                 None
             }
         }

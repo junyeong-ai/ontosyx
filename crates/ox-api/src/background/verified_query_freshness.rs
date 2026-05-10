@@ -107,9 +107,7 @@ async fn run_sweep(store: &dyn Store) -> ox_core::error::OxResult<()> {
 
     for ws_id in workspace_ids {
         let outcome = ox_store::WORKSPACE_ID
-            .scope(ws_id, async {
-                sweep_workspace(store).await
-            })
+            .scope(ws_id, async { sweep_workspace(store).await })
             .await;
 
         match outcome {
@@ -219,14 +217,12 @@ async fn check_and_transition(
     // NOT auto-stale on deserialise failure — that's a different
     // class of problem (corrupted, not stale) and silently
     // burying it would hide the root cause.
-    let query_ir: ox_query_ir::query::QueryIR =
-        serde_json::from_value(vq.query_ir.clone()).map_err(|e| {
-            ox_core::error::OxError::Runtime {
-                message: format!(
-                    "verified_queries.query_ir for {vq_id} failed to deserialise: {e}",
-                    vq_id = vq.id.as_str()
-                ),
-            }
+    let query_ir: ox_query_ir::query::QueryIR = serde_json::from_value(vq.query_ir.clone())
+        .map_err(|e| ox_core::error::OxError::Runtime {
+            message: format!(
+                "verified_queries.query_ir for {vq_id} failed to deserialise: {e}",
+                vq_id = vq.id.as_str()
+            ),
         })?;
 
     let unknown = ox_query_ir::unknown_labels_in_query(ontology_ir, &query_ir);

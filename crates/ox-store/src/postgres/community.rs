@@ -42,8 +42,7 @@ struct CommunitySummaryRow {
 /// one place; `embedding` is intentionally omitted because the
 /// hot retrieval paths don't need to ship 1024-dim vectors over
 /// the wire when the cosine NN is already evaluated server-side.
-const COMMUNITY_SUMMARY_COLUMNS: &str =
-    "id, workspace_id, ontology_version_id, community_id,
+const COMMUNITY_SUMMARY_COLUMNS: &str = "id, workspace_id, ontology_version_id, community_id,
      level, member_entity_kinds, member_logical_ids,
      member_fingerprint, title, summary,
      tokenized_text, tokenizer_dict_fingerprint,
@@ -375,25 +374,29 @@ impl CommunitySummaryStore for PostgresStore {
         );
 
         let rows: Vec<CommunitySummaryRow> = match vector_text {
-            Some(vec_text) => sqlx::query_as(&sql_with_vec)
-                .bind(version_id)
-                .bind(question_raw)
-                .bind(question_tokenized)
-                .bind(vec_text)
-                .bind(breadth)
-                .bind(super::RRF_K)
-                .bind(capped)
-                .fetch_all(&self.pool)
-                .await,
-            None => sqlx::query_as(&sql_no_vec)
-                .bind(version_id)
-                .bind(question_raw)
-                .bind(question_tokenized)
-                .bind(breadth)
-                .bind(super::RRF_K)
-                .bind(capped)
-                .fetch_all(&self.pool)
-                .await,
+            Some(vec_text) => {
+                sqlx::query_as(&sql_with_vec)
+                    .bind(version_id)
+                    .bind(question_raw)
+                    .bind(question_tokenized)
+                    .bind(vec_text)
+                    .bind(breadth)
+                    .bind(super::RRF_K)
+                    .bind(capped)
+                    .fetch_all(&self.pool)
+                    .await
+            }
+            None => {
+                sqlx::query_as(&sql_no_vec)
+                    .bind(version_id)
+                    .bind(question_raw)
+                    .bind(question_tokenized)
+                    .bind(breadth)
+                    .bind(super::RRF_K)
+                    .bind(capped)
+                    .fetch_all(&self.pool)
+                    .await
+            }
         }
         .map_err(to_ox_error)?;
         Ok(rows.into_iter().map(CommunitySummary::from).collect())

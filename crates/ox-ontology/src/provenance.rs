@@ -318,10 +318,7 @@ impl ProvenanceCapture {
     }
 
     /// Attach parent entities the subject derives from.
-    pub fn with_derived_from(
-        mut self,
-        derived_from: impl IntoIterator<Item = EntityRef>,
-    ) -> Self {
+    pub fn with_derived_from(mut self, derived_from: impl IntoIterator<Item = EntityRef>) -> Self {
         self.derived_from.extend(derived_from);
         self
     }

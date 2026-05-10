@@ -41,14 +41,13 @@ impl VerifiedQueryRow {
                     ),
                 }
             })?;
-        let status = VerifiedQueryStatus::from_wire_str(&self.status).ok_or_else(|| {
-            OxError::Runtime {
+        let status =
+            VerifiedQueryStatus::from_wire_str(&self.status).ok_or_else(|| OxError::Runtime {
                 message: format!(
                     "verified_queries.status `{}` is not a known wire string",
                     self.status
                 ),
-            }
-        })?;
+            })?;
         let author: AgentRef =
             serde_json::from_value(self.author).map_err(|e| OxError::Runtime {
                 message: format!("decode verified_queries.author failed: {e}"),
@@ -86,10 +85,7 @@ impl VerifiedQueryStore for PostgresStore {
         complexity = query.complexity_class.as_str(),
         status = query.status.as_str(),
     ))]
-    async fn upsert_verified_query(
-        &self,
-        query: &VerifiedQueryDef,
-    ) -> OxResult<VerifiedQueryDef> {
+    async fn upsert_verified_query(&self, query: &VerifiedQueryDef) -> OxResult<VerifiedQueryDef> {
         let workspace_id = super::bound_workspace_id_for_dml()?;
         let author = serde_json::to_value(&query.author).map_err(|e| OxError::Runtime {
             message: format!("encode VerifiedQueryDef.author failed: {e}"),
@@ -144,10 +140,7 @@ impl VerifiedQueryStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all, fields(query_id = %id.as_str()))]
-    async fn get_verified_query(
-        &self,
-        id: &VerifiedQueryId,
-    ) -> OxResult<Option<VerifiedQueryDef>> {
+    async fn get_verified_query(&self, id: &VerifiedQueryId) -> OxResult<Option<VerifiedQueryDef>> {
         super::require_workspace_context()?;
         let row: Option<VerifiedQueryRow> = sqlx::query_as(
             "SELECT id, workspace_id, question, question_hash, query_ir,
@@ -452,23 +445,27 @@ impl VerifiedQueryStore for PostgresStore {
             LIMIT $5";
 
         let rows: Vec<VerifiedQueryRow> = match vector_text {
-            Some(vec_text) => sqlx::query_as(sql_with_vec)
-                .bind(question_raw)
-                .bind(question_tokenized)
-                .bind(vec_text)
-                .bind(candidate_breadth)
-                .bind(super::RRF_K)
-                .bind(limit_capped)
-                .fetch_all(&self.pool)
-                .await,
-            None => sqlx::query_as(sql_no_vec)
-                .bind(question_raw)
-                .bind(question_tokenized)
-                .bind(candidate_breadth)
-                .bind(super::RRF_K)
-                .bind(limit_capped)
-                .fetch_all(&self.pool)
-                .await,
+            Some(vec_text) => {
+                sqlx::query_as(sql_with_vec)
+                    .bind(question_raw)
+                    .bind(question_tokenized)
+                    .bind(vec_text)
+                    .bind(candidate_breadth)
+                    .bind(super::RRF_K)
+                    .bind(limit_capped)
+                    .fetch_all(&self.pool)
+                    .await
+            }
+            None => {
+                sqlx::query_as(sql_no_vec)
+                    .bind(question_raw)
+                    .bind(question_tokenized)
+                    .bind(candidate_breadth)
+                    .bind(super::RRF_K)
+                    .bind(limit_capped)
+                    .fetch_all(&self.pool)
+                    .await
+            }
         }
         .map_err(to_ox_error)?;
 

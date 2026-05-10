@@ -120,18 +120,17 @@ pub async fn publish_workspace_tokenizer_after_commit(
             }
         }
     } else {
-        let tokenizer =
-            match build_tokenizer_with_user_dict(workspace_id, &csv).await {
-                Ok(t) => t,
-                Err(err) => {
-                    warn!(
-                        workspace_id = %workspace_id,
-                        error = %err,
-                        "user-dict tokenizer build failed; prior tokenizer retained",
-                    );
-                    return Ok(());
-                }
-            };
+        let tokenizer = match build_tokenizer_with_user_dict(workspace_id, &csv).await {
+            Ok(t) => t,
+            Err(err) => {
+                warn!(
+                    workspace_id = %workspace_id,
+                    error = %err,
+                    "user-dict tokenizer build failed; prior tokenizer retained",
+                );
+                return Ok(());
+            }
+        };
         state.tokenizer_registry.publish(workspace_id, tokenizer);
     }
 
@@ -151,8 +150,12 @@ pub async fn publish_workspace_tokenizer_after_commit(
     let tokenizer = state.tokenizer_registry.for_workspace(workspace_id);
     let target_fingerprint = new_fingerprint.as_str().to_string();
     crate::spawn_scoped::spawn_scoped(async move {
-        if let Err(err) =
-            run_backfill(store.as_ref(), tokenizer.as_ref().as_ref(), &target_fingerprint).await
+        if let Err(err) = run_backfill(
+            store.as_ref(),
+            tokenizer.as_ref().as_ref(),
+            &target_fingerprint,
+        )
+        .await
         {
             warn!(
                 error = %err,
@@ -178,19 +181,22 @@ async fn build_tokenizer_with_user_dict(
 ) -> OxResult<ox_text::KoreanEnglishTokenizer> {
     let path = csv_temp_path(workspace_id);
     {
-        let mut f = tokio::fs::File::create(&path).await.map_err(|e| {
-            ox_core::error::OxError::Runtime {
-                message: format!("user-dict csv create failed: {e}"),
-            }
-        })?;
-        f.write_all(csv.as_bytes()).await.map_err(|e| {
-            ox_core::error::OxError::Runtime {
+        let mut f =
+            tokio::fs::File::create(&path)
+                .await
+                .map_err(|e| ox_core::error::OxError::Runtime {
+                    message: format!("user-dict csv create failed: {e}"),
+                })?;
+        f.write_all(csv.as_bytes())
+            .await
+            .map_err(|e| ox_core::error::OxError::Runtime {
                 message: format!("user-dict csv write failed: {e}"),
-            }
-        })?;
-        f.flush().await.map_err(|e| ox_core::error::OxError::Runtime {
-            message: format!("user-dict csv flush failed: {e}"),
-        })?;
+            })?;
+        f.flush()
+            .await
+            .map_err(|e| ox_core::error::OxError::Runtime {
+                message: format!("user-dict csv flush failed: {e}"),
+            })?;
     }
 
     // Compile CSV → UserDictionary on a blocking thread —
@@ -198,10 +204,11 @@ async fn build_tokenizer_with_user_dict(
     // and would otherwise block the runtime.
     let path_for_blocking = path.clone();
     let tokenizer = tokio::task::spawn_blocking(move || -> OxResult<_> {
-        ox_text::KoreanEnglishTokenizer::from_user_dict_csv_path(&path_for_blocking)
-            .map_err(|e| ox_core::error::OxError::Runtime {
+        ox_text::KoreanEnglishTokenizer::from_user_dict_csv_path(&path_for_blocking).map_err(|e| {
+            ox_core::error::OxError::Runtime {
                 message: format!("tokenizer assembly failed: {e}"),
-            })
+            }
+        })
     })
     .await
     .map_err(|e| ox_core::error::OxError::Runtime {
@@ -222,9 +229,7 @@ async fn build_tokenizer_with_user_dict(
 }
 
 fn csv_temp_path(workspace_id: uuid::Uuid) -> PathBuf {
-    let nanos = chrono::Utc::now()
-        .timestamp_nanos_opt()
-        .unwrap_or(0);
+    let nanos = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
     std::env::temp_dir().join(format!("ontosyx-userdict-{workspace_id}-{nanos}.csv"))
 }
 
@@ -300,11 +305,7 @@ async fn run_backfill(
         let touched = surface
             .retokenize_workspace(tokenizer, target_fingerprint)
             .await?;
-        info!(
-            surface = surface.name(),
-            touched,
-            "retokenized surface",
-        );
+        info!(surface = surface.name(), touched, "retokenized surface",);
         total += touched;
     }
     info!(

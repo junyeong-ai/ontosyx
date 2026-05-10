@@ -65,16 +65,14 @@ impl WorkspaceStore for PostgresStore {
         // own id authorises the write.
         crate::WORKSPACE_ID
             .scope(w.id, async {
-                let default_profile =
-                    ox_ontology::RetrievalProfile::workspace_default(w.id);
+                let default_profile = ox_ontology::RetrievalProfile::workspace_default(w.id);
                 <Self as crate::store::RetrievalProfileStore>::upsert_retrieval_profile(
                     self,
                     &default_profile,
                 )
                 .await?;
 
-                let default_cdp =
-                    ox_ontology::CommunityDetectionPolicy::workspace_default(w.id);
+                let default_cdp = ox_ontology::CommunityDetectionPolicy::workspace_default(w.id);
                 <Self as crate::store::CommunityDetectionPolicyStore>
                     ::upsert_community_detection_policy(self, &default_cdp)
                     .await?;

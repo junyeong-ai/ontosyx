@@ -537,10 +537,8 @@ async fn main() -> anyhow::Result<()> {
     // hundreds-of-tenants deployment fits, and a 10k-tenant
     // build evicts cold workspaces transparently.
     let tokenizer_registry = Arc::new(
-        ox_text::WorkspaceTokenizerRegistry::new(
-            ox_text::RegistryConfig::default(),
-        )
-        .expect("ox-text registry init"),
+        ox_text::WorkspaceTokenizerRegistry::new(ox_text::RegistryConfig::default())
+            .expect("ox-text registry init"),
     );
 
     // Attach memory store (schema RAG) + knowledge store (failure-driven
@@ -555,12 +553,10 @@ async fn main() -> anyhow::Result<()> {
     // `InferenceAttempt` per `translate_query` call when the calling
     // task has bound an `InferenceContext` via
     // `run_in_inference_session` (Φ9.3).
-    let inference_session_store =
-        Arc::clone(&store) as Arc<dyn ox_store::InferenceSessionStore>;
+    let inference_session_store = Arc::clone(&store) as Arc<dyn ox_store::InferenceSessionStore>;
     // Φ11.2: verified-query bank — cache-hit short-circuit on
     // exact question hash skips the LLM round-trip entirely.
-    let verified_query_store =
-        Arc::clone(&store) as Arc<dyn ox_store::VerifiedQueryStore>;
+    let verified_query_store = Arc::clone(&store) as Arc<dyn ox_store::VerifiedQueryStore>;
     let brain: Arc<dyn ox_brain::Brain> = if let Some(ref mem) = memory {
         // Φ11.5 — share the embedder Arc across MemoryStore +
         // Brain so the verified-query NN path uses exactly the

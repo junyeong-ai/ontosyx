@@ -80,12 +80,11 @@ impl crate::store::OntologyVersionStore for PostgresStore {
                 .await?
                 .as_str()
                 .to_string();
-        let provenance_id =
-            Uuid::parse_str(&provenance_id_str).map_err(|e| OxError::Runtime {
-                message: format!(
-                    "ProvenanceStore::record_activity returned non-UUID id `{provenance_id_str}`: {e}"
-                ),
-            })?;
+        let provenance_id = Uuid::parse_str(&provenance_id_str).map_err(|e| OxError::Runtime {
+            message: format!(
+                "ProvenanceStore::record_activity returned non-UUID id `{provenance_id_str}`: {e}"
+            ),
+        })?;
 
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 

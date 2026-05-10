@@ -635,7 +635,10 @@ mod tests {
         // `every_variant_has_unique_wire_str` test there;
         // here we pin the event-type the payload reports.
         let p = lift_payload(1);
-        assert_eq!(p.event_type(), NotificationEventType::RetrievalLiftRegression);
+        assert_eq!(
+            p.event_type(),
+            NotificationEventType::RetrievalLiftRegression
+        );
         assert_eq!(p.event_type().as_str(), "retrieval_lift_regression");
     }
 
@@ -735,7 +738,11 @@ mod tests {
             );
         }
         // Just outside RFC1918 — must NOT be blocked.
-        for url in ["http://172.32.0.1/", "http://172.15.0.1/", "http://172.2.0.1/"] {
+        for url in [
+            "http://172.32.0.1/",
+            "http://172.15.0.1/",
+            "http://172.2.0.1/",
+        ] {
             assert!(
                 validate_webhook_url(url).is_ok(),
                 "public IP {url} must pass — false-positive of the prefix-string gate",
@@ -759,7 +766,11 @@ mod tests {
 
     #[test]
     fn ssrf_guard_rejects_non_http_schemes() {
-        for url in ["ftp://example.com/", "file:///etc/passwd", "gopher://example.com/"] {
+        for url in [
+            "ftp://example.com/",
+            "file:///etc/passwd",
+            "gopher://example.com/",
+        ] {
             let err = validate_webhook_url(url).expect_err("scheme must be rejected");
             assert!(
                 format!("{err:?}").contains("bad_scheme"),
@@ -879,11 +890,19 @@ mod tests {
         // would allocate the channel-list query for nothing.
         // Pinned here so a refactor can't accidentally drop
         // the early-return.
-        let store = crate::test_support::StubNotificationStore::returning_channels(vec![
-            mk_channel(NotificationChannelType::SlackWebhook, "x"),
-        ]);
-        dispatch_retrieval_lift_regression(&store, Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), &[])
-            .await;
+        let store =
+            crate::test_support::StubNotificationStore::returning_channels(vec![mk_channel(
+                NotificationChannelType::SlackWebhook,
+                "x",
+            )]);
+        dispatch_retrieval_lift_regression(
+            &store,
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            &[],
+        )
+        .await;
         assert!(store.logged().await.is_empty());
     }
 

@@ -43,13 +43,13 @@ pub mod response;
 pub mod routes;
 pub mod schedule;
 pub mod spawn_scoped;
-pub mod tokenizer_publish;
 pub mod sso;
 pub mod state;
 pub mod stream_limiter;
 pub mod system_config;
 #[cfg(test)]
 mod test_support;
+pub mod tokenizer_publish;
 pub mod validation;
 pub mod workspace;
 pub mod workspace_scope;

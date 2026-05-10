@@ -117,7 +117,11 @@ fn leading_ident(s: &str) -> &str {
 
 fn type_definition_violations(content: &str, file: &Path, root: &Path) -> Vec<String> {
     let mut out = Vec::new();
-    let rel = file.strip_prefix(root).unwrap_or(file).display().to_string();
+    let rel = file
+        .strip_prefix(root)
+        .unwrap_or(file)
+        .display()
+        .to_string();
     for (idx, line) in content.lines().enumerate() {
         let trimmed = line.trim_start();
         if trimmed.starts_with("//") {
@@ -154,7 +158,11 @@ fn type_definition_violations(content: &str, file: &Path, root: &Path) -> Vec<St
 }
 
 fn store_method_violations(content: &str, file: &Path, root: &Path) -> Vec<String> {
-    let rel = file.strip_prefix(root).unwrap_or(file).display().to_string();
+    let rel = file
+        .strip_prefix(root)
+        .unwrap_or(file)
+        .display()
+        .to_string();
     if !rel.contains("ox-store/src/postgres/") {
         return Vec::new();
     }
@@ -202,7 +210,10 @@ fn no_forbidden_naming_patterns_in_workspace_sources() {
     );
 
     let mut files: Vec<PathBuf> = Vec::new();
-    for entry in fs::read_dir(&crates_dir).expect("crates/ readable").flatten() {
+    for entry in fs::read_dir(&crates_dir)
+        .expect("crates/ readable")
+        .flatten()
+    {
         let crate_root = entry.path();
         let src = crate_root.join("src");
         collect_rs_files(&src, &mut files);

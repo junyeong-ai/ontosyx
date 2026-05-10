@@ -54,8 +54,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use rand::seq::SliceRandom;
 use rand::SeedableRng;
+use rand::seq::SliceRandom;
 use thiserror::Error;
 
 use crate::CommunityDetectionPolicy;
@@ -129,9 +129,8 @@ pub fn detect_communities(
     // working-graph node to the set of original nodes it
     // represents (the aggregation chain).
     let mut current_graph = graph.clone();
-    let mut current_to_original: Vec<Vec<usize>> = (0..graph.node_count())
-        .map(|i| vec![i])
-        .collect();
+    let mut current_to_original: Vec<Vec<usize>> =
+        (0..graph.node_count()).map(|i| vec![i]).collect();
 
     for _ in 0..levels_cap {
         let partition = local_moving_phase(&current_graph, resolution, &mut rng);
@@ -203,8 +202,7 @@ fn local_moving_phase<R: rand::Rng>(
     let two_m = 2.0 * m;
 
     let mut community: Vec<usize> = (0..n).collect();
-    let mut community_total_degree: Vec<f32> =
-        (0..n).map(|i| graph.weighted_degree(i)).collect();
+    let mut community_total_degree: Vec<f32> = (0..n).map(|i| graph.weighted_degree(i)).collect();
 
     let mut order: Vec<usize> = (0..n).collect();
     let max_passes = 32; // Hard convergence cap; well above empirical needs.
@@ -239,10 +237,9 @@ fn local_moving_phase<R: rand::Rng>(
                 // comparisons; we keep it for the threshold
                 // check (gain > 0).
                 let gain = (weight_in - weight_to_current) / m
-                    - resolution * node_degree
-                        * (total_in_candidate
-                            - community_total_degree[current]
-                            + node_degree)
+                    - resolution
+                        * node_degree
+                        * (total_in_candidate - community_total_degree[current] + node_degree)
                         / (two_m * m);
                 if gain > best_gain {
                     best_gain = gain;
@@ -318,8 +315,7 @@ fn refinement_phase<R: rand::Rng>(
     }
 
     let mut refined: Vec<usize> = (0..n).collect();
-    let mut refined_total_degree: Vec<f32> =
-        (0..n).map(|i| graph.weighted_degree(i)).collect();
+    let mut refined_total_degree: Vec<f32> = (0..n).map(|i| graph.weighted_degree(i)).collect();
 
     let mut coarse_keys: Vec<usize> = by_coarse.keys().copied().collect();
     coarse_keys.sort();
@@ -370,11 +366,8 @@ fn refinement_phase<R: rand::Rng>(
                 // inside P).
                 let cand_degree = refined_total_degree[candidate];
                 let cur_degree = refined_total_degree[current];
-                let gain = (weight_in
-                    - *weights_to.get(&current).unwrap_or(&0.0))
-                    / m
-                    - resolution * node_degree
-                        * (cand_degree - cur_degree + node_degree)
+                let gain = (weight_in - *weights_to.get(&current).unwrap_or(&0.0)) / m
+                    - resolution * node_degree * (cand_degree - cur_degree + node_degree)
                         / (2.0 * m * m);
                 if gain > best_gain {
                     best_gain = gain;
@@ -620,9 +613,10 @@ fn emit_communities(levels: &[Vec<usize>]) -> Vec<DetectedCommunity> {
             .collect();
         groups.sort_by(|a, b| {
             b.len().cmp(&a.len()).then_with(|| {
-                a.first().copied().unwrap_or(usize::MAX).cmp(
-                    &b.first().copied().unwrap_or(usize::MAX),
-                )
+                a.first()
+                    .copied()
+                    .unwrap_or(usize::MAX)
+                    .cmp(&b.first().copied().unwrap_or(usize::MAX))
             })
         });
         for (seq, members) in groups.into_iter().enumerate() {
@@ -716,11 +710,18 @@ mod tests {
         let r = detect_communities(&g, &default_policy()).unwrap();
         let level_0: Vec<_> = r.communities.iter().filter(|c| c.level == 0).collect();
         assert_eq!(level_0.len(), 2, "two triangles must form two communities");
-        let combined: Vec<usize> = level_0.iter().flat_map(|c| c.members.iter().copied()).collect();
+        let combined: Vec<usize> = level_0
+            .iter()
+            .flat_map(|c| c.members.iter().copied())
+            .collect();
         let mut sorted = combined.clone();
         sorted.sort();
         assert_eq!(sorted, vec![0, 1, 2, 3, 4, 5]);
-        assert!(r.modularity > 0.4, "two triangles should have high modularity, got {}", r.modularity);
+        assert!(
+            r.modularity > 0.4,
+            "two triangles should have high modularity, got {}",
+            r.modularity
+        );
     }
 
     #[test]
@@ -863,32 +864,83 @@ mod tests {
 
     fn karate_club_edges() -> Vec<(usize, usize, f32)> {
         let raw = [
-            (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 7), (0, 8), (0, 10), (0, 11),
-            (0, 12), (0, 13), (0, 17), (0, 19), (0, 21), (0, 31),
-            (1, 2), (1, 3), (1, 7), (1, 13), (1, 17), (1, 19), (1, 21), (1, 30),
-            (2, 3), (2, 7), (2, 8), (2, 9), (2, 13), (2, 27), (2, 28), (2, 32),
-            (3, 7), (3, 12), (3, 13),
-            (4, 6), (4, 10),
-            (5, 6), (5, 10), (5, 16),
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (0, 4),
+            (0, 5),
+            (0, 6),
+            (0, 7),
+            (0, 8),
+            (0, 10),
+            (0, 11),
+            (0, 12),
+            (0, 13),
+            (0, 17),
+            (0, 19),
+            (0, 21),
+            (0, 31),
+            (1, 2),
+            (1, 3),
+            (1, 7),
+            (1, 13),
+            (1, 17),
+            (1, 19),
+            (1, 21),
+            (1, 30),
+            (2, 3),
+            (2, 7),
+            (2, 8),
+            (2, 9),
+            (2, 13),
+            (2, 27),
+            (2, 28),
+            (2, 32),
+            (3, 7),
+            (3, 12),
+            (3, 13),
+            (4, 6),
+            (4, 10),
+            (5, 6),
+            (5, 10),
+            (5, 16),
             (6, 16),
-            (8, 30), (8, 32), (8, 33),
+            (8, 30),
+            (8, 32),
+            (8, 33),
             (9, 33),
             (13, 33),
-            (14, 32), (14, 33),
-            (15, 32), (15, 33),
-            (18, 32), (18, 33),
+            (14, 32),
+            (14, 33),
+            (15, 32),
+            (15, 33),
+            (18, 32),
+            (18, 33),
             (19, 33),
-            (20, 32), (20, 33),
-            (22, 32), (22, 33),
-            (23, 25), (23, 27), (23, 29), (23, 32), (23, 33),
-            (24, 25), (24, 27), (24, 31),
+            (20, 32),
+            (20, 33),
+            (22, 32),
+            (22, 33),
+            (23, 25),
+            (23, 27),
+            (23, 29),
+            (23, 32),
+            (23, 33),
+            (24, 25),
+            (24, 27),
+            (24, 31),
             (25, 31),
-            (26, 29), (26, 33),
+            (26, 29),
+            (26, 33),
             (27, 33),
-            (28, 31), (28, 33),
-            (29, 32), (29, 33),
-            (30, 32), (30, 33),
-            (31, 32), (31, 33),
+            (28, 31),
+            (28, 33),
+            (29, 32),
+            (29, 33),
+            (30, 32),
+            (30, 33),
+            (31, 32),
+            (31, 33),
             (32, 33),
         ];
         raw.iter().map(|&(a, b)| (a, b, 1.0)).collect()

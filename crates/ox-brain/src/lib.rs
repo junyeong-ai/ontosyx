@@ -750,14 +750,7 @@ impl DefaultBrain {
         });
 
         if let Err(err) = store
-            .record_inference_attempt(
-                ctx.session_id,
-                None,
-                stage,
-                candidate,
-                outcome,
-                capture,
-            )
+            .record_inference_attempt(ctx.session_id, None, stage, candidate, outcome, capture)
             .await
         {
             tracing::warn!(

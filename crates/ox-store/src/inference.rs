@@ -87,15 +87,9 @@ where
     F: FnOnce() -> Fut,
     Fut: Future<Output = OxResult<T>>,
 {
-    let session = store
-        .create_inference_session(question, initiator)
-        .await?;
+    let session = store.create_inference_session(question, initiator).await?;
     let session_id = session.id;
-    let result = scope_inference_context(
-        InferenceContext { session_id },
-        body(),
-    )
-    .await;
+    let result = scope_inference_context(InferenceContext { session_id }, body()).await;
 
     match &result {
         Ok(_) => {
@@ -118,7 +112,9 @@ where
                         .into(),
                 },
             };
-            store.complete_inference_session(session_id, outcome).await?;
+            store
+                .complete_inference_session(session_id, outcome)
+                .await?;
         }
         Err(err) => {
             let classification = classify_error(err);
@@ -167,10 +163,8 @@ mod tests {
         let ctx = InferenceContext {
             session_id: Uuid::new_v4(),
         };
-        let observed = scope_inference_context(ctx.clone(), async {
-            current_inference_context()
-        })
-        .await;
+        let observed =
+            scope_inference_context(ctx.clone(), async { current_inference_context() }).await;
         assert_eq!(observed.map(|c| c.session_id), Some(ctx.session_id));
         assert!(current_inference_context().is_none());
     }

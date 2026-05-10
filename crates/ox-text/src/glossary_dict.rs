@@ -41,11 +41,9 @@
 
 use std::collections::BTreeMap;
 
-use ox_ontology::concept::{ConceptDef, ConceptId};
-use ox_ontology::glossary::{
-    GlossaryTermDef, GlossaryTermId, TermLifecycle, TermPos,
-};
 use ox_ontology::OntologyIR;
+use ox_ontology::concept::{ConceptDef, ConceptId};
+use ox_ontology::glossary::{GlossaryTermDef, GlossaryTermId, TermLifecycle, TermPos};
 use thiserror::Error;
 
 use crate::tokenizer::TermPosTag;
@@ -70,15 +68,10 @@ pub enum UserDictCompileError {
 /// sorted order so two compiles over an unchanged glossary
 /// produce byte-identical CSV — important for fingerprinting
 /// + debugging.
-pub fn compile_glossary_to_user_dict(
-    ir: &OntologyIR,
-) -> Result<String, UserDictCompileError> {
+pub fn compile_glossary_to_user_dict(ir: &OntologyIR) -> Result<String, UserDictCompileError> {
     // Phase 1: index Concepts by id for canonical-lemma lookup.
-    let concepts: BTreeMap<&ConceptId, &ConceptDef> = ir
-        .concepts()
-        .iter()
-        .map(|c| (&c.id, c))
-        .collect();
+    let concepts: BTreeMap<&ConceptId, &ConceptDef> =
+        ir.concepts().iter().map(|c| (&c.id, c)).collect();
 
     // Phase 2: index Active glossary terms by id (canonical
     // surface lookup target). Inactive terms excluded.
@@ -217,10 +210,8 @@ fn build_csv_row(surface: &str, pos: TermPosTag, lemma: &str) -> String {
 /// hit these but the platform supports operator-authored
 /// arbitrary surfaces, so be defensive.
 fn csv_escape(input: &str) -> String {
-    let needs_quoting = input.contains(',')
-        || input.contains('"')
-        || input.contains('\n')
-        || input.contains('\r');
+    let needs_quoting =
+        input.contains(',') || input.contains('"') || input.contains('\n') || input.contains('\r');
     if !needs_quoting {
         return input.to_string();
     }
@@ -365,7 +356,10 @@ mod tests {
         assert!(csv.contains("LTV"), "csv:\n{csv}");
         // 두 row 모두 lemma=고객_생애_가치
         let lemma_count = csv.matches("고객_생애_가치").count();
-        assert!(lemma_count >= 2, "expected ≥2 occurrences of canonical lemma, got {lemma_count}\n{csv}");
+        assert!(
+            lemma_count >= 2,
+            "expected ≥2 occurrences of canonical lemma, got {lemma_count}\n{csv}"
+        );
     }
 
     #[test]
@@ -452,7 +446,7 @@ mod tests {
     fn csv_escapes_special_characters() {
         let t = term(
             "gt-comma",
-            "A, B",  // contains comma
+            "A, B", // contains comma
             &[],
             &[],
             None,
@@ -460,7 +454,10 @@ mod tests {
         );
         let ir = ir_with(vec![t], Vec::new());
         let csv = compile_glossary_to_user_dict(&ir).unwrap();
-        assert!(csv.contains("\"A, B\""), "comma surface must be quoted: {csv}");
+        assert!(
+            csv.contains("\"A, B\""),
+            "comma surface must be quoted: {csv}"
+        );
     }
 
     #[test]
@@ -474,9 +471,15 @@ mod tests {
         assert_eq!(csv.lines().count(), 3);
         // OAuth2 는 SL (foreign), 고객 / "OAuth2 인증" 은 NNG (compound).
         let oauth_line = csv.lines().find(|l| l.starts_with("OAuth2,")).unwrap();
-        assert!(oauth_line.contains(",SL,"), "OAuth2 should be SL: {oauth_line}");
+        assert!(
+            oauth_line.contains(",SL,"),
+            "OAuth2 should be SL: {oauth_line}"
+        );
         let korean_line = csv.lines().find(|l| l.starts_with("고객,")).unwrap();
-        assert!(korean_line.contains(",NNG,"), "고객 should be NNG: {korean_line}");
+        assert!(
+            korean_line.contains(",NNG,"),
+            "고객 should be NNG: {korean_line}"
+        );
     }
 
     #[test]

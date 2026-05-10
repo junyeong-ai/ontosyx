@@ -28,11 +28,11 @@
 // ---------------------------------------------------------------------------
 
 pub mod diagnostic;
-pub mod pgvector;
 pub mod error;
 pub mod graph_label;
 pub mod i18n;
 pub mod id;
+pub mod pgvector;
 pub mod prompt_version;
 pub mod property_key;
 pub mod source_schema;

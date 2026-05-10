@@ -110,10 +110,9 @@ impl RetrievalProfile {
             id: RetrievalProfileId::new("rp-workspace-default"),
             workspace_id,
             name: "default".into(),
-            description:
-                "Workspace-default retrieval profile (in-memory fallback). \
+            description: "Workspace-default retrieval profile (in-memory fallback). \
                  Upsert a row named `default` to override."
-                    .into(),
+                .into(),
             edge_weights: BTreeMap::new(),
             default_edge_weight: 1.0,
             traversal: TraversalStrategy::Bfs { max_depth: 2 },
@@ -202,7 +201,9 @@ impl TraversalStrategy {
 /// the node cap but blows the token budget after rendering still
 /// gets truncated to the token ceiling. Both axes guard
 /// independently.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
 pub struct RetrievalLimits {
     /// Maximum nodes returned by neighbour expansion. Beyond this
     /// the retrieval layer truncates; the truncation is logged
@@ -295,10 +296,9 @@ impl CommunityDetectionPolicy {
             id: CommunityDetectionPolicyId::new("cdp-workspace-default"),
             workspace_id,
             name: "default".into(),
-            description:
-                "Workspace-default Leiden community detection policy. \
+            description: "Workspace-default Leiden community detection policy. \
                  Upsert a row named `default` to override."
-                    .into(),
+                .into(),
             resolution: 1.0,
             seed: 42,
             levels: 3,
@@ -357,7 +357,8 @@ mod tests {
         let mut p = sample_profile();
         p.edge_weights.insert(EdgeTypeId::new("et-bad"), -1.0);
         p.edge_weights.insert(EdgeTypeId::new("et-nan"), f32::NAN);
-        p.edge_weights.insert(EdgeTypeId::new("et-inf"), f32::INFINITY);
+        p.edge_weights
+            .insert(EdgeTypeId::new("et-inf"), f32::INFINITY);
         assert_eq!(p.weight_for(&EdgeTypeId::new("et-bad")), 0.0);
         assert_eq!(p.weight_for(&EdgeTypeId::new("et-nan")), 0.0);
         assert_eq!(p.weight_for(&EdgeTypeId::new("et-inf")), 0.0);
@@ -378,7 +379,10 @@ mod tests {
             },
         ] {
             let v = serde_json::to_value(&s).unwrap();
-            assert_eq!(v.get("kind").and_then(|s| s.as_str()).unwrap(), s.kind_str());
+            assert_eq!(
+                v.get("kind").and_then(|s| s.as_str()).unwrap(),
+                s.kind_str()
+            );
             let back: TraversalStrategy = serde_json::from_value(v).unwrap();
             assert_eq!(back, s);
         }

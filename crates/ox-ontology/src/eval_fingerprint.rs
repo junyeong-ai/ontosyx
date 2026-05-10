@@ -260,7 +260,8 @@ mod tests {
         let d = sample_fingerprint().digest().unwrap();
         assert_eq!(d.len(), 64);
         assert!(
-            d.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
+            d.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
             "digest must be 64-char lowercase hex"
         );
     }

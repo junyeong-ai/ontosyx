@@ -30,9 +30,7 @@ impl CommunityDetectionPolicyRow {
         })?;
         let min_cluster_size =
             u32::try_from(self.min_cluster_size.max(1)).map_err(|e| OxError::Runtime {
-                message: format!(
-                    "community_detection_policies.min_cluster_size overflow: {e}"
-                ),
+                message: format!("community_detection_policies.min_cluster_size overflow: {e}"),
             })?;
         Ok(CommunityDetectionPolicy {
             id: CommunityDetectionPolicyId::new(self.id),
@@ -104,7 +102,8 @@ impl CommunityDetectionPolicyStore for PostgresStore {
         .fetch_optional(&self.pool)
         .await
         .map_err(to_ox_error)?;
-        row.map(CommunityDetectionPolicyRow::into_domain).transpose()
+        row.map(CommunityDetectionPolicyRow::into_domain)
+            .transpose()
     }
 
     #[tracing::instrument(level = "debug", skip_all, fields(policy.name = %name))]
@@ -125,13 +124,12 @@ impl CommunityDetectionPolicyStore for PostgresStore {
         .fetch_optional(&self.pool)
         .await
         .map_err(to_ox_error)?;
-        row.map(CommunityDetectionPolicyRow::into_domain).transpose()
+        row.map(CommunityDetectionPolicyRow::into_domain)
+            .transpose()
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn list_community_detection_policies(
-        &self,
-    ) -> OxResult<Vec<CommunityDetectionPolicy>> {
+    async fn list_community_detection_policies(&self) -> OxResult<Vec<CommunityDetectionPolicy>> {
         super::require_workspace_context()?;
         let rows: Vec<CommunityDetectionPolicyRow> = sqlx::query_as(
             "SELECT id, workspace_id, name, description,

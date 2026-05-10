@@ -456,8 +456,8 @@ mod source_mapping;
 mod stale_concept_proposal;
 mod tool_approval;
 mod user;
-mod verified_query;
 mod verification;
+mod verified_query;
 mod workspace;
 
 use rls_session::configure_rls_session_vars;

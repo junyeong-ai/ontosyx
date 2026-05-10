@@ -159,8 +159,11 @@ mod tests {
     #[test]
     fn macro_all_wire_strings_matches_as_str_per_variant() {
         let wire: Vec<&'static str> = WireEnumProbe::all_wire_strings();
-        let from_as_str: Vec<&'static str> =
-            WireEnumProbe::ALL.iter().copied().map(WireEnumProbe::as_str).collect();
+        let from_as_str: Vec<&'static str> = WireEnumProbe::ALL
+            .iter()
+            .copied()
+            .map(WireEnumProbe::as_str)
+            .collect();
         assert_eq!(wire, from_as_str);
     }
 }

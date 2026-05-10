@@ -248,11 +248,7 @@ impl IrCollection for crate::table_inventory::TableInventoryEntry {
         // `add_table_inventory_entry` upserts on, so the logical id
         // mirrors that pair. Owned because the format string crosses
         // the borrow.
-        Cow::Owned(format!(
-            "{}:{}",
-            self.source_id.as_str(),
-            self.table_name
-        ))
+        Cow::Owned(format!("{}:{}", self.source_id.as_str(), self.table_name))
     }
 }
 

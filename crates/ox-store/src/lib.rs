@@ -27,8 +27,7 @@ pub use evaluation::{
     scope_evaluation_context,
 };
 pub use inference::{
-    InferenceContext, current_inference_context, run_in_inference_session,
-    scope_inference_context,
+    InferenceContext, current_inference_context, run_in_inference_session, scope_inference_context,
 };
 pub use models::*;
 pub use navigation::{
@@ -51,16 +50,14 @@ pub use store::{
     AclStore, AgentSessionStore, AmbiguityStore, AnalysisSnapshot, ApiKeyStore,
     ApprovalCommentStore, ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter,
     AuditTrailStore, ChangeRoutingStore, CommunityDetectionPolicyStore, CommunitySummaryStore,
-    ConfigStore, CursorPage,
-    CursorParams, DashboardStore, DataSourceStore, DraftClusterCheckpointStore,
-    EmbeddingRetryStore, EvaluationStore, ExtendResult, HealthStore, IdempotencyStore,
-    InferenceSessionStore, InsightStore, JwtRevocationStore, KnowledgeStore, LineageStore,
-    LoadCheckpointStore,
-    MeteringStore, ModelConfigStore, NotificationStore, OntologyDraftStore,
-    OntologyNavigationStore, OntologyVersionStore, PatternStore, PerspectiveStore, PinStore,
-    PromptTemplateStore, ProvenanceStore, QualityBaselineStore, QualitySignalStore, QualityStore,
-    QueryStore, RecipeExecutionStore, RecipeStore, ReportStore, RetrievalProfileStore,
-    ScheduledTaskStore, SourceContractStore,
-    SourceMappingArtifactStore, StaleConceptProposalStore, Store, ToolApprovalStore, UserStore,
-    VerificationStore, VerifiedQueryStore, WorkspaceStore,
+    ConfigStore, CursorPage, CursorParams, DashboardStore, DataSourceStore,
+    DraftClusterCheckpointStore, EmbeddingRetryStore, EvaluationStore, ExtendResult, HealthStore,
+    IdempotencyStore, InferenceSessionStore, InsightStore, JwtRevocationStore, KnowledgeStore,
+    LineageStore, LoadCheckpointStore, MeteringStore, ModelConfigStore, NotificationStore,
+    OntologyDraftStore, OntologyNavigationStore, OntologyVersionStore, PatternStore,
+    PerspectiveStore, PinStore, PromptTemplateStore, ProvenanceStore, QualityBaselineStore,
+    QualitySignalStore, QualityStore, QueryStore, RecipeExecutionStore, RecipeStore, ReportStore,
+    RetrievalProfileStore, ScheduledTaskStore, SourceContractStore, SourceMappingArtifactStore,
+    StaleConceptProposalStore, Store, ToolApprovalStore, UserStore, VerificationStore,
+    VerifiedQueryStore, WorkspaceStore,
 };

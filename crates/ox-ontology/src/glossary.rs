@@ -153,8 +153,17 @@ pub struct GlossaryTermDef {
 /// operators add terms without thinking about POS unless they
 /// hit the rare misclassification edge.
 #[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Hash,
-    Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    utoipa::ToSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum TermPos {

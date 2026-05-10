@@ -29,9 +29,7 @@ pub trait CommunityDetectionPolicyStore: Send + Sync {
         name: &str,
     ) -> OxResult<Option<CommunityDetectionPolicy>>;
 
-    async fn list_community_detection_policies(
-        &self,
-    ) -> OxResult<Vec<CommunityDetectionPolicy>>;
+    async fn list_community_detection_policies(&self) -> OxResult<Vec<CommunityDetectionPolicy>>;
 
     async fn delete_community_detection_policy(
         &self,

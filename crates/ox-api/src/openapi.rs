@@ -6,8 +6,8 @@ use crate::routes::{
     acl, ambiguity, approvals, audit, auth, chat, community_summaries, config, dashboards,
     evaluation, federation_admin, governance_audit, governance_routing, health, insights,
     knowledge, lineage, load, models, notifications, ontology, perspectives, pins, prompts_admin,
-    quality, query, recipes, reports, schedules, sessions, sources, usage, users,
-    verified_queries, workspaces,
+    quality, query, recipes, reports, schedules, sessions, sources, usage, users, verified_queries,
+    workspaces,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*

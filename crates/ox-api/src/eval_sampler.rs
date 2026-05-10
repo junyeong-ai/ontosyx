@@ -32,8 +32,8 @@ use uuid::Uuid;
 use ox_ontology::{EvaluationFingerprint, ModelId};
 use ox_store::Store;
 use ox_store::evaluation::{
-    EvaluationActual, EvaluationCase, EvaluationCaseInput, EvaluationCaseMetadata, EvaluationDataset,
-    EvaluationRun, EvaluationRunStatus,
+    EvaluationActual, EvaluationCase, EvaluationCaseInput, EvaluationCaseMetadata,
+    EvaluationDataset, EvaluationRun, EvaluationRunStatus,
 };
 
 /// Canonical name root for the per-workspace live-sample stream.
@@ -159,10 +159,7 @@ async fn ensure_live_samples_run(
     workspace_id: Uuid,
     sample: &ChatSampleInput,
 ) -> ox_core::error::OxResult<Option<EvaluationRun>> {
-    let run_name = format!(
-        "{LIVE_CHAT_SAMPLES_RUN_PREFIX}:{}",
-        sample.model_id
-    );
+    let run_name = format!("{LIVE_CHAT_SAMPLES_RUN_PREFIX}:{}", sample.model_id);
     if let Some(existing) = store.find_evaluation_run_by_name(&run_name).await? {
         return Ok(Some(existing));
     }

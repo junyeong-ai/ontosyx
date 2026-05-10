@@ -67,11 +67,9 @@ mod glossary_dict;
 mod registry;
 mod tokenizer;
 
-pub use fingerprint::{glossary_tokenizer_fingerprint, GlossaryFingerprint};
-pub use glossary_dict::{compile_glossary_to_user_dict, UserDictCompileError};
-pub use registry::{
-    RegistryConfig, RegistryError, WorkspaceTokenizerRegistry,
-};
+pub use fingerprint::{GlossaryFingerprint, glossary_tokenizer_fingerprint};
+pub use glossary_dict::{UserDictCompileError, compile_glossary_to_user_dict};
+pub use registry::{RegistryConfig, RegistryError, WorkspaceTokenizerRegistry};
 pub use tokenizer::{
     KoreanEnglishTokenizer, PassthroughTokenizer, Token, TokenizeError, Tokenizer,
 };

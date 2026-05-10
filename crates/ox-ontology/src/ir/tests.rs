@@ -2912,8 +2912,8 @@ fn add_glossary_term_rejects_self_replacement() {
             deprecated_at: Utc::now(),
         },
         concept_id: None,
-    term_pos: Default::default(),
-        };
+        term_pos: Default::default(),
+    };
     let err = onto.add_glossary_term(term).unwrap_err();
     assert!(matches!(
         err,
@@ -2947,8 +2947,8 @@ fn add_glossary_term_rejects_replacement_pointing_to_missing_term() {
             deprecated_at: Utc::now(),
         },
         concept_id: None,
-    term_pos: Default::default(),
-        };
+        term_pos: Default::default(),
+    };
     let err = onto.add_glossary_term(term).unwrap_err();
     assert!(matches!(
         err,
@@ -3021,7 +3021,7 @@ fn add_glossary_term_rejects_related_term_missing_target() {
             valid_to: None,
             lifecycle: TermLifecycle::default(),
             concept_id: None,
-    term_pos: Default::default(),
+            term_pos: Default::default(),
         })
         .unwrap_err();
     assert!(matches!(
@@ -4323,9 +4323,7 @@ fn add_concept_round_trips_with_alias_terms() {
 #[cfg(test)]
 mod source_contract_validator {
     use super::*;
-    use crate::mapping::link::{
-        EndpointRef, LinkCardinality, LinkMappingDef, LinkMappingKind,
-    };
+    use crate::mapping::link::{EndpointRef, LinkCardinality, LinkMappingDef, LinkMappingKind};
     use crate::mapping::property::{PropertyLocation, PropertyMappingDef, PropertyTransform};
     use crate::mapping::refs::{ColumnRef, SourceRelationKind, SourceRelationRef};
     use crate::mapping::{LinkMappingId, ObjectMappingDef, SourceId};
@@ -4394,11 +4392,7 @@ mod source_contract_validator {
         }
     }
 
-    fn fk_link_mapping(
-        id: &str,
-        source_relation: &str,
-        target_relation: &str,
-    ) -> LinkMappingDef {
+    fn fk_link_mapping(id: &str, source_relation: &str, target_relation: &str) -> LinkMappingDef {
         LinkMappingDef {
             id: LinkMappingId::new(id),
             edge_type_id: "et-1".into(),
@@ -4443,8 +4437,10 @@ mod source_contract_validator {
 
         let errors = onto.validate_against_source_contracts(&[customers_contract()]);
         assert!(
-            errors.iter().any(|e| e.code
-                == "ontology.validate.object_mapping.relation_not_in_source_contract"),
+            errors
+                .iter()
+                .any(|e| e.code
+                    == "ontology.validate.object_mapping.relation_not_in_source_contract"),
             "validator must flag mapping pointing at a relation not in the contract bank: {errors:?}",
         );
     }
@@ -4634,8 +4630,9 @@ mod source_contract_validator {
         );
         let errors = onto.validate_against_source_contracts(&[contract]);
         assert!(
-            !errors.iter().any(|e| e.code
-                == "ontology.validate.object_mapping.column_type_incompatible"),
+            !errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.object_mapping.column_type_incompatible"),
             "String property must absorb any source category: {errors:?}",
         );
     }
@@ -4677,8 +4674,9 @@ mod source_contract_validator {
         );
         let errors = onto.validate_against_source_contracts(&[contract]);
         assert!(
-            !errors.iter().any(|e| e.code
-                == "ontology.validate.object_mapping.column_type_incompatible"),
+            !errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.object_mapping.column_type_incompatible"),
             "non-Identity transforms bypass type-compat check: {errors:?}",
         );
     }
@@ -4709,8 +4707,9 @@ mod source_contract_validator {
         );
         let errors = onto.validate_against_source_contracts(&[contract]);
         assert!(
-            !errors.iter().any(|e| e.code
-                == "ontology.validate.object_mapping.column_type_incompatible"),
+            !errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.object_mapping.column_type_incompatible"),
             "Unknown category must fail-open even on container property: {errors:?}",
         );
     }

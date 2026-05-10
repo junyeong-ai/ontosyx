@@ -29,10 +29,10 @@ use ox_brain::Brain;
 use ox_memory::EmbeddingProvider;
 use ox_ontology::OntologyIR;
 use ox_store::Store;
+use ox_store::evaluation::score_retrieval_metrics;
 use ox_store::evaluation::{
     EvaluationActual, EvaluationRetrievedAnchor, RetrievalLegResult, RetrievalSurface,
 };
-use ox_store::evaluation::score_retrieval_metrics;
 use ox_text::WorkspaceTokenizerRegistry;
 use uuid::Uuid;
 
@@ -71,12 +71,18 @@ pub async fn execute_retrieval_comparison(
     };
 
     let hybrid_metrics = score_retrieval_metrics(
-        &hybrid.iter().map(|h| h.logical_id.clone()).collect::<Vec<_>>(),
+        &hybrid
+            .iter()
+            .map(|h| h.logical_id.clone())
+            .collect::<Vec<_>>(),
         ctx.expected_ids,
         top_k as usize,
     );
     let trigram_metrics = score_retrieval_metrics(
-        &trigram.iter().map(|h| h.logical_id.clone()).collect::<Vec<_>>(),
+        &trigram
+            .iter()
+            .map(|h| h.logical_id.clone())
+            .collect::<Vec<_>>(),
         ctx.expected_ids,
         top_k as usize,
     );
@@ -110,7 +116,13 @@ pub async fn execute_retrieval_comparison(
 async fn verified_query_legs(
     ctx: &ComparisonContext<'_>,
     top_k: u32,
-) -> Result<(Vec<EvaluationRetrievedAnchor>, Vec<EvaluationRetrievedAnchor>), String> {
+) -> Result<
+    (
+        Vec<EvaluationRetrievedAnchor>,
+        Vec<EvaluationRetrievedAnchor>,
+    ),
+    String,
+> {
     let tokenizer = ctx.tokenizer_registry.for_workspace(ctx.workspace_id);
     let tokenized = tokenizer
         .tokenize(ctx.question)
@@ -153,7 +165,13 @@ async fn verified_query_legs(
 async fn community_summary_legs(
     ctx: &ComparisonContext<'_>,
     top_k: u32,
-) -> Result<(Vec<EvaluationRetrievedAnchor>, Vec<EvaluationRetrievedAnchor>), String> {
+) -> Result<
+    (
+        Vec<EvaluationRetrievedAnchor>,
+        Vec<EvaluationRetrievedAnchor>,
+    ),
+    String,
+> {
     let tokenizer = ctx.tokenizer_registry.for_workspace(ctx.workspace_id);
     let tokenized = tokenizer
         .tokenize(ctx.question)
@@ -197,7 +215,13 @@ async fn community_summary_legs(
 async fn knowledge_entry_legs(
     ctx: &ComparisonContext<'_>,
     top_k: u32,
-) -> Result<(Vec<EvaluationRetrievedAnchor>, Vec<EvaluationRetrievedAnchor>), String> {
+) -> Result<
+    (
+        Vec<EvaluationRetrievedAnchor>,
+        Vec<EvaluationRetrievedAnchor>,
+    ),
+    String,
+> {
     let tokenizer = ctx.tokenizer_registry.for_workspace(ctx.workspace_id);
     let tokenized = tokenizer
         .tokenize(ctx.question)

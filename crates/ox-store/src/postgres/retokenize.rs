@@ -61,11 +61,15 @@ impl<'a> Retokenizable for RetokenizableSurface<'a> {
 
         let mut touched = 0_usize;
         for (id, source_text) in rows {
-            let tokenized = tokenizer
-                .tokenize(&source_text)
-                .map_err(|e| ox_core::error::OxError::Runtime {
-                    message: format!("tokenize failed for `{name}` row {id}: {e}", name = self.name),
-                })?;
+            let tokenized =
+                tokenizer
+                    .tokenize(&source_text)
+                    .map_err(|e| ox_core::error::OxError::Runtime {
+                        message: format!(
+                            "tokenize failed for `{name}` row {id}: {e}",
+                            name = self.name
+                        ),
+                    })?;
             sqlx::query(self.update_row)
                 .bind(&tokenized)
                 .bind(target_fingerprint)

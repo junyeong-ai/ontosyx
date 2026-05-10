@@ -212,7 +212,10 @@ async fn sweep_workspace(
         return Ok(WorkspaceSweepReport::Skipped);
     };
 
-    let policy = match store.find_community_detection_policy_by_name("default").await? {
+    let policy = match store
+        .find_community_detection_policy_by_name("default")
+        .await?
+    {
         Some(p) => p,
         None => {
             let ws_id = ox_store::WORKSPACE_ID.try_with(|id| *id).map_err(|_| {
@@ -242,8 +245,9 @@ async fn sweep_workspace(
     };
 
     let workspace_name = workspace_display_name(&ontology_ir.display_name, &ontology_ir.name);
-    let tokenizer_dict_fingerprint =
-        ox_text::glossary_tokenizer_fingerprint(&ontology_ir).as_str().to_string();
+    let tokenizer_dict_fingerprint = ox_text::glossary_tokenizer_fingerprint(&ontology_ir)
+        .as_str()
+        .to_string();
 
     let (communities_emitted, communities_summarised) = persist_partition(
         store,
@@ -312,10 +316,8 @@ async fn persist_partition(
             sorted_members.iter().map(|(k, _, _)| k.clone()).collect();
         let member_logical_ids: Vec<String> =
             sorted_members.iter().map(|(_, l, _)| l.clone()).collect();
-        let member_fingerprint = CommunitySummary::compute_member_fingerprint(
-            &member_entity_kinds,
-            &member_logical_ids,
-        );
+        let member_fingerprint =
+            CommunitySummary::compute_member_fingerprint(&member_entity_kinds, &member_logical_ids);
 
         // Fingerprint check: same membership → reuse stored
         // prose, skip the LLM call. Only `generated_at`
@@ -342,9 +344,7 @@ async fn persist_partition(
                         .collect::<Vec<_>>(),
                 };
                 match brain.summarise_community(request).await {
-                    Ok((response, _provenance)) => {
-                        (response.title, response.summary, true)
-                    }
+                    Ok((response, _provenance)) => (response.title, response.summary, true),
                     Err(err) => {
                         // LLM failure is non-fatal — fall back
                         // to a structural placeholder so the
@@ -373,16 +373,14 @@ async fn persist_partition(
         // ranker on raw text still serves retrieval; only the
         // tsvector-axis recall degrades.
         let tokenize_input = format!("{} {}", title, summary);
-        let tokenized_text = tokenizer
-            .tokenize(&tokenize_input)
-            .unwrap_or_else(|err| {
-                warn!(
-                    community_id = %community_id,
-                    error = %err,
-                    "tokenize failed for community summary; persisting raw text",
-                );
-                tokenize_input.clone()
-            });
+        let tokenized_text = tokenizer.tokenize(&tokenize_input).unwrap_or_else(|err| {
+            warn!(
+                community_id = %community_id,
+                error = %err,
+                "tokenize failed for community summary; persisting raw text",
+            );
+            tokenize_input.clone()
+        });
 
         // Embed the title + summary when an embedder is wired in
         // — same `Arc` the Brain consumes for translate-time NN

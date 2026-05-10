@@ -63,20 +63,18 @@ impl TryFrom<NotificationLogRow> for NotificationLog {
     type Error = OxError;
 
     fn try_from(row: NotificationLogRow) -> Result<Self, Self::Error> {
-        let event_type = NotificationLogEventType::from_wire_str(&row.event_type).ok_or_else(
-            || OxError::Runtime {
-                message: format!(
-                    "unknown notification log event_type: {tag}",
-                    tag = row.event_type,
-                ),
-            },
-        )?;
+        let event_type =
+            NotificationLogEventType::from_wire_str(&row.event_type).ok_or_else(|| {
+                OxError::Runtime {
+                    message: format!(
+                        "unknown notification log event_type: {tag}",
+                        tag = row.event_type,
+                    ),
+                }
+            })?;
         let status =
             NotificationLogStatus::from_wire_str(&row.status).ok_or_else(|| OxError::Runtime {
-                message: format!(
-                    "unknown notification log status: {tag}",
-                    tag = row.status,
-                ),
+                message: format!("unknown notification log status: {tag}", tag = row.status,),
             })?;
         Ok(Self {
             id: row.id,
