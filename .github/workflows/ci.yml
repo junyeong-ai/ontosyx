@@ -115,9 +115,11 @@ jobs:
     name: Test
     # `lint` is the canonical Rust gate — it already inherits the
     # changes-output / event-name decision, so test runs iff lint
-    # passed. Skipping or failing lint propagates here naturally.
+    # passed. `!cancelled()` overrides GitHub's default `success()`
+    # which would propagate `changes` → `lint` → `test` skip even
+    # when `lint` itself completed successfully.
     needs: lint
-    if: ${{ needs.lint.result == 'success' }}
+    if: ${{ !cancelled() && needs.lint.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -175,8 +177,10 @@ jobs:
     name: RLS Enforcement
     # Same lint-gated semantics as `test` — RLS integration tests
     # only matter once the Rust pipeline is structurally healthy.
+    # `!cancelled()` overrides default `success()` so transitive
+    # changes-skip on `main` doesn't cascade through lint into here.
     needs: lint
-    if: ${{ needs.lint.result == 'success' }}
+    if: ${{ !cancelled() && needs.lint.result == 'success' }}
     runs-on: ubuntu-latest
     services:
       # `pgvector/pgvector:pg17` mirrors the local docker-compose
