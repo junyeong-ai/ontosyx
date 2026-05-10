@@ -6,13 +6,14 @@ on:
   pull_request:
     branches: [main]
   merge_group:
+  workflow_dispatch:
 
 # Cancel superseded runs on PR / merge-queue branches so a rapid push
 # storm doesn't pile up duplicate work. `main` keeps every run for an
 # immutable audit trail — `cancel-in-progress: false` only when ref
 # == main.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Default to the least-privileged token. Jobs that need to comment
@@ -34,6 +35,12 @@ jobs:
   # ---------------------------------------------------------------------------
   changes:
     name: Detect changes
+    # paths-filter only meaningfully diffs against a base ref on
+    # `pull_request`. `push` / `merge_group` / `workflow_dispatch`
+    # always force every gate (branch tip + merge queue must be fully
+    # verified), so this job is gated to PRs and downstream `if`s
+    # treat a missing output as "force-on" via the event-name escape.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
@@ -86,7 +93,7 @@ jobs:
   lint:
     name: Lint (Rust)
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -107,7 +114,7 @@ jobs:
   test:
     name: Test
     needs: [changes, lint]
-    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -125,9 +132,8 @@ jobs:
         with:
           tool: cargo-nextest
 
-      - name: Build
-        run: cargo build --workspace --tests
-
+      # nextest builds + runs in one pass — a separate `cargo build`
+      # step would just rebuild everything immediately afterwards.
       - name: Test (nextest)
         run: cargo nextest run --workspace --no-fail-fast
 
@@ -139,7 +145,7 @@ jobs:
   deny:
     name: cargo-deny (advisories + licenses)
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -165,7 +171,7 @@ jobs:
   rls:
     name: RLS Enforcement
     needs: [changes, lint]
-    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     services:
       # `pgvector/pgvector:pg16` is the upstream-maintained Postgres
@@ -224,7 +230,7 @@ jobs:
     # false positive doesn't block until the baseline is clean.
     name: cargo-udeps (unused deps, advisory)
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -244,7 +250,7 @@ jobs:
   frontend:
     name: Frontend
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -305,7 +311,7 @@ jobs:
   docker:
     name: Docker Build
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.docker == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.docker == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -330,7 +336,7 @@ jobs:
   openapi-drift:
     name: OpenAPI Drift
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.schema == 'true'
+    if: github.event_name != 'pull_request' || needs.changes.outputs.schema == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -481,10 +487,16 @@ jobs:
     if: always()
     steps:
       - name: Aggregate status
+        # `changes` is included so a paths-filter failure (e.g. action
+        # outage) doesn't silently chain into all-skipped downstream
+        # and slip past branch protection. `success` (PR) and `skipped`
+        # (push / merge_group / dispatch — `changes` is PR-only) both
+        # count as healthy.
         run: |
           fail=0
-          for job in lint test deny frontend docker openapi-drift rls; do
+          for job in changes lint test deny frontend docker openapi-drift rls; do
             case "$job" in
+              changes)       result="${{ needs.changes.result }}" ;;
               lint)          result="${{ needs.lint.result }}" ;;
               test)          result="${{ needs.test.result }}" ;;
               deny)          result="${{ needs.deny.result }}" ;;
