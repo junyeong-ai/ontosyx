@@ -94,8 +94,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     services:
+      # `pgvector/pgvector:pg16` is the upstream-maintained Postgres
+      # 16 image with `vector` precompiled in. The base `postgres:16`
+      # ships without the extension binary, so `CREATE EXTENSION
+      # vector` would fail with "control file not found" before any
+      # test runs. `pg_trgm` / `uuid-ossp` / `btree_gin` ride on the
+      # standard contrib bundle that both images carry.
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: ontosyx_app
           POSTGRES_PASSWORD: ontosyx-dev
@@ -123,7 +129,7 @@ jobs:
         # production runtime relies on. Without these the
         # migration step fails before a single test runs.
         run: |
-          docker exec $(docker ps -q -f ancestor=postgres:16) \
+          docker exec $(docker ps -q -f ancestor=pgvector/pgvector:pg16) \
               psql -U ontosyx_app -d ontosyx -c \
               "CREATE EXTENSION IF NOT EXISTS vector;
                CREATE EXTENSION IF NOT EXISTS pg_trgm;
