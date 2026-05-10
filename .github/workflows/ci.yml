@@ -5,10 +5,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
 
-# Cancel superseded runs on PR branches so a rapid push storm doesn't
-# pile up duplicate work. `main` keeps every run for an immutable
-# audit trail — `cancel-in-progress: false` only when ref == main.
+# Cancel superseded runs on PR / merge-queue branches so a rapid push
+# storm doesn't pile up duplicate work. `main` keeps every run for an
+# immutable audit trail — `cancel-in-progress: false` only when ref
+# == main.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -25,10 +27,66 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # 6.1 Backend CI gates
+  # Change detection — every always-running job downstream gates on
+  # the matching output so a web-only PR doesn't pay for the Rust
+  # pipeline (and vice versa). `main` pushes force every gate so the
+  # branch tip is always fully verified.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      web: ${{ steps.filter.outputs.web }}
+      docker: ${{ steps.filter.outputs.docker }}
+      schema: ${{ steps.filter.outputs.schema }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # `crates/**` covers all backend code; the manifests + lock
+          # + cargo-deny config are part of the Rust contract too.
+          # `web/**` is the frontend; `web/openapi.json` lives there
+          # but is regenerated from BE so it counts as schema.
+          # `docker:` re-uses the rust filter on top of the
+          # Dockerfile / .dockerignore — any Rust dep change can
+          # invalidate the chef cache.
+          # `schema:` triggers the OpenAPI drift gate when ox-api
+          # surfaces or the generated typescript shape changes.
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'deny.toml'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/install-onnxruntime/**'
+            web:
+              - 'web/**'
+              - '.github/workflows/ci.yml'
+            docker:
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yml'
+            schema:
+              - 'crates/ox-api/**'
+              - 'crates/ox-core/**'
+              - 'crates/ox-ontology/**'
+              - 'web/openapi.json'
+              - 'web/src/types/api.generated.ts'
+              - '.github/workflows/ci.yml'
+
+  # ---------------------------------------------------------------------------
+  # Backend — Rust pipeline (lint / test / deny / rls / udeps)
   # ---------------------------------------------------------------------------
   lint:
     name: Lint (Rust)
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -48,8 +106,9 @@ jobs:
 
   test:
     name: Test
+    needs: [changes, lint]
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
-    needs: lint
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@master
@@ -59,14 +118,28 @@ jobs:
 
       - uses: ./.github/actions/install-onnxruntime
 
-      - name: Build
-        run: cargo build --workspace
+      # cargo-nextest is the canonical Rust test runner — parallelism
+      # + clean output + per-test timing. taiki-e/install-action
+      # ships a prebuilt binary, so we skip the ~30s `cargo install`.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
 
-      - name: Test
-        run: cargo test --workspace
+      - name: Build
+        run: cargo build --workspace --tests
+
+      - name: Test (nextest)
+        run: cargo nextest run --workspace --no-fail-fast
+
+      # nextest does not run doc tests (separate runner contract).
+      # cargo's built-in `--doc` runner is the canonical fallback.
+      - name: Doc tests
+        run: cargo test --workspace --doc
 
   deny:
     name: cargo-deny (advisories + licenses)
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -74,8 +147,9 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
-      - name: Install cargo-deny
-        run: cargo install cargo-deny --locked
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
       - name: cargo-deny (all features)
         run: cargo deny --all-features check --hide-inclusion-graph
 
@@ -84,15 +158,15 @@ jobs:
   # `crates/ox-store/tests/rls_enforcement.rs` against a live Postgres.
   #
   # These tests validate that the canonical schema isolates workspaces
-  # at the row level. They can only run with a real DB connection, so we
-  # keep them out of the default `cargo test` and gate them behind this
-  # dedicated job. A missing or mis-applied RLS policy fails this job and
-  # blocks the PR via the `summary` aggregator.
+  # at the row level. They can only run with a real DB connection, so
+  # we keep them out of the default `cargo test` and gate them behind
+  # this dedicated job.
   # ---------------------------------------------------------------------------
   rls:
     name: RLS Enforcement
+    needs: [changes, lint]
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
-    needs: lint
     services:
       # `pgvector/pgvector:pg16` is the upstream-maintained Postgres
       # 16 image with `vector` precompiled in. The base `postgres:16`
@@ -125,11 +199,8 @@ jobs:
       - uses: ./.github/actions/install-onnxruntime
 
       - name: Install Postgres extensions on the service container
-        # The test database needs the same extensions the dev /
-        # production runtime relies on. Without these the
-        # migration step fails before a single test runs.
         run: |
-          docker exec $(docker ps -q -f ancestor=pgvector/pgvector:pg16) \
+          docker exec "$(docker ps -q -f ancestor=pgvector/pgvector:pg16)" \
               psql -U ontosyx_app -d ontosyx -c \
               "CREATE EXTENSION IF NOT EXISTS vector;
                CREATE EXTENSION IF NOT EXISTS pg_trgm;
@@ -137,17 +208,10 @@ jobs:
                CREATE EXTENSION IF NOT EXISTS btree_gin;"
 
       - name: Run RLS enforcement + temporal + retrieval-golden tests
-        # `--ignored` opts into the DB-live tests; the default `cargo test`
-        # still skips them on machines without a Postgres fixture. Every
-        # PG-live integration module statically links into the single
-        # `integration` test binary (one compilation per crate) so we
-        # name modules instead of binaries.
-        #
         # `rls_invariants` is the catalog-scan gate that fails when a
-        # workspace-scoped table is added without the required RLS clauses.
-        # `eval_retrieval_golden` is the
-        # deterministic IR-axis retrieval gate; it fails the PR when
-        # the navigation blend regresses on the frozen golden fixture.
+        # workspace-scoped table is added without the required RLS
+        # clauses. `eval_retrieval_golden` is the deterministic IR-axis
+        # retrieval gate.
         run: |
           cargo test -p ox-store --test integration -- --ignored --nocapture --test-threads=1 \
             integration::rls_enforcement \
@@ -156,23 +220,31 @@ jobs:
             integration::eval_retrieval_golden
 
   udeps:
-    # Advisory-only: reports unused deps. Not a gate until the baseline is clean.
-    # Flip `continue-on-error: false` once `cargo udeps` reports no false positives.
+    # Advisory: reports unused deps. `continue-on-error: true` so a
+    # false positive doesn't block until the baseline is clean.
     name: cargo-udeps (unused deps, advisory)
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
-      - name: Install cargo-udeps
-        run: cargo install cargo-udeps --locked
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-udeps
       - uses: ./.github/actions/install-onnxruntime
       - name: cargo udeps
         run: cargo +nightly udeps --workspace --all-targets
 
+  # ---------------------------------------------------------------------------
+  # Frontend — Next.js + audit pipeline + axe E2E
+  # ---------------------------------------------------------------------------
   frontend:
     name: Frontend
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -189,109 +261,76 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - name: Install Playwright browsers
-        # Required for the a11y suite (full-page axe assertions across the
-        # canonical route matrix in light / dark / forced-colors).
         run: pnpm playwright install --with-deps chromium
       - name: Biome (lint, error-on-warnings)
-        # `pnpm lint` resolves to `biome check --error-on-warnings`; any new
-        # diagnostic — error or warning — fails this job and blocks the PR
-        # via the `summary` aggregator. Domain-aware rules (`next` / `react`
-        # / `test`) are configured in `biome.json`.
         run: pnpm lint
       - name: Type check
         run: pnpm typecheck
       - name: i18n audit
-        # Statically walks every `t("key")` / `t.rich("key")` / `t(`prefix.${x}`)`
-        # call site and asserts the path resolves in both en and ko bundles.
-        # Catches the "nested toast.toast" style typos + raw-key leaks that
-        # neither tsc nor React finds at build time.
         run: pnpm i18n-audit
       - name: i18n parity audit
-        # Asserts the en + ko bundles share the same key set. Without
-        # this, a Korean user sees the raw key as a runtime fallback
-        # whenever an admin lands an English-only key.
         run: pnpm i18n-parity-audit
       - name: i18n dotted-key audit
-        # Rejects any key whose own name contains a dot. next-intl
-        # parses a dot as a path separator, so a key like `codes.add`
-        # crashes lookups under the parent path with INVALID_KEY.
         run: pnpm i18n-dotted-key-audit
       - name: ApiErrorCode parity audit
-        # Parses `crates/ox-api/src/error.rs::ApiErrorCode::as_str` and
-        # asserts every wire string has a matching `errors.<code>` in
-        # both ko + en bundles, with no stale templates in either.
         run: pnpm error-code-parity-audit
       - name: API error envelope audit
-        # Rejects legacy local Next HTTP errors shaped as
-        # `{ error: { type, message } }`. Local route handlers must
-        # share the backend's canonical
-        # `{ error: { code, class, params } }` envelope.
         run: pnpm api-error-envelope-audit
       - name: Platform port parity audit
-        # Keeps Docker, Rust defaults, dev scripts, BFF proxy defaults,
-        # and docs on the same backend API port contract. A drift here
-        # becomes browser-side 503 noise even when the server is healthy.
         run: pnpm platform-port-parity-audit
       - name: Source feature parity audit
-        # Every optional adapter registered by ox-source must be
-        # exposed as an ox-api `source-*` feature, so deployment
-        # builds enable connectors through the server crate instead
-        # of reaching into lower-layer feature names.
         run: pnpm source-feature-parity-audit
       - name: Heading primitive audit
-        # One-way ratchet on raw `<hN className=…>` JSX elements.
-        # The baseline (`scripts/heading-primitive.baseline.json`) is
-        # tracked; new violations fail. The `<Heading>` primitive
-        # decouples document outline (level) from visual tier (size).
         run: pnpm heading-primitive-audit
       - name: UI drift audit
-        # One-way ratchet: every raw-palette / raw-form-control / unringed
-        # focus-outline / @base-ui import outside `components/ui` against the
-        # baseline. New violations fail; refactors below baseline pass.
         run: pnpm ui-drift-audit
       - name: Contrast audit
-        # Static WCAG AA check across every documented foreground/background
-        # pair in `globals.css`. Worst-of light/dark must stay ≥ 4.5:1.
         run: pnpm contrast-audit
       - name: '"use client" placement audit'
-        # Asserts the `"use client"` directive sits on line 1 of every
-        # client module. A leading comment silently demotes the file to a
-        # server component under Turbopack — invisible until runtime.
         run: pnpm use-client-audit
       - name: Source-size budget
-        # Per-surface + whole-tree byte ratchet under `src/`. Catches
-        # bundle-bloat regressions before `next build` runs in seconds —
-        # the budget file is git-tracked so `--update` reviews are
-        # explicit.
         run: pnpm source-size-audit
       - name: Design rules audit
-        # Project-specific Tailwind / token / naming conventions that the
-        # general linter can't express (raw palette colours, magic pixel
-        # widths, `is*` boolean prop antipattern, transition-without-
-        # duration, sonner direct import). Each rule is regex over file
-        # contents with an explicit remediation hint.
         run: pnpm design-rules-audit
       - name: Vitest
-        # Includes vitest-axe component-level a11y assertions.
         run: pnpm test
       - name: Build
         run: pnpm build
       - name: Accessibility (axe) — full-page
-        # Runs the canonical-route a11y matrix against the production build
-        # in light / dark / forced-colors. Token drift surfaces here before
-        # it ships. `:no-build` skips the rebuild — we built one step up.
         run: pnpm test:a11y:no-build
 
+  # ---------------------------------------------------------------------------
+  # Container build — exercises the production Dockerfile end-to-end.
+  # ---------------------------------------------------------------------------
   docker:
     name: Docker Build
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.docker == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
       - name: Build Docker image
-        run: docker build -t ontosyx:ci .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: ontosyx:ci
+          # GHA-cache lifts the cargo-chef + apt + final layer cache
+          # across PRs. The chef stage already memoizes Rust deps, so
+          # this catches the long-tail rebuilds that aren't dep-only.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
+  # ---------------------------------------------------------------------------
+  # OpenAPI drift — regenerates the spec + diffs against the
+  # committed `web/openapi.json`. Catches BE→FE schema drift before
+  # the front-end build silently runs against a stale shape.
+  # ---------------------------------------------------------------------------
   openapi-drift:
     name: OpenAPI Drift
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.schema == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -318,7 +357,7 @@ jobs:
         run: bash scripts/check-openapi-drift.sh
 
   # ---------------------------------------------------------------------------
-  # 6.2 Korean golden E2E — label-gated (label: `e2e-korean`).
+  # Korean golden E2E — label-gated (`e2e-korean`).
   # ---------------------------------------------------------------------------
   e2e-korean:
     name: Korean E2E
@@ -335,7 +374,7 @@ jobs:
         run: bash scripts/e2e-korean.sh
 
   # ---------------------------------------------------------------------------
-  # 6.3 LLM token regression — label-gated (label: `token-bench`).
+  # LLM token regression — label-gated (`token-bench`).
   # ---------------------------------------------------------------------------
   token-regression:
     name: Token Regression
@@ -352,7 +391,7 @@ jobs:
         run: bash scripts/check-token-regression.sh
 
   # ---------------------------------------------------------------------------
-  # 6.4 Frontend Playwright E2E — label-gated (label: `e2e-fe`).
+  # Frontend Playwright E2E — label-gated (`e2e-fe`).
   # ---------------------------------------------------------------------------
   frontend-e2e:
     name: Frontend E2E (Playwright)
@@ -377,27 +416,16 @@ jobs:
       - name: Build
         run: pnpm build
       - name: Playwright
-        # `test:e2e:no-build` skips the `pnpm build` the default alias
-        # would chain — we just built in the step above, so rebuilding
-        # would waste ~30s of CI time.
         run: pnpm test:e2e:no-build
 
   # ---------------------------------------------------------------------------
-  # 6.4b Lighthouse CI — label-gated (label: `lighthouse`).
-  #
-  # Multiple-run Lighthouse audits (performance + a11y + best-practices +
-  # SEO) against the canonical-route matrix. Slow (≈3 runs × 5 URLs ≈
-  # several minutes), so it's opt-in per PR. Budgets live in
-  # `web/lighthouserc.json`; failures block the PR when the label is set.
+  # Lighthouse CI — label-gated (`lighthouse`).
   # ---------------------------------------------------------------------------
   lighthouse:
     name: Lighthouse CI
     runs-on: ubuntu-latest
     if: contains(github.event.pull_request.labels.*.name, 'lighthouse')
     permissions:
-      # `lhci autorun` posts the report URL as a PR comment via the
-      # LHCI GitHub App; the comment write requires the explicit
-      # grant under the workflow's read-only default.
       contents: read
       pull-requests: write
     defaults:
@@ -417,17 +445,12 @@ jobs:
       - name: Build
         run: pnpm build
       - name: Lighthouse
-        # `lhci autorun` reads `lighthouserc.json`, starts the static
-        # server via `pnpm start`, runs the configured Lighthouse passes
-        # against the canonical-route matrix, asserts against the
-        # category + Core-Web-Vitals budgets, and uploads to temporary
-        # public storage so the PR comment links the report.
         run: pnpm lighthouse
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
 
   # ---------------------------------------------------------------------------
-  # 6.5 Criterion bench regression — label-gated (label: `bench`).
+  # Criterion bench regression — label-gated (`bench`).
   # ---------------------------------------------------------------------------
   bench-regression:
     name: Bench Regression
@@ -447,22 +470,17 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Single required-status aggregator for branch protection.
+  # Skipped jobs (paths-filter conditional) count as success — the
+  # branch tip stays verified across the matrix even when a PR
+  # touches only one half of the monorepo.
   # ---------------------------------------------------------------------------
   summary:
     name: CI summary
     runs-on: ubuntu-latest
-    # Every always-running gate the branch-protection rule must block on.
-    # Label-gated jobs (e2e-korean, token-regression, frontend-e2e,
-    # bench-regression, udeps) are NOT required — they only run on demand.
-    # `security` only runs on `push`, so it's conditionally inspected below.
-    needs: [lint, test, deny, frontend, docker, openapi-drift, rls]
+    needs: [changes, lint, test, deny, rls, frontend, docker, openapi-drift]
     if: always()
     steps:
       - name: Aggregate status
-        # A result of `skipped` is accepted so that future `paths:` filters
-        # on `docker` or `openapi-drift` (e.g. skipping Docker rebuilds on
-        # docs-only PRs) don't falsely block the required status.
-        # `failure` and `cancelled` still exit non-zero.
         run: |
           fail=0
           for job in lint test deny frontend docker openapi-drift rls; do
