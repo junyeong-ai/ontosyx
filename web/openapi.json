@@ -8761,7 +8761,7 @@
         "tags": [
           "Ontology"
         ],
-        "summary": "`POST /api/ontology/communities` — upsert on\n`(ontology_version_id, community_id)`. Re-summarising under\nthe same id replaces in place; lineage / reverse-index\nqueries against the id continue to resolve.",
+        "summary": "`POST /api/ontology/communities` — upsert on\n`(ontology_version_id, community_id)`. Re-summarizing under\nthe same id replaces in place; lineage / reverse-index\nqueries against the id continue to resolve.",
         "operationId": "upsert_community_summary",
         "requestBody": {
           "content": {
@@ -14417,17 +14417,21 @@
           {
             "type": "object",
             "required": [
-              "delta",
+              "run_id",
+              "agent",
               "type"
             ],
             "properties": {
-              "delta": {
+              "agent": {
+                "type": "string"
+              },
+              "run_id": {
                 "type": "string"
               },
               "type": {
                 "type": "string",
                 "enum": [
-                  "text"
+                  "started"
                 ]
               }
             }
@@ -14435,38 +14439,24 @@
           {
             "type": "object",
             "required": [
-              "content",
-              "type"
-            ],
-            "properties": {
-              "content": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "thinking"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "id",
-              "name",
+              "run_id",
+              "tool_use_id",
+              "tool",
               "input",
               "type"
             ],
             "properties": {
-              "id": {
-                "type": "string"
-              },
               "input": {
                 "type": "object",
                 "additionalProperties": true
               },
-              "name": {
+              "run_id": {
+                "type": "string"
+              },
+              "tool": {
+                "type": "string"
+              },
+              "tool_use_id": {
                 "type": "string"
               },
               "type": {
@@ -14479,33 +14469,31 @@
           },
           {
             "type": "object",
+            "description": "One tool dispatch completed successfully. `output` is the\ntool's JSON-serialised result rendered as a single string —\n`Value::String(\"...\")` round-trips its inner value; objects\n/ arrays / primitives serialise through `to_string()` so the\nwire shape stays uniform regardless of which tool fired.\nConsumers that want structured access parse the field with\n`JSON.parse` and branch on the resulting type.",
             "required": [
-              "id",
-              "name",
+              "run_id",
+              "tool_use_id",
+              "tool",
               "output",
-              "is_error",
+              "duration_ms",
               "type"
             ],
             "properties": {
               "duration_ms": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": "integer",
                 "format": "int64"
               },
-              "id": {
-                "type": "string"
-              },
-              "is_error": {
-                "type": "boolean"
-              },
-              "name": {
-                "type": "string"
-              },
               "output": {
-                "type": "object",
-                "additionalProperties": true
+                "type": "string"
+              },
+              "run_id": {
+                "type": "string"
+              },
+              "tool": {
+                "type": "string"
+              },
+              "tool_use_id": {
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -14517,146 +14505,81 @@
           },
           {
             "type": "object",
+            "description": "One tool dispatch failed. Carries [`ToolFailureEnvelope`] —\nentelix wire bucket directly, no LLM-namespace projection.\nTool failures (parse / source-adapter / SaaS-proxy) are a\ndistinct domain from LLM provider failures; FE keys i18n\noff `errors.tool_<wire_code>` so the two namespaces never\ncollide on the wire.",
             "required": [
-              "tool_call_id",
-              "step",
-              "status",
-              "metadata",
+              "run_id",
+              "tool_use_id",
+              "tool",
+              "error",
+              "error_for_llm",
+              "duration_ms",
+              "envelope",
               "type"
             ],
             "properties": {
               "duration_ms": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "envelope": {
+                "$ref": "#/components/schemas/ToolFailureEnvelope"
+              },
+              "error": {
+                "type": "string"
+              },
+              "error_for_llm": {
+                "type": "string"
+              },
+              "run_id": {
+                "type": "string"
+              },
+              "tool": {
+                "type": "string"
+              },
+              "tool_use_id": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "tool_error"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "run_id",
+              "text",
+              "steps",
+              "type"
+            ],
+            "properties": {
+              "input_tokens": {
                 "type": [
                   "integer",
                   "null"
                 ],
                 "format": "int64"
               },
-              "metadata": {
-                "type": "object",
-                "additionalProperties": true
-              },
-              "status": {
-                "type": "string"
-              },
-              "step": {
-                "type": "string"
-              },
-              "tool_call_id": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "tool_progress"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "id",
-              "name",
-              "reason",
-              "type"
-            ],
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "reason": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "tool_blocked"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "id",
-              "name",
-              "input",
-              "type"
-            ],
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "input": {
-                "type": "object",
-                "additionalProperties": true
-              },
-              "name": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "tool_review"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "input_tokens",
-              "output_tokens",
-              "type"
-            ],
-            "properties": {
-              "input_tokens": {
-                "type": "integer",
-                "format": "int64"
-              },
               "output_tokens": {
-                "type": "integer",
+                "type": [
+                  "integer",
+                  "null"
+                ],
                 "format": "int64"
               },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "turn_usage"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "session_id",
-              "text",
-              "tool_calls",
-              "iterations",
-              "type"
-            ],
-            "properties": {
-              "iterations": {
+              "run_id": {
+                "type": "string"
+              },
+              "steps": {
                 "type": "integer",
                 "format": "int32",
                 "minimum": 0
               },
-              "session_id": {
-                "type": "string"
-              },
               "text": {
                 "type": "string"
-              },
-              "tool_calls": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "additionalProperties": true
-                }
               },
               "type": {
                 "type": "string",
@@ -14665,16 +14588,36 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "Run terminated with a typed LLM-side error.\n[`LlmFailureEnvelope`] carries the wire shape every HTTP /\nSSE LLM failure surface emits; `params` reserves the FE\ni18n interpolation slot.",
+            "required": [
+              "run_id",
+              "envelope",
+              "params",
+              "type"
+            ],
+            "properties": {
+              "envelope": {
+                "$ref": "#/components/schemas/LlmFailureEnvelope"
+              },
+              "params": {
+                "type": "object",
+                "description": "Interpolation params for the FE i18n catalogue entry.\nReserved slot — current emit sites pass `{}` per the\ntyped-error doctrine (operator detail stays in the\nserver log, never the wire body).",
+                "additionalProperties": true
+              },
+              "run_id": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              }
+            }
           }
-        ],
-        "description": "Canonical persisted agent timeline payload. The stream adapter,\naudit trail, and session reconstruction all use this shape so\nreplay does not depend on branchforge's private serde layout."
-      },
-      "AgentExecutionMode": {
-        "type": "string",
-        "enum": [
-          "auto",
-          "plan",
-          "supervised"
         ]
       },
       "AgentRef": {
@@ -14759,7 +14702,6 @@
           "prompt_hash",
           "tool_schema_hash",
           "model_id",
-          "model_config",
           "user_message",
           "created_at"
         ],
@@ -14785,9 +14727,6 @@
             "type": "string",
             "format": "uuid"
           },
-          "model_config": {
-            "$ref": "#/components/schemas/AgentSessionModelConfig"
-          },
           "model_id": {
             "type": "string"
           },
@@ -14808,17 +14747,6 @@
           },
           "user_message": {
             "type": "string"
-          }
-        }
-      },
-      "AgentSessionModelConfig": {
-        "type": "object",
-        "required": [
-          "execution_mode"
-        ],
-        "properties": {
-          "execution_mode": {
-            "$ref": "#/components/schemas/AgentExecutionMode"
           }
         }
       },
@@ -16905,16 +16833,6 @@
           "ontology"
         ],
         "properties": {
-          "execution_mode": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/AgentExecutionMode"
-              }
-            ]
-          },
           "message": {
             "type": "string"
           },
@@ -16923,7 +16841,7 @@
               "string",
               "null"
             ],
-            "description": "Override the LLM model for this request (e.g., \"claude-opus-4-6\")."
+            "description": "Override the LLM model for this request (e.g., \"claude-opus-4-7\")."
           },
           "ontology": {
             "$ref": "#/components/schemas/OntologyIR"
@@ -16948,12 +16866,6 @@
               "null"
             ],
             "format": "uuid"
-          },
-          "session_id": {
-            "type": [
-              "string",
-              "null"
-            ]
           }
         }
       },
@@ -25706,6 +25618,42 @@
           }
         }
       },
+      "LlmFailureEnvelope": {
+        "type": "object",
+        "description": "Canonical persisted agent timeline payload. The stream adapter,\naudit trail, and session reconstruction all use this shape so\nreplay does not depend on the SDK's private serde layout.\n\nVariants mirror the entelix `AgentEvent` lifecycle: `Started`\nopens the run; `ToolStart` / `ToolComplete` / `ToolError`\ninterleave between book-ends; `Complete` carries the terminal\nstate + token usage; `Failed` records a fatal LLM-side error.\n\n`Failed` carries [`LlmFailureEnvelope`] — LLM dispatch failed\n(rate-limit, auth, deadline, …). The `ApiErrorCode::Llm*`\nprojection lands on the same wire namespace as synchronous\nHTTP error envelopes so the FE i18n catalogue resolves both\nsurfaces through one `errors.<code>` template set.\n\n`ToolError` carries [`ToolFailureEnvelope`] — tool dispatch\nfailed (query_graph syntax error, source adapter timeout, …).\nMirrors `entelix::ErrorEnvelope` directly without LLM\nprojection: tool failures aren't LLM provider failures and\nshouldn't masquerade as `llm_invalid_request`. FE keys i18n\noff `tool_<wire_code>` instead.",
+        "required": [
+          "code",
+          "class"
+        ],
+        "properties": {
+          "class": {
+            "type": "string",
+            "description": "`\"client_error\"` (4xx-class) or `\"server_error\"` (5xx-class)."
+          },
+          "code": {
+            "type": "string",
+            "description": "Typed wire code (`ApiErrorCode::as_str`, always `llm_*`).\nFE renders prose through `errors.<code>` keyed off this\nfield rather than parsing operator-facing detail."
+          },
+          "provider_status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Raw provider HTTP status when the failure came from an\nupstream call. Operators distinguish `429` (rate) vs `503`\n(service-out) without the coarsened `code` bucket.",
+            "minimum": 0
+          },
+          "retry_after_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Vendor `Retry-After` hint when the failure is rate-limit\nshaped. FE rate-limit handlers key on this.",
+            "minimum": 0
+          }
+        }
+      },
       "LoadCheckpoint": {
         "type": "object",
         "description": "Tracks the last successfully loaded watermark value for\nincremental (delta) loads. Unique per\n`(workspace, project, source_table, graph_label)`.\n\n`id` and `workspace_id` reflect persistence state: `None` on a\nfreshly-authored checkpoint (the store mints `id` via the\ncolumn DEFAULT and stamps `workspace_id` from the active\ntask-local on insert), `Some(_)` on a checkpoint read back from\nthe store. Use [`Self::draft`] to author fresh entries.",
@@ -26505,6 +26453,12 @@
           "latency_ms"
         ],
         "properties": {
+          "cache_creation_input_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Tokens billed at the cache-creation rate — the *first*\ndispatch that establishes a prompt-cache breakpoint pays a\nper-million premium (Anthropic charges ~1.25× the input rate\nfor cache write; providers vary). Cost-discrepancy alerts\nbranch on a non-zero value here, so the wire shape carries\nit explicitly.",
+            "minimum": 0
+          },
           "cached_input_tokens": {
             "type": "integer",
             "format": "int64",
@@ -26531,6 +26485,12 @@
             "type": "integer",
             "format": "int64",
             "description": "Tokens the model produced as output. Includes any structured\nJSON tokens — providers count those identically to free-form\ncompletion tokens.",
+            "minimum": 0
+          },
+          "reasoning_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Reasoning tokens consumed by extended-thinking models\n(Anthropic `thinking`, OpenAI o-series internal reasoning).\nBilled at the output rate. `0` for non-thinking calls so\npricing arithmetic is uniform across model families.",
             "minimum": 0
           }
         }
@@ -26780,6 +26740,11 @@
           "valid_from"
         ],
         "properties": {
+          "cache_creation_input_price_usd_per_million": {
+            "type": "number",
+            "format": "double",
+            "description": "Tariff for cache-creation input tokens — the per-million\nrate charged when a dispatch establishes a new prompt-cache\nbreakpoint. Anthropic prices these at ~1.25× the cache-miss\ninput rate; OpenAI / Bedrock vary. Defaults to the input\nrate when a tariff row predates the column."
+          },
           "cached_input_price_usd_per_million": {
             "type": "number",
             "format": "double",
@@ -41338,6 +41303,42 @@
           "below"
         ]
       },
+      "ToolFailureEnvelope": {
+        "type": "object",
+        "description": "Tool dispatch failure shape. Mirrors `entelix::ErrorEnvelope`\ndirectly without LLM-namespace projection — `wire_code` is the\npatch-version-stable entelix bucket\n(`invalid_request` / `serde` / `cancelled` / …). FE i18n\nresolves prose through `errors.tool_<wire_code>` so tool error\nkeys live in a distinct namespace from LLM error keys.\n\n`class` uses the same `\"client_error\"` / `\"server_error\"`\nliterals as [`LlmFailureEnvelope`] — wire-shape symmetry across\nboth failure surfaces. Sink consumers that aggregate by class\n(e.g. 4xx vs 5xx dashboards) match against one literal pair\nregardless of whether the failure originated in an LLM call or\na tool dispatch.",
+        "required": [
+          "wire_code",
+          "class"
+        ],
+        "properties": {
+          "class": {
+            "type": "string",
+            "description": "`\"client_error\"` (caller-actionable) or `\"server_error\"`\n(SDK / vendor-side). Mirrors [`LlmFailureEnvelope::class`]."
+          },
+          "provider_status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Raw upstream HTTP status when the tool proxied an external\nservice that returned a failed status.",
+            "minimum": 0
+          },
+          "retry_after_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Vendor `Retry-After` hint when the underlying error carries\none (rare on tool dispatches; common on SaaS-proxy tools).",
+            "minimum": 0
+          },
+          "wire_code": {
+            "type": "string",
+            "description": "Entelix wire bucket (`Error::wire_code()`)."
+          }
+        }
+      },
       "ToolRespondRequest": {
         "type": "object",
         "required": [
@@ -43356,7 +43357,7 @@
           },
           "window_label": {
             "type": "string",
-            "description": "`\"7d\"` / `\"30d\"` / `\"90d\"` — the window the cron summarised.\nNamed `window_label` (not `window`) because `WINDOW` is a\nreserved keyword in PostgreSQL and using it bare as a\ncolumn name trips the DDL parser."
+            "description": "`\"7d\"` / `\"30d\"` / `\"90d\"` — the window the cron summarized.\nNamed `window_label` (not `window`) because `WINDOW` is a\nreserved keyword in PostgreSQL and using it bare as a\ncolumn name trips the DDL parser."
           },
           "workspace_id": {
             "type": "string",

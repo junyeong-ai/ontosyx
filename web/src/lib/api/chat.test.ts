@@ -54,7 +54,7 @@ describe("chatStream", () => {
       mockSSEResponse([
         { event: "text", data: { delta: "Hello " } },
         { event: "text", data: { delta: "world" } },
-        { event: "complete", data: { session_id: "s1", text: "Hello world", tool_calls: 0, iterations: 1 } },
+        { event: "complete", data: { run_id: "r1", text: "Hello world", steps: 1 } },
       ]),
     );
 
@@ -70,15 +70,15 @@ describe("chatStream", () => {
     const completes: string[] = [];
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       mockSSEResponse([
-        { event: "tool_start", data: { id: "t1", name: "query_graph", input: {} } },
-        { event: "tool_complete", data: { id: "t1", name: "query_graph", output: "{}", is_error: false, duration_ms: 100 } },
-        { event: "complete", data: { session_id: "s1", text: "", tool_calls: 1, iterations: 1 } },
+        { event: "tool_start", data: { run_id: "r1", tool_use_id: "t1", tool: "query_graph", input: {} } },
+        { event: "tool_complete", data: { run_id: "r1", tool_use_id: "t1", tool: "query_graph", output: "{}", duration_ms: 100 } },
+        { event: "complete", data: { run_id: "r1", text: "", steps: 1 } },
       ]),
     );
 
     await chatStream(BASE_REQUEST, {
-      onToolStart: (e) => starts.push(e.name),
-      onToolComplete: (e) => completes.push(e.name),
+      onToolStart: (e) => starts.push(e.tool),
+      onToolComplete: (e) => completes.push(e.tool),
     });
 
     expect(starts).toEqual(["query_graph"]);
@@ -90,7 +90,7 @@ describe("chatStream", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       mockSSEResponse([
         { event: "thinking", data: { content: "Let me analyze..." } },
-        { event: "complete", data: { session_id: "s1", text: "", tool_calls: 0, iterations: 1 } },
+        { event: "complete", data: { run_id: "r1", text: "", steps: 1 } },
       ]),
     );
 
@@ -106,7 +106,7 @@ describe("chatStream", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       mockSSEResponse([
         { event: "usage", data: { input_tokens: 100, output_tokens: 50 } },
-        { event: "complete", data: { session_id: "s1", text: "", tool_calls: 0, iterations: 1 } },
+        { event: "complete", data: { run_id: "r1", text: "", steps: 1 } },
       ]),
     );
 
@@ -117,21 +117,27 @@ describe("chatStream", () => {
     expect(usage).toEqual({ input_tokens: 100, output_tokens: 50 });
   });
 
-  it("calls onComplete with session info", async () => {
+  it("calls onComplete with run info", async () => {
     let completed = false;
-    let sessionId = "";
+    let capturedRunId = "";
+    let capturedText = "";
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       mockSSEResponse([
-        { event: "complete", data: { session_id: "sess-abc", text: "Done", tool_calls: 2, iterations: 3 } },
+        { event: "complete", data: { run_id: "run-abc", text: "Done", steps: 3 } },
       ]),
     );
 
     await chatStream(BASE_REQUEST, {
-      onComplete: (e) => { completed = true; sessionId = e.session_id; },
+      onComplete: (e) => {
+        completed = true;
+        capturedRunId = e.run_id;
+        capturedText = e.text;
+      },
     });
 
     expect(completed).toBe(true);
-    expect(sessionId).toBe("sess-abc");
+    expect(capturedRunId).toBe("run-abc");
+    expect(capturedText).toBe("Done");
   });
 
   it("calls onError for HTTP errors", async () => {

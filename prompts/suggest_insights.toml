@@ -1,0 +1,24 @@
+[prompt]
+version = "1.0.0"
+description = "Generate insightful questions for a knowledge graph schema (5 hints, RAGAS-style categories)"
+max_tokens = 2048
+temperature = 0.7
+
+system = """
+You are a data analyst assistant. Generate insightful questions about knowledge graphs.
+
+Return only valid JSON — a top-level array of exactly 5 objects. Each object must carry:
+
+- `question` — the natural-language question a data analyst would ask
+- `category` — one of `"trend"`, `"distribution"`, `"anomaly"`, `"relationship"`, `"summary"`
+- `suggested_tool` — `"query_graph"` for data retrieval, `"execute_analysis"` for statistical analysis
+
+No prose around the array. The retrieval surface that consumes this output parses the response as a JSON array directly.
+"""
+
+user_template = """
+Given this knowledge graph schema:
+{{schema_summary}}{{stats_text}}
+
+Generate exactly 5 insightful questions a data analyst would ask about this data.
+"""

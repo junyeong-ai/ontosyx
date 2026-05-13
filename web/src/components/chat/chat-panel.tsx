@@ -29,6 +29,7 @@ function upsertToolStep(steps: ToolStep[], update: ToolStep): ToolStep[] {
 
 export function ChatPanel() {
   const t = useTranslations("workbench.chat.panel");
+  const tErrors = useTranslations("errors");
   const {
     messages,
     isLoading,
@@ -37,7 +38,6 @@ export function ChatPanel() {
     addMessage,
     updateMessage,
     setIsLoading,
-    sessionId,
     setSessionId,
   } = useAppStore();
   const workspaceMode = useWorkspaceMode();
@@ -203,8 +203,6 @@ export function ChatPanel() {
             ontology,
             ontology_draft_id: isDesignMode ? activeOntologyDraft?.id : undefined,
             ontology_draft_revision: isDesignMode ? activeOntologyDraft?.revision : undefined,
-            session_id: sessionId ?? undefined,
-            execution_mode: getState().executionMode,
             model_override: getState().modelOverride ?? undefined,
           },
           {
@@ -242,7 +240,12 @@ export function ChatPanel() {
               updateMessage(assistantId, {
                 toolCalls: [
                   ...(getAssistant()?.toolCalls ?? []),
-                  { id: event.id, name: event.name, input: event.input, status: "running" },
+                  {
+                    id: event.tool_use_id,
+                    name: event.tool,
+                    input: event.input,
+                    status: "running",
+                  },
                 ],
               });
             },
@@ -267,28 +270,60 @@ export function ChatPanel() {
             onToolComplete(event) {
               updateMessage(assistantId, {
                 toolCalls: (getAssistant()?.toolCalls ?? []).map((tc) =>
-                  tc.id === event.id
+                  tc.id === event.tool_use_id
                     ? {
                         ...tc,
                         output: event.output,
-                        status: event.is_error ? "error" : "done",
+                        status: "done",
                         durationMs: event.duration_ms,
                       }
                     : tc,
                 ),
               });
-              // Auto-switch to Results tab when query_graph completes with data
-              if (event.name === "query_graph" && !event.is_error) {
+              // Auto-switch to Results tab when query_graph completes.
+              if (event.tool === "query_graph") {
                 const store = useAppStore.getState();
                 store.setAnalyzeRightTab("results");
-                store.setFocusResultId(event.id);
+                store.setFocusResultId(event.tool_use_id);
               }
+            },
+            onToolError(event) {
+              // Tool dispatch failed — entelix wire bucket
+              // (`invalid_request` / `serde` / …) routes through
+              // `errors.tool_<wire_code>`. `tErrors.raw` returns the
+              // key path on miss so we surface the localised
+              // `tool_unknown` fallback rather than the raw key.
+              // Operator-side detail (`event.error`) stays in the
+              // server log, never shown raw to the end user.
+              const key = `tool_${event.envelope.wire_code}`;
+              const empty = {} as Record<string, string | number | Date>;
+              const candidate = tErrors(key, empty);
+              const message = candidate === `errors.${key}`
+                ? tErrors("tool_unknown", empty)
+                : candidate;
+              updateMessage(assistantId, {
+                toolCalls: (getAssistant()?.toolCalls ?? []).map((tc) =>
+                  tc.id === event.tool_use_id
+                    ? {
+                        ...tc,
+                        output: message,
+                        status: "error",
+                        durationMs: event.duration_ms,
+                      }
+                    : tc,
+                ),
+              });
             },
             onToolReview(event) {
               updateMessage(assistantId, {
                 toolCalls: [
                   ...(getAssistant()?.toolCalls ?? []),
-                  { id: event.id, name: event.name, input: event.input, status: "review" },
+                  {
+                    id: event.tool_use_id,
+                    name: event.tool,
+                    input: event.input,
+                    status: "review",
+                  },
                 ],
               });
             },
@@ -319,18 +354,29 @@ export function ChatPanel() {
                   // Silent — restoration is best-effort.
                 });
             },
-            onComplete(event) {
+            onComplete() {
               updateMessage(assistantId, { isStreaming: false });
-              if (event.session_id) {
-                setSessionId(event.session_id);
-              }
+            },
+            onFailed(event) {
+              // Typed agent failure — the i18n catalogue at
+              // `errors.<code>` resolves the locale-appropriate
+              // prose with `params` interpolation. Mirrors the
+              // HTTP error path so an agent BudgetExceeded looks
+              // the same as a synchronous BudgetExceeded toast.
+              const message = tErrors(
+                event.envelope.code,
+                event.params as Record<string, string | number | Date>,
+              );
+              updateMessage(assistantId, {
+                content: "",
+                error: message,
+                isStreaming: false,
+              });
             },
             onError(error) {
-              // Stream-level errors land here as raw strings — there's
-              // no typed `code` because the SSE pipeline already
-              // translated server-side errors into `agent_error` toasts
-              // upstream. Show the raw text so an operator can read
-              // network / parser failures without server log spelunking.
+              // Stream-level fallthrough — network / parser / SSE
+              // protocol failures land here as raw strings. Typed
+              // agent failures route through `onFailed` above.
               updateMessage(assistantId, {
                 content: "",
                 error: String(error).replace(/^Runtime error:\s*/i, ""),
@@ -352,15 +398,15 @@ export function ChatPanel() {
       }
     },
     [
-      ontology, 
-      activeOntologyDraft, 
-      addMessage, 
-      updateMessage, 
-      setIsLoading, 
-      sessionId,
-      setSessionId, 
-      workspaceMode, 
-      t
+      ontology,
+      activeOntologyDraft,
+      addMessage,
+      updateMessage,
+      setIsLoading,
+      setSessionId,
+      workspaceMode,
+      t,
+      tErrors,
     ],
   );
 

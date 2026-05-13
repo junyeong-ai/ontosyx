@@ -13,22 +13,23 @@ export interface AgentTextEvent {
 }
 
 export interface AgentToolStartEvent {
-  id: string;
-  name: string;
+  run_id: string;
+  tool_use_id: string;
+  tool: string;
   input: unknown;
 }
 
 export interface AgentToolCompleteEvent {
-  id: string;
-  name: string;
+  run_id: string;
+  tool_use_id: string;
+  tool: string;
   output: string;
-  is_error: boolean;
   duration_ms: number;
 }
 
 export interface AgentToolReviewEvent {
-  id: string;
-  name: string;
+  tool_use_id: string;
+  tool: string;
   input: unknown;
 }
 
@@ -41,15 +42,63 @@ export interface AgentToolProgressEvent {
 }
 
 export interface AgentCompleteEvent {
-  session_id: string;
+  run_id: string;
   text: string;
-  tool_calls: number;
-  iterations: number;
+  steps: number;
+  input_tokens?: number;
+  output_tokens?: number;
 }
 
 export interface AgentSessionExpiredEvent {
   previous_session_id: string;
   message: string;
+}
+
+/**
+ * LLM dispatch failure envelope — mirrors the backend's
+ * `LlmFailureEnvelope`. `code` is `ApiErrorCode::as_str` (always
+ * `llm_*`); FE renders prose through `errors.<code>`.
+ */
+export interface LlmFailureEnvelope {
+  code: string;
+  class: "client_error" | "server_error";
+  retry_after_secs?: number;
+  provider_status?: number;
+}
+
+/**
+ * Tool dispatch failure envelope — mirrors the backend's
+ * `ToolFailureEnvelope`. `wire_code` is the entelix bucket
+ * (`invalid_request` / `serde` / `cancelled` / …); FE renders
+ * prose through `errors.tool_<wire_code>`. Distinct namespace from
+ * LLM failures.
+ */
+export interface ToolFailureEnvelope {
+  wire_code: string;
+  class: "client_error" | "server_error";
+  retry_after_secs?: number;
+  provider_status?: number;
+}
+
+export interface AgentFailedEvent {
+  run_id: string;
+  envelope: LlmFailureEnvelope;
+  /**
+   * Interpolation params for the FE i18n catalogue. Reserved slot
+   * — current emissions pass `{}` per the typed-error doctrine
+   * (operator detail stays in the server log, never the wire body).
+   */
+  params: Record<string, unknown>;
+}
+
+export interface AgentToolErrorEvent {
+  run_id: string;
+  tool_use_id: string;
+  tool: string;
+  error: string;
+  error_for_llm: string;
+  duration_ms: number;
+  envelope: ToolFailureEnvelope;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,11 +110,26 @@ export interface StreamCallbacks {
   onThinking?: (content: string) => void;
   onToolStart?: (event: AgentToolStartEvent) => void;
   onToolComplete?: (event: AgentToolCompleteEvent) => void;
+  /**
+   * Tool dispatch failed. Carries the typed wire envelope
+   * (`code` / `class` / `retry_after_secs` / `provider_status`)
+   * — consumers resolve prose through `errors.<code>` exactly
+   * like `onFailed`. Distinct from `onToolComplete`: success and
+   * failure are separate variants on the wire.
+   */
+  onToolError?: (event: AgentToolErrorEvent) => void;
   onToolProgress?: (event: AgentToolProgressEvent) => void;
   onToolReview?: (event: AgentToolReviewEvent) => void;
   onUsage?: (event: { input_tokens: number; output_tokens: number }) => void;
   onComplete?: (event: AgentCompleteEvent) => void;
   onSessionExpired?: (event: AgentSessionExpiredEvent) => void;
+  /**
+   * Typed agent failure (run terminated). Falls through to `onError`
+   * when undefined so legacy callers still surface something — but
+   * production callers wire `onFailed` so the FE i18n catalogue can
+   * resolve `errors.<code>` against `event.params`.
+   */
+  onFailed?: (event: AgentFailedEvent) => void;
   onError?: (error: string) => void;
 }
 
@@ -140,6 +204,14 @@ export async function chatStream(
         if (handleSseError(d, callbacks.onError)) return;
         callbacks.onToolComplete?.(d);
       },
+      tool_error: (data) => {
+        const d = data as Record<string, unknown> & AgentToolErrorEvent;
+        if (callbacks.onToolError) {
+          callbacks.onToolError(d);
+          return;
+        }
+        callbacks.onError?.(`errors.tool_${d.envelope.wire_code}`);
+      },
       tool_progress: (data) => {
         const d = data as Record<string, unknown> & AgentToolProgressEvent;
         if (handleSseError(d, callbacks.onError)) return;
@@ -164,6 +236,14 @@ export async function chatStream(
         const d = data as Record<string, unknown> & AgentSessionExpiredEvent;
         if (handleSseError(d, callbacks.onError)) return;
         callbacks.onSessionExpired?.(d);
+      },
+      failed: (data) => {
+        const d = data as Record<string, unknown> & AgentFailedEvent;
+        if (callbacks.onFailed) {
+          callbacks.onFailed(d);
+          return;
+        }
+        callbacks.onError?.(`errors.${d.envelope.code}`);
       },
       error: (data) => {
         const d = data as Record<string, unknown>;

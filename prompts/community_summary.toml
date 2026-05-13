@@ -17,7 +17,7 @@ Constraints:
 - **Title** ≤ 80 characters. Capture the cluster's identity in a noun phrase. No quotes, no leading article. Example shape: "Customer order pipeline", "Premium-tier loyalty entities", "Source-mapping fixtures".
 - **Summary** = 2 to 4 sentences, total ≤ 600 characters. State what the cluster is, name 2-4 representative members by their display name, and (when evident from the membership) the connective tissue (which kinds participate, what they relate to). Do not invent constraints or relationships not visible in the input.
 - Single language — the workspace's primary language as carried in the display names. If display names are absent / empty, fall back to the logical ids and English explanatory copy.
-- No meta-commentary ("This cluster contains…" is fine; "I am summarising…" is not). The reader is the retrieval agent, not a chat user.
+- No meta-commentary ("This cluster contains…" is fine; "I am summarizing…" is not). The reader is the retrieval agent, not a chat user.
 
 Output ONLY valid JSON matching this exact schema:
 {

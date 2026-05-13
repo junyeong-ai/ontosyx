@@ -199,8 +199,6 @@ export interface ChatSlice {
   pendingCommandBarInput: string | null;
   setCommandBarInput: (input: string) => void;
   takeCommandBarInput: () => string | null;
-  executionMode: "auto" | "supervised";
-  setExecutionMode: (mode: "auto" | "supervised") => void;
   modelOverride: string | null;
   setModelOverride: (model: string | null) => void;
 }

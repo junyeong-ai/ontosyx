@@ -7,7 +7,7 @@ Knowledge graph lifecycle platform — design ontologies from source data, trans
 ```
 Source DB / CSV / Code Repo
   → ox-source              (schema introspection)
-  → ox-brain               (LLM ontology design via branchforge)
+  → ox-brain               (LLM ontology design via entelix)
   → OntologyIR             (ox-ontology)
   → ox-brain               (NL → QueryIR translation)
   → ox-compiler            (IR → Cypher) / ox-federation (IR → DataFusion)
@@ -24,8 +24,9 @@ Source DB / CSV / Code Repo
 | `ox-query-ir` | `QueryIR` (compile target) + `PatternIR` (canvas-facing form). |
 | `ox-compiler` | IR → Cypher (Neo4j + Memgraph dialects); export to OWL / SHACL / Python / TypeScript / GraphQL / Mermaid. |
 | `ox-graph-runtime` | Bolt drivers, pre-execute pipeline (validators + isolation rewriters), enrichment. |
-| `ox-brain` | LLM orchestration through branchforge — `ClientPool`, `ModelResolver`, prompt caching, schema RAG. |
-| `ox-agent` | Branchforge-powered agent with domain tools. |
+| `ox-brain` | LLM orchestration through entelix — `ChatModelRegistry`, `ModelResolver`, prompt caching, schema RAG. |
+| `ox-agent` | entelix-powered ReAct agent with domain tools (workspace-scoped, fan-out sinks). |
+| `ox-context` | Request-scope identity (`WorkspaceMode` + `ContextScope`) and progress reporting plumbed through `ExecutionContext` extensions. |
 | `ox-memory` | Embedding + vector search (`PgVectorStore`, optional ONNX provider). |
 | `ox-text` | Korean morphological tokeniser substrate (lindera + mecab-ko-dic). |
 | `ox-source` | `DataSourceAdapter` introspection — Postgres, MySQL, MongoDB, CSV, JSON, DuckDB, Snowflake, BigQuery. |

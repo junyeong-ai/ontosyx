@@ -18,7 +18,7 @@ Pre-Φ11 Ontosyx had two adjacent surfaces but no positive-
 example bank:
 
 - **`KnowledgeStore`** — failure-driven corrections (the
-  `RecoveryDetectionHook` auto-records "Q failed → Q corrected"
+  `RecoveryDetectionSink` auto-records "Q failed → Q corrected"
   pairs). Negative examples + corrections, not positive
   exemplars.
 - **`EvaluationDataset`** — golden Q→IR pairs for evaluation

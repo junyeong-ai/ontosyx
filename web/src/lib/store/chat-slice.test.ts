@@ -133,22 +133,6 @@ describe("ChatSlice", () => {
     expect(store.getState().highlightedBindings).toBeNull();
   });
 
-  it("executionMode has a stable default", () => {
-    // Default is an implementation detail of the slice; assert only that
-    // it's a truthy ExecutionMode so the test doesn't break every time
-    // the product flips between "auto" / "agent" / "direct" defaults.
-    const mode = store.getState().executionMode;
-    expect(typeof mode).toBe("string");
-    expect(mode.length).toBeGreaterThan(0);
-  });
-
-  it("setExecutionMode round-trips", () => {
-    store.getState().setExecutionMode("supervised");
-    expect(store.getState().executionMode).toBe("supervised");
-    store.getState().setExecutionMode("auto");
-    expect(store.getState().executionMode).toBe("auto");
-  });
-
   it("setModelOverride persists the caller-chosen model id", () => {
     expect(store.getState().modelOverride).toBeNull();
     store.getState().setModelOverride("claude-opus-4-7");

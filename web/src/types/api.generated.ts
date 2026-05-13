@@ -2024,7 +2024,7 @@ export interface paths {
         put?: never;
         /**
          * `POST /api/ontology/communities` — upsert on
-         *     `(ontology_version_id, community_id)`. Re-summarising under
+         *     `(ontology_version_id, community_id)`. Re-summarizing under
          *     the same id replaces in place; lineage / reverse-index
          *     queries against the id continue to resolve.
          */
@@ -3764,83 +3764,66 @@ export interface components {
             /** Format: uuid */
             workspace_id: string;
         };
-        /**
-         * @description Canonical persisted agent timeline payload. The stream adapter,
-         *     audit trail, and session reconstruction all use this shape so
-         *     replay does not depend on branchforge's private serde layout.
-         */
         AgentEventPayload: {
-            delta: string;
+            agent: string;
+            run_id: string;
             /** @enum {string} */
-            type: "text";
+            type: "started";
         } | {
-            content: string;
-            /** @enum {string} */
-            type: "thinking";
-        } | {
-            id: string;
             input: {
                 [key: string]: unknown;
             };
-            name: string;
+            run_id: string;
+            tool: string;
+            tool_use_id: string;
             /** @enum {string} */
             type: "tool_start";
         } | {
             /** Format: int64 */
-            duration_ms?: number | null;
-            id: string;
-            is_error: boolean;
-            name: string;
-            output: {
-                [key: string]: unknown;
-            };
+            duration_ms: number;
+            output: string;
+            run_id: string;
+            tool: string;
+            tool_use_id: string;
             /** @enum {string} */
             type: "tool_complete";
         } | {
             /** Format: int64 */
-            duration_ms?: number | null;
-            metadata: {
-                [key: string]: unknown;
-            };
-            status: string;
-            step: string;
-            tool_call_id: string;
+            duration_ms: number;
+            envelope: components["schemas"]["ToolFailureEnvelope"];
+            error: string;
+            error_for_llm: string;
+            run_id: string;
+            tool: string;
+            tool_use_id: string;
             /** @enum {string} */
-            type: "tool_progress";
-        } | {
-            id: string;
-            name: string;
-            reason: string;
-            /** @enum {string} */
-            type: "tool_blocked";
-        } | {
-            id: string;
-            input: {
-                [key: string]: unknown;
-            };
-            name: string;
-            /** @enum {string} */
-            type: "tool_review";
+            type: "tool_error";
         } | {
             /** Format: int64 */
-            input_tokens: number;
+            input_tokens?: number | null;
             /** Format: int64 */
-            output_tokens: number;
-            /** @enum {string} */
-            type: "turn_usage";
-        } | {
+            output_tokens?: number | null;
+            run_id: string;
             /** Format: int32 */
-            iterations: number;
-            session_id: string;
+            steps: number;
             text: string;
-            tool_calls: {
-                [key: string]: unknown;
-            }[];
             /** @enum {string} */
             type: "complete";
+        } | {
+            envelope: components["schemas"]["LlmFailureEnvelope"];
+            /**
+             * @description Interpolation params for the FE i18n catalogue entry.
+             *     Reserved slot — current emit sites pass `{}` per the
+             *     typed-error doctrine (operator detail stays in the
+             *     server log, never the wire body).
+             */
+            params: {
+                [key: string]: unknown;
+            };
+            run_id: string;
+            /** @enum {string} */
+            type: "failed";
         };
-        /** @enum {string} */
-        AgentExecutionMode: "auto" | "plan" | "supervised";
         /** @description Who ran the activity. */
         AgentRef: {
             /** @enum {string} */
@@ -3866,16 +3849,12 @@ export interface components {
             final_text?: string | null;
             /** Format: uuid */
             id: string;
-            model_config: components["schemas"]["AgentSessionModelConfig"];
             model_id: string;
             ontology_lineage_id?: string | null;
             prompt_hash: string;
             tool_schema_hash: string;
             user_id: string;
             user_message: string;
-        };
-        AgentSessionModelConfig: {
-            execution_mode: components["schemas"]["AgentExecutionMode"];
         };
         AgentSessionPage: {
             items: components["schemas"]["AgentSession"][];
@@ -4720,9 +4699,8 @@ export interface components {
          */
         ChangeType: "coded_value_create" | "coded_value_deprecate" | "terminology_registry_update" | "semantic_binding_update" | "notation_pattern_create" | "customer_segment_create" | "column_rename" | "table_merge" | "data_source_register" | "stale_concept_deprecate" | "ontology_version_rollback" | "rule_create" | "rule_modify" | "rule_delete";
         ChatStreamRequest: {
-            execution_mode?: null | components["schemas"]["AgentExecutionMode"];
             message: string;
-            /** @description Override the LLM model for this request (e.g., "claude-opus-4-6"). */
+            /** @description Override the LLM model for this request (e.g., "claude-opus-4-7"). */
             model_override?: string | null;
             ontology: components["schemas"]["OntologyIR"];
             /** Format: uuid */
@@ -4731,7 +4709,6 @@ export interface components {
             ontology_draft_revision?: number | null;
             /** Format: uuid */
             ontology_id?: string | null;
-            session_id?: string | null;
         };
         /**
          * @description Messages the client may send. The first frame after WS open MUST
@@ -8439,6 +8416,52 @@ export interface components {
             items: components["schemas"]["CommunitySummaryDto"][];
         };
         /**
+         * @description Canonical persisted agent timeline payload. The stream adapter,
+         *     audit trail, and session reconstruction all use this shape so
+         *     replay does not depend on the SDK's private serde layout.
+         *
+         *     Variants mirror the entelix `AgentEvent` lifecycle: `Started`
+         *     opens the run; `ToolStart` / `ToolComplete` / `ToolError`
+         *     interleave between book-ends; `Complete` carries the terminal
+         *     state + token usage; `Failed` records a fatal LLM-side error.
+         *
+         *     `Failed` carries [`LlmFailureEnvelope`] — LLM dispatch failed
+         *     (rate-limit, auth, deadline, …). The `ApiErrorCode::Llm*`
+         *     projection lands on the same wire namespace as synchronous
+         *     HTTP error envelopes so the FE i18n catalogue resolves both
+         *     surfaces through one `errors.<code>` template set.
+         *
+         *     `ToolError` carries [`ToolFailureEnvelope`] — tool dispatch
+         *     failed (query_graph syntax error, source adapter timeout, …).
+         *     Mirrors `entelix::ErrorEnvelope` directly without LLM
+         *     projection: tool failures aren't LLM provider failures and
+         *     shouldn't masquerade as `llm_invalid_request`. FE keys i18n
+         *     off `tool_<wire_code>` instead.
+         */
+        LlmFailureEnvelope: {
+            /** @description `"client_error"` (4xx-class) or `"server_error"` (5xx-class). */
+            class: string;
+            /**
+             * @description Typed wire code (`ApiErrorCode::as_str`, always `llm_*`).
+             *     FE renders prose through `errors.<code>` keyed off this
+             *     field rather than parsing operator-facing detail.
+             */
+            code: string;
+            /**
+             * Format: int32
+             * @description Raw provider HTTP status when the failure came from an
+             *     upstream call. Operators distinguish `429` (rate) vs `503`
+             *     (service-out) without the coarsened `code` bucket.
+             */
+            provider_status?: number | null;
+            /**
+             * Format: int64
+             * @description Vendor `Retry-After` hint when the failure is rate-limit
+             *     shaped. FE rate-limit handlers key on this.
+             */
+            retry_after_secs?: number | null;
+        };
+        /**
          * @description Tracks the last successfully loaded watermark value for
          *     incremental (delta) loads. Unique per
          *     `(workspace, project, source_table, graph_label)`.
@@ -8769,6 +8792,16 @@ export interface components {
         ModelCall: {
             /**
              * Format: int64
+             * @description Tokens billed at the cache-creation rate — the *first*
+             *     dispatch that establishes a prompt-cache breakpoint pays a
+             *     per-million premium (Anthropic charges ~1.25× the input rate
+             *     for cache write; providers vary). Cost-discrepancy alerts
+             *     branch on a non-zero value here, so the wire shape carries
+             *     it explicitly.
+             */
+            cache_creation_input_tokens?: number;
+            /**
+             * Format: int64
              * @description Subset of `input_tokens` that hit a prompt cache (Anthropic
              *     `cache_read_input_tokens`, OpenAI / Bedrock equivalents).
              *     Always satisfies `cached_input_tokens <= input_tokens`. The
@@ -8803,6 +8836,14 @@ export interface components {
              *     completion tokens.
              */
             output_tokens: number;
+            /**
+             * Format: int64
+             * @description Reasoning tokens consumed by extended-thinking models
+             *     (Anthropic `thinking`, OpenAI o-series internal reasoning).
+             *     Billed at the output rate. `0` for non-thinking calls so
+             *     pricing arithmetic is uniform across model families.
+             */
+            reasoning_tokens?: number;
         };
         ModelConfig: {
             api_key_env?: string | null;
@@ -8886,6 +8927,15 @@ export interface components {
          *     monetary fields (per `crates/ox-store/CLAUDE.md`).
          */
         ModelPrices: {
+            /**
+             * Format: double
+             * @description Tariff for cache-creation input tokens — the per-million
+             *     rate charged when a dispatch establishes a new prompt-cache
+             *     breakpoint. Anthropic prices these at ~1.25× the cache-miss
+             *     input rate; OpenAI / Bedrock vary. Defaults to the input
+             *     rate when a tariff row predates the column.
+             */
+            cache_creation_input_price_usd_per_million?: number;
             /**
              * Format: double
              * @description Tariff for cache-read input tokens. Anthropic discounts
@@ -14339,6 +14389,42 @@ export interface components {
         };
         /** @enum {string} */
         ThresholdDirection: "above" | "below";
+        /**
+         * @description Tool dispatch failure shape. Mirrors `entelix::ErrorEnvelope`
+         *     directly without LLM-namespace projection — `wire_code` is the
+         *     patch-version-stable entelix bucket
+         *     (`invalid_request` / `serde` / `cancelled` / …). FE i18n
+         *     resolves prose through `errors.tool_<wire_code>` so tool error
+         *     keys live in a distinct namespace from LLM error keys.
+         *
+         *     `class` uses the same `"client_error"` / `"server_error"`
+         *     literals as [`LlmFailureEnvelope`] — wire-shape symmetry across
+         *     both failure surfaces. Sink consumers that aggregate by class
+         *     (e.g. 4xx vs 5xx dashboards) match against one literal pair
+         *     regardless of whether the failure originated in an LLM call or
+         *     a tool dispatch.
+         */
+        ToolFailureEnvelope: {
+            /**
+             * @description `"client_error"` (caller-actionable) or `"server_error"`
+             *     (SDK / vendor-side). Mirrors [`LlmFailureEnvelope::class`].
+             */
+            class: string;
+            /**
+             * Format: int32
+             * @description Raw upstream HTTP status when the tool proxied an external
+             *     service that returned a failed status.
+             */
+            provider_status?: number | null;
+            /**
+             * Format: int64
+             * @description Vendor `Retry-After` hint when the underlying error carries
+             *     one (rare on tool dispatches; common on SaaS-proxy tools).
+             */
+            retry_after_secs?: number | null;
+            /** @description Entelix wire bucket (`Error::wire_code()`). */
+            wire_code: string;
+        };
         ToolRespondRequest: {
             approved: boolean;
             modified_input?: {
@@ -15133,7 +15219,7 @@ export interface components {
                 [key: string]: unknown;
             };
             /**
-             * @description `"7d"` / `"30d"` / `"90d"` — the window the cron summarised.
+             * @description `"7d"` / `"30d"` / `"90d"` — the window the cron summarized.
              *     Named `window_label` (not `window`) because `WINDOW` is a
              *     reserved keyword in PostgreSQL and using it bare as a
              *     column name trips the DDL parser.

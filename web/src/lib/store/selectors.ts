@@ -55,7 +55,6 @@ export const selectStateHighlightedBindings = (s: AppStore) =>
   s.highlightedBindings;
 export const selectStatePendingCommandBarInput = (s: AppStore) =>
   s.pendingCommandBarInput;
-export const selectStateExecutionMode = (s: AppStore) => s.executionMode;
 export const selectStateModelOverride = (s: AppStore) => s.modelOverride;
 
 // ---------------------------------------------------------------------------

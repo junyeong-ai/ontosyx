@@ -85,7 +85,6 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
   const abortRef = useRef<AbortController | null>(null);
 
   const ontology = useAppStore((s) => s.ontology);
-  const sessionId = useAppStore((s) => s.sessionId);
 
   const handleParamChange = useCallback((name: string, val: string) => {
     setValues((prev) => ({ ...prev, [name]: val }));
@@ -121,7 +120,6 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
         {
           message,
           ontology,
-          session_id: sessionId ?? undefined,
         },
         {
           onText(delta) {
@@ -138,7 +136,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
     } finally {
       setIsRunning(false);
     }
-  }, [ontology, sessionId, recipe.name, paramEntries, values, useLastResult, cypherQuery, t]);
+  }, [ontology, recipe.name, paramEntries, values, useLastResult, cypherQuery, t]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();

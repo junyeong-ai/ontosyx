@@ -2,7 +2,7 @@
 
 Knowledge graph lifecycle platform. Rust workspace + Next.js frontend.
 
-Crates: `ox-core` (primitives), `ox-ontology` (OntologyIR + governance surfaces), `ox-query-ir` (QueryIR + PatternIR), `ox-compiler` (IR → Cypher / DataFusion lowering), `ox-graph-runtime` (Cypher pipeline + AST validators), `ox-brain` (LLM routing + schema RAG), `ox-agent` (tool orchestration), `ox-memory` (vector / embedding), `ox-text` (Korean morphological tokenizer), `ox-source` (DataSourceAdapter), `ox-federation` (DataFusion VOL path), `ox-store` (persistence + RLS), `ox-api` (HTTP gateway).
+Crates: `ox-core` (primitives), `ox-ontology` (OntologyIR + governance surfaces), `ox-query-ir` (QueryIR + PatternIR), `ox-compiler` (IR → Cypher / DataFusion lowering), `ox-graph-runtime` (Cypher pipeline + AST validators), `ox-brain` (LLM routing + schema RAG), `ox-agent` (tool orchestration), `ox-context` (request-scope identity + progress reporter), `ox-memory` (vector / embedding), `ox-text` (Korean morphological tokenizer), `ox-source` (DataSourceAdapter), `ox-federation` (DataFusion VOL path), `ox-store` (persistence + RLS), `ox-api` (HTTP gateway).
 
 ## Build & Test
 
@@ -25,7 +25,7 @@ cd web && pnpm install && pnpm dev   # frontend on :3100
   - `create_X(...)` / `update_X(...)` (never `set_*`) / `upsert_X(...)` (only when "ensure exists" is the natural-key semantic) / `delete_X(id)`.
   - **Domain verbs** (`commit_*` / `complete_*` / `archive_*` / `expire_*` / `revoke_*` / `record_*` / `aggregate_*` / `bulk_*`) are reserved for operations a CRUD verb cannot carry — audit trail / fan-out / lifecycle semantics. Don't invent a domain verb when the operation collapses back to `create_X` / `update_X`.
 - **Builders**: `with_X` / `add_X` / `remove_X` then terminal `build() -> Result<T, _>`.
-- All LLM calls go through branchforge (crates.io). Never call provider APIs directly.
+- All LLM calls go through entelix (`../entelix` path-dep). Never call provider APIs directly.
 - Library code uses `OxResult<T>`. No `unwrap()` / `expect()` / `panic!()` outside `#[cfg(test)]`.
 
 ### Identifier families (workspace-wide)
@@ -59,7 +59,7 @@ A request crosses both layers; the prefix split lets tokio task-locals coexist w
 - Dependency direction: `ox-api → ox-agent → ox-brain → ox-core`. `ox-core` carries no heavy dependencies.
 - `ox-brain` depends on `ox-store` (for prompt loading). The reverse edge is forbidden.
 - Brain selects models through `ModelResolver`. Never hardcode a model name.
-- ClientPool keys on provider identity (not model). Same provider ↔ shared client.
+- `ChatModelRegistry` keys on provider identity (`provider, credential, region/base_url, model`). entelix shares `reqwest::Client` per transport beneath the registry.
 - DB tables `model_configs` + `model_routing_rules` are the runtime source of truth for model selection. TOML seeds the DB on first boot only.
 - Workspace isolation: PostgreSQL RLS through task-local `WORKSPACE_ID`. Every workspace-scoped query honours it.
 - **Workspace × Ontology = 1:1**. `UNIQUE (workspace_id)` on `ontologies`. The workspace IS the ontology context. Reach the singleton via `OntologyVersionStore::get_workspace_ontology()` (BE) / `useWorkspaceOntology()` (FE). URL surface is `/api/ontology/*` (singular, no `{id}` segment).

@@ -52,7 +52,6 @@ export function DashboardAiDialog({
   const [isStreaming, setIsStreaming] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [previews, setPreviews] = useState<WidgetPreview[]>([]);
-  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
 
   // Track the most recent query_graph Cypher so we can attach it to visualize previews
   const lastCypherRef = useRef<string | undefined>(undefined);
@@ -126,17 +125,17 @@ export function DashboardAiDialog({
         setStatusText(t("status.generating"));
       },
       onToolStart: (event) => {
-        if (event.name === "visualize") {
+        if (event.tool === "visualize") {
           setStatusText(t("status.creatingVisualization"));
-        } else if (event.name === "query_graph") {
+        } else if (event.tool === "query_graph") {
           setStatusText(t("status.queryingGraph"));
         } else {
-          setStatusText(t("status.running", { tool: event.name }));
+          setStatusText(t("status.running", { tool: event.tool }));
         }
       },
       onToolComplete: (event) => {
         // Capture Cypher query from query_graph so we can attach it to the next visualize
-        if (event.name === "query_graph" && !event.is_error) {
+        if (event.tool === "query_graph") {
           try {
             const parsed = JSON.parse(event.output);
             if (parsed.compiled_query) {
@@ -146,8 +145,8 @@ export function DashboardAiDialog({
             // ignore parse errors
           }
         }
-        if (event.name === "visualize" && !event.is_error) {
-          const preview = parseVisualizeOutput(event.id, event.output);
+        if (event.tool === "visualize") {
+          const preview = parseVisualizeOutput(event.tool_use_id, event.output);
           if (preview) {
             // If the visualize output had no query, use the last captured Cypher
             if (!preview.query && lastCypherRef.current) {
@@ -158,8 +157,7 @@ export function DashboardAiDialog({
           }
         }
       },
-      onComplete: (event) => {
-        setSessionId(event.session_id);
+      onComplete: () => {
         setIsStreaming(false);
         setStatusText("");
       },
@@ -180,11 +178,10 @@ export function DashboardAiDialog({
       {
         message: prompt,
         ontology,
-        session_id: sessionId,
       },
       callbacks,
     );
-  }, [input, ontology, isStreaming, sessionId, parseVisualizeOutput, scrollToBottom, t]);
+  }, [input, ontology, isStreaming, parseVisualizeOutput, scrollToBottom, t]);
 
   // --------------------------------------------------
   // Add a previewed widget to the dashboard

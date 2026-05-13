@@ -37,9 +37,6 @@ export const createChatSlice: StateCreator<AppStore, [], [], ChatSlice> = (
     return input;
   },
 
-  executionMode: "auto",
-  setExecutionMode: (mode) => set({ executionMode: mode }),
-
   modelOverride: null,
   setModelOverride: (model) => set({ modelOverride: model }),
 });

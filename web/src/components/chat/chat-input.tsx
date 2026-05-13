@@ -41,7 +41,6 @@ export function ChatInput({
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const tokenUsage = useAppStore((s) => s.tokenUsage);
-  const executionMode = useAppStore((s) => s.executionMode);
   const modelOverride = useAppStore((s) => s.modelOverride);
   const setModelOverride = useAppStore((s) => s.setModelOverride);
   const [models, setModels] = useState<ModelConfig[]>([]);
@@ -166,22 +165,6 @@ export function ChatInput({
             ))}
           </FormSelect>
         )}
-        <button
-          type="button"
-          onClick={() => {
-            const store = useAppStore.getState();
-            store.setExecutionMode(store.executionMode === "auto" ? "supervised" : "auto");
-          }}
-          className={cn(
-            "rounded-md px-2 py-0.5 text-2xs font-medium transition-colors duration-[var(--duration-quick)] ease-[var(--ease-out)]",
-            executionMode === "supervised"
-              ? "bg-warning-surface text-warning-foreground"
-              : "text-foreground-muted hover:text-foreground-muted"
-          )}
-          title={executionMode === "auto" ? t("executionMode.autoTitle") : t("executionMode.supervisedTitle")}
-        >
-          {executionMode === "auto" ? t("executionMode.auto") : t("executionMode.supervised")}
-        </button>
       </div>
     </div>
   );

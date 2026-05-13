@@ -2,6 +2,7 @@
 version = "1.0.0"
 description = "Default system prompt for conversational chat"
 max_tokens = 4096
+temperature = 0.3
 
 system = """
 You are Ontosyx, a graph database assistant.
