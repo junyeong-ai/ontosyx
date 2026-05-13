@@ -400,7 +400,7 @@ pub(crate) async fn raw_query(
     {
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
@@ -728,7 +728,7 @@ pub(crate) async fn execute_from_ir(
     {
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
@@ -912,7 +912,7 @@ pub(crate) async fn execute_from_ir_federation(
     {
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             if let Err(error) = meter_store
                 .record_usage(
                     meter_user,

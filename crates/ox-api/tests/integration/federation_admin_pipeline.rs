@@ -234,11 +234,13 @@ async fn register_list_refresh_delete_round_trip_with_resolver_coherence() {
 /// has exactly one store row and one in-memory adapter (no
 /// duplicates, no divergence).
 //
-// `tokio::spawn` is explicitly allowed here: the spawned tasks
-// each establish their workspace context via `with_workspace`
-// before touching the store, so the lint's usual concern
-// (dropped WORKSPACE_ID task-local) does not apply.
-#[allow(clippy::disallowed_methods)]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "test needs `JoinHandle` for panic / assertion propagation that the fire-and-forget \
+              `ContextScope::spawn` does not surface; each spawned task establishes its own \
+              workspace context inside the body via `PostgresStore::with_workspace`, so the \
+              dropped-task-local concern the lint catches in production does not apply"
+)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore]
 async fn concurrent_upsert_same_source_id_keeps_store_and_memory_coherent() {

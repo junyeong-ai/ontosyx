@@ -33,12 +33,12 @@ use ox_source::registry::AdapterRegistry;
 // as `ontosyx`-bin-local `crate::*`).
 use ox_api::config::OxConfig;
 use ox_api::middleware::RateLimiter;
-use ox_api::spawn_scoped::spawn_system;
 use ox_api::state::{AppState, Timeouts};
 use ox_api::{
     collaboration, mcp, middleware, model_router, openapi, routes, schedule, sso, state,
     system_config,
 };
+use ox_context::spawn_system;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

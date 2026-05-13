@@ -353,7 +353,7 @@ pub(crate) async fn execute_rule(
     let rule_name = rule.name.clone();
     let passed = result.passed;
     let actual_value = result.actual_value;
-    crate::spawn_scoped::spawn_scoped(async move {
+    ox_context::spawn_scoped(async move {
         crate::notifications::dispatch_quality_notification(
             store_clone.as_ref(),
             ws_id,
@@ -418,7 +418,7 @@ pub(crate) async fn execute_all_rules(
                 let rule_name = rule.name.clone();
                 let passed = result.passed;
                 let actual_value = result.actual_value;
-                crate::spawn_scoped::spawn_scoped(async move {
+                ox_context::spawn_scoped(async move {
                     crate::notifications::dispatch_quality_notification(
                         store_clone.as_ref(),
                         ws_id,

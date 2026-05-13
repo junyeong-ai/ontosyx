@@ -344,7 +344,7 @@ async fn handle_client_message(
             // task so any store-touching code we add later stays
             // workspace-scoped.
             let sender_for_fwd = Arc::clone(sender);
-            crate::spawn_scoped::spawn_scoped(forward_broadcast(outcome.receiver, sender_for_fwd));
+            ox_context::spawn_scoped(forward_broadcast(outcome.receiver, sender_for_fwd));
         }
         ClientMessage::Leave { ontology_draft_id } => {
             state.collaboration.leave(ontology_draft_id, user_id).await;

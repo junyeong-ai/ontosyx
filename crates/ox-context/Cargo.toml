@@ -19,7 +19,17 @@ entelix = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true }
 serde_json = { workspace = true }
+# `ContextScope::scope_stream` returns `impl Stream` and uses
+# `async_stream::stream!` to re-enter the captured task-locals on every
+# `poll_next`. Both crates flow through the workspace pin so consumer
+# crates inherit one major.
+futures-core = { workspace = true }
+async-stream = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
 parking_lot = "0.12"
+# `scope_stream` tests collect Stream items — `futures::StreamExt` is
+# the canonical collector. Tests stay aligned with the rest of the
+# workspace's `futures` major.
+futures = { workspace = true }

@@ -5435,7 +5435,10 @@ dependencies = [
 name = "ox-context"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "entelix",
+ "futures",
+ "futures-core",
  "ox-graph-runtime",
  "ox-store",
  "parking_lot 0.12.5",

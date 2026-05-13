@@ -14,7 +14,7 @@ use ox_agent::{
 };
 use ox_brain::auth::LlmProviderConfig;
 use ox_brain::model_resolver::{ModelResolver, operation};
-use ox_context::WorkspaceMode;
+use ox_context::{ContextScope, WorkspaceMode};
 use ox_ontology::ir::OntologyIR;
 use ox_store::{AgentEventPayload, AgentSession};
 use serde::Deserialize;
@@ -104,7 +104,7 @@ pub(crate) async fn chat_stream(
     // SSE streaming polls this future after the middleware scope has
     // exited, so the captured scope is what `scope_stream` re-applies
     // around every `poll_next` call.
-    let ws_scope = crate::spawn_scoped::WsScope::capture();
+    let ws_scope = ContextScope::capture_current();
     let ws_id = ws.workspace_id;
     let resolved_chat_model = state
         .model_router
@@ -243,7 +243,7 @@ pub(crate) async fn chat_stream(
     };
 
     let store_for_session = Arc::clone(&state.store);
-    crate::spawn_scoped::spawn_with_ws(ws_scope.clone(), {
+    ws_scope.spawn({
         let session = audit_session.clone();
         async move {
             if let Err(e) = store_for_session.create_agent_session(&session).await {
@@ -264,7 +264,6 @@ pub(crate) async fn chat_stream(
     let model_provider_for_stream = model_provider.clone();
     let store_for_events = Arc::clone(&state.store);
     let _stream_slot = stream_slot;
-    let outer_ws_scope = ws_scope.clone();
     let agent = Arc::new(agent);
     let run_budget = state.agent.run_budget.clone();
 
@@ -278,11 +277,10 @@ pub(crate) async fn chat_stream(
     // `AgentEventPayload::Failed` wire shape without a side channel.
     {
         let agent = Arc::clone(&agent);
-        let ws_scope = ws_scope.clone();
         let user_message_for_run = user_message.clone();
         let thread_id = audit_session_id.to_string();
         let run_budget = run_budget.clone();
-        crate::spawn_scoped::spawn_with_ws(ws_scope, async move {
+        ws_scope.spawn(async move {
             let exec_ctx = build_execution_context(&run_budget, thread_id, ws_id);
             let initial = ReActState::from_user(user_message_for_run);
             if let Err(error) = agent.execute(initial, &exec_ctx).await {
@@ -348,7 +346,7 @@ pub(crate) async fn chat_stream(
                     let meter_user_id = principal_user_uuid;
                     let meter_model = model_id_for_stream.clone();
                     let meter_provider = model_provider_for_stream.clone();
-                    crate::spawn_scoped::spawn_with_ws(ws_scope.clone(), async move {
+                    ws_scope.spawn(async move {
                         if let Err(error) = meter_store
                             .record_usage(
                                 meter_user_id,
@@ -382,7 +380,7 @@ pub(crate) async fn chat_stream(
                     created_at: Utc::now(),
                 };
                 let store = Arc::clone(&store_for_events);
-                crate::spawn_scoped::spawn_with_ws(ws_scope.clone(), async move {
+                ws_scope.spawn(async move {
                     if let Err(error) = store.create_agent_event(&audit_event).await {
                         tracing::warn!(?error, "agent audit event emit failed");
                     }
@@ -394,7 +392,7 @@ pub(crate) async fn chat_stream(
         // Close out the audit session with the final assistant text.
         let store = Arc::clone(&store_for_events);
         let final_text_for_complete = final_text.clone();
-        crate::spawn_scoped::spawn_with_ws(ws_scope.clone(), async move {
+        ws_scope.spawn(async move {
             if let Err(error) = store
                 .complete_agent_session(audit_session_id, Some(&final_text_for_complete))
                 .await
@@ -409,7 +407,7 @@ pub(crate) async fn chat_stream(
         if !final_text.is_empty() {
             crate::eval_sampler::spawn_sample(
                 Arc::clone(&store_for_events),
-                ws_scope.clone(),
+                ws_scope,
                 crate::eval_sampler::sampling_config_from_env(),
                 crate::eval_sampler::ChatSampleInput {
                     workspace_id: ws_id,
@@ -421,10 +419,7 @@ pub(crate) async fn chat_stream(
         }
     };
 
-    Ok(Sse::new(crate::spawn_scoped::scope_stream(
-        outer_ws_scope,
-        stream,
-    )))
+    Ok(Sse::new(ws_scope.scope_stream(stream)))
 }
 
 // ---------------------------------------------------------------------------

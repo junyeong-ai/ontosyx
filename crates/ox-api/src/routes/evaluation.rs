@@ -1823,7 +1823,7 @@ pub(crate) async fn compare_evaluation_runs(
         let baseline = q.baseline;
         let candidate = q.candidate;
         let alerts = report.retrieval_lift_regressions.clone();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             crate::notifications::dispatch_retrieval_lift_regression(
                 store_clone.as_ref(),
                 ws_id,

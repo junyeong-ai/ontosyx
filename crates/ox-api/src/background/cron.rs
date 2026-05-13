@@ -84,7 +84,7 @@ pub fn spawn_cron(
     cancel: CancellationToken,
 ) {
     let task_for_spawn = Arc::clone(&task);
-    crate::spawn_scoped::spawn_system(async move {
+    ox_context::spawn_system(async move {
         let mut ticker = tokio::time::interval(task_for_spawn.interval());
         if !task_for_spawn.fire_on_start() {
             // `tokio::time::interval` fires immediately on first

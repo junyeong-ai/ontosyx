@@ -214,15 +214,15 @@ pub(crate) async fn adopt_graph(
         .await
         .map_err(AppError::from)?;
 
-        // Re-index schema embeddings for the committed ontology. Must use
-        // `spawn_with_ws` so the spawned task inherits the workspace-scoped
-        // task-locals that pgvector RLS depends on.
+        // Re-index schema embeddings for the committed ontology. The
+        // capture-then-spawn pattern routes through `ContextScope::spawn`
+        // so the spawned task inherits the workspace-scoped task-locals
+        // that pgvector RLS depends on.
         if let Some(memory) = &state.memory {
             let memory = std::sync::Arc::clone(memory);
             let ont = ontology.clone();
             let identity_id = identity.id;
-            let ws_scope = crate::spawn_scoped::WsScope::capture();
-            crate::spawn_scoped::spawn_with_ws(ws_scope, async move {
+            ox_context::spawn_scoped(async move {
                 ox_brain::schema_rag::index_ontology_schema(
                     &memory,
                     &ont,
@@ -398,7 +398,7 @@ pub(crate) async fn enrich_ontology(
             let memory = std::sync::Arc::clone(memory);
             let identity_id = identity.id.to_string();
             let enriched = result.ontology.clone();
-            crate::spawn_scoped::spawn_scoped(async move {
+            ox_context::spawn_scoped(async move {
                 ox_brain::schema_rag::index_ontology_schema(&memory, &enriched, &identity_id).await;
             });
         }

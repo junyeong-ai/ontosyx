@@ -360,12 +360,13 @@ impl Drop for SessionHandle {
         let hub = Arc::clone(&self.hub);
         let user_id = std::mem::take(&mut self.user_id);
         // `release_session` only mutates the hub's in-memory
-        // session-count map; it never touches the store, so it's
-        // independent of the WORKSPACE_ID / SYSTEM_BYPASS
-        // task-locals that `spawn_scoped` exists to preserve.
-        // Plain `tokio::spawn` is correct here.
-        #[allow(clippy::disallowed_methods)]
-        tokio::spawn(async move { hub.release_session(&user_id).await });
+        // session-count map; it never touches the store, so the
+        // WORKSPACE_ID / SYSTEM_BYPASS task-locals are irrelevant
+        // here. Routing through `ox_context::spawn_scoped` keeps the
+        // spawn surface uniform — `Drop` runs outside any task scope,
+        // so the captured `ContextScope` is empty and `spawn` becomes
+        // a thin pass-through, matching the previous semantics.
+        ox_context::spawn_scoped(async move { hub.release_session(&user_id).await });
     }
 }
 

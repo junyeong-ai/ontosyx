@@ -213,7 +213,7 @@ pub(crate) async fn create_ontology_draft(
                 {
                     let audit_store = Arc::clone(&state.store);
                     let audit_project_id = project.id.to_string();
-                    crate::spawn_scoped::spawn_scoped(async move {
+                    ox_context::spawn_scoped(async move {
                         if let Err(error) = audit_store
                             .record_audit(
                                 audit_user_id,
@@ -329,7 +329,7 @@ pub(crate) async fn create_ontology_draft(
         let audit_store = Arc::clone(&state.store);
         let audit_project_id = project.id.to_string();
         let audit_source_type = source_type.clone();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             if let Err(error) = audit_store
                 .record_audit(
                     audit_user_id,
@@ -448,7 +448,7 @@ pub(crate) async fn delete_ontology_draft(
             let audit_store = Arc::clone(&state.store);
             let audit_user_id = principal.user_uuid().ok();
             let audit_project_id = id.to_string();
-            crate::spawn_scoped::spawn_scoped(async move {
+            ox_context::spawn_scoped(async move {
                 if let Err(error) = audit_store
                     .record_audit(
                         audit_user_id,
@@ -474,7 +474,7 @@ pub(crate) async fn delete_ontology_draft(
         {
             let mem = Arc::clone(memory);
             let oid = ontology.id.to_string();
-            crate::spawn_scoped::spawn_scoped(async move {
+            ox_context::spawn_scoped(async move {
                 match mem.cleanup_by_ontology(&oid).await {
                     Ok(n) if n > 0 => {
                         info!(count = n, ontology_id = %oid, "Cleaned orphaned memory entries")
@@ -730,7 +730,7 @@ pub(crate) async fn complete_ontology_draft(
         let memory = Arc::clone(memory);
         let ontology_key = identity.id.to_string();
         let ont_clone = ontology.clone();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             ox_brain::schema_rag::index_ontology_schema(&memory, &ont_clone, &ontology_key).await;
         });
     }
@@ -741,7 +741,7 @@ pub(crate) async fn complete_ontology_draft(
         let store = Arc::clone(&state.store);
         let ontology_name = req.name.clone();
         let new_ont = ontology.clone();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             let diff = ox_ontology::compute_diff(&prev_ont, &new_ont);
             if diff.is_empty() {
                 return;
@@ -903,7 +903,7 @@ pub(crate) async fn deploy_schema(
         let audit_user_id = principal.user_uuid().ok();
         let audit_project_id = id.to_string();
         let stmt_count = statements.len();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             if let Err(error) = audit_store
                 .record_audit(
                     audit_user_id,
@@ -1486,7 +1486,7 @@ pub(crate) async fn execute_load_from_source(
         let runtime = Arc::clone(runtime);
         let store = Arc::clone(&state.store);
         let committer = principal.id.clone();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             let Ok(Some(canonical)) = store.get_workspace_ontology().await else {
                 return;
             };
@@ -1560,7 +1560,7 @@ pub(crate) async fn execute_load_from_source(
         let nodes = combined_result.nodes_created;
         let edges = combined_result.edges_created;
         let rows = total_rows_fetched;
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             if let Err(error) = meter_store
                 .record_usage(
                     meter_user,

@@ -73,7 +73,7 @@ pub async fn audit_log(State(state): State<AppState>, req: Request, next: Next) 
     // Fire-and-forget. spawn_scoped propagates WORKSPACE_ID into the
     // spawned future — tokio::spawn would drop it and RLS would reject
     // the audit INSERT.
-    crate::spawn_scoped::spawn_scoped(async move {
+    ox_context::spawn_scoped(async move {
         if let Err(error) = store
             .record_audit(user_id, &action, &resource_type, None, details)
             .await

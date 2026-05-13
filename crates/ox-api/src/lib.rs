@@ -43,7 +43,6 @@ pub mod principal;
 pub mod response;
 pub mod routes;
 pub mod schedule;
-pub mod spawn_scoped;
 pub mod sso;
 pub mod state;
 pub mod stream_limiter;

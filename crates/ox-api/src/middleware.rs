@@ -444,7 +444,7 @@ impl RateLimiter {
         // `spawn_system` wraps the future in SYSTEM_BYPASS — the cleanup
         // sweep is in-memory only today, but adopting the shared helper
         // keeps us honest once the limiter grows a persisted audit log.
-        crate::spawn_scoped::spawn_system(async move {
+        ox_context::spawn_system(async move {
             let mut ticker = tokio::time::interval(interval);
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {

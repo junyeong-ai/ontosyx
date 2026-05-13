@@ -342,7 +342,7 @@ fn record_insight_audit(
 ) {
     let store = std::sync::Arc::clone(&state.store);
     let target_id = insight_id.as_str().to_string();
-    crate::spawn_scoped::spawn_scoped(async move {
+    ox_context::spawn_scoped(async move {
         if let Err(e) = store
             .record_audit(
                 user_id,

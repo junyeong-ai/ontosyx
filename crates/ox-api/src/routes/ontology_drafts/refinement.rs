@@ -166,7 +166,7 @@ pub(crate) async fn design_ontology_draft(
         let meter_user = principal.user_uuid().ok();
         let meter_provider = meter_provider.clone();
         let meter_model = meter_model.clone();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
@@ -400,7 +400,7 @@ pub(crate) async fn refine_ontology_draft(
         let meter_user = principal.user_uuid().ok();
         let meter_provider = refined_model.provider.clone();
         let meter_model = refined_model.model_id.clone();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             if let Err(error) = meter_store
                 .record_usage(
                     meter_user,

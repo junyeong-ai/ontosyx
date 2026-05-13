@@ -74,7 +74,7 @@ use super::types::{
     DesignOntologyDraftRequest, DesignOntologyDraftResponse, OntologyDraftView,
     RefineOntologyDraftRequest, RefineOntologyDraftResponse,
 };
-use crate::spawn_scoped::{WsScope, scope_stream};
+use ox_context::ContextScope;
 
 // ---------------------------------------------------------------------------
 // SSE event helpers
@@ -214,7 +214,7 @@ pub(crate) async fn design_ontology_draft_stream(
     // the body below would otherwise see no task-locals (and post-B6,
     // would return `MissingContext`). `scope_stream` re-enters the
     // captured scope on every poll.
-    let ws_scope = WsScope::capture();
+    let ws_scope = ContextScope::capture_current();
 
     let stream = async_stream::stream! {
         yield Ok(Event::default().event("phase").data(sse_phase("validating", None)));
@@ -918,7 +918,7 @@ pub(crate) async fn design_ontology_draft_stream(
         ));
     };
 
-    Ok(Sse::new(scope_stream(ws_scope, stream))
+    Ok(Sse::new(ws_scope.scope_stream(stream))
         .keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(30))))
 }
 
@@ -1003,7 +1003,7 @@ pub(crate) async fn refine_ontology_draft_stream(
     // See `design_ontology_draft_stream` — capture workspace scope before
     // returning the Sse so per-poll store/runtime calls re-enter
     // task-locals.
-    let ws_scope = WsScope::capture();
+    let ws_scope = ContextScope::capture_current();
 
     let stream = async_stream::stream! {
         yield Ok(Event::default().event("phase").data(sse_phase("validating", None)));
@@ -1275,6 +1275,6 @@ pub(crate) async fn refine_ontology_draft_stream(
         ));
     };
 
-    Ok(Sse::new(scope_stream(ws_scope, stream))
+    Ok(Sse::new(ws_scope.scope_stream(stream))
         .keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(30))))
 }

@@ -104,7 +104,7 @@ pub(crate) async fn edit_ontology_draft(
         let meter_user = principal.user_uuid().ok();
         let meter_provider = edit_output.provider.clone();
         let meter_model = edit_output.model.clone();
-        crate::spawn_scoped::spawn_scoped(async move {
+        ox_context::spawn_scoped(async move {
             if let Err(error) = meter_store
                 .record_usage(
                     meter_user,

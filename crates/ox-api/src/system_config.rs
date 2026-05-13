@@ -202,7 +202,7 @@ pub fn spawn_config_refresh(
     store: Arc<dyn Store>,
     cancel_token: tokio_util::sync::CancellationToken,
 ) {
-    crate::spawn_scoped::spawn_system(async move {
+    ox_context::spawn_system(async move {
         let mut interval = tokio::time::interval(REFRESH_INTERVAL);
         // Skip the first tick (config was just loaded)
         interval.tick().await;

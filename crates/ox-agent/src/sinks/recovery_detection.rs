@@ -335,11 +335,9 @@ impl RecoveryDetectionSink {
         // holds them while polling sinks, so this read sees the active
         // workspace; re-applying inside the spawn keeps the
         // knowledge-store write under the right tenant.
-        let scope = ContextScope::capture_current();
         let store = Arc::clone(&self.knowledge_store);
 
-        #[allow(clippy::disallowed_methods)]
-        tokio::spawn(scope.run(async move {
+        ContextScope::capture_current().spawn(async move {
             match store.create_knowledge_entry(&entry).await {
                 Ok(()) => info!(
                     ontology = %entry.ontology_name,
@@ -347,7 +345,7 @@ impl RecoveryDetectionSink {
                 ),
                 Err(e) => warn!(error = %e, "failed to save recovery correction"),
             }
-        }));
+        });
 
         // Clean stale memory rows (poisoned by the failed query). Cross-
         // tenant sweep — system-bypass is appropriate because the
@@ -355,8 +353,7 @@ impl RecoveryDetectionSink {
         if let Some(ref memory) = self.memory {
             let sid = run_id.clone();
             let mem = Arc::clone(memory);
-            #[allow(clippy::disallowed_methods)]
-            tokio::spawn(ox_store::SYSTEM_BYPASS.scope(true, async move {
+            ox_context::spawn_system(async move {
                 match mem.cleanup_by_session(&sid).await {
                     Ok(n) if n > 0 => info!(
                         run_id = %sid,
@@ -366,7 +363,7 @@ impl RecoveryDetectionSink {
                     Err(e) => warn!(error = %e, "failed to clean stale session memories"),
                     _ => {}
                 }
-            }));
+            });
         }
 
         self.forget_run(&run_id);

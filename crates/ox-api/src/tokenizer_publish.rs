@@ -149,7 +149,7 @@ pub async fn publish_workspace_tokenizer_after_commit(
     let store = Arc::clone(&state.store);
     let tokenizer = state.tokenizer_registry.for_workspace(workspace_id);
     let target_fingerprint = new_fingerprint.as_str().to_string();
-    crate::spawn_scoped::spawn_scoped(async move {
+    ox_context::spawn_scoped(async move {
         if let Err(err) = run_backfill(
             store.as_ref(),
             tokenizer.as_ref().as_ref(),

@@ -169,13 +169,11 @@ impl SchemaTool for ExecuteAnalysisTool {
             created_at: Utc::now(),
         };
         let store = Arc::clone(&self.store);
-        let scope = ContextScope::capture_current();
-        #[allow(clippy::disallowed_methods)]
-        tokio::spawn(scope.run(async move {
+        ContextScope::capture_current().spawn(async move {
             if let Err(e) = store.create_analysis_result(&analysis_result).await {
                 warn!(error = %e, "failed to cache analysis result");
             }
-        }));
+        });
 
         Ok(output)
     }

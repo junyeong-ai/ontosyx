@@ -270,7 +270,14 @@ async fn sweep_workspace(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "persistence boundary: each parameter is an independent dependency (store / brain / \
+              tokenizer / embedder) or identity axis (workspace_id / workspace_name / \
+              ontology_version_id) or input shape (policy / graph / detection). Bundling into a \
+              struct would only move the explosion to the construction site without reducing the \
+              fan-in"
+)]
 async fn persist_partition(
     store: &dyn Store,
     brain: &dyn Brain,

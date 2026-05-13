@@ -647,14 +647,11 @@ impl SchemaTool for QueryGraphTool {
             );
             let type_kinds = signal_type_kinds(provenance.as_ref());
             let store = Arc::clone(&self.domain.store);
-            // Capture the workspace task-locals so the spawned future
-            // writes under the same RLS scope the tool dispatch ran
-            // under — `tokio::spawn` would otherwise detach into a
-            // raw runtime task and the `before_acquire` pool hook
-            // would deny the INSERT.
-            let scope = ContextScope::capture_current();
-            #[allow(clippy::disallowed_methods)]
-            tokio::spawn(scope.run(async move {
+            // Quality signal + type_last_used writes ride on a
+            // workspace-scoped spawn so the `before_acquire` pool
+            // hook lands the inserts under the same RLS scope the
+            // tool dispatch ran under.
+            ContextScope::capture_current().spawn(async move {
                 if let Err(e) = store.create_query_execution_signal(&signal).await {
                     warn!(error = %e, "quality signal persist failed");
                 }
@@ -665,7 +662,7 @@ impl SchemaTool for QueryGraphTool {
                         warn!(error = %e, "type_last_used upsert failed");
                     }
                 }
-            }));
+            });
         }
 
         Ok(QueryGraphOutput {

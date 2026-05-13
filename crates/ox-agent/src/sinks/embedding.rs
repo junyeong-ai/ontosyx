@@ -168,10 +168,10 @@ impl EmbeddingSink {
         };
 
         // The agent runtime holds task-locals while polling the sink;
-        // `tokio::spawn` detaches from the caller's task so the spawned
-        // future re-enters the captured scope before any store write.
-        #[allow(clippy::disallowed_methods)]
-        tokio::spawn(scope.run(async move {
+        // `ContextScope::spawn` re-enters the captured scope inside
+        // the spawned task so the workspace-scoped memory store write
+        // lands under the right tenant.
+        scope.spawn(async move {
             let _permit = match EMBEDDING_SEMAPHORE.try_acquire() {
                 Ok(p) => p,
                 Err(_) => {
@@ -203,7 +203,7 @@ impl EmbeddingSink {
                     }
                 }
             }
-        }));
+        });
     }
 }
 

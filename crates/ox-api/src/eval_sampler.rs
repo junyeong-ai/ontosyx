@@ -272,18 +272,19 @@ async fn land_sample_case(
 /// Convenience wrapper: spawn the sampler off the request hot
 /// path. The chat handler calls this on `AgentEvent::Complete`
 /// and continues immediately; the sampler runs in the
-/// background and logs failures. Workspace scope is captured
-/// into the spawned task by the caller's `WsScope`.
+/// background and logs failures. The caller threads its captured
+/// [`ContextScope`] in so the spawned task observes the same
+/// workspace task-locals.
 pub fn spawn_sample(
     store: Arc<dyn Store>,
-    ws_scope: crate::spawn_scoped::WsScope,
+    ws_scope: ox_context::ContextScope,
     config: SamplingConfig,
     sample: ChatSampleInput,
 ) {
     if !config.enabled() {
         return;
     }
-    crate::spawn_scoped::spawn_with_ws(ws_scope, async move {
+    ws_scope.spawn(async move {
         match try_record_chat_sample(store, config, sample).await {
             Ok(true) => debug!("eval sampler: chat sample recorded"),
             Ok(false) => {}
