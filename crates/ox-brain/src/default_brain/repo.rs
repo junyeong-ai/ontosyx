@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use entelix::ExecutionContext;
 
 use ox_core::error::OxResult;
 use ox_ontology::repo_insights::{FileContent, RepoInsights};
@@ -12,7 +13,11 @@ use crate::*;
 
 #[async_trait]
 impl RepoAnalyzer for DefaultBrain {
-    async fn navigate_repo(&self, file_tree: &str) -> OxResult<Vec<String>> {
+    async fn navigate_repo(
+        &self,
+        file_tree: &str,
+        ctx: &ExecutionContext,
+    ) -> OxResult<Vec<String>> {
         let mut vars = HashMap::new();
         vars.insert("file_tree", file_tree);
 
@@ -23,13 +28,18 @@ impl RepoAnalyzer for DefaultBrain {
                 operation::REPO_NAVIGATE,
                 &vars,
                 "Navigating repo file tree",
+                ctx,
             )
             .await?;
 
         Ok(selection.files)
     }
 
-    async fn analyze_repo_files(&self, files: &[FileContent]) -> OxResult<RepoInsights> {
+    async fn analyze_repo_files(
+        &self,
+        files: &[FileContent],
+        ctx: &ExecutionContext,
+    ) -> OxResult<RepoInsights> {
         // Serialize files as a structured block for the LLM
         let files_text = files
             .iter()
@@ -46,6 +56,7 @@ impl RepoAnalyzer for DefaultBrain {
             operation::REPO_ANALYZE,
             &vars,
             "Analyzing repo files for domain insights",
+            ctx,
         )
         .await
     }

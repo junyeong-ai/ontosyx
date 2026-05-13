@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use entelix::ExecutionContext;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -30,6 +31,7 @@ impl OntologyEditor for DefaultBrain {
         &self,
         ontology: &OntologyIR,
         user_request: &str,
+        ctx: &ExecutionContext,
     ) -> OxResult<EditCommandsOutput> {
         let ontology_json = serialize_pretty(
             &ontology.to_agent_view(ox_core::llm_locale_fallback_default_tags()),
@@ -51,6 +53,7 @@ impl OntologyEditor for DefaultBrain {
                 operation::EDIT_ONTOLOGY,
                 &vars,
                 "Generating ontology edit commands",
+                ctx,
             )
             .await?;
         Ok(EditCommandsOutput {

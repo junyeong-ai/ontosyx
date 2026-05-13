@@ -30,7 +30,7 @@ pub use llm_output::{
     into_input_ontology, merge_llm_outputs,
 };
 pub use prompt_economy::{
-    DEFAULT_BATCH_PROMPT_BUDGET_CHARS, DEFAULT_DESIGN_PROMPT_BUDGET_CHARS,
-    DEFAULT_REFINE_PROMPT_BUDGET_CHARS, PromptBudget, PromptBudgetError, PropertySignal,
+    DEFAULT_BATCH_PROMPT_BUDGET_TOKENS, DEFAULT_DESIGN_PROMPT_BUDGET_TOKENS,
+    DEFAULT_REFINE_PROMPT_BUDGET_TOKENS, PromptBudget, PromptBudgetError, PropertySignal,
     assert_within_budget, render_property_signals,
 };

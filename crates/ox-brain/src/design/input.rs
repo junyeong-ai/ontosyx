@@ -86,7 +86,7 @@ impl<'a> DesignOntologyInput<'a> {
 
     /// Whether any domain-context slot is populated. Useful for
     /// metrics ("how often is the LLM running with vs without
-    /// context?") and for log lines that summarise a design call.
+    /// context?") and for log lines that summarize a design call.
     pub fn has_domain_context(&self) -> bool {
         !self.glossary_terms.is_empty()
             || !self.code_systems.is_empty()

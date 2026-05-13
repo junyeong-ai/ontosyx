@@ -36,43 +36,45 @@
 //! data shape the structured pre-pass emits; the design / refine /
 //! extend prompts render it instead of the raw column profile.
 
+use entelix::TokenCounter;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Default budget for the design-stage user prompt: ~80 K characters,
-/// roughly 20 K tokens at typical Claude-tokeniser ratios. The
-/// remaining headroom in the 200 K-token model context goes to
-/// system prompt, schema RAG, glossary section, existing-ontology
-/// section, and the LLM's response.
+/// Default budget for the design-stage user prompt. Sized against
+/// a 200K-context model: the remaining headroom goes to system
+/// prompt, schema RAG, glossary section, existing-ontology section,
+/// and the LLM's response.
 ///
 /// Number is conservative on purpose — the gate is meant to catch
 /// drift early, not to micro-optimise. A workspace that legitimately
 /// needs to send larger payloads can override the budget per call.
-pub const DEFAULT_DESIGN_PROMPT_BUDGET_CHARS: usize = 80_000;
+pub const DEFAULT_DESIGN_PROMPT_BUDGET_TOKENS: u64 = 20_000;
 
 /// Default budget for the per-cluster batch path. Smaller because
 /// batch prompts run N times per design pass; the cumulative cost
 /// dominates token spend on multi-cluster designs.
-pub const DEFAULT_BATCH_PROMPT_BUDGET_CHARS: usize = 24_000;
+pub const DEFAULT_BATCH_PROMPT_BUDGET_TOKENS: u64 = 6_000;
 
 /// Default budget for the refine / edit / translate-query prompts.
 /// Same reasoning as design — tight enough to catch full-IR
 /// regressions, generous enough to render real ontologies.
-pub const DEFAULT_REFINE_PROMPT_BUDGET_CHARS: usize = 60_000;
+pub const DEFAULT_REFINE_PROMPT_BUDGET_TOKENS: u64 = 15_000;
 
 /// Token-budget contract for one prompt render.
 #[derive(Debug, Clone, Copy)]
 pub struct PromptBudget {
-    /// Hard limit (in characters). The gate uses character count as
-    /// a stable proxy for tokens — exact tokeniser-aware counting
-    /// would couple this module to a specific provider's API. Char
-    /// count overshoots token count slightly for English /
-    /// multibyte-light payloads, which is the safe direction.
-    pub max_chars: usize,
+    /// Hard limit (in tokens). Resolved via the per-`(provider, model)`
+    /// [`TokenCounter`] passed to [`assert_within_budget`], so the
+    /// gate is precise for every backend — `o200k_base` for newer
+    /// OpenAI, `cl100k_base` for GPT-4-class, `ByteCountTokenCounter`
+    /// fallback for Anthropic / unknown families. Korean and other
+    /// CJK payloads count correctly under vendor-accurate tokenisers
+    /// where character count over-/under-shoots wildly.
+    pub max_tokens: u64,
     /// Optional soft limit. When set, callers can choose to compact
     /// before hitting the hard limit; the gate emits a
     /// `tracing::warn!` when a render lands between soft and hard.
-    pub soft_chars: Option<usize>,
+    pub soft_tokens: Option<u64>,
     /// Human-readable label that appears in the error and warning
     /// payload — e.g. `"design"`, `"batch_cluster"`, `"refine"`.
     /// Lets operator log queries route on the surface.
@@ -82,37 +84,37 @@ pub struct PromptBudget {
 impl PromptBudget {
     pub const fn design() -> Self {
         Self {
-            max_chars: DEFAULT_DESIGN_PROMPT_BUDGET_CHARS,
-            soft_chars: Some(DEFAULT_DESIGN_PROMPT_BUDGET_CHARS * 8 / 10),
+            max_tokens: DEFAULT_DESIGN_PROMPT_BUDGET_TOKENS,
+            soft_tokens: Some(DEFAULT_DESIGN_PROMPT_BUDGET_TOKENS * 8 / 10),
             surface: "design",
         }
     }
 
     pub const fn batch() -> Self {
         Self {
-            max_chars: DEFAULT_BATCH_PROMPT_BUDGET_CHARS,
-            soft_chars: Some(DEFAULT_BATCH_PROMPT_BUDGET_CHARS * 8 / 10),
+            max_tokens: DEFAULT_BATCH_PROMPT_BUDGET_TOKENS,
+            soft_tokens: Some(DEFAULT_BATCH_PROMPT_BUDGET_TOKENS * 8 / 10),
             surface: "batch_cluster",
         }
     }
 
     pub const fn refine() -> Self {
         Self {
-            max_chars: DEFAULT_REFINE_PROMPT_BUDGET_CHARS,
-            soft_chars: Some(DEFAULT_REFINE_PROMPT_BUDGET_CHARS * 8 / 10),
+            max_tokens: DEFAULT_REFINE_PROMPT_BUDGET_TOKENS,
+            soft_tokens: Some(DEFAULT_REFINE_PROMPT_BUDGET_TOKENS * 8 / 10),
             surface: "refine",
         }
     }
 
     /// Conservative ceiling for prompts that have no surface-specific
-    /// budget. Higher than `design`'s 80 KB so a translate / chat
+    /// budget. Higher than `design`'s 20K so a translate / chat
     /// invocation that legitimately carries the active ontology never
     /// trips, low enough that runaway prompt construction surfaces
     /// before LLM dollars are spent.
     pub const fn default_for_unmapped() -> Self {
         Self {
-            max_chars: 120_000,
-            soft_chars: Some(96_000),
+            max_tokens: 30_000,
+            soft_tokens: Some(24_000),
             surface: "default",
         }
     }
@@ -135,44 +137,52 @@ impl PromptBudget {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PromptBudgetError {
     pub surface: &'static str,
-    pub actual_chars: usize,
-    pub budget_chars: usize,
+    pub actual_tokens: u64,
+    pub budget_tokens: u64,
+    pub encoding: &'static str,
 }
 
 impl std::fmt::Display for PromptBudgetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "prompt for surface '{}' rendered to {} chars but the budget is {}; \
-             compact the input (drop sample values, summarise tail tables) or split into batches",
-            self.surface, self.actual_chars, self.budget_chars
+            "prompt for surface '{}' rendered to {} tokens (counter: {}) but the budget is {}; \
+             compact the input (drop sample values, summarize tail tables) or split into batches",
+            self.surface, self.actual_tokens, self.encoding, self.budget_tokens
         )
     }
 }
 
 impl std::error::Error for PromptBudgetError {}
 
-/// Hard gate. Returns `Err` when the render exceeds `budget.max_chars`;
-/// emits a `tracing::warn!` when it lands between `soft_chars` and the
-/// hard limit. Cheap (a single byte-length read) so callers can place
-/// it on every render without measurable overhead.
-pub fn assert_within_budget(rendered: &str, budget: PromptBudget) -> Result<(), PromptBudgetError> {
-    let actual = rendered.len();
-    if actual > budget.max_chars {
+/// Hard gate. Returns `Err` when the render exceeds `budget.max_tokens`
+/// under `counter`'s encoding; emits a `tracing::warn!` when it lands
+/// between `soft_tokens` and the hard limit. `counter` is resolved
+/// from the `(provider, model)` pair at the call site so the gate
+/// uses the same tokenisation as the downstream LLM dispatch.
+pub fn assert_within_budget(
+    rendered: &str,
+    budget: PromptBudget,
+    counter: &dyn TokenCounter,
+) -> Result<(), PromptBudgetError> {
+    let actual = counter.count(rendered);
+    if actual > budget.max_tokens {
         return Err(PromptBudgetError {
             surface: budget.surface,
-            actual_chars: actual,
-            budget_chars: budget.max_chars,
+            actual_tokens: actual,
+            budget_tokens: budget.max_tokens,
+            encoding: counter.encoding_name(),
         });
     }
-    if let Some(soft) = budget.soft_chars
+    if let Some(soft) = budget.soft_tokens
         && actual > soft
     {
         tracing::warn!(
             surface = budget.surface,
-            actual_chars = actual,
-            soft_chars = soft,
-            hard_chars = budget.max_chars,
+            actual_tokens = actual,
+            soft_tokens = soft,
+            hard_tokens = budget.max_tokens,
+            encoding = counter.encoding_name(),
             "prompt approaching budget — compact or split before headroom runs out"
         );
     }
@@ -288,24 +298,30 @@ pub fn render_property_signals(signals: &[PropertySignal]) -> String {
 mod tests {
     use super::*;
 
+    use entelix::ByteCountTokenCounter;
+
     #[test]
     fn assert_passes_when_under_budget() {
         let body = "x".repeat(100);
-        assert_within_budget(&body, PromptBudget::design()).expect("under budget");
+        let counter = ByteCountTokenCounter::new();
+        assert_within_budget(&body, PromptBudget::design(), &counter).expect("under budget");
     }
 
     #[test]
     fn assert_fails_when_over_budget() {
         let budget = PromptBudget {
-            max_chars: 50,
-            soft_chars: Some(40),
+            max_tokens: 10,
+            soft_tokens: Some(8),
             surface: "test",
         };
+        // 60 bytes / 4 = 15 tokens under ByteCount — busts the 10-token cap.
         let body = "x".repeat(60);
-        let err = assert_within_budget(&body, budget).expect_err("must fail");
+        let counter = ByteCountTokenCounter::new();
+        let err = assert_within_budget(&body, budget, &counter).expect_err("must fail");
         assert_eq!(err.surface, "test");
-        assert_eq!(err.actual_chars, 60);
-        assert_eq!(err.budget_chars, 50);
+        assert_eq!(err.actual_tokens, 15);
+        assert_eq!(err.budget_tokens, 10);
+        assert_eq!(err.encoding, "byte-count-naive");
     }
 
     #[test]

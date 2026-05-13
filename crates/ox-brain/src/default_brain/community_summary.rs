@@ -1,8 +1,9 @@
-//! `CommunitySummariser` impl for [`DefaultBrain`].
+//! `CommunitySummarizer` impl for [`DefaultBrain`].
 
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use entelix::ExecutionContext;
 
 use ox_core::error::OxResult;
 
@@ -10,10 +11,11 @@ use crate::model_resolver::operation;
 use crate::*;
 
 #[async_trait]
-impl CommunitySummariser for DefaultBrain {
-    async fn summarise_community(
+impl CommunitySummarizer for DefaultBrain {
+    async fn summarize_community(
         &self,
         request: CommunitySummaryRequest<'_>,
+        ctx: &ExecutionContext,
     ) -> OxResult<(CommunitySummaryResponse, CallProvenance)> {
         // Render the member list as a single string the prompt
         // template substitutes verbatim. One member per line:
@@ -50,7 +52,8 @@ impl CommunitySummariser for DefaultBrain {
             None,
             operation::COMMUNITY_SUMMARY,
             &vars,
-            "Summarising community for GraphRAG retrieval",
+            "Summarizing community for GraphRAG retrieval",
+            ctx,
         )
         .await
     }

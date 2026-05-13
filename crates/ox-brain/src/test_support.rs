@@ -1,11 +1,9 @@
 //! Re-usable LLM test fixtures.
 //!
-//! [`MockLlmCall`] is a deterministic, queue-based [`branchforge::client::LlmCall`]
-//! impl. Tests enqueue canned [`branchforge::ir::ModelResponse`] values
-//! ahead of the call; each `send()` pops the head of the queue and
-//! records the request. `send_stream()` is intentionally unimplemented —
-//! callers that need streaming should use a streaming-aware fixture
-//! when one is added.
+//! [`FakeChatModel`] is a deterministic, queue-based [`DynChatModel`]
+//! impl. Tests enqueue canned [`entelix::ir::ModelResponse`] values
+//! ahead of the call; each `complete_request` pops the head of the
+//! queue and records the request.
 //!
 //! Compiles only under `cfg(test)` or with the `test-helpers` cargo
 //! feature on. Production binaries never link this module.
@@ -13,12 +11,15 @@
 //! ## Pattern
 //!
 //! ```ignore
-//! use ox_brain::test_support::{MockLlmCall, make_text_response};
+//! use ox_brain::test_support::{FakeChatModel, make_text_response};
+//! use ox_brain::ChatRunnable;
+//! use entelix::ExecutionContext;
 //!
-//! let mock = MockLlmCall::new();
-//! mock.enqueue_text(r#"{"answer":42}"#);
-//! let result: MyStruct = ox_brain::provider::structured_completion(
-//!     &mock, "claude-mock", "system", "user", 256, None,
+//! let fake = FakeChatModel::new();
+//! fake.enqueue_text(r#"{"answer":42}"#);
+//! let chat = fake.into_chat_runnable();
+//! let (parsed, _usage): (MyStruct, _) = ox_brain::provider::structured_completion(
+//!     &chat, "claude-mock", "system", "user", 256, None, &ExecutionContext::default(),
 //! ).await.unwrap();
 //! ```
 
@@ -26,195 +27,140 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::sync::Mutex;
 
 use async_trait::async_trait;
-use branchforge::client::LlmCall;
-use branchforge::client::provider_client::ChunkStream;
-use branchforge::ir::stream::ModelStreamChunk;
-use branchforge::ir::{ContentPart, FinishReason, ModelRequest, ModelResponse, Role, Usage};
-use tokio_util::sync::CancellationToken;
+use entelix::ExecutionContext;
+use entelix::ir::{ContentPart, Message, ModelRequest, ModelResponse, StopReason, Usage};
 
-/// Deterministic [`LlmCall`] backed by a FIFO queue of pre-built
+use crate::chat_model::{ChatRunnable, DynChatModel};
+
+/// Deterministic [`DynChatModel`] backed by a FIFO queue of pre-built
 /// responses. Reset state between tests by allocating a fresh
 /// instance — the type holds no global state.
 #[derive(Debug, Default)]
-pub struct MockLlmCall {
-    queued: Mutex<VecDeque<branchforge::Result<ModelResponse>>>,
-    /// Pre-built streaming responses, one full chunk vec per
-    /// `send_stream` call. Each call pops the head of the queue and
-    /// returns its chunks. Empty queue ⇒ Config error so the test
-    /// fails loudly rather than hanging on a phantom stream.
-    streams: Mutex<VecDeque<Vec<ModelStreamChunk>>>,
+pub struct FakeChatModel {
+    queued: Mutex<VecDeque<entelix::Result<ModelResponse>>>,
     requests: Mutex<Vec<ModelRequest>>,
 }
 
-impl MockLlmCall {
-    /// Create an empty mock. Each test typically enqueues exactly the
+impl FakeChatModel {
+    /// Create an empty fake. Each test typically enqueues exactly the
     /// responses it expects to consume; an exhausted queue surfaces
-    /// as a `branchforge::Error::Config` so the test fails loudly.
+    /// as an `entelix::Error` so the test fails loudly rather than
+    /// silently producing a default response.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Queue a successful text response for the next `send()` call.
-    /// Convenience wrapper around [`Self::enqueue_response`].
+    /// Convenience: queue a successful text response for the next
+    /// `complete_request` call. Wraps [`make_text_response`].
     pub fn enqueue_text(&self, text: impl Into<String>) -> &Self {
         self.enqueue_response(make_text_response(text.into()))
     }
 
-    /// Queue a `FinishReason::Length` response — model truncated by
-    /// `max_output_tokens`. Used to pin the truncation-error branch.
+    /// Queue a `StopReason::MaxTokens` response — model truncated by
+    /// `max_tokens`. Used to pin the truncation-error branch.
     pub fn enqueue_truncated(&self, partial_text: impl Into<String>) -> &Self {
         self.enqueue_response(make_truncated_response(partial_text.into()))
     }
 
     /// Queue any pre-built response.
     pub fn enqueue_response(&self, response: ModelResponse) -> &Self {
-        self.queued.lock().unwrap().push_back(Ok(response));
+        if let Ok(mut q) = self.queued.lock() {
+            q.push_back(Ok(response));
+        }
         self
     }
 
-    /// Queue an error for the next `send()` call.
-    pub fn enqueue_error(&self, error: branchforge::Error) -> &Self {
-        self.queued.lock().unwrap().push_back(Err(error));
+    /// Queue an error for the next `complete_request` call.
+    pub fn enqueue_error(&self, error: entelix::Error) -> &Self {
+        if let Ok(mut q) = self.queued.lock() {
+            q.push_back(Err(error));
+        }
         self
     }
 
-    /// Snapshot of every request the mock has seen, in send order.
+    /// Snapshot of every request the fake has seen, in send order.
     /// Useful for asserting prompt content / model / max_tokens.
     pub fn requests(&self) -> Vec<ModelRequest> {
-        self.requests.lock().unwrap().clone()
+        self.requests
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
     }
 
     /// `true` when the queue has been fully consumed. Tests that
     /// pre-load N responses can assert exact-N consumption.
     pub fn is_drained(&self) -> bool {
-        self.queued.lock().unwrap().is_empty()
+        self.queued.lock().map(|q| q.is_empty()).unwrap_or(true)
     }
 
-    /// Queue a streaming response — one `Vec<ModelStreamChunk>` is
-    /// emitted by the next `send_stream` call. Each chunk yields
-    /// `Ok(chunk)` to the consumer; tests that need an
-    /// `Err`-bearing chunk assemble the vec via
-    /// [`make_chunked_stream_with_errors`] (or hand-roll one).
-    pub fn enqueue_stream(&self, chunks: Vec<ModelStreamChunk>) -> &Self {
-        self.streams.lock().unwrap().push_back(chunks);
-        self
+    /// Wrap into a [`ChatRunnable`] for direct use against
+    /// `structured_completion` / `text_completion` / Brain plumbing.
+    #[must_use]
+    pub fn into_chat_runnable(self) -> ChatRunnable {
+        ChatRunnable::from_arc(Arc::new(self))
     }
 }
 
 #[async_trait]
-impl LlmCall for MockLlmCall {
-    async fn send(&self, request: &ModelRequest) -> branchforge::Result<ModelResponse> {
-        self.requests.lock().unwrap().push(request.clone());
-        self.queued.lock().unwrap().pop_front().unwrap_or_else(|| {
-            Err(branchforge::Error::Config(
-                "MockLlmCall queue empty — enqueue a response before calling send()".into(),
-            ))
-        })
+impl DynChatModel for FakeChatModel {
+    fn build_request(&self, messages: Vec<Message>) -> ModelRequest {
+        ModelRequest {
+            model: "fake-model".to_owned(),
+            messages,
+            ..ModelRequest::default()
+        }
     }
 
-    async fn send_stream(
+    async fn complete_request(
         &self,
-        request: &ModelRequest,
-        cancel_token: CancellationToken,
-    ) -> branchforge::Result<ChunkStream> {
-        self.requests.lock().unwrap().push(request.clone());
-
-        let chunks = self.streams.lock().unwrap().pop_front().ok_or_else(|| {
-            branchforge::Error::Config(
-                "MockLlmCall stream queue empty — enqueue_stream(...) before \
-                     calling send_stream()"
-                    .into(),
-            )
-        })?;
-
-        // Yield `Ok(chunk)` for every chunk in the pre-built vec, but
-        // honour cancellation between chunks so cancellation-aware
-        // tests can trigger a mid-stream stop.
-        let stream = async_stream::stream! {
-            for chunk in chunks {
-                if cancel_token.is_cancelled() {
-                    yield Err(branchforge::Error::Config(
-                        "stream cancelled mid-flight".into(),
-                    ));
-                    break;
-                }
-                yield Ok(chunk);
-            }
-        };
-        Ok(Box::pin(stream))
+        request: ModelRequest,
+        _ctx: &ExecutionContext,
+    ) -> entelix::Result<ModelResponse> {
+        if let Ok(mut requests) = self.requests.lock() {
+            requests.push(request);
+        }
+        let next = self.queued.lock().ok().and_then(|mut q| q.pop_front());
+        match next {
+            Some(result) => result,
+            None => Err(entelix::Error::config(
+                "FakeChatModel: queue empty — enqueue a response first",
+            )),
+        }
     }
 }
 
 /// Stop-finish text response with empty usage stats. The id /
 /// model strings are stable so request-replay tests can compare
 /// the full response shape.
+#[must_use]
 pub fn make_text_response(text: String) -> ModelResponse {
     ModelResponse {
-        id: "mock-response-1".into(),
-        model: "mock-model".into(),
-        content: vec![ContentPart::text(text)],
-        finish_reason: FinishReason::Stop,
+        id: "fake-response-1".into(),
+        model: "fake-model".into(),
+        stop_reason: StopReason::EndTurn,
+        content: vec![ContentPart::Text {
+            text,
+            cache_control: None,
+            provider_echoes: Vec::new(),
+        }],
         usage: Usage::default(),
-        continuation: None,
-        warnings: vec![],
-        raw: None,
         rate_limit: None,
+        warnings: Vec::new(),
+        provider_echoes: Vec::new(),
     }
 }
 
 /// Length-truncated response. The text is whatever fragment the
-/// model managed to emit before hitting `max_output_tokens`.
+/// model managed to emit before hitting `max_tokens`.
+#[must_use]
 pub fn make_truncated_response(partial_text: String) -> ModelResponse {
     ModelResponse {
-        finish_reason: FinishReason::Length,
+        stop_reason: StopReason::MaxTokens,
         ..make_text_response(partial_text)
     }
-}
-
-/// Streaming response built from a single concatenated text. Emits
-/// `MessageStart` → one `TextDelta` carrying the full text →
-/// `Finish(Stop)`. Use [`make_chunked_stream`] when the test cares
-/// about delta boundaries.
-pub fn make_text_stream(text: impl Into<String>) -> Vec<ModelStreamChunk> {
-    vec![
-        ModelStreamChunk::MessageStart {
-            id: "mock-response-1".into(),
-            model: "mock-model".into(),
-            role: Role::Assistant,
-        },
-        ModelStreamChunk::TextDelta {
-            index: 0,
-            text: text.into(),
-        },
-        ModelStreamChunk::Finish {
-            reason: FinishReason::Stop,
-            usage: Usage::default(),
-        },
-    ]
-}
-
-/// Streaming response with explicit text-delta boundaries — each
-/// `&str` becomes one `TextDelta` chunk. Tests verify chunk
-/// reassembly by passing multi-segment input and asserting the
-/// concatenated text on the consumer side.
-pub fn make_chunked_stream<'a>(chunks: impl IntoIterator<Item = &'a str>) -> Vec<ModelStreamChunk> {
-    let mut out = vec![ModelStreamChunk::MessageStart {
-        id: "mock-response-1".into(),
-        model: "mock-model".into(),
-        role: Role::Assistant,
-    }];
-    for piece in chunks {
-        out.push(ModelStreamChunk::TextDelta {
-            index: 0,
-            text: piece.to_string(),
-        });
-    }
-    out.push(ModelStreamChunk::Finish {
-        reason: FinishReason::Stop,
-        usage: Usage::default(),
-    });
-    out
 }

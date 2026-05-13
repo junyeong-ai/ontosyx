@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use entelix::ExecutionContext;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
@@ -10,7 +11,6 @@ use ox_ontology::ir::OntologyIR;
 use ox_ontology::mapping::SourceId;
 
 use crate::model_resolver::operation;
-use crate::provider::structured_completion;
 use crate::*;
 
 #[async_trait]
@@ -18,6 +18,7 @@ impl OntologyDesigner for DefaultBrain {
     async fn design_ontology(
         &self,
         input: &DesignOntologyInput<'_>,
+        ctx: &ExecutionContext,
     ) -> OxResult<DesignOntologyOutput> {
         // Render every domain-context slice into a compact prompt
         // section. Empty slices produce empty strings so the prompt
@@ -61,6 +62,7 @@ impl OntologyDesigner for DefaultBrain {
                 operation::DESIGN_ONTOLOGY,
                 &vars,
                 "Designing ontology from sample data",
+                ctx,
             )
             .await?;
         let provenance = call.into_artifact_provenance();
@@ -100,6 +102,7 @@ impl OntologyDesigner for DefaultBrain {
         &self,
         prompt_name: &str,
         operation: &str,
+        _ctx: &ExecutionContext,
     ) -> OxResult<ox_ontology::source_mapping::ArtifactProvenance> {
         let tmpl = self.prompts.get(prompt_name)?;
         let resolved = self.model_resolver.resolve(operation).await?;
@@ -129,11 +132,14 @@ impl OntologyDesigner for DefaultBrain {
         context: &str,
         existing_nodes: &str,
         cross_fks: &str,
+        ctx: &ExecutionContext,
     ) -> OxResult<ox_ontology::input::InputOntologyDef> {
         let base_prompt = self.prompts.get(operation::DESIGN_ONTOLOGY)?;
         let batch_tmpl = self.prompts.checked_for("design_ontology_batch", "1.0.0")?;
 
-        // Inject full base instructions — token budget is safe after profile compression
+        // Inject full base instructions — token budget is safe after
+        // profile compression. The composed system body is what the
+        // LLM will actually see.
         let system = batch_tmpl
             .system
             .replace("{{base_instructions}}", &base_prompt.system);
@@ -145,24 +151,27 @@ impl OntologyDesigner for DefaultBrain {
         vars.insert("context", context);
         let user_prompt = batch_tmpl.render_user(&vars);
 
-        let (client, resolved) = self
-            .resolve_for_operation(operation::DESIGN_ONTOLOGY)
+        // Composed-prompt funnel — single LLM dispatch surface so
+        // the budget gate / cost observation / OTel GenAI span /
+        // evaluation capture / provenance pipeline applies
+        // uniformly with every other Brain operation. No direct
+        // `structured_completion` call escapes the funnel.
+        let composed = ComposedPrompt {
+            prompt_id: "design_ontology_batch".to_string(),
+            prompt_version: batch_tmpl.version.clone(),
+            system,
+            user: user_prompt,
+            template_max_tokens: batch_tmpl.max_tokens,
+            template_temperature: batch_tmpl.temperature,
+        };
+        let (llm_output, _provenance): (design::LlmDesignOutput, _) = self
+            .call_structured_composed_traced(
+                composed,
+                operation::DESIGN_ONTOLOGY,
+                "Designing ontology batch (divide-and-conquer)",
+                ctx,
+            )
             .await?;
-        info!(
-            model = %resolved.model_id,
-            prompt_version = %batch_tmpl.version,
-            "Designing ontology batch (divide-and-conquer)"
-        );
-
-        let (llm_output, _usage): (design::LlmDesignOutput, _) = structured_completion(
-            client.as_ref(),
-            &resolved.model_id,
-            &system,
-            &user_prompt,
-            resolved.max_tokens.unwrap_or(batch_tmpl.max_tokens),
-            resolved.temperature.or(batch_tmpl.temperature),
-        )
-        .await?;
         Ok(design::into_input_ontology(llm_output))
     }
 
@@ -171,6 +180,7 @@ impl OntologyDesigner for DefaultBrain {
         node_labels: &str,
         existing_edges: &str,
         uncovered_fks: &str,
+        ctx: &ExecutionContext,
     ) -> OxResult<Vec<ox_ontology::InputEdgeTypeDef>> {
         let mut vars = HashMap::new();
         vars.insert("node_labels", node_labels);
@@ -183,6 +193,7 @@ impl OntologyDesigner for DefaultBrain {
             operation::RESOLVE_CROSS_EDGES,
             &vars,
             "Resolving cross-domain edges",
+            ctx,
         )
         .await
     }
@@ -192,6 +203,7 @@ impl OntologyDesigner for DefaultBrain {
         ontology: &OntologyIR,
         refinement_context: &str,
         source_id: &SourceId,
+        ctx: &ExecutionContext,
     ) -> OxResult<OntologyIR> {
         let ontology_json = serialize_pretty(
             &ontology.to_agent_view(ox_core::llm_locale_fallback_default_tags()),
@@ -209,6 +221,7 @@ impl OntologyDesigner for DefaultBrain {
                 operation::REFINE_ONTOLOGY,
                 &vars,
                 "Refining ontology metadata",
+                ctx,
             )
             .await?;
         let input = design::into_input_ontology(llm_output);

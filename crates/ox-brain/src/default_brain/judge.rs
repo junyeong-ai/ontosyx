@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use entelix::ExecutionContext;
 
 use ox_core::error::OxResult;
 
@@ -16,6 +17,7 @@ impl EvaluationJudge for DefaultBrain {
         question: &str,
         expected: Option<&serde_json::Value>,
         actual: &serde_json::Value,
+        ctx: &ExecutionContext,
     ) -> OxResult<(EvaluationJudgement, CallProvenance)> {
         // The judge prompt receives JSON-rendered values directly.
         // `expected` ships as the literal `null` token when absent
@@ -44,6 +46,7 @@ impl EvaluationJudge for DefaultBrain {
             operation::EVALUATION_JUDGE,
             &vars,
             "Judging evaluation case",
+            ctx,
         )
         .await
     }

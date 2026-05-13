@@ -9,12 +9,16 @@
 )]
 
 pub mod auth;
-pub mod client_pool;
+pub mod chat_model;
+pub(crate) mod chat_model_factory;
+pub mod chat_model_registry;
 pub mod design;
+pub mod entelix_error;
 pub mod knowledge_rag;
 pub mod knowledge_util;
 pub mod model_resolver;
 pub mod plan_router;
+pub mod pricing;
 pub mod prompts;
 pub mod provider;
 pub mod schema;
@@ -22,11 +26,14 @@ pub mod schema_rag;
 #[cfg(any(test, feature = "test-helpers"))]
 pub mod test_support;
 
+pub use chat_model::{ChatRunnable, DynChatModel};
+pub use chat_model_registry::ChatModelRegistry;
+pub use entelix_error::{classify_wire_code, map_entelix_err};
+
 pub use design::{DesignOntologyInput, DesignOntologyOutput};
 
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::pin::Pin;
 use std::sync::Arc;
 use tracing::info;
 
@@ -39,8 +46,10 @@ use ox_ontology::mapping::SourceId;
 use ox_ontology::repo_insights::{FileContent, RepoInsights};
 use ox_query_ir::query::QueryIR;
 
+use entelix::ExecutionContext;
+
 use prompts::PromptRegistry;
-use provider::{StreamChunk, TokenUsage, structured_completion};
+use provider::{TokenUsage, structured_completion, text_completion};
 
 // ---------------------------------------------------------------------------
 // ExplanationOutput — result from non-structured LLM calls
@@ -62,10 +71,6 @@ pub struct ProviderInfo {
     pub model: String,
 }
 
-/// Type alias for a streaming explanation response.
-pub type ExplanationStream =
-    Pin<Box<dyn futures_core::Stream<Item = OxResult<StreamChunk>> + Send>>;
-
 // ---------------------------------------------------------------------------
 // EditCommandsOutput — result from ontology edit command generation
 // ---------------------------------------------------------------------------
@@ -78,6 +83,111 @@ pub struct EditCommandsOutput {
 }
 
 pub use ox_query_ir::widget::{WidgetHint, WidgetType};
+
+// ---------------------------------------------------------------------------
+// RunBudgetCaps — six-axis cap recipe (state-free)
+// ---------------------------------------------------------------------------
+
+/// Operator-supplied caps that fold into a fresh [`entelix::RunBudget`]
+/// at every materialisation. State-free — each [`Self::build`] mints a
+/// new budget instance with independent `Arc<RunBudgetState>` counters,
+/// so caller scopes (one chat run, one Brain LLM call) never share
+/// accumulators.
+///
+/// `None` on any axis leaves that axis unlimited; the typical
+/// production wire sets a `max_total_tokens` and a `max_cost_usd`
+/// ceiling and leaves the rest open. The struct is the single source
+/// of truth across the workspace — `ox-agent` builds the per-execute
+/// context from it, `ox-brain` stamps a process-wide default from it
+/// for ctx-less LLM calls, `ox-api` deserialises it from configuration.
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+pub struct RunBudgetCaps {
+    /// Cap on `ChatModel` dispatches per run.
+    pub max_requests: Option<u32>,
+    /// Cap on tool dispatches per run.
+    pub max_tool_calls: Option<u32>,
+    /// Cap on cumulative input tokens (codec-decoded) per run.
+    pub max_input_tokens: Option<u64>,
+    /// Cap on cumulative output tokens per run.
+    pub max_output_tokens: Option<u64>,
+    /// Cap on cumulative input + output tokens per run. Common
+    /// production wire — one ceiling rather than two per-direction
+    /// caps.
+    pub max_total_tokens: Option<u64>,
+    /// Cap on cumulative USD cost per run.
+    pub max_cost_usd: Option<rust_decimal::Decimal>,
+}
+
+impl RunBudgetCaps {
+    /// Materialise a fresh [`entelix::RunBudget`] from these caps.
+    /// Counters start at zero; the returned budget's `Arc` state is
+    /// independent of every other materialisation, so a misconfigured
+    /// prompt that drains one call's budget cannot lock out other
+    /// calls.
+    #[must_use]
+    pub fn build(&self) -> entelix::RunBudget {
+        let mut budget = entelix::RunBudget::unlimited();
+        if let Some(n) = self.max_requests {
+            budget = budget.with_request_limit(n);
+        }
+        if let Some(n) = self.max_tool_calls {
+            budget = budget.with_tool_calls_limit(n);
+        }
+        if let Some(n) = self.max_input_tokens {
+            budget = budget.with_input_tokens_limit(n);
+        }
+        if let Some(n) = self.max_output_tokens {
+            budget = budget.with_output_tokens_limit(n);
+        }
+        if let Some(n) = self.max_total_tokens {
+            budget = budget.with_total_tokens_limit(n);
+        }
+        if let Some(c) = self.max_cost_usd {
+            budget = budget.with_cost_limit_usd(c);
+        }
+        budget
+    }
+}
+
+#[cfg(test)]
+mod run_budget_caps_tests {
+    use super::RunBudgetCaps;
+    use entelix::ir::Usage;
+
+    /// Every materialisation mints a fresh accumulator — counters
+    /// are per-call, never shared. Pins the per-call protection
+    /// semantic: a misconfigured prompt that drains one call's
+    /// budget cannot lock out subsequent calls under the same
+    /// process-wide default.
+    #[test]
+    fn build_produces_independent_accumulators() {
+        let caps = RunBudgetCaps {
+            max_total_tokens: Some(100),
+            ..RunBudgetCaps::default()
+        };
+
+        let budget_a = caps.build();
+        // Drain budget_a by observing usage that hits the cap exactly.
+        budget_a
+            .observe_usage(&Usage::new(60, 40))
+            .expect("first call fits at 100 == limit");
+        assert!(
+            budget_a.observe_usage(&Usage::new(1, 0)).is_err(),
+            "budget_a should be exhausted at 101 > 100",
+        );
+
+        // A fresh build must NOT inherit budget_a's drain — counters
+        // are per-call by construction (each materialisation owns a
+        // separate `Arc<RunBudgetState>`).
+        let budget_b = caps.build();
+        budget_b
+            .observe_usage(&Usage::new(40, 30))
+            .expect("fresh budget_b starts at zero, 70 < 100");
+        budget_b
+            .observe_usage(&Usage::new(10, 10))
+            .expect("budget_b accumulates only its own usage, 90 < 100");
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Sub-traits — focused LLM capability groups
@@ -113,6 +223,7 @@ pub trait OntologyDesigner: Send + Sync {
     async fn design_ontology(
         &self,
         input: &DesignOntologyInput<'_>,
+        ctx: &ExecutionContext,
     ) -> OxResult<DesignOntologyOutput>;
 
     /// Design a partial ontology for a batch of tables (divide-and-conquer pipeline).
@@ -126,6 +237,7 @@ pub trait OntologyDesigner: Send + Sync {
         context: &str,
         existing_nodes: &str,
         cross_fks: &str,
+        ctx: &ExecutionContext,
     ) -> OxResult<ox_ontology::input::InputOntologyDef>;
 
     /// Resolve the
@@ -140,6 +252,7 @@ pub trait OntologyDesigner: Send + Sync {
         &self,
         prompt_name: &str,
         operation: &str,
+        ctx: &ExecutionContext,
     ) -> OxResult<ox_ontology::source_mapping::ArtifactProvenance>;
 
     /// Generate missing cross-domain edges for uncovered FK relationships.
@@ -149,6 +262,7 @@ pub trait OntologyDesigner: Send + Sync {
         node_labels: &str,
         existing_edges: &str,
         uncovered_fks: &str,
+        ctx: &ExecutionContext,
     ) -> OxResult<Vec<ox_ontology::InputEdgeTypeDef>>;
 
     /// Refine an ontology's metadata using graph profile statistics and/or additional context.
@@ -159,6 +273,7 @@ pub trait OntologyDesigner: Send + Sync {
         ontology: &OntologyIR,
         refinement_context: &str,
         source_id: &SourceId,
+        ctx: &ExecutionContext,
     ) -> OxResult<OntologyIR>;
 }
 
@@ -191,7 +306,7 @@ pub trait QueryTranslator: Send + Sync {
         question: &str,
         ontology: &OntologyIR,
         retrieved_context: Option<&str>,
-        ctx: &branchforge::ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> OxResult<(QueryIR, CallProvenance)>;
 
     /// Generate a LoadPlan from an ontology and source data description
@@ -199,6 +314,7 @@ pub trait QueryTranslator: Send + Sync {
         &self,
         ontology: &OntologyIR,
         source_description: &str,
+        ctx: &ExecutionContext,
     ) -> OxResult<LoadPlan>;
 
     /// Generate a LoadPlan from ontology + source schema.
@@ -212,26 +328,34 @@ pub trait QueryTranslator: Send + Sync {
         &self,
         ontology: &OntologyIR,
         source_schema: &SourceSchema,
+        ctx: &ExecutionContext,
     ) -> OxResult<LoadPlan>;
 
     /// Select the best widget type for displaying query results
-    async fn select_widget(&self, query: &QueryIR, result_sample: &str) -> OxResult<WidgetHint>;
+    async fn select_widget(
+        &self,
+        query: &QueryIR,
+        result_sample: &str,
+        ctx: &ExecutionContext,
+    ) -> OxResult<WidgetHint>;
 }
 
 /// Text explanation capabilities (structured and streaming).
 #[async_trait]
 pub trait Explainer: Send + Sync {
     /// Generate a text explanation of query results.
-    async fn explain(&self, user_message: &str) -> OxResult<ExplanationOutput>;
-
-    /// Stream a text explanation of query results as an async stream of text chunks.
-    async fn explain_stream(&self, user_message: String) -> OxResult<ExplanationStream>;
+    async fn explain(
+        &self,
+        user_message: &str,
+        ctx: &ExecutionContext,
+    ) -> OxResult<ExplanationOutput>;
 
     /// Generate proactive insight suggestions from ontology structure.
     async fn suggest_insights(
         &self,
         ontology: &OntologyIR,
         graph_stats: Option<&serde_json::Value>,
+        ctx: &ExecutionContext,
     ) -> OxResult<Vec<ox_ontology::InsightHint>>;
 }
 
@@ -241,12 +365,17 @@ pub trait RepoAnalyzer: Send + Sync {
     /// Repo navigation: given a file tree string, select up to 30
     /// relevant files for analysis. Returns relative paths the LLM
     /// considers most useful for ontology design.
-    async fn navigate_repo(&self, file_tree: &str) -> OxResult<Vec<String>>;
+    async fn navigate_repo(&self, file_tree: &str, ctx: &ExecutionContext)
+    -> OxResult<Vec<String>>;
 
     /// Repo deep-read: given file contents, extract structured domain
     /// insights. Returns enum definitions, ORM relationships, field
     /// hints, and domain notes.
-    async fn analyze_repo_files(&self, files: &[FileContent]) -> OxResult<RepoInsights>;
+    async fn analyze_repo_files(
+        &self,
+        files: &[FileContent],
+        ctx: &ExecutionContext,
+    ) -> OxResult<RepoInsights>;
 }
 
 /// Surgical ontology editing via atomic commands.
@@ -258,6 +387,7 @@ pub trait OntologyEditor: Send + Sync {
         &self,
         ontology: &OntologyIR,
         user_request: &str,
+        ctx: &ExecutionContext,
     ) -> OxResult<EditCommandsOutput>;
 }
 
@@ -342,6 +472,7 @@ pub trait EvaluationJudge: Send + Sync {
         question: &str,
         expected: Option<&serde_json::Value>,
         actual: &serde_json::Value,
+        ctx: &ExecutionContext,
     ) -> OxResult<(EvaluationJudgement, CallProvenance)>;
 }
 
@@ -423,13 +554,14 @@ pub trait EvaluationSafetyJudgeApi: Send + Sync {
         &self,
         question: &str,
         actual: &serde_json::Value,
+        ctx: &ExecutionContext,
     ) -> OxResult<(EvaluationSafetyJudgement, CallProvenance)>;
 }
 
 /// Inputs to the community-summary call. The cron projects a
 /// detected community into this shape; the trait stays
 /// algorithm-agnostic so it can also be invoked by ad-hoc
-/// admin re-summarise endpoints in the future.
+/// admin re-summarize endpoints in the future.
 #[derive(Debug, Clone)]
 pub struct CommunitySummaryRequest<'a> {
     /// Workspace's primary display name. Anchors the summary
@@ -466,7 +598,7 @@ pub struct CommunitySummaryResponse {
     pub summary: String,
 }
 
-/// LLM-backed community summariser for the GraphRAG community
+/// LLM-backed community summarizer for the GraphRAG community
 /// layer (Φ10.4). Called by the community-detection cron after
 /// Leiden produces a partition: each community → one
 /// summary call → the prose lands on
@@ -476,14 +608,15 @@ pub struct CommunitySummaryResponse {
 /// Cron-side fingerprinting (sha256 over sorted
 /// `(kind, logical_id)` pairs) gates the call: re-running
 /// against an unchanged membership skips the LLM entirely. Only
-/// communities whose membership shifted re-summarise — bounding
+/// communities whose membership shifted re-summarize — bounding
 /// the LLM cost to "actual structural drift", not "every cron
 /// tick".
 #[async_trait]
-pub trait CommunitySummariser: Send + Sync {
-    async fn summarise_community(
+pub trait CommunitySummarizer: Send + Sync {
+    async fn summarize_community(
         &self,
         request: CommunitySummaryRequest<'_>,
+        ctx: &ExecutionContext,
     ) -> OxResult<(CommunitySummaryResponse, CallProvenance)>;
 }
 
@@ -524,7 +657,7 @@ pub trait Brain:
     + RepoAnalyzer
     + EvaluationJudge
     + EvaluationSafetyJudgeApi
-    + CommunitySummariser
+    + CommunitySummarizer
     + LlmMetadata
 {
 }
@@ -538,7 +671,7 @@ impl<T> Brain for T where
         + RepoAnalyzer
         + EvaluationJudge
         + EvaluationSafetyJudgeApi
-        + CommunitySummariser
+        + CommunitySummarizer
         + LlmMetadata
 {
 }
@@ -548,11 +681,11 @@ impl<T> Brain for T where
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// DefaultBrain — uses ClientPool + ModelResolver + PromptRegistry
+// DefaultBrain — uses ChatModelRegistry + ModelResolver + PromptRegistry
 // ---------------------------------------------------------------------------
 
 pub struct DefaultBrain {
-    client_pool: Arc<client_pool::ClientPool>,
+    registry: Arc<ChatModelRegistry>,
     provider_configs: HashMap<String, auth::LlmProviderConfig>,
     model_resolver: Arc<dyn model_resolver::ModelResolver>,
     prompts: PromptRegistry,
@@ -607,11 +740,35 @@ pub struct DefaultBrain {
     /// raw question on the FTS arm (still functional, just less
     /// recall on Korean/compound tokens).
     tokenizer_registry: Option<Arc<ox_text::WorkspaceTokenizerRegistry>>,
+    /// Process-wide LLM budget caps applied to every Brain call
+    /// whose [`ExecutionContext`] arrives without an attached
+    /// [`entelix::RunBudget`]. The chat request path attaches its
+    /// chat-wide budget at the route boundary — the chat's
+    /// `Arc<RunBudgetState>` counters then accumulate across every
+    /// Brain LLM call inside the agent loop. Background paths
+    /// (eval worker, community detection cron, MCP server, admin
+    /// routes) call Brain with a budget-less ctx; this default
+    /// fires there.
+    ///
+    /// Per-call materialisation — every dispatch mints a fresh
+    /// [`entelix::RunBudget`] from these caps, so background calls
+    /// never share accumulator state. A misconfigured prompt that
+    /// drains one call's budget cannot lock out subsequent calls.
+    default_run_budget: Option<RunBudgetCaps>,
+    /// Per-`(provider, model)` token-counter routing. Every prompt
+    /// render passes through [`crate::design::assert_within_budget`]
+    /// using the counter this registry resolves — `o200k_base` for
+    /// newer OpenAI, `cl100k_base` for GPT-4-class, the
+    /// `ByteCountTokenCounter` fallback for Anthropic / unmapped
+    /// families. Production wires [`entelix::default_token_counter_registry`]
+    /// at boot; tests inherit the empty default that uses
+    /// `ByteCount` for every lookup.
+    token_counter_registry: Arc<entelix::TokenCounterRegistry>,
 }
 
 impl DefaultBrain {
     pub fn new(
-        client_pool: Arc<client_pool::ClientPool>,
+        registry: Arc<ChatModelRegistry>,
         provider_configs: impl IntoIterator<Item = auth::LlmProviderConfig>,
         model_resolver: Arc<dyn model_resolver::ModelResolver>,
         prompts: PromptRegistry,
@@ -622,7 +779,7 @@ impl DefaultBrain {
             .map(|config| (config.provider.clone(), config))
             .collect();
         Self {
-            client_pool,
+            registry,
             provider_configs,
             model_resolver,
             prompts,
@@ -635,7 +792,38 @@ impl DefaultBrain {
             verified_query_store: None,
             embedder: None,
             tokenizer_registry: None,
+            default_run_budget: None,
+            token_counter_registry: Arc::new(entelix::TokenCounterRegistry::new()),
         }
+    }
+
+    /// Attach process-wide default [`RunBudgetCaps`]. Every Brain
+    /// LLM call whose [`ExecutionContext`] arrives without a
+    /// budget materialises a fresh [`entelix::RunBudget`] from
+    /// these caps — counters are per-call, never shared, so a
+    /// misconfigured prompt that drains one call's budget cannot
+    /// lock out subsequent calls. Contexts that already carry a
+    /// budget (chat path → `translate_query`) keep their own;
+    /// this default never overrides.
+    #[must_use]
+    pub fn with_default_run_budget(mut self, caps: RunBudgetCaps) -> Self {
+        self.default_run_budget = Some(caps);
+        self
+    }
+
+    /// Attach a [`entelix::TokenCounterRegistry`] for per-`(provider,
+    /// model)` token counting. Used by `assert_within_budget` so
+    /// every prompt render is gated against an encoding-accurate
+    /// count rather than a character heuristic — crucial for Korean
+    /// / CJK workloads whose char-to-token ratio differs sharply
+    /// from English.
+    #[must_use]
+    pub fn with_token_counter_registry(
+        mut self,
+        registry: Arc<entelix::TokenCounterRegistry>,
+    ) -> Self {
+        self.token_counter_registry = registry;
+        self
     }
 
     /// Attach an evaluation capture hook. The wide
@@ -784,38 +972,44 @@ impl DefaultBrain {
         self.knowledge_store.as_ref()
     }
 
-    /// Resolve model and client for a given operation.
+    /// Resolve model and chat handle for a given operation.
     ///
-    /// Uses a cached client when available, otherwise creates one lazily
-    /// from the provider config selected at startup. Credential failures
-    /// are scoped to the LLM operation instead of preventing API boot.
+    /// `model_resolver` decides which provider + model id to use; the
+    /// registry materialises (or returns a cached) [`ChatRunnable`]
+    /// for that identity. Credential failures are scoped to the LLM
+    /// operation rather than preventing API boot.
     async fn resolve_for_operation(
         &self,
         operation: &str,
-    ) -> OxResult<(Arc<dyn branchforge::LlmCall>, model_resolver::ResolvedModel)> {
+    ) -> OxResult<(ChatRunnable, model_resolver::ResolvedModel)> {
         let resolved = self.model_resolver.resolve(operation).await?;
-        let client = if let Some(config) = resolved.provider_config.as_ref() {
-            self.client_pool.get_or_create(config).await?
-        } else if let Some(client) = self.client_pool.by_provider(&resolved.provider) {
-            client
+        let config = if let Some(config) = resolved.provider_config.clone() {
+            config
         } else {
-            let config = self
-                .provider_configs
+            self.provider_configs
                 .get(&resolved.provider)
+                .cloned()
                 .ok_or_else(|| OxError::Runtime {
                     message: format!(
                         "No LLM provider config registered for '{}'.",
                         resolved.provider
                     ),
-                })?;
-            self.client_pool.get_or_create(config).await?
+                })?
         };
-        Ok((client, resolved))
+        let chat = self.registry.get_or_build(&config).await?;
+        Ok((chat, resolved))
     }
 
     /// Core LLM call: resolve model via operation name, load prompt
     /// template, render variables, call `structured_completion` with
     /// prompt caching.
+    ///
+    /// `ctx` carries the caller's [`ExecutionContext`] — the chat
+    /// path threads its chat-wide budget + progress reporter
+    /// through; background callers (eval worker, cron, MCP, admin
+    /// routes) pass `&ExecutionContext::default()`. When the caller's
+    /// ctx carries no budget, the helper enriches it with the
+    /// Brain's process-wide [`Self::with_default_run_budget`] caps.
     async fn call_structured<T: serde::de::DeserializeOwned + schemars::JsonSchema>(
         &self,
         prompt_name: &str,
@@ -823,9 +1017,10 @@ impl DefaultBrain {
         operation: &str,
         vars: &HashMap<&str, &str>,
         log_message: &str,
+        ctx: &ExecutionContext,
     ) -> OxResult<T> {
         let (parsed, _) = self
-            .call_structured_traced(prompt_name, min_version, operation, vars, log_message)
+            .call_structured_traced(prompt_name, min_version, operation, vars, log_message, ctx)
             .await?;
         Ok(parsed)
     }
@@ -857,137 +1052,380 @@ impl DefaultBrain {
         operation: &str,
         vars: &HashMap<&str, &str>,
         log_message: &str,
+        ctx: &ExecutionContext,
     ) -> OxResult<(T, CallProvenance)> {
-        let span = tracing::info_span!(
-            "gen_ai.call",
-            prompt_name = prompt_name,
-            prompt_version = tracing::field::Empty,
-            "gen_ai.operation.name" = operation,
-            "gen_ai.system" = tracing::field::Empty,
-            "gen_ai.request.model" = tracing::field::Empty,
-            "gen_ai.request.max_tokens" = tracing::field::Empty,
-            "gen_ai.request.temperature" = tracing::field::Empty,
-            "gen_ai.usage.input_tokens" = tracing::field::Empty,
-            "gen_ai.usage.output_tokens" = tracing::field::Empty,
-        );
-        let _enter = span.enter();
+        let prep = self
+            .prepare_traced_call(prompt_name, min_version, operation, vars)
+            .await?;
+        self.execute_structured(prep, log_message, ctx).await
+    }
 
+    /// Composed variant: caller has already produced the final
+    /// `system` plus `user` strings (e.g. `design_ontology_batch`
+    /// substitutes `{{base_instructions}}` from another template
+    /// into its system body before dispatch). Skips template lookup
+    /// and variable rendering. The rest of the traced plumbing
+    /// (budget gate, RunBudget enrichment, span attrs, evaluation
+    /// capture, cost observation, provenance with render-hash) matches
+    /// [`Self::call_structured_traced`] line-for-line.
+    ///
+    /// The single LLM funnel still holds: no production caller reaches
+    /// `provider::structured_completion` outside this module.
+    async fn call_structured_composed_traced<
+        T: serde::de::DeserializeOwned + schemars::JsonSchema,
+    >(
+        &self,
+        prompt: ComposedPrompt,
+        operation: &str,
+        log_message: &str,
+        ctx: &ExecutionContext,
+    ) -> OxResult<(T, CallProvenance)> {
+        let prep = self.prepare_composed_traced_call(prompt, operation).await?;
+        self.execute_structured(prep, log_message, ctx).await
+    }
+
+    /// Plain-text traced dispatch — mirrors
+    /// [`Self::call_structured_traced`] for callers whose prompt
+    /// expects free-form prose rather than JSON. Same template
+    /// lookup, same budget gate, same RunBudget / evaluation /
+    /// cost / provenance pipeline; the only difference is the
+    /// dispatch primitive ([`provider::text_completion`]) and the
+    /// return shape (`String` instead of typed `T`).
+    async fn call_text_traced(
+        &self,
+        prompt_name: &str,
+        min_version: Option<&str>,
+        operation: &str,
+        vars: &HashMap<&str, &str>,
+        log_message: &str,
+        ctx: &ExecutionContext,
+    ) -> OxResult<(String, TokenUsage, CallProvenance)> {
+        let prep = self
+            .prepare_traced_call(prompt_name, min_version, operation, vars)
+            .await?;
+        self.execute_text(prep, log_message, ctx).await
+    }
+
+    // ---- Internals: shared prep + execute pipeline -----------------
+
+    /// Resolve the template by name + render variables. Sets up
+    /// every datum the traced dispatch needs but doesn't open the
+    /// span or run the budget gate — those live in
+    /// [`Self::execute_structured`] / [`Self::execute_text`] so
+    /// the dispatch primitive picks them up alongside its own
+    /// flavor.
+    async fn prepare_traced_call(
+        &self,
+        prompt_name: &str,
+        min_version: Option<&str>,
+        operation: &str,
+        vars: &HashMap<&str, &str>,
+    ) -> OxResult<TracedCallContext> {
         let tmpl = match min_version {
             Some(v) => self.prompts.checked_for(prompt_name, v)?,
             None => self.prompts.get(prompt_name)?,
         };
-        let user_prompt = tmpl.render_user(vars);
+        let user = tmpl.render_user(vars);
+        let (chat, resolved) = self.resolve_for_operation(operation).await?;
+        let effective_max_tokens = resolved.max_tokens.unwrap_or(tmpl.max_tokens);
+        let effective_temperature = resolved.temperature.or(tmpl.temperature);
+        Ok(TracedCallContext {
+            prompt_id: prompt_name.to_string(),
+            prompt_version: tmpl.version.clone(),
+            operation: operation.to_string(),
+            system: tmpl.system.clone(),
+            user,
+            chat,
+            resolved,
+            effective_max_tokens,
+            effective_temperature,
+        })
+    }
 
-        let combined_render = format!("{}\n\n{}", tmpl.system, user_prompt);
+    /// Composed-prompt variant — caller already produced the final
+    /// `system` + `user` text. The dispatch pipeline downstream is
+    /// identical.
+    async fn prepare_composed_traced_call(
+        &self,
+        prompt: ComposedPrompt,
+        operation: &str,
+    ) -> OxResult<TracedCallContext> {
+        let ComposedPrompt {
+            prompt_id,
+            prompt_version,
+            system,
+            user,
+            template_max_tokens,
+            template_temperature,
+        } = prompt;
+        let (chat, resolved) = self.resolve_for_operation(operation).await?;
+        let effective_max_tokens = resolved.max_tokens.unwrap_or(template_max_tokens);
+        let effective_temperature = resolved.temperature.or(template_temperature);
+        Ok(TracedCallContext {
+            prompt_id,
+            prompt_version,
+            operation: operation.to_string(),
+            system,
+            user,
+            chat,
+            resolved,
+            effective_max_tokens,
+            effective_temperature,
+        })
+    }
+
+    /// Structured-dispatch branch of the traced pipeline.
+    async fn execute_structured<T: serde::de::DeserializeOwned + schemars::JsonSchema>(
+        &self,
+        prep: TracedCallContext,
+        log_message: &str,
+        ctx: &ExecutionContext,
+    ) -> OxResult<(T, CallProvenance)> {
+        let span = open_gen_ai_span(&prep);
+        let _enter = span.enter();
+        self.gate_prompt_budget(&prep)?;
+        record_request_attrs(&span, &prep);
+        info!(
+            model = %prep.resolved.model_id,
+            operation = %prep.operation,
+            prompt_version = %prep.prompt_version,
+            "{log_message}"
+        );
+
+        let exec_ctx = self.enrich_ctx_with_default_budget(ctx);
+        let started = std::time::Instant::now();
+        let (parsed, usage) = structured_completion::<T>(
+            &prep.chat,
+            &prep.resolved.model_id,
+            &prep.system,
+            &prep.user,
+            prep.effective_max_tokens,
+            prep.effective_temperature,
+            &exec_ctx,
+        )
+        .await?;
+        let elapsed_ms = started.elapsed().as_millis() as i64;
+        let provenance = self
+            .finalize_traced_call(&prep, &usage, elapsed_ms, &span)
+            .await;
+        Ok((parsed, provenance))
+    }
+
+    /// Text-dispatch branch of the traced pipeline. Returns the
+    /// usage tuple alongside the body + provenance so callers that
+    /// expose token accounting (e.g. `Explainer::explain` →
+    /// `ExplanationOutput::usage`) don't lose the axis.
+    async fn execute_text(
+        &self,
+        prep: TracedCallContext,
+        log_message: &str,
+        ctx: &ExecutionContext,
+    ) -> OxResult<(String, TokenUsage, CallProvenance)> {
+        let span = open_gen_ai_span(&prep);
+        let _enter = span.enter();
+        self.gate_prompt_budget(&prep)?;
+        record_request_attrs(&span, &prep);
+        info!(
+            model = %prep.resolved.model_id,
+            operation = %prep.operation,
+            prompt_version = %prep.prompt_version,
+            "{log_message}"
+        );
+
+        let exec_ctx = self.enrich_ctx_with_default_budget(ctx);
+        let started = std::time::Instant::now();
+        let (text, usage) = text_completion(
+            &prep.chat,
+            &prep.resolved.model_id,
+            &prep.system,
+            &prep.user,
+            prep.effective_max_tokens,
+            prep.effective_temperature,
+            &exec_ctx,
+        )
+        .await?;
+        let elapsed_ms = started.elapsed().as_millis() as i64;
+        let provenance = self
+            .finalize_traced_call(&prep, &usage, elapsed_ms, &span)
+            .await;
+        Ok((text, usage, provenance))
+    }
+
+    /// Token-accurate prompt-budget gate. Resolves the counter from
+    /// the `(provider, model)` pair so the encoding matches the
+    /// downstream LLM dispatch (Korean / CJK count correctly under
+    /// vendor-accurate tokenisers; char heuristics under-shoot by
+    /// 2-3×).
+    fn gate_prompt_budget(&self, prep: &TracedCallContext) -> OxResult<()> {
+        let resolution = self
+            .token_counter_registry
+            .resolve(&prep.resolved.provider, &prep.resolved.model_id);
+        let combined_render = format!("{}\n\n{}", prep.system, prep.user);
         crate::design::assert_within_budget(
             &combined_render,
-            crate::design::PromptBudget::for_prompt(prompt_name),
+            crate::design::PromptBudget::for_prompt(&prep.prompt_id),
+            resolution.counter().as_ref(),
         )
         .map_err(|err| OxError::Validation {
             field: "prompt".to_string(),
             message: err.to_string(),
-        })?;
+        })
+    }
 
-        span.record("prompt_version", tmpl.version.as_str());
-
-        let (client, resolved) = self.resolve_for_operation(operation).await?;
-        let effective_max_tokens = resolved.max_tokens.unwrap_or(tmpl.max_tokens);
-        let effective_temperature = resolved.temperature.or(tmpl.temperature);
-
-        // OTel GenAI attrs — `gen_ai.system` is the provider id
-        // (anthropic / openai / google / bedrock / …),
-        // `gen_ai.request.model` the resolved model identifier.
-        // Both stamp at this point so an OTel collector reading
-        // the span mid-flight (long completions, streamed
-        // responses) already knows which provider + model it's
-        // observing.
-        span.record("gen_ai.system", resolved.provider.as_str());
-        span.record("gen_ai.request.model", resolved.model_id.as_str());
-        span.record("gen_ai.request.max_tokens", effective_max_tokens);
-        if let Some(t) = effective_temperature {
-            span.record("gen_ai.request.temperature", t as f64);
+    /// Caller's ctx wins when it carries a budget (chat path
+    /// threads its chat-wide budget + progress reporter through
+    /// here). When the caller's ctx has no budget, enrich it with
+    /// the Brain's process-wide default caps so background paths
+    /// (eval worker, cron, MCP, admin routes) cannot drift past the
+    /// configured ceiling. Each enrichment mints a fresh
+    /// [`entelix::RunBudget`] — counters are per-call, never
+    /// shared.
+    fn enrich_ctx_with_default_budget(&self, ctx: &ExecutionContext) -> ExecutionContext {
+        if ctx.run_budget().is_none()
+            && let Some(caps) = self.default_run_budget.as_ref()
+        {
+            ctx.clone().with_run_budget(caps.build())
+        } else {
+            ctx.clone()
         }
+    }
 
-        info!(
-            model = %resolved.model_id,
-            operation,
-            prompt_version = %tmpl.version,
-            "{log_message}"
-        );
-
-        let started = std::time::Instant::now();
-        let (parsed, usage) = structured_completion(
-            client.as_ref(),
-            &resolved.model_id,
-            &tmpl.system,
-            &user_prompt,
-            effective_max_tokens,
-            effective_temperature,
-        )
-        .await?;
-        let elapsed_ms = started.elapsed().as_millis() as i64;
-
-        // Stamp usage attrs after completion so the span carries
-        // the canonical OTel GenAI token-count axes alongside the
-        // request side.
+    /// Stamp usage span attrs, run the evaluation capture hook, and
+    /// build the [`CallProvenance`] that callers fold into
+    /// `ArtifactProvenance`. Cost observation lives one layer down
+    /// in `entelix::PolicyLayer` so every dispatch (Brain
+    /// funnel, agent loop, direct `ChatRunnable` consumer) observes
+    /// the same `RunBudget::observe_cost` charge without
+    /// per-consumer wiring.
+    async fn finalize_traced_call(
+        &self,
+        prep: &TracedCallContext,
+        usage: &TokenUsage,
+        elapsed_ms: i64,
+        span: &tracing::Span,
+    ) -> CallProvenance {
         span.record("gen_ai.usage.input_tokens", usage.input_tokens);
         span.record("gen_ai.usage.output_tokens", usage.output_tokens);
 
-        // Evaluation capture hook — one call → one
-        // `EvaluationCapture::record_call` invocation that lands
-        // latency / token (input + output + cached_input) / cost
-        // metric rows in lockstep. Production traffic without an
-        // active evaluation scope skips for free; both branches
-        // short-circuit when their condition is missing.
-        if let (Some(ctx), Some(capture)) = (
+        self.record_evaluation_call(prep, usage, elapsed_ms).await;
+
+        CallProvenance {
+            prompt_id: prep.prompt_id.clone(),
+            prompt_version: prep.prompt_version.clone(),
+            provider: prep.resolved.provider.clone(),
+            model_id: prep.resolved.model_id.clone(),
+            max_tokens: prep.effective_max_tokens,
+            temperature: prep.effective_temperature,
+            prompt_render_hash:
+                ox_ontology::source_mapping::ArtifactProvenance::compute_prompt_render_hash(
+                    &format!("{}\n\n{}", prep.system, prep.user),
+                ),
+        }
+    }
+
+    /// Dual-condition evaluation capture hook (active scope + wired
+    /// capture). Capture-side failures stay observability — log and
+    /// drop, never propagate.
+    async fn record_evaluation_call(
+        &self,
+        prep: &TracedCallContext,
+        usage: &TokenUsage,
+        elapsed_ms: i64,
+    ) {
+        let (Some(eval_ctx), Some(capture)) = (
             ox_store::current_evaluation_context(),
             self.evaluation_capture.as_ref(),
-        ) {
-            let call = ox_ontology::ModelCall {
-                model_id: ox_ontology::ModelId::new(resolved.model_id.clone()),
-                input_tokens: usage.input_tokens,
-                output_tokens: usage.output_tokens,
-                // Provider TokenUsage doesn't surface cache-hit
-                // counts yet — Φ8.4 leaves the field at 0 and a
-                // follow-up plumbs `cache_read_input_tokens`
-                // through the branchforge response shape.
-                cached_input_tokens: 0,
-                latency_ms: elapsed_ms.max(0).min(u32::MAX as i64) as u32,
-            };
-            // Capture-side failures don't propagate — the LLM call
-            // already succeeded, the operator's primary path is the
-            // typed response. Log + drop matches the wider
-            // observability policy (capture is best-effort, not
-            // load-bearing).
-            if let Err(err) = capture.record_call(&ctx, operation, call).await {
-                tracing::warn!(error = %err, operation, "evaluation capture record_call failed");
-            }
+        ) else {
+            return;
+        };
+        let call = ox_ontology::ModelCall {
+            model_id: ox_ontology::ModelId::new(prep.resolved.model_id.clone()),
+            input_tokens: usage.input_tokens,
+            output_tokens: usage.output_tokens,
+            cached_input_tokens: usage.cached_input_tokens,
+            cache_creation_input_tokens: usage.cache_creation_input_tokens,
+            reasoning_tokens: usage.reasoning_tokens,
+            latency_ms: elapsed_ms.max(0).min(u32::MAX as i64) as u32,
+        };
+        if let Err(err) = capture.record_call(&eval_ctx, &prep.operation, call).await {
+            tracing::warn!(
+                error = %err,
+                operation = %prep.operation,
+                "evaluation capture record_call failed"
+            );
         }
+    }
+}
 
-        // Render hash captures system + user post-interpolation.
-        // An admin who edits the DB-backing prompt without bumping
-        // `prompt_version` shifts this value, and `ContentBody`
-        // re-hashes against the new provenance — the prior artifact
-        // id no longer matches and the operator sees the divergence
-        // rather than a silent cache hit.
-        let prompt_render_hash =
-            ox_ontology::source_mapping::ArtifactProvenance::compute_prompt_render_hash(&format!(
-                "{}\n\n{}",
-                tmpl.system, user_prompt
-            ));
+/// Inputs for [`DefaultBrain::call_structured_composed_traced`].
+/// Caller supplies an already-rendered prompt; the helper handles
+/// model resolution + the downstream traced plumbing. Used by sites
+/// that build their prompt out of multiple templates (e.g.
+/// `design_ontology_batch` substituting `{{base_instructions}}`
+/// from another template into its system body).
+pub struct ComposedPrompt {
+    /// Logical prompt id stamped on the [`CallProvenance`] (e.g.
+    /// `"design_ontology_batch"`).
+    pub prompt_id: String,
+    /// Version of the source template the composed prompt derives
+    /// from. Surfaces on the provenance + the prompt-render hash.
+    pub prompt_version: String,
+    /// System body post-composition.
+    pub system: String,
+    /// User body post-variable-rendering.
+    pub user: String,
+    /// Fallback `max_tokens` when the resolved model carries none.
+    pub template_max_tokens: u32,
+    /// Fallback `temperature` when the resolved model carries none.
+    pub template_temperature: Option<f32>,
+}
 
-        Ok((
-            parsed,
-            CallProvenance {
-                prompt_id: prompt_name.to_string(),
-                prompt_version: tmpl.version.clone(),
-                provider: resolved.provider,
-                model_id: resolved.model_id,
-                max_tokens: effective_max_tokens,
-                temperature: effective_temperature,
-                prompt_render_hash,
-            },
-        ))
+/// Internal wiring carried between `prepare_*_traced_call` and
+/// `execute_*` — every datum the traced dispatch needs after
+/// template lookup + model resolution.
+struct TracedCallContext {
+    prompt_id: String,
+    prompt_version: String,
+    operation: String,
+    system: String,
+    user: String,
+    chat: ChatRunnable,
+    resolved: model_resolver::ResolvedModel,
+    effective_max_tokens: u32,
+    effective_temperature: Option<f32>,
+}
+
+/// Open the OTel `gen_ai.call` span. Field names follow the
+/// GenAI semantic conventions so Phoenix Arize / Langfuse / any
+/// OTLP collector recognising the convention auto-categorises the
+/// span as an LLM request. Fields land empty at entry; downstream
+/// `span.record(...)` calls stamp them as the call progresses.
+fn open_gen_ai_span(prep: &TracedCallContext) -> tracing::Span {
+    let span = tracing::info_span!(
+        "gen_ai.call",
+        prompt_name = prep.prompt_id.as_str(),
+        prompt_version = prep.prompt_version.as_str(),
+        "gen_ai.operation.name" = prep.operation.as_str(),
+        "gen_ai.system" = tracing::field::Empty,
+        "gen_ai.request.model" = tracing::field::Empty,
+        "gen_ai.request.max_tokens" = tracing::field::Empty,
+        "gen_ai.request.temperature" = tracing::field::Empty,
+        "gen_ai.usage.input_tokens" = tracing::field::Empty,
+        "gen_ai.usage.output_tokens" = tracing::field::Empty,
+    );
+    span
+}
+
+/// Stamp the request-side OTel GenAI attrs. Provider id + model
+/// id stamp at this point so an OTel collector reading the span
+/// mid-flight (long completions, streamed responses) already
+/// knows which provider + model it's observing.
+fn record_request_attrs(span: &tracing::Span, prep: &TracedCallContext) {
+    span.record("gen_ai.system", prep.resolved.provider.as_str());
+    span.record("gen_ai.request.model", prep.resolved.model_id.as_str());
+    span.record("gen_ai.request.max_tokens", prep.effective_max_tokens);
+    if let Some(t) = prep.effective_temperature {
+        span.record("gen_ai.request.temperature", t as f64);
     }
 }
 

@@ -9,6 +9,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use entelix::ExecutionContext;
 
 use ox_core::error::OxResult;
 
@@ -21,6 +22,7 @@ impl EvaluationSafetyJudgeApi for DefaultBrain {
         &self,
         question: &str,
         actual: &serde_json::Value,
+        ctx: &ExecutionContext,
     ) -> OxResult<(EvaluationSafetyJudgement, CallProvenance)> {
         // Safety judging doesn't reference `expected` — the rubric
         // is "is this answer safe", not "does this answer match a
@@ -40,6 +42,7 @@ impl EvaluationSafetyJudgeApi for DefaultBrain {
             operation::EVALUATION_SAFETY_JUDGE,
             &vars,
             "Judging evaluation case (safety axes)",
+            ctx,
         )
         .await
     }

@@ -1,10 +1,14 @@
-//! Schema complexity analysis for structured output quality thresholds.
+//! Schema complexity analysis for structured-output quality budgets.
 //!
-//! branchforge 0.9 handles all provider-specific schema transformations internally
-//! (inlining $ref, enforcing additionalProperties:false, stripping unsupported
-//! keywords, tagged union flattening). This module only provides complexity
-//! counting used to decide whether a schema is suitable for structured output
-//! mode, or should fall back to plain JSON mode for quality reasons.
+//! entelix codecs handle every provider-specific schema transformation
+//! (inlining `$ref`, enforcing `additionalProperties: false`, stripping
+//! unsupported keywords, tagged-union flattening) inside `Codec::encode`.
+//! This module supplies the *budget* counters the workspace's
+//! prompt-budget tests assert against — keeps every LLM-output type
+//! sized so the validation-retry loop in
+//! `entelix::ChatModel::complete_typed::<T>` converges on the first
+//! call rather than burning retry budget on schema-overfit tail
+//! cases.
 
 mod diagnostics;
 
@@ -21,8 +25,6 @@ mod tests {
         let schema = schemars::schema_for!(ox_ontology::load_plan::LoadPlan);
         let value = schema.to_value();
         let count = count_optional_params(&value);
-        let total = count_total_properties(&value);
-        eprintln!("LoadPlan optional params: {count}, total properties: {total}");
         assert!(
             count <= 24,
             "LoadPlan has {count} optional params (limit 24)"
@@ -35,7 +37,6 @@ mod tests {
         let value = schema.to_value();
         let optional = count_optional_params(&value);
         let total = count_total_properties(&value);
-        eprintln!("StructuredMatchQuery optional params: {optional}, total properties: {total}");
         assert!(
             optional <= 24,
             "StructuredMatchQuery has {optional} optional params (limit 24)"

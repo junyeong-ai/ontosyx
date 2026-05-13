@@ -1,121 +1,53 @@
 //! `Explainer` impl for [`DefaultBrain`].
 
+use std::collections::HashMap;
+
 use async_trait::async_trait;
-use tracing::info;
+use entelix::ExecutionContext;
 
 use ox_core::error::{OxError, OxResult};
 use ox_ontology::ir::OntologyIR;
 
 use crate::model_resolver::operation;
-use crate::provider::{StreamChunk, TokenUsage, structured_completion};
 use crate::*;
 
 #[async_trait]
 impl Explainer for DefaultBrain {
-    async fn explain(&self, user_message: &str) -> OxResult<ExplanationOutput> {
-        let system = self
-            .prompts
-            .get("chat_default")
-            .map(|t| t.system.clone())
-            .unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "chat_default prompt missing — using minimal fallback");
-                "You are Ontosyx, a knowledge graph assistant.".to_string()
-            });
-
-        let (client, resolved) = self.resolve_for_operation(operation::EXPLAIN).await?;
-
-        let request = branchforge::ModelRequest::new(
-            &resolved.model_id,
-            vec![branchforge::Message::user(user_message)],
-        )
-        .with_max_tokens(2048)
-        .with_system(branchforge::SystemPrompt::Blocks(vec![
-            branchforge::SystemBlock::cached_with_ttl(&system, "1h"),
-        ]))
-        .with_temperature(0.3);
-
-        let resp = client.send(&request).await.map_err(|e| OxError::Runtime {
-            message: format!("Explanation failed: {e}"),
-        })?;
+    async fn explain(
+        &self,
+        user_message: &str,
+        ctx: &ExecutionContext,
+    ) -> OxResult<ExplanationOutput> {
+        // `chat_default` is the canonical free-form chat prompt;
+        // its system body is the operator-curated persona. Route
+        // through `call_text_traced` so the budget gate / cost
+        // observation / OTel span / evaluation capture pipeline
+        // applies uniformly with the structured paths.
+        let mut vars: HashMap<&str, &str> = HashMap::new();
+        vars.insert("message", user_message);
+        let (content, usage, provenance) = self
+            .call_text_traced(
+                "chat_default",
+                None,
+                operation::EXPLAIN,
+                &vars,
+                "Generating free-form explanation",
+                ctx,
+            )
+            .await?;
 
         Ok(ExplanationOutput {
-            content: resp.text(),
-            model: resolved.model_id,
-            usage: Some(TokenUsage {
-                input_tokens: resp.usage.input_tokens,
-                output_tokens: resp.usage.output_tokens,
-            }),
+            content,
+            model: provenance.model_id,
+            usage: Some(usage),
         })
-    }
-
-    async fn explain_stream(&self, user_message: String) -> OxResult<ExplanationStream> {
-        let system = self
-            .prompts
-            .get("chat_default")
-            .map(|t| t.system.clone())
-            .unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "chat_default prompt missing — using minimal fallback");
-                "You are Ontosyx, a knowledge graph assistant.".to_string()
-            });
-
-        let (client, resolved) = self.resolve_for_operation(operation::EXPLAIN).await?;
-
-        let request = branchforge::ModelRequest::new(
-            &resolved.model_id,
-            vec![branchforge::Message::user(&user_message)],
-        )
-        .with_max_tokens(2048)
-        .with_system(branchforge::SystemPrompt::Blocks(vec![
-            branchforge::SystemBlock::cached_with_ttl(&system, "1h"),
-        ]))
-        .with_temperature(0.3);
-
-        let cancel = branchforge::CancellationToken::new();
-        let stream = client
-            .send_stream(&request, cancel)
-            .await
-            .map_err(|e| OxError::Runtime {
-                message: format!("Explanation stream failed: {e}"),
-            })?;
-
-        // Convert branchforge ModelStreamChunk stream to ox-brain StreamChunk stream
-        let chunk_stream = async_stream::stream! {
-            let mut stream = std::pin::pin!(stream);
-            while let Some(item) = tokio_stream::StreamExt::next(&mut stream).await {
-                match item {
-                    Ok(branchforge::ModelStreamChunk::TextDelta { text, .. }) => {
-                        yield Ok(StreamChunk {
-                            delta: text,
-                            is_final: false,
-                            usage: None,
-                        });
-                    }
-                    Ok(_) => {
-                        // Ignore non-text stream chunks (Reasoning, ToolCall, Usage, etc.)
-                    }
-                    Err(e) => {
-                        yield Err(OxError::Runtime {
-                            message: format!("Stream error: {e}"),
-                        });
-                        return;
-                    }
-                }
-            }
-            // Emit final chunk
-            yield Ok(StreamChunk {
-                delta: String::new(),
-                is_final: true,
-                usage: None,
-            });
-        };
-
-        Ok(Box::pin(chunk_stream))
     }
 
     async fn suggest_insights(
         &self,
         ontology: &OntologyIR,
         graph_stats: Option<&serde_json::Value>,
+        ctx: &ExecutionContext,
     ) -> OxResult<Vec<ox_ontology::InsightHint>> {
         let nodes: Vec<String> = ontology
             .node_types()
@@ -166,37 +98,33 @@ impl Explainer for DefaultBrain {
             })
             .unwrap_or_default();
 
-        let user_prompt = format!(
-            "Given this knowledge graph schema:\n{schema_summary}{stats_text}\n\n\
-            Generate exactly 5 insightful questions a data analyst would ask about this data.\n\
-            For each, specify:\n\
-            - question: the natural language question\n\
-            - category: one of \"trend\", \"distribution\", \"anomaly\", \"relationship\", \"summary\"\n\
-            - suggested_tool: \"query_graph\" for data retrieval, \"execute_analysis\" for statistical analysis\n\n\
-            Return as a JSON array of objects."
-        );
+        let mut vars: HashMap<&str, &str> = HashMap::new();
+        vars.insert("schema_summary", schema_summary.as_str());
+        vars.insert("stats_text", stats_text.as_str());
 
-        let system = "You are a data analyst assistant. Generate insightful questions about knowledge graphs. Return only valid JSON.";
-        let (client, resolved) = self
-            .resolve_for_operation(operation::SUGGEST_INSIGHTS)
-            .await?;
-
-        info!(
-            model = %resolved.model_id,
-            "Generating insight suggestions"
-        );
-
-        match structured_completion::<Vec<ox_ontology::InsightHint>>(
-            client.as_ref(),
-            &resolved.model_id,
-            system,
-            &user_prompt,
-            2048,
-            Some(0.7),
-        )
-        .await
+        // Suggest-insights is best-effort: a parse failure or LLM
+        // hiccup returns an empty vec rather than surfacing the
+        // error — the dashboard renders an empty suggestion strip,
+        // not an error toast. Cost / budget caps still fire normally
+        // (those propagate via `?` from the upstream funnel).
+        match self
+            .call_structured::<Vec<ox_ontology::InsightHint>>(
+                operation::SUGGEST_INSIGHTS,
+                Some("1.0.0"),
+                operation::SUGGEST_INSIGHTS,
+                &vars,
+                "Generating insight suggestions",
+                ctx,
+            )
+            .await
         {
-            Ok((suggestions, _usage)) => Ok(suggestions),
+            Ok(suggestions) => Ok(suggestions),
+            // Typed LLM failures (budget / auth / rate-limit / 5xx)
+            // propagate so the operator sees the structured failure
+            // mode. Other variants degrade to an empty suggestion
+            // strip — the dashboard renders nothing rather than an
+            // error toast.
+            Err(err @ OxError::Llm { .. }) => Err(err),
             Err(e) => {
                 tracing::warn!(error = %e, "Failed to generate insight suggestions");
                 Ok(vec![])

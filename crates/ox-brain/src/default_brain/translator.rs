@@ -3,6 +3,8 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use entelix::ExecutionContext;
+use ox_context::ProgressContextExt;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
@@ -22,7 +24,7 @@ impl QueryTranslator for DefaultBrain {
         question: &str,
         ontology: &OntologyIR,
         retrieved_context: Option<&str>,
-        ctx: &branchforge::ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> OxResult<(QueryIR, crate::CallProvenance)> {
         // Wrap the existing translate logic so the outer match can
         // record one `InferenceAttempt` per call when an
@@ -71,6 +73,7 @@ impl QueryTranslator for DefaultBrain {
         &self,
         ontology: &OntologyIR,
         source_description: &str,
+        ctx: &ExecutionContext,
     ) -> OxResult<LoadPlan> {
         let ontology_json = serialize_pretty(
             &ontology.to_agent_view(ox_core::llm_locale_fallback_default_tags()),
@@ -87,6 +90,7 @@ impl QueryTranslator for DefaultBrain {
             operation::PLAN_LOAD,
             &vars,
             "Planning data load",
+            ctx,
         )
         .await
     }
@@ -95,6 +99,7 @@ impl QueryTranslator for DefaultBrain {
         &self,
         ontology: &OntologyIR,
         source_schema: &SourceSchema,
+        ctx: &ExecutionContext,
     ) -> OxResult<LoadPlan> {
         let ontology_json = serialize_pretty(
             &ontology.to_agent_view(ox_core::llm_locale_fallback_default_tags()),
@@ -115,11 +120,17 @@ impl QueryTranslator for DefaultBrain {
             operation::PLAN_LOAD,
             &vars,
             "Generating load plan from project data",
+            ctx,
         )
         .await
     }
 
-    async fn select_widget(&self, query: &QueryIR, result_sample: &str) -> OxResult<WidgetHint> {
+    async fn select_widget(
+        &self,
+        query: &QueryIR,
+        result_sample: &str,
+        ctx: &ExecutionContext,
+    ) -> OxResult<WidgetHint> {
         let query_json = serialize_pretty(query, "query")?;
 
         let mut vars = HashMap::new();
@@ -132,6 +143,7 @@ impl QueryTranslator for DefaultBrain {
             operation::SELECT_WIDGET,
             &vars,
             "Selecting widget for query results",
+            ctx,
         )
         .await
     }
@@ -147,7 +159,7 @@ impl crate::DefaultBrain {
         question: &str,
         ontology: &OntologyIR,
         retrieved_context: Option<&str>,
-        ctx: &branchforge::ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> OxResult<(QueryIR, crate::CallProvenance)> {
         // Φ11.2: verified-query exact-hash short-circuit. The
         // `(workspace_id, question_hash)` UNIQUE on
@@ -270,6 +282,7 @@ impl crate::DefaultBrain {
                 "translate_match_query",
                 &vars,
                 "Translating to StructuredMatchQuery (structured output)",
+                ctx,
             )
             .await
             .and_then(|(match_ir, prov)| match_ir.into_query_ir().map(|qir| (qir, prov)))
@@ -298,6 +311,7 @@ impl crate::DefaultBrain {
                         operation::TRANSLATE_QUERY,
                         &vars,
                         "Translating to QueryIR (JSON mode fallback)",
+                        ctx,
                     )
                     .await;
 
@@ -324,6 +338,7 @@ impl crate::DefaultBrain {
                                 operation::TRANSLATE_QUERY,
                                 &vars,
                                 "Retrying query translation",
+                                ctx,
                             )
                             .await
                             .map_err(|retry_err| {
@@ -381,6 +396,7 @@ impl crate::DefaultBrain {
                         operation::TRANSLATE_QUERY,
                         &retry_vars,
                         "Retrying query translation with label correction",
+                        ctx,
                     )
                     .await;
                 match retry {
@@ -459,7 +475,7 @@ impl crate::DefaultBrain {
     async fn try_verified_query_cache(
         &self,
         question: &str,
-        ctx: &branchforge::ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Option<(QueryIR, crate::CallProvenance)> {
         let store = self.verified_query_store.as_ref()?;
         let q_hash = ox_ontology::question_hash(question);
@@ -561,11 +577,7 @@ impl crate::DefaultBrain {
     /// Top-k is fixed at 3 because beyond that the prompt budget
     /// regression dominates the retrieval lift on a trigram
     /// ranker. The Φ11.5 embedding swap raises the ceiling.
-    async fn retrieve_verified_examples(
-        &self,
-        question: &str,
-        ctx: &branchforge::ExecutionContext,
-    ) -> String {
+    async fn retrieve_verified_examples(&self, question: &str, ctx: &ExecutionContext) -> String {
         let Some(store) = self.verified_query_store.as_ref() else {
             return String::new();
         };
