@@ -201,11 +201,11 @@ fn default_dashboard_share_max_days() -> u32 {
     365
 }
 
-/// Recovery-detection hook tuning.
+/// `RecoveryDetectionSink` tuning.
 ///
 /// `jaccard_threshold` controls when a failed + successful query pair
 /// is treated as a real recovery (based on schema overlap between the
-/// two queries). `session_window_minutes` controls how long per-session
+/// two queries). `run_window_minutes` controls how long per-run
 /// outcome tracking is kept before stale entries are evicted.
 #[derive(Debug, Deserialize, Clone)]
 pub struct RecoveryConfig {
@@ -214,20 +214,23 @@ pub struct RecoveryConfig {
     /// (default: 0.5).
     #[serde(default = "default_recovery_jaccard_threshold")]
     pub jaccard_threshold: f64,
-    /// Per-session outcome-tracking window in minutes (default: 10).
+    /// Per-run outcome-tracking window in minutes (default: 10).
     ///
     /// Entries older than this are purged during periodic cleanup so
     /// the in-memory tracker cannot grow unbounded for long-running
-    /// agents.
-    #[serde(default = "default_recovery_session_window_minutes")]
-    pub session_window_minutes: i64,
+    /// agents. Keyed by `run_id` (one chat turn = one run); the
+    /// recovery pattern (fail → succeed) lives entirely under one
+    /// run, so the window only needs to cover the longest plausible
+    /// agent loop.
+    #[serde(default = "default_recovery_run_window_minutes")]
+    pub run_window_minutes: i64,
 }
 
 impl Default for RecoveryConfig {
     fn default() -> Self {
         Self {
             jaccard_threshold: default_recovery_jaccard_threshold(),
-            session_window_minutes: default_recovery_session_window_minutes(),
+            run_window_minutes: default_recovery_run_window_minutes(),
         }
     }
 }
@@ -235,7 +238,7 @@ impl Default for RecoveryConfig {
 fn default_recovery_jaccard_threshold() -> f64 {
     0.5
 }
-fn default_recovery_session_window_minutes() -> i64 {
+fn default_recovery_run_window_minutes() -> i64 {
     10
 }
 
@@ -501,7 +504,7 @@ fn default_chat_wall_clock_secs() -> u64 {
     900
 }
 
-/// Agent-loop budgets — paired with branchforge's per-turn and per-tool
+/// Agent-loop budgets — paired with entelix's per-turn and per-tool
 /// timeouts to cap runaway executions before they cost the workspace
 /// real money.
 #[derive(Debug, Deserialize, Clone)]
@@ -536,6 +539,13 @@ pub struct AgentConfig {
     /// obvious abuse pattern. Set `0` to disable the cap entirely.
     #[serde(default = "default_max_concurrent_streams_per_user")]
     pub max_concurrent_streams_per_user: u32,
+    /// Six-axis run budget — cap one logical chat run on
+    /// requests / token totals / tool calls / cost. Each axis is
+    /// optional; omit to leave that axis unlimited. The chat handler
+    /// folds this into the per-execute `ExecutionContext`, so the
+    /// counters reset every run and never bleed across requests.
+    #[serde(default)]
+    pub run_budget: ox_brain::RunBudgetCaps,
 }
 
 fn default_max_concurrent_streams_per_user() -> u32 {
@@ -556,6 +566,7 @@ impl Default for AgentConfig {
             max_iterations: default_agent_max_iterations(),
             reject_high_cost: default_reject_high_cost(),
             max_concurrent_streams_per_user: default_max_concurrent_streams_per_user(),
+            run_budget: ox_brain::RunBudgetCaps::default(),
         }
     }
 }
@@ -761,7 +772,7 @@ impl OxConfig {
             .set_default("dashboards.default_share_expiry_days", 30_i64)?
             .set_default("dashboards.max_share_expiry_days", 365_i64)?
             .set_default("recovery.jaccard_threshold", 0.5)?
-            .set_default("recovery.session_window_minutes", 10_i64)?
+            .set_default("recovery.run_window_minutes", 10_i64)?
             .set_default("otel.enabled", false)?
             .set_default("otel.endpoint", "http://localhost:4317")?
             .set_default("otel.service_name", "ontosyx")?
@@ -925,7 +936,7 @@ mod config_section_tests {
     fn recovery_defaults_via_derive_default() {
         let r = RecoveryConfig::default();
         assert!((r.jaccard_threshold - 0.5).abs() < f64::EPSILON);
-        assert_eq!(r.session_window_minutes, 10);
+        assert_eq!(r.run_window_minutes, 10);
     }
 
     #[test]
@@ -965,11 +976,11 @@ mod config_section_tests {
     fn recovery_from_env_vars() {
         let env = [
             ("OX_RECOVERY__JACCARD_THRESHOLD", "0.75"),
-            ("OX_RECOVERY__SESSION_WINDOW_MINUTES", "30"),
+            ("OX_RECOVERY__RUN_WINDOW_MINUTES", "30"),
         ];
         let r: RecoveryConfig = load_section("recovery", &env).expect("env-only recovery config");
         assert!((r.jaccard_threshold - 0.75).abs() < f64::EPSILON);
-        assert_eq!(r.session_window_minutes, 30);
+        assert_eq!(r.run_window_minutes, 30);
     }
 
     #[test]

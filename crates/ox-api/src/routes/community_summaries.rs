@@ -242,7 +242,7 @@ pub(crate) async fn list_community_summaries(
 }
 
 /// `POST /api/ontology/communities` — upsert on
-/// `(ontology_version_id, community_id)`. Re-summarising under
+/// `(ontology_version_id, community_id)`. Re-summarizing under
 /// the same id replaces in place; lineage / reverse-index
 /// queries against the id continue to resolve.
 #[utoipa::path(

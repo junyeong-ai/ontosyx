@@ -210,21 +210,26 @@ pub(crate) async fn extend_ontology_draft(
         ambiguity_hints: &[],
         existing_ontology: Some(&existing_ontology),
     };
-    let design_output = tokio::time::timeout(timeout, state.brain.design_ontology(&design_input))
-        .await
-        .map_err(|_| {
-            warn!(
-                ontology_draft_id = %id,
-                elapsed_ms = design_started.elapsed().as_millis() as u64,
-                timeout_secs = timeout.as_secs(),
-                "Extend LLM call timed out"
-            );
-            AppError::timeout(format!(
-                "Ontology extension timed out after {}s",
-                timeout.as_secs()
-            ))
-        })?
-        .map_err(AppError::from)?;
+    let design_output = tokio::time::timeout(
+        timeout,
+        state
+            .brain
+            .design_ontology(&design_input, &entelix::ExecutionContext::default()),
+    )
+    .await
+    .map_err(|_| {
+        warn!(
+            ontology_draft_id = %id,
+            elapsed_ms = design_started.elapsed().as_millis() as u64,
+            timeout_secs = timeout.as_secs(),
+            "Extend LLM call timed out"
+        );
+        AppError::timeout(format!(
+            "Ontology extension timed out after {}s",
+            timeout.as_secs()
+        ))
+    })?
+    .map_err(AppError::from)?;
 
     let ox_brain::DesignOntologyOutput {
         ontology: new_ontology,

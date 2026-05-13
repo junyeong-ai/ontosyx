@@ -702,7 +702,7 @@ pub(crate) async fn execute_evaluation_case(
                                     &question,
                                     &ir,
                                     None,
-                                    &branchforge::ExecutionContext::empty(),
+                                    &entelix::ExecutionContext::default(),
                                 )
                                 .await
                         },
@@ -717,7 +717,10 @@ pub(crate) async fn execute_evaluation_case(
                     ))
                 }
                 EvaluationCaseInput::Explain { question, .. } => {
-                    let output = brain.explain(&question).await.map_err(|e| e.to_string())?;
+                    let output = brain
+                        .explain(&question, &entelix::ExecutionContext::default())
+                        .await
+                        .map_err(|e| e.to_string())?;
                     Ok((
                         EvaluationActual::Explanation {
                             content: output.content,
@@ -1031,7 +1034,12 @@ pub(crate) async fn judge_evaluation_case(
 
     let (judgement, prov) = state
         .brain
-        .judge_evaluation_case(&question, expected_json.as_ref(), &actual_json)
+        .judge_evaluation_case(
+            &question,
+            expected_json.as_ref(),
+            &actual_json,
+            &entelix::ExecutionContext::default(),
+        )
         .await
         .map_err(AppError::from)?;
 
@@ -1170,7 +1178,11 @@ pub(crate) async fn judge_safety_evaluation_case(
 
     let (judgement, prov) = state
         .brain
-        .judge_safety_evaluation_case(&question, &actual_json)
+        .judge_safety_evaluation_case(
+            &question,
+            &actual_json,
+            &entelix::ExecutionContext::default(),
+        )
         .await
         .map_err(AppError::from)?;
 

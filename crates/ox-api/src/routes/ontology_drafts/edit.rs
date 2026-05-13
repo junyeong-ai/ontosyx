@@ -69,9 +69,11 @@ pub(crate) async fn edit_ontology_draft(
 
     let edit_output = tokio::time::timeout(
         timeout,
-        state
-            .brain
-            .generate_edit_commands(&ontology, &req.user_request),
+        state.brain.generate_edit_commands(
+            &ontology,
+            &req.user_request,
+            &entelix::ExecutionContext::default(),
+        ),
     )
     .await
     .map_err(|_| {

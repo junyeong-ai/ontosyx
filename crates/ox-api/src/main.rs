@@ -42,6 +42,15 @@ use ox_api::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Install the rustls crypto provider before any transport runs.
+    // entelix transports (Anthropic / OpenAI / Gemini direct,
+    // Bedrock) all reach the network through `reqwest 0.13`, whose
+    // `rustls` feature defers `CryptoProvider` selection to the
+    // application — the first request panics inside `rustls::crypto`
+    // without an installed provider. Idempotent: pre-installed
+    // providers win, repeat calls are no-ops.
+    entelix::install_default_tls();
+
     // Local developer ergonomics: `.env` mirrors the documented
     // environment override surface and is loaded before `OxConfig`.
     // Production should still inject real environment variables through
@@ -138,14 +147,23 @@ async fn main() -> anyhow::Result<()> {
         "Ontosyx configuration loaded"
     );
 
-    // Create shared LLM client pool + model resolver
-    let client_pool = Arc::new(ox_brain::client_pool::ClientPool::new());
     tracing::info!("LLM clients will be created lazily on first use");
     let model_resolver: Arc<dyn ox_brain::model_resolver::ModelResolver> =
         Arc::new(ox_brain::model_resolver::StaticModelResolver::from_configs(
             &config.llm,
             config.fast_llm.as_ref(),
         ));
+
+    // Per-`(provider, model)` token-counter registry. entelix's
+    // `default_token_counter_registry` pre-populates every OpenAI BPE
+    // family (`o200k_base` for newer models, `cl100k_base` for
+    // GPT-4-class); Anthropic and unmapped families fall through to
+    // the conservative `ByteCountTokenCounter`. Used by
+    // `assert_within_budget` so prompt gates are encoding-accurate
+    // for Korean / CJK payloads.
+    let token_counter_registry = Arc::new(
+        entelix::default_token_counter_registry().expect("entelix default token counter registry"),
+    );
 
     // Create graph compiler + runtime via backend registry
     let graph_registry = GraphBackendRegistry::with_defaults();
@@ -265,7 +283,23 @@ async fn main() -> anyhow::Result<()> {
     // observability hooks, not the persistence supertrait.
     let pg_store_arc = Arc::new(pg_store);
     let evaluation_capture = Arc::clone(&pg_store_arc) as Arc<dyn ox_store::EvaluationCapture>;
+    // Workspace pricing catalogue → `entelix::PricingTable` →
+    // `CostMeter` → `PolicyRegistry`. The registry wires onto every
+    // `ChatModel` constructed by `chat_model_factory`, so the
+    // `PolicyLayer`'s pre-call cost / token gates and post-call
+    // ledger charge ride every LLM dispatch uniformly (Brain
+    // helpers, the agent loop's `AgentChat`, direct `ChatRunnable`
+    // consumers). Load is one-shot at boot — tariff revisions land
+    // via admin write paths that reseed the registry. The
+    // `evaluation_metrics.cost_micro_usd.<op>` rows keep the
+    // historical snapshot via `EvaluationCapture::record_call`'s
+    // own `fetch_active_model_prices` query.
+    let policy_registry = build_policy_registry(&pg_store_arc).await?;
     let store = pg_store_arc as Arc<dyn ox_store::Store>;
+
+    let chat_model_registry = Arc::new(
+        ox_brain::ChatModelRegistry::new().with_policy_registry(Arc::clone(&policy_registry)),
+    );
     let db_model_router = Arc::new(model_router::DbModelRouter::with_fallback(
         Arc::clone(&store),
         Arc::clone(&model_resolver),
@@ -295,9 +329,19 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
 
-    // Brain is created here but memory is attached later (after embedding init)
+    // Brain is created here but memory is attached later (after embedding init).
+    //
+    // `with_default_run_budget` stamps the brain with a process-wide
+    // [`entelix::RunBudget`] derived from `config.agent.run_budget`.
+    // Every Brain LLM call that arrives without a caller-supplied
+    // [`entelix::ExecutionContext`] (eval worker, community-detection
+    // cron, MCP server, admin routes) inherits this budget — the
+    // shared `Arc<RunBudgetState>` counters accumulate across every
+    // such call so a misconfigured prompt cannot drift spend past
+    // the configured ceiling. Caller-supplied contexts (chat path →
+    // `translate_query`) keep their own budget unchanged.
     let brain_base = DefaultBrain::new(
-        Arc::clone(&client_pool),
+        Arc::clone(&chat_model_registry),
         std::iter::once(config.llm.clone()).chain(config.fast_llm.clone()),
         Arc::clone(&db_model_router) as Arc<dyn ox_brain::model_resolver::ModelResolver>,
         prompts,
@@ -305,7 +349,9 @@ async fn main() -> anyhow::Result<()> {
             name: config.llm.provider.clone(),
             model: config.llm.model.clone(),
         },
-    );
+    )
+    .with_default_run_budget(config.agent.run_budget.clone())
+    .with_token_counter_registry(Arc::clone(&token_counter_registry));
 
     // Initialize authentication
     let jwt_enabled = config.auth.jwt_secret.is_some();
@@ -611,8 +657,8 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Φ10.4: community detection cron — runs Leiden over the
-    // canonical ontology graph, summarises each emitted
-    // community via the Brain's CommunitySummariser, and
+    // canonical ontology graph, summarizes each emitted
+    // community via the Brain's CommunitySummarizer, and
     // upserts community_summaries for the GraphRAG retrieval
     // path. Singleton-locked, 6-hour cadence; per-community
     // membership-fingerprint check skips the LLM call when
@@ -679,7 +725,8 @@ async fn main() -> anyhow::Result<()> {
         rate_limiter,
         memory,
         tokenizer_registry,
-        client_pool,
+        chat_model_registry,
+        policy_registry,
         model_router: db_model_router,
         oidc_providers,
         tool_review_channels: Some(Arc::new(dashmap::DashMap::new())),
@@ -879,7 +926,7 @@ async fn main() -> anyhow::Result<()> {
         let maintenance_store = Arc::clone(&state.store);
         let maintenance_memory = state.memory.clone();
         let maintenance_channels = state.tool_review_channels.clone();
-        let maintenance_client_pool = Arc::clone(&state.client_pool);
+        let maintenance_chat_model_registry = Arc::clone(&state.chat_model_registry);
         let memory_days = config.retention.memory_days;
         let session_days = config.retention.session_days;
         let wip_archive_days = config.retention.wip_archive_days;
@@ -995,7 +1042,7 @@ async fn main() -> anyhow::Result<()> {
                         }).await;
 
                         // Evict LLM clients idle for over 1 hour.
-                        maintenance_client_pool.invalidate_idle(3600);
+                        maintenance_chat_model_registry.invalidate_idle(3600);
 
                         // Clean up stale tool review channels (abandoned sessions).
                         // Oneshot senders are removed on consumption; this handles
@@ -1277,6 +1324,60 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Server shut down gracefully");
     Ok(())
+}
+
+/// Snapshot the workspace's active pricing catalogue into a
+/// [`entelix::PolicyRegistry`] whose fallback `TenantPolicy`
+/// carries a [`entelix::CostMeter`] keyed by wire-form model
+/// id. The registry threads into every `ChatModel` constructed by
+/// `chat_model_factory::build_chat_model` via `PolicyLayer`, so the
+/// `RunBudget`'s token + cost pre-call gates and the per-tenant cost
+/// ledger ride every dispatch.
+///
+/// Boot-time one-shot — tariff revisions reseed the registry via the
+/// admin write path. The `WarnOnce` policy keeps an unknown-model
+/// charge from masquerading as a free call: the first hit logs once,
+/// subsequent hits keep the warn quiet but record `Decimal::ZERO`
+/// against the ledger so the operator still sees the gap in
+/// observability.
+/// `UnknownModelSink` impl that bumps a Prometheus counter for every
+/// unknown-model charge attempt. Pairs with
+/// `entelix::UnknownModelPolicy::WarnOnce` — the policy keeps log
+/// noise bounded while this sink keeps the raw per-attempt count
+/// flowing to operator dashboards, so a sudden spike (catalog drift,
+/// new vendor model the admin hasn't priced yet) is visible without
+/// hand-grepping logs.
+struct UnknownModelMetricsSink;
+
+impl entelix::UnknownModelSink for UnknownModelMetricsSink {
+    fn record_unknown_model(&self, tenant: &entelix::TenantId, model: &str) {
+        metrics::counter!(
+            "ox_policy_unknown_model_charge_total",
+            "tenant" => tenant.as_str().to_owned(),
+            "model" => model.to_owned(),
+        )
+        .increment(1);
+    }
+}
+
+async fn build_policy_registry(
+    store: &Arc<ox_store::PostgresStore>,
+) -> anyhow::Result<Arc<entelix::PolicyRegistry>> {
+    let active = ox_store::PostgresStore::with_system_bypass(|| async {
+        store.list_active_model_prices().await
+    })
+    .await?;
+    let pricing_table = ox_brain::pricing::pricing_table_from(&active)?;
+    let cost_meter = entelix::CostMeter::new(pricing_table)
+        .with_unknown_model_policy(entelix::UnknownModelPolicy::WarnOnce)
+        .with_unknown_model_sink(Arc::new(UnknownModelMetricsSink));
+    let fallback = entelix::TenantPolicy::new().with_cost_meter(Arc::new(cost_meter));
+    let registry = entelix::PolicyRegistry::new().with_fallback(fallback);
+    tracing::info!(
+        models = active.len(),
+        "policy registry seeded with workspace pricing catalogue"
+    );
+    Ok(Arc::new(registry))
 }
 
 async fn shutdown_signal(cancel_token: tokio_util::sync::CancellationToken) {

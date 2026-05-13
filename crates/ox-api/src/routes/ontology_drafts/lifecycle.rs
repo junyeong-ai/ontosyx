@@ -979,7 +979,11 @@ pub(crate) async fn generate_load_plan(
 
     let plan = state
         .brain
-        .generate_load_plan(&ontology, &source_schema)
+        .generate_load_plan(
+            &ontology,
+            &source_schema,
+            &entelix::ExecutionContext::default(),
+        )
         .await
         .map_err(AppError::from)?;
 

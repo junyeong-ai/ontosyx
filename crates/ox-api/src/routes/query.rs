@@ -680,7 +680,15 @@ pub(crate) async fn execute_from_ir(
     let widget_hint = if results.metadata.rows_returned > 0 {
         let sample = serde_json::to_string(&results.rows.iter().take(5).collect::<Vec<_>>())
             .unwrap_or_default();
-        match state.brain.select_widget(&req.query_ir, &sample).await {
+        match state
+            .brain
+            .select_widget(
+                &req.query_ir,
+                &sample,
+                &entelix::ExecutionContext::default(),
+            )
+            .await
+        {
             Ok(hint) => Some(hint),
             Err(e) => {
                 tracing::warn!("Widget hint selection failed: {e}");

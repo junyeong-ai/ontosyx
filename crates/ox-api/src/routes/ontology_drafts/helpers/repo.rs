@@ -73,30 +73,36 @@ pub(crate) async fn run_repo_enrichment(
         std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
 
     // Navigate repo (LLM selects files)
-    let selected_files =
-        match tokio::time::timeout(timeout, state.brain.navigate_repo(&file_tree)).await {
-            Ok(Ok(files)) => files,
-            Ok(Err(e)) => {
-                warn!(?source, error = %e, "Repo navigation LLM call failed — skipping enrichment");
-                report.repo_summary = Some(RepoAnalysisSummary {
-                    commit_sha: cloned_sha.clone(),
-                    ..failed_repo_summary(RepoFailureKind::LlmNavigationFailed, tree_truncated)
-                });
-                return;
-            }
-            Err(_) => {
-                warn!(
-                    ?source,
-                    timeout_secs = timeout.as_secs(),
-                    "Repo navigation timed out — skipping enrichment"
-                );
-                report.repo_summary = Some(RepoAnalysisSummary {
-                    commit_sha: cloned_sha.clone(),
-                    ..failed_repo_summary(RepoFailureKind::Timeout, tree_truncated)
-                });
-                return;
-            }
-        };
+    let selected_files = match tokio::time::timeout(
+        timeout,
+        state
+            .brain
+            .navigate_repo(&file_tree, &entelix::ExecutionContext::default()),
+    )
+    .await
+    {
+        Ok(Ok(files)) => files,
+        Ok(Err(e)) => {
+            warn!(?source, error = %e, "Repo navigation LLM call failed — skipping enrichment");
+            report.repo_summary = Some(RepoAnalysisSummary {
+                commit_sha: cloned_sha.clone(),
+                ..failed_repo_summary(RepoFailureKind::LlmNavigationFailed, tree_truncated)
+            });
+            return;
+        }
+        Err(_) => {
+            warn!(
+                ?source,
+                timeout_secs = timeout.as_secs(),
+                "Repo navigation timed out — skipping enrichment"
+            );
+            report.repo_summary = Some(RepoAnalysisSummary {
+                commit_sha: cloned_sha.clone(),
+                ..failed_repo_summary(RepoFailureKind::Timeout, tree_truncated)
+            });
+            return;
+        }
+    };
 
     if selected_files.is_empty() {
         warn!(
@@ -139,40 +145,46 @@ pub(crate) async fn run_repo_enrichment(
     }
 
     // Analyze files (LLM extracts enums/relationships)
-    let insights =
-        match tokio::time::timeout(timeout, state.brain.analyze_repo_files(&file_contents)).await {
-            Ok(Ok(ins)) => ins,
-            Ok(Err(e)) => {
-                warn!(?source, error = %e, "Repo analysis LLM call failed — skipping enrichment");
-                report.repo_summary = Some(RepoAnalysisSummary {
-                    status: RepoAnalysisStatus::Failed,
-                    failure_reason: Some(RepoFailureKind::LlmAnalysisFailed),
-                    files_requested: selected_files.len(),
-                    files_analyzed: file_contents.len(),
-                    tree_truncated,
-                    commit_sha: cloned_sha.clone(),
-                    ..empty_repo_summary()
-                });
-                return;
-            }
-            Err(_) => {
-                warn!(
-                    ?source,
-                    timeout_secs = timeout.as_secs(),
-                    "Repo analysis timed out — skipping enrichment"
-                );
-                report.repo_summary = Some(RepoAnalysisSummary {
-                    status: RepoAnalysisStatus::Failed,
-                    failure_reason: Some(RepoFailureKind::Timeout),
-                    files_requested: selected_files.len(),
-                    files_analyzed: file_contents.len(),
-                    tree_truncated,
-                    commit_sha: cloned_sha.clone(),
-                    ..empty_repo_summary()
-                });
-                return;
-            }
-        };
+    let insights = match tokio::time::timeout(
+        timeout,
+        state
+            .brain
+            .analyze_repo_files(&file_contents, &entelix::ExecutionContext::default()),
+    )
+    .await
+    {
+        Ok(Ok(ins)) => ins,
+        Ok(Err(e)) => {
+            warn!(?source, error = %e, "Repo analysis LLM call failed — skipping enrichment");
+            report.repo_summary = Some(RepoAnalysisSummary {
+                status: RepoAnalysisStatus::Failed,
+                failure_reason: Some(RepoFailureKind::LlmAnalysisFailed),
+                files_requested: selected_files.len(),
+                files_analyzed: file_contents.len(),
+                tree_truncated,
+                commit_sha: cloned_sha.clone(),
+                ..empty_repo_summary()
+            });
+            return;
+        }
+        Err(_) => {
+            warn!(
+                ?source,
+                timeout_secs = timeout.as_secs(),
+                "Repo analysis timed out — skipping enrichment"
+            );
+            report.repo_summary = Some(RepoAnalysisSummary {
+                status: RepoAnalysisStatus::Failed,
+                failure_reason: Some(RepoFailureKind::Timeout),
+                files_requested: selected_files.len(),
+                files_analyzed: file_contents.len(),
+                tree_truncated,
+                commit_sha: cloned_sha.clone(),
+                ..empty_repo_summary()
+            });
+            return;
+        }
+    };
 
     enrich_with_repo(report, &insights);
 
@@ -295,15 +307,20 @@ pub(crate) async fn analyze_code_repository(
         std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
 
     // Navigate repo (LLM selects files)
-    let selected_files = tokio::time::timeout(timeout, state.brain.navigate_repo(&file_tree))
-        .await
-        .map_err(|_| {
-            AppError::timeout(format!(
-                "Repo navigation timed out after {}s",
-                timeout.as_secs()
-            ))
-        })?
-        .map_err(|e| AppError::internal(format!("Repo navigation failed: {e}")))?;
+    let selected_files = tokio::time::timeout(
+        timeout,
+        state
+            .brain
+            .navigate_repo(&file_tree, &entelix::ExecutionContext::default()),
+    )
+    .await
+    .map_err(|_| {
+        AppError::timeout(format!(
+            "Repo navigation timed out after {}s",
+            timeout.as_secs()
+        ))
+    })?
+    .map_err(|e| AppError::internal(format!("Repo navigation failed: {e}")))?;
 
     if selected_files.is_empty() {
         return Err(AppError::repo_analysis_failed("empty_selection", ""));
@@ -319,15 +336,20 @@ pub(crate) async fn analyze_code_repository(
     }
 
     // Analyze files (LLM extracts enums/relationships)
-    let insights = tokio::time::timeout(timeout, state.brain.analyze_repo_files(&file_contents))
-        .await
-        .map_err(|_| {
-            AppError::timeout(format!(
-                "Repo analysis timed out after {}s",
-                timeout.as_secs()
-            ))
-        })?
-        .map_err(|e| AppError::internal(format!("Repo analysis failed: {e}")))?;
+    let insights = tokio::time::timeout(
+        timeout,
+        state
+            .brain
+            .analyze_repo_files(&file_contents, &entelix::ExecutionContext::default()),
+    )
+    .await
+    .map_err(|_| {
+        AppError::timeout(format!(
+            "Repo analysis timed out after {}s",
+            timeout.as_secs()
+        ))
+    })?
+    .map_err(|e| AppError::internal(format!("Repo analysis failed: {e}")))?;
 
     info!(
         enums = insights.enum_definitions.len(),

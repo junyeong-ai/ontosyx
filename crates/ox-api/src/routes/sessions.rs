@@ -244,28 +244,27 @@ fn events_to_messages(session: &AgentSession, events: &[AgentEvent]) -> Vec<Sess
         usage: None,
     });
 
-    // Build the assistant message from events
+    // Build the assistant message from events. The agent emits
+    // tool dispatches as `ToolStart` / `ToolComplete` / `ToolError`,
+    // and one terminal `Complete` carrying the final text + token
+    // usage. `Started` / `Failed` are book-end markers we pass over.
     let mut content = String::new();
-    let mut thinking = String::new();
     let mut tool_calls: Vec<SessionToolCall> = Vec::new();
     let mut input_tokens: i64 = 0;
     let mut output_tokens: i64 = 0;
 
     for event in events {
         match &event.payload {
-            AgentEventPayload::Text { delta } => {
-                content.push_str(delta);
-            }
-            AgentEventPayload::Thinking { content: text } => {
-                if !thinking.is_empty() {
-                    thinking.push('\n');
-                }
-                thinking.push_str(text);
-            }
-            AgentEventPayload::ToolStart { id, name, input } => {
+            AgentEventPayload::Started { .. } | AgentEventPayload::Failed { .. } => {}
+            AgentEventPayload::ToolStart {
+                tool_use_id,
+                tool,
+                input,
+                ..
+            } => {
                 tool_calls.push(SessionToolCall {
-                    id: id.clone(),
-                    name: name.clone(),
+                    id: tool_use_id.clone(),
+                    name: tool.clone(),
                     input: Some(input.clone()),
                     output: None,
                     is_error: None,
@@ -275,75 +274,55 @@ fn events_to_messages(session: &AgentSession, events: &[AgentEvent]) -> Vec<Sess
                 });
             }
             AgentEventPayload::ToolComplete {
-                id,
+                tool_use_id,
                 output,
-                is_error,
                 duration_ms,
                 ..
             } => {
-                if let Some(tc) = tool_calls.iter_mut().rev().find(|tc| tc.id == *id) {
-                    tc.output = Some(
-                        output
-                            .as_str()
-                            .map(str::to_owned)
-                            .unwrap_or_else(|| output.to_string()),
-                    );
-                    tc.is_error = Some(*is_error);
-                    tc.duration_ms = *duration_ms;
-                    tc.status = if *is_error {
-                        SessionToolCallStatus::Error
-                    } else {
-                        SessionToolCallStatus::Done
-                    };
+                if let Some(tc) = tool_calls.iter_mut().rev().find(|tc| tc.id == *tool_use_id) {
+                    tc.output = Some(output.clone());
+                    tc.is_error = Some(false);
+                    tc.duration_ms = Some(*duration_ms);
+                    tc.status = SessionToolCallStatus::Done;
                 }
             }
-            AgentEventPayload::ToolReview { id, name, input } => {
-                tool_calls.push(SessionToolCall {
-                    id: id.clone(),
-                    name: name.clone(),
-                    input: Some(input.clone()),
-                    output: None,
-                    is_error: None,
-                    duration_ms: None,
-                    reason: None,
-                    status: SessionToolCallStatus::Review,
-                });
-            }
-            AgentEventPayload::ToolBlocked { id, name, reason } => {
-                tool_calls.push(SessionToolCall {
-                    id: id.clone(),
-                    name: name.clone(),
-                    input: None,
-                    output: None,
-                    is_error: None,
-                    duration_ms: None,
-                    reason: Some(reason.clone()),
-                    status: SessionToolCallStatus::Error,
-                });
-            }
-            AgentEventPayload::TurnUsage {
-                input_tokens: input,
-                output_tokens: output,
+            AgentEventPayload::ToolError {
+                tool_use_id,
+                error_for_llm,
+                duration_ms,
+                ..
             } => {
-                input_tokens += input;
-                output_tokens += output;
+                if let Some(tc) = tool_calls.iter_mut().rev().find(|tc| tc.id == *tool_use_id) {
+                    tc.output = Some(error_for_llm.clone());
+                    tc.is_error = Some(true);
+                    tc.duration_ms = Some(*duration_ms);
+                    tc.reason = Some(error_for_llm.clone());
+                    tc.status = SessionToolCallStatus::Error;
+                }
             }
-            AgentEventPayload::Complete { text, .. } => {
-                // The complete event's text is the final accumulated text;
-                // we already built content from text deltas, so we use that.
-                // If content is empty but complete has text, use it as fallback.
+            AgentEventPayload::Complete {
+                text,
+                input_tokens: in_tok,
+                output_tokens: out_tok,
+                ..
+            } => {
                 if content.is_empty() {
                     content.push_str(text);
                 }
+                if let Some(t) = in_tok {
+                    input_tokens += *t;
+                }
+                if let Some(t) = out_tok {
+                    output_tokens += *t;
+                }
             }
-            AgentEventPayload::ToolProgress { .. } => {}
         }
     }
 
     messages.push(SessionChatMessage {
         role: SessionMessageRole::Assistant,
         content,
-        thinking: (!thinking.is_empty()).then_some(thinking),
+        thinking: None,
         tool_calls,
         usage: (input_tokens > 0 || output_tokens > 0).then_some(SessionUsage {
             input_tokens,

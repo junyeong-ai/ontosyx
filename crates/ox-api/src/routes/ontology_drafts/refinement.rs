@@ -104,13 +104,10 @@ pub(crate) async fn design_ontology_draft(
     let source_id = ox_ontology::mapping::SourceId::new(project.source_id.clone());
     let design_output = tokio::time::timeout(
         timeout,
-        state
-            .brain
-            .design_ontology(&ox_brain::DesignOntologyInput::bare(
-                &sample_data,
-                &effective_context,
-                &source_id,
-            )),
+        state.brain.design_ontology(
+            &ox_brain::DesignOntologyInput::bare(&sample_data, &effective_context, &source_id),
+            &entelix::ExecutionContext::default(),
+        ),
     )
     .await
     .map_err(|_| {
@@ -365,9 +362,12 @@ pub(crate) async fn refine_ontology_draft(
     let source_id = ox_ontology::mapping::SourceId::new(project.source_id.clone());
     let llm_refined = tokio::time::timeout(
         timeout,
-        state
-            .brain
-            .refine_ontology(&ontology, &refinement_context, &source_id),
+        state.brain.refine_ontology(
+            &ontology,
+            &refinement_context,
+            &source_id,
+            &entelix::ExecutionContext::default(),
+        ),
     )
     .await
     .map_err(|_| {

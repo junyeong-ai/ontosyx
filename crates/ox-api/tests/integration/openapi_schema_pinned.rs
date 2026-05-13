@@ -2155,8 +2155,6 @@ fn session_and_insight_surface_is_typed_not_opaque_objects() {
 
     for component in [
         "AgentSession",
-        "AgentSessionModelConfig",
-        "AgentExecutionMode",
         "AgentEvent",
         "AgentEventPayload",
         "SessionMessagesResponse",
@@ -2187,11 +2185,6 @@ fn session_and_insight_surface_is_typed_not_opaque_objects() {
         &spec,
         "/paths/~1api~1sessions~1{id}/get/responses/200/content/application~1json/schema",
         "AgentSession",
-    );
-    assert_schema_ref(
-        &spec,
-        "/components/schemas/AgentSession/properties/model_config",
-        "AgentSessionModelConfig",
     );
     assert_schema_ref(
         &spec,

@@ -273,7 +273,7 @@ pub(crate) async fn suggest_insights(
 ) -> Result<Json<ApiResponse<Vec<ox_ontology::InsightHint>>>, AppError> {
     let suggestions = state
         .brain
-        .suggest_insights(&ontology, None)
+        .suggest_insights(&ontology, None, &entelix::ExecutionContext::default())
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(suggestions))

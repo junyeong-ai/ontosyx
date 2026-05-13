@@ -181,7 +181,12 @@ async fn judge_one_ragas(
     };
     let (judgement, prov) = scope_evaluation_context(ctx, async {
         brain
-            .judge_evaluation_case(&question, expected_json.as_ref(), &actual_json)
+            .judge_evaluation_case(
+                &question,
+                expected_json.as_ref(),
+                &actual_json,
+                &entelix::ExecutionContext::default(),
+            )
             .await
     })
     .await?;
@@ -282,7 +287,11 @@ async fn judge_one_safety(
     };
     let (judgement, prov) = scope_evaluation_context(ctx, async {
         brain
-            .judge_safety_evaluation_case(&question, &actual_json)
+            .judge_safety_evaluation_case(
+                &question,
+                &actual_json,
+                &entelix::ExecutionContext::default(),
+            )
             .await
     })
     .await?;

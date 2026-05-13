@@ -5,7 +5,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
-use ox_core::error::OxError;
+use ox_core::error::{LlmErrorCode, OxError};
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -377,6 +377,17 @@ pub enum ApiErrorCode {
     /// the offending tag so the FE can surface it back to the
     /// admin.
     NotificationEventUnknown,
+    /// LLM rejected the request at the input boundary — empty
+    /// messages, schema mismatch, or any 4xx from the provider the
+    /// brain cannot self-correct past (entelix buckets every non-
+    /// rate-limited / non-unauthorized 4xx onto this code via
+    /// [`Error::wire_code`](entelix::Error::wire_code)'s
+    /// `upstream_invalid` family). Fold of
+    /// [`LlmErrorCode::InvalidRequest`].
+    LlmInvalidRequest,
+    /// LLM dispatch raised an interrupt for human review. Fold of
+    /// [`LlmErrorCode::Interrupted`].
+    LlmInterrupted,
     // ----- 5xx server errors -----
     InternalError,
     NotImplemented,
@@ -385,6 +396,35 @@ pub enum ApiErrorCode {
     Timeout,
     MissingContext,
     ApiResponseInvalid,
+    /// LLM provider rate limit (HTTP 429 or vendor `Retry-After`).
+    /// The `retry-after` response header carries the vendor's hint
+    /// when present. Fold of [`LlmErrorCode::RateLimited`].
+    LlmRateLimited,
+    /// LLM credential failed at the auth boundary or the provider
+    /// rejected the bearer. Fold of [`LlmErrorCode::AuthFailed`].
+    LlmAuthFailed,
+    /// Network / TLS / DNS class failure reaching the LLM provider.
+    /// Fold of [`LlmErrorCode::Transient`].
+    LlmTransient,
+    /// LLM provider responded with a 5xx. Fold of
+    /// [`LlmErrorCode::ProviderUnavailable`].
+    LlmProviderUnavailable,
+    /// A configured `RunBudget` axis fired during the LLM call.
+    /// Fold of [`LlmErrorCode::BudgetExceeded`].
+    LlmBudgetExceeded,
+    /// The execution context's cancellation token fired before the
+    /// LLM call completed. Fold of [`LlmErrorCode::Cancelled`].
+    LlmCancelled,
+    /// The execution context's deadline fired before the LLM call
+    /// completed. Fold of [`LlmErrorCode::DeadlineExceeded`].
+    LlmDeadlineExceeded,
+    /// JSON serialisation failed at an entelix-managed boundary.
+    /// Fold of [`LlmErrorCode::SerializationError`].
+    LlmSerializationError,
+    /// Validation retry budget exhausted — the model never produced
+    /// a response that satisfied the typed-output validator. Fold
+    /// of [`LlmErrorCode::ModelRetry`].
+    LlmModelRetry,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -400,11 +440,29 @@ impl ApiErrorCode {
     pub fn class(self) -> ApiErrorClass {
         use ApiErrorCode::*;
         match self {
-            InternalError | NotImplemented | Unsupported | ServiceUnavailable | Timeout
-            | MissingContext | ApiResponseInvalid | FeatureNotConfigured | AgentError
-            | DesignError | QualityError | PersistError | ReconcileError | RefineError => {
-                ApiErrorClass::ServerError
-            }
+            InternalError
+            | NotImplemented
+            | Unsupported
+            | ServiceUnavailable
+            | Timeout
+            | MissingContext
+            | ApiResponseInvalid
+            | FeatureNotConfigured
+            | AgentError
+            | DesignError
+            | QualityError
+            | PersistError
+            | ReconcileError
+            | RefineError
+            | LlmRateLimited
+            | LlmAuthFailed
+            | LlmTransient
+            | LlmProviderUnavailable
+            | LlmBudgetExceeded
+            | LlmCancelled
+            | LlmDeadlineExceeded
+            | LlmSerializationError
+            | LlmModelRetry => ApiErrorClass::ServerError,
             _ => ApiErrorClass::ClientError,
         }
     }
@@ -501,7 +559,59 @@ impl ApiErrorCode {
             Timeout => "timeout",
             MissingContext => "missing_context",
             ApiResponseInvalid => "api_response_invalid",
+            LlmInvalidRequest => "llm_invalid_request",
+            LlmInterrupted => "llm_interrupted",
+            LlmRateLimited => "llm_rate_limited",
+            LlmAuthFailed => "llm_auth_failed",
+            LlmTransient => "llm_transient",
+            LlmProviderUnavailable => "llm_provider_unavailable",
+            LlmBudgetExceeded => "llm_budget_exceeded",
+            LlmCancelled => "llm_cancelled",
+            LlmDeadlineExceeded => "llm_deadline_exceeded",
+            LlmSerializationError => "llm_serialization_error",
+            LlmModelRetry => "llm_model_retry",
         }
+    }
+}
+
+/// Project [`LlmErrorCode`] onto the typed wire (status, code) pair.
+/// Used by the [`OxError::Llm`] → [`AppError`] funnel below.
+fn llm_error_status(code: LlmErrorCode) -> (StatusCode, ApiErrorCode) {
+    match code {
+        LlmErrorCode::InvalidRequest => (StatusCode::BAD_REQUEST, ApiErrorCode::LlmInvalidRequest),
+        LlmErrorCode::Interrupted => (StatusCode::CONFLICT, ApiErrorCode::LlmInterrupted),
+        LlmErrorCode::RateLimited => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            ApiErrorCode::LlmRateLimited,
+        ),
+        LlmErrorCode::AuthFailed => (StatusCode::BAD_GATEWAY, ApiErrorCode::LlmAuthFailed),
+        LlmErrorCode::Transient => (StatusCode::SERVICE_UNAVAILABLE, ApiErrorCode::LlmTransient),
+        LlmErrorCode::ProviderUnavailable => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            ApiErrorCode::LlmProviderUnavailable,
+        ),
+        LlmErrorCode::BudgetExceeded => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            ApiErrorCode::LlmBudgetExceeded,
+        ),
+        LlmErrorCode::Cancelled => (StatusCode::SERVICE_UNAVAILABLE, ApiErrorCode::LlmCancelled),
+        LlmErrorCode::DeadlineExceeded => (
+            StatusCode::GATEWAY_TIMEOUT,
+            ApiErrorCode::LlmDeadlineExceeded,
+        ),
+        LlmErrorCode::SerializationError => {
+            (StatusCode::BAD_GATEWAY, ApiErrorCode::LlmSerializationError)
+        }
+        LlmErrorCode::ModelRetry => (StatusCode::BAD_GATEWAY, ApiErrorCode::LlmModelRetry),
+        // `LlmErrorCode` is `#[non_exhaustive]`. A future SDK
+        // variant the brain has not yet been taught to classify
+        // surfaces as a conservative provider-unavailable —
+        // operator dashboards still bucket the failure under a
+        // typed code instead of `internal_error`.
+        _ => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            ApiErrorCode::LlmProviderUnavailable,
+        ),
     }
 }
 
@@ -1301,6 +1411,16 @@ impl AppError {
     }
 }
 
+/// Project a typed [`LlmErrorCode`] onto its canonical
+/// [`ApiErrorCode::Llm*`] wire variant. Non-HTTP failure surfaces
+/// (agent SSE `failed`, future WebSocket failures) route their
+/// classification through this helper so the typed namespace stays
+/// unified across surfaces.
+#[must_use]
+pub fn llm_error_code_for(code: LlmErrorCode) -> ApiErrorCode {
+    llm_error_status(code).1
+}
+
 /// Map an OxError variant (non-Contextual) to HTTP status + typed code.
 fn ox_error_status(err: &OxError) -> (StatusCode, ApiErrorCode) {
     match err {
@@ -1324,6 +1444,7 @@ fn ox_error_status(err: &OxError) -> (StatusCode, ApiErrorCode) {
             StatusCode::INTERNAL_SERVER_ERROR,
             ApiErrorCode::MissingContext,
         ),
+        OxError::Llm { code, .. } => llm_error_status(*code),
         OxError::Runtime { .. } | OxError::Contextual { .. } => (
             StatusCode::INTERNAL_SERVER_ERROR,
             ApiErrorCode::InternalError,
@@ -1340,6 +1461,28 @@ impl From<OxError> for AppError {
         };
 
         let mut app = AppError::new(status, code);
+
+        // Propagate the LLM provider's `Retry-After` hint as a
+        // response header — the FE rate-limit handler keys on the
+        // header rather than parsing params. The lookup unwraps
+        // through `Contextual` because the typed source is what
+        // carries the hint.
+        let llm_source = match &err {
+            OxError::Llm { .. } => Some(&err),
+            OxError::Contextual { source, .. }
+                if matches!(source.as_ref(), OxError::Llm { .. }) =>
+            {
+                Some(source.as_ref())
+            }
+            _ => None,
+        };
+        if let Some(OxError::Llm {
+            retry_after_secs: Some(secs),
+            ..
+        }) = llm_source
+        {
+            app = app.with_header("retry-after", secs.to_string());
+        }
 
         if status.is_server_error() {
             // Log the verbose form server-side at `error` — operators
@@ -1367,6 +1510,23 @@ impl From<OxError> for AppError {
                 }
                 OxError::NotFound { entity } => {
                     app = app.with_param("entity", entity.clone());
+                }
+                OxError::Llm { .. } | OxError::Contextual { .. } => {
+                    // Typed LLM errors carry their wire shape on
+                    // `code` alone — the FE i18n catalogue at
+                    // `errors.llm_<code>` produces every user-facing
+                    // string from the code without operator-supplied
+                    // detail. Log the operator detail for support
+                    // correlation (joined via x-request-id) and
+                    // emit no `params.detail` so the prose-leak
+                    // doctrine holds for client-side LLM rejections
+                    // (`LlmInvalidRequest` / `LlmInterrupted`).
+                    tracing::warn!(
+                        code = code.as_str(),
+                        status = status.as_u16(),
+                        error = %err,
+                        "4xx LLM response"
+                    );
                 }
                 _ => {
                     app = app.with_param("detail", err.to_string());
@@ -1484,6 +1644,54 @@ mod redaction_tests {
         assert_eq!(
             err.params.get("entity"),
             Some(&Value::from("OntologyDraft"))
+        );
+    }
+
+    /// 4xx LLM errors must NOT leak the operator-side detail into
+    /// `params`. The typed `code` (e.g. `llm_invalid_request`) is the
+    /// wire shape; the FE i18n catalogue at `errors.llm_<code>`
+    /// produces every user-facing string. Tripping this assertion
+    /// means a future change reverted the typed-doctrine 4xx
+    /// redaction for LLM-side rejections.
+    #[test]
+    fn llm_4xx_does_not_leak_operator_detail() {
+        let err = OxError::Llm {
+            code: LlmErrorCode::InvalidRequest,
+            detail: "LLM request failed: provider returned 'malformed JSON in tool call'"
+                .to_string(),
+            retry_after_secs: None,
+        };
+        let app_err: AppError = err.into();
+        assert_eq!(app_err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(app_err.code, ApiErrorCode::LlmInvalidRequest);
+        assert!(
+            app_err.params.is_empty(),
+            "4xx LLM errors must not surface operator detail in params: {:?}",
+            app_err.params
+        );
+    }
+
+    /// 5xx LLM errors with a `Retry-After` hint emit the matching
+    /// response header so the FE rate-limit handler keys on the
+    /// header rather than parsing params. Pins the `retry_after_secs`
+    /// → header propagation contract.
+    #[test]
+    fn llm_rate_limited_propagates_retry_after_header() {
+        let err = OxError::Llm {
+            code: LlmErrorCode::RateLimited,
+            detail: "LLM call: provider 429".to_string(),
+            retry_after_secs: Some(13),
+        };
+        let app_err: AppError = err.into();
+        assert_eq!(app_err.status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(app_err.code, ApiErrorCode::LlmRateLimited);
+        let headers = app_err
+            .headers
+            .as_ref()
+            .expect("retry-after should be set as a header");
+        assert_eq!(
+            headers.get("retry-after").and_then(|v| v.to_str().ok()),
+            Some("13")
         );
     }
 
@@ -1606,6 +1814,17 @@ mod redaction_tests {
             WebhookUrlInvalid,
             CredentialResolveFailed,
             NotificationEventUnknown,
+            LlmInvalidRequest,
+            LlmInterrupted,
+            LlmRateLimited,
+            LlmAuthFailed,
+            LlmTransient,
+            LlmProviderUnavailable,
+            LlmBudgetExceeded,
+            LlmCancelled,
+            LlmDeadlineExceeded,
+            LlmSerializationError,
+            LlmModelRetry,
         ];
         for code in all {
             assert!(!code.as_str().is_empty(), "{code:?} has empty wire string");

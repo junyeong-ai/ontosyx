@@ -951,8 +951,6 @@ impl Modify for SecurityAddon {
             ox_query_ir::query::ColumnLineage,
             // Sessions
             ox_store::AgentSession,
-            ox_store::AgentSessionModelConfig,
-            ox_store::AgentExecutionMode,
             ox_store::AgentEvent,
             ox_store::AgentEventPayload,
             sessions::SessionMessagesResponse,

@@ -32,7 +32,7 @@ use super::cron::{CronTask, spawn_cron};
 /// to the banner which renders against whichever row is current.
 const SCAN_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 
-/// Window the cron summarises each run. 30 days balances "enough
+/// Window the cron summarizes each run. 30 days balances "enough
 /// samples to drive MAD" with "sensitive enough to notice real
 /// drift". Phase B can expose this as a tunable.
 const BASELINE_WINDOW: MetricWindow = MetricWindow::Last30d;

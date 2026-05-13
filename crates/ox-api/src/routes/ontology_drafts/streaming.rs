@@ -255,11 +255,14 @@ pub(crate) async fn design_ontology_draft_stream(
 
             match tokio::time::timeout(
                 timeout,
-                state.brain.design_ontology(&ox_brain::DesignOntologyInput::bare(
-                    &sample_data,
-                    &effective_context,
-                    &source_id,
-                )),
+                state.brain.design_ontology(
+                    &ox_brain::DesignOntologyInput::bare(
+                        &sample_data,
+                        &effective_context,
+                        &source_id,
+                    ),
+                    &entelix::ExecutionContext::default(),
+                ),
             )
             .await
             {
@@ -295,6 +298,7 @@ pub(crate) async fn design_ontology_draft_stream(
                 .resolve_design_provenance(
                     "design_ontology_batch",
                     operation::DESIGN_ONTOLOGY,
+                    &entelix::ExecutionContext::default(),
                 )
                 .await
             {
@@ -488,7 +492,13 @@ pub(crate) async fn design_ontology_draft_stream(
 
                         match tokio::time::timeout(
                             timeout,
-                            state.brain.design_ontology_batch(&batch_input, &effective_context, &existing, &cross),
+                            state.brain.design_ontology_batch(
+                                &batch_input,
+                                &effective_context,
+                                &existing,
+                                &cross,
+                                &entelix::ExecutionContext::default(),
+                            ),
                         ).await {
                             Ok(Ok(ir)) => {
                                 info!(ontology_draft_id = %id, cluster = cluster_id, nodes = ir.node_types.len(), "Batch completed");
@@ -609,7 +619,17 @@ pub(crate) async fn design_ontology_draft_stream(
                                 // scope. If it ever happens, drop the concurrency
                                 // bound and proceed so we never silently deadlock.
                                 let _permit = sem.acquire().await.ok();
-                                tokio::time::timeout(t, brain.design_ontology_batch(&bi, &ctx, &ex, &cr)).await
+                                tokio::time::timeout(
+                                    t,
+                                    brain.design_ontology_batch(
+                                        &bi,
+                                        &ctx,
+                                        &ex,
+                                        &cr,
+                                        &entelix::ExecutionContext::default(),
+                                    ),
+                                )
+                                .await
                             }
                         }).collect();
 
@@ -693,7 +713,10 @@ pub(crate) async fn design_ontology_draft_stream(
                 match tokio::time::timeout(
                     timeout,
                     state.brain.resolve_cross_edges(
-                        &node_labels, &existing_edges, &uncovered_text,
+                        &node_labels,
+                        &existing_edges,
+                        &uncovered_text,
+                        &entelix::ExecutionContext::default(),
                     ),
                 )
                 .await
@@ -1097,7 +1120,12 @@ pub(crate) async fn refine_ontology_draft_stream(
         let llm_started = Instant::now();
         let llm_result = tokio::time::timeout(
             timeout,
-            state.brain.refine_ontology(&ontology, &refinement_context, &source_id),
+            state.brain.refine_ontology(
+                &ontology,
+                &refinement_context,
+                &source_id,
+                &entelix::ExecutionContext::default(),
+            ),
         )
         .await;
 

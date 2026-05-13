@@ -21,7 +21,7 @@ Axum HTTP server. Binary name: `ontosyx`.
 
 ## DTO naming
 
-Action DTOs follow `Verb + Noun + (Request|Response)` — `CreateProjectRequest`, `UpdateOntologyDraftDecisionsRequest`, `ExtendOntologyDraftResponse`. Read-only data shapes that carry no verb keep their noun-only names — `WorkspaceResponse`, `ErrorResponse`, `AdapterAnalysisResponse`.
+Action DTOs follow `Verb + Noun + (Request|Response)` — `CreateDashboardRequest`, `UpdateOntologyDraftDecisionsRequest`, `ExtendOntologyDraftResponse`. Read-only data shapes that carry no verb keep their noun-only names — `WorkspaceResponse`, `ErrorResponse`, `AdapterAnalysisResponse`.
 
 ## Typed error model — `ApiErrorCode` + `params`
 
@@ -39,10 +39,10 @@ Every error response (HTTP body + SSE `error` event) carries the typed wire shap
 
 1. New `ApiErrorCode` variant.
 2. Mirror in `as_str` and the `every_variant_has_string_and_class` array.
-3. Typed constructor with structured params (`AppError::ontology_version_conflict(expected, current)`), not free-form strings.
+3. Typed constructor with structured params, not free-form strings.
 4. `errors.<code>` templates in `web/messages/{ko,en}.json`.
 
-`pnpm error-code-parity-audit` (CI gate) parses `as_str` and asserts every wire string has a matching template in both bundles. 5xx params stay empty by convention — driver text never reaches the wire body. Operators correlate via the `x-request-id` response header (set by the request-id middleware). `runtime_5xx_redacts_driver_text` pins this.
+`pnpm error-code-parity-audit` (CI gate) parses two sources: `ApiErrorCode::as_str` (97 codes, namespace `llm_*` + the broader API set) and entelix `Error::wire_signal` (17 buckets, namespace `tool_<wire_code>`). Both sets must round-trip against both locale bundles. 5xx params stay empty by convention — driver text never reaches the wire body. Operators correlate via the `x-request-id` response header (set by the request-id middleware). `runtime_5xx_redacts_driver_text` pins this.
 
 ## Language-neutral wire shape
 
@@ -66,15 +66,29 @@ Adding a gate = one `GateId` variant + one match arm in `evaluate_design_gates` 
 
 ## Model management
 
-`DbModelRouter` implements `ModelResolver`, reads from DB with a 30s TTL cache. After any model-config write, call `state.model_router.invalidate().await` and `state.client_pool.invalidate_all()`.
+`DbModelRouter` implements `ModelResolver`, reads from DB with a 30s TTL cache. After any model-config write, call `state.model_router.invalidate().await` and `state.chat_model_registry.invalidate_all()`.
+
+## Policy registry — entelix multi-tenant glue
+
+`AppState::policy_registry: Arc<entelix::PolicyRegistry>` is wired into both the chat model layer (`ChatModelRegistry::with_policy_registry`) and the agent's tool registry (via `BuildAgentRequest::policy_registry`). One shared `Arc` so `PolicyRegistry::mutate_fallback` reseeds reach both surfaces atomically.
+
+`build_policy_registry` (called at server boot) loads the active pricing catalogue from PostgreSQL through `PostgresStore::list_active_model_prices`, converts it via `ox_brain::pricing::pricing_table_from`, and wraps a `CostMeter` (with `UnknownModelPolicy::WarnOnce` + `UnknownModelMetricsSink` so catalogue drift lights up Prometheus). Conversion failures (NaN / Infinity tariff rows) refuse boot — silent zero would mask catalogue corruption.
+
+`ox_agent::build_execution_context(caps, thread_id, workspace_id)` stamps the workspace as the `entelix::TenantId` so the PolicyLayer cost ledger / quota gate keys per workspace. Background callers (cron, MCP, admin routes) pass `ExecutionContext::default()` and fall onto the `default` tenant.
 
 ## Chat streaming
 
-`POST /api/chat/stream` returns SSE. `model_override` in the request → `RunConfig` for per-request model switching. The agent runs on branchforge's `execute_stream_with()`.
+`POST /api/chat/stream` returns SSE. `model_override` swaps the resolved model id before agent build. The agent runs on `Agent::execute(initial_state, &ctx)`; per-event delivery rides a `ChannelSink<ReActState>` folded into the agent's fan-out, and `agent_event_to_payload` projects the canonical lifecycle onto SSE frames:
+
+- `Started` / `ToolStart` / `ToolComplete` / `Complete` — pass-through wire shape.
+- `Failed { envelope: LlmFailureEnvelope }` — LLM dispatch failed. `code` is `ApiErrorCode::Llm*`, FE renders prose through `errors.<code>`.
+- `ToolError { envelope: ToolFailureEnvelope }` — tool dispatch failed. `wire_code` is the entelix bucket verbatim, FE renders prose through `errors.tool_<wire_code>`.
+
+Both failure envelopes carry `retry_after_secs` + `provider_status` for vendor-aware FE rate-limit handlers. `project_llm_envelope` / `project_tool_envelope` are the single matching helpers — never inline the projection.
 
 ## MCP server
 
-`mcp.rs` exposes ontology tools via the `rmcp` crate (separate from branchforge's MCP client). Custom domain logic — not a candidate for branchforge delegation.
+`mcp.rs` exposes ontology tools via the `rmcp` crate. Custom domain logic — the MCP surface is its own server, distinct from entelix's `entelix-mcp` client integration.
 
 ## Collaboration WebSocket
 

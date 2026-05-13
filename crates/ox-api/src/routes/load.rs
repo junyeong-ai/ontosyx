@@ -64,9 +64,11 @@ pub(crate) async fn plan_load(
     let timeout = state.timeouts.design_operation;
     let plan = tokio::time::timeout(
         timeout,
-        state
-            .brain
-            .plan_load(&req.ontology, &req.source_description),
+        state.brain.plan_load(
+            &req.ontology,
+            &req.source_description,
+            &entelix::ExecutionContext::default(),
+        ),
     )
     .await
     .map_err(|_| {
@@ -199,9 +201,11 @@ pub(crate) async fn execute_load(
             let timeout = state.timeouts.design_operation;
             tokio::time::timeout(
                 timeout,
-                state
-                    .brain
-                    .plan_load(&req.ontology, &req.source_description),
+                state.brain.plan_load(
+                    &req.ontology,
+                    &req.source_description,
+                    &entelix::ExecutionContext::default(),
+                ),
             )
             .await
             .map_err(|_| {

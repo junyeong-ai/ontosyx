@@ -545,7 +545,7 @@ impl OntosyxMcpServer {
                         &params.question,
                         &ontology,
                         None,
-                        &branchforge::ExecutionContext::empty(),
+                        &entelix::ExecutionContext::default(),
                     )
                     .await
             },
@@ -617,9 +617,13 @@ impl OntosyxMcpServer {
             truncated,
         );
 
-        let explanation = self.brain.explain(&explain_prompt).await.map_err(|e| {
-            McpError::internal_error(format!("Explanation generation failed: {e}"), None)
-        })?;
+        let explanation = self
+            .brain
+            .explain(&explain_prompt, &entelix::ExecutionContext::default())
+            .await
+            .map_err(|e| {
+                McpError::internal_error(format!("Explanation generation failed: {e}"), None)
+            })?;
 
         let elapsed = start.elapsed();
         info!(

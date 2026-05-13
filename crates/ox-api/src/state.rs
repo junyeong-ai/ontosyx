@@ -6,7 +6,7 @@ use dashmap::DashMap;
 use tokio::sync::{OnceCell, RwLock};
 
 use ox_brain::Brain;
-use ox_brain::client_pool::ClientPool;
+use ox_brain::ChatModelRegistry;
 use ox_compiler::{GraphCompiler, PlanCacheHandle};
 use ox_federation::InMemoryAdapterResolver;
 use ox_graph_runtime::GraphRuntime;
@@ -70,7 +70,13 @@ pub struct AppState {
     /// workspace from a single `Arc` — recall consistency
     /// guaranteed by construction.
     pub tokenizer_registry: Arc<ox_text::WorkspaceTokenizerRegistry>,
-    pub client_pool: Arc<ClientPool>,
+    pub chat_model_registry: Arc<ChatModelRegistry>,
+    /// Workspace-wide policy registry — backs `entelix::PolicyLayer`
+    /// at the `ChatModel` and `ToolRegistry` boundaries. Same `Arc`
+    /// instance shared so a future hot-reload via
+    /// `PolicyRegistry::replace_fallback` updates both surfaces
+    /// without a per-route restage.
+    pub policy_registry: Arc<entelix::PolicyRegistry>,
     pub model_router: Arc<DbModelRouter>,
     /// Generic OIDC provider registry (Google, Microsoft, Okta, etc.)
     pub oidc_providers: Arc<OidcProviderRegistry>,
@@ -109,10 +115,10 @@ pub struct AppState {
 impl AppState {
     /// Pluck the recovery thresholds in the form the agent crate
     /// expects, without making ox-agent depend on ox-api's `OxConfig`.
-    pub fn recovery_hook_config(&self) -> ox_agent::hooks::RecoveryHookConfig {
-        ox_agent::hooks::RecoveryHookConfig {
+    pub fn recovery_detection_config(&self) -> ox_agent::sinks::RecoveryDetectionConfig {
+        ox_agent::sinks::RecoveryDetectionConfig {
             jaccard_threshold: self.recovery.jaccard_threshold,
-            session_window_minutes: self.recovery.session_window_minutes,
+            run_window_minutes: self.recovery.run_window_minutes,
         }
     }
 }

@@ -321,7 +321,7 @@ pub(crate) async fn create_model_config(
 
     // Invalidate caches so new config takes effect immediately
     state.model_router.invalidate().await;
-    state.client_pool.invalidate_all();
+    state.chat_model_registry.invalidate_all();
 
     tracing::info!(config_id = %config.id, name = %config.name, "Model config created");
 
@@ -357,7 +357,7 @@ pub(crate) async fn update_model_config(
         .map_err(AppError::from)?;
 
     state.model_router.invalidate().await;
-    state.client_pool.invalidate_all();
+    state.chat_model_registry.invalidate_all();
 
     tracing::info!(config_id = %id, "Model config updated");
 
@@ -396,7 +396,7 @@ pub(crate) async fn delete_model_config(
     }
 
     state.model_router.invalidate().await;
-    state.client_pool.invalidate_all();
+    state.chat_model_registry.invalidate_all();
 
     tracing::info!(config_id = %id, "Model config deleted");
 
@@ -457,7 +457,7 @@ pub(crate) async fn create_routing_rule(
         .map_err(AppError::from)?;
 
     state.model_router.invalidate().await;
-    state.client_pool.invalidate_all();
+    state.chat_model_registry.invalidate_all();
 
     tracing::info!(rule_id = %rule.id, operation = %rule.operation, "Routing rule created");
 
@@ -493,7 +493,7 @@ pub(crate) async fn update_routing_rule(
         .map_err(AppError::from)?;
 
     state.model_router.invalidate().await;
-    state.client_pool.invalidate_all();
+    state.chat_model_registry.invalidate_all();
 
     tracing::info!(rule_id = %id, "Routing rule updated");
 
@@ -533,7 +533,7 @@ pub(crate) async fn delete_routing_rule(
     }
 
     state.model_router.invalidate().await;
-    state.client_pool.invalidate_all();
+    state.chat_model_registry.invalidate_all();
 
     tracing::info!(rule_id = %id, "Routing rule deleted");
 
@@ -575,15 +575,18 @@ pub(crate) async fn test_model_connection(
         timeout_secs: Some(15),
     };
 
-    // Try to create a client and send a minimal request
-    match state.client_pool.get_or_create(&provider_config).await {
-        Ok(client) => {
-            use branchforge::{Message, ModelRequest};
+    // Try to materialise a chat handle and dispatch a minimal request.
+    match state
+        .chat_model_registry
+        .get_or_build(&provider_config)
+        .await
+    {
+        Ok(chat) => {
+            use entelix::ir::Message;
 
-            let request = ModelRequest::new(&provider_config.model, vec![Message::user("Say OK")])
-                .with_max_tokens(16);
-
-            match client.send(&request).await {
+            let messages = vec![Message::user("Say OK")];
+            let ctx = entelix::ExecutionContext::default();
+            match chat.complete_full(messages, &ctx).await {
                 Ok(_) => Ok(ApiResponse::of(TestModelResponse {
                     ok: true,
                     message: format!(

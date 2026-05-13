@@ -6,10 +6,10 @@
 //! retrieval path consumes those rows alongside entity-level
 //! matches.
 //!
-//! ## LLM summarisation
+//! ## LLM summarization
 //!
 //! Each detected community feeds through
-//! [`ox_brain::CommunitySummariser::summarise_community`] to
+//! [`ox_brain::CommunitySummarizer::summarize_community`] to
 //! produce the prose `summary` + headline `title` the
 //! retrieval path's trigram match indexes against. Without
 //! prose summaries the structural member listing is the only
@@ -22,12 +22,12 @@
 //!
 //! Each community carries a sha256 over its sorted
 //! `(kind, logical_id)` member set. Before invoking the
-//! summariser the cron loads the existing row (if any) by
+//! summarizer the cron loads the existing row (if any) by
 //! `(version_id, community_id)` and compares fingerprints —
 //! an unchanged fingerprint short-circuits the LLM call. Two
 //! consecutive cron ticks against an unchanged ontology
 //! version fire zero LLM calls; only structural drift
-//! re-summarises. Bounding the LLM cost to "actual structural
+//! re-summarizes. Bounding the LLM cost to "actual structural
 //! change" — not "every cron tick".
 //!
 //! ## Singleton + workspace fan
@@ -135,7 +135,7 @@ async fn run_sweep(
     let mut workspaces_scanned = 0usize;
     let mut workspaces_skipped = 0usize;
     let mut total_communities = 0usize;
-    let mut total_summarised = 0usize;
+    let mut total_summarized = 0usize;
     let mut total_errors = 0usize;
 
     for ws_id in workspace_ids {
@@ -150,11 +150,11 @@ async fn run_sweep(
             Ok(WorkspaceSweepReport::Skipped) => workspaces_skipped += 1,
             Ok(WorkspaceSweepReport::Scanned {
                 communities_emitted,
-                communities_summarised,
+                communities_summarized,
             }) => {
                 workspaces_scanned += 1;
                 total_communities += communities_emitted;
-                total_summarised += communities_summarised;
+                total_summarized += communities_summarized;
             }
             Err(e) => {
                 warn!(
@@ -172,7 +172,7 @@ async fn run_sweep(
             workspaces_scanned,
             workspaces_skipped,
             total_communities,
-            total_summarised,
+            total_summarized,
             total_errors,
             "community detection sweep tick complete",
         );
@@ -188,10 +188,10 @@ enum WorkspaceSweepReport {
     Scanned {
         communities_emitted: usize,
         /// Subset of `communities_emitted` whose membership
-        /// changed since the last run and were re-summarised
+        /// changed since the last run and were re-summarized
         /// via the LLM. The complement was served from the
         /// stored row's prose (fingerprint match → no LLM call).
-        communities_summarised: usize,
+        communities_summarized: usize,
     },
 }
 
@@ -249,7 +249,7 @@ async fn sweep_workspace(
         .as_str()
         .to_string();
 
-    let (communities_emitted, communities_summarised) = persist_partition(
+    let (communities_emitted, communities_summarized) = persist_partition(
         store,
         brain,
         tokenizer,
@@ -266,7 +266,7 @@ async fn sweep_workspace(
 
     Ok(WorkspaceSweepReport::Scanned {
         communities_emitted,
-        communities_summarised,
+        communities_summarized,
     })
 }
 
@@ -286,7 +286,7 @@ async fn persist_partition(
 ) -> OxResult<(usize, usize)> {
     let min_size = policy.min_cluster_size as usize;
     let mut emitted = 0usize;
-    let mut summarised = 0usize;
+    let mut summarized = 0usize;
 
     for community in &detection.communities {
         if community.members.len() < min_size {
@@ -327,7 +327,7 @@ async fn persist_partition(
             .find_community_summary_by_natural_key(ontology_version_id, &community_id)
             .await?;
 
-        let (title, summary, summarised_now) = match existing {
+        let (title, summary, summarized_now) = match existing {
             Some(prior) if prior.member_fingerprint == member_fingerprint => {
                 (prior.title, prior.summary, false)
             }
@@ -343,7 +343,10 @@ async fn persist_partition(
                         })
                         .collect::<Vec<_>>(),
                 };
-                match brain.summarise_community(request).await {
+                match brain
+                    .summarize_community(request, &entelix::ExecutionContext::default())
+                    .await
+                {
                     Ok((response, _provenance)) => (response.title, response.summary, true),
                     Err(err) => {
                         // LLM failure is non-fatal — fall back
@@ -389,7 +392,7 @@ async fn persist_partition(
         // non-fatal — the row still lands with `embedding = None`
         // and the trigram + FTS rankers continue to serve hybrid
         // retrieval.
-        let embedding = if summarised_now {
+        let embedding = if summarized_now {
             if let Some(provider) = embedder {
                 let embed_input = format!("{} {}", title, summary);
                 match provider
@@ -435,16 +438,16 @@ async fn persist_partition(
         };
         store.upsert_community_summary(&row).await?;
         emitted += 1;
-        if summarised_now {
-            summarised += 1;
+        if summarized_now {
+            summarized += 1;
         }
     }
 
-    Ok((emitted, summarised))
+    Ok((emitted, summarized))
 }
 
 /// Resolve the workspace's preferred display name for the
-/// summariser prompt. Empty `LocalizedText` falls back to the
+/// summarizer prompt. Empty `LocalizedText` falls back to the
 /// ontology's logical name; the LLM uses whichever surfaces
 /// the operator's vocabulary best.
 fn workspace_display_name(display: &LocalizedText, name: &str) -> String {
