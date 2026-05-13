@@ -10,7 +10,6 @@ struct AgentSessionRow {
     prompt_hash: String,
     tool_schema_hash: String,
     model_id: String,
-    model_config: sqlx::types::Json<AgentSessionModelConfig>,
     user_message: String,
     final_text: Option<String>,
     created_at: DateTime<Utc>,
@@ -26,7 +25,6 @@ impl From<AgentSessionRow> for AgentSession {
             prompt_hash: row.prompt_hash,
             tool_schema_hash: row.tool_schema_hash,
             model_id: row.model_id,
-            model_config: row.model_config.0,
             user_message: row.user_message,
             final_text: row.final_text,
             created_at: row.created_at,
@@ -67,8 +65,8 @@ impl AgentSessionStore for PostgresStore {
         super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO agent_sessions (id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
-             model_id, model_config, user_message, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+             model_id, user_message, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         )
         .bind(s.id)
         .bind(&s.user_id)
@@ -76,7 +74,6 @@ impl AgentSessionStore for PostgresStore {
         .bind(&s.prompt_hash)
         .bind(&s.tool_schema_hash)
         .bind(&s.model_id)
-        .bind(sqlx::types::Json(&s.model_config))
         .bind(&s.user_message)
         .bind(s.created_at)
         .execute(&self.pool)
@@ -107,7 +104,7 @@ impl AgentSessionStore for PostgresStore {
     async fn get_agent_session(&self, id: Uuid) -> OxResult<Option<AgentSession>> {
         let row: Option<AgentSessionRow> = sqlx::query_as(
             "SELECT id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
-                    model_id, model_config, user_message, final_text,
+                    model_id, user_message, final_text,
                     created_at, completed_at
              FROM agent_sessions WHERE id = $1",
         )
@@ -140,7 +137,7 @@ impl AgentSessionStore for PostgresStore {
                         })?;
                 sqlx::query_as(
                     "SELECT id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
-                            model_id, model_config, user_message, final_text,
+                            model_id, user_message, final_text,
                             created_at, completed_at
                      FROM agent_sessions WHERE user_id = $1 AND created_at < $2
                      ORDER BY created_at DESC LIMIT $3",
@@ -156,7 +153,7 @@ impl AgentSessionStore for PostgresStore {
             }
             None => sqlx::query_as(
                 "SELECT id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
-                            model_id, model_config, user_message, final_text,
+                            model_id, user_message, final_text,
                             created_at, completed_at
                      FROM agent_sessions WHERE user_id = $1
                      ORDER BY created_at DESC LIMIT $2",

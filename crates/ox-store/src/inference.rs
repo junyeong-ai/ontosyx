@@ -149,6 +149,7 @@ fn classify_error(err: &OxError) -> ErrorClassification {
         OxError::Runtime { .. }
         | OxError::Contextual { .. }
         | OxError::Serialization(_)
+        | OxError::Llm { .. }
         | OxError::MissingContext { .. } => ErrorClassification::RuntimeError,
     }
 }

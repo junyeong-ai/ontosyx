@@ -61,12 +61,12 @@ CI.
 | `ox-query-ir`      | `QueryIR`, `PatternIR`, `Expr`, `PathSpec`; compile target (DB-agnostic)          | Any backend |
 | `ox-source`        | `DataSourceAdapter`, `IntrospectionKernel`, `SemanticTyper`, adapters, Arrow normalisation | Execution planning |
 | `ox-store`         | PostgreSQL RLS persistence of ontology / glossary / rules / mappings / audit / drift | Business logic |
-| `ox-memory`        | Embeddings, `KnowledgeStore`, `RecoveryDetectionHook`                              | LLM calls, tool orchestration |
+| `ox-memory`        | Embeddings, `KnowledgeStore`                                                       | LLM calls, tool orchestration |
 | `ox-compiler`      | `QueryIR` → Cypher / DataFusion lowering; cost estimation; OWL/Turtle/SHACL export | Backend execution |
 | `ox-federation`    | Planner pipeline, DataFusion integration, `TableProvider` wrapping, dispatch       | Prompt templates, persistence |
 | `ox-graph-runtime` | Graph backend drivers (Neo4j / Memgraph), Cypher pipeline, validators, dialects   | LLM, prompt logic |
-| `ox-brain`         | LLM orchestration: `PromptRegistry`, `ClientPool`, `ModelResolver`, RAG, PlanRouter | Tool surfaces |
-| `ox-agent`         | Tool set, approval state machine, progress channel                                 | Prompt authoring |
+| `ox-brain`         | LLM orchestration: `PromptRegistry`, `ChatModelRegistry`, `ModelResolver`, RAG, PlanRouter | Tool surfaces |
+| `ox-agent`         | Tool set, approval state machine, sinks (Embedding, RecoveryDetection, FanOut), progress channel | Prompt authoring |
 | `ox-api`           | axum REST + WS + MCP + OpenAPI; `spawn_scoped`; middleware                         | Business logic |
 
 ## Enforcement

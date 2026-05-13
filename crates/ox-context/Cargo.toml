@@ -1,0 +1,25 @@
+[package]
+name = "ox-context"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Single-purpose crate that propagates ontosyx's request-scope identity
+# (workspace_id / system bypass) across tokio::spawn and tower middleware
+# boundaries. Sits one level above ox-store and ox-graph-runtime so both
+# task-local pairs (store + graph) capture and re-apply through a single
+# entry point.
+
+[dependencies]
+ox-store = { workspace = true }
+ox-graph-runtime = { workspace = true }
+entelix = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+parking_lot = "0.12"

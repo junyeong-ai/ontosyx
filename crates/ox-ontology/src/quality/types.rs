@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 // ---------------------------------------------------------------------------
 // Quality assessment configuration (thresholds)
 //
-// These used to be hardcoded inside `assessment.rs`. Surfacing them as a
-// typed struct lets each deployment tune "what counts as a small sample"
-// or "how sparse is sparse" without touching core logic. `Default` mirrors
-// the historical values so existing callers keep their behavior.
+// Typed surface for the heuristics the assessor applies — what counts as a
+// small sample, how sparse is sparse. Surfacing them as a struct (rather
+// than inline constants) lets each deployment tune the gates per dataset
+// shape without forking the assessment logic.
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, utoipa::ToSchema)]

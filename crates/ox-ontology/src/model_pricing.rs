@@ -67,6 +67,20 @@ pub struct ModelCall {
     /// cost derivation discounts these at
     /// [`ModelPrices::cached_input_price_usd_per_million`].
     pub cached_input_tokens: u64,
+    /// Tokens billed at the cache-creation rate — the *first*
+    /// dispatch that establishes a prompt-cache breakpoint pays a
+    /// per-million premium (Anthropic charges ~1.25× the input rate
+    /// for cache write; providers vary). Cost-discrepancy alerts
+    /// branch on a non-zero value here, so the wire shape carries
+    /// it explicitly.
+    #[serde(default)]
+    pub cache_creation_input_tokens: u64,
+    /// Reasoning tokens consumed by extended-thinking models
+    /// (Anthropic `thinking`, OpenAI o-series internal reasoning).
+    /// Billed at the output rate. `0` for non-thinking calls so
+    /// pricing arithmetic is uniform across model families.
+    #[serde(default)]
+    pub reasoning_tokens: u64,
     /// Wall-clock latency from invocation to completion. Captured
     /// at the application layer (provider SDK boundary), not
     /// inside the SDK's HTTP layer — the operator's observability
@@ -88,6 +102,12 @@ impl ModelCall {
     /// on very long contexts. Returns `None` when no pricing row
     /// applies (caller decides whether to skip the metric or treat
     /// as a configuration error).
+    ///
+    /// Five tariff legs sum: full-rate input, cache-read input,
+    /// cache-creation input, output, and reasoning. Reasoning
+    /// tokens are billed at the output rate per provider
+    /// convention; cache-creation tokens at the dedicated
+    /// `cache_creation_input_price_usd_per_million` tariff.
     pub fn cost_micro_usd(&self, prices: &ModelPrices) -> u64 {
         let billable_input_micro = (self.billable_input_tokens() as u128)
             .saturating_mul(prices.input_price_usd_per_million_micro() as u128)
@@ -95,10 +115,21 @@ impl ModelCall {
         let cached_input_micro = (self.cached_input_tokens as u128)
             .saturating_mul(prices.cached_input_price_usd_per_million_micro() as u128)
             / 1_000_000;
+        let cache_creation_micro = (self.cache_creation_input_tokens as u128)
+            .saturating_mul(prices.cache_creation_input_price_usd_per_million_micro() as u128)
+            / 1_000_000;
         let output_micro = (self.output_tokens as u128)
             .saturating_mul(prices.output_price_usd_per_million_micro() as u128)
             / 1_000_000;
-        (billable_input_micro + cached_input_micro + output_micro).min(u64::MAX as u128) as u64
+        let reasoning_micro = (self.reasoning_tokens as u128)
+            .saturating_mul(prices.output_price_usd_per_million_micro() as u128)
+            / 1_000_000;
+        (billable_input_micro
+            + cached_input_micro
+            + cache_creation_micro
+            + output_micro
+            + reasoning_micro)
+            .min(u64::MAX as u128) as u64
     }
 }
 
@@ -115,6 +146,13 @@ pub struct ModelPrices {
     /// Tariff for cache-read input tokens. Anthropic discounts
     /// these to ~10% of the miss rate; provider-specific.
     pub cached_input_price_usd_per_million: f64,
+    /// Tariff for cache-creation input tokens — the per-million
+    /// rate charged when a dispatch establishes a new prompt-cache
+    /// breakpoint. Anthropic prices these at ~1.25× the cache-miss
+    /// input rate; OpenAI / Bedrock vary. Defaults to the input
+    /// rate when a tariff row predates the column.
+    #[serde(default)]
+    pub cache_creation_input_price_usd_per_million: f64,
     /// Tariff for output tokens.
     pub output_price_usd_per_million: f64,
     /// First instant the row is authoritative. Range is
@@ -141,6 +179,10 @@ impl ModelPrices {
 
     pub fn cached_input_price_usd_per_million_micro(&self) -> u64 {
         usd_to_micro(self.cached_input_price_usd_per_million)
+    }
+
+    pub fn cache_creation_input_price_usd_per_million_micro(&self) -> u64 {
+        usd_to_micro(self.cache_creation_input_price_usd_per_million)
     }
 
     pub fn output_price_usd_per_million_micro(&self) -> u64 {
@@ -172,6 +214,7 @@ mod tests {
             input_price_usd_per_million: 15.0,
             output_price_usd_per_million: 75.0,
             cached_input_price_usd_per_million: 1.5,
+            cache_creation_input_price_usd_per_million: 18.75,
             valid_from: Utc.with_ymd_and_hms(2026, 4, 1, 0, 0, 0).unwrap(),
             valid_to: None,
         }
@@ -183,6 +226,8 @@ mod tests {
             input_tokens: 0,
             output_tokens: 0,
             cached_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            reasoning_tokens: 0,
             latency_ms: 0,
         }
     }
@@ -237,10 +282,26 @@ mod tests {
             model_id: ModelId::new("any"),
             input_tokens: 100,
             cached_input_tokens: 200,
+            cache_creation_input_tokens: 0,
+            reasoning_tokens: 0,
             output_tokens: 0,
             latency_ms: 0,
         };
         assert_eq!(call.billable_input_tokens(), 0);
+    }
+
+    #[test]
+    fn cost_includes_cache_creation_and_reasoning_legs() {
+        let prices = opus_4_7_prices();
+        let call = ModelCall {
+            cache_creation_input_tokens: 1_000_000,
+            reasoning_tokens: 1_000_000,
+            ..call_for(&prices)
+        };
+        // 1M cache-creation × 18.75 USD/M = 18.75 USD = 18_750_000 micro
+        // 1M reasoning × 75 USD/M = 75 USD = 75_000_000 micro (output rate)
+        let cost = call.cost_micro_usd(&prices);
+        assert_eq!(cost, 18_750_000 + 75_000_000);
     }
 
     #[test]

@@ -1319,6 +1319,8 @@ mod tests {
             input_tokens: 100,
             output_tokens: 50,
             cached_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            reasoning_tokens: 0,
             latency_ms: 42,
         };
         // Default `record_call` is a noop — test pins the contract

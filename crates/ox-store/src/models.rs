@@ -794,24 +794,10 @@ pub struct AgentSession {
     pub prompt_hash: String,
     pub tool_schema_hash: String,
     pub model_id: String,
-    pub model_config: AgentSessionModelConfig,
     pub user_message: String,
     pub final_text: Option<String>,
     pub created_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct AgentSessionModelConfig {
-    pub execution_mode: AgentExecutionMode,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AgentExecutionMode {
-    Auto,
-    Plan,
-    Supervised,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
@@ -827,74 +813,151 @@ pub struct AgentEvent {
 
 /// Canonical persisted agent timeline payload. The stream adapter,
 /// audit trail, and session reconstruction all use this shape so
-/// replay does not depend on branchforge's private serde layout.
+/// replay does not depend on the SDK's private serde layout.
+///
+/// Variants mirror the entelix `AgentEvent` lifecycle: `Started`
+/// opens the run; `ToolStart` / `ToolComplete` / `ToolError`
+/// interleave between book-ends; `Complete` carries the terminal
+/// state + token usage; `Failed` records a fatal LLM-side error.
+///
+/// `Failed` carries [`LlmFailureEnvelope`] — LLM dispatch failed
+/// (rate-limit, auth, deadline, …). The `ApiErrorCode::Llm*`
+/// projection lands on the same wire namespace as synchronous
+/// HTTP error envelopes so the FE i18n catalogue resolves both
+/// surfaces through one `errors.<code>` template set.
+///
+/// `ToolError` carries [`ToolFailureEnvelope`] — tool dispatch
+/// failed (query_graph syntax error, source adapter timeout, …).
+/// Mirrors `entelix::ErrorEnvelope` directly without LLM
+/// projection: tool failures aren't LLM provider failures and
+/// shouldn't masquerade as `llm_invalid_request`. FE keys i18n
+/// off `tool_<wire_code>` instead.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct LlmFailureEnvelope {
+    /// Typed wire code (`ApiErrorCode::as_str`, always `llm_*`).
+    /// FE renders prose through `errors.<code>` keyed off this
+    /// field rather than parsing operator-facing detail.
+    pub code: String,
+    /// `"client_error"` (4xx-class) or `"server_error"` (5xx-class).
+    pub class: String,
+    /// Vendor `Retry-After` hint when the failure is rate-limit
+    /// shaped. FE rate-limit handlers key on this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_after_secs: Option<u64>,
+    /// Raw provider HTTP status when the failure came from an
+    /// upstream call. Operators distinguish `429` (rate) vs `503`
+    /// (service-out) without the coarsened `code` bucket.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_status: Option<u16>,
+}
+
+/// Tool dispatch failure shape. Mirrors `entelix::ErrorEnvelope`
+/// directly without LLM-namespace projection — `wire_code` is the
+/// patch-version-stable entelix bucket
+/// (`invalid_request` / `serde` / `cancelled` / …). FE i18n
+/// resolves prose through `errors.tool_<wire_code>` so tool error
+/// keys live in a distinct namespace from LLM error keys.
+///
+/// `class` uses the same `"client_error"` / `"server_error"`
+/// literals as [`LlmFailureEnvelope`] — wire-shape symmetry across
+/// both failure surfaces. Sink consumers that aggregate by class
+/// (e.g. 4xx vs 5xx dashboards) match against one literal pair
+/// regardless of whether the failure originated in an LLM call or
+/// a tool dispatch.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ToolFailureEnvelope {
+    /// Entelix wire bucket (`Error::wire_code()`).
+    pub wire_code: String,
+    /// `"client_error"` (caller-actionable) or `"server_error"`
+    /// (SDK / vendor-side). Mirrors [`LlmFailureEnvelope::class`].
+    pub class: String,
+    /// Vendor `Retry-After` hint when the underlying error carries
+    /// one (rare on tool dispatches; common on SaaS-proxy tools).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_after_secs: Option<u64>,
+    /// Raw upstream HTTP status when the tool proxied an external
+    /// service that returned a failed status.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_status: Option<u16>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AgentEventPayload {
-    Text {
-        delta: String,
-    },
-    Thinking {
-        content: String,
+    Started {
+        run_id: String,
+        agent: String,
     },
     ToolStart {
-        id: String,
-        name: String,
+        run_id: String,
+        tool_use_id: String,
+        tool: String,
         #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
         input: serde_json::Value,
     },
+    /// One tool dispatch completed successfully. `output` is the
+    /// tool's JSON-serialised result rendered as a single string —
+    /// `Value::String("...")` round-trips its inner value; objects
+    /// / arrays / primitives serialise through `to_string()` so the
+    /// wire shape stays uniform regardless of which tool fired.
+    /// Consumers that want structured access parse the field with
+    /// `JSON.parse` and branch on the resulting type.
     ToolComplete {
-        id: String,
-        name: String,
-        #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
-        output: serde_json::Value,
-        is_error: bool,
-        duration_ms: Option<i64>,
+        run_id: String,
+        tool_use_id: String,
+        tool: String,
+        output: String,
+        duration_ms: i64,
     },
-    ToolProgress {
-        tool_call_id: String,
-        step: String,
-        status: String,
-        duration_ms: Option<i64>,
-        #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
-        metadata: serde_json::Value,
-    },
-    ToolBlocked {
-        id: String,
-        name: String,
-        reason: String,
-    },
-    ToolReview {
-        id: String,
-        name: String,
-        #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
-        input: serde_json::Value,
-    },
-    TurnUsage {
-        input_tokens: i64,
-        output_tokens: i64,
+    /// One tool dispatch failed. Carries [`ToolFailureEnvelope`] —
+    /// entelix wire bucket directly, no LLM-namespace projection.
+    /// Tool failures (parse / source-adapter / SaaS-proxy) are a
+    /// distinct domain from LLM provider failures; FE keys i18n
+    /// off `errors.tool_<wire_code>` so the two namespaces never
+    /// collide on the wire.
+    ToolError {
+        run_id: String,
+        tool_use_id: String,
+        tool: String,
+        error: String,
+        error_for_llm: String,
+        duration_ms: i64,
+        envelope: ToolFailureEnvelope,
     },
     Complete {
-        session_id: String,
+        run_id: String,
         text: String,
-        #[schema(value_type = Vec<std::collections::HashMap<String, Object>>, additional_properties)]
-        tool_calls: serde_json::Value,
-        iterations: u32,
+        steps: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        input_tokens: Option<i64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        output_tokens: Option<i64>,
+    },
+    /// Run terminated with a typed LLM-side error.
+    /// [`LlmFailureEnvelope`] carries the wire shape every HTTP /
+    /// SSE LLM failure surface emits; `params` reserves the FE
+    /// i18n interpolation slot.
+    Failed {
+        run_id: String,
+        envelope: LlmFailureEnvelope,
+        /// Interpolation params for the FE i18n catalogue entry.
+        /// Reserved slot — current emit sites pass `{}` per the
+        /// typed-error doctrine (operator detail stays in the
+        /// server log, never the wire body).
+        #[schema(value_type = std::collections::HashMap<String, Object>, additional_properties)]
+        params: serde_json::Value,
     },
 }
 
 impl AgentEventPayload {
     pub fn event_type(&self) -> &'static str {
         match self {
-            Self::Text { .. } => "text",
-            Self::Thinking { .. } => "thinking",
+            Self::Started { .. } => "started",
             Self::ToolStart { .. } => "tool_start",
             Self::ToolComplete { .. } => "tool_complete",
-            Self::ToolProgress { .. } => "tool_progress",
-            Self::ToolBlocked { .. } => "tool_blocked",
-            Self::ToolReview { .. } => "tool_review",
-            Self::TurnUsage { .. } => "turn_usage",
+            Self::ToolError { .. } => "tool_error",
             Self::Complete { .. } => "complete",
+            Self::Failed { .. } => "failed",
         }
     }
 }

@@ -5,12 +5,12 @@
 //! are flat, keeping JSON Schema property count well within the Bedrock/
 //! Anthropic structured output limits (24 optional, 50 total).
 //!
-//! The name was formerly `StructuredMatchQuery`, which read as a peer to `QueryIR`
-//! when it is actually a wire-format for a subset of `QueryOp::Match`.
-//! `StructuredMatchQuery` makes both halves of that relationship explicit:
-//! it is a *structured* (LLM-oriented) form of a *match query*, and it
-//! converts to `QueryIR` via [`StructuredMatchQuery::into_query_ir`] before
-//! compilation.
+//! The name encodes both halves of the relationship to [`QueryIR`]: it is a
+//! *structured* (LLM-oriented) wire format for a *match query* — i.e. the
+//! subset of [`QueryOp::Match`] that LLMs emit through tool calls. Convert
+//! to [`QueryIR`] via [`StructuredMatchQuery::into_query_ir`] before any
+//! compiler / runtime consumer touches the value; downstream layers only
+//! see the canonical IR.
 //!
 //! Design rationale:
 //! - No `Box<T>` recursion → no schema inlining explosion

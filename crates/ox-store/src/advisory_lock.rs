@@ -89,7 +89,7 @@ pub static ADVISORY_LOCK_CRON_VERIFIED_QUERY_FRESHNESS: LazyLock<i64> =
 /// `community_summaries` rows the GraphRAG retrieval path
 /// consumes. Without the lock two replicas would re-detect the
 /// same partition concurrently — UPSERT is idempotent at row
-/// level but wastes the (potentially LLM-summarised) compute.
+/// level but wastes the (potentially LLM-summarized) compute.
 pub static ADVISORY_LOCK_CRON_COMMUNITY_DETECTION: LazyLock<i64> =
     LazyLock::new(|| advisory_lock_key("ontosyx.cron.community_detection"));
 

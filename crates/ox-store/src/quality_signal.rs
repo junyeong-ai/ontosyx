@@ -291,7 +291,7 @@ pub struct StaleConceptProposal {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct WorkspaceQualityBaseline {
     pub workspace_id: Uuid,
-    /// `"7d"` / `"30d"` / `"90d"` — the window the cron summarised.
+    /// `"7d"` / `"30d"` / `"90d"` — the window the cron summarized.
     /// Named `window_label` (not `window`) because `WINDOW` is a
     /// reserved keyword in PostgreSQL and using it bare as a
     /// column name trips the DDL parser.

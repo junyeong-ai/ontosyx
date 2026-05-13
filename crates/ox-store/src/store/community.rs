@@ -13,7 +13,7 @@
 //!
 //! - **Author-time**: operator or detection cron upserts the
 //!   summary; UPSERT key is `(ontology_version_id,
-//!   community_id)` so re-summarisation replaces in place.
+//!   community_id)` so re-summarization replaces in place.
 //! - **Retrieval-time**: the agent's GraphRAG path calls
 //!   `search_summaries(version, query, top_k)` to surface
 //!   relevant communities alongside entity-level matches. The
@@ -30,7 +30,7 @@ use crate::community::CommunitySummary;
 #[async_trait]
 pub trait CommunitySummaryStore: Send + Sync {
     /// Insert-or-update on `(ontology_version_id,
-    /// community_id)`. Re-summarising under the same id
+    /// community_id)`. Re-summarizing under the same id
     /// replaces the prose in place so lineage stays attached
     /// (downstream FE references / metric rows tied to the
     /// id survive).
@@ -105,7 +105,7 @@ pub trait CommunitySummaryStore: Send + Sync {
 
     /// Lookup by natural key. The detection cron uses this to
     /// fetch the stored row's `member_fingerprint` before
-    /// deciding whether to invoke the LLM summariser; an
+    /// deciding whether to invoke the LLM summarizer; an
     /// unchanged fingerprint short-circuits the call.
     async fn find_community_summary_by_natural_key(
         &self,

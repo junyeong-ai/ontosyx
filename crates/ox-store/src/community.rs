@@ -8,7 +8,7 @@
 //! the customer base look") that no single entity-level
 //! match can satisfy.
 //!
-//! Detection (Leiden / Louvain) and LLM summarisation are
+//! Detection (Leiden / Louvain) and LLM summarization are
 //! deferred to a future cron — this module ships the storage
 //! primitive so operators can author summaries manually first
 //! and the retrieval path can already consume them.
@@ -26,7 +26,7 @@ pub struct CommunitySummary {
     pub workspace_id: Uuid,
     pub ontology_version_id: Uuid,
     /// Workspace-supplied or detection-generated id. Stable
-    /// across re-summarisation under the same id (the UPSERT
+    /// across re-summarization under the same id (the UPSERT
     /// natural key is `(ontology_version_id, community_id)`).
     pub community_id: String,
     /// 0 = top-of-tree (broadest), higher = narrower nested.
@@ -46,7 +46,7 @@ pub struct CommunitySummary {
     /// The detection cron compares the new fingerprint against
     /// the stored row's value — equal fingerprints mean the
     /// community's membership hasn't shifted, and the LLM
-    /// summarisation call is skipped (the `title` + `summary`
+    /// summarization call is skipped (the `title` + `summary`
     /// from the previous run carry forward; only `generated_at`
     /// updates).
     pub member_fingerprint: String,

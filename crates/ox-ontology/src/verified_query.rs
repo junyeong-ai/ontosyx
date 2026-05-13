@@ -11,7 +11,7 @@
 //! schema alone).
 //!
 //! Pre-Φ11 Ontosyx had `KnowledgeStore` for failure-driven
-//! corrections (RecoveryDetectionHook auto-records "Q failed → Q
+//! corrections (`RecoveryDetectionSink` auto-records "Q failed → Q
 //! corrected" pairs) but no positive-example bank. The
 //! `EvaluationDataset` surface stores golden Q→IR pairs but
 //! evaluation-side, not for runtime ICL injection.

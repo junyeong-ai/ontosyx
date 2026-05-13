@@ -34,10 +34,29 @@ by `deny.toml::bans.deny`; do not introduce a reverse edge.
 
 ## Error Handling
 
-All errors use `OxResult<T>` = `Result<T, OxError>`. Key `OxError`
-variants: `Compilation`, `Runtime`, `Validation`, `NotFound`,
-`Conflict`, `Parse`, `Contextual` (wraps source + location for
-diagnostics). No `unwrap()` or `expect()` in this crate.
+All errors use `OxResult<T>` = `Result<T, OxError>`. The variants
+are closed and grouped by surface:
+
+- **Compilation / Runtime / Validation / Parse / Serialization /
+  UnsupportedOperation** — the standard domain failure modes;
+  `Validation` carries `(field, message)`, `Parse` the source-error
+  chain.
+- **Ontology / NotFound / Conflict** — typed predicates the API
+  boundary maps onto `4xx` codes (`ontology_error`, `not_found`,
+  `conflict`).
+- **MissingContext** — a workspace / system-bypass scope was
+  required but unset. Surfaces as `5xx missing_context` because the
+  caller path forgot to wrap in a scope.
+- **Llm** — typed LLM-side failure carrying [`LlmErrorCode`],
+  operator detail, and an optional `retry_after_secs`. The API
+  boundary maps `code` onto an `ApiErrorCode::Llm*` variant and the
+  FE i18n catalogue renders the prose; operator detail never
+  reaches the wire body.
+- **Contextual** — `{ source: Box<OxError>, target, location }`
+  wrapper used at layer boundaries. Nested wraps flatten so only
+  the outermost target/location survives.
+
+No `unwrap()` or `expect()` in this crate.
 
 ### `with_context` at layer boundaries
 

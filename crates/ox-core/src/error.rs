@@ -10,6 +10,77 @@ pub struct ErrorContext {
     pub location: String,
 }
 
+/// Stable wire classification for LLM-side failures.
+///
+/// Carried inside [`OxError::Llm`] so the API boundary picks a
+/// single typed `ApiErrorCode` per variant. The FE i18n catalogue
+/// at `errors.llm_<code>` produces the user-facing prose. The enum
+/// is closed — every entelix error variant the brain surfaces
+/// folds into one of these.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum LlmErrorCode {
+    /// Caller-shaped failure — empty messages, schema mismatch, or
+    /// a 400 from the provider the brain cannot retry past.
+    InvalidRequest,
+    /// Provider rate limit (HTTP 429). The companion
+    /// `retry_after_secs` on [`OxError::Llm`] carries the vendor's
+    /// `Retry-After` hint when present.
+    RateLimited,
+    /// Credential failed at the auth boundary or the provider
+    /// rejected the bearer (HTTP 401 / 403).
+    AuthFailed,
+    /// Network / TLS / DNS class failure — the SDK never received
+    /// a complete HTTP framing.
+    Transient,
+    /// Provider responded with a 5xx — the vendor is reachable but
+    /// failed the call.
+    ProviderUnavailable,
+    /// A configured `RunBudget` axis fired (token / cost / request
+    /// / tool-call cap).
+    BudgetExceeded,
+    /// The execution context's cancellation token fired before the
+    /// LLM call completed.
+    Cancelled,
+    /// The execution context's deadline fired before the LLM call
+    /// completed.
+    DeadlineExceeded,
+    /// JSON serialisation failed at an entelix-managed boundary
+    /// (codec, tool I/O).
+    SerializationError,
+    /// Dispatch raised an interrupt for human review.
+    Interrupted,
+    /// Validation retry budget exhausted — the model never produced
+    /// a response that satisfied the typed-output validator.
+    ModelRetry,
+}
+
+impl LlmErrorCode {
+    /// Stable wire string. Mirrors the snake_case identifier the FE
+    /// i18n catalogue keys on at `errors.llm_<code>`.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidRequest => "invalid_request",
+            Self::RateLimited => "rate_limited",
+            Self::AuthFailed => "auth_failed",
+            Self::Transient => "transient",
+            Self::ProviderUnavailable => "provider_unavailable",
+            Self::BudgetExceeded => "budget_exceeded",
+            Self::Cancelled => "cancelled",
+            Self::DeadlineExceeded => "deadline_exceeded",
+            Self::SerializationError => "serialization_error",
+            Self::Interrupted => "interrupted",
+            Self::ModelRetry => "model_retry",
+        }
+    }
+}
+
+impl std::fmt::Display for LlmErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum OxError {
     #[error("Compilation error: {message}")]
@@ -53,6 +124,19 @@ pub enum OxError {
     /// user, or any future scope axis without a per-axis variant.
     #[error("Missing {kind} context: {message}")]
     MissingContext { kind: String, message: String },
+
+    /// LLM-side failure carrying a stable typed classification.
+    /// The API boundary maps `code` onto an `ApiErrorCode::Llm*`
+    /// variant; the FE i18n catalogue at `errors.llm_<code>`
+    /// produces the user-facing prose. `retry_after_secs` carries
+    /// the vendor's `Retry-After` hint when one was present so
+    /// the API layer can emit a matching response header.
+    #[error("LLM {code}: {detail}")]
+    Llm {
+        code: LlmErrorCode,
+        detail: String,
+        retry_after_secs: Option<u64>,
+    },
 
     /// An error with additional diagnostic context.
     #[error("[{target}/{location}] {source}")]

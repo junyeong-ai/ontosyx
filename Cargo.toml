@@ -13,6 +13,7 @@ members = [
     "crates/ox-source",
     "crates/ox-federation",
     "crates/ox-text",
+    "crates/ox-context",
 ]
 resolver = "3"
 
@@ -67,9 +68,20 @@ ox-text = { path = "crates/ox-text" }
 ox-federation = { path = "crates/ox-federation" }
 ox-ontology = { path = "crates/ox-ontology" }
 ox-query-ir = { path = "crates/ox-query-ir" }
+ox-context = { path = "crates/ox-context" }
 
-# LLM runtime
-branchforge = { version = "0.9", default-features = false }
+# LLM runtime — entelix path-dep (sibling repo `../entelix`).
+# Features pinned at the workspace level so every consumer crate
+# inherits the same surface (codecs, agents, auth, cloud transports).
+entelix = { path = "../entelix/crates/entelix", default-features = false, features = [
+    "aws",
+    "tokenizer-tiktoken",
+    "policy",
+] }
+# Decimal carrier surfaced by entelix's `RunBudget::with_cost_limit_usd`.
+# Workspace-pinned so every consumer (ox-agent, ox-api) inherits the
+# same major as `entelix-core`.
+rust_decimal = "1"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -201,6 +213,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 opentelemetry = { version = "0.31", features = ["trace"] }
 opentelemetry_sdk = { version = "0.31", features = ["rt-tokio", "trace"] }
 opentelemetry-otlp = { version = "0.31", default-features = false, features = ["grpc-tonic", "trace"] }
+# Pinned to 0.31 — `tracing-opentelemetry 0.32.1` depends on
+# `opentelemetry 0.31`, so bumping the OTel line to 0.32 splits the
+# generic types between two SDK versions and breaks
+# `SubscriberInitExt` resolution. Re-evaluate when
+# `tracing-opentelemetry` ships a release tracking OTel 0.32.
 tracing-opentelemetry = "0.32"
 
 

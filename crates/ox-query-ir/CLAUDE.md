@@ -25,7 +25,7 @@ QueryIR {
 }
 ```
 
-### `QueryOp` variants (8)
+### `QueryOp` variants
 
 - `Match { patterns, filter, projections, optional, group_by }` —
   the main workload. Every other IR layer can also lower this shape.

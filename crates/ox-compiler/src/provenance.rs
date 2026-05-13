@@ -868,7 +868,7 @@ fn describe_property_filter(pf: &ox_query_ir::query::PropertyFilter) -> String {
 /// Short human description of an expression — used inline in the
 /// filter_summary string. Keeps structural shape visible (`and`,
 /// `or`, `not`) without dumping the full AST; literals are
-/// summarised by type.
+/// summarized by type.
 fn describe_expr(expr: &Expr) -> String {
     use ox_query_ir::query::{ComparisonOp, LogicalOp, StringOp};
     match expr {

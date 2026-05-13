@@ -36,7 +36,7 @@ pub struct CommunityGraphNode {
     pub kind: EntityKind,
     pub logical_id: String,
     /// Display name when the IR carries a human-friendly label.
-    /// Surfaced to the LLM summariser; empty for entity kinds
+    /// Surfaced to the LLM summarizer; empty for entity kinds
     /// without a notion of display name.
     pub display_name: String,
 }

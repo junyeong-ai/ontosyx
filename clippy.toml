@@ -27,8 +27,8 @@
 #
 # `ox-agent` depends on `ox-store` directly (not on `ox-api`), so it
 # cannot import the helpers. Agent-side spawns wrap futures in
-# `ox_store::SYSTEM_BYPASS.scope(...)` or
-# `branchforge::SharedContextScope::wrap_tool_future(...)` by hand.
+# `ox_store::SYSTEM_BYPASS.scope(...)` or `ox_context::ContextScope`
+# by hand.
 # ---------------------------------------------------------------------------
 
 disallowed-methods = [

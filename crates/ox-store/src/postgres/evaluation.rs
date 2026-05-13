@@ -1495,19 +1495,26 @@ impl PostgresStore {
         };
         self.upsert_evaluation_metric(&metric).await.map(|_| ())
     }
+}
 
-    /// Resolve the [`ModelPrices`] row that's authoritative right
-    /// now for the supplied `model_id`. Returns `None` when no
-    /// row applies — the caller treats the cost axis as absent
-    /// rather than synthesising a zero. `model_prices` is platform-
-    /// wide reference data (no RLS) so the lookup runs without a
-    /// workspace context.
-    async fn fetch_active_model_prices(&self, model_id: &ModelId) -> OxResult<Option<ModelPrices>> {
+impl PostgresStore {
+    /// Resolve the [`ModelPrices`] row authoritative right now for
+    /// `model_id`. Powers the evaluation capture path's historical
+    /// price snapshot (`evaluation_metrics.cost_micro_usd.<op>` rows
+    /// pin the tariff active at write time) and the workspace-wide
+    /// `PricingTable` load that seeds `entelix::CostMeter`.
+    /// `model_prices` is platform reference data (no RLS) so the
+    /// lookup runs outside any workspace context.
+    pub async fn fetch_active_model_prices(
+        &self,
+        model_id: &ModelId,
+    ) -> OxResult<Option<ModelPrices>> {
         #[derive(sqlx::FromRow)]
         struct ModelPricesRow {
             model_id: String,
             input_price_usd_per_million: f64,
             cached_input_price_usd_per_million: f64,
+            cache_creation_input_price_usd_per_million: f64,
             output_price_usd_per_million: f64,
             valid_from: chrono::DateTime<chrono::Utc>,
             valid_to: Option<chrono::DateTime<chrono::Utc>>,
@@ -1515,6 +1522,7 @@ impl PostgresStore {
         let row: Option<ModelPricesRow> = sqlx::query_as(
             "SELECT model_id, input_price_usd_per_million,
                     cached_input_price_usd_per_million,
+                    cache_creation_input_price_usd_per_million,
                     output_price_usd_per_million,
                     valid_from, valid_to
                FROM model_prices
@@ -1532,9 +1540,55 @@ impl PostgresStore {
             model_id: ModelId::new(r.model_id),
             input_price_usd_per_million: r.input_price_usd_per_million,
             cached_input_price_usd_per_million: r.cached_input_price_usd_per_million,
+            cache_creation_input_price_usd_per_million: r
+                .cache_creation_input_price_usd_per_million,
             output_price_usd_per_million: r.output_price_usd_per_million,
             valid_from: r.valid_from,
             valid_to: r.valid_to,
         }))
+    }
+
+    /// Snapshot every currently-active price row. Used at server
+    /// boot (and on periodic refresh) to materialise the workspace's
+    /// `entelix::PricingTable` — production wires this into
+    /// `PolicyRegistry` so the `PolicyLayer` charges every call
+    /// against a deterministic, low-latency in-memory tariff.
+    pub async fn list_active_model_prices(&self) -> OxResult<Vec<ModelPrices>> {
+        #[derive(sqlx::FromRow)]
+        struct ModelPricesRow {
+            model_id: String,
+            input_price_usd_per_million: f64,
+            cached_input_price_usd_per_million: f64,
+            cache_creation_input_price_usd_per_million: f64,
+            output_price_usd_per_million: f64,
+            valid_from: chrono::DateTime<chrono::Utc>,
+            valid_to: Option<chrono::DateTime<chrono::Utc>>,
+        }
+        let rows: Vec<ModelPricesRow> = sqlx::query_as(
+            "SELECT model_id, input_price_usd_per_million,
+                    cached_input_price_usd_per_million,
+                    cache_creation_input_price_usd_per_million,
+                    output_price_usd_per_million,
+                    valid_from, valid_to
+               FROM model_prices
+              WHERE valid_from <= now()
+                AND (valid_to IS NULL OR valid_to > now())",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(rows
+            .into_iter()
+            .map(|r| ModelPrices {
+                model_id: ModelId::new(r.model_id),
+                input_price_usd_per_million: r.input_price_usd_per_million,
+                cached_input_price_usd_per_million: r.cached_input_price_usd_per_million,
+                cache_creation_input_price_usd_per_million: r
+                    .cache_creation_input_price_usd_per_million,
+                output_price_usd_per_million: r.output_price_usd_per_million,
+                valid_from: r.valid_from,
+                valid_to: r.valid_to,
+            })
+            .collect())
     }
 }

@@ -95,6 +95,14 @@ const PINNED_MIGRATIONS: &[(&str, &str)] = &[
         "0005_community_summary_embedding.sql",
         "6d94fff9e9d0ec1e87a373d64239dc9b4824db7498bcbb09afc8adc8fd415b40",
     ),
+    (
+        "0006_drop_agent_session_model_config.sql",
+        "e2f423094aedceb3511bb857ac9c0db6fd886adfdc3681af4e12657bdea3b8d3",
+    ),
+    (
+        "0007_model_prices_cache_creation_tariff.sql",
+        "a4852248702e19f8d0f143e11d89a179f5789289c2e96b3b9819a957b24f9b52",
+    ),
 ];
 
 #[test]
