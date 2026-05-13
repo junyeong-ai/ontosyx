@@ -248,3 +248,78 @@ fn truncate(s: &str, max_len: usize) -> String {
         format!("{}...", &s[..end])
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use serde_json::json;
+
+    #[test]
+    fn extract_query_graph_emits_columns_and_row_count() {
+        let output = json!({
+            "compiled_query": "MATCH (n) RETURN n",
+            "row_count": 42,
+            "columns": ["a", "b"],
+        });
+        let (content, source) =
+            EmbeddingSink::extract_tool_content("query_graph", &output).expect("extracted");
+        assert!(content.contains("MATCH (n) RETURN n"));
+        assert!(content.contains("Columns: a, b"));
+        assert!(content.contains("Rows: 42"));
+        assert!(matches!(source, MemorySource::Query));
+    }
+
+    #[test]
+    fn extract_query_graph_returns_none_without_compiled_query() {
+        let output = json!({"row_count": 0, "columns": []});
+        assert!(EmbeddingSink::extract_tool_content("query_graph", &output).is_none());
+    }
+
+    #[test]
+    fn extract_edit_ontology_carries_command_count_and_explanation() {
+        let output = json!({"command_count": 3, "explanation": "promoted alias"});
+        let (content, source) =
+            EmbeddingSink::extract_tool_content("edit_ontology", &output).expect("extracted");
+        assert!(content.contains("3 commands"));
+        assert!(content.contains("promoted alias"));
+        assert!(matches!(source, MemorySource::Edit));
+    }
+
+    #[test]
+    fn extract_visualize_falls_back_to_untitled() {
+        let output = json!({"chart_type": "bar", "columns": ["x"]});
+        let (content, _) =
+            EmbeddingSink::extract_tool_content("visualize", &output).expect("extracted");
+        assert!(content.contains("Chart (bar)"));
+        assert!(content.contains("Untitled"));
+        assert!(content.contains("Columns: x"));
+    }
+
+    #[test]
+    fn unsupported_tool_name_returns_none() {
+        // Curated extraction list — adding a tool needs an explicit
+        // arm. The wire shape is intentionally narrow so embedded
+        // memory entries stay coherent, not a union of every tool's
+        // raw JSON.
+        let output = json!({"foo": "bar"});
+        assert!(EmbeddingSink::extract_tool_content("brand_new_tool", &output).is_none());
+    }
+
+    #[test]
+    fn truncate_respects_char_boundary_for_korean() {
+        // Korean chars are multi-byte; naive truncation at a byte
+        // index can land mid-codepoint. The helper walks back to the
+        // nearest char boundary so the resulting string is always
+        // valid UTF-8.
+        let input = "한글입니다";
+        let truncated = truncate(input, 5);
+        assert!(truncated.ends_with("..."));
+        assert!(truncated.is_char_boundary(truncated.len()));
+    }
+
+    #[test]
+    fn truncate_returns_input_when_shorter_than_max() {
+        assert_eq!(truncate("short", 100), "short");
+    }
+}

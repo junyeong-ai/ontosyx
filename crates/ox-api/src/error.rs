@@ -436,6 +436,21 @@ pub enum ApiErrorClass {
     ServerError,
 }
 
+impl ApiErrorClass {
+    /// Canonical wire string — `"client_error"` / `"server_error"`.
+    /// Kept distinct from `serde_json::to_string` so non-serde call
+    /// sites (metrics labels, SSE envelope fields) avoid the
+    /// allocation round-trip while staying in lock-step with the
+    /// serde derive.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ClientError => "client_error",
+            Self::ServerError => "server_error",
+        }
+    }
+}
+
 impl ApiErrorCode {
     pub fn class(self) -> ApiErrorClass {
         use ApiErrorCode::*;

@@ -23,7 +23,7 @@ use std::convert::Infallible;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::agent_event_projection::agent_event_to_payload;
+use crate::agent_event_projection::project_agent_event;
 use crate::error::AppError;
 use crate::principal::Principal;
 use crate::state::AppState;
@@ -274,7 +274,7 @@ pub(crate) async fn chat_stream(
     // `agent.execute` to completion. entelix's
     // `AgentEvent::Failed { envelope, .. }` carries the typed
     // [`entelix::ErrorEnvelope`] through the sink directly, so
-    // `agent_event_to_payload` projects it onto the canonical
+    // `project_agent_event` projects it onto the canonical
     // `AgentEventPayload::Failed` wire shape without a side channel.
     {
         let agent = Arc::clone(&agent);
@@ -286,17 +286,20 @@ pub(crate) async fn chat_stream(
             let exec_ctx = build_execution_context(&run_budget, thread_id, ws_id);
             let initial = ReActState::from_user(user_message_for_run);
             if let Err(error) = agent.execute(initial, &exec_ctx).await {
-                // `warn` carries only the wire bucket — provider
-                // 4xx prose can echo user prompt fragments. Full
-                // `Display` rendering lands at `debug` for
-                // operators with elevated log levels.
+                // The matching `AgentEvent::Failed` already flowed
+                // through the SSE channel sink and was logged at
+                // `warn` by `project_agent_event`. Emit only a
+                // `debug` line here with the synchronous `Display`
+                // form for operators tailing logs without the SSE
+                // wire — duplicating the `warn` would double-count
+                // every failure on alerting dashboards.
                 let envelope = error.envelope();
-                tracing::warn!(
+                tracing::debug!(
                     wire_code = envelope.wire_code,
                     provider_status = envelope.provider_status,
-                    "agent run terminated"
+                    error = %error,
+                    "agent run terminated (synchronous return path)"
                 );
-                tracing::debug!(error = %error, "agent run failure detail");
             }
         });
     }
@@ -367,7 +370,7 @@ pub(crate) async fn chat_stream(
                 }
             }
 
-            if let Some(payload) = agent_event_to_payload(&event) {
+            if let Some(payload) = project_agent_event(&event) {
                 event_sequence += 1;
                 let audit_event = ox_store::AgentEvent {
                     id: Uuid::new_v4(),

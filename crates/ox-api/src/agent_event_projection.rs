@@ -3,18 +3,24 @@
 //!
 //! The agent run emits a stream of `AgentEvent`s through a fan-out of
 //! sinks; the per-request `ChannelSink` forwards each event to the SSE
-//! generator, which calls [`agent_event_to_payload`] to convert into
-//! the wire shape the FE consumes.
+//! generator, which calls [`project_agent_event`] to convert into the
+//! wire shape the FE consumes. The `project_llm_envelope` /
+//! `project_tool_envelope` helpers handle the failure-envelope arms
+//! and are also reachable on their own for callers that hold a raw
+//! [`ErrorEnvelope`] (e.g. synchronous HTTP error paths).
 //!
 //! ## Wildcard policy
 //!
 //! `entelix::AgentEvent<S>` is `#[non_exhaustive]`. Variants we do
 //! not currently project (HITL approval book-ends, future entelix
 //! additions) return `None` so the SSE wire stays explicit about
-//! what it advertises. The `tracing::debug!` line under each
-//! unprojected arm surfaces drift in dev / staging the moment a new
-//! variant fires, so an FE consumer expecting a lifecycle event
-//! doesn't silently miss it.
+//! what it advertises. The `tracing::warn!` line under the
+//! non-exhaustive catch-all surfaces drift the moment a new variant
+//! fires — `warn` (not `debug`) because reaching that arm signals a
+//! contract change between entelix and our projection that an
+//! operator must reconcile, not a normal-operation log line.
+
+use std::mem::discriminant;
 
 use entelix::{AgentEvent, ErrorClass, ErrorEnvelope, ReActState};
 
@@ -26,7 +32,7 @@ use crate::error::{ApiErrorClass, llm_error_code_for};
 /// Project an entelix [`AgentEvent<ReActState>`] onto the persisted
 /// SSE payload. Returns `None` for variants without a wire-level
 /// representation (HITL approval book-ends, future entelix variants).
-pub(crate) fn agent_event_to_payload(event: &AgentEvent<ReActState>) -> Option<AgentEventPayload> {
+pub(crate) fn project_agent_event(event: &AgentEvent<ReActState>) -> Option<AgentEventPayload> {
     Some(match event {
         AgentEvent::Started { run_id, agent, .. } => AgentEventPayload::Started {
             run_id: run_id.clone(),
@@ -153,13 +159,17 @@ pub(crate) fn agent_event_to_payload(event: &AgentEvent<ReActState>) -> Option<A
             );
             return None;
         }
-        // `AgentEvent` is `#[non_exhaustive]`; a future entelix minor
-        // adding a new variant lands here. The debug line surfaces
-        // drift in dev so a projection arm can be added before the
-        // FE silently misses lifecycle events.
-        _other => {
-            tracing::debug!(
-                "agent event variant not projected to SSE wire — extend agent_event_to_payload"
+        // `AgentEvent` is `#[non_exhaustive]`. A future entelix minor
+        // adding a variant lands here — `warn` (not `debug`) because
+        // reaching this arm means the projection contract drifted and
+        // an operator needs to extend `project_agent_event` before
+        // the FE silently misses lifecycle events. The discriminant
+        // gives the variant identity without leaking its (possibly
+        // large) payload to logs.
+        other => {
+            tracing::warn!(
+                variant = ?discriminant(other),
+                "agent event variant not projected to SSE wire — extend project_agent_event"
             );
             return None;
         }
@@ -175,11 +185,7 @@ pub(crate) fn project_llm_envelope(envelope: &ErrorEnvelope) -> LlmFailureEnvelo
     let api_code = llm_error_code_for(classify_wire_code(envelope.wire_code));
     LlmFailureEnvelope {
         code: api_code.as_str().to_string(),
-        class: match api_code.class() {
-            ApiErrorClass::ClientError => "client_error",
-            ApiErrorClass::ServerError => "server_error",
-        }
-        .to_string(),
+        class: api_code.class().as_str().to_string(),
         retry_after_secs: envelope.retry_after_secs,
         provider_status: envelope.provider_status,
     }
@@ -192,14 +198,16 @@ pub(crate) fn project_llm_envelope(envelope: &ErrorEnvelope) -> LlmFailureEnvelo
 /// `errors.tool_<wire_code>` instead of forcing every tool error
 /// through the LLM bucket set.
 pub(crate) fn project_tool_envelope(envelope: &ErrorEnvelope) -> ToolFailureEnvelope {
+    let class = match envelope.wire_class {
+        ErrorClass::Client => ApiErrorClass::ClientError,
+        // Server / Transient / Cancelled / Deadline all surface as
+        // server-class on the wire — the FE's retry / surfaces key
+        // off the class binary, not the entelix sub-classification.
+        _ => ApiErrorClass::ServerError,
+    };
     ToolFailureEnvelope {
         wire_code: envelope.wire_code.to_string(),
-        class: match envelope.wire_class {
-            ErrorClass::Client => "client_error",
-            ErrorClass::Server => "server_error",
-            _ => "server_error",
-        }
-        .to_string(),
+        class: class.as_str().to_string(),
         retry_after_secs: envelope.retry_after_secs,
         provider_status: envelope.provider_status,
     }
@@ -228,7 +236,7 @@ mod tests {
             parent_run_id: None,
             agent: "ontosyx".into(),
         };
-        let payload = agent_event_to_payload(&event).expect("Started has a wire projection");
+        let payload = project_agent_event(&event).expect("Started has a wire projection");
         match payload {
             AgentEventPayload::Started { run_id, agent } => {
                 assert_eq!(run_id, "run-1");
@@ -248,7 +256,7 @@ mod tests {
             tool_version: None,
             input: json!({"query": "match (n) return n"}),
         };
-        let payload = agent_event_to_payload(&event).expect("ToolStart has a wire projection");
+        let payload = project_agent_event(&event).expect("ToolStart has a wire projection");
         match payload {
             AgentEventPayload::ToolStart {
                 run_id,
@@ -280,7 +288,7 @@ mod tests {
             duration_ms: 42,
             output: json!("hello"),
         };
-        let payload = agent_event_to_payload(&event).expect("ToolComplete has a wire projection");
+        let payload = project_agent_event(&event).expect("ToolComplete has a wire projection");
         match payload {
             AgentEventPayload::ToolComplete {
                 output,
@@ -305,7 +313,7 @@ mod tests {
             duration_ms: 7,
             output: json!({"chart_type": "bar", "title": "demo"}),
         };
-        let payload = agent_event_to_payload(&event).expect("ToolComplete has a wire projection");
+        let payload = project_agent_event(&event).expect("ToolComplete has a wire projection");
         match payload {
             AgentEventPayload::ToolComplete { output, .. } => {
                 // The wire stays a single `String` regardless of the
@@ -343,7 +351,7 @@ mod tests {
             envelope,
             duration_ms: 12,
         };
-        let payload = agent_event_to_payload(&event).expect("ToolError has a wire projection");
+        let payload = project_agent_event(&event).expect("ToolError has a wire projection");
         match payload {
             AgentEventPayload::ToolError {
                 tool,
@@ -353,41 +361,11 @@ mod tests {
             } => {
                 assert_eq!(tool, "query_graph");
                 assert_eq!(projected.wire_code, "upstream_unavailable");
-                assert_eq!(projected.class, "server_error");
+                assert_eq!(projected.class, ApiErrorClass::ServerError.as_str());
                 assert_eq!(projected.provider_status, Some(503));
                 assert_eq!(duration_ms, 12);
             }
             other => panic!("expected ToolError, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn failed_event_classifies_wire_code_through_llm_namespace() {
-        // entelix 503 → wire_code `upstream_error` → LlmErrorCode
-        // `ProviderUnavailable` → ApiErrorCode `llm_provider_unavailable`.
-        // The Failed envelope renders the LLM-namespace code so FE
-        // i18n keys off `errors.llm_provider_unavailable` rather than
-        // the entelix bucket name.
-        let envelope = Error::provider_http(503, "vendor down").envelope();
-        let event: AgentEvent<ReActState> = AgentEvent::Failed {
-            run_id: "run-1".into(),
-            tenant_id: tenant(),
-            error: "vendor down".into(),
-            envelope,
-        };
-        let payload = agent_event_to_payload(&event).expect("Failed has a wire projection");
-        match payload {
-            AgentEventPayload::Failed {
-                envelope: projected,
-                params,
-                ..
-            } => {
-                assert_eq!(projected.code, "llm_provider_unavailable");
-                assert_eq!(projected.class, "server_error");
-                assert_eq!(projected.provider_status, Some(503));
-                assert_eq!(params, json!({}));
-            }
-            other => panic!("expected Failed, got {other:?}"),
         }
     }
 
@@ -408,14 +386,14 @@ mod tests {
             error: "rate".into(),
             envelope,
         };
-        let payload = agent_event_to_payload(&event).expect("Failed has a wire projection");
+        let payload = project_agent_event(&event).expect("Failed has a wire projection");
         match payload {
             AgentEventPayload::Failed {
                 envelope: projected,
                 ..
             } => {
                 assert_eq!(projected.code, "llm_rate_limited");
-                assert_eq!(projected.class, "server_error");
+                assert_eq!(projected.class, ApiErrorClass::ServerError.as_str());
                 assert_eq!(projected.retry_after_secs, Some(11));
             }
             other => panic!("expected Failed, got {other:?}"),
@@ -434,7 +412,7 @@ mod tests {
             tool_use_id: "tu-1".into(),
             tool: "edit_ontology".into(),
         };
-        assert!(agent_event_to_payload(&event).is_none());
+        assert!(project_agent_event(&event).is_none());
     }
 
     #[test]
@@ -446,11 +424,12 @@ mod tests {
             tool: "edit_ontology".into(),
             reason: "operator declined".into(),
         };
-        assert!(agent_event_to_payload(&event).is_none());
+        assert!(project_agent_event(&event).is_none());
     }
 
     // ---------------------------------------------------------------------
-    // Envelope helpers — pure, exercised independently
+    // Envelope helpers — exercised independently for the synchronous
+    // HTTP failure path that doesn't go through an `AgentEvent`.
     // ---------------------------------------------------------------------
 
     #[test]
@@ -458,7 +437,7 @@ mod tests {
         let envelope = Error::provider_http(503, "x").envelope();
         let projected = project_llm_envelope(&envelope);
         assert_eq!(projected.code, "llm_provider_unavailable");
-        assert_eq!(projected.class, "server_error");
+        assert_eq!(projected.class, ApiErrorClass::ServerError.as_str());
         assert_eq!(projected.provider_status, Some(503));
     }
 
@@ -473,7 +452,7 @@ mod tests {
         let envelope = Error::provider_http(401, "bad bearer").envelope();
         let projected = project_llm_envelope(&envelope);
         assert_eq!(projected.code, "llm_auth_failed");
-        assert_eq!(projected.class, "server_error");
+        assert_eq!(projected.class, ApiErrorClass::ServerError.as_str());
     }
 
     #[test]
@@ -481,7 +460,7 @@ mod tests {
         let envelope = Error::invalid_request("empty messages").envelope();
         let projected = project_tool_envelope(&envelope);
         assert_eq!(projected.wire_code, "invalid_request");
-        assert_eq!(projected.class, "client_error");
+        assert_eq!(projected.class, ApiErrorClass::ClientError.as_str());
     }
 
     #[test]

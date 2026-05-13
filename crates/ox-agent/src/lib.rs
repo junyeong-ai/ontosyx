@@ -50,7 +50,7 @@ use ox_brain::map_entelix_err;
 use ox_core::error::{OxError, OxResult};
 use ox_memory::MemoryStore;
 
-use crate::agent_chat::{AgentChat, collect_tool_specs, compute_tool_schema_hash};
+use crate::agent_chat::AgentChat;
 use crate::sinks::{EmbeddingSink, RecoveryDetectionConfig, RecoveryDetectionSink};
 use crate::system_prompt::tool_names_for_role;
 use crate::tools::{
@@ -72,12 +72,15 @@ pub async fn build_agent(config: BuildAgentRequest) -> OxResult<BuildAgentResult
 
     // 1. Tool registry — register every tool the role can reach. The
     //    registry is in hand at the same point we need (a) the
-    //    tool-surface fingerprint for audit, and (b) the
-    //    [`entelix::ir::ToolSpec`] vec the LLM sees on every
-    //    dispatch so it knows which tools to call.
+    //    audit-grade tool-surface fingerprint
+    //    (`canonical_fingerprint` — SHA-256 over the lexically-sorted
+    //    `{name, description, input_schema, output_schema}` payload,
+    //    patch-version-stable upstream) and (b) the model-facing
+    //    [`entelix::ir::ToolSpec`] slice the LLM sees on every
+    //    dispatch.
     let registry = build_role_registry(&domain, &brain, &config).await?;
-    let tool_schema_hash = compute_tool_schema_hash(&registry);
-    let tool_specs = collect_tool_specs(&registry);
+    let tool_schema_hash = registry.canonical_fingerprint();
+    let tool_specs = registry.tool_specs();
 
     // 2. Chat handle — bake the agent's persona (system prompt) and
     //    advertised tool surface into one
