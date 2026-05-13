@@ -1,13 +1,9 @@
 use async_trait::async_trait;
-use branchforge::tools::ExecutionContext;
-use branchforge::{SchemaTool, ToolResult};
+use entelix::tools::ToolEffect;
+use entelix::{AgentContext, SchemaTool};
 use ox_brain::WidgetType;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-// ---------------------------------------------------------------------------
-// VisualizeTool — generate chart/visualization specifications
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct VisualizeInput {
@@ -21,7 +17,7 @@ pub struct VisualizeInput {
 }
 
 #[derive(Debug, Serialize)]
-struct VisualizeOutput {
+pub struct VisualizeOutput {
     chart_type: WidgetType,
     title: String,
     columns: Vec<String>,
@@ -38,17 +34,28 @@ pub struct VisualizeTool;
 #[async_trait]
 impl SchemaTool for VisualizeTool {
     type Input = VisualizeInput;
+    type Output = VisualizeOutput;
     const NAME: &'static str = super::VISUALIZE;
-    const DESCRIPTION: &'static str = "Generate a chart or visualization specification from data. \
+
+    fn description(&self) -> &str {
+        "Generate a chart or visualization specification from data. \
          Choose the chart_type that best represents the data: \
          bar_chart (categorical comparisons), line_chart (time series/trends), \
          pie_chart (proportions, ≤8 segments), combo_chart (multiple metrics on same axis), \
          stat_card (single key metric), table (detailed tabular data), \
          graph (relationship/network visualization). \
-         Returns a spec the frontend renders.";
-    const READ_ONLY: bool = true;
+         Returns a spec the frontend renders."
+    }
 
-    async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
+    fn effect(&self) -> ToolEffect {
+        ToolEffect::ReadOnly
+    }
+
+    async fn execute(
+        &self,
+        input: Self::Input,
+        _ctx: &AgentContext<()>,
+    ) -> entelix::Result<Self::Output> {
         let columns = if let Some(arr) = input.data.as_array() {
             arr.first()
                 .and_then(|row| row.as_object())
@@ -60,14 +67,12 @@ impl SchemaTool for VisualizeTool {
 
         let row_count = input.data.as_array().map(|a| a.len()).unwrap_or(0);
 
-        let output = VisualizeOutput {
+        Ok(VisualizeOutput {
             chart_type: input.chart_type,
             title: input.description,
             columns,
             row_count,
             data: input.data,
-        };
-
-        ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
+        })
     }
 }

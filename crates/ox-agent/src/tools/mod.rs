@@ -1,8 +1,11 @@
 //! Domain-specific tools for the Ontosyx agent.
 //!
-//! Each tool implements branchforge's `SchemaTool` trait with strongly-typed
-//! input/output schemas. The agent selects and invokes tools autonomously
-//! based on user intent.
+//! Each tool implements [`entelix::SchemaTool`] with strongly-typed
+//! input + output schemas; the agent selects and invokes them
+//! autonomously based on user intent. Tools are wired into the
+//! `ToolRegistry` at agent build time (`crate::lib::build_agent`),
+//! adapted to the dynamic [`entelix::tools::Tool`] surface via
+//! [`entelix::SchemaToolExt::into_adapter`].
 
 mod apply_ontology;
 mod consult_knowledge;

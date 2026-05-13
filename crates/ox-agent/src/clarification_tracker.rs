@@ -1,7 +1,7 @@
-//! In-memory session → last-resolve-ambiguity-ts tracker.
+//! In-memory thread → last-resolve-ambiguity-ts tracker.
 //!
 //! Feeds the `clarification_success_rate` quality signal: when a
-//! `query_graph` call runs inside an agent session that had a
+//! `query_graph` call runs inside an agent thread that had a
 //! `resolve_ambiguity` invocation in the recent past, the quality
 //! signal flips `ambiguity_was_clarified = true`. Over many queries
 //! the ratio "clarified queries that passed SHACL / all clarified
@@ -10,15 +10,14 @@
 //! ## Why in-memory instead of the DB
 //!
 //! The correlation is purely *within a single agent conversation*.
-//! A DB-backed table (session_id, last_resolve_at) would be a
-//! write-amplifier hot on every tool call without any cross-node
-//! replay need — the tracker's lifetime matches the
-//! agent-process's lifetime, and a missed data-point (process
-//! restart mid-conversation) is a tolerable observability
+//! A DB-backed table would be a write-amplifier hot on every tool
+//! call without any cross-node replay need — the tracker's lifetime
+//! matches the agent-process's lifetime, and a missed data-point
+//! (process restart mid-conversation) is a tolerable observability
 //! regression, not a correctness bug.
 //!
-//! Mirrors the pattern the `RecoveryDetectionHook` already uses
-//! (see `hooks.rs::RecoveryDetectionHook::session_outcomes`).
+//! Mirrors the per-run map `RecoveryDetectionSink` keeps for failure
+//! → success pattern detection.
 
 use std::sync::Arc;
 
@@ -30,24 +29,24 @@ use dashmap::DashMap;
 /// are treated as "independent" — i.e. they don't count toward the
 /// clarification_success_rate numerator or denominator.
 ///
-/// 10 minutes matches the `session_window_minutes` default that
-/// `RecoveryDetectionHook` uses for a similar "same conversational
+/// 10 minutes matches the `run_window_minutes` default that
+/// `RecoveryDetectionSink` uses for a similar "same conversational
 /// context" judgement. The two are independent knobs so they can
 /// drift if product semantics diverge.
 pub const DEFAULT_WINDOW_MINUTES: i64 = 10;
 
-/// Thread-safe `session_id → last resolve_ambiguity timestamp` map.
+/// Thread-safe `thread_id → last resolve_ambiguity timestamp` map.
 ///
 /// Both operations (`record`, `was_clarified_within`) are O(1) and
 /// can be called concurrently from tool handlers across different
 /// tokio tasks without external locking. An `Arc` around this
 /// struct is threaded through `DomainContext` so every tool in the
-/// same session reads the same map.
+/// same conversation reads the same map.
 #[derive(Debug, Default)]
 pub struct ClarificationTracker {
-    /// Keyed by branchforge session id. The `Option<String>` upstream
-    /// (ExecutionContext::session_id) becomes an owned `String` here
-    /// — sessions without an id are no-ops (see `record` short-circuit).
+    /// Keyed by the agent thread id (entelix `ExecutionContext::thread_id`)
+    /// when present, or the per-execute run id otherwise. Threads
+    /// without an id are no-ops (see `record` short-circuit).
     last_resolve_at: DashMap<String, DateTime<Utc>>,
 }
 
@@ -56,24 +55,24 @@ impl ClarificationTracker {
         Self::default()
     }
 
-    /// Stamp `now` against the session. Called by
+    /// Stamp `now` against the thread. Called by
     /// `ResolveAmbiguityTool` right after `create_ambiguity_resolution`
-    /// succeeds. A missing / empty session id is a no-op — the
+    /// succeeds. A missing / empty thread id is a no-op — the
     /// follow-up `was_clarified_within` check would never match
     /// anyway, so silently skipping avoids allocating a pointless
     /// key.
-    pub fn record(&self, session_id: Option<&str>) {
-        let Some(id) = session_id.filter(|s| !s.is_empty()) else {
+    pub fn record(&self, thread_id: Option<&str>) {
+        let Some(id) = thread_id.filter(|s| !s.is_empty()) else {
             return;
         };
         self.last_resolve_at.insert(id.to_string(), Utc::now());
     }
 
-    /// `true` when the session has a stamped timestamp younger than
+    /// `true` when the thread has a stamped timestamp younger than
     /// `window`. Used by `QueryGraphTool::build_query_execution_signal`
     /// to set `ambiguity_was_clarified`.
-    pub fn was_clarified_within(&self, session_id: Option<&str>, window: Duration) -> bool {
-        let Some(id) = session_id.filter(|s| !s.is_empty()) else {
+    pub fn was_clarified_within(&self, thread_id: Option<&str>, window: Duration) -> bool {
+        let Some(id) = thread_id.filter(|s| !s.is_empty()) else {
             return false;
         };
         let Some(entry) = self.last_resolve_at.get(id) else {
@@ -103,7 +102,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn missing_session_id_never_records() {
+    fn missing_thread_id_never_records() {
         let t = ClarificationTracker::new();
         t.record(None);
         t.record(Some(""));
@@ -119,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn other_session_not_affected() {
+    fn other_thread_not_affected() {
         let t = ClarificationTracker::new();
         t.record(Some("sess-1"));
         assert!(!t.was_clarified_within(Some("sess-2"), Duration::minutes(10)));

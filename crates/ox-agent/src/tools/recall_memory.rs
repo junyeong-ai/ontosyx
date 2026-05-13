@@ -1,15 +1,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use branchforge::tools::ExecutionContext;
-use branchforge::{SchemaTool, ToolResult};
+use entelix::tools::ToolEffect;
+use entelix::{AgentContext, SchemaTool};
 use ox_memory::{MemoryFilter, MemorySource, MemoryStore};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-// ---------------------------------------------------------------------------
-// RecallMemoryTool — on-demand RAG for past interactions
-// ---------------------------------------------------------------------------
 
 /// Search mode for memory recall.
 #[derive(Debug, Default, Deserialize, JsonSchema)]
@@ -45,7 +41,7 @@ fn default_top_k() -> usize {
 }
 
 #[derive(Debug, Serialize)]
-struct RecallMemoryOutput {
+pub struct RecallMemoryOutput {
     hits: Vec<MemoryHitEntry>,
     total: usize,
 }
@@ -69,13 +65,24 @@ pub struct RecallMemoryTool {
 #[async_trait]
 impl SchemaTool for RecallMemoryTool {
     type Input = RecallMemoryInput;
+    type Output = RecallMemoryOutput;
     const NAME: &'static str = super::RECALL_MEMORY;
-    const DESCRIPTION: &'static str = "Search long-term memory across past queries, analyses, edits, sessions. \
-         'semantic' mode for meaning-based match, 'pattern' for exact keyword. \
-         Call when prior session context would help.";
-    const READ_ONLY: bool = true;
 
-    async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
+    fn description(&self) -> &str {
+        "Search long-term memory across past queries, analyses, edits, sessions. \
+         'semantic' mode for meaning-based match, 'pattern' for exact keyword. \
+         Call when prior session context would help."
+    }
+
+    fn effect(&self) -> ToolEffect {
+        ToolEffect::ReadOnly
+    }
+
+    async fn execute(
+        &self,
+        input: Self::Input,
+        _ctx: &AgentContext<()>,
+    ) -> entelix::Result<Self::Output> {
         let source_hint = input.source.as_deref().and_then(parse_memory_source);
         let top_k = input.top_k.min(20);
 
@@ -98,29 +105,25 @@ impl SchemaTool for RecallMemoryTool {
                     .await
             }
             SearchMode::Pattern => self.memory.pattern_search(&input.query, top_k).await,
-        };
-
-        match hits {
-            Ok(results) => {
-                let entries: Vec<MemoryHitEntry> = results
-                    .iter()
-                    .filter(|hit| hit.score >= 0.3) // Score threshold: filter low-relevance results
-                    .map(|hit| MemoryHitEntry {
-                        content: hit.content.chars().take(500).collect(),
-                        source: format!("{:?}", hit.metadata.source),
-                        score: hit.score,
-                    })
-                    .collect();
-
-                let output = RecallMemoryOutput {
-                    total: entries.len(),
-                    hits: entries,
-                };
-
-                ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
-            }
-            Err(e) => ToolResult::error(format!("Memory search failed: {e}")),
         }
+        .map_err(|e| entelix::Error::invalid_request(format!("Memory search failed: {e}")))?;
+
+        let entries: Vec<MemoryHitEntry> = hits
+            .iter()
+            // Score threshold — filter low-relevance results so the LLM
+            // doesn't get noisy context that would dilute its reasoning.
+            .filter(|hit| hit.score >= 0.3)
+            .map(|hit| MemoryHitEntry {
+                content: hit.content.chars().take(500).collect(),
+                source: format!("{:?}", hit.metadata.source),
+                score: hit.score,
+            })
+            .collect();
+
+        Ok(RecallMemoryOutput {
+            total: entries.len(),
+            hits: entries,
+        })
     }
 }
 

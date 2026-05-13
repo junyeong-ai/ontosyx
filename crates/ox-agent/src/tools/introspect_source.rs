@@ -1,16 +1,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use branchforge::tools::ExecutionContext;
-use branchforge::{SchemaTool, ToolResult};
+use entelix::tools::ToolEffect;
+use entelix::{AgentContext, SchemaTool};
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::DomainContext;
-
-// ---------------------------------------------------------------------------
-// IntrospectSourceTool — progressive schema exploration
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct IntrospectSourceInput {
@@ -30,6 +26,24 @@ pub enum IntrospectAction {
     TableDetail,
 }
 
+/// Two-shape output discriminated by `action`. Tagged representation
+/// keeps the LLM's match arm trivial: `kind: "list" | "detail"` carries
+/// the relevant payload so the model never sees an inapplicable field.
+#[derive(Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IntrospectSourceOutput {
+    List {
+        table_count: usize,
+        tables: Vec<String>,
+    },
+    Detail {
+        table_name: String,
+        columns: serde_json::Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        profile: Option<serde_json::Value>,
+    },
+}
+
 pub struct IntrospectSourceTool {
     pub domain: Arc<DomainContext>,
 }
@@ -37,74 +51,81 @@ pub struct IntrospectSourceTool {
 #[async_trait]
 impl SchemaTool for IntrospectSourceTool {
     type Input = IntrospectSourceInput;
+    type Output = IntrospectSourceOutput;
     const NAME: &'static str = super::INTROSPECT_SOURCE;
-    const DESCRIPTION: &'static str = "Inspect the source database schema. \
-         'list_tables' returns tables with column/row counts; \
-         'table_detail' with a table_name returns column definitions, types, constraints, stats.";
-    const READ_ONLY: bool = true;
 
-    async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
-        let schema = match &self.domain.source_schema {
-            Some(s) => s,
-            None => {
-                return ToolResult::error(
-                    "No source schema available — connect a data source first",
-                );
-            }
-        };
+    fn description(&self) -> &str {
+        "Inspect the source database schema. \
+         'list_tables' returns tables with column/row counts; \
+         'table_detail' with a table_name returns column definitions, types, constraints, stats."
+    }
+
+    fn effect(&self) -> ToolEffect {
+        ToolEffect::ReadOnly
+    }
+
+    async fn execute(
+        &self,
+        input: Self::Input,
+        _ctx: &AgentContext<()>,
+    ) -> entelix::Result<Self::Output> {
+        let schema = self.domain.source_schema.as_ref().ok_or_else(|| {
+            entelix::Error::invalid_request(
+                "No source schema available — connect a data source first",
+            )
+        })?;
 
         match input.action {
             IntrospectAction::ListTables => {
                 if schema.tables.is_empty() {
-                    return ToolResult::error("No tables found in source schema");
+                    return Err(entelix::Error::invalid_request(
+                        "No tables found in source schema",
+                    ));
                 }
-                let lines: Vec<String> = schema
+                let tables: Vec<String> = schema
                     .tables
                     .iter()
                     .map(|t| format!("{} ({} columns)", t.name, t.columns.len()))
                     .collect();
-                let output = serde_json::json!({
-                    "table_count": schema.tables.len(),
-                    "tables": lines,
-                });
-                ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
+                Ok(IntrospectSourceOutput::List {
+                    table_count: schema.tables.len(),
+                    tables,
+                })
             }
             IntrospectAction::TableDetail => {
-                let table_name = match &input.table_name {
-                    Some(name) => name,
-                    None => {
-                        return ToolResult::error("table_name is required for table_detail action");
-                    }
-                };
+                let table_name = input.table_name.as_deref().ok_or_else(|| {
+                    entelix::Error::invalid_request(
+                        "table_name is required for table_detail action",
+                    )
+                })?;
 
-                let table = schema.tables.iter().find(|t| t.name == *table_name);
+                let table = schema
+                    .tables
+                    .iter()
+                    .find(|t| t.name == table_name)
+                    .ok_or_else(|| {
+                        entelix::Error::invalid_request(format!(
+                            "Table '{}' not found in source schema",
+                            table_name
+                        ))
+                    })?;
 
-                match table {
-                    Some(table) => {
-                        let mut result = serde_json::json!({
-                            "table_name": table_name,
-                            "columns": serde_json::to_value(&table.columns).unwrap_or_default(),
-                        });
+                // Include profile data (column statistics) when the
+                // source surface produced one — the LLM uses
+                // distributions to decide whether a column is worth a
+                // GROUP BY or an unnest.
+                let profile = self.domain.source_profile.as_ref().and_then(|p| {
+                    p.table_profiles
+                        .iter()
+                        .find(|tp| tp.table_name == table_name)
+                        .and_then(|tp| serde_json::to_value(tp).ok())
+                });
 
-                        // Include profile data (column statistics) if available
-                        if let Some(profile) = &self.domain.source_profile
-                            && let Some(tp) = profile
-                                .table_profiles
-                                .iter()
-                                .find(|p| p.table_name == *table_name)
-                        {
-                            result["profile"] = serde_json::to_value(tp).unwrap_or_default();
-                        }
-
-                        ToolResult::success(
-                            serde_json::to_string_pretty(&result).unwrap_or_default(),
-                        )
-                    }
-                    None => ToolResult::error(format!(
-                        "Table '{}' not found in source schema",
-                        table_name
-                    )),
-                }
+                Ok(IntrospectSourceOutput::Detail {
+                    table_name: table_name.to_owned(),
+                    columns: serde_json::to_value(&table.columns).unwrap_or_default(),
+                    profile,
+                })
             }
         }
     }

@@ -1,15 +1,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use branchforge::tools::ExecutionContext;
-use branchforge::{SchemaTool, ToolResult};
+use entelix::tools::ToolEffect;
+use entelix::{AgentContext, SchemaTool};
 use ox_store::Store;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-// ---------------------------------------------------------------------------
-// SearchRecipesTool — find reusable analysis algorithms
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SearchRecipesInput {
@@ -22,7 +18,7 @@ pub struct SearchRecipesInput {
 }
 
 #[derive(Debug, Serialize)]
-struct SearchRecipesOutput {
+pub struct SearchRecipesOutput {
     recipes: Vec<RecipeEntry>,
     total: usize,
 }
@@ -45,52 +41,61 @@ pub struct SearchRecipesTool {
 #[async_trait]
 impl SchemaTool for SearchRecipesTool {
     type Input = SearchRecipesInput;
+    type Output = SearchRecipesOutput;
     const NAME: &'static str = super::SEARCH_RECIPES;
-    const DESCRIPTION: &'static str = "Search reusable analysis recipes (time series, segmentation, classification, \
-         regression, anomaly detection, statistics) before writing custom code. \
-         Returns required input columns and parameters.";
-    const READ_ONLY: bool = true;
 
-    async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
+    fn description(&self) -> &str {
+        "Search reusable analysis recipes (time series, segmentation, classification, \
+         regression, anomaly detection, statistics) before writing custom code. \
+         Returns required input columns and parameters."
+    }
+
+    fn effect(&self) -> ToolEffect {
+        ToolEffect::ReadOnly
+    }
+
+    async fn execute(
+        &self,
+        input: Self::Input,
+        _ctx: &AgentContext<()>,
+    ) -> entelix::Result<Self::Output> {
         let params = ox_store::CursorParams {
             limit: 20,
             cursor: None,
         };
 
-        match self.store.list_recipes(&params).await {
-            Ok(page) => {
-                let query_lower = input.query.to_lowercase();
-                let type_filter = input.algorithm_type.as_deref().unwrap_or("");
+        let page =
+            self.store.list_recipes(&params).await.map_err(|e| {
+                entelix::Error::invalid_request(format!("Recipe search failed: {e}"))
+            })?;
 
-                let matched: Vec<RecipeEntry> = page
-                    .items
-                    .into_iter()
-                    .filter(|r| {
-                        let name_match = r.name.to_lowercase().contains(&query_lower)
-                            || r.description.to_lowercase().contains(&query_lower);
-                        let type_match = type_filter.is_empty() || r.algorithm_type == type_filter;
-                        name_match && type_match
-                    })
-                    .map(|r| RecipeEntry {
-                        id: r.id.to_string(),
-                        name: r.name,
-                        description: r.description,
-                        algorithm_type: r.algorithm_type,
-                        required_columns: serde_json::from_value(
-                            serde_json::to_value(&r.required_columns).unwrap_or_default(),
-                        )
-                        .unwrap_or_default(),
-                    })
-                    .collect();
+        let query_lower = input.query.to_lowercase();
+        let type_filter = input.algorithm_type.as_deref().unwrap_or("");
 
-                let output = SearchRecipesOutput {
-                    total: matched.len(),
-                    recipes: matched,
-                };
+        let matched: Vec<RecipeEntry> = page
+            .items
+            .into_iter()
+            .filter(|r| {
+                let name_match = r.name.to_lowercase().contains(&query_lower)
+                    || r.description.to_lowercase().contains(&query_lower);
+                let type_match = type_filter.is_empty() || r.algorithm_type == type_filter;
+                name_match && type_match
+            })
+            .map(|r| RecipeEntry {
+                id: r.id.to_string(),
+                name: r.name,
+                description: r.description,
+                algorithm_type: r.algorithm_type,
+                required_columns: serde_json::from_value(
+                    serde_json::to_value(&r.required_columns).unwrap_or_default(),
+                )
+                .unwrap_or_default(),
+            })
+            .collect();
 
-                ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
-            }
-            Err(e) => ToolResult::error(format!("Recipe search failed: {e}")),
-        }
+        Ok(SearchRecipesOutput {
+            total: matched.len(),
+            recipes: matched,
+        })
     }
 }

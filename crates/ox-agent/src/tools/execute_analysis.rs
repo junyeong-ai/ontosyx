@@ -2,9 +2,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use branchforge::tools::ExecutionContext;
-use branchforge::{SchemaTool, ToolResult};
 use chrono::Utc;
+use entelix::tools::ToolEffect;
+use entelix::{AgentContext, SchemaTool};
+use ox_context::ContextScope;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -41,8 +42,8 @@ pub struct ExecuteAnalysisInput {
     pub recipe_id: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct ExecuteAnalysisOutput {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExecuteAnalysisOutput {
     stdout: String,
     stderr: String,
     exit_code: i32,
@@ -64,8 +65,11 @@ pub struct ExecuteAnalysisTool {
 #[async_trait]
 impl SchemaTool for ExecuteAnalysisTool {
     type Input = ExecuteAnalysisInput;
+    type Output = ExecuteAnalysisOutput;
     const NAME: &'static str = super::EXECUTE_ANALYSIS;
-    const DESCRIPTION: &'static str = "Execute Python analysis in a sandboxed environment. \
+
+    fn description(&self) -> &str {
+        "Execute Python analysis in a sandboxed environment. \
          Libraries: pandas, numpy, scikit-learn, statsmodels, scipy, matplotlib. \
          Pass query results in the 'data' field. The code reads /sandbox/input.json. \
          ALWAYS start code with this boilerplate:\n\
@@ -76,10 +80,23 @@ impl SchemaTool for ExecuteAnalysisTool {
          cols = data['columns']\n\
          df = pd.DataFrame([dict(zip(cols, row)) for row in data['rows']])\n\
          ```\n\
-         Print results to stdout as JSON (use default=str for non-serializable types). Timeout: 120s.";
+         Print results to stdout as JSON (use default=str for non-serializable types). Timeout: 120s."
+    }
 
-    async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
-        // Compute input hash for cache lookup
+    fn effect(&self) -> ToolEffect {
+        // The sandbox is process-isolated and the only persistent
+        // side-effect is the cached-result row, which is per-input
+        // idempotent. From the LLM's perspective the tool is
+        // observation-only.
+        ToolEffect::ReadOnly
+    }
+
+    async fn execute(
+        &self,
+        input: Self::Input,
+        _ctx: &AgentContext<()>,
+    ) -> entelix::Result<Self::Output> {
+        // Compute input hash for cache lookup.
         let mut hasher = Sha256::new();
         hasher.update(input.code.as_bytes());
         if let Some(ref data) = input.data {
@@ -92,43 +109,43 @@ impl SchemaTool for ExecuteAnalysisTool {
             .as_deref()
             .and_then(|s| s.parse::<Uuid>().ok());
 
-        // Check cache — return early if a recent result exists (< 1 hour)
+        // Cache hit — return early if a recent result exists (< 1 hour).
+        // The deserialised cached payload is shaped like
+        // `ExecuteAnalysisOutput`'s wire form, so a serde round-trip
+        // produces the same Output struct callers downstream expect.
         if let Ok(Some(cached)) = self.store.find_cached_result(&input_hash, recipe_id).await {
             let age = Utc::now() - cached.created_at;
-            if age.num_hours() < 1 {
+            if age.num_hours() < 1
+                && let Ok(parsed) = serde_json::from_value::<ExecuteAnalysisOutput>(cached.output)
+            {
                 info!(
                     description = %input.description,
                     input_hash = %input_hash,
-                    "Returning cached analysis result"
+                    "returning cached analysis result"
                 );
-                return ToolResult::success(cached.output.to_string());
+                return Ok(parsed);
             }
         }
 
         let start = std::time::Instant::now();
-
         let result =
-            match run_analysis_sandbox(&input.code, input.data.as_ref(), Duration::from_secs(120))
+            run_analysis_sandbox(&input.code, input.data.as_ref(), Duration::from_secs(120))
                 .await
-            {
-                Ok(r) => r,
-                Err(e) => return ToolResult::error(e),
-            };
-
+                .map_err(entelix::Error::invalid_request)?;
         let duration_ms = start.elapsed().as_millis() as u64;
 
         info!(
             description = %input.description,
             exit_code = result.exit_code,
             duration_ms,
-            "Analysis executed"
+            "analysis executed"
         );
 
         if result.exit_code != 0 {
-            return ToolResult::error(format!(
+            return Err(entelix::Error::invalid_request(format!(
                 "Analysis failed (exit code {}):\n{}",
                 result.exit_code, result.stderr
-            ));
+            )));
         }
 
         let output = ExecuteAnalysisOutput {
@@ -137,53 +154,30 @@ impl SchemaTool for ExecuteAnalysisTool {
             exit_code: result.exit_code,
         };
 
-        // Save result to cache (fire-and-forget)
+        // Cache the result (fire-and-forget). `ContextScope` captures
+        // the workspace task-locals at sink-fire time so the spawned
+        // future writes under the right tenant — `tokio::spawn` would
+        // otherwise detach into a raw runtime task and the
+        // `before_acquire` pool hook would deny the INSERT under RLS.
         let analysis_result = RecipeExecutionResult {
             id: Uuid::new_v4(),
             recipe_id,
             ontology_lineage_id: None,
             input_hash,
-            output: serde_json::json!({
-                "stdout": output.stdout,
-                "stderr": output.stderr,
-                "exit_code": output.exit_code,
-                "duration_ms": duration_ms,
-            }),
+            output: serde_json::to_value(&output).unwrap_or_default(),
             duration_ms: duration_ms as i64,
             created_at: Utc::now(),
         };
-        // Capture the workspace context BEFORE spawning: tokio::spawn
-        // detaches from the current task-local scope, so a raw spawn
-        // here would acquire a DB connection with no `app.workspace_id`
-        // set and the INSERT would silently fail the RLS gate. Propagate
-        // either SYSTEM_BYPASS (system tasks) or WORKSPACE_ID into the
-        // spawned future explicitly.
         let store = Arc::clone(&self.store);
-        let system_bypass = ox_store::SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false);
-        let workspace_id = ox_store::WORKSPACE_ID.try_with(|id| *id).ok();
-        // Workspace context is captured above and re-scoped inside the
-        // spawned future (see the match arms below). This is the
-        // sanctioned agent-side spawn pattern; the ox-api spawn helpers
-        // can't be used here because `ox-agent` must not depend on
-        // `ox-api`.
+        let scope = ContextScope::capture_current();
         #[allow(clippy::disallowed_methods)]
-        tokio::spawn(async move {
-            let run = async move {
-                if let Err(e) = store.create_analysis_result(&analysis_result).await {
-                    warn!(error = %e, "Failed to cache analysis result");
-                }
-            };
-            if system_bypass {
-                ox_store::SYSTEM_BYPASS.scope(true, run).await;
-            } else if let Some(ws_id) = workspace_id {
-                ox_store::WORKSPACE_ID.scope(ws_id, run).await;
-            } else {
-                // No workspace context — the store write would be denied
-                // anyway. Skip instead of logging per-request noise.
+        tokio::spawn(scope.run(async move {
+            if let Err(e) = store.create_analysis_result(&analysis_result).await {
+                warn!(error = %e, "failed to cache analysis result");
             }
-        });
+        }));
 
-        ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
+        Ok(output)
     }
 }
 

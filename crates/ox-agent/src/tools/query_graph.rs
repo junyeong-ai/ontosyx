@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use branchforge::tools::ExecutionContext;
-use branchforge::{SchemaTool, ToolResult};
 use chrono::Utc;
+use entelix::tools::ToolEffect;
+use entelix::{AgentContext, SchemaTool};
+use ox_context::{ContextScope, ProgressContextExt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
@@ -35,7 +36,7 @@ pub struct QueryGraphInput {
 /// the FE renders timing from the SSE stream and provenance via
 /// `/api/executions/{id}`.
 #[derive(Debug, Serialize)]
-struct QueryGraphOutput {
+pub struct QueryGraphOutput {
     execution_id: String,
     compiled_query: String,
     columns: Vec<String>,
@@ -100,38 +101,43 @@ pub struct QueryGraphTool {
 #[async_trait]
 impl SchemaTool for QueryGraphTool {
     type Input = QueryGraphInput;
+    type Output = QueryGraphOutput;
     const NAME: &'static str = super::QUERY_GRAPH;
-    const DESCRIPTION: &'static str = "Execute a natural-language query against the knowledge graph. \
-         Include all entities and relationships in one question — the engine handles multi-hop \
-         chains (A→B→C→D) in a single query. Do NOT split per entity.";
-    const READ_ONLY: bool = true;
 
-    async fn handle(&self, input: Self::Input, ctx: &ExecutionContext) -> ToolResult {
+    fn description(&self) -> &str {
+        "Execute a natural-language query against the knowledge graph. \
+         Include all entities and relationships in one question — the engine handles multi-hop \
+         chains (A→B→C→D) in a single query. Do NOT split per entity."
+    }
+
+    fn effect(&self) -> ToolEffect {
+        ToolEffect::ReadOnly
+    }
+
+    async fn execute(
+        &self,
+        input: Self::Input,
+        ctx: &AgentContext<()>,
+    ) -> entelix::Result<Self::Output> {
         // Load the current ontology snapshot — a tool that edits the
         // ontology mid-session publishes a replacement into the shared
         // `ArcSwap`, and we pick it up here on the next invocation.
-        let ontology = match self.domain.current_ontology() {
-            Some(o) => o,
-            None => {
-                return ToolResult::error(
-                    "No ontology loaded. Create an ontology draft from a data source first, \
-                     or use introspect_source to connect to a database.",
-                );
-            }
-        };
+        let ontology = self.domain.current_ontology().ok_or_else(|| {
+            entelix::Error::invalid_request(
+                "No ontology loaded. Create an ontology draft from a data source first, \
+                 or use introspect_source to connect to a database.",
+            )
+        })?;
 
-        let runtime = match self.domain.runtime.as_ref() {
-            Some(r) => r,
-            None => {
-                return ToolResult::error(
-                    "Graph database not connected. The workspace needs a deployed schema \
-                     with loaded data before queries can execute.",
-                );
-            }
-        };
+        let runtime = self.domain.runtime.as_ref().ok_or_else(|| {
+            entelix::Error::invalid_request(
+                "Graph database not connected. The workspace needs a deployed schema \
+                 with loaded data before queries can execute.",
+            )
+        })?;
 
         let start = std::time::Instant::now();
-        let cancel = ctx.cancel_token().cloned();
+        let cancel = ctx.cancellation().clone();
 
         let question = input.question.clone();
 
@@ -150,9 +156,11 @@ impl SchemaTool for QueryGraphTool {
         }
 
         // Step 1: Translate NL → QueryIR (timeout: 60s)
-        // Brain emits sub-steps (schema_discovery, llm_primary, llm_fallback)
-        // via ctx.emit_progress(), providing real-time visibility.
-        // Cancel is handled by branchforge ToolRegistry at the outer level.
+        // Brain emits sub-steps (schema_discovery, llm_primary,
+        // llm_fallback) via `ctx.progress(...)`, providing real-time
+        // visibility. Cancellation rides on the dispatch ctx and is
+        // honoured by the `ToolRegistry::dispatch` future at the
+        // outer level.
         //
         // The translate flow runs inside an `InferenceSession` scope —
         // every attempt the Brain makes (Tier1/2/3 fallback +
@@ -162,8 +170,12 @@ impl SchemaTool for QueryGraphTool {
         let store_for_session = self.domain.store.clone();
         let translate_future = tokio::time::timeout(
             std::time::Duration::from_secs(60),
-            self.brain
-                .translate_query(&question, &ontology, retrieved_subgraph_md.as_deref(), ctx),
+            self.brain.translate_query(
+                &question,
+                &ontology,
+                retrieved_subgraph_md.as_deref(),
+                ctx.core(),
+            ),
         );
         let session_outcome = ox_store::run_in_inference_session(
             store_for_session.as_ref(),
@@ -187,10 +199,14 @@ impl SchemaTool for QueryGraphTool {
                 let message = format!("{e:?}");
                 if message.contains("timed out after 60 seconds") {
                     warn!(question = %question, "Query translation timed out after 60s");
-                    return ToolResult::error("Query translation timed out after 60 seconds");
+                    return Err(entelix::Error::invalid_request(
+                        "Query translation timed out after 60 seconds",
+                    ));
                 }
                 warn!(question = %question, error = %e, "Query translation failed");
-                return ToolResult::error(format!("Query translation failed: {e}"));
+                return Err(entelix::Error::invalid_request(format!(
+                    "Query translation failed: {e}"
+                )));
             }
         };
 
@@ -213,15 +229,17 @@ impl SchemaTool for QueryGraphTool {
             Ok(d) => d,
             Err(OxError::Validation { message, .. }) if message.starts_with("[budget]") => {
                 warn!(question = %question, message = %message, "PlanRouter refused query");
-                return ToolResult::error(format!(
+                return Err(entelix::Error::invalid_request(format!(
                     "Query rejected: {message}. Reformulate with a bounded path length / \
                      indexed filter / connected pattern, or pass `allow_high_cost=true` \
                      to override."
-                ));
+                )));
             }
             Err(e) => {
                 warn!(question = %question, error = %e, "PlanRouter error");
-                return ToolResult::error(format!("PlanRouter error: {e}"));
+                return Err(entelix::Error::invalid_request(format!(
+                    "PlanRouter error: {e}"
+                )));
             }
         };
         let routing_reason = decision.reason();
@@ -232,11 +250,11 @@ impl SchemaTool for QueryGraphTool {
         match &decision {
             RouteDecision::Federation { .. } => {
                 warn!(question = %question, routing = routing_reason, "Federation route requires DataFusion execution");
-                return ToolResult::error(
+                return Err(entelix::Error::invalid_request(
                     "Query requires federation execution across mapped sources. \
                      Run it through the federation query endpoint or narrow the question \
                      to data already materialized in the graph runtime.",
-                );
+                ));
             }
             RouteDecision::Hybrid { .. } => {
                 info!(question = %question, routing = routing_reason, "Hybrid routing");
@@ -266,7 +284,9 @@ impl SchemaTool for QueryGraphTool {
                 warn!(question = %question, error = %e, "Query compilation failed");
                 ctx.progress("compiling")
                     .failed(t2.elapsed().as_millis() as u64);
-                return ToolResult::error(format!("Query compilation failed: {e}"));
+                return Err(entelix::Error::invalid_request(format!(
+                    "Query compilation failed: {e}"
+                )));
             }
         };
 
@@ -301,26 +321,22 @@ impl SchemaTool for QueryGraphTool {
                     Ok(Err(e)) => {
                         warn!(question = %question, error = %e, query = %truncate(&compiled.statement, 200), "Query execution failed");
                         ctx.progress("executing").failed(t3.elapsed().as_millis() as u64);
-                        return ToolResult::error(format!(
+                        return Err(entelix::Error::invalid_request(format!(
                             "Query execution failed: {e}\nCompiled query: {}",
                             truncate(&compiled.statement, 500),
-                        ));
+                        )));
                     }
                     Err(_) => {
                         ctx.progress("executing").failed(60_000);
-                        return ToolResult::error("Query execution timed out after 60 seconds");
+                        return Err(entelix::Error::invalid_request(
+                            "Query execution timed out after 60 seconds",
+                        ));
                     }
                 }
             }
-            _ = async {
-                if let Some(ref token) = cancel {
-                    token.cancelled().await;
-                } else {
-                    std::future::pending::<()>().await;
-                }
-            } => {
+            _ = cancel.cancelled() => {
                 ctx.progress("executing").failed(t3.elapsed().as_millis() as u64);
-                return ToolResult::error("Query execution cancelled");
+                return Err(entelix::Error::Cancelled);
             }
         };
 
@@ -386,7 +402,11 @@ impl SchemaTool for QueryGraphTool {
         let widget_hint = if results.metadata.rows_returned > 0 {
             let sample = serde_json::to_string(&results.rows.iter().take(5).collect::<Vec<_>>())
                 .unwrap_or_default();
-            match self.brain.select_widget(&query_ir, &sample).await {
+            match self
+                .brain
+                .select_widget(&query_ir, &sample, ctx.core())
+                .await
+            {
                 Ok(hint) => {
                     let wt = serde_json::to_value(hint.widget_type)
                         .ok()
@@ -604,13 +624,15 @@ impl SchemaTool for QueryGraphTool {
         // `query_execution_signals.execution_id → query_executions(id)`
         // always resolves.
         {
-            // Did a `resolve_ambiguity` call in this same branchforge
-            // session land a resolution in the recent past? The
-            // tracker lives on `AppState` so resolve + query turns
+            // Did a `resolve_ambiguity` call in this same conversation
+            // land a resolution in the recent past? The tracker lives
+            // on the shared `DomainContext` so resolve + query turns
             // can land on different chat-stream requests and still
-            // correlate.
+            // correlate. Falls back to the per-execute run id when no
+            // thread is bound (single-shot dispatch).
+            let scope_id = ctx.thread_id().or_else(|| ctx.run_id());
             let ambiguity_was_clarified = self.domain.clarification_tracker.was_clarified_within(
-                ctx.session_id(),
+                scope_id,
                 chrono::Duration::minutes(crate::clarification_tracker::DEFAULT_WINDOW_MINUTES),
             );
             let signal = build_query_execution_signal(
@@ -625,31 +647,28 @@ impl SchemaTool for QueryGraphTool {
             );
             let type_kinds = signal_type_kinds(provenance.as_ref());
             let store = Arc::clone(&self.domain.store);
-            let workspace_id = self.domain.workspace_id;
-            // `WORKSPACE_ID` is threaded through the spawned future so
-            // the store's RLS `before_acquire` hook sees the same
-            // tenant the tool ran under — without this scope the
-            // spawned task hits the deny-all policy branch.
+            // Capture the workspace task-locals so the spawned future
+            // writes under the same RLS scope the tool dispatch ran
+            // under — `tokio::spawn` would otherwise detach into a
+            // raw runtime task and the `before_acquire` pool hook
+            // would deny the INSERT.
+            let scope = ContextScope::capture_current();
             #[allow(clippy::disallowed_methods)]
-            tokio::spawn(async move {
-                ox_store::WORKSPACE_ID
-                    .scope(workspace_id, async move {
-                        if let Err(e) = store.create_query_execution_signal(&signal).await {
-                            warn!(error = %e, "quality signal persist failed");
-                        }
-                        if !type_kinds.is_empty() {
-                            let refs: Vec<(Uuid, &str)> =
-                                type_kinds.iter().map(|(id, k)| (*id, k.as_str())).collect();
-                            if let Err(e) = store.upsert_type_last_used(&refs).await {
-                                warn!(error = %e, "type_last_used upsert failed");
-                            }
-                        }
-                    })
-                    .await
-            });
+            tokio::spawn(scope.run(async move {
+                if let Err(e) = store.create_query_execution_signal(&signal).await {
+                    warn!(error = %e, "quality signal persist failed");
+                }
+                if !type_kinds.is_empty() {
+                    let refs: Vec<(Uuid, &str)> =
+                        type_kinds.iter().map(|(id, k)| (*id, k.as_str())).collect();
+                    if let Err(e) = store.upsert_type_last_used(&refs).await {
+                        warn!(error = %e, "type_last_used upsert failed");
+                    }
+                }
+            }));
         }
 
-        let output = QueryGraphOutput {
+        Ok(QueryGraphOutput {
             execution_id: execution_id.to_string(),
             compiled_query: compiled.statement,
             columns: results.columns.clone(),
@@ -660,9 +679,7 @@ impl SchemaTool for QueryGraphTool {
             guidance,
             warnings: validator_notes,
             unresolved_ambiguities,
-        };
-
-        ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
+        })
     }
 }
 

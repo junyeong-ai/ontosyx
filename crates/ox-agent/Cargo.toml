@@ -1,6 +1,6 @@
 [package]
 name = "ox-agent"
-description = "Ontosyx agent layer — branchforge-powered autonomous analysis agent"
+description = "Ontosyx agent layer — entelix-powered autonomous analysis agent"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -19,7 +19,10 @@ ox-memory = { workspace = true }
 ox-text = { workspace = true }
 
 # Agent runtime
-branchforge = { workspace = true }
+entelix = { workspace = true }
+ox-context = { workspace = true }
+tower = { workspace = true }
+futures = { workspace = true }
 
 # Async
 tokio = { workspace = true }
@@ -40,8 +43,14 @@ hex = { workspace = true }
 dashmap = { workspace = true }
 arc-swap = { workspace = true }
 
+# Run-budget cost axis materialises a `rust_decimal::Decimal`.
+rust_decimal = { workspace = true }
+
+[dev-dependencies]
+parking_lot = "0.12"
+
 [features]
-llm-aws = ["branchforge/aws", "ox-brain/llm-aws"]
+llm-aws = ["ox-brain/llm-aws"]
 
 [lints]
 workspace = true

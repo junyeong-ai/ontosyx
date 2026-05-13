@@ -1,6 +1,6 @@
 # ox-agent
 
-Branchforge-powered autonomous analysis agent. All 11 tools implement branchforge's `SchemaTool` trait.
+entelix-powered autonomous analysis agent. All domain tools implement entelix's [`SchemaTool`] trait; the agent build composes them through a `ToolRegistry` wrapped with `WorkspaceScope` (RLS task-locals) and `ToolEventLayer` (sink → SSE wire).
 
 ## Tool Registration
 
@@ -56,11 +56,13 @@ shipping the cut and re-route each consumer to the persisted-row
 (`useExecution`) or SSE-stream (`toolCall.steps`) channel — silent
 regressions surface in panels nobody opened during local testing.
 
-## Hooks
+## Sinks
 
-Two domain hooks run during agent execution:
-- `EmbeddingHook` — embeds tool results into semantic memory (background, non-blocking).
-- `RecoveryDetectionHook` — detects when a query failure is corrected, auto-creates knowledge entries for future RAG.
+Two domain sinks fan out off the agent's `AgentEventSink<ReActState>` channel:
+- `EmbeddingSink` — embeds tool results into semantic memory (background, non-blocking).
+- `RecoveryDetectionSink` — detects when a query failure is corrected, auto-creates knowledge entries for future RAG.
+
+Both are observe-only — `send` always returns `Ok(())` and any internal failure is `tracing::warn!`-swallowed. Spawned write tasks capture `ContextScope::capture_current()` before `tokio::spawn` and `scope.run(...)` inside, so RLS task-locals survive the scheduler boundary.
 
 ## Schema Evolution Tool
 

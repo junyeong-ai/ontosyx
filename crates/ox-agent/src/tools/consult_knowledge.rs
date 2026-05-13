@@ -1,16 +1,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use branchforge::tools::ExecutionContext;
-use branchforge::{SchemaTool, ToolResult};
+use entelix::tools::ToolEffect;
+use entelix::{AgentContext, SchemaTool};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use ox_store::KnowledgeStore;
-
-// ---------------------------------------------------------------------------
-// ConsultKnowledgeTool — search learned corrections and hints
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ConsultKnowledgeInput {
@@ -22,7 +18,7 @@ pub struct ConsultKnowledgeInput {
 }
 
 #[derive(Debug, Serialize)]
-struct ConsultKnowledgeOutput {
+pub struct ConsultKnowledgeOutput {
     entries: Vec<KnowledgeHitEntry>,
     total: usize,
 }
@@ -45,20 +41,33 @@ pub struct ConsultKnowledgeTool {
 #[async_trait]
 impl SchemaTool for ConsultKnowledgeTool {
     type Input = ConsultKnowledgeInput;
+    type Output = ConsultKnowledgeOutput;
     const NAME: &'static str = super::CONSULT_KNOWLEDGE;
-    const DESCRIPTION: &'static str = "Search the workspace knowledge base for learned corrections and admin hints. \
-         Call before complex queries to surface known pitfalls for this ontology.";
-    const READ_ONLY: bool = true;
 
-    async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
-        let ontology_name = match &self.ontology_name {
-            Some(name) => name.as_str(),
-            None => return ToolResult::error("No ontology context available"),
-        };
+    fn description(&self) -> &str {
+        "Search the workspace knowledge base for learned corrections and admin hints. \
+         Call before complex queries to surface known pitfalls for this ontology."
+    }
+
+    fn effect(&self) -> ToolEffect {
+        ToolEffect::ReadOnly
+    }
+
+    async fn execute(
+        &self,
+        input: Self::Input,
+        _ctx: &AgentContext<()>,
+    ) -> entelix::Result<Self::Output> {
+        let ontology_name = self
+            .ontology_name
+            .as_deref()
+            .ok_or_else(|| entelix::Error::invalid_request("No ontology context available"))?;
         let version = self.ontology_version.unwrap_or(1);
 
-        // Extract labels from query for label-based search
-        // Use words that could be labels (PascalCase or non-ASCII like Korean)
+        // Pull words from the query that *could* be node / edge labels.
+        // PascalCase / non-ASCII (Korean, Japanese) starts qualify;
+        // lowercase tokens are treated as keywords for the fallback
+        // path rather than label candidates.
         let possible_labels: Vec<&str> = input
             .query
             .split_whitespace()
@@ -74,14 +83,14 @@ impl SchemaTool for ConsultKnowledgeTool {
             None => vec!["correction", "hint"],
         };
 
-        // Try label-based search first, then filter by kind
+        // Label-based search first; falls back to active-knowledge
+        // listing when no labels surface (or the label search misses).
         let mut entries = if !possible_labels.is_empty() {
             let mut results = self
                 .knowledge_store
                 .search_knowledge_by_labels(ontology_name, version, &possible_labels, 20)
                 .await
                 .unwrap_or_default();
-            // Apply kind filter post-query
             results.retain(|e| kinds.contains(&e.kind.as_str()));
             results.truncate(10);
             results
@@ -89,7 +98,6 @@ impl SchemaTool for ConsultKnowledgeTool {
             vec![]
         };
 
-        // Fallback to list_active_knowledge if label search returned nothing
         if entries.is_empty() {
             entries = self
                 .knowledge_store
@@ -98,9 +106,9 @@ impl SchemaTool for ConsultKnowledgeTool {
                 .unwrap_or_default();
         }
 
-        // Telemetry — surfacing the failure as a tool error would
-        // be more disruptive than the missed metric, but a silent
-        // drop hides DB outages from operators.
+        // Surface usage so the FE quality dashboard sees coverage.
+        // Telemetry — a DB blip should not fail the tool, but a silent
+        // drop would hide outages, so the warn-log keeps the signal.
         let ids: Vec<uuid::Uuid> = entries.iter().map(|e| e.id).collect();
         if let Err(error) = self.knowledge_store.record_knowledge_usage(&ids).await {
             tracing::warn!(?error, hits = ids.len(), "knowledge usage record failed");
@@ -118,10 +126,9 @@ impl SchemaTool for ConsultKnowledgeTool {
             .collect();
 
         let total = hits.len();
-        let output = ConsultKnowledgeOutput {
+        Ok(ConsultKnowledgeOutput {
             entries: hits,
             total,
-        };
-        ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
+        })
     }
 }

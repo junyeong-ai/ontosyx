@@ -1,17 +1,13 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use branchforge::tools::ExecutionContext;
-use branchforge::{SchemaTool, ToolResult};
+use entelix::tools::ToolEffect;
+use entelix::{AgentContext, SchemaTool};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::DomainContext;
-
-// ---------------------------------------------------------------------------
-// EditOntologyTool — generate atomic OntologyCommand operations
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct EditOntologyInput {
@@ -20,8 +16,9 @@ pub struct EditOntologyInput {
 }
 
 #[derive(Debug, Serialize)]
-struct EditOntologyOutput {
+pub struct EditOntologyOutput {
     commands: serde_json::Value,
+    command_count: usize,
     explanation: String,
 }
 
@@ -35,40 +32,49 @@ pub struct EditOntologyTool {
 #[async_trait]
 impl SchemaTool for EditOntologyTool {
     type Input = EditOntologyInput;
+    type Output = EditOntologyOutput;
     const NAME: &'static str = super::EDIT_ONTOLOGY;
-    const DESCRIPTION: &'static str = "Generate atomic edit commands (add/remove/rename nodes, edges, properties, constraints, indexes). \
-         Returns a preview; the user must approve before apply_ontology runs.";
 
-    async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
-        let ontology = match self.domain.current_ontology() {
-            Some(o) => o,
-            None => {
-                return ToolResult::error(
-                    "No ontology loaded. Create an ontology draft from a data source first.",
-                );
-            }
-        };
+    fn description(&self) -> &str {
+        "Generate atomic edit commands (add/remove/rename nodes, edges, properties, constraints, indexes). \
+         Returns a preview; the user must approve before apply_ontology runs."
+    }
 
-        let output = match self
+    // Edit generation does not mutate the store — it returns a preview;
+    // `apply_ontology` is the dedicated mutator. The edit step is
+    // therefore read-only with respect to ontology state.
+    fn effect(&self) -> ToolEffect {
+        ToolEffect::ReadOnly
+    }
+
+    async fn execute(
+        &self,
+        input: Self::Input,
+        ctx: &AgentContext<()>,
+    ) -> entelix::Result<Self::Output> {
+        let ontology = self.domain.current_ontology().ok_or_else(|| {
+            entelix::Error::invalid_request(
+                "No ontology loaded. Create an ontology draft from a data source first.",
+            )
+        })?;
+
+        let output = self
             .brain
-            .generate_edit_commands(&ontology, &input.request)
+            .generate_edit_commands(&ontology, &input.request, ctx.core())
             .await
-        {
-            Ok(o) => o,
-            Err(e) => return ToolResult::error(format!("Edit generation failed: {e}")),
-        };
+            .map_err(|e| entelix::Error::invalid_request(format!("Edit generation failed: {e}")))?;
 
+        let command_count = output.commands.len();
         info!(
             request = %input.request,
-            commands = output.commands.len(),
+            commands = command_count,
             "Edit commands generated"
         );
 
-        let result = EditOntologyOutput {
+        Ok(EditOntologyOutput {
             commands: serde_json::to_value(&output.commands).unwrap_or_default(),
+            command_count,
             explanation: output.explanation,
-        };
-
-        ToolResult::success(serde_json::to_string_pretty(&result).unwrap_or_default())
+        })
     }
 }

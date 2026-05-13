@@ -1,5 +1,4 @@
-//! `resolve_ambiguity` agent tool — closes the detector-resolver loop
-//! the patent 1-pager promises.
+//! `resolve_ambiguity` agent tool — closes the detector-resolver loop.
 //!
 //! The source analyzer publishes [`ox_ontology::ambiguity::AmbiguityContext`]
 //! rows into `ambiguity_contexts`. When the agent (or the admin via UI)
@@ -12,8 +11,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use branchforge::tools::ExecutionContext;
-use branchforge::{SchemaTool, ToolResult};
+use entelix::tools::ToolEffect;
+use entelix::{AgentContext, SchemaTool};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -63,15 +62,15 @@ pub struct ResolveAmbiguityValueEntry {
 }
 
 #[derive(Debug, Serialize)]
-struct ResolveAmbiguityOutput {
+pub struct ResolveAmbiguityOutput {
     active: bool,
 }
 
 pub struct ResolveAmbiguityTool {
     pub ambiguity_store: Arc<dyn AmbiguityStore>,
-    /// Shared "session → last-resolve-ts" map. A successful resolution
-    /// stamps the caller's `ctx.session_id()`; the next `query_graph`
-    /// invocation in the same session reads the stamp within a ~10
+    /// Shared "thread → last-resolve-ts" map. A successful resolution
+    /// stamps the caller's `ctx.thread_id()`; the next `query_graph`
+    /// invocation in the same thread reads the stamp within a ~10
     /// minute window to flip the `ambiguity_was_clarified` signal
     /// that drives the `clarification_success_rate` tile.
     pub clarification_tracker: crate::clarification_tracker::SharedClarificationTracker,
@@ -80,38 +79,48 @@ pub struct ResolveAmbiguityTool {
 #[async_trait]
 impl SchemaTool for ResolveAmbiguityTool {
     type Input = ResolveAmbiguityInput;
+    type Output = ResolveAmbiguityOutput;
     const NAME: &'static str = super::RESOLVE_AMBIGUITY;
-    const DESCRIPTION: &'static str = "Record an interpretation for an ambiguous source column the detector flagged. \
+
+    fn description(&self) -> &str {
+        "Record an interpretation for an ambiguous source column the detector flagged. \
          Provide the context_id (from the source analysis report or from an \
          `ambiguity` QueryDiagnostic) plus a mapping — either a `value_map` with \
          explicit value→display entries, a `code_system_ref` pointing at an \
          existing CodeSystem, or a `concept_ref` pointing at a canonical Concept. \
          Creating a new resolution revokes any previously active one on the same \
-         context; the chain is preserved for audit.";
-    const READ_ONLY: bool = false;
+         context; the chain is preserved for audit."
+    }
 
-    async fn handle(&self, input: Self::Input, exec_ctx: &ExecutionContext) -> ToolResult {
+    fn effect(&self) -> ToolEffect {
+        ToolEffect::Mutating
+    }
+
+    async fn execute(
+        &self,
+        input: Self::Input,
+        ctx: &AgentContext<()>,
+    ) -> entelix::Result<Self::Output> {
         let context_id = AmbiguityId::new(input.context_id.clone());
         // Verify context exists up-front so we give the caller a clear
         // "no such context" error instead of a FK violation on insert.
-        let ambig_ctx = match self
+        let ambig_ctx = self
             .ambiguity_store
             .get_ambiguity_context(&context_id)
             .await
-        {
-            Ok(Some(c)) => c,
-            Ok(None) => {
-                return ToolResult::error(format!(
+            .map_err(|e| {
+                entelix::Error::invalid_request(format!(
+                    "Failed to look up ambiguity context: {e:?}"
+                ))
+            })?
+            .ok_or_else(|| {
+                entelix::Error::invalid_request(format!(
                     "No ambiguity context found for id `{}`. Call \
                      `introspect_source` or consult the analysis report to find \
                      the correct context_id.",
                     input.context_id
-                ));
-            }
-            Err(e) => {
-                return ToolResult::error(format!("Failed to look up ambiguity context: {e:?}"));
-            }
-        };
+                ))
+            })?;
 
         let mapping = match input.mapping {
             ResolveAmbiguityMapping::ValueMap { entries } => AmbiguityMapping::ValueMap {
@@ -140,24 +149,23 @@ impl SchemaTool for ResolveAmbiguityTool {
             mapping,
         );
 
-        match self
+        let saved = self
             .ambiguity_store
             .create_ambiguity_resolution(resolution)
             .await
-        {
-            Ok(saved) => {
-                // Stamp "this session just clarified" so the next
-                // `query_graph` in the same branchforge session
-                // counts toward the clarification_success_rate tile.
-                self.clarification_tracker.record(exec_ctx.session_id());
-                ToolResult::success(
-                    serde_json::to_string_pretty(&ResolveAmbiguityOutput {
-                        active: saved.revoked_at.is_none(),
-                    })
-                    .unwrap_or_default(),
-                )
-            }
-            Err(e) => ToolResult::error(format!("Failed to save resolution: {e:?}")),
-        }
+            .map_err(|e| {
+                entelix::Error::invalid_request(format!("Failed to save resolution: {e:?}"))
+            })?;
+
+        // Stamp "this thread just clarified" so the next `query_graph`
+        // in the same conversation counts toward the
+        // clarification_success_rate tile. Falls back to the run id
+        // when no thread is bound (single-shot dispatch).
+        let scope_id = ctx.thread_id().or_else(|| ctx.run_id());
+        self.clarification_tracker.record(scope_id);
+
+        Ok(ResolveAmbiguityOutput {
+            active: saved.revoked_at.is_none(),
+        })
     }
 }

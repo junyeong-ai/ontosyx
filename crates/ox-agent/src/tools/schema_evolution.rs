@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use branchforge::tools::ExecutionContext;
-use branchforge::{SchemaTool, ToolResult};
+use entelix::tools::ToolEffect;
+use entelix::{AgentContext, SchemaTool};
 use ox_core::source_schema::SourceSchema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -29,8 +29,27 @@ pub enum EvolutionAction {
     SuggestUpdates,
 }
 
+/// Discriminated output — `detect_drift` returns the full `DriftReport`,
+/// `suggest_updates` returns either `NoDrift` (when source and ontology
+/// are in sync) or `Suggestions` carrying actionable change proposals.
 #[derive(Debug, Serialize)]
-struct DriftReport {
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SchemaEvolutionOutput {
+    Drift(DriftReport),
+    NoDrift {
+        message: String,
+        schema_checksum: String,
+    },
+    Suggestions {
+        drift_summary: DriftSummary,
+        schema_checksum: String,
+        suggestions: Vec<String>,
+        suggestion_count: usize,
+    },
+}
+
+#[derive(Debug, Serialize)]
+pub struct DriftReport {
     /// Tables in source but not mapped to any ontology node
     unmapped_tables: Vec<String>,
     /// Ontology nodes whose source table no longer exists
@@ -49,20 +68,20 @@ struct DriftReport {
 }
 
 #[derive(Debug, Serialize)]
-struct UnmappedColumn {
+pub struct UnmappedColumn {
     table: String,
     column: String,
     data_type: String,
 }
 
 #[derive(Debug, Serialize)]
-struct OrphanedProperty {
+pub struct OrphanedProperty {
     node_label: String,
     property_name: String,
 }
 
 #[derive(Debug, Serialize)]
-struct TypeMismatch {
+pub struct TypeMismatch {
     table: String,
     column: String,
     source_type: String,
@@ -72,7 +91,7 @@ struct TypeMismatch {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum TypeCompatibility {
+pub enum TypeCompatibility {
     /// Safe widening — no data loss (e.g., source int → ontology float)
     WideningSafe,
     /// Incompatible — potential data loss or semantic mismatch (e.g., source int → ontology bool)
@@ -80,7 +99,7 @@ enum TypeCompatibility {
 }
 
 #[derive(Debug, Serialize)]
-struct DriftSummary {
+pub struct DriftSummary {
     total_source_tables: usize,
     total_ontology_nodes: usize,
     unmapped_table_count: usize,
@@ -98,46 +117,46 @@ pub struct SchemaEvolutionTool {
 #[async_trait]
 impl SchemaTool for SchemaEvolutionTool {
     type Input = SchemaEvolutionInput;
+    type Output = SchemaEvolutionOutput;
     const NAME: &'static str = super::SCHEMA_EVOLUTION;
-    const DESCRIPTION: &'static str = "Detect schema drift between source database and ontology. \
+
+    fn description(&self) -> &str {
+        "Detect schema drift between source database and ontology. \
          'detect_drift' compares source tables/columns against nodes/properties; \
          'suggest_updates' proposes ontology changes. \
-         Call on schema changes, new tables, or data model evolution.";
+         Call on schema changes, new tables, or data model evolution."
+    }
 
-    async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
-        let schema = match &self.domain.source_schema {
-            Some(s) => s,
-            None => {
-                return ToolResult::error(
-                    "No source schema available. Open an ontology draft with a connected data source first.",
-                );
-            }
-        };
-        let ontology = match self.domain.current_ontology() {
-            Some(o) => o,
-            None => return ToolResult::error("No ontology loaded. Design an ontology first."),
-        };
+    fn effect(&self) -> ToolEffect {
+        ToolEffect::ReadOnly
+    }
 
-        match input.action {
-            EvolutionAction::DetectDrift => {
-                let report = detect_drift(schema, &ontology);
-                ToolResult::success(serde_json::to_string_pretty(&report).unwrap_or_default())
-            }
+    async fn execute(
+        &self,
+        input: Self::Input,
+        _ctx: &AgentContext<()>,
+    ) -> entelix::Result<Self::Output> {
+        let schema = self.domain.source_schema.as_ref().ok_or_else(|| {
+            entelix::Error::invalid_request(
+                "No source schema available. Open an ontology draft with a connected data source first.",
+            )
+        })?;
+        let ontology = self.domain.current_ontology().ok_or_else(|| {
+            entelix::Error::invalid_request("No ontology loaded. Design an ontology first.")
+        })?;
+
+        let report = detect_drift(schema, &ontology);
+        Ok(match input.action {
+            EvolutionAction::DetectDrift => SchemaEvolutionOutput::Drift(report),
             EvolutionAction::SuggestUpdates => {
-                let report = detect_drift(schema, &ontology);
                 if !report.summary.drift_detected {
-                    return ToolResult::success(
-                        serde_json::json!({
-                            "status": "no_drift",
-                            "message": "Source schema and ontology are in sync. No updates needed.",
-                            "schema_checksum": report.schema_checksum,
-                        })
-                        .to_string(),
-                    );
+                    return Ok(SchemaEvolutionOutput::NoDrift {
+                        message: "Source schema and ontology are in sync. No updates needed."
+                            .to_owned(),
+                        schema_checksum: report.schema_checksum,
+                    });
                 }
-
                 let mut suggestions: Vec<String> = Vec::new();
-
                 for table in &report.unmapped_tables {
                     suggestions.push(format!(
                         "ADD NODE: Create '{}' node type from unmapped source table '{}'",
@@ -145,7 +164,6 @@ impl SchemaTool for SchemaEvolutionTool {
                         table
                     ));
                 }
-
                 for node in &report.orphaned_nodes {
                     suggestions.push(format!(
                         "REVIEW NODE: '{}' node has no matching source table. \
@@ -153,14 +171,12 @@ impl SchemaTool for SchemaEvolutionTool {
                         node
                     ));
                 }
-
                 for col in &report.unmapped_columns {
                     suggestions.push(format!(
                         "ADD PROPERTY: Add '{}' ({}) property to node mapped from table '{}'",
                         col.column, col.data_type, col.table
                     ));
                 }
-
                 for prop in &report.orphaned_properties {
                     suggestions.push(format!(
                         "REVIEW PROPERTY: '{}' on node '{}' has no matching source column. \
@@ -168,7 +184,6 @@ impl SchemaTool for SchemaEvolutionTool {
                         prop.property_name, prop.node_label
                     ));
                 }
-
                 for tm in &report.type_mismatches {
                     let severity = match tm.compatibility {
                         TypeCompatibility::Breaking => "BREAKING TYPE CHANGE",
@@ -179,16 +194,15 @@ impl SchemaTool for SchemaEvolutionTool {
                         tm.table, tm.column, tm.source_type, tm.ontology_type,
                     ));
                 }
-
-                let output = serde_json::json!({
-                    "drift_summary": report.summary,
-                    "schema_checksum": report.schema_checksum,
-                    "suggestions": suggestions,
-                    "suggestion_count": suggestions.len(),
-                });
-                ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
+                let suggestion_count = suggestions.len();
+                SchemaEvolutionOutput::Suggestions {
+                    drift_summary: report.summary,
+                    schema_checksum: report.schema_checksum,
+                    suggestions,
+                    suggestion_count,
+                }
             }
-        }
+        })
     }
 }
 

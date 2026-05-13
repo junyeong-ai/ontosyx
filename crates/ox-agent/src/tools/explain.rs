@@ -1,21 +1,25 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use branchforge::tools::ExecutionContext;
-use branchforge::{SchemaTool, ToolResult};
+use entelix::tools::ToolEffect;
+use entelix::{AgentContext, SchemaTool};
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::DomainContext;
-
-// ---------------------------------------------------------------------------
-// ExplainOntologyTool — explain ontology concepts with data context
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ExplainInput {
     /// What to explain — a concept, relationship, or pattern question.
     pub question: String,
+}
+
+/// Plain-text explanation surface — the LLM rendered the answer for the
+/// user; the field is the body verbatim, no further parsing on the
+/// agent side.
+#[derive(Debug, Serialize)]
+pub struct ExplainOutput {
+    pub explanation: String,
 }
 
 /// Provides explanations about the ontology structure, node/edge relationships,
@@ -29,12 +33,23 @@ pub struct ExplainOntologyTool {
 #[async_trait]
 impl SchemaTool for ExplainOntologyTool {
     type Input = ExplainInput;
+    type Output = ExplainOutput;
     const NAME: &'static str = super::EXPLAIN_ONTOLOGY;
-    const DESCRIPTION: &'static str = "Explain ontology concepts, relationships, and data patterns. \
-         Use for 'what is', 'explain', 'describe' questions — live graph stats when a runtime is available.";
-    const READ_ONLY: bool = true;
 
-    async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
+    fn description(&self) -> &str {
+        "Explain ontology concepts, relationships, and data patterns. \
+         Use for 'what is', 'explain', 'describe' questions — live graph stats when a runtime is available."
+    }
+
+    fn effect(&self) -> ToolEffect {
+        ToolEffect::ReadOnly
+    }
+
+    async fn execute(
+        &self,
+        input: Self::Input,
+        ctx: &AgentContext<()>,
+    ) -> entelix::Result<Self::Output> {
         let mut context = String::new();
 
         if let Some(ontology) = self.domain.current_ontology() {
@@ -62,7 +77,7 @@ impl SchemaTool for ExplainOntologyTool {
                 ontology.name,
             ));
 
-            // Fetch live graph statistics if runtime is available (timeout: 15s)
+            // Fetch live graph statistics when a runtime is wired (15-second cap).
             if let Some(runtime) = &self.domain.runtime {
                 let empty_params = std::collections::HashMap::new();
                 match tokio::time::timeout(
@@ -97,17 +112,16 @@ impl SchemaTool for ExplainOntologyTool {
             input.question
         ));
 
-        let output = match tokio::time::timeout(
+        let output = tokio::time::timeout(
             std::time::Duration::from_secs(120),
-            self.brain.explain(&context),
+            self.brain.explain(&context, ctx.core()),
         )
         .await
-        {
-            Ok(Ok(o)) => o,
-            Ok(Err(e)) => return ToolResult::error(format!("Explanation failed: {e}")),
-            Err(_) => return ToolResult::error("Explanation timed out after 120 seconds"),
-        };
+        .map_err(|_| entelix::Error::invalid_request("Explanation timed out after 120 seconds"))?
+        .map_err(|e| entelix::Error::invalid_request(format!("Explanation failed: {e}")))?;
 
-        ToolResult::success(output.content)
+        Ok(ExplainOutput {
+            explanation: output.content,
+        })
     }
 }
