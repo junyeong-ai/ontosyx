@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ---- Cargo Chef Base ----
-FROM rust:1.95-bookworm AS chef
+FROM rust:1.97-bookworm AS chef
 
 WORKDIR /app
 
